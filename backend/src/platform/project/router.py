@@ -19,8 +19,8 @@ from src.platform.project.schemas import (
     AddProjectMember,
     UpdateProjectMemberRole,
 )
-from src.mut_engine.dependencies import get_tree_reader
-from src.mut_engine.tree_reader import MutTreeReader
+from src.mut_engine.dependencies import get_mut_ops
+from src.mut_engine.ops import MutOps
 from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
@@ -38,7 +38,7 @@ router = APIRouter(
 
 
 def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
-    """将 Project 转换为 ProjectOut（使用 MutTreeReader entries）"""
+    """将 Project 转换为 ProjectOut（使用 MutOps entries）"""
     node_infos = []
     if entries:
         for entry in entries:
@@ -70,7 +70,7 @@ def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
 def list_projects(
     org_id: Optional[str] = Query(None, description="组织ID（不传则返回用户所有组织的项目）"),
     project_service: ProjectService = Depends(get_project_service),
-    tree_reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     oids = resolve_org_ids(org_id, current_user.user_id)
@@ -81,7 +81,7 @@ def list_projects(
 
     result = []
     for p in all_projects:
-        entries = tree_reader.list_dir(str(p.id), "")
+        entries = ops.list_dir(str(p.id), "")
         result.append(_convert_to_project_out(p, entries))
     return ApiResponse.success(data=result, message="项目列表获取成功")
 
@@ -96,10 +96,10 @@ def list_projects(
 )
 def get_project(
     project: Project = Depends(get_verified_project),
-    tree_reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    entries = tree_reader.list_dir(str(project.id), "")
+    entries = ops.list_dir(str(project.id), "")
     return ApiResponse.success(
         data=_convert_to_project_out(project, entries), message="项目获取成功"
     )
@@ -116,7 +116,7 @@ def get_project(
 async def create_project(
     payload: ProjectCreate,
     project_service: ProjectService = Depends(get_project_service),
-    tree_reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
@@ -139,7 +139,7 @@ async def create_project(
             project_id=str(project.id),
             created_by=current_user.user_id,
         )
-        entries = tree_reader.list_dir(str(project.id), "")
+        entries = ops.list_dir(str(project.id), "")
 
     return ApiResponse.success(
         data=_convert_to_project_out(project, entries), message="项目创建成功"
@@ -158,7 +158,7 @@ def update_project(
     project: Project = Depends(get_verified_project),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
-    tree_reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     updated_project = project_service.update(
@@ -167,7 +167,7 @@ def update_project(
         description=payload.description,
     )
 
-    entries = tree_reader.list_dir(str(project.id), "")
+    entries = ops.list_dir(str(project.id), "")
     return ApiResponse.success(
         data=_convert_to_project_out(updated_project, entries), message="项目更新成功"
     )

@@ -25,7 +25,7 @@ class StubSyncRepo:
         self.sync_allowed = SimpleNamespace(
             id="sync-allowed",
             project_id="project-allowed",
-            node_id="node-1",
+            path="node-1",
             direction="bidirectional",
             provider="filesystem",
             config={},
@@ -43,7 +43,7 @@ class StubSyncRepo:
         self.sync_other = SimpleNamespace(
             id="sync-other",
             project_id="project-other",
-            node_id="node-2",
+            path="node-2",
             direction="bidirectional",
             provider="filesystem",
             config={},
@@ -200,7 +200,7 @@ def test_bootstrap_openclaw_forbidden_without_project_access(current_user: Curre
     )
     response = client.post(
         "/api/v1/sync/syncs/openclaw/bootstrap",
-        params={"project_id": "project-other", "node_id": "node-2"},
+        params={"project_id": "project-other", "path": "node-2"},
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "No access to this project"

@@ -6,11 +6,11 @@ MutWriteService — PuppyOne 的唯一内容写入入口
   2. 树更新 → Merkle tree (graft)
   3. 版本记录 → SupabaseHistoryManager
   4. 审计日志 → SupabaseAuditManager
-  5. 一致性维护 → post-commit hook (connections node_id + scope path)
+  5. 一致性维护 → post-commit hook (connections path + scope path)
 
 设计原则：
   - Mut tree 是唯一 SOT（内容 + 树结构）
-  - connections.node_id 和 scope.path 通过 post-commit 保持一致
+  - connections.path 和 scope.path 通过 post-commit 保持一致
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ class MutWriteService:
     def _post_commit_delete(self, project_id: str, deleted_paths: list[str]) -> None:
         """After deleting paths from MUT tree, clean up dangling connections.
 
-        Nullifies node_id on connections that referenced deleted paths.
+        Nullifies path on connections that referenced deleted paths.
         Also updates scope.path if it falls under a deleted subtree.
         """
         if not deleted_paths:
@@ -57,19 +57,19 @@ class MutWriteService:
             client = self._get_supabase_client().client
             resp = (
                 client.table("connections")
-                .select("id, node_id, config")
+                .select("id, path, config")
                 .eq("project_id", project_id)
                 .execute()
             )
             for row in resp.data or []:
-                node_id = row.get("node_id") or ""
+                node_path = row.get("path") or ""
                 conn_id = row["id"]
 
-                if node_id and self._path_matches_any(node_id, deleted_paths):
+                if node_path and self._path_matches_any(node_path, deleted_paths):
                     client.table("connections").update(
-                        {"node_id": None}
+                        {"path": None}
                     ).eq("id", conn_id).execute()
-                    log_info(f"[PostCommit] Cleared dangling node_id on connection {conn_id}")
+                    log_info(f"[PostCommit] Cleared dangling path on connection {conn_id}")
 
                 config = row.get("config") or {}
                 scope = config.get("scope") or {}
@@ -91,19 +91,19 @@ class MutWriteService:
             client = self._get_supabase_client().client
             resp = (
                 client.table("connections")
-                .select("id, node_id, config")
+                .select("id, path, config")
                 .eq("project_id", project_id)
                 .execute()
             )
             for row in resp.data or []:
-                node_id = row.get("node_id") or ""
+                node_path = row.get("path") or ""
                 conn_id = row["id"]
                 updates: dict = {}
 
-                if node_id:
-                    new_node_id = self._rewrite_path(node_id, old_prefix, new_prefix)
-                    if new_node_id != node_id:
-                        updates["node_id"] = new_node_id
+                if node_path:
+                    new_node_path = self._rewrite_path(node_path, old_prefix, new_prefix)
+                    if new_node_path != node_path:
+                        updates["path"] = new_node_path
 
                 config = row.get("config") or {}
                 scope = config.get("scope") or {}

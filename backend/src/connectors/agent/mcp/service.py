@@ -114,7 +114,7 @@ class McpV3Service:
                     name=tool.name,
                     type=tool.type,
                     description=tool.description,
-                    node_id=tool.node_id,
+                    path=tool.path,
                     json_path=tool.json_path,
                     enabled=at.enabled,
                     mcp_exposed=at.mcp_exposed,

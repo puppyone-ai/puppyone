@@ -36,7 +36,7 @@ def _row_to_task(row: dict[str, Any]) -> SearchIndexTask:
         tool_id=config.get("tool_id", row["id"]),
         user_id=row.get("user_id"),
         project_id=row.get("project_id"),
-        node_id=row.get("node_id") or "",
+        path=row.get("path") or "",
         json_path=config.get("json_path", ""),
         status=_STATUS_FROM_UPLOADS.get(row.get("status", ""), "pending"),
         started_at=row.get("started_at"),
@@ -45,7 +45,7 @@ def _row_to_task(row: dict[str, Any]) -> SearchIndexTask:
         chunks_count=result.get("chunks_count"),
         indexed_chunks_count=result.get("indexed_chunks_count"),
         last_error=row.get("error"),
-        folder_node_id=config.get("folder_node_id"),
+        folder_path=config.get("folder_path"),
         total_files=result.get("total_files"),
         indexed_files=result.get("indexed_files"),
     )
@@ -81,8 +81,8 @@ class SearchIndexTaskRepository:
             config: dict[str, Any] = {"tool_id": task.tool_id}
             if task.json_path:
                 config["json_path"] = task.json_path
-            if task.folder_node_id:
-                config["folder_node_id"] = task.folder_node_id
+            if task.folder_path:
+                config["folder_path"] = task.folder_path
 
             result: dict[str, Any] = {}
             for key in (
@@ -106,7 +106,7 @@ class SearchIndexTaskRepository:
             payload: dict[str, Any] = {
                 "id": task.tool_id,
                 "type": _TYPE,
-                "node_id": task.node_id,
+                "path": task.path,
                 "config": config,
                 "status": status,
                 "progress": progress,

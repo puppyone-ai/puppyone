@@ -167,7 +167,7 @@ async def log_llm_call(
 
 # Legacy function for context access (kept for backward compatibility)
 async def log_context_access(
-    node_id: str,
+    path: str,
     node_type: Optional[str] = None,
     node_name: Optional[str] = None,
     user_id: Optional[str] = None,
@@ -183,7 +183,7 @@ async def log_context_access(
         supabase = get_supabase_client()
         
         supabase.table("access_logs").insert({
-            "node_id": node_id,
+            "path": path,
             "node_type": node_type,
             "node_name": node_name,
             "user_id": user_id,
@@ -192,7 +192,7 @@ async def log_context_access(
             "project_id": project_id,
         }).execute()
         
-        logger.debug(f"[access_log] Logged access: node={node_id}, agent={agent_id}")
+        logger.debug(f"[access_log] Logged access: path={path}, agent={agent_id}")
         
     except Exception as e:
         logger.warning(f"[access_log] Failed to log access: {e}")

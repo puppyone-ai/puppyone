@@ -33,7 +33,7 @@ export interface CreateSyncRequest {
   project_id: string;
   provider: string;
   config: Record<string, unknown>;
-  target_folder_node_id: string;
+  target_folder_path: string;
   credentials_ref?: string;
   direction?: string;
   conflict_strategy?: string;
@@ -45,7 +45,7 @@ export interface CreateSyncResult {
   sync: {
     id: string;
     project_id: string;
-    node_id: string | null;
+    path: string | null;
     direction: string;
     provider: string;
     config: Record<string, unknown>;
@@ -55,7 +55,7 @@ export interface CreateSyncResult {
   };
   execution_result?: {
     sync_id: string;
-    node_id: string;
+    path: string;
     provider: string;
     version: number;
     status: string;

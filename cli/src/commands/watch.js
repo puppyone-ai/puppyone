@@ -565,7 +565,7 @@ async function pullSyncFiles(api, conn, out) {
         const hash = createHash("sha256").update(contentStr, "utf-8").digest("hex");
 
         ackItems.push({
-          node_id: file.node_id,
+          path: file.path,
           version: file.current_version,
           remote_hash: hash,
         });
@@ -580,7 +580,9 @@ async function pullSyncFiles(api, conn, out) {
       await api.post(`/sync/sources/${conn.source_id}/ack-pull`, { items: ackItems });
     }
   } catch (e) {
-    out.info(`  ✗ realtime pull: ${e.message}`);
+    if (!(e instanceof ApiError && e.status === 0)) {
+      out.info(`  ✗ pull: ${e.message}`);
+    }
   }
 }
 
@@ -638,7 +640,7 @@ async function reconcile(api, conn, out) {
         }
         writeFileSync(localPath, contentStr, "utf-8");
         const hash = createHash("sha256").update(contentStr, "utf-8").digest("hex");
-        ackItems.push({ node_id: file.node_id, version: file.current_version, remote_hash: hash });
+        ackItems.push({ path: file.path, version: file.current_version, remote_hash: hash });
         out.info(`    ↓ pulled: ${file.external_resource_id}`);
         result.pulled++;
       } catch (e) {
@@ -779,7 +781,7 @@ async function pollRemote(api, conn, out) {
         const hash = createHash("sha256").update(contentStr, "utf-8").digest("hex");
 
         ackItems.push({
-          node_id: file.node_id,
+          path: file.path,
           version: file.current_version,
           remote_hash: hash,
         });

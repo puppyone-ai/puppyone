@@ -8,7 +8,7 @@ Agent — 沙盒数据准备
 
 职责：根据 access point 的节点类型，准备要挂载到沙盒的文件列表。
 
-NOTE: 使用 MutTreeReader 直接从 Mut Merkle tree 读取，不依赖 content_nodes (PG)。
+NOTE: 使用 MutOps 直接从 Mut Merkle tree 读取，不依赖 content_nodes (PG)。
 """
 
 import json
@@ -25,7 +25,7 @@ class SandboxFile:
     content: str | None = None
     s3_key: str | None = None
     content_type: str = "application/octet-stream"
-    node_id: str | None = None
+    mut_path: str | None = None
     node_type: str | None = None
     base_version: int = 0
 
@@ -35,13 +35,13 @@ class SandboxData:
     """沙盒数据"""
     files: list[SandboxFile] = field(default_factory=list)
     node_type: str = "json"
-    root_node_id: str = ""
+    root_path: str = ""
     root_node_name: str = ""
     node_path_map: dict = field(default_factory=dict)
 
 
 async def prepare_sandbox_data(
-    tree_reader,
+    ops,
     project_id: str,
     path: str,
     json_path: str | None,
@@ -56,13 +56,13 @@ async def prepare_sandbox_data(
     - file/pdf/image/etc: 单个文件信息
 
     Args:
-        tree_reader: MutTreeReader instance
+        ops: MutOps instance
         project_id: project UUID
         path: Mut tree path (e.g. "my-folder" or "data.json")
         json_path: optional JSON Pointer sub-path
         user_id: current user id (for logging)
     """
-    entry = tree_reader.stat(project_id, path)
+    entry = ops.stat(project_id, path)
     if not entry:
         raise ValueError(f"Path not found: {path}")
 
@@ -73,7 +73,7 @@ async def prepare_sandbox_data(
     node_name = entry.name or path.rsplit("/", 1)[-1]
 
     if node_type == "json":
-        raw = tree_reader.read_file(project_id, path)
+        raw = ops.read_file(project_id, path)
         try:
             content = json.loads(raw.decode("utf-8"))
         except Exception:
@@ -85,13 +85,13 @@ async def prepare_sandbox_data(
             path="/workspace/data.json",
             content=json.dumps(content, ensure_ascii=False, indent=2),
             content_type="application/json",
-            node_id=path,
+            mut_path=path,
             node_type="json",
         ))
         logger.info(f"[prepare_sandbox_data] JSON node, content size={len(str(content))}")
 
     elif node_type == "folder":
-        children = tree_reader.list_tree(project_id, path)
+        children = ops.list_tree(project_id, path)
         logger.info(f"[prepare_sandbox_data] Folder node, children count={len(children)}")
 
         folder_name = node_name or "data"
@@ -109,7 +109,7 @@ async def prepare_sandbox_data(
 
             if child.type == "json":
                 try:
-                    child_raw = tree_reader.read_file(project_id, child.path)
+                    child_raw = ops.read_file(project_id, child.path)
                     child_json = json.loads(child_raw.decode("utf-8"))
                 except Exception:
                     child_json = {}
@@ -117,12 +117,12 @@ async def prepare_sandbox_data(
                     path=f"/workspace/{relative_path}",
                     content=json.dumps(child_json, ensure_ascii=False, indent=2),
                     content_type="application/json",
-                    node_id=child.path,
+                    mut_path=child.path,
                     node_type="json",
                 ))
             elif child.type == "markdown":
                 try:
-                    child_raw = tree_reader.read_file(project_id, child.path)
+                    child_raw = ops.read_file(project_id, child.path)
                     child_text = child_raw.decode("utf-8", errors="replace")
                 except Exception:
                     child_text = None
@@ -132,7 +132,7 @@ async def prepare_sandbox_data(
                         path=f"/workspace/{md_path}",
                         content=child_text,
                         content_type="text/markdown",
-                        node_id=child.path,
+                        mut_path=child.path,
                         node_type="markdown",
                     ))
             elif child.content_hash:
@@ -140,14 +140,14 @@ async def prepare_sandbox_data(
                     path=f"/workspace/{relative_path}",
                     s3_key=None,
                     content_type=child.mime_type or "application/octet-stream",
-                    node_id=child.path,
+                    mut_path=child.path,
                     node_type=child.type or "file",
                 ))
     else:
         file_name = node_name or "file"
 
         try:
-            raw = tree_reader.read_file(project_id, path)
+            raw = ops.read_file(project_id, path)
             fallback_json = json.loads(raw.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError):
             fallback_json = None
@@ -172,7 +172,7 @@ async def prepare_sandbox_data(
     return SandboxData(
         files=files,
         node_type=node_type,
-        root_node_id=path,
+        root_path=path,
         root_node_name=node_name,
     )
 

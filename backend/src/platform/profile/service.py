@@ -166,17 +166,12 @@ class ProfileService:
         """
         在 Demo Project 中创建预置内容
 
-        All writes go through MUT protocol (MutEphemeralClient).
+        All writes go through MUT protocol (MutOps).
         """
-        from src.mut_engine.dependencies import create_ephemeral_client
+        from src.mut_engine.dependencies import create_mut_ops
         import json as json_mod
 
-        auth_ctx = {
-            "agent": f"onboarding:{user_id}",
-            "_scope": {"id": "_onboarding", "path": "", "exclude": [], "mode": "rw"},
-        }
-        client = create_ephemeral_client(project_id, auth_ctx)
-        client.clone()
+        ops = create_mut_ops()
 
         welcome_content = """# Welcome to PuppyOne! 🐕
 
@@ -293,10 +288,10 @@ Output format: Markdown
                 "Q1_Budget_Data.json": json_mod.dumps(json_content, ensure_ascii=False, indent=2).encode("utf-8"),
             }
 
-            client.push(
-                modified=files,
+            await ops.bulk_write(
+                project_id, files,
+                who=f"onboarding:{user_id}",
                 message="onboarding demo content",
-                who=user_id,
             )
 
             log_info(f"Demo content created for project {project_id}")

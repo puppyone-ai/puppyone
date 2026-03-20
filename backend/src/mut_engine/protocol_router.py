@@ -1,12 +1,12 @@
 """
-MUT Protocol Router — clone/push/pull/negotiate 端点
+MUT Protocol Router — MutOps 的 MUT 线协议 HTTP 外壳
 
-将 MUT 原生 HTTP 同步协议暴露给 PuppyOne 客户端:
-  - Agent 通过 `mut clone/push/pull` 操作内容树
-  - 本地文件夹同步通过 MUT 协议替代 OpenClaw
-  - Sandbox 通过 `mut clone` 加载文件，`mut push` 写回
+将 MUT 原生 HTTP 同步协议暴露给外部客户端:
+  - CLI daemon 通过 clone/push/pull 同步本地文件夹
+  - 远程 MUT client 通过标准协议操作内容树
 
-所有端点使用 PuppyOneServerRepo 适配器，底层 S3 + Supabase。
+MutOps 是唯一的操作入口，本文件只做:
+  HTTP 参数解析 + 认证 + 调用 MutOps.handle_* + 日志
 """
 
 from __future__ import annotations
@@ -16,18 +16,14 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from mut.server.handlers import (
-    handle_clone,
-    handle_push,
-    handle_pull,
-    handle_negotiate,
-)
 from mut.foundation.error import PermissionDenied, LockError
 
 from src.mut_engine.auth import get_mut_auth
-from src.mut_engine.dependencies import get_repo_manager
-from src.mut_engine.repo_manager import MutRepoManager
+from src.mut_engine.ops import MutOps
+from src.mut_engine.dependencies import get_mut_ops
 from src.mut_engine.write_service import MutWriteService
+from src.mut_engine.repo_manager import MutRepoManager
+from src.mut_engine.dependencies import get_repo_manager
 from src.utils.logger import log_info, log_error
 
 router = APIRouter(prefix="/api/v1/mut")
@@ -38,14 +34,13 @@ async def mut_clone(
     project_id: str,
     request: Request,
     auth: dict = Depends(get_mut_auth),
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     """Clone a project scope (like `git clone`)."""
     body = await request.json()
-    server_repo = repo_manager.get_server_repo(project_id)
 
     try:
-        result = await asyncio.to_thread(handle_clone, server_repo, auth, body)
+        result = await asyncio.to_thread(ops.handle_clone, project_id, auth, body)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -61,14 +56,14 @@ async def mut_push(
     project_id: str,
     request: Request,
     auth: dict = Depends(get_mut_auth),
+    ops: MutOps = Depends(get_mut_ops),
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
     """Push changes to server (like `git push`). Includes server-side merge."""
     body = await request.json()
-    server_repo = repo_manager.get_server_repo(project_id)
 
     try:
-        result = await asyncio.to_thread(handle_push, server_repo, auth, body)
+        result = await asyncio.to_thread(ops.handle_push, project_id, auth, body)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
@@ -91,14 +86,13 @@ async def mut_pull(
     project_id: str,
     request: Request,
     auth: dict = Depends(get_mut_auth),
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     """Pull latest changes (like `git pull`)."""
     body = await request.json()
-    server_repo = repo_manager.get_server_repo(project_id)
 
     try:
-        result = await asyncio.to_thread(handle_pull, server_repo, auth, body)
+        result = await asyncio.to_thread(ops.handle_pull, project_id, auth, body)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -117,14 +111,13 @@ async def mut_negotiate(
     project_id: str,
     request: Request,
     auth: dict = Depends(get_mut_auth),
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     """Hash negotiation for object dedup (reduces transfer size)."""
     body = await request.json()
-    server_repo = repo_manager.get_server_repo(project_id)
 
     try:
-        result = await asyncio.to_thread(handle_negotiate, server_repo, auth, body)
+        result = await asyncio.to_thread(ops.handle_negotiate, project_id, auth, body)
     except Exception as e:
         log_error(f"[MUT] negotiate failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
@@ -135,11 +128,7 @@ async def mut_negotiate(
 def _run_post_push_hook(
     project_id: str, repo_manager: MutRepoManager, push_result: dict
 ) -> None:
-    """Run post-commit consistency hook after MUT protocol push.
-
-    Reads the newly created history entry to extract changes,
-    then delegates to MutWriteService's consistency hooks.
-    """
+    """Post-commit consistency hook after MUT protocol push."""
     version = push_result.get("version")
     if not version or push_result.get("status") != "ok":
         return

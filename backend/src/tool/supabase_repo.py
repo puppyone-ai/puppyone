@@ -45,14 +45,14 @@ class ToolRepository:
         skip: int = 0,
         limit: int = 100,
         org_id: Optional[str] = None,
-        node_id: Optional[str] = None,
+        path: Optional[str] = None,
         project_id: Optional[str] = None,
     ) -> List[ToolResponse]:
         query = self._client.table("tools").select("*")
         if org_id is not None:
             query = query.eq("org_id", org_id)
-        if node_id is not None:
-            query = query.eq("node_id", node_id)
+        if path is not None:
+            query = query.eq("path", path)
         if project_id is not None:
             query = query.eq("project_id", project_id)
         response = query.range(skip, skip + limit - 1).execute()

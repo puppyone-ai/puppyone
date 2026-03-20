@@ -69,7 +69,7 @@ class IngestSubmitRequest(BaseModel):
     name: Optional[str] = Field(None, description="Custom name")
     mode: IngestMode = Field(IngestMode.SMART, description="Processing mode")
     rule_id: Optional[int] = Field(None, description="ETL rule ID")
-    node_id: Optional[str] = Field(None, description="Target node ID")
+    path: Optional[str] = Field(None, description="Target MUT path")
     crawl_options: Optional[dict] = Field(None, description="URL crawl options")
     sync_config: Optional[dict] = Field(None, description="Sync configuration")
 
@@ -95,7 +95,7 @@ class IngestSubmitItem(BaseModel):
     status: IngestStatus
     filename: Optional[str] = None
     s3_key: Optional[str] = None
-    node_id: Optional[str] = None  # 创建的节点 ID
+    path: Optional[str] = None
     error: Optional[str] = None
 
 
@@ -115,7 +115,7 @@ class IngestTaskResponse(BaseModel):
     message: Optional[str] = None
     
     # Result
-    content_node_id: Optional[str] = None
+    content_path: Optional[str] = None
     items_count: Optional[int] = None
     
     # Error

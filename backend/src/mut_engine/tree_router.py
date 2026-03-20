@@ -1,9 +1,8 @@
 """
-Tree API — Mut tree 的 REST 接口
+Tree API — MutOps 的 REST HTTP 外壳
 
-所有操作通过 MUT protocol (MutEphemeralClient in-process)。
-读操作: clone()/pull() 获取 scope 下的文件快照
-写操作: clone() → 修改 → push()，走 MUT 完整 conflict detection
+MutOps 是唯一的操作入口，本文件只做:
+  HTTP 参数解析 + 认证 + 调用 MutOps + 格式化响应
 
 端点:
   GET  /ls       — 列出目录内容
@@ -24,19 +23,16 @@ Tree API — Mut tree 的 REST 接口
 
 from __future__ import annotations
 
-import asyncio
 import json as _json
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 
-from src.mut_engine.tree_reader import MutTreeReader, MutEntry
+from src.mut_engine.tree_reader import MutEntry
+from src.mut_engine.ops import MutOps
 from src.mut_engine.dependencies import (
-    get_repo_manager,
-    get_tree_reader,
+    get_mut_ops,
     get_mut_write_service,
 )
-from src.mut_engine.ephemeral_client import MutEphemeralClient
-from src.mut_engine.repo_manager import MutRepoManager
 from src.mut_engine.write_service import MutWriteService
 from src.mut_engine.schemas import (
     WriteFileRequest,
@@ -92,21 +88,8 @@ def _entry_to_response(entry: MutEntry) -> MutEntryResponse:
     )
 
 
-def _make_user_client(
-    repo_manager: MutRepoManager,
-    project_id: str,
-    user_id: str,
-) -> MutEphemeralClient:
-    """Create an ephemeral MUT client for a human user (root rw scope)."""
-    auth = {
-        "agent": f"user:{user_id}",
-        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
-    }
-    return MutEphemeralClient(repo_manager, project_id, auth)
-
-
 # ═══════════════════════════════════════════════
-# 读取 API (via MutTreeReader — lightweight, no clone overhead)
+# 读取 API
 # ═══════════════════════════════════════════════
 
 @router.get(
@@ -117,16 +100,16 @@ def _make_user_client(
 def list_dir(
     project_id: str,
     path: str = Query("", description="目录路径，空 = 根目录"),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
     clean_path = path.strip("/")
 
-    entries = reader.list_dir(project_id, clean_path)
+    entries = ops.list_dir(project_id, clean_path)
     entries = [e for e in entries if not e.path.startswith(".trash/") and e.path != ".trash"]
-    version = reader.get_version(project_id)
+    version = ops.get_version(project_id)
 
     return ApiResponse.success(data=ListDirResponse(
         path=clean_path,
@@ -143,7 +126,7 @@ def list_dir(
 def read_file(
     project_id: str,
     path: str = Query(..., description="文件路径"),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -151,13 +134,13 @@ def read_file(
     clean_path = path.strip("/")
 
     try:
-        content = reader.read_file(project_id, clean_path)
+        content = ops.read_file(project_id, clean_path)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
-    entry = reader.stat(project_id, clean_path)
+    entry = ops.stat(project_id, clean_path)
     node_type = entry.type if entry else "file"
-    version = reader.get_version(project_id)
+    version = ops.get_version(project_id)
 
     content_json = None
     content_text = None
@@ -188,14 +171,14 @@ def read_file(
 def stat(
     project_id: str,
     path: str = Query(..., description="路径"),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
     clean_path = path.strip("/")
 
-    entry = reader.stat(project_id, clean_path)
+    entry = ops.stat(project_id, clean_path)
     if not entry:
         return ApiResponse.success(data=StatResponse(
             path=clean_path,
@@ -225,16 +208,16 @@ def full_tree(
     project_id: str,
     path: str = Query("", description="起始路径"),
     max_depth: int = Query(-1, description="最大递归深度，-1 = 无限"),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
     clean_path = path.strip("/")
 
-    entries = reader.list_tree(project_id, clean_path, max_depth=max_depth)
+    entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
     entries = [e for e in entries if not e.path.startswith(".trash/") and e.path != ".trash"]
-    version = reader.get_version(project_id)
+    version = ops.get_version(project_id)
 
     return ApiResponse.success(data=TreeResponse(
         path=clean_path,
@@ -250,20 +233,20 @@ def full_tree(
 )
 def list_trash(
     project_id: str,
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
 
-    entries = reader.list_dir(project_id, ".trash")
+    entries = ops.list_dir(project_id, ".trash")
     return ApiResponse.success(data=TrashListResponse(
         entries=[_entry_to_response(e) for e in entries],
     ))
 
 
 # ═══════════════════════════════════════════════
-# 写入 API (via MutEphemeralClient — full MUT protocol)
+# 写入 API (via MutOps)
 # ═══════════════════════════════════════════════
 
 @router.post(
@@ -273,7 +256,7 @@ def list_trash(
 async def write_file_endpoint(
     project_id: str,
     body: WriteFileRequest,
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -299,21 +282,17 @@ async def write_file_endpoint(
         else:
             content_bytes = _json.dumps(body.content, ensure_ascii=False).encode("utf-8")
 
-    client = _make_user_client(repo_manager, project_id, current_user.user_id)
-    await asyncio.to_thread(client.clone)
-
-    result = await asyncio.to_thread(
-        client.push,
-        modified={clean_path: content_bytes},
-        message=body.message or f"edit {clean_path}",
+    who = f"user:{current_user.user_id}"
+    result = await ops.write_file(
+        project_id, clean_path, content_bytes,
+        who=who, message=body.message or f"edit {clean_path}",
     )
 
     return ApiResponse.success(data={
-        "version": result.get("version", 0),
+        "version": result.version,
         "path": clean_path,
-        "op": "modified" if clean_path in client.files else "added",
-        "merged": result.get("merged", False),
-        "conflicts": result.get("conflicts", 0),
+        "merged": result.merged,
+        "conflicts": result.conflicts,
     })
 
 
@@ -324,24 +303,14 @@ async def write_file_endpoint(
 async def mkdir(
     project_id: str,
     body: MkdirRequest,
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
-    clean_path = body.path.strip("/")
-    keep_path = f"{clean_path}/.keep"
-
-    client = _make_user_client(repo_manager, project_id, current_user.user_id)
-    await asyncio.to_thread(client.clone)
-
-    result = await asyncio.to_thread(
-        client.push,
-        modified={keep_path: b""},
-        message=f"mkdir {clean_path}",
-    )
-
-    return ApiResponse.success(data={"path": clean_path, "version": result.get("version", 0)})
+    who = f"user:{current_user.user_id}"
+    result = await ops.mkdir(project_id, body.path, who=who)
+    return ApiResponse.success(data={"path": body.path.strip("/"), "version": result.version})
 
 
 @router.post(
@@ -351,50 +320,25 @@ async def mkdir(
 async def move(
     project_id: str,
     body: MoveRequest,
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
-    old_path = body.old_path.strip("/")
-    new_path = body.new_path.strip("/")
+    who = f"user:{current_user.user_id}"
 
-    client = _make_user_client(repo_manager, project_id, current_user.user_id)
-    files = await asyncio.to_thread(client.clone)
-
-    modified: dict[str, bytes] = {}
-    deleted: list[str] = []
-
-    entry = reader.stat(project_id, old_path)
-    if not entry:
-        raise HTTPException(status_code=404, detail=f"Path not found: {old_path}")
-
-    if entry.type == "folder":
-        old_prefix = old_path + "/"
-        for path, content in files.items():
-            if path == old_path or path.startswith(old_prefix):
-                suffix = path[len(old_path):]
-                modified[new_path + suffix] = content
-                deleted.append(path)
-    else:
-        content = files.get(old_path)
-        if content is None:
-            raise HTTPException(status_code=404, detail=f"File not found: {old_path}")
-        modified[new_path] = content
-        deleted.append(old_path)
-
-    result = await asyncio.to_thread(
-        client.push,
-        modified=modified,
-        deleted=deleted,
-        message=body.message or f"moved {old_path} → {new_path}",
-    )
+    try:
+        result = await ops.move(
+            project_id, body.old_path, body.new_path,
+            who=who, message=body.message or f"moved {body.old_path} → {body.new_path}",
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
     return ApiResponse.success(data={
-        "version": result.get("version", 0),
-        "old_path": old_path,
-        "new_path": new_path,
+        "version": result.version,
+        "old_path": body.old_path.strip("/"),
+        "new_path": body.new_path.strip("/"),
     })
 
 
@@ -405,74 +349,28 @@ async def move(
 async def remove(
     project_id: str,
     body: RemoveRequest,
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
+    who = f"user:{current_user.user_id}"
     clean_path = body.path.strip("/")
-    operator = f"user:{current_user.user_id}"
 
     if body.permanent:
-        client = _make_user_client(repo_manager, project_id, current_user.user_id)
-        files = await asyncio.to_thread(client.clone)
-
-        deleted: list[str] = []
-        entry = reader.stat(project_id, clean_path)
-        if entry and entry.type == "folder":
-            prefix = clean_path + "/"
-            for path in files:
-                if path == clean_path or path.startswith(prefix):
-                    deleted.append(path)
-        else:
-            deleted.append(clean_path)
-
-        result = await asyncio.to_thread(
-            client.push,
-            deleted=deleted,
-            message=f"deleted {clean_path}",
-        )
+        result = await ops.permanent_delete(project_id, clean_path, who=who)
         return ApiResponse.success(data={
-            "version": result.get("version", 0),
+            "version": result.version,
             "path": clean_path,
         })
     else:
-        import time
-        basename = clean_path.rsplit("/", 1)[-1] if "/" in clean_path else clean_path
-        trash_path = f".trash/{basename}_{int(time.time())}"
-
-        client = _make_user_client(repo_manager, project_id, current_user.user_id)
-        files = await asyncio.to_thread(client.clone)
-
-        modified: dict[str, bytes] = {}
-        deleted_list: list[str] = []
-
-        entry = reader.stat(project_id, clean_path)
-        if entry and entry.type == "folder":
-            prefix = clean_path + "/"
-            for path, content in files.items():
-                if path == clean_path or path.startswith(prefix):
-                    suffix = path[len(clean_path):]
-                    modified[trash_path + suffix] = content
-                    deleted_list.append(path)
-        else:
-            content = files.get(clean_path, b"")
-            modified[trash_path] = content
-            deleted_list.append(clean_path)
-
-        result = await asyncio.to_thread(
-            client.push,
-            modified=modified,
-            deleted=deleted_list,
-            message=f"trash {basename}",
-        )
-
+        result = await ops.trash(project_id, clean_path, who=who)
+        trash_path = [p for p in result.paths if p.startswith(".trash/")]
         return ApiResponse.success(data={
-            "version": result.get("version", 0),
+            "version": result.version,
             "path": clean_path,
             "old_path": clean_path,
-            "new_path": trash_path,
+            "new_path": trash_path[0] if trash_path else "",
         })
 
 
@@ -483,45 +381,21 @@ async def remove(
 async def restore(
     project_id: str,
     body: RestoreRequest,
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
-    trash_path = body.trash_path.strip("/")
-    original_path = body.original_path.strip("/")
+    who = f"user:{current_user.user_id}"
 
-    client = _make_user_client(repo_manager, project_id, current_user.user_id)
-    files = await asyncio.to_thread(client.clone)
-
-    modified: dict[str, bytes] = {}
-    deleted: list[str] = []
-
-    entry = reader.stat(project_id, trash_path)
-    if entry and entry.type == "folder":
-        prefix = trash_path + "/"
-        for path, content in files.items():
-            if path == trash_path or path.startswith(prefix):
-                suffix = path[len(trash_path):]
-                modified[original_path + suffix] = content
-                deleted.append(path)
-    else:
-        content = files.get(trash_path, b"")
-        modified[original_path] = content
-        deleted.append(trash_path)
-
-    result = await asyncio.to_thread(
-        client.push,
-        modified=modified,
-        deleted=deleted,
-        message=f"restore {original_path}",
+    result = await ops.restore(
+        project_id, body.trash_path, body.original_path, who=who,
     )
 
     return ApiResponse.success(data={
-        "version": result.get("version", 0),
-        "old_path": trash_path,
-        "new_path": original_path,
+        "version": result.version,
+        "old_path": body.trash_path.strip("/"),
+        "new_path": body.original_path.strip("/"),
     })
 
 
@@ -532,14 +406,11 @@ async def restore(
 async def bulk_write(
     project_id: str,
     body: BulkWriteRequest,
-    repo_manager: MutRepoManager = Depends(get_repo_manager),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
-
-    client = _make_user_client(repo_manager, project_id, current_user.user_id)
-    await asyncio.to_thread(client.clone)
 
     modified: dict[str, bytes] = {}
     for item in body.files:
@@ -556,21 +427,21 @@ async def bulk_write(
             content_bytes = (item.content if isinstance(item.content, str) else _json.dumps(item.content)).encode("utf-8")
         modified[clean_path] = content_bytes
 
-    result = await asyncio.to_thread(
-        client.push,
-        modified=modified,
+    who = f"user:{current_user.user_id}"
+    result = await ops.bulk_write(
+        project_id, modified, who=who,
         message=body.message or "bulk write",
     )
 
     return ApiResponse.success(data={
-        "version": result.get("version", 0),
+        "version": result.version,
         "total": len(modified),
-        "merged": result.get("merged", False),
+        "merged": result.merged,
     })
 
 
 # ═══════════════════════════════════════════════
-# 版本历史 API
+# 版本历史 API (uses MutWriteService for admin/history queries)
 # ═══════════════════════════════════════════════
 
 @router.get(
@@ -584,7 +455,7 @@ async def get_versions(
     limit: int = Query(50, description="最大返回数"),
     since_version: int = Query(0, description="从此版本之后开始"),
     mut_write: MutWriteService = Depends(get_mut_write_service),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -596,7 +467,7 @@ async def get_versions(
         limit=limit,
         since_version=since_version,
     )
-    current_version = reader.get_version(project_id)
+    current_version = ops.get_version(project_id)
 
     versions = []
     for e in entries:
@@ -611,7 +482,7 @@ async def get_versions(
             created_at=e.get("created_at"),
         ))
 
-    root_hash = reader.get_root_hash(project_id) or ""
+    root_hash = ops.get_root_hash(project_id) or ""
 
     return ApiResponse.success(data=VersionHistoryResponse(
         project_id=project_id,

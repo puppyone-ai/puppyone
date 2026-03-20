@@ -24,14 +24,14 @@ class McpEndpointService:
         project_repo = ProjectRepositorySupabase()
         return project_repo.verify_project_access(project_id, user_id) is not None
 
-    def get_by_node(self, node_id: str) -> Optional[dict]:
-        return self._repo.get_by_node_id(node_id)
+    def get_by_path(self, path: str) -> Optional[dict]:
+        return self._repo.get_by_path(path)
 
     def create_endpoint(
         self,
         project_id: str,
         name: str = "MCP Endpoint",
-        node_id: Optional[str] = None,
+        path: Optional[str] = None,
         description: Optional[str] = None,
         accesses: Optional[List[McpAccessItem]] = None,
         tools_config: Optional[List[McpToolItem]] = None,
@@ -39,7 +39,7 @@ class McpEndpointService:
         return self._repo.create(
             project_id=project_id,
             name=name,
-            node_id=node_id,
+            path=path,
             description=description,
             accesses=[a.model_dump() for a in accesses] if accesses else [],
             tools_config=[t.model_dump() for t in tools_config] if tools_config else [],

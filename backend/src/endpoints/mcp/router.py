@@ -30,7 +30,7 @@ def _to_out(row: dict) -> McpEndpointOut:
     return McpEndpointOut(
         id=row["id"],
         project_id=row["project_id"],
-        node_id=row.get("node_id"),
+        path=row.get("path"),
         name=row["name"],
         description=row.get("description"),
         api_key=row["api_key"],
@@ -71,18 +71,18 @@ def get_endpoint(
 
 
 @router.get(
-    "/by-node/{node_id}",
+    "/by-path/{path:path}",
     response_model=ApiResponse[McpEndpointOut],
-    summary="按节点查 MCP 端点",
+    summary="按路径查 MCP 端点",
 )
-def get_by_node(
-    node_id: str,
+def get_by_path(
+    path: str,
     current_user: CurrentUser = Depends(get_current_user),
     service: McpEndpointService = Depends(get_mcp_endpoint_service),
 ):
-    row = service.get_by_node(node_id)
+    row = service.get_by_path(path)
     if not row:
-        raise HTTPException(status_code=404, detail="No MCP endpoint for this node")
+        raise HTTPException(status_code=404, detail="No MCP endpoint for this path")
     if not service.verify_access(row["id"], current_user.user_id):
         raise HTTPException(status_code=403, detail="Access denied")
     return ApiResponse.success(data=_to_out(row))
@@ -103,7 +103,7 @@ def create_endpoint(
     row = service.create_endpoint(
         project_id=payload.project_id,
         name=payload.name,
-        node_id=payload.node_id,
+        path=payload.path,
         description=payload.description,
         accesses=payload.accesses,
         tools_config=payload.tools_config,

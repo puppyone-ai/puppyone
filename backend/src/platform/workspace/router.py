@@ -69,22 +69,23 @@ async def create_workspace(
 ):
     from src.platform.workspace.provider import get_workspace_provider
     from src.connectors.filesystem.worker import SyncWorker
-    from src.mut_engine.dependencies import create_tree_reader
+    from src.mut_engine.dependencies import create_mut_ops
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"
 
     provider = get_workspace_provider()
-    tree_reader = create_tree_reader()
+    ops = create_mut_ops()
     sync_worker = SyncWorker(
-        tree_reader=tree_reader,
+        ops=ops,
         base_dir=provider._base_dir if hasattr(provider, '_base_dir') else "/tmp/contextbase",
     )
 
-    await sync_worker.sync_project(request.project_id)
+    sync_result = await sync_worker.sync_project(request.project_id)
 
     info = await provider.create_workspace(
         agent_id=agent_id,
         project_id=request.project_id,
+        base_snapshot_id=sync_result.get("version"),
     )
 
     mount_cmd = f"docker run -v {info.path}:/workspace your-agent-image"
@@ -113,12 +114,10 @@ async def complete_workspace(
 
     1. detect_changes: 对比 workspace vs lower
     2. 构建修改/删除列表
-    3. 通过 MutEphemeralClient clone → push 完成原子提交
+    3. 通过 MutOps.bulk_write 完成原子提交
     """
     from src.platform.workspace.provider import get_workspace_provider
-    from src.mut_engine.dependencies import create_ephemeral_client
-    from src.connectors.filesystem.cache import CacheManager
-    import asyncio
+    from src.mut_engine.dependencies import create_mut_ops
 
     provider = get_workspace_provider()
 
@@ -130,12 +129,7 @@ async def complete_workspace(
             agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
         ), message="No changes detected")
 
-    auth_context = {
-        "agent": f"agent:{agent_id}",
-        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
-    }
-    client = create_ephemeral_client(project_id, auth_context)
-    await asyncio.to_thread(client.clone)
+    ops = create_mut_ops()
 
     modified: dict[str, bytes] = {}
     for rel_path, content in changes.modified.items():
@@ -149,19 +143,19 @@ async def complete_workspace(
     deleted = list(changes.deleted)
 
     try:
-        result = await asyncio.to_thread(
-            client.push,
-            modified=modified,
+        result = await ops.bulk_write(
+            project_id,
+            modified,
+            who=agent_id,
             deleted=deleted,
             message=f"Agent workspace merge ({len(modified)} modified, {len(deleted)} deleted)",
-            who=agent_id,
         )
         committed = len(modified)
-        conflict_count = result.get("conflicts", 0)
-        strategies = ["merge"] if result.get("merged") else []
+        conflict_count = result.conflicts
+        strategies = ["merge"] if result.merged else []
         log_info(
-            f"[Workspace API] MUT push: v={result.get('version')} "
-            f"merged={result.get('merged', False)} files={committed}"
+            f"[Workspace API] MUT push: v={result.version} "
+            f"merged={result.merged} files={committed}"
         )
     except Exception as e:
         committed = 0

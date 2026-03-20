@@ -435,7 +435,7 @@ export function registerConnection(program) {
         ["Provider", c.provider],
         ["Name", c.name || "\u2014"],
         ["Project", c.project_id],
-        ["Node", c.node_name ? `${c.node_name} (${c.node_id})` : (c.node_id || "\u2014")],
+        ["Node", c.node_name ? `${c.node_name} (${c.path})` : (c.path || "\u2014")],
         ["Direction", c.direction || "\u2014"],
         ["Status", statusLabel(c.status)],
         ["Access Key", c.access_key || "\u2014"],

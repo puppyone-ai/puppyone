@@ -9,7 +9,8 @@ from src.tool.dependencies import get_tool_service
 from src.infra.s3.dependencies import get_s3_service
 from src.connectors.agent.config.dependencies import get_agent_config_service
 from src.infra.search.dependencies import get_search_service
-from src.mut_engine.dependencies import get_tree_reader
+from src.mut_engine.dependencies import get_mut_ops
+from src.mut_engine.ops import MutOps
 from fastapi.responses import StreamingResponse
 
 
@@ -34,7 +35,7 @@ async def create_agent_session(
     agent_service=Depends(get_agent_service),
     sandbox_service=Depends(get_sandbox_service),
     chat_service=Depends(get_chat_service),
-    tree_reader=Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     tool_service=Depends(get_tool_service),
     s3_service=Depends(get_s3_service),
     agent_config_service=Depends(get_agent_config_service),
@@ -45,7 +46,7 @@ async def create_agent_session(
             async for event in agent_service.stream_events(
                 request=agent_request,
                 current_user=current_user,
-                tree_reader=tree_reader,
+                ops=ops,
                 tool_service=tool_service,
                 sandbox_service=sandbox_service,
                 chat_service=chat_service,

@@ -56,7 +56,7 @@ class AgentConfigService:
         trigger_type: Optional[str] = "manual",
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
     ) -> Agent:
         if is_default:
@@ -72,7 +72,7 @@ class AgentConfigService:
             trigger_type=trigger_type,
             trigger_config=trigger_config,
             task_content=task_content,
-            task_node_id=task_node_id,
+            task_path=task_path,
             external_config=external_config,
         )
 
@@ -80,7 +80,7 @@ class AgentConfigService:
             for ba in bash_accesses:
                 self._repo.create_bash(
                     agent_id=agent.id,
-                    node_id=ba.node_id,
+                    path=ba.path,
                     json_path=ba.json_path,
                     readonly=ba.readonly,
                 )
@@ -101,7 +101,7 @@ class AgentConfigService:
         trigger_type: Optional[str] = None,
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
     ) -> Optional[Agent]:
         """更新 Agent"""
@@ -123,7 +123,7 @@ class AgentConfigService:
             trigger_type=trigger_type,
             trigger_config=trigger_config,
             task_content=task_content,
-            task_node_id=task_node_id,
+            task_path=task_path,
             external_config=external_config,
         )
         if agent:
@@ -151,7 +151,7 @@ class AgentConfigService:
         self,
         agent_id: str,
         user_id: str,
-        node_id: str,
+        path: str,
         json_path: str = "",
         readonly: bool = True,
     ) -> Optional[AgentBash]:
@@ -162,7 +162,7 @@ class AgentConfigService:
 
         return self._repo.create_bash(
             agent_id=agent_id,
-            node_id=node_id,
+            path=path,
             json_path=json_path,
             readonly=readonly,
         )
@@ -222,7 +222,7 @@ class AgentConfigService:
         for bash in bash_list:
             new_bash = self._repo.create_bash(
                 agent_id=agent_id,
-                node_id=bash.node_id,
+                path=bash.path,
                 json_path=bash.json_path,
                 readonly=bash.readonly,
             )

@@ -24,7 +24,7 @@ def _row_to_endpoint(row: dict) -> dict:
     return {
         "id": row["id"],
         "project_id": row["project_id"],
-        "node_id": row.get("node_id"),
+        "path": row.get("path"),
         "name": config.get("name", "MCP Endpoint"),
         "description": config.get("description"),
         "api_key": row.get("access_key", ""),
@@ -69,15 +69,15 @@ class McpEndpointRepository:
         )
         return [_row_to_endpoint(r) for r in (resp.data or [])]
 
-    def get_by_node_id(self, node_id: str) -> Optional[dict]:
-        resp = self._query().eq("node_id", node_id).execute()
+    def get_by_path(self, path: str) -> Optional[dict]:
+        resp = self._query().eq("path", path).execute()
         return _row_to_endpoint(resp.data[0]) if resp.data else None
 
     def create(
         self,
         project_id: str,
         name: str,
-        node_id: Optional[str] = None,
+        path: Optional[str] = None,
         description: Optional[str] = None,
         accesses: Optional[list] = None,
         tools_config: Optional[list] = None,
@@ -91,7 +91,7 @@ class McpEndpointRepository:
         row = {
             "id": generate_uuid_v7(),
             "project_id": project_id,
-            "node_id": node_id,
+            "path": path,
             "provider": PROVIDER,
             "direction": "bidirectional",
             "access_key": generate_mcp_api_key(),
@@ -119,8 +119,8 @@ class McpEndpointRepository:
 
         if "api_key" in kwargs:
             update_data["access_key"] = kwargs["api_key"]
-        if "node_id" in kwargs:
-            update_data["node_id"] = kwargs["node_id"]
+        if "path" in kwargs:
+            update_data["path"] = kwargs["path"]
         if "status" in kwargs:
             update_data["status"] = kwargs["status"]
 

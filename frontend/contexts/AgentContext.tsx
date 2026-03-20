@@ -223,18 +223,18 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           trigger_type?: string;
           trigger_config?: TriggerConfig;
           task_content?: string;
-          task_node_id?: string;
+          task_path?: string;
           external_config?: ExternalConfig;
           bash_accesses?: Array<{
             id: string;
-            node_id: string;
+            path: string;
             json_path: string;
             readonly: boolean;
           }>;
         }>>(`/api/v1/agent-config/?project_id=${projectId}`);
         
         const getNodeIds = (a: typeof agents[0]) => {
-          return (a.bash_accesses || []).map(b => b.node_id);
+          return (a.bash_accesses || []).map(b => b.path);
         };
         
         const allNodeIds = agents.flatMap(getNodeIds);
@@ -245,10 +245,10 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           const bashAccesses = a.bash_accesses || [];
           
           const resources: AccessResource[] = bashAccesses.map(bash => {
-            const nodeInfo = nodeInfoMap.get(bash.node_id);
+            const nodeInfo = nodeInfoMap.get(bash.path);
             return {
-              nodeId: bash.node_id,
-              nodeName: nodeInfo?.name || bash.node_id.substring(0, 8) + '...',
+              nodeId: bash.path,
+              nodeName: nodeInfo?.name || bash.path.substring(0, 8) + '...',
               nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
               jsonPath: bash.json_path,
               readonly: bash.readonly,
@@ -266,7 +266,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
             trigger_type: (a.trigger_type as TriggerType) || 'manual',
             trigger_config: a.trigger_config,
             task_content: a.task_content,
-            task_node_id: a.task_node_id,
+            task_path: a.task_path,
             external_config: a.external_config,
             resources,
           };
@@ -359,7 +359,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
       setDraftTriggerType(agent.trigger_type || 'manual');
       setDraftTriggerConfig(agent.trigger_config || null);
       setDraftTaskContent(agent.task_content || '');
-      setDraftTaskNodeId(agent.task_node_id || null);
+      setDraftTaskNodeId(agent.task_path || null);
       setDraftExternalConfig(agent.external_config || null);
       
       // 如果有 resources，直接使用（名称已在 loadAgents 时解析）
@@ -375,7 +375,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
             type: string;
             bash_accesses?: Array<{
               id: string;
-              node_id: string;
+              path: string;
               json_path: string;
               readonly: boolean;
             }>;
@@ -383,14 +383,14 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           
           const bashAccesses = data.bash_accesses || [];
           
-          const nodeIds = bashAccesses.map(b => b.node_id);
+          const nodeIds = bashAccesses.map(b => b.path);
           const nodeInfoMap = await fetchNodeInfoBatch(nodeIds, projectId || '');
           
           const resources: AccessResource[] = bashAccesses.map(bash => {
-            const nodeInfo = nodeInfoMap.get(bash.node_id);
+            const nodeInfo = nodeInfoMap.get(bash.path);
             return {
-              nodeId: bash.node_id,
-              nodeName: nodeInfo?.name || bash.node_id.substring(0, 8) + '...',
+              nodeId: bash.path,
+              nodeName: nodeInfo?.name || bash.path.substring(0, 8) + '...',
               nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
               jsonPath: bash.json_path,
               readonly: bash.readonly,
@@ -409,7 +409,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const deployAgent = useCallback(async (name: string, icon: string) => {
     try {
       const bashAccesses = draftResources.map(r => ({
-        node_id: r.nodeId,
+        path: r.nodeId,
         json_path: r.jsonPath || '',
         readonly: r.readonly ?? true,
       }));
@@ -424,7 +424,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           trigger_type: draftTriggerType,
           trigger_config: draftTriggerConfig,
           task_content: draftTaskContent,
-          task_node_id: draftTaskNodeId,
+          task_path: draftTaskNodeId,
           external_config: draftExternalConfig,
         });
         await put<unknown>(`/api/v1/agent-config/${editingAgentId}/bash`, bashAccesses);
@@ -442,7 +442,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
                 trigger_type: draftTriggerType,
                 trigger_config: draftTriggerConfig ?? undefined,
                 task_content: draftTaskContent ?? undefined,
-                task_node_id: draftTaskNodeId ?? undefined,
+                task_path: draftTaskNodeId ?? undefined,
                 external_config: draftExternalConfig ?? undefined,
               }
             : a
@@ -462,9 +462,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           trigger_type?: string;
           trigger_config?: TriggerConfig;
           task_content?: string;
-          task_node_id?: string;
+          task_path?: string;
           external_config?: ExternalConfig;
-          bash_accesses: Array<{ id: string; node_id: string }>;
+          bash_accesses: Array<{ id: string; path: string }>;
         }>('/api/v1/agent-config/', {
           name,
           icon,
@@ -474,7 +474,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           trigger_type: draftTriggerType,
           trigger_config: draftTriggerConfig,
           task_content: draftTaskContent,
-          task_node_id: draftTaskNodeId,
+          task_path: draftTaskNodeId,
           external_config: draftExternalConfig,
         });
         agentId = response.id;
@@ -493,7 +493,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           trigger_type: draftTriggerType,
           trigger_config: draftTriggerConfig ?? undefined,
           task_content: draftTaskContent ?? undefined,
-          task_node_id: draftTaskNodeId ?? undefined,
+          task_path: draftTaskNodeId ?? undefined,
           external_config: draftExternalConfig ?? undefined,
         };
         setSavedAgents(prev => [...prev, newAgent]);
@@ -537,27 +537,27 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         const result = await post<{
           sync_id: string;
           access_key: string;
-          node_id: string;
+          path: string;
           project_id: string;
-        }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+        }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&path=${nodeId}`);
         syncId = result.sync_id;
-        nodeId = result.node_id;
+        nodeId = result.path;
       } else if (params.provider === 'mcp') {
         const result = await post<{ id: string }>('/api/v1/mcp-endpoints', {
           project_id: projectId,
-          node_id: nodeId,
+          path: nodeId,
           name: (params.config?.name as string) || 'MCP Endpoint',
           description: (params.config?.description as string) || null,
-          accesses: [{ node_id: nodeId, json_path: '', readonly: false }],
+          accesses: [{ path: nodeId, json_path: '', readonly: false }],
         });
         syncId = result.id || null;
       } else if (params.provider === 'sandbox') {
         const result = await post<{ id: string }>('/api/v1/sandbox-endpoints', {
           project_id: projectId,
-          node_id: nodeId,
+          path: nodeId,
           name: (params.config?.name as string) || 'Sandbox',
           description: (params.config?.description as string) || null,
-          mounts: [{ node_id: nodeId, mount_path: '/workspace', permissions: { read: true, write: true, exec: false } }],
+          mounts: [{ path: nodeId, mount_path: '/workspace', permissions: { read: true, write: true, exec: false } }],
         });
         syncId = result.id || null;
       } else {
@@ -571,7 +571,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           project_id: projectId,
           provider: params.provider,
           config: params.config || {},
-          target_folder_node_id: nodeId,
+          target_folder_path: nodeId,
           credentials_ref: params.credentialsRef,
           direction: params.direction,
           conflict_strategy: 'three_way_merge',
@@ -658,7 +658,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     try {
       // 构建后端需要的 bash 数据
       const bashAccesses = resources.map(r => ({
-        node_id: r.nodeId,
+        path: r.nodeId,
         json_path: r.jsonPath || '',
         readonly: r.readonly ?? true,
       }));

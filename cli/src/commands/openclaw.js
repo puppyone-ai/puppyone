@@ -11,7 +11,7 @@
  *
  * Implements the "Stateless Mirror" architecture:
  * - CLI only knows filenames, versions, and hashes
- * - No node_id / UUID anywhere in client code
+ * - No UUID anywhere in client code (uses path instead)
  * - All ID resolution happens on the backend
  */
 
@@ -683,7 +683,7 @@ function spawnDaemon(absPath) {
 }
 
 // ============================================================
-// Core: Reconcile (simplified — no node_id, no folder expansion)
+// Core: Reconcile (simplified — uses path-based addressing)
 // ============================================================
 
 async function reconcile(syncApi, folder, state, out, opts = {}) {
@@ -970,7 +970,10 @@ async function pushNewS3File(syncApi, folder, relPath, file, fileMap) {
   if (!putRes.ok) return;
 
   const confirmResp = await syncApi.confirmUpload({
-    filename: relPath, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
+    filename: relPath,
+    s3_key: urlResp.s3_key,
+    size_bytes: fileBuf.length,
+    content_hash: hashBuffer(fileBuf),
   });
   if (confirmResp.ok) {
     fileMap[relPath] = { version: confirmResp.version ?? 1, hash: file.hash, s3: true };
@@ -994,7 +997,10 @@ async function pushExistingFile(syncApi, folder, fileName, localFile, state) {
       });
       if (!putRes.ok) return;
       const confirmResp = await syncApi.confirmUpload({
-        filename: fileName, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
+        filename: fileName,
+        s3_key: urlResp.s3_key,
+        size_bytes: fileBuf.length,
+        content_hash: hashBuffer(fileBuf),
       });
       if (confirmResp.ok) {
         state.files[fileName] = {

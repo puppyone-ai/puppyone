@@ -6,7 +6,7 @@ from typing import List, Any, Optional
 class TableCreate(BaseModel):
     """创建Table的请求"""
 
-    project_id: Optional[str] = Field(None, description="项目ID（可选，不传则创建裸Table）")
+    project_id: str = Field(..., description="项目ID（必须，所有Table必须属于一个Project）")
     name: str = Field(..., description="Table名称")
     description: str = Field(default="", description="Table描述")
     data: Any = Field(

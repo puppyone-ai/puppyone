@@ -45,7 +45,7 @@ def _to_agent_out(agent: Agent) -> AgentOut:
         AgentBashOut(
             id=a.id,
             agent_id=a.agent_id,
-            node_id=a.node_id,
+            path=a.path,
             json_path=a.json_path,
             readonly=a.readonly,
         )
@@ -64,7 +64,7 @@ def _to_agent_out(agent: Agent) -> AgentOut:
         trigger_type=agent.trigger_type,
         trigger_config=agent.trigger_config,
         task_content=agent.task_content,
-        task_node_id=agent.task_node_id,
+        task_path=agent.task_path,
         external_config=agent.external_config,
         created_at=agent.created_at.isoformat(),
         updated_at=agent.updated_at.isoformat(),
@@ -199,7 +199,7 @@ def create_agent(
         trigger_type=payload.trigger_type,
         trigger_config=payload.trigger_config,
         task_content=payload.task_content,
-        task_node_id=payload.task_node_id,
+        task_path=payload.task_path,
         external_config=payload.external_config,
     )
     
@@ -244,7 +244,7 @@ def update_agent(
         trigger_type=payload.trigger_type,
         trigger_config=payload.trigger_config,
         task_content=payload.task_content,
-        task_node_id=payload.task_node_id,
+        task_path=payload.task_path,
         external_config=payload.external_config,
     )
     if not updated:
@@ -324,7 +324,7 @@ def add_bash(
     bash = service.add_bash(
         agent_id=agent.id,
         user_id=current_user.user_id,
-        node_id=payload.node_id,
+        path=payload.path,
         json_path=payload.json_path,
         readonly=payload.readonly,
     )
@@ -337,7 +337,7 @@ def add_bash(
         data=AgentBashOut(
             id=bash.id,
             agent_id=bash.agent_id,
-            node_id=bash.node_id,
+            path=bash.path,
             json_path=bash.json_path,
             readonly=bash.readonly,
         ),
@@ -373,7 +373,7 @@ def update_bash(
         data=AgentBashOut(
             id=bash.id,
             agent_id=bash.agent_id,
-            node_id=bash.node_id,
+            path=bash.path,
             json_path=bash.json_path,
             readonly=bash.readonly,
         ),
@@ -447,7 +447,7 @@ def sync_bash(
             AgentBashOut(
                 id=a.id,
                 agent_id=a.agent_id,
-                node_id=a.node_id,
+                path=a.path,
                 json_path=a.json_path,
                 readonly=a.readonly,
             )

@@ -45,13 +45,8 @@ class TableRepositoryBase(ABC):
         name: str,
         description: str,
         data: dict,
-        project_id: Optional[str] = None,
+        project_id: str,
     ) -> Table:
-        pass
-
-    @abstractmethod
-    def get_orphan_tables_by_created_by(self, created_by: str) -> List[Table]:
-        """获取用户的所有裸 Table（不属于任何 Project）"""
         pass
 
     @abstractmethod
@@ -198,7 +193,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         name: str,
         description: str,
         data: dict,
-        project_id: Optional[str] = None,
+        project_id: str,
     ) -> Table:
         """
         创建新的Table
@@ -208,7 +203,7 @@ class TableRepositorySupabase(TableRepositoryBase):
             name: Table名称
             description: Table描述
             data: Table数据（JSON对象）
-            project_id: 项目ID（可选，不传则创建裸Table）
+            project_id: 项目ID（必须）
 
         Returns:
             创建的Table对象
@@ -226,31 +221,6 @@ class TableRepositorySupabase(TableRepositoryBase):
         )
         table_response = self._supabase_repo.create_table(table_data)
         return self._table_response_to_table(table_response)
-
-    def get_orphan_tables_by_created_by(self, created_by: str) -> List[Table]:
-        """
-        获取用户的所有裸 Table（不属于任何 Project）
-
-        Args:
-            created_by: 创建者用户ID
-
-        Returns:
-            裸 Table 列表
-        """
-        from src.content.table.supabase_schemas import TableResponse
-
-        response = (
-            self._supabase_repo._client.table("tables")
-            .select("*")
-            .eq("created_by", created_by)
-            .is_("project_id", "null")
-            .order("created_at", desc=True)
-            .execute()
-        )
-
-        return [
-            self._table_response_to_table(TableResponse(**r)) for r in response.data
-        ]
 
     def update(
         self,
@@ -329,10 +299,10 @@ class TableRepositorySupabase(TableRepositoryBase):
         if not table:
             return False
 
-        if table.project_id:
-            return self.verify_project_access(table.project_id, user_id)
+        if not table.project_id:
+            return False
 
-        return table.created_by == user_id
+        return self.verify_project_access(table.project_id, user_id)
 
     def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """

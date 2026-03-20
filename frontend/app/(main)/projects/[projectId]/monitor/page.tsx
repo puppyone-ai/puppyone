@@ -32,7 +32,7 @@ interface Agent {
 
 interface SyncStatusItem {
   id: string;
-  node_id: string;
+  path: string;
   node_name: string | null;
   node_type: string | null;
   provider: string;
@@ -535,7 +535,7 @@ function SyncChangelogRow({ entry }: { entry: SyncChangelogItem }) {
         <span style={{ fontSize: 11, color: actionColor, textTransform: 'capitalize' }}>{entry.action}</span>
       </div>
       <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#d4d4d8' }}>
-        {entry.filename || entry.node_id.substring(0, 8)}
+        {entry.filename || entry.path.substring(0, 8)}
         {entry.node_type && <span style={{ color: '#52525b', marginLeft: 6, fontSize: 10 }}>.{entry.node_type}</span>}
       </div>
       <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#71717a' }}>v{entry.version}</span>

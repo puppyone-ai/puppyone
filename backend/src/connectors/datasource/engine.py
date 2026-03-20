@@ -12,10 +12,10 @@ converge into a single execute() call. The engine:
   3. Resolves OAuth credentials
   4. Calls connector.fetch(config, credentials) → FetchResult
   5. Compares content_hash with sync.remote_hash
-  6. If changed → MutEphemeralClient.push() at the sync path
+  6. If changed → MutOps.write_file() at the sync path
   7. Updates the sync record (remote_hash, last_sync_version)
 
-All data writes go through MUT protocol (clone → push).
+All data writes go through MutOps.
 """
 
 from __future__ import annotations
@@ -46,21 +46,6 @@ class SyncEngine:
         self.registry = registry
         self.sync_repo = sync_repo
         self.run_repo = run_repo
-
-    def _make_ephemeral_client(self, project_id: str, sync: Sync):
-        """Create a MutEphemeralClient scoped to this sync's target path."""
-        from src.mut_engine.dependencies import create_ephemeral_client
-        external_resource_id = (sync.config or {}).get("external_resource_id", "")
-        auth_context = {
-            "agent": f"sync:{sync.provider}:{external_resource_id}",
-            "_scope": {
-                "id": f"_sync_{sync.id}",
-                "path": "",
-                "exclude": [],
-                "mode": "rw",
-            },
-        }
-        return create_ephemeral_client(project_id, auth_context)
 
     async def execute(
         self, sync_id: str, trigger_type: str = "manual",
@@ -114,7 +99,7 @@ class SyncEngine:
                     )
                 return None
 
-            file_path = sync.node_id
+            file_path = sync.path
             external_resource_id = (sync.config or {}).get("external_resource_id", "")
 
             content = result.content
@@ -128,15 +113,16 @@ class SyncEngine:
                 content_bytes = str(content).encode("utf-8")
 
             operator = f"sync:{sync.provider}:{external_resource_id}"
-            client = self._make_ephemeral_client(sync.project_id, sync)
-            client.clone()
-            push_result = client.push(
-                modified={file_path: content_bytes},
-                message=result.summary or f"Sync from {sync.provider}",
+
+            from src.mut_engine.dependencies import create_mut_ops
+            ops = create_mut_ops()
+            write_result = await ops.write_file(
+                sync.project_id, file_path, content_bytes,
                 who=operator,
+                message=result.summary or f"Sync from {sync.provider}",
             )
 
-            new_version = push_result.get("version", 0)
+            new_version = write_result.version
 
             self.sync_repo.update_sync_point(
                 sync_id=sync.id,

@@ -59,7 +59,7 @@ class McpBoundToolOut(BaseModel):
     name: str
     type: str
     description: Optional[str] = None
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     json_path: str = ""
     enabled: bool = True
     mcp_exposed: bool = True

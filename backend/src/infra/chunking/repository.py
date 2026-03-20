@@ -53,12 +53,12 @@ class ChunkRepository:
         return out
 
     def get_by_hash(
-        self, *, node_id: str, json_pointer: str, content_hash: str
+        self, *, path: str, json_pointer: str, content_hash: str
     ) -> list[Chunk]:
         resp = (
             self._client.table("chunks")
             .select("*")
-            .eq("node_id", node_id)
+            .eq("path", path)
             .eq("json_pointer", json_pointer)
             .eq("content_hash", content_hash)
             .order("chunk_index")
@@ -81,14 +81,14 @@ def ensure_chunks_for_pointer(
     *,
     repo: ChunkRepository,
     service: Optional[ChunkingService] = None,
-    node_id: str,
+    path: str,
     json_pointer: str,
     content: str,
     config: Optional[ChunkingConfig] = None,
 ) -> EnsureChunksResult:
     t0 = time.perf_counter()
     log_info(
-        f"[ensure_chunks] start: node_id={node_id} pointer={json_pointer[:50]} content_len={len(content)}"
+        f"[ensure_chunks] start: path={path} pointer={json_pointer[:50]} content_len={len(content)}"
     )
 
     cfg = config or ChunkingConfig()
@@ -116,7 +116,7 @@ def ensure_chunks_for_pointer(
 
     t3 = time.perf_counter()
     existing = repo.get_by_hash(
-        node_id=node_id, json_pointer=json_pointer, content_hash=content_hash
+        path=path, json_pointer=json_pointer, content_hash=content_hash
     )
     log_info(
         f"[ensure_chunks] get_by_hash done: found={len(existing)} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
@@ -127,7 +127,7 @@ def ensure_chunks_for_pointer(
             f"[ensure_chunks] returning existing chunks: count={len(existing)} total_ms={int((time.perf_counter() - t0) * 1000)}"
         )
         return EnsureChunksResult(
-            node_id=node_id,
+            path=path,
             json_pointer=json_pointer,
             content_hash=content_hash,
             created=False,
@@ -150,7 +150,7 @@ def ensure_chunks_for_pointer(
     for idx, seg in enumerate(segments):
         creates.append(
             ChunkCreate(
-                node_id=node_id,
+                path=path,
                 json_pointer=json_pointer,
                 chunk_index=idx,
                 total_chunks=total,
@@ -172,10 +172,10 @@ def ensure_chunks_for_pointer(
     created_sorted = sorted(created, key=lambda c: c.chunk_index)
 
     log_info(
-        f"[ensure_chunks] done: node_id={node_id} chunks={len(created_sorted)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+        f"[ensure_chunks] done: path={path} chunks={len(created_sorted)} total_ms={int((time.perf_counter() - t0) * 1000)}"
     )
     return EnsureChunksResult(
-        node_id=node_id,
+        path=path,
         json_pointer=json_pointer,
         content_hash=content_hash,
         created=True,

@@ -1,9 +1,10 @@
 """
 Table (知识库) 内容管理
 
-写操作走 MUT protocol (MutEphemeralClient)，
+所有 Table 必须属于 project。
+写操作走 MUT protocol (MutOps)，
 读操作从 MUT ObjectStore 读取 JSON 内容。
-DB 中的 tables 表仅用于存储元数据和 orphan tables。
+DB 中的 tables 表仅用于存储元数据索引。
 """
 
 import json
@@ -44,13 +45,9 @@ class TableService:
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
             )
 
-    def _make_ephemeral_client(self, project_id: str, operator: str = "system:table"):
-        from src.mut_engine.dependencies import create_ephemeral_client
-        auth_ctx = {
-            "agent": operator,
-            "_scope": {"id": "_table", "path": "", "exclude": [], "mode": "rw"},
-        }
-        return create_ephemeral_client(project_id, auth_ctx)
+    def _get_ops(self):
+        from src.mut_engine.dependencies import create_mut_ops
+        return create_mut_ops()
 
     def _table_mut_path(self, project_id: str, table_id: str) -> str:
         """Table 在 MUT 树中的标准路径"""
@@ -71,15 +68,20 @@ class TableService:
         return json.loads(raw.decode("utf-8"))
 
     def _read_table_data(self, table: Table) -> dict:
-        """读取 Table 的 JSON data — 优先从 MUT 读，回退到 DB"""
-        if table.project_id and self._repos:
-            try:
-                mut_path = self._table_mut_path(table.project_id, table.id)
-                data = self._read_json_from_mut(table.project_id, mut_path)
-                if data:
-                    return data
-            except Exception:
-                pass
+        """读取 Table 的 JSON data — 从 MUT 读取 (source of truth)"""
+        self._ensure_mut()
+        if not table.project_id:
+            raise BusinessException(
+                "Table has no project_id, cannot read from MUT",
+                code=ErrorCode.BAD_REQUEST,
+            )
+        mut_path = self._table_mut_path(table.project_id, table.id)
+        try:
+            data = self._read_json_from_mut(table.project_id, mut_path)
+            if data:
+                return data
+        except Exception:
+            pass
         return table.data or {}
 
     # ================================================================
@@ -112,11 +114,8 @@ class TableService:
     def verify_project_access(self, project_id: str, user_id: str) -> bool:
         return self.repo.verify_project_access(project_id, user_id)
 
-    def get_orphan_tables_by_created_by(self, user_id: str) -> List[Table]:
-        return self.repo.get_orphan_tables_by_created_by(user_id)
-
     # ================================================================
-    # 写操作 — 全部通过 MUT protocol (MutEphemeralClient)
+    # 写操作 — 全部通过 MUT protocol (MutOps)
     # ================================================================
 
     async def create(
@@ -125,13 +124,13 @@ class TableService:
         name: str,
         description: str,
         data: dict,
-        project_id: Optional[str] = None,
+        project_id: str,
     ) -> Table:
         self._ensure_mut()
 
         from src.utils.id_generator import generate_uuid_v7
         table_id = generate_uuid_v7()
-        mut_path = self._table_mut_path(project_id or "__orphan__", table_id)
+        mut_path = self._table_mut_path(project_id, table_id)
 
         table_blob = {
             "id": table_id,
@@ -141,24 +140,13 @@ class TableService:
         }
         content = json.dumps(table_blob, ensure_ascii=False, indent=2).encode("utf-8")
 
-        if project_id:
-            client = self._make_ephemeral_client(project_id, f"user:{user_id}")
-            client.clone()
-            push_result = client.push(
-                modified={mut_path: content},
-                message=f"create table {name}",
-                who=f"user:{user_id}",
-            )
-            log_info(f"[Table] Created table {table_id} via MUT")
-        else:
-            self.repo.create(
-                created_by=user_id,
-                name=name,
-                description=description,
-                data=data,
-                project_id=None,
-            )
-            log_info(f"[Table] Created orphan table {table_id} (no project, DB direct)")
+        ops = self._get_ops()
+        await ops.write_file(
+            project_id, mut_path, content,
+            who=f"user:{user_id}",
+            message=f"create table {name}",
+        )
+        log_info(f"[Table] Created table {table_id} via MUT")
 
         table = self.repo.get_by_id(table_id)
         if not table:
@@ -188,28 +176,30 @@ class TableService:
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        if table.project_id:
-            mut_path = self._table_mut_path(table.project_id, table_id)
-            current_data = self._read_table_data(table)
-
-            table_blob = {
-                "id": table_id,
-                "name": name or table.name,
-                "description": description if description is not None else table.description,
-                "data": data if data is not None else current_data.get("data", table.data),
-            }
-            content = json.dumps(table_blob, ensure_ascii=False, indent=2).encode("utf-8")
-
-            client = self._make_ephemeral_client(table.project_id, "system:table_update")
-            client.clone()
-            push_result = client.push(
-                modified={mut_path: content},
-                message=f"update table {table_id}",
-                who="system:table_update",
+        if not table.project_id:
+            raise BusinessException(
+                "Table has no project_id, cannot update via MUT",
+                code=ErrorCode.BAD_REQUEST,
             )
-            log_info(f"[Table] Updated table {table_id} via MUT")
-        else:
-            self.repo.update(table_id, name, description, data)
+
+        mut_path = self._table_mut_path(table.project_id, table_id)
+        current_data = self._read_table_data(table)
+
+        table_blob = {
+            "id": table_id,
+            "name": name or table.name,
+            "description": description if description is not None else table.description,
+            "data": data if data is not None else current_data.get("data", table.data),
+        }
+        content = json.dumps(table_blob, ensure_ascii=False, indent=2).encode("utf-8")
+
+        ops = self._get_ops()
+        await ops.write_file(
+            table.project_id, mut_path, content,
+            who="system:table_update",
+            message=f"update table {table_id}",
+        )
+        log_info(f"[Table] Updated table {table_id} via MUT")
 
         updated = self.repo.get_by_id(table_id)
         return updated or table
@@ -221,26 +211,21 @@ class TableService:
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
 
-        if table.project_id and self._repos:
-            mut_path = self._table_mut_path(table.project_id, table_id)
-            try:
-                client = self._make_ephemeral_client(table.project_id, "system:table_delete")
-                client.clone()
-                client.push(
-                    deleted=[mut_path],
-                    message=f"delete table {table_id}",
-                    who="system:table_delete",
-                )
-                log_info(f"[Table] Deleted table {table_id} via MUT")
-                return
-            except Exception:
-                pass
-
-        success = self.repo.delete(table_id)
-        if not success:
-            raise NotFoundException(
-                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
+        if not table.project_id:
+            raise BusinessException(
+                "Table has no project_id, cannot delete via MUT",
+                code=ErrorCode.BAD_REQUEST,
             )
+
+        self._ensure_mut()
+        mut_path = self._table_mut_path(table.project_id, table_id)
+        ops = self._get_ops()
+        await ops.delete(
+            table.project_id, [mut_path],
+            who="system:table_delete",
+            message=f"delete table {table_id}",
+        )
+        log_info(f"[Table] Deleted table {table_id} via MUT")
 
     # ================================================================
     # Context Data 操作 — JSON Pointer + MUT write
@@ -476,19 +461,20 @@ class TableService:
 
     async def _write_table_data(self, table: Table, full_blob: dict) -> None:
         """将完整的 table JSON 写入 MUT (唯一写入点)"""
-        if table.project_id and self._repos:
-            mut_path = self._table_mut_path(table.project_id, table.id)
-            content = json.dumps(full_blob, ensure_ascii=False, indent=2).encode("utf-8")
-            client = self._make_ephemeral_client(table.project_id, "system:table_edit")
-            client.clone()
-            client.push(
-                modified={mut_path: content},
-                message=f"edit table data {table.id}",
-                who="system:table_edit",
+        self._ensure_mut()
+        if not table.project_id:
+            raise BusinessException(
+                "Table has no project_id, cannot write to MUT",
+                code=ErrorCode.BAD_REQUEST,
             )
-        else:
-            actual_data = full_blob.get("data", full_blob)
-            self.repo.update_context_data(table.id, actual_data)
+        mut_path = self._table_mut_path(table.project_id, table.id)
+        content = json.dumps(full_blob, ensure_ascii=False, indent=2).encode("utf-8")
+        ops = self._get_ops()
+        await ops.write_file(
+            table.project_id, mut_path, content,
+            who="system:table_edit",
+            message=f"edit table data {table.id}",
+        )
 
     # ================================================================
     # 查询操作 (只读)

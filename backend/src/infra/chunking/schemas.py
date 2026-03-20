@@ -32,7 +32,7 @@ class ChunkSegment(BaseModel):
 class ChunkBase(BaseModel):
     """Database-facing chunk record base."""
 
-    node_id: str  # 绑定的 content_nodes 节点 ID
+    path: str  # MUT 路径 (path)
     json_pointer: str
 
     chunk_index: int
@@ -67,7 +67,7 @@ class Chunk(ChunkBase):
 class EnsureChunksResult(BaseModel):
     """Result for idempotent ensure operation."""
 
-    node_id: str  # 绑定的 content_nodes 节点 ID
+    path: str  # MUT 路径 (path)
     json_pointer: str
     content_hash: str
 

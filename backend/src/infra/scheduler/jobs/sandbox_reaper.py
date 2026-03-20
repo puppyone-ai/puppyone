@@ -31,31 +31,24 @@ async def reap_idle_sandboxes():
                 "type": "agent",
                 "id": session.agent_id,
                 "session_id": session.chat_session_id,
+                "project_id": session.project_id,
+                "parent_path": session.parent_path,
             }
 
-            if not session.readonly:
-                ephemeral_client = None
+            if not session.readonly and session.project_id:
+                ops = None
                 try:
-                    from src.mut_engine.dependencies import create_ephemeral_client
-                    import asyncio
-                    auth_context = {
-                        "agent": f"agent:{session.agent_id}",
-                        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
-                    }
-                    # TODO: need project_id from operator_info; for now skip if not available
-                    project_id = operator_info.get("project_id", "")
-                    if project_id:
-                        ephemeral_client = create_ephemeral_client(project_id, auth_context)
-                        await asyncio.to_thread(ephemeral_client.clone)
+                    from src.mut_engine.dependencies import create_mut_ops
+                    ops = create_mut_ops()
                 except Exception as e:
-                    logger.warning(f"[SandboxReaper] MutEphemeralClient init failed: {e}")
+                    logger.warning(f"[SandboxReaper] MutOps init failed: {e}")
 
-                if ephemeral_client:
+                if ops:
                     updated = await diff_and_writeback(
                         sandbox_service=sandbox_service,
                         sandbox_session_id=session.sandbox_session_id,
                         manifest=session.manifest,
-                        ephemeral_client=ephemeral_client,
+                        ops=ops,
                         operator_info=operator_info,
                     )
                     if updated:

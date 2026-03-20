@@ -19,8 +19,8 @@ from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
 from src.tool.models import Tool
-from src.mut_engine.dependencies import get_tree_reader
-from src.mut_engine.tree_reader import MutTreeReader
+from src.mut_engine.dependencies import create_mut_ops, get_mut_ops
+from src.mut_engine.ops import MutOps
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -207,7 +207,7 @@ async def delete_table_context_data(
         "根据 tool_id 执行语义向量检索（ANN），返回结构化结果。\n\n"
         "给前端/调用方的关键点：\n"
         "- 该端点为 Internal API，需要 `X-Internal-Secret` 鉴权；\n"
-        "- tool 必须是 `type=search`，且必须绑定 `node_id`；\n"
+        "- tool 必须是 `type=search`，且必须绑定 `path`；\n"
         "- 返回的 `results[*].json_path` 为 **相对于 tool.json_path 的 RFC6901 路径**，便于前端在 scope 内定位。"
     ),
     dependencies=[Depends(verify_internal_secret)],
@@ -225,9 +225,9 @@ async def search_tool(
     if (tool.type or "").strip() != "search":
         raise HTTPException(status_code=400, detail="Tool is not a search tool")
 
-    node_id = tool.node_id or ""
-    if not node_id:
-        raise HTTPException(status_code=400, detail="tool.node_id is missing")
+    node_path = tool.path or ""
+    if not node_path:
+        raise HTTPException(status_code=400, detail="tool.path is missing")
 
     project_id = tool.project_id or ""
     if not project_id:
@@ -241,7 +241,7 @@ async def search_tool(
         task_repo = SearchIndexTaskRepository(sb_client)
         task = task_repo.get_by_tool_id(str(tool_id))
         
-        is_folder_search = bool(task and task.folder_node_id)
+        is_folder_search = bool(task and task.folder_path)
     except Exception:
         is_folder_search = False
 
@@ -249,14 +249,14 @@ async def search_tool(
         if is_folder_search:
             results = await search_service.search_folder(
                 project_id=project_id,
-                folder_node_id=node_id,
+                folder_path=node_path,
                 query=payload.query,
                 top_k=payload.top_k,
             )
         else:
             results = await search_service.search_scope(
                 project_id=project_id,
-                node_id=node_id,
+                path=node_path,
                 tool_json_path=tool.json_path or "",
                 query=payload.query,
                 top_k=payload.top_k,
@@ -272,18 +272,8 @@ async def search_tool(
 
 # ============================================================
 # ContentNode POSIX endpoints（供 mcp_service POSIX 工具调用）
-# All path-based, using MutEphemeralClient (MUT protocol)
+# All path-based, using MutOps (MUT clone/push under the hood)
 # ============================================================
-
-
-def _make_mcp_client(project_id: str, operator_id: str = "mcp_agent"):
-    """Create a MutEphemeralClient for MCP/internal operations."""
-    from src.mut_engine.dependencies import create_ephemeral_client
-    auth_context = {
-        "agent": operator_id,
-        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
-    }
-    return create_ephemeral_client(project_id, auth_context)
 
 
 @router.post(
@@ -294,7 +284,7 @@ def _make_mcp_client(project_id: str, operator_id: str = "mcp_agent"):
 )
 async def resolve_node_path(
     payload: Dict[str, Any],
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     try:
         project_id = payload.get("project_id", "")
@@ -304,7 +294,7 @@ async def resolve_node_path(
             return {"virtual_root": True, "path": "/"}
 
         path = path.strip("/")
-        entry = reader.stat(project_id, path)
+        entry = ops.stat(project_id, path)
         if not entry:
             raise HTTPException(status_code=404, detail=f"Path not found: {path}")
 
@@ -332,11 +322,11 @@ async def resolve_node_path(
 async def list_node_children(
     project_id: str = Query(..., description="项目 ID"),
     path: str = Query("", description="目录路径"),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     try:
         path = path.strip("/")
-        entries = reader.list_dir(project_id, path)
+        entries = ops.list_dir(project_id, path)
         entries = [e for e in entries if e.name != ".trash"]
 
         return {
@@ -368,11 +358,11 @@ async def list_node_children(
 async def read_node_content(
     project_id: str = Query(..., description="项目 ID"),
     path: str = Query(..., description="文件路径"),
-    reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     try:
         path = path.strip("/")
-        entry = reader.stat(project_id, path)
+        entry = ops.stat(project_id, path)
         if not entry:
             raise HTTPException(status_code=404, detail=f"Path not found: {path}")
 
@@ -384,7 +374,7 @@ async def read_node_content(
         }
 
         if entry.type == "folder":
-            children = reader.list_dir(project_id, path)
+            children = ops.list_dir(project_id, path)
             children = [c for c in children if c.name != ".trash"]
             base["children"] = [
                 {
@@ -397,7 +387,7 @@ async def read_node_content(
             ]
             return base
 
-        content_bytes = reader.read_file(project_id, path)
+        content_bytes = ops.read_file(project_id, path)
 
         if entry.type == "json":
             import json
@@ -425,7 +415,7 @@ async def read_node_content(
 
 @router.put(
     "/nodes/write",
-    summary="写入文件内容（via MUT Protocol）",
+    summary="写入文件内容（via MutOps）",
     description="创建或更新文件内容",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -433,7 +423,7 @@ async def write_node_content(
     payload: Dict[str, Any],
 ):
     """
-    写入文件内容 via MUT protocol (MutEphemeralClient).
+    写入文件内容 via MutOps.
 
     payload:
         project_id: str
@@ -442,7 +432,6 @@ async def write_node_content(
         operator_id: str (可选)
     """
     try:
-        import asyncio
         project_id = payload.get("project_id", "")
         path = payload.get("path", "").strip("/")
         content = payload.get("content")
@@ -459,17 +448,18 @@ async def write_node_content(
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported content type: {type(content).__name__}")
 
-        client = _make_mcp_client(project_id, operator_id)
-        await asyncio.to_thread(client.clone)
-        result = await asyncio.to_thread(
-            client.push,
-            modified={path: content_bytes},
+        ops = create_mut_ops()
+        result = await ops.write_file(
+            project_id,
+            path,
+            content_bytes,
+            who=operator_id,
             message=f"Write {path}",
         )
 
         return {
             "path": path,
-            "version": result.get("version", 0),
+            "version": result.version,
             "op": "modified",
             "updated": True,
         }
@@ -483,7 +473,7 @@ async def write_node_content(
 
 @router.post(
     "/nodes/create",
-    summary="创建文件或目录（via MUT Protocol）",
+    summary="创建文件或目录（via MutOps）",
     description="在指定路径创建新文件（JSON / Markdown）或空目录",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -491,7 +481,7 @@ async def create_node(
     payload: Dict[str, Any],
 ):
     """
-    创建文件/目录 via MUT protocol (MutEphemeralClient).
+    创建文件/目录 via MutOps.
 
     payload:
         project_id: str
@@ -501,7 +491,6 @@ async def create_node(
         created_by: str (可选)
     """
     try:
-        import asyncio
         project_id = payload.get("project_id", "")
         path = payload.get("path", "").strip("/")
         node_type = payload.get("node_type", "")
@@ -514,13 +503,13 @@ async def create_node(
         if node_type not in ("json", "markdown", "folder"):
             raise HTTPException(status_code=400, detail=f"Unsupported node type for creation: {node_type}")
 
-        client = _make_mcp_client(project_id, created_by)
-        await asyncio.to_thread(client.clone)
+        ops = create_mut_ops()
 
         if node_type == "folder":
-            result = await asyncio.to_thread(
-                client.push,
-                modified={f"{path}/.keep": b""},
+            result = await ops.mkdir(
+                project_id,
+                path,
+                who=created_by,
                 message=f"mkdir {path}",
             )
         else:
@@ -533,16 +522,18 @@ async def create_node(
                 import json
                 content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
 
-            result = await asyncio.to_thread(
-                client.push,
-                modified={path: content_bytes},
+            result = await ops.write_file(
+                project_id,
+                path,
+                content_bytes,
+                who=created_by,
                 message=f"Create {path}",
             )
 
         return {
             "path": path,
             "created": True,
-            "version": result.get("version", 0),
+            "version": result.version,
         }
     except HTTPException:
         raise
@@ -554,16 +545,15 @@ async def create_node(
 
 @router.post(
     "/nodes/trash",
-    summary="软删除（via MUT Protocol）",
+    summary="软删除（via MutOps）",
     description="将文件或目录移入 .trash",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def trash_node(
     payload: Dict[str, Any],
-    reader: MutTreeReader = Depends(get_tree_reader),
 ):
     """
-    软删除：移入 .trash via MUT protocol.
+    软删除：移入 .trash via MutOps.
 
     payload:
         project_id: str
@@ -571,8 +561,6 @@ async def trash_node(
         user_id: str
     """
     try:
-        import asyncio
-        import time as _time
         project_id = payload.get("project_id", "")
         path = payload.get("path", "").strip("/")
         user_id = payload.get("user_id", "mcp_agent")
@@ -581,35 +569,17 @@ async def trash_node(
             raise HTTPException(status_code=400, detail="path is required")
 
         basename = path.rsplit("/", 1)[-1] if "/" in path else path
-        trash_path = f".trash/{basename}_{int(_time.time())}"
-
-        client = _make_mcp_client(project_id, user_id)
-        files = await asyncio.to_thread(client.clone)
-
-        modified: Dict[str, bytes] = {}
-        deleted: list[str] = []
-
-        entry = reader.stat(project_id, path)
-        if entry and entry.type == "folder":
-            prefix = path + "/"
-            for fpath, content in files.items():
-                if fpath == path or fpath.startswith(prefix):
-                    suffix = fpath[len(path):]
-                    modified[trash_path + suffix] = content
-                    deleted.append(fpath)
-        else:
-            content = files.get(path, b"")
-            modified[trash_path] = content
-            deleted.append(path)
-
-        result = await asyncio.to_thread(
-            client.push,
-            modified=modified,
-            deleted=deleted,
+        ops = create_mut_ops()
+        await ops.trash(
+            project_id,
+            path,
+            who=user_id,
             message=f"trash {basename}",
         )
 
         return {"path": path, "removed": True, "message": "Moved to trash"}
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -622,16 +592,14 @@ async def trash_node(
 
 @router.post(
     "/nodes/rename",
-    summary="重命名文件或目录（via MUT Protocol）",
+    summary="重命名文件或目录（via MutOps）",
     description="移动路径来实现重命名",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def rename_node(
     payload: Dict[str, Any],
-    reader: MutTreeReader = Depends(get_tree_reader),
 ):
     try:
-        import asyncio
         project_id = payload.get("project_id", "")
         path = payload.get("path", "").strip("/")
         new_name = payload.get("new_name", "")
@@ -643,36 +611,18 @@ async def rename_node(
         parent = "/".join(path.split("/")[:-1])
         new_path = f"{parent}/{new_name}" if parent else new_name
 
-        entry = reader.stat(project_id, path)
-        if not entry:
-            raise HTTPException(status_code=404, detail=f"Path not found: {path}")
-
-        client = _make_mcp_client(project_id, "system")
-        files = await asyncio.to_thread(client.clone)
-
-        modified: Dict[str, bytes] = {}
-        deleted: list[str] = []
-
-        if entry.type == "folder":
-            prefix = path + "/"
-            for fpath, content in files.items():
-                if fpath == path or fpath.startswith(prefix):
-                    suffix = fpath[len(path):]
-                    modified[new_path + suffix] = content
-                    deleted.append(fpath)
-        else:
-            content = files.get(path, b"")
-            modified[new_path] = content
-            deleted.append(path)
-
-        result = await asyncio.to_thread(
-            client.push,
-            modified=modified,
-            deleted=deleted,
+        ops = create_mut_ops()
+        await ops.move(
+            project_id,
+            path,
+            new_path,
+            who="system",
             message=f"rename {path} → {new_path}",
         )
 
         return {"path": new_path, "name": new_name, "renamed": True}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except HTTPException:
         raise
     except AppException as e:
@@ -683,16 +633,14 @@ async def rename_node(
 
 @router.post(
     "/nodes/move",
-    summary="移动文件或目录到新路径（via MUT Protocol）",
+    summary="移动文件或目录到新路径（via MutOps）",
     description="移动文件/目录到新的父目录下",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def move_node_internal(
     payload: Dict[str, Any],
-    reader: MutTreeReader = Depends(get_tree_reader),
 ):
     try:
-        import asyncio
         project_id = payload.get("project_id", "")
         path = payload.get("path", "").strip("/")
         new_parent_path = payload.get("new_parent_path", "").strip("/")
@@ -703,36 +651,18 @@ async def move_node_internal(
         name = path.split("/")[-1]
         new_path = f"{new_parent_path}/{name}" if new_parent_path else name
 
-        entry = reader.stat(project_id, path)
-        if not entry:
-            raise HTTPException(status_code=404, detail=f"Path not found: {path}")
-
-        client = _make_mcp_client(project_id, "system")
-        files = await asyncio.to_thread(client.clone)
-
-        modified: Dict[str, bytes] = {}
-        deleted: list[str] = []
-
-        if entry.type == "folder":
-            prefix = path + "/"
-            for fpath, content in files.items():
-                if fpath == path or fpath.startswith(prefix):
-                    suffix = fpath[len(path):]
-                    modified[new_path + suffix] = content
-                    deleted.append(fpath)
-        else:
-            content = files.get(path, b"")
-            modified[new_path] = content
-            deleted.append(path)
-
-        result = await asyncio.to_thread(
-            client.push,
-            modified=modified,
-            deleted=deleted,
+        ops = create_mut_ops()
+        await ops.move(
+            project_id,
+            path,
+            new_path,
+            who="system",
             message=f"move {path} → {new_path}",
         )
 
         return {"old_path": path, "new_path": new_path, "moved": True}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except HTTPException:
         raise
     except AppException as e:
@@ -774,7 +704,7 @@ async def get_agent_by_mcp_key(
                 "name": tool.name,
                 "type": tool.type,
                 "description": tool.description,
-                "node_id": tool.node_id,
+                "path": tool.path,
                 "json_path": tool.json_path,
                 "input_schema": tool.input_schema,
                 "category": tool.category,
@@ -785,7 +715,7 @@ async def get_agent_by_mcp_key(
     accesses_data = []
     for bash in agent.bash_accesses:
         access_entry = {
-            "node_id": bash.node_id,
+            "path": bash.path,
             "bash_enabled": True,
             "bash_readonly": bash.readonly,
             "tool_query": True,
@@ -793,7 +723,7 @@ async def get_agent_by_mcp_key(
             "tool_update": not bash.readonly,
             "tool_delete": not bash.readonly,
             "json_path": bash.json_path or "",
-            "node_name": bash.node_id,
+            "node_name": bash.path,
             "node_type": "",
         }
         accesses_data.append(access_entry)
@@ -829,7 +759,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
     accesses_data = []
     for a in endpoint.get("accesses", []):
         entry = {
-            "node_id": a.get("node_id", ""),
+            "path": a.get("path", ""),
             "bash_enabled": True,
             "bash_readonly": a.get("readonly", True),
             "tool_query": True,
@@ -837,7 +767,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
             "tool_update": not a.get("readonly", True),
             "tool_delete": not a.get("readonly", True),
             "json_path": a.get("json_path", ""),
-            "node_name": a.get("node_id", ""),
+            "node_name": a.get("path", ""),
             "node_type": "",
         }
         accesses_data.append(entry)
@@ -853,7 +783,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
                 "name": tool.name,
                 "type": tool.type,
                 "description": tool.description,
-                "node_id": tool.node_id,
+                "path": tool.path,
                 "json_path": tool.json_path,
                 "input_schema": tool.input_schema,
                 "category": tool.category,
@@ -891,10 +821,10 @@ async def get_sandbox_endpoint_by_key(access_key: str):
     mounts_data = []
     for m in endpoint.get("mounts", []):
         entry = {
-            "node_id": m.get("node_id", ""),
+            "path": m.get("path", ""),
             "mount_path": m.get("mount_path", "/workspace"),
             "permissions": m.get("permissions", {"read": True, "write": False, "exec": False}),
-            "node_name": m.get("node_id", ""),
+            "node_name": m.get("path", ""),
             "node_type": "",
         }
         mounts_data.append(entry)

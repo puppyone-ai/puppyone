@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from src.infra.chunking.repository import ChunkRepository
 from src.infra.chunking.service import ChunkingService
-from src.mut_engine.dependencies import create_tree_reader
+from src.mut_engine.dependencies import create_mut_ops
 from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.search.service import SearchService
 from src.infra.supabase.client import SupabaseClient
@@ -17,10 +17,10 @@ def get_search_service() -> SearchService:
     if _search_service is None:
         sb_client = SupabaseClient().get_client()
         chunk_repo = ChunkRepository(sb_client)
-        tree_reader = create_tree_reader()
+        ops = create_mut_ops()
 
         _search_service = SearchService(
-            tree_reader=tree_reader,
+            ops=ops,
             chunk_repo=chunk_repo,
             project_service=get_project_service(),
             chunking_service=ChunkingService(),

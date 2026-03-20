@@ -21,9 +21,9 @@ ToolCategory = Literal["builtin", "custom"]
 
 
 class ToolCreate(BaseModel):
-    node_id: Optional[str] = Field(
+    path: Optional[str] = Field(
         default=None,
-        description="绑定的 content_nodes 节点 ID（内置工具必填，自定义多节点工具可为空）"
+        description="MUT 路径 (path)（内置工具必填，自定义多节点工具可为空）"
     )
     json_path: str = Field(
         default="",
@@ -50,10 +50,10 @@ class ToolCreate(BaseModel):
         default=None,
         description=(
             "扩展配置（按 tool.type 约定）。\n\n"
-            "- 自定义多节点工具的绑定信息存这里：bound_nodes: [{node_id, role, alias}]\n"
+            "- 自定义多节点工具的绑定信息存这里：bound_nodes: [{path, role, alias}]\n"
             "- 注意：Search Tool 的索引构建状态不再写入 tool.metadata，改由独立索引任务状态表维护。\n"
         ),
-        examples=[{"preview_keys": ["id", "title"]}, {"bound_nodes": [{"node_id": "xxx", "role": "source"}]}],
+        examples=[{"preview_keys": ["id", "title"]}, {"bound_nodes": [{"path": "xxx", "role": "source"}]}],
     )
 
     # 新增字段
@@ -72,7 +72,7 @@ class ToolCreate(BaseModel):
 
 
 class ToolUpdate(BaseModel):
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     json_path: Optional[str] = None
     type: Optional[ToolTypeKey] = None
 
@@ -97,7 +97,7 @@ class ToolOut(BaseModel):
     created_by: Optional[str] = None
     org_id: str
     project_id: Optional[str] = None  # 所属项目 ID
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     json_path: str = ""
 
     type: ToolTypeKey

@@ -7,7 +7,7 @@ Responsibilities:
   - pull_all:        Pull all active syncs
   - push_node:       PuppyOne → external (after write completes)
 
-All writes go through MUT protocol (MutEphemeralClient.clone → push).
+All writes go through MutOps (clone → push under the hood).
 """
 
 import json
@@ -58,7 +58,7 @@ class SyncService:
         project_id: str,
         provider: str,
         config: dict,
-        target_folder_node_id: Optional[str] = None,
+        target_folder_path: Optional[str] = None,
         credentials_ref: Optional[str] = None,
         direction: str = "bidirectional",
         conflict_strategy: str = "three_way_merge",
@@ -88,7 +88,7 @@ class SyncService:
         temp_sync = Sync(
             id="",
             project_id=project_id,
-            node_id="",
+            path="",
             direction=direction,
             provider=provider,
             config=config,
@@ -108,7 +108,7 @@ class SyncService:
             file_path = await self._ensure_node_exists(
                 project_id=project_id,
                 resource=res,
-                folder_node_id=target_folder_node_id,
+                folder_path=target_folder_path,
                 user_id=user_id,
             )
 
@@ -121,7 +121,7 @@ class SyncService:
 
             sync = self.sync_repo.create(
                 project_id=project_id,
-                node_id=file_path,
+                path=file_path,
                 direction=direction,
                 provider=provider,
                 config=sync_config,
@@ -140,7 +140,7 @@ class SyncService:
         project_id: str,
         provider: str,
         config: dict,
-        target_folder_node_id: str,
+        target_folder_path: str,
         *,
         credentials_ref: Optional[str] = None,
         direction: str = "inbound",
@@ -163,8 +163,8 @@ class SyncService:
                 f"Connector {provider} does not support direct sync creation"
             )
 
-        if not target_folder_node_id:
-            raise ValueError("target_folder_node_id is required")
+        if not target_folder_path:
+            raise ValueError("target_folder_path is required")
 
         trigger_data = trigger or {}
         if not trigger_data.get("type"):
@@ -178,7 +178,7 @@ class SyncService:
         file_path = await self._ensure_node_exists(
             project_id=project_id,
             resource=placeholder,
-            folder_node_id=target_folder_node_id,
+            folder_path=target_folder_path,
             user_id=user_id,
         )
 
@@ -191,7 +191,7 @@ class SyncService:
 
         sync = self.sync_repo.create(
             project_id=project_id,
-            node_id=file_path,
+            path=file_path,
             direction=direction,
             provider=provider,
             config=sync_config,
@@ -206,33 +206,27 @@ class SyncService:
         return sync
 
     async def _ensure_node_exists(
-        self, project_id: str, resource: ResourceInfo, folder_node_id: Optional[str],
+        self, project_id: str, resource: ResourceInfo, folder_path: Optional[str],
         user_id: Optional[str] = None,
     ) -> str:
         """Ensure a corresponding file exists in the Mut tree. Create if missing.
 
-        Returns the mut path of the file (stored in sync.node_id).
+        Returns the mut path of the file (stored in sync.path).
         """
-        folder_path = folder_node_id or ""
+        base_folder = folder_path or ""
         name = resource.name
         node_type = resource.node_type if resource.node_type in ("json", "markdown") else "markdown"
         ext = ".json" if node_type == "json" else ".md" if node_type == "markdown" else ""
-        file_path = f"{folder_path}/{name}{ext}" if folder_path else f"{name}{ext}"
+        file_path = f"{base_folder}/{name}{ext}" if base_folder else f"{name}{ext}"
 
         initial_content = b"{}" if node_type == "json" else b""
         operator = f"sync:{user_id}" if user_id else "sync"
 
-        from src.mut_engine.dependencies import create_ephemeral_client
-        auth_ctx = {
-            "agent": operator,
-            "_scope": {"id": "_sync_bootstrap", "path": "", "exclude": [], "mode": "rw"},
-        }
-        client = create_ephemeral_client(project_id, auth_ctx)
-        client.clone()
-        client.push(
-            modified={file_path: initial_content},
-            message=f"Create sync target: {name}",
-            who=operator,
+        from src.mut_engine.dependencies import create_mut_ops
+        ops = create_mut_ops()
+        await ops.write_file(
+            project_id, file_path, initial_content,
+            who=operator, message=f"Create sync target: {name}",
         )
         return file_path
 
@@ -282,7 +276,7 @@ class SyncService:
                 return None
 
             external_resource_id = sync.config.get("external_resource_id", "")
-            file_path = sync.node_id
+            file_path = sync.path
 
             content = pull_result.content
             if isinstance(content, dict) or isinstance(content, list):
@@ -296,20 +290,15 @@ class SyncService:
 
             operator = f"sync:{sync.provider}:{external_resource_id}"
 
-            from src.mut_engine.dependencies import create_ephemeral_client
-            auth_ctx = {
-                "agent": operator,
-                "_scope": {"id": f"_sync_{sync.id}", "path": "", "exclude": [], "mode": "rw"},
-            }
-            client = create_ephemeral_client(sync.project_id, auth_ctx)
-            client.clone()
-            push_result = client.push(
-                modified={file_path: content_bytes},
-                message=pull_result.summary or f"Sync from {sync.provider}",
+            from src.mut_engine.dependencies import create_mut_ops
+            ops = create_mut_ops()
+            write_result = await ops.write_file(
+                sync.project_id, file_path, content_bytes,
                 who=operator,
+                message=pull_result.summary or f"Sync from {sync.provider}",
             )
 
-            new_version = push_result.get("version", 0)
+            new_version = write_result.version
             self.sync_repo.update_sync_point(
                 sync_id=sync.id,
                 last_sync_version=new_version,
@@ -328,7 +317,7 @@ class SyncService:
             }
 
         except Exception as e:
-            log_error(f"[L2.5] PULL failed for {sync.node_id}: {e}")
+            log_error(f"[L2.5] PULL failed for {sync.path}: {e}")
             self.sync_repo.update_error(sync.id, str(e))
             return None
 
@@ -376,7 +365,7 @@ class SyncService:
                     f"{sync.provider}:{external_resource_id}"
                 )
                 return [{
-                    "path": sync.node_id,
+                    "path": sync.path,
                     "provider": sync.provider,
                     "success": True,
                 }]
@@ -401,7 +390,7 @@ class SyncService:
             from src.mut_engine.dependencies import create_mut_write_service
             admin = create_mut_write_service()
             content_bytes = await admin.get_version_content(
-                sync.project_id, sync.node_id, sync.last_sync_version,
+                sync.project_id, sync.path, sync.last_sync_version,
             )
             return content_bytes.decode("utf-8", errors="replace")
         except Exception:

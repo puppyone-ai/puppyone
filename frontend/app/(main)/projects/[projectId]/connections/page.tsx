@@ -20,7 +20,7 @@ import { getProviderLogo } from '@/components/agent/views/SyncDetailView';
 
 interface SyncStatusItem {
   id: string;
-  node_id: string | null;
+  path: string | null;
   node_name: string | null;
   node_type: string | null;
   provider: string;
@@ -791,7 +791,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
                       {m.mount_path}
                     </code>
                     <span style={{ color: '#525252' }}>→</span>
-                    <span style={{ color: '#d4d4d8' }}>{m.node_id}</span>
+                    <span style={{ color: '#d4d4d8' }}>{m.path}</span>
                     <span style={{ color: '#71717a' }}>({m.permissions?.write ? 'read-write' : 'read-only'})</span>
                   </div>
                 ))}
@@ -805,7 +805,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {c.config.accesses.map((a: any, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                    <span style={{ color: '#d4d4d8' }}>{a.node_id}</span>
+                    <span style={{ color: '#d4d4d8' }}>{a.path}</span>
                     <span style={{ color: '#71717a' }}>({a.readonly ? 'read-only' : 'read-write'})</span>
                   </div>
                 ))}

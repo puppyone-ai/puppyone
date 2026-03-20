@@ -314,7 +314,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
           project_id: projectId,
           provider: providerDef.id,
           config,
-          target_folder_node_id: target.nodeId,
+          target_folder_path: target.nodeId,
           direction: providerDef.direction,
           sync_mode: draftSyncMode as 'import_once' | 'manual' | 'scheduled',
           trigger: draftSyncMode === 'scheduled'
@@ -327,7 +327,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
               ? { type: 'manual' }
               : { type: 'import_once' },
         });
-        createdNodeId = result.sync.node_id;
+        createdNodeId = result.sync.path;
         if (!createdNodeId) {
           throw new Error('Connection was created without a destination node.');
         }

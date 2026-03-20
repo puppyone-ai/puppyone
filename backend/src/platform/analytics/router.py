@@ -33,7 +33,7 @@ async def get_access_timeseries(
     interval: str = Query("hour", description="'hour' or 'day'"),
     range_hours: int = Query(168, description="Hours back (default 7 days)"),
     agent_id: Optional[str] = Query(None),
-    node_id: Optional[str] = Query(None),
+    path: Optional[str] = Query(None),
     current_user=Depends(get_current_user_optional),
 ):
     """
@@ -47,21 +47,19 @@ async def get_access_timeseries(
     now = datetime.utcnow()
     start_time = now - timedelta(hours=range_hours)
     
-    # Query access_logs
     query = supabase.table("access_logs") \
-        .select("id, created_at, agent_id, node_id") \
+        .select("id, created_at, agent_id, path") \
         .gte("created_at", start_time.isoformat()) \
         .order("created_at", desc=False)
     
     if agent_id:
         query = query.eq("agent_id", agent_id)
-    if node_id:
-        query = query.eq("node_id", node_id)
+    if path:
+        query = query.eq("path", path)
     
     result = query.execute()
     logs = result.data or []
     
-    # Aggregate by hour/day
     bucket_counts: dict[str, int] = {}
     bucket_hours = 24 if interval == "day" else 1
     
@@ -75,7 +73,6 @@ async def get_access_timeseries(
                 bucket_key = dt.strftime("%Y-%m-%dT%H:00:00Z")
             bucket_counts[bucket_key] = bucket_counts.get(bucket_key, 0) + 1
     
-    # Generate all buckets (including empty ones)
     all_buckets: List[TimeSeriesBucket] = []
     current = start_time.replace(minute=0, second=0, microsecond=0)
     if interval == "day":
@@ -111,14 +108,14 @@ async def get_access_summary(
     start_time = datetime.utcnow() - timedelta(hours=range_hours)
     
     result = supabase.table("access_logs") \
-        .select("agent_id, node_id") \
+        .select("agent_id, path") \
         .gte("created_at", start_time.isoformat()) \
         .execute()
     
     logs = result.data or []
     
     unique_agents = len(set(log["agent_id"] for log in logs if log.get("agent_id")))
-    unique_nodes = len(set(log["node_id"] for log in logs if log.get("node_id")))
+    unique_nodes = len(set(log["path"] for log in logs if log.get("path")))
     
     return {
         "total_accesses": len(logs),

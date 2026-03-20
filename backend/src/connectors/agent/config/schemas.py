@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 # ============================================
 
 class AgentBashCreate(BaseModel):
-    node_id: str = Field(..., description="Content Node ID (MUT path)")
+    path: str = Field(..., description="MUT path")
     json_path: str = Field(default="", description="JSON sub-path")
     readonly: bool = Field(default=True)
 
@@ -24,7 +24,7 @@ class AgentBashUpdate(BaseModel):
 class AgentBashOut(BaseModel):
     id: str
     agent_id: str
-    node_id: str
+    path: str
     json_path: str
     readonly: bool
 
@@ -46,7 +46,7 @@ class AgentCreate(BaseModel):
     trigger_type: Optional[Literal["manual", "cron", "webhook"]] = Field(default="manual")
     trigger_config: Optional[dict] = Field(None)
     task_content: Optional[str] = Field(None)
-    task_node_id: Optional[str] = Field(None)
+    task_path: Optional[str] = Field(None)
     external_config: Optional[dict] = Field(None)
 
     bash_accesses: List[AgentBashCreate] = Field(default_factory=list)
@@ -62,7 +62,7 @@ class AgentUpdate(BaseModel):
     trigger_type: Optional[Literal["manual", "cron", "webhook"]] = None
     trigger_config: Optional[dict] = None
     task_content: Optional[str] = None
-    task_node_id: Optional[str] = None
+    task_path: Optional[str] = None
     external_config: Optional[dict] = None
 
 
@@ -82,7 +82,7 @@ class AgentOut(BaseModel):
     trigger_type: Optional[str] = Field(default="manual")
     trigger_config: Optional[dict] = None
     task_content: Optional[str] = None
-    task_node_id: Optional[str] = None
+    task_path: Optional[str] = None
     external_config: Optional[dict] = None
 
     bash_accesses: List[AgentBashOut] = Field(default_factory=list)

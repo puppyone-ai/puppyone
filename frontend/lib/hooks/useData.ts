@@ -16,7 +16,7 @@ import {
 import {
   getTools,
   getToolsByProjectId,
-  getToolsByNodeId,
+  getToolsByPath,
   type Tool,
 } from '../mcpApi';
 import { listDir, type NodeInfo } from '../contentNodesApi';
@@ -205,7 +205,7 @@ export function refreshAllContentNodes(projectId: string) {
  * @param nodeId 节点 ID (可选，为空时不请求)
  *
  * - 按需加载：只有 nodeId 存在时才请求
- * - 后端过滤：直接调用 /api/v1/tools/by-node/{nodeId}
+ * - 后端过滤：直接调用 /api/v1/tools/by-path/{path}
  * - 自动缓存：相同 nodeId 共享数据
  */
 export function useTableTools(nodeId: string | undefined) {
@@ -216,8 +216,8 @@ export function useTableTools(nodeId: string | undefined) {
     isLoading,
     mutate: revalidate,
   } = useSWR<Tool[]>(
-    nodeId ? ['tools-by-node', nodeId] : null,
-    () => getToolsByNodeId(nodeId!),
+    nodeId ? ['tools-by-path', nodeId] : null,
+    () => getToolsByPath(nodeId!),
     {
       ...defaultConfig,
       dedupingInterval: 10000,
@@ -280,7 +280,7 @@ export function refreshProjectTools(projectId?: string | null) {
  */
 export function refreshTableTools(nodeId?: string) {
   if (nodeId) {
-    mutate(['tools-by-node', nodeId]);
+    mutate(['tools-by-path', nodeId]);
   }
   // 同时刷新 all-tools 缓存
   return mutate('all-tools');

@@ -33,7 +33,7 @@ class ConnectionOut(BaseModel):
     project_id: str
     provider: str
     name: Optional[str] = None
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     node_name: Optional[str] = None
     direction: Optional[str] = None
     status: str = "active"
@@ -64,14 +64,14 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
     for r in rows:
         cfg = r.get("config") or {}
         name = cfg.get("name") or cfg.get("sync_url") or r.get("provider", "")
-        node_id = r.get("node_id") or ""
-        node_name = node_id.rsplit("/", 1)[-1] if node_id else None
+        node_path = r.get("path") or ""
+        node_name = node_path.rsplit("/", 1)[-1] if node_path else None
         out.append(ConnectionOut(
             id=r["id"],
             project_id=r["project_id"],
             provider=r["provider"],
             name=name,
-            node_id=node_id or None,
+            path=node_path or None,
             node_name=node_name,
             direction=r.get("direction"),
             status=r.get("status", "active"),
@@ -331,7 +331,7 @@ class UnifiedConnectionCreate(BaseModel):
     project_id: str = Field(..., description="Project ID")
     provider: str = Field(..., description="Connection type: gmail, github, agent, mcp, sandbox, ...")
     name: Optional[str] = Field(None, description="Display name")
-    node_id: Optional[str] = Field(None, description="Target content node ID")
+    path: Optional[str] = Field(None, description="Target MUT path")
     config: dict = Field(default_factory=dict, description="Provider-specific configuration")
     direction: Optional[str] = Field(None, description="Sync direction (datasource only)")
     trigger: Optional[dict] = Field(None, description="Trigger config (datasource/agent)")
@@ -368,8 +368,8 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
         get_connector_registry, _build_sync_service,
     )
 
-    if not payload.node_id:
-        raise HTTPException(status_code=400, detail="node_id (target_folder_node_id) is required for datasource connections")
+    if not payload.path:
+        raise HTTPException(status_code=400, detail="path (target_folder_path) is required for datasource connections")
 
     registry = get_connector_registry()
     sync_svc = _build_sync_service(registry)
@@ -378,7 +378,7 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
         project_id=payload.project_id,
         provider=payload.provider,
         config=payload.config,
-        target_folder_node_id=payload.node_id,
+        target_folder_path=payload.path,
         credentials_ref=payload.credentials_ref,
         direction=payload.direction or "inbound",
         conflict_strategy=payload.conflict_strategy or "three_way_merge",
@@ -406,7 +406,7 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     if payload.accesses:
         bash_accesses = [
             AgentBashCreate(
-                node_id=a["node_id"],
+                path=a["path"],
                 json_path=a.get("json_path", ""),
                 readonly=a.get("readonly", a.get("terminal_readonly", True)),
             )
@@ -424,7 +424,7 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         trigger_type=cfg.get("trigger_type", "manual"),
         trigger_config=cfg.get("trigger_config"),
         task_content=cfg.get("task_content"),
-        task_node_id=cfg.get("task_node_id"),
+        task_path=cfg.get("task_path"),
         external_config=cfg.get("external_config"),
     )
     return UnifiedConnectionOut(
@@ -449,7 +449,7 @@ def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     row = service.create_endpoint(
         project_id=payload.project_id,
         name=payload.name or payload.config.get("name", "MCP Endpoint"),
-        node_id=payload.node_id,
+        path=payload.path,
         description=payload.config.get("description"),
         accesses=accesses,
         tools_config=tools,
@@ -477,7 +477,7 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     row = service.create_endpoint(
         project_id=payload.project_id,
         name=payload.name or cfg.get("name", "Sandbox"),
-        node_id=payload.node_id,
+        path=payload.path,
         description=cfg.get("description"),
         mounts=mounts,
         runtime=cfg.get("runtime", "alpine"),

@@ -20,33 +20,33 @@ import pytest
 
 # ==================== Helper Functions (copied from service.py for isolated testing) ====================
 
-def _build_folder_namespace(*, project_id: str, folder_node_id: str) -> str:
+def _build_folder_namespace(*, project_id: str, folder_path: str) -> str:
     """Build namespace for folder search"""
-    return f"project_{project_id}_folder_{folder_node_id}"
+    return f"project_{project_id}_folder_{folder_path}"
 
 
-def _build_namespace(*, project_id: str, node_id: str) -> str:
+def _build_namespace(*, project_id: str, path: str) -> str:
     """Build namespace for single-node search"""
-    return f"project_{project_id}_node_{node_id}"
+    return f"project_{project_id}_node_{path}"
 
 
 def _build_folder_doc_id(
-    *, file_node_id: str, json_pointer: str, content_hash: str, chunk_index: int
+    *, file_path: str, json_pointer: str, content_hash: str, chunk_index: int
 ) -> str:
     """
     Build doc_id for folder search.
-    Similar to build_doc_id but uses file_node_id to distinguish files.
+    Similar to build_doc_id but uses file_path to distinguish files.
     """
     pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
-    return f"{file_node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
+    return f"{file_path[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
 
 def _build_doc_id(
-    *, node_id: str, json_pointer: str, content_hash: str, chunk_index: int
+    *, path: str, json_pointer: str, content_hash: str, chunk_index: int
 ) -> str:
     """Build doc_id for single-node search."""
     pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
-    return f"{node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
+    return f"{path[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
 
 def _normalize_json_pointer(pointer: str) -> str:
@@ -74,7 +74,7 @@ class FolderIndexStats:
 # ==================== Test Fixtures ====================
 
 def make_content_node(
-    node_id: str,
+    path: str,
     name: str,
     node_type: str,
     project_id: str = "proj1",
@@ -85,7 +85,7 @@ def make_content_node(
 ) -> MagicMock:
     """Create a mock ContentNode for testing."""
     node = MagicMock()
-    node.id = node_id
+    node.id = path
     node.user_id = user_id
     node.project_id = project_id
     node.parent_id = parent_id

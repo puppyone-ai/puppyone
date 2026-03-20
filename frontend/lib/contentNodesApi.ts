@@ -466,7 +466,7 @@ export async function moveNode(
 // === Node Content (read via cat endpoint) ===
 
 export interface NodeContentResponse {
-  node_id: string;
+  path: string;
   node_type: string;
   content_hash: string | null;
   content_json: any | null;
@@ -481,7 +481,7 @@ export async function getNodeContent(
 ): Promise<NodeContentResponse> {
   const catResult = await readFile(projectId, path);
   return {
-    node_id: path,
+    path: path,
     node_type: catResult.type,
     content_hash: catResult.content_hash,
     content_json: catResult.content,
@@ -657,7 +657,7 @@ export async function getProjectHistory(
 export interface AuditLogItem {
   id: number;
   action: string;
-  node_id: string;
+  path: string;
   old_version: number | null;
   new_version: number | null;
   operator_type: string;
@@ -670,7 +670,7 @@ export interface AuditLogItem {
 }
 
 export interface AuditLogListResponse {
-  node_id: string;
+  path: string;
   logs: AuditLogItem[];
   total: number;
 }
@@ -697,7 +697,7 @@ export async function getNodeAuditLogs(
 export interface SyncChangelogItem {
   id: number;
   project_id: string;
-  node_id: string;
+  path: string;
   action: string;
   node_type: string | null;
   version: number;
@@ -739,7 +739,7 @@ export interface BulkCreateNodeItem {
 
 export interface BulkCreateResultItem {
   temp_id: string;
-  node_id: string;
+  path: string;
   name: string;
   type: NodeType;
 }
@@ -773,7 +773,7 @@ export async function bulkCreateNodes(
     tempIdToPath.set(node.temp_id, fullPath);
     results.push({
       temp_id: node.temp_id,
-      node_id: fullPath,
+      path: fullPath,
       name: node.name,
       type: node.type,
     });

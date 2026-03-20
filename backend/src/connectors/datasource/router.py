@@ -14,7 +14,7 @@ CLI-driven sync:
 
 Server-side sync:
   POST   /sync/pull                          Trigger server-side PULL
-  POST   /sync/push/{node_id}               Trigger server-side PUSH
+  POST   /sync/push/{path}                  Trigger server-side PUSH
 """
 
 from typing import Optional, Any
@@ -43,7 +43,7 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 class SyncResponse(BaseModel):
     id: str
     project_id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     direction: str
     provider: str
     config: dict
@@ -54,7 +54,7 @@ class SyncResponse(BaseModel):
 
 class SyncStatusItem(BaseModel):
     id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     node_name: Optional[str] = None
     node_type: Optional[str] = None
     provider: str
@@ -69,7 +69,7 @@ class SyncStatusItem(BaseModel):
 
 class UploadStatusItem(BaseModel):
     id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     type: str
     task_type: Optional[str] = None
     status: str
@@ -87,7 +87,7 @@ class BootstrapRequest(BaseModel):
     project_id: str
     provider: str
     config: dict
-    target_folder_node_id: Optional[str] = None
+    target_folder_path: Optional[str] = None
     credentials_ref: Optional[str] = None
     direction: str = "bidirectional"
     conflict_strategy: str = "three_way_merge"
@@ -103,7 +103,7 @@ class CreateSyncRequest(BaseModel):
     project_id: str
     provider: str
     config: dict
-    target_folder_node_id: str
+    target_folder_path: str
     credentials_ref: Optional[str] = None
     direction: str = "inbound"
     conflict_strategy: str = "three_way_merge"
@@ -137,14 +137,14 @@ class PushFileRequest(BaseModel):
 
 
 class PushFileResponse(BaseModel):
-    node_id: str
+    path: str
     external_resource_id: str
     action: str
     version: int
 
 
 class PullFileItem(BaseModel):
-    node_id: str
+    path: str
     external_resource_id: str
     content_json: Optional[Any] = None
     content_md: Optional[str] = None
@@ -158,7 +158,7 @@ class PullFilesResponse(BaseModel):
 
 
 class AckPullItem(BaseModel):
-    node_id: str
+    path: str
     version: int
     remote_hash: str
 
@@ -225,8 +225,8 @@ async def get_project_sync_status(
     sync_items = [
         SyncStatusItem(
             id=s.id,
-            node_id=s.node_id,
-            node_name=s.node_id.rsplit("/", 1)[-1] if s.node_id else None,
+            path=s.path,
+            node_name=s.path.rsplit("/", 1)[-1] if s.path else None,
             node_type=None,
             provider=s.provider,
             direction=s.direction,
@@ -294,7 +294,7 @@ async def create_sync(
         project_id=body.project_id,
         provider=body.provider,
         config=body.config,
-        target_folder_node_id=body.target_folder_node_id,
+        target_folder_path=body.target_folder_path,
         credentials_ref=body.credentials_ref,
         direction=body.direction,
         conflict_strategy=body.conflict_strategy,
@@ -569,7 +569,7 @@ def get_sync_run(
 @router.post("/syncs/openclaw/bootstrap", response_model=ApiResponse, deprecated=True)
 def bootstrap_openclaw(
     project_id: str = Query(...),
-    node_id: str = Query(...),
+    path: str = Query(...),
     sync_svc: SyncService = Depends(get_sync_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -583,11 +583,11 @@ def bootstrap_openclaw(
         supabase=SupabaseClient(),
         sync_repo=sync_svc.sync_repo,
     )
-    sync = svc.bootstrap(project_id=project_id, node_id=node_id)
+    sync = svc.bootstrap(project_id=project_id, path=path)
     return ApiResponse.success(data={
         "sync_id": sync.id,
         "access_key": sync.access_key,
-        "node_id": sync.node_id,
+        "path": sync.path,
         "project_id": sync.project_id,
     })
 
@@ -643,7 +643,7 @@ async def bootstrap(
         project_id=body.project_id,
         provider=body.provider,
         config=body.config,
-        target_folder_node_id=body.target_folder_node_id,
+        target_folder_path=body.target_folder_path,
         credentials_ref=body.credentials_ref,
         direction=body.direction,
         conflict_strategy=body.conflict_strategy,
@@ -707,35 +707,30 @@ async def push_file(
     if existing:
         if existing.remote_hash == body.content_hash:
             return ApiResponse.success(data=PushFileResponse(
-                node_id=existing.node_id,
+                path=existing.path,
                 external_resource_id=body.external_resource_id,
                 action="skipped",
                 version=existing.last_sync_version,
             ))
 
-        from src.mut_engine.dependencies import create_ephemeral_client
+        from src.mut_engine.dependencies import create_mut_ops
         import json as _json
 
-        auth_ctx = {
-            "agent": f"sync:cli:{body.external_resource_id}",
-            "_scope": {"id": "_sync_cli", "path": "", "exclude": [], "mode": "rw"},
-        }
-        client = create_ephemeral_client(parent_sync.project_id, auth_ctx)
-        client.clone()
+        ops = create_mut_ops()
         content_bytes = (_json.dumps(body.content_json, ensure_ascii=False, indent=2) if is_json else (body.content_md or "")).encode("utf-8")
-        push_result = client.push(
-            modified={existing.node_id: content_bytes},
-            message=f"push update {body.external_resource_id}",
+        write_result = await ops.write_file(
+            parent_sync.project_id, existing.path, content_bytes,
             who=f"sync:cli:{body.external_resource_id}",
+            message=f"push update {body.external_resource_id}",
         )
-        version = push_result.get("version", 0)
+        version = write_result.version
         sync_svc.sync_repo.update_sync_point(
             sync_id=existing.id,
             last_sync_version=version,
             remote_hash=body.content_hash,
         )
         return ApiResponse.success(data=PushFileResponse(
-            node_id=existing.node_id,
+            path=existing.path,
             external_resource_id=body.external_resource_id,
             action="updated",
             version=version,
@@ -746,28 +741,23 @@ async def push_file(
     )[0]
     target_folder_path = parent_sync.config.get("target_folder_id", "")
 
-    from src.mut_engine.dependencies import create_ephemeral_client
+    from src.mut_engine.dependencies import create_mut_ops as _create_mut_ops
     import json as _json
 
-    auth_ctx = {
-        "agent": f"sync:cli:{body.external_resource_id}",
-        "_scope": {"id": "_sync_cli_new", "path": "", "exclude": [], "mode": "rw"},
-    }
-    client = create_ephemeral_client(parent_sync.project_id, auth_ctx)
-    client.clone()
+    ops = _create_mut_ops()
     ext = ".json" if is_json else ".md"
     file_path = f"{target_folder_path}/{file_name}{ext}" if target_folder_path else f"{file_name}{ext}"
     content_bytes = (_json.dumps(body.content_json, ensure_ascii=False, indent=2) if is_json else (body.content_md or "")).encode("utf-8")
 
-    push_result = client.push(
-        modified={file_path: content_bytes},
-        message=f"push create {body.external_resource_id}",
+    write_result = await ops.write_file(
+        parent_sync.project_id, file_path, content_bytes,
         who=f"sync:cli:{body.external_resource_id}",
+        message=f"push create {body.external_resource_id}",
     )
 
-    version = push_result.get("version", 0)
+    version = write_result.version
     return ApiResponse.success(data=PushFileResponse(
-        node_id=file_path,
+        path=file_path,
         external_resource_id=body.external_resource_id,
         action="created",
         version=version,
@@ -799,23 +789,22 @@ def pull_files(
         parent_sync.project_id, parent_sync.provider,
     )
 
-    from src.mut_engine.dependencies import create_tree_reader, get_repo_manager_standalone
-    reader = create_tree_reader()
-    repo_mgr = get_repo_manager_standalone()
-    current_version = reader.get_version(parent_sync.project_id)
+    from src.mut_engine.dependencies import create_mut_ops
+    ops = create_mut_ops()
+    current_version = ops.get_version(parent_sync.project_id)
 
     for s in syncs:
-        if not s.node_id:
+        if not s.path:
             continue
 
         if current_version <= s.last_sync_version:
             continue
 
         ext_resource_id = s.config.get("external_resource_id", "")
-        path = s.node_id
+        path = s.path
 
         try:
-            content = reader.read_file(parent_sync.project_id, path)
+            content = ops.read_file(parent_sync.project_id, path)
         except FileNotFoundError:
             continue
 
@@ -836,7 +825,7 @@ def pull_files(
             text_content = content.decode("utf-8", errors="replace")
 
         files.append(PullFileItem(
-            node_id=path,
+            path=path,
             external_resource_id=ext_resource_id,
             content_json=json_content if is_json else None,
             content_md=text_content if not is_json else None,
@@ -888,11 +877,11 @@ async def trigger_push(
     engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.mut_engine.dependencies import create_tree_reader
+    from src.mut_engine.dependencies import create_mut_ops
 
-    reader = create_tree_reader()
+    ops = create_mut_ops()
     try:
-        content = reader.read_file(project_id, path)
+        content = ops.read_file(project_id, path)
     except FileNotFoundError:
         return ApiResponse.error(code=1004, message=f"File not found: {path}")
 
@@ -908,7 +897,7 @@ async def trigger_push(
     else:
         parsed_content = content.decode("utf-8", errors="replace")
 
-    version = reader.get_version(project_id)
+    version = ops.get_version(project_id)
     result = await engine.push_execute(
         path=path,
         version=version,
@@ -929,7 +918,7 @@ async def trigger_push(
 class ChangelogItem(BaseModel):
     id: int
     project_id: str
-    node_id: str
+    path: str
     action: str
     node_type: Optional[str] = None
     version: int = 0
@@ -974,7 +963,7 @@ def get_sync_changelog(
         ChangelogItem(
             id=e.id,
             project_id=e.project_id,
-            node_id=e.node_id,
+            path=e.path,
             action=e.action,
             node_type=e.node_type,
             version=e.version,
@@ -1007,7 +996,7 @@ def _sync_resp(s) -> SyncResponse:
     return SyncResponse(
         id=s.id,
         project_id=s.project_id,
-        node_id=s.node_id,
+        path=s.path,
         direction=s.direction,
         provider=s.provider,
         config=s.config,

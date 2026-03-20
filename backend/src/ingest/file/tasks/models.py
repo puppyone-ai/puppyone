@@ -48,8 +48,8 @@ class ETLTask(BaseModel):
     )
     created_by: Optional[str] = Field(None, description="User ID who created the task (audit field)")
     project_id: str = Field(..., description="Project ID (UUID)")
-    node_id: Optional[str] = Field(
-        None, description="Associated content node ID"
+    path: Optional[str] = Field(
+        None, description="Associated MUT path"
     )
     type: str = Field(
         default="file_ocr",
@@ -65,8 +65,8 @@ class ETLTask(BaseModel):
     progress: int = Field(default=0, description="Progress percentage (0-100)")
     message: Optional[str] = Field(None, description="Status message")
     error: Optional[str] = Field(None, description="Error message if failed")
-    result_node_id: Optional[str] = Field(
-        None, description="Result content node ID"
+    result_path: Optional[str] = Field(
+        None, description="Result MUT path"
     )
     result: Optional[ETLTaskResult] = Field(
         None, description="Task result if completed"
@@ -142,14 +142,14 @@ class ETLTask(BaseModel):
         data: dict[str, Any] = {
             "created_by": self.created_by,
             "project_id": self.project_id,
-            "node_id": self.node_id,
+            "path": self.path,
             "type": self.type,
             "config": config,
             "status": db_status,
             "progress": self.progress,
             "message": self.message,
             "error": self.error,
-            "result_node_id": self.result_node_id,
+            "result_path": self.result_path,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
@@ -203,14 +203,14 @@ class ETLTask(BaseModel):
             task_id=data.get("id"),
             created_by=data.get("created_by") or data.get("user_id"),
             project_id=data["project_id"],
-            node_id=data.get("node_id"),
+            path=data.get("path"),
             type=data.get("type", "file_ocr"),
             config=config,
             status=status,
             progress=data.get("progress", 0),
             message=data.get("message"),
             error=data.get("error"),
-            result_node_id=data.get("result_node_id"),
+            result_path=data.get("result_path"),
             result=result,
             created_at=created_at,
             updated_at=updated_at,

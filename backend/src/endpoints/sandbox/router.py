@@ -35,7 +35,7 @@ def _to_out(row: dict) -> SandboxEndpointOut:
     return SandboxEndpointOut(
         id=row["id"],
         project_id=row["project_id"],
-        node_id=row.get("node_id"),
+        path=row.get("path"),
         name=row["name"],
         description=row.get("description"),
         access_key=row["access_key"],
@@ -110,13 +110,13 @@ async def _build_sandbox_files(
     mounts = endpoint.get("mounts", [])
 
     for mount in mounts:
-        node_id = mount.get("node_id")
-        if not node_id:
+        path = mount.get("path")
+        if not path:
             continue
         mount_path = _normalize_mount_path(mount.get("mount_path", "/workspace"))
         prepared = await prepare_sandbox_data(
             node_service=None,
-            node_id=node_id,
+            path=path,
             json_path="",
             user_id="sandbox_endpoint",
         )
@@ -133,7 +133,7 @@ async def _build_sandbox_files(
                     content=f.content,
                     s3_key=f.s3_key,
                     content_type=f.content_type,
-                    node_id=f.node_id,
+                    mut_path=f.mut_path,
                     node_type=f.node_type,
                     base_version=f.base_version,
                 )
@@ -170,18 +170,18 @@ def get_endpoint(
 
 
 @router.get(
-    "/by-node/{node_id}",
+    "/by-path/{path:path}",
     response_model=ApiResponse[SandboxEndpointOut],
-    summary="按节点查 Sandbox 端点",
+    summary="按路径查 Sandbox 端点",
 )
-def get_by_node(
-    node_id: str,
+def get_by_path(
+    path: str,
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
 ):
-    row = service.get_by_node(node_id)
+    row = service.get_by_path(path)
     if not row:
-        raise HTTPException(status_code=404, detail="No Sandbox endpoint for this node")
+        raise HTTPException(status_code=404, detail="No Sandbox endpoint for this path")
     if not service.verify_access(row["id"], current_user.user_id):
         raise HTTPException(status_code=403, detail="Access denied")
     return ApiResponse.success(data=_to_out(row))
@@ -202,7 +202,7 @@ def create_endpoint(
     row = service.create_endpoint(
         project_id=payload.project_id,
         name=payload.name,
-        node_id=payload.node_id,
+        path=payload.path,
         description=payload.description,
         mounts=payload.mounts,
         runtime=payload.runtime,

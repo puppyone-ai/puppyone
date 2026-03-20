@@ -28,10 +28,10 @@ class Table(BaseModel):
         None, description="知识库名称，在MCP服务中可以提供给Agent"
     )
     project_id: Optional[str] = Field(
-        None, description="外键，对应项目表，表示知识库所属的项目ID (UUID)"
+        None, description="外键，对应项目表，表示知识库所属的项目ID (UUID)。新建时必须提供。"
     )
     created_by: Optional[str] = Field(
-        None, description="创建者用户ID，支持裸Table（不属于任何Project）"
+        None, description="创建者用户ID"
     )
     description: Optional[str] = Field(
         None, description="知识库的描述，在MCP服务中可以提供给Agent"

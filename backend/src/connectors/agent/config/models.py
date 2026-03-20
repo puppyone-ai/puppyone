@@ -16,7 +16,7 @@ class AgentBash(BaseModel):
 
     id: str = Field(..., description="Bash 权限 ID")
     agent_id: str = Field(..., description="所属 Agent ID")
-    node_id: str = Field(..., description="Content Node ID (MUT path)")
+    path: str = Field(..., description="MUT path")
     json_path: str = Field(default="", description="JSON sub-path")
     readonly: bool = Field(default=True)
     created_at: datetime = Field(...)
@@ -55,7 +55,7 @@ class Agent(BaseModel):
     trigger_type: Optional[str] = Field(default="manual")
     trigger_config: Optional[dict] = Field(None)
     task_content: Optional[str] = Field(None)
-    task_node_id: Optional[str] = Field(None)
+    task_path: Optional[str] = Field(None)
     external_config: Optional[dict] = Field(None)
 
     llm_model: Optional[str] = Field(None)

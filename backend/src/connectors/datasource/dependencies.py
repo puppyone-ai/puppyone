@@ -46,7 +46,7 @@ def _discover_connectors(deps: ConnectorDeps) -> list[ConnectorSetup]:
     Scan connector directories for modules with a setup(deps) function.
     Each connector.py that exports setup() is called to produce a ConnectorSetup.
     """
-    src_dir = pathlib.Path(__file__).resolve().parent.parent  # backend/src/
+    src_dir = pathlib.Path(__file__).resolve().parent.parent.parent  # backend/src/
     setups: list[ConnectorSetup] = []
 
     for rel_path, module_prefix in _SCAN_PATHS:

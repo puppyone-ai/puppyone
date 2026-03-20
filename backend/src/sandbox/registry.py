@@ -23,7 +23,7 @@ class SandboxManifest:
 
 @dataclass
 class ManifestEntry:
-    node_id: str
+    path: str
     node_type: str
     hash: str
     version: int
@@ -41,6 +41,8 @@ class LiveSession:
     created_at: float
     last_active: float
     readonly: bool = False
+    project_id: str = ""
+    parent_path: str = ""
 
 
 IDLE_TIMEOUT_SECONDS = 4 * 60  # 4 minutes
@@ -66,6 +68,8 @@ class SandboxRegistry:
         agent_id: str,
         manifest: SandboxManifest,
         readonly: bool = False,
+        project_id: str = "",
+        parent_path: str = "",
     ) -> LiveSession:
         now = time.time()
         session = LiveSession(
@@ -76,6 +80,8 @@ class SandboxRegistry:
             created_at=now,
             last_active=now,
             readonly=readonly,
+            project_id=project_id,
+            parent_path=parent_path,
         )
         self._sessions[chat_session_id] = session
         logger.info(
@@ -112,22 +118,22 @@ def build_manifest(sandbox_files: list, node_path_map: dict) -> SandboxManifest:
 
     Args:
         sandbox_files: list of SandboxFile objects
-        node_path_map: dict of node_id → {path, node_type, readonly, base_version, ...}
+        node_path_map: dict of mut_path → {path, node_type, readonly, base_version, ...}
     """
     manifest = SandboxManifest()
 
     for f in sandbox_files:
-        if not f.node_id:
+        if not f.mut_path:
             continue
 
         content_hash = ""
         if f.content is not None:
             content_hash = hashlib.sha256(f.content.encode("utf-8")).hexdigest()
 
-        info = node_path_map.get(f.node_id, {})
+        info = node_path_map.get(f.mut_path, {})
 
         manifest.files[f.path] = ManifestEntry(
-            node_id=f.node_id,
+            path=f.mut_path,
             node_type=f.node_type or "",
             hash=content_hash,
             version=f.base_version,
@@ -143,12 +149,15 @@ async def diff_and_writeback(
     sandbox_service,
     sandbox_session_id: str,
     manifest: SandboxManifest,
-    ephemeral_client,
+    ops,
     operator_info: dict,
 ):
     """
     Diff sandbox state against manifest, write back only changed files
-    via MUT protocol (MutEphemeralClient.push()).
+    via MutOps (clone → push under the hood).
+
+    Args:
+        ops: MutOps instance for reading existing content and writing back changes.
 
     Returns list of updated node info dicts.
     """
@@ -204,10 +213,12 @@ async def diff_and_writeback(
 
         sandbox_content = read_result.get("content")
 
-        if entry.node_type == "json" and entry.json_path and ephemeral_client:
+        if entry.node_type == "json" and entry.json_path and ops and project_id:
             from src.connectors.agent.sandbox_data import merge_data_by_path
-            cloned_files = ephemeral_client.files
-            existing_bytes = cloned_files.get(entry.node_id, b"{}")
+            try:
+                existing_bytes = ops.read_file(project_id, entry.path)
+            except Exception:
+                existing_bytes = b"{}"
             try:
                 existing_json = json.loads(existing_bytes.decode("utf-8"))
             except Exception:
@@ -224,16 +235,16 @@ async def diff_and_writeback(
             else:
                 content_bytes = str(sandbox_content).encode("utf-8")
 
-            modified_files[entry.node_id] = content_bytes
+            modified_files[entry.path] = content_bytes
 
-            node_name = entry.node_id.rsplit("/", 1)[-1] if "/" in entry.node_id else entry.node_id
+            node_name = entry.path.rsplit("/", 1)[-1] if "/" in entry.path else entry.path
             updated_nodes.append({
-                "nodeId": entry.node_id,
+                "nodeId": entry.path,
                 "nodeName": node_name,
                 "mergeStrategy": "mut_push",
             })
         except Exception as e:
-            logger.warning(f"[SandboxRegistry] Prepare write-back failed for {entry.node_id}: {e}")
+            logger.warning(f"[SandboxRegistry] Prepare write-back failed for {entry.path}: {e}")
 
     if project_id and operator_info.get("parent_path") is not None:
         parent_path = operator_info["parent_path"]
@@ -277,18 +288,17 @@ async def diff_and_writeback(
             except Exception as e:
                 logger.warning(f"[SandboxRegistry] Failed to prepare new file {sandbox_path}: {e}")
 
-    if modified_files and ephemeral_client:
+    if modified_files and ops and project_id:
         try:
-            import asyncio
-            result = await asyncio.to_thread(
-                ephemeral_client.push,
-                modified=modified_files,
-                message=f"Agent write-back ({len(modified_files)} files)",
+            result = await ops.bulk_write(
+                project_id,
+                modified_files,
                 who=operator_str,
+                message=f"Agent write-back ({len(modified_files)} files)",
             )
             logger.info(
-                f"[SandboxRegistry] MUT push: v={result.get('version')} "
-                f"merged={result.get('merged', False)} files={len(modified_files)}"
+                f"[SandboxRegistry] MUT push: v={result.version} "
+                f"merged={result.merged} files={len(modified_files)}"
             )
         except Exception as e:
             logger.error(f"[SandboxRegistry] MUT push failed: {e}")

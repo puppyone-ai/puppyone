@@ -176,7 +176,7 @@ async def save_table(
         )
         return ApiResponse.success(
             data=SaveResultResponse(
-                content_node_id=result["content_node_id"],
+                content_path=result["content_path"],
                 row_count=result["row_count"],
             )
         )

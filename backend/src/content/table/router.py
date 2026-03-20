@@ -48,20 +48,6 @@ def list_tables(
 
 
 @router.get(
-    "/orphan",
-    response_model=ApiResponse[List[TableOut]],
-    summary="获取未分类的表格",
-    status_code=status.HTTP_200_OK,
-)
-def list_orphan_tables(
-    table_service: TableService = Depends(get_table_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    tables = table_service.get_orphan_tables_by_created_by(current_user.user_id)
-    return ApiResponse.success(data=tables, message="获取成功")
-
-
-@router.get(
     "/{table_id}",
     response_model=ApiResponse[TableOut],
     summary="获取单个表格详情",
@@ -84,13 +70,12 @@ async def create_table(
     table_service: TableService = Depends(get_table_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    if payload.project_id is not None:
-        if not table_service.verify_project_access(
-            payload.project_id, current_user.user_id
-        ):
-            raise NotFoundException(
-                f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
-            )
+    if not table_service.verify_project_access(
+        payload.project_id, current_user.user_id
+    ):
+        raise NotFoundException(
+            f"Project not found: {payload.project_id}", code=ErrorCode.NOT_FOUND
+        )
 
     table = await table_service.create(
         user_id=current_user.user_id,

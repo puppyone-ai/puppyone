@@ -88,6 +88,23 @@ class WorkspaceProvider(ABC):
         ...
 
 
+_workspace_provider: WorkspaceProvider | None = None
+_workspace_provider_key: tuple[str, str] | None = None
+
+
+def _resolve_provider_type(provider_type: str) -> str:
+    if provider_type != "auto":
+        return provider_type
+
+    system = platform.system()
+    if system == "Darwin":
+        return "apfs"
+    if system == "Linux":
+        # TODO: 未来检测是否支持 OverlayFS → provider_type = "overlayfs"
+        return "fallback"
+    return "fallback"
+
+
 def get_workspace_provider() -> WorkspaceProvider:
     """
     根据平台自动选择 WorkspaceProvider
@@ -98,26 +115,25 @@ def get_workspace_provider() -> WorkspaceProvider:
     """
     from src.config import settings
 
-    provider_type = settings.WORKSPACE_PROVIDER
-    base_dir = settings.WORKSPACE_BASE_DIR
+    global _workspace_provider, _workspace_provider_key
 
-    if provider_type == "auto":
-        system = platform.system()
-        if system == "Darwin":
-            provider_type = "apfs"
-        elif system == "Linux":
-            # TODO: 未来检测是否支持 OverlayFS → provider_type = "overlayfs"
-            provider_type = "fallback"
-        else:
-            provider_type = "fallback"
+    provider_type = _resolve_provider_type(settings.WORKSPACE_PROVIDER)
+    base_dir = settings.WORKSPACE_BASE_DIR
+    key = (provider_type, base_dir)
+
+    if _workspace_provider is not None and _workspace_provider_key == key:
+        return _workspace_provider
 
     if provider_type == "apfs":
         from src.platform.workspace.apfs_provider import APFSWorkspaceProvider
-        return APFSWorkspaceProvider(base_dir=base_dir)
+        _workspace_provider = APFSWorkspaceProvider(base_dir=base_dir)
     elif provider_type == "overlayfs":
         # TODO: Linux OverlayFS 实现
         from src.platform.workspace.fallback_provider import FallbackWorkspaceProvider
-        return FallbackWorkspaceProvider(base_dir=base_dir)
+        _workspace_provider = FallbackWorkspaceProvider(base_dir=base_dir)
     else:
         from src.platform.workspace.fallback_provider import FallbackWorkspaceProvider
-        return FallbackWorkspaceProvider(base_dir=base_dir)
+        _workspace_provider = FallbackWorkspaceProvider(base_dir=base_dir)
+
+    _workspace_provider_key = key
+    return _workspace_provider

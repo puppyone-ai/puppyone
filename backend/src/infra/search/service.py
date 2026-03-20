@@ -11,7 +11,8 @@ from src.infra.chunking.config import ChunkingConfig
 from src.infra.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.infra.chunking.schemas import Chunk
 from src.infra.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
-from src.mut_engine.tree_reader import MutTreeReader, MutEntry
+from src.mut_engine.ops import MutOps
+from src.mut_engine.tree_reader import MutEntry
 from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.s3.service import S3Service
 from src.infra.turbopuffer.schemas import TurbopufferRow
@@ -127,14 +128,14 @@ class FolderIndexStats:
 class SearchService:
     """
     Search Tool 核心能力：
-    - index_tool: (node_id, json_path) scope -> chunking -> embedding -> turbopuffer upsert
+    - index_tool: (path, json_path) scope -> chunking -> embedding -> turbopuffer upsert
     - search_tool: ANN -> 结构化输出（chunk_text 通过 DB 回填）
     """
 
     def __init__(
         self,
         *,
-        tree_reader: MutTreeReader,
+        ops: MutOps,
         chunk_repo: ChunkRepository,
         project_service: ProjectService,
         chunking_service: ChunkingService | None = None,
@@ -142,7 +143,7 @@ class SearchService:
         embedding_service: EmbeddingService | None = None,
         turbopuffer_service: TurbopufferSearchService | None = None,
     ) -> None:
-        self._tree_reader = tree_reader
+        self._ops = ops
         self._chunk_repo = chunk_repo
         self._project_service = project_service
         self._chunking_service = chunking_service or ChunkingService()
@@ -158,35 +159,31 @@ class SearchService:
             )
 
     @staticmethod
-    def build_namespace(*, project_id: str, node_id: str) -> str:
-        return f"project_{project_id}_node_{node_id}"
+    def build_namespace(*, project_id: str, path: str) -> str:
+        return f"project_{project_id}_path_{path}"
 
     @staticmethod
-    def build_folder_namespace(*, project_id: str, folder_node_id: str) -> str:
+    def build_folder_namespace(*, project_id: str, folder_path: str) -> str:
         """Build namespace for folder search"""
-        return f"project_{project_id}_folder_{folder_node_id}"
+        return f"project_{project_id}_folder_{folder_path}"
 
     @staticmethod
     def build_doc_id(
-        *, node_id: str, json_pointer: str, content_hash: str, chunk_index: int
+        *, path: str, json_pointer: str, content_hash: str, chunk_index: int
     ) -> str:
-        # Turbopuffer 要求 ID 最多 64 字节，所以用 hash 来压缩 json_pointer
         pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
-        # 格式: {node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}
-        # UUID 太长，截取前12位
-        return f"{node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
+        return f"{path[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
     @staticmethod
     def build_folder_doc_id(
-        *, file_node_id: str, json_pointer: str, content_hash: str, chunk_index: int
+        *, file_path: str, json_pointer: str, content_hash: str, chunk_index: int
     ) -> str:
         """
         Build doc_id for folder search.
-        Similar to build_doc_id but uses file_node_id to distinguish files.
+        Similar to build_doc_id but uses file_path to distinguish files.
         """
         pointer_hash = hashlib.md5(json_pointer.encode("utf-8")).hexdigest()[:12]
-        # 格式: {file_node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}
-        return f"{file_node_id[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
+        return f"{file_path[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
     async def ensure_namespace_schema(self, *, namespace: str) -> None:
         # 兼容保留：当前实现不再依赖 turbopuffer 的 BM25，因此无需 schema。
@@ -198,24 +195,24 @@ class SearchService:
         self,
         *,
         project_id: str,
-        node_id: str,
+        path: str,
         user_id: str,
         json_path: str,
     ) -> SearchIndexStats:
         """
-        从 (node_id, json_path) 读取 scope 数据并完成 indexing。
+        从 (path, json_path) 读取 scope 数据并完成 indexing。
         """
         t0 = time.perf_counter()
         scope_pointer = _normalize_json_pointer(json_path)
         self._ensure_project_access(project_id=project_id, user_id=user_id)
         log_info(
-            f"[index_scope] start: project_id={project_id} node_id={node_id} json_path='{json_path}'"
+            f"[index_scope] start: project_id={project_id} path={path} json_path='{json_path}'"
         )
 
         # 1) 读取 scope 数据（从 MUT ObjectStore 获取）
         t1 = time.perf_counter()
         content_bytes = await asyncio.to_thread(
-            self._tree_reader.read_file, project_id, node_id
+            self._ops.read_file, project_id, path
         )
         import json as _json_mod
         try:
@@ -224,7 +221,7 @@ class SearchService:
             full_data = {}
         scope_data = _extract_by_pointer(full_data, scope_pointer)
         log_info(
-            f"[index_scope] step1_get_scope_data: node_id={node_id} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
+            f"[index_scope] step1_get_scope_data: path={path} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
         )
 
         # 2) 提取大字符串节点（json_pointer 必须是"绝对指针"）
@@ -240,13 +237,12 @@ class SearchService:
             )
         )
         log_info(
-            f"[index_scope] step2_extract_nodes: node_id={node_id} nodes_count={len(nodes)} elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
+            f"[index_scope] step2_extract_nodes: path={path} nodes_count={len(nodes)} elapsed_ms={int((time.perf_counter() - t2) * 1000)}"
         )
 
-        # 没有大文本：保持成功，但无需写入 turbopuffer
         if not nodes:
             log_info(
-                f"[index_scope] done_no_nodes: node_id={node_id} total_ms={int((time.perf_counter() - t0) * 1000)}"
+                f"[index_scope] done_no_nodes: path={path} total_ms={int((time.perf_counter() - t0) * 1000)}"
             )
             return SearchIndexStats(
                 nodes_count=0, chunks_count=0, indexed_chunks_count=0
@@ -260,7 +256,7 @@ class SearchService:
                 ensure_chunks_for_pointer,
                 repo=self._chunk_repo,
                 service=self._chunking_service,
-                node_id=node_id,
+                path=path,
                 json_pointer=n.json_pointer,
                 content=n.content,
                 config=self._chunking_config,
@@ -268,15 +264,15 @@ class SearchService:
             all_chunks.extend(list(ensured.chunks))
             if (i + 1) % 10 == 0:
                 log_info(
-                    f"[index_scope] step3_chunking_progress: node_id={node_id} processed={i + 1}/{len(nodes)}"
+                    f"[index_scope] step3_chunking_progress: path={path} processed={i + 1}/{len(nodes)}"
                 )
         log_info(
-            f"[index_scope] step3_ensure_chunks: node_id={node_id} chunks_count={len(all_chunks)} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
+            f"[index_scope] step3_ensure_chunks: path={path} chunks_count={len(all_chunks)} elapsed_ms={int((time.perf_counter() - t3) * 1000)}"
         )
 
         if not all_chunks:
             log_info(
-                f"[index_scope] done_no_chunks: node_id={node_id} nodes={len(nodes)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+                f"[index_scope] done_no_chunks: path={path} nodes={len(nodes)} total_ms={int((time.perf_counter() - t0) * 1000)}"
             )
             return SearchIndexStats(
                 nodes_count=len(nodes), chunks_count=0, indexed_chunks_count=0
@@ -286,23 +282,23 @@ class SearchService:
         t4 = time.perf_counter()
         texts = [c.chunk_text for c in all_chunks]
         log_info(
-            f"[index_scope] step4_embedding_start: node_id={node_id} texts_count={len(texts)}"
+            f"[index_scope] step4_embedding_start: path={path} texts_count={len(texts)}"
         )
         vectors = await self._embedding.generate_embeddings_batch(texts)
         log_info(
-            f"[index_scope] step4_embedding_done: node_id={node_id} vectors_count={len(vectors)} elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
+            f"[index_scope] step4_embedding_done: path={path} vectors_count={len(vectors)} elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
         )
 
         # 5) turbopuffer upsert（批量）
         # 注意：write 带 schema 参数会自动创建 namespace，支持增量更新
         t5 = time.perf_counter()
-        namespace = self.build_namespace(project_id=project_id, node_id=node_id)
+        namespace = self.build_namespace(project_id=project_id, path=path)
 
         upsert_rows: list[dict[str, Any]] = []
         doc_ids: list[str] = []
         for c, vec in zip(all_chunks, vectors, strict=True):
             doc_id = self.build_doc_id(
-                node_id=c.node_id,
+                path=c.path,
                 json_pointer=c.json_pointer,
                 content_hash=c.content_hash,
                 chunk_index=c.chunk_index,
@@ -324,7 +320,7 @@ class SearchService:
             )
 
         log_info(
-            f"[index_scope] step5_turbopuffer_write_start: node_id={node_id} rows_count={len(upsert_rows)}"
+            f"[index_scope] step5_turbopuffer_write_start: path={path} rows_count={len(upsert_rows)}"
         )
         await self._tp.write(
             namespace,
@@ -332,7 +328,7 @@ class SearchService:
             distance_metric="cosine_distance",
         )
         log_info(
-            f"[index_scope] step5_turbopuffer_done: node_id={node_id} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
+            f"[index_scope] step5_turbopuffer_done: path={path} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
         )
 
         # 6) 回写 chunks 表的 turbopuffer 字段（best-effort）
@@ -356,11 +352,11 @@ class SearchService:
                 # 不阻断 indexing：后续可通过重建/补齐逻辑再修复
                 pass
         log_info(
-            f"[index_scope] step6_update_chunks_done: node_id={node_id} elapsed_ms={int((time.perf_counter() - t6) * 1000)}"
+            f"[index_scope] step6_update_chunks_done: path={path} elapsed_ms={int((time.perf_counter() - t6) * 1000)}"
         )
 
         log_info(
-            f"[index_scope] done: node_id={node_id} nodes={len(nodes)} chunks={len(all_chunks)} total_ms={int((time.perf_counter() - t0) * 1000)}"
+            f"[index_scope] done: path={path} nodes={len(nodes)} chunks={len(all_chunks)} total_ms={int((time.perf_counter() - t0) * 1000)}"
         )
         return SearchIndexStats(
             nodes_count=len(nodes),
@@ -372,7 +368,7 @@ class SearchService:
         self,
         *,
         project_id: str,
-        node_id: str,
+        path: str,
         tool_json_path: str,
         query: str,
         top_k: int = 5,
@@ -390,7 +386,7 @@ class SearchService:
         if top_k > 20:
             top_k = 20
 
-        namespace = self.build_namespace(project_id=project_id, node_id=node_id)
+        namespace = self.build_namespace(project_id=project_id, path=path)
 
         query_vec = await self._embedding.generate_embedding(q)
         resp = await self._tp.query(
@@ -423,7 +419,7 @@ class SearchService:
             json_path = _relative_pointer(base=scope_base, absolute=json_pointer)
 
             # 仅返回对 Agent 有用的字段
-            # 移除内部字段: node_id, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
+            # 移除内部字段: path, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
             cid = attrs.get("chunk_id")
             chunk_id_int: int | None = None
             try:
@@ -471,47 +467,37 @@ class SearchService:
         self,
         *,
         project_id: str,
-        folder_node_id: str,
+        folder_path: str,
         user_id: str,
         s3_service: S3Service,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> FolderIndexStats:
         """
         Index all indexable files in a folder for vector search.
-        
-        Args:
-            project_id: Project ID
-            folder_node_id: The folder node ID to index
-            user_id: User ID for permission checks
-            s3_service: S3 service for reading file content
-            progress_callback: Optional callback(indexed_files, total_files) for progress updates
-        
-        Returns:
-            FolderIndexStats with indexing statistics
         """
         t0 = time.perf_counter()
         self._ensure_project_access(project_id=project_id, user_id=user_id)
         log_info(
-            f"[index_folder] start: project_id={project_id} folder_node_id={folder_node_id}"
+            f"[index_folder] start: project_id={project_id} folder_path={folder_path}"
         )
 
         # 1) Get all indexable descendants
         t1 = time.perf_counter()
         all_entries = await asyncio.to_thread(
-            self._tree_reader.list_tree, project_id, folder_node_id
+            self._ops.list_tree, project_id, folder_path
         )
         indexable_files = [
             e for e in all_entries if e.type in ("json", "markdown")
         ]
         total_files = len(indexable_files)
         log_info(
-            f"[index_folder] step1_get_indexable_files: folder_node_id={folder_node_id} "
+            f"[index_folder] step1_get_indexable_files: folder_path={folder_path} "
             f"total_files={total_files} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
         )
 
         if not indexable_files:
             log_info(
-                f"[index_folder] done_no_files: folder_node_id={folder_node_id} "
+                f"[index_folder] done_no_files: folder_path={folder_path} "
                 f"total_ms={int((time.perf_counter() - t0) * 1000)}"
             )
             return FolderIndexStats(
@@ -524,7 +510,7 @@ class SearchService:
 
         # 2) Process each file
         namespace = self.build_folder_namespace(
-            project_id=project_id, folder_node_id=folder_node_id
+            project_id=project_id, folder_path=folder_path
         )
         
         total_nodes = 0
@@ -568,7 +554,7 @@ class SearchService:
                 continue
 
         log_info(
-            f"[index_folder] done: folder_node_id={folder_node_id} "
+            f"[index_folder] done: folder_path={folder_path} "
             f"files={indexed_files}/{total_files} nodes={total_nodes} "
             f"chunks={total_chunks} total_ms={int((time.perf_counter() - t0) * 1000)}"
         )
@@ -598,7 +584,7 @@ class SearchService:
         is_json = file_node.type == "json"
 
         try:
-            content_bytes = self._tree_reader.read_file(
+            content_bytes = self._ops.read_file(
                 project_id, file_node.path
             )
         except Exception:
@@ -664,7 +650,7 @@ class SearchService:
                 ensure_chunks_for_pointer,
                 repo=self._chunk_repo,
                 service=self._chunking_service,
-                node_id=file_id,
+                path=file_id,
                 json_pointer=n.json_pointer,
                 content=n.content,
                 config=self._chunking_config,
@@ -697,7 +683,7 @@ class SearchService:
 
         for c, vec in zip(all_chunks, vectors, strict=True):
             doc_id = self.build_folder_doc_id(
-                file_node_id=file_id,
+                file_path=file_id,
                 json_pointer=c.json_pointer,
                 content_hash=c.content_hash,
                 chunk_index=c.chunk_index,
@@ -714,7 +700,7 @@ class SearchService:
                     "char_end": c.char_end,
                     "content_hash": c.content_hash,
                     "chunk_id": int(c.id),
-                    "file_node_id": file_id,
+                    "file_path": file_id,
                     "file_mut_path": file_node.path,
                     "file_name": file_node.name,
                     "file_type": file_node.type,
@@ -765,21 +751,12 @@ class SearchService:
         self,
         *,
         project_id: str,
-        folder_node_id: str,
+        folder_path: str,
         query: str,
         top_k: int = 5,
     ) -> list[dict[str, Any]]:
         """
         Search in a folder namespace, returning results with file path information.
-        
-        Args:
-            project_id: Project ID
-            folder_node_id: The folder node ID
-            query: Search query
-            top_k: Number of results to return (max 20)
-        
-        Returns:
-            List of search results with file and chunk information
         """
         q = (query or "").strip()
         if not q:
@@ -792,7 +769,7 @@ class SearchService:
             top_k = 20
 
         namespace = self.build_folder_namespace(
-            project_id=project_id, folder_node_id=folder_node_id
+            project_id=project_id, folder_path=folder_path
         )
 
         # 1) Generate query embedding and search
@@ -825,7 +802,7 @@ class SearchService:
             attrs = r.attributes or {}
             
             # Extract file information
-            file_node_id = str(attrs.get("file_node_id") or "")
+            file_path_val = str(attrs.get("file_path") or attrs.get("file_node_id") or "")
             file_mut_path = str(attrs.get("file_mut_path") or attrs.get("file_id_path") or "")
             file_name = str(attrs.get("file_name") or "")
             file_type = str(attrs.get("file_type") or "")
@@ -857,7 +834,7 @@ class SearchService:
                 {
                     "score": float(score),
                     "file": {
-                        "node_id": file_node_id,
+                        "path": file_path_val,
                         "mut_path": file_mut_path,
                         "name": file_name,
                         "type": file_type,

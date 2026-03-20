@@ -33,7 +33,7 @@ from src.connectors.agent.sandbox_data import (
     SandboxFile, SandboxData,
     prepare_sandbox_data, extract_data_by_path, merge_data_by_path,
 )
-from src.mut_engine.tree_reader import MutTreeReader
+from src.mut_engine.ops import MutOps
 from src.platform.analytics.service import log_context_access, log_bash_execution
 import time as time_module  # For latency tracking
 
@@ -97,7 +97,7 @@ def _sanitize_tool_name(name: str) -> str:
 class SearchToolConfig:
     """Agent 关联的 Search Tool 配置"""
     tool_id: str           # tool 表的 ID
-    node_id: str           # 绑定的 content_node ID
+    path: str              # 绑定的 content_node path
     json_path: str         # JSON 路径
     project_id: str        # 项目 ID
     node_type: str         # 节点类型（folder / json / markdown 等）
@@ -117,7 +117,7 @@ class AgentService:
         agent_id: str,
         task_content: str,
         user_id: str,
-        tree_reader: MutTreeReader | None,
+        ops: MutOps | None,
         sandbox_service,
         s3_service=None,
         agent_config_service=None,
@@ -132,7 +132,7 @@ class AgentService:
             agent_id: Agent ID
             task_content: 任务内容（来自 agent.task_content）
             user_id: 用户 ID（agent 的 owner）
-            tree_reader: MutTreeReader for reading Mut tree
+            ops: MutOps for reading/writing Mut tree
             sandbox_service: SandboxService
             s3_service: S3Service（可选）
             agent_config_service: AgentConfigService
@@ -170,11 +170,11 @@ class AgentService:
             bash_tools: list[dict] = []
             for ba in agent.bash_accesses:
                 bash_tools.append({
-                    "node_id": ba.node_id,
+                    "path": ba.path,
                     "json_path": (ba.json_path or "").strip(),
                     "readonly": ba.readonly,
                 })
-                logger.info(f"[ScheduleAgent] Found bash access: node_id={ba.node_id}")
+                logger.info(f"[ScheduleAgent] Found bash access: path={ba.path}")
             
             use_bash = len(bash_tools) > 0
             sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
@@ -184,27 +184,27 @@ class AgentService:
             sandbox_session_id = None
             node_path_map: dict = {}
             
-            if use_bash and tree_reader:
+            if use_bash and ops:
                 all_files: list[SandboxFile] = []
                 primary_node_type = "folder"
-                primary_node_id = ""
+                primary_path = ""
                 primary_node_name = ""
                 
                 for i, tool in enumerate(bash_tools):
                     try:
                         data = await prepare_sandbox_data(
-                            tree_reader=tree_reader,
+                            ops=ops,
                             project_id=agent.project_id,
-                            path=tool["node_id"],
+                            path=tool["path"],
                             json_path=tool["json_path"],
                             user_id=user_id,
                         )
-                        logger.info(f"[ScheduleAgent] Prepared sandbox data: node_id={tool['node_id']}, files={len(data.files)}")
+                        logger.info(f"[ScheduleAgent] Prepared sandbox data: path={tool['path']}, files={len(data.files)}")
                         all_files.extend(data.files)
                         
                         if data.files:
                             main_path = data.files[0].path
-                            node_path_map[tool["node_id"]] = {
+                            node_path_map[tool["path"]] = {
                                 "path": main_path,
                                 "node_type": data.node_type,
                                 "json_path": tool["json_path"],
@@ -213,7 +213,7 @@ class AgentService:
                         
                         if i == 0:
                             primary_node_type = data.node_type
-                            primary_node_id = data.root_node_id
+                            primary_path = data.root_path
                             primary_node_name = data.root_node_name
                     except Exception as e:
                         logger.warning(f"[ScheduleAgent] Failed to prepare sandbox data: {e}")
@@ -221,7 +221,7 @@ class AgentService:
                 sandbox_data = SandboxData(
                     files=all_files,
                     node_type=primary_node_type if len(bash_tools) == 1 else "multi",
-                    root_node_id=primary_node_id,
+                    root_path=primary_path,
                     root_node_name=primary_node_name,
                     node_path_map=node_path_map,
                 )
@@ -410,25 +410,12 @@ class AgentService:
             # ========== 7. 回写数据到数据库（Mut Protocol） ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
                 if sandbox_data and sandbox_data.node_path_map:
-                    from src.mut_engine.dependencies import create_ephemeral_client
+                    from src.mut_engine.dependencies import create_mut_ops
                     agent_identity = f"agent:{agent.id}" if agent else "agent:unknown"
-                    scope_path = ""
-                    for info in sandbox_data.node_path_map.values():
-                        p = info.get("path", "")
-                        if "/" in p:
-                            candidate = p.rsplit("/", 1)[0]
-                            if not scope_path or len(candidate) < len(scope_path):
-                                scope_path = candidate
-
-                    auth_ctx = {
-                        "agent": agent_identity,
-                        "_scope": {"id": "_agent", "path": scope_path, "exclude": [], "mode": "rw"},
-                    }
-                    ephemeral = create_ephemeral_client(agent.project_id, auth_ctx)
-                    ephemeral.clone()
+                    ops = create_mut_ops()
 
                     modified_files: dict[str, bytes] = {}
-                    for node_id, info in sandbox_data.node_path_map.items():
+                    for node_path, info in sandbox_data.node_path_map.items():
                         if info.get("readonly"):
                             continue
 
@@ -453,7 +440,7 @@ class AgentService:
                             if node_type == "json" and json_path_config:
                                 try:
                                     import json as _json_mod
-                                    existing = ephemeral.read_file(node_id)
+                                    existing = ops.read_file(agent.project_id, node_path)
                                     existing_json = _json_mod.loads(existing.decode("utf-8")) if existing else {}
                                 except Exception:
                                     existing_json = {}
@@ -468,10 +455,10 @@ class AgentService:
                             else:
                                 content_bytes = str(sandbox_content).encode("utf-8")
 
-                            modified_files[node_id] = content_bytes
+                            modified_files[node_path] = content_bytes
                             result["updated_nodes"].append({
-                                "nodeId": node_id,
-                                "nodeName": node_id.rsplit("/", 1)[-1] if "/" in node_id else node_id,
+                                "nodeId": node_path,
+                                "nodeName": node_path.rsplit("/", 1)[-1] if "/" in node_path else node_path,
                             })
 
                         except Exception as e:
@@ -479,10 +466,11 @@ class AgentService:
 
                     if modified_files:
                         try:
-                            ephemeral.push(
-                                modified=modified_files,
-                                message="Schedule Agent write-back",
+                            await ops.bulk_write(
+                                agent.project_id,
+                                modified_files,
                                 who=agent_identity,
+                                message="Schedule Agent write-back",
                             )
                             logger.info(f"[ScheduleAgent] Pushed {len(modified_files)} files via MUT protocol")
                         except Exception as e:
@@ -507,7 +495,7 @@ class AgentService:
         self,
         request: AgentRequest,
         current_user,
-        tree_reader: MutTreeReader | None,
+        ops: MutOps | None,
         tool_service,
         sandbox_service,
         chat_service: Optional[ChatService] = None,
@@ -525,7 +513,7 @@ class AgentService:
         """
         
         # ========== 1. 解析配置，优先使用新版 agent_access ==========
-        bash_tools: list[dict] = []  # [{node_id, json_path, readonly}, ...]
+        bash_tools: list[dict] = []  # [{path, json_path, readonly}, ...]
         
         logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}, user_id={current_user.user_id if current_user else None}")
         
@@ -547,11 +535,11 @@ class AgentService:
                     # 收集所有 Bash 访问权限（新版架构下所有 bash_accesses 都是终端访问）
                     for bash in agent.bash_accesses:
                         bash_tools.append({
-                            "node_id": bash.node_id,
+                            "path": bash.path,
                             "json_path": (bash.json_path or "").strip(),
                             "readonly": bash.readonly,
                         })
-                        logger.info(f"[Agent] Found bash access from agent_bash: node_id={bash.node_id}")
+                        logger.info(f"[Agent] Found bash access from agent_bash: path={bash.path}")
                     logger.info(f"[Agent] Total bash accesses collected: {len(bash_tools)}")
                 else:
                     logger.warning(f"[Agent] Agent not found or unauthorized: agent_id={request.agent_id}, has_access={has_access}")
@@ -582,7 +570,7 @@ class AgentService:
                         
                         # 获取节点信息以确定搜索类型
                         try:
-                            node = tree_reader.stat(agent_for_tools.project_id, tool_info.node_id) if tree_reader else None
+                            node = ops.stat(agent_for_tools.project_id, tool_info.path) if ops else None
                             if not node:
                                 continue
                         except Exception:
@@ -597,7 +585,7 @@ class AgentService:
                         
                         search_tools_map[claude_name] = SearchToolConfig(
                             tool_id=tool_info.id,
-                            node_id=tool_info.node_id,
+                            path=tool_info.path,
                             json_path=tool_info.json_path or "",
                             project_id=tool_info.project_id or agent_for_tools.project_id,
                             node_type=node.type or "json",
@@ -678,11 +666,11 @@ class AgentService:
         # 如果任意一个 access 不是 readonly，则整个沙盒不是 readonly
         sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
         
-        if use_bash and tree_reader and current_user:
+        if use_bash and ops and current_user:
             # 收集所有 bash access 的文件
             all_files: list[SandboxFile] = []
             primary_node_type = "folder"  # 默认类型
-            primary_node_id = ""
+            primary_path = ""
             primary_node_name = ""
             # 追踪每个 node 对应的沙盒路径和类型，用于回写
             node_path_map: dict = {}  # {path: {path, node_type, json_path}}
@@ -697,19 +685,19 @@ class AgentService:
             for i, tool in enumerate(bash_tools):
                 try:
                     data = await prepare_sandbox_data(
-                        tree_reader=tree_reader,
+                        ops=ops,
                         project_id=_agent_project_id,
-                        path=tool["node_id"],
+                        path=tool["path"],
                         json_path=tool["json_path"],
                         user_id=current_user.user_id,
                     )
                     logger.info(f"[Agent] Prepared sandbox data for access {i+1}/{len(bash_tools)}: "
-                               f"node_id={tool['node_id']}, type={data.node_type}, files={len(data.files)}")
+                               f"path={tool['path']}, type={data.node_type}, files={len(data.files)}")
                     all_files.extend(data.files)
                     
                     # Log context access (data egress tracking)
                     await log_context_access(
-                        node_id=tool["node_id"],
+                        path=tool["path"],
                         node_type=data.node_type,
                         node_name=data.root_node_name,
                         user_id=current_user.user_id if current_user else None,
@@ -721,8 +709,8 @@ class AgentService:
                     if data.node_type == "folder" and data.files:
                         # 文件夹类型：为每个子文件建立独立的回写映射
                         for f in data.files:
-                            if f.node_id and f.node_type in ("json", "markdown"):
-                                node_path_map[f.node_id] = {
+                            if f.path and f.node_type in ("json", "markdown"):
+                                node_path_map[f.path] = {
                                     "path": f.path,
                                     "node_type": f.node_type,
                                     "json_path": "",  # 子文件没有 json_path
@@ -731,7 +719,7 @@ class AgentService:
                                     "base_content": f.content,  # 记录 Agent 读取时的原始内容
                                 }
                         # 同时记录文件夹本身（用于显示）
-                        node_path_map[tool["node_id"]] = {
+                        node_path_map[tool["path"]] = {
                             "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace",
                             "node_type": "folder",
                             "json_path": tool["json_path"],
@@ -741,7 +729,7 @@ class AgentService:
                     elif data.files:
                         # 非文件夹类型（JSON、单文件等）：记录主文件路径
                         main_file = data.files[0]
-                        node_path_map[tool["node_id"]] = {
+                        node_path_map[tool["path"]] = {
                             "path": main_file.path,
                             "node_type": data.node_type,
                             "json_path": tool["json_path"],
@@ -751,7 +739,7 @@ class AgentService:
                         }
                     else:
                         # 空文件夹也记录，使用文件夹名作为路径
-                        node_path_map[tool["node_id"]] = {
+                        node_path_map[tool["path"]] = {
                             "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace/(empty folder)",
                             "node_type": data.node_type,
                             "json_path": tool["json_path"],
@@ -762,15 +750,15 @@ class AgentService:
                     # 第一个 access 决定主类型
                     if i == 0:
                         primary_node_type = data.node_type
-                        primary_node_id = data.root_node_id
+                        primary_path = data.root_path
                         primary_node_name = data.root_node_name
                 except Exception as e:
-                    logger.warning(f"[Agent] Failed to prepare sandbox data for node {tool['node_id']}: {e}")
+                    logger.warning(f"[Agent] Failed to prepare sandbox data for node {tool['path']}: {e}")
             
             sandbox_data = SandboxData(
                 files=all_files,
                 node_type=primary_node_type if len(bash_tools) == 1 else "multi",  # 多个时标记为 multi
-                root_node_id=primary_node_id,
+                root_path=primary_path,
                 root_node_name=primary_node_name,
                 node_path_map=node_path_map,
             )
@@ -779,6 +767,7 @@ class AgentService:
         if use_bash and sandbox_service:
             from src.sandbox.registry import get_sandbox_registry, build_manifest
             sandbox_registry = get_sandbox_registry()
+            sandbox_parent_path = ""
             
             chat_key = persisted_session_id or f"agent-{request.agent_id}-{int(time.time() * 1000)}"
             existing_session = sandbox_registry.get(chat_key)
@@ -820,6 +809,15 @@ class AgentService:
                     )
                 
                 if start_result.get("success"):
+                    if sandbox_data and _agent_project_id and ops:
+                        root_path = sandbox_data.root_path
+                        root_entry = ops.stat(_agent_project_id, root_path) if root_path else None
+                        if root_entry:
+                            if root_entry.type == "folder":
+                                sandbox_parent_path = root_path
+                            else:
+                                sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
+
                     manifest = build_manifest(
                         sandbox_data.files if sandbox_data else [],
                         sandbox_data.node_path_map if sandbox_data else {},
@@ -830,6 +828,8 @@ class AgentService:
                         agent_id=request.agent_id,
                         manifest=manifest,
                         readonly=sandbox_readonly,
+                        project_id=_agent_project_id,
+                        parent_path=sandbox_parent_path,
                     )
             
             if not start_result.get("success"):
@@ -915,7 +915,7 @@ class AgentService:
             def build_access_list() -> str:
                 lines = []
                 for tool in bash_tools:
-                    path_info = node_path_map.get(tool["node_id"], {})
+                    path_info = node_path_map.get(tool["path"], {})
                     path = path_info.get("path", "/workspace/(unknown)")
                     mode = "👁️ View Only" if tool["readonly"] else "✏️ Editable"
                     is_empty = path_info.get("is_empty", False)
@@ -1169,14 +1169,14 @@ class AgentService:
                         if stc.node_type == "folder":
                             results = await search_service.search_folder(
                                 project_id=stc.project_id,
-                                folder_node_id=stc.node_id,
+                                folder_path=stc.path,
                                 query=query,
                                 top_k=top_k,
                             )
                         else:
                             results = await search_service.search_scope(
                                 project_id=stc.project_id,
-                                node_id=stc.node_id,
+                                path=stc.path,
                                 tool_json_path=stc.json_path,
                                 query=query,
                                 top_k=top_k,
@@ -1259,24 +1259,18 @@ class AgentService:
                 _parent_path = ""
                 if sandbox_data:
                     _project_id = _agent_project_id
-                    root_path = sandbox_data.root_node_id
-                    root_entry = tree_reader.stat(_project_id, root_path) if _project_id and tree_reader else None
+                    root_path = sandbox_data.root_path
+                    root_entry = ops.stat(_project_id, root_path) if _project_id and ops else None
                     if root_entry:
                         if root_entry.type == "folder":
                             _parent_path = root_path
                         else:
                             _parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
 
-                ephemeral_client = None
+                writeback_ops = None
                 if _project_id:
-                    from src.mut_engine.dependencies import create_ephemeral_client
-                    auth_context = {
-                        "agent": f"agent:{request.agent_id}",
-                        "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
-                    }
-                    ephemeral_client = create_ephemeral_client(_project_id, auth_context)
-                    import asyncio
-                    await asyncio.to_thread(ephemeral_client.clone)
+                    from src.mut_engine.dependencies import create_mut_ops
+                    writeback_ops = create_mut_ops()
 
                 operator_info = {
                     "type": "agent",
@@ -1289,7 +1283,7 @@ class AgentService:
                     sandbox_service=sandbox_service,
                     sandbox_session_id=sandbox_session_id,
                     manifest=live_session.manifest,
-                    ephemeral_client=ephemeral_client,
+                    ops=writeback_ops,
                     operator_info=operator_info,
                 )
             

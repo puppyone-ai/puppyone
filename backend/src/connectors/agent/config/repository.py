@@ -35,7 +35,7 @@ def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
     return [AgentBash(
         id=f"{agent_id}:scope",
         agent_id=agent_id,
-        node_id=path,
+        path=path,
         json_path="",
         readonly=(mode == "r"),
         created_at=datetime.now(timezone.utc),
@@ -79,7 +79,7 @@ def _row_to_agent(row: dict) -> Agent:
         trigger_type=trigger.get("type", "manual"),
         trigger_config=trigger.get("config"),
         task_content=config.get("task_content"),
-        task_node_id=config.get("task_node_id"),
+        task_path=config.get("task_path"),
         external_config=config.get("external_config"),
         llm_model=config.get("llm_model"),
         system_prompt=config.get("system_prompt"),
@@ -225,7 +225,7 @@ class AgentRepository:
         trigger_type: Optional[str] = "manual",
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
         llm_model: Optional[str] = None,
         system_prompt: Optional[str] = None,
@@ -240,7 +240,7 @@ class AgentRepository:
             "description": description,
             "is_default": is_default,
             "task_content": task_content,
-            "task_node_id": task_node_id,
+            "task_path": task_path,
             "external_config": external_config,
             "llm_model": llm_model,
             "system_prompt": system_prompt,
@@ -253,7 +253,7 @@ class AgentRepository:
         data = {
             "id": agent_id,
             "project_id": project_id,
-            "node_id": task_node_id,  # nullable
+            "path": task_path,  # nullable
             "direction": "bidirectional",
             "provider": AGENT_PROVIDER,
             "config": config,
@@ -276,7 +276,7 @@ class AgentRepository:
         trigger_type: Optional[str] = None,
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
         llm_model: Optional[str] = None,
         system_prompt: Optional[str] = None,
@@ -310,8 +310,8 @@ class AgentRepository:
             config["is_default"] = is_default
         if task_content is not None:
             config["task_content"] = task_content
-        if task_node_id is not None:
-            config["task_node_id"] = task_node_id
+        if task_path is not None:
+            config["task_path"] = task_path
         if external_config is not None:
             config["external_config"] = external_config
         if llm_model is not None:
@@ -330,8 +330,8 @@ class AgentRepository:
         }
         if mcp_api_key is not None:
             update_data["access_key"] = mcp_api_key
-        if task_node_id is not None:
-            update_data["node_id"] = task_node_id
+        if task_path is not None:
+            update_data["path"] = task_path
 
         resp = (
             self._client.table(self.TABLE)
@@ -416,12 +416,12 @@ class AgentRepository:
     def create_bash(
         self,
         agent_id: str,
-        node_id: str,
+        path: str,
         json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
         scope = {
-            "path": node_id,
+            "path": path,
             "exclude": [],
             "mode": "r" if readonly else "rw",
         }
@@ -429,7 +429,7 @@ class AgentRepository:
         return AgentBash(
             id=f"{agent_id}:scope",
             agent_id=agent_id,
-            node_id=node_id,
+            path=path,
             json_path=json_path,
             readonly=readonly,
             created_at=datetime.now(timezone.utc),
@@ -471,11 +471,11 @@ class AgentRepository:
     def upsert_bash(
         self,
         agent_id: str,
-        node_id: str,
+        path: str,
         json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
-        return self.create_bash(agent_id, node_id, json_path, readonly)
+        return self.create_bash(agent_id, path, json_path, readonly)
 
     # ============================================
     # AgentTool CRUD

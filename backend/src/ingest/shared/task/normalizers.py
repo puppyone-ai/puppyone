@@ -46,13 +46,13 @@ def normalize_file_task(task: ETLTask) -> IngestTaskResponse:
     """ETL task -> Unified response."""
     ingest_type = detect_file_ingest_type(task.filename)
 
-    content_node_id = None
-    if task.result and hasattr(task.result, "content_node_id"):
-        content_node_id = task.result.content_node_id
-    elif task.metadata.get("content_node_id"):
-        content_node_id = task.metadata.get("content_node_id")
-    elif task.metadata.get("mount_node_id"):
-        content_node_id = task.metadata.get("mount_node_id")
+    content_path = None
+    if task.result and hasattr(task.result, "content_path"):
+        content_path = task.result.content_path
+    elif task.metadata.get("content_path"):
+        content_path = task.metadata.get("content_path")
+    elif task.metadata.get("mount_path") or task.metadata.get("mount_node_id"):
+        content_path = task.metadata.get("mount_path") or task.metadata.get("mount_node_id")
 
     return IngestTaskResponse(
         task_id=str(task.task_id),
@@ -61,7 +61,7 @@ def normalize_file_task(task: ETLTask) -> IngestTaskResponse:
         status=normalize_file_status(task.status),
         progress=task.progress,
         message=task.metadata.get("message"),
-        content_node_id=content_node_id,
+        content_path=content_path,
         error=task.error,
         created_at=task.created_at,
         updated_at=task.updated_at,

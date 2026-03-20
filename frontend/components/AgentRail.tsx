@@ -45,7 +45,7 @@ export interface SavedAgent {
   trigger_type?: TriggerType;
   trigger_config?: TriggerConfig;
   task_content?: string;
-  task_node_id?: string;
+  task_path?: string;
   external_config?: ExternalConfig;
 }
 

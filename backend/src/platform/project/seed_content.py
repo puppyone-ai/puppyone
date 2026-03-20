@@ -4,7 +4,7 @@ Default seed content for new projects.
 Creates a Getting Started.md at root + a Guides/ folder with
 About PuppyOne.md, Connecting Data.md, and Agent Access.md.
 
-All writes go through MUT protocol (MutEphemeralClient).
+All writes go through MUT protocol (MutOps).
 
 Used by both CLI `puppyone init` and web onboarding.
 """
@@ -209,16 +209,11 @@ async def seed_default_content(
     """
     Populate a newly created project with default seed content.
 
-    All content writes go through MUT protocol (MutEphemeralClient).
+    All content writes go through MUT protocol (MutOps).
     """
-    from src.mut_engine.dependencies import create_ephemeral_client
+    from src.mut_engine.dependencies import create_mut_ops
 
-    auth_ctx = {
-        "agent": f"seed:{created_by}",
-        "_scope": {"id": "_seed", "path": "", "exclude": [], "mode": "rw"},
-    }
-    client = create_ephemeral_client(project_id, auth_ctx)
-    client.clone()
+    ops = create_mut_ops()
 
     files: dict[str, bytes] = {
         "Getting Started.md": GETTING_STARTED_MD.encode("utf-8"),
@@ -227,10 +222,10 @@ async def seed_default_content(
         "Guides/Agent Access.md": AGENT_ACCESS_MD.encode("utf-8"),
     }
 
-    client.push(
-        modified=files,
-        message="seed: project default content",
+    await ops.bulk_write(
+        project_id, files,
         who=created_by,
+        message="seed: project default content",
     )
 
     return {

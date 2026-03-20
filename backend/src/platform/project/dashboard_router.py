@@ -14,8 +14,8 @@ from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.platform.project.dependencies import get_verified_project
 from src.platform.project.models import Project
-from src.mut_engine.dependencies import get_tree_reader
-from src.mut_engine.tree_reader import MutTreeReader
+from src.mut_engine.dependencies import get_mut_ops
+from src.mut_engine.ops import MutOps
 from src.infra.supabase.client import SupabaseClient
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -39,7 +39,7 @@ class DashboardConnection(BaseModel):
     id: str
     provider: str
     name: Optional[str] = None
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     node_name: Optional[str] = None
     direction: Optional[str] = None
     status: str = "active"
@@ -86,14 +86,14 @@ class ProjectDashboard(BaseModel):
 )
 def get_project_dashboard(
     project: Project = Depends(get_verified_project),
-    tree_reader: MutTreeReader = Depends(get_tree_reader),
+    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     project_id = str(project.id)
     sb = SupabaseClient().client
 
     # 1. Node counts — from Mut tree
-    all_entries = tree_reader.list_tree(project_id, "", max_depth=-1)
+    all_entries = ops.list_tree(project_id, "", max_depth=-1)
     folder_count = sum(1 for e in all_entries if e.type == "folder")
     file_count = sum(1 for e in all_entries if e.type != "folder")
     node_counts = DashboardNodeCounts(
@@ -105,7 +105,7 @@ def get_project_dashboard(
     # 2. All connections (one query to the unified table)
     conn_rows = (
         sb.table("connections")
-        .select("id, provider, config, node_id, direction, status, access_key, trigger, last_synced_at, error_message, created_at")
+        .select("id, provider, config, path, direction, status, access_key, trigger, last_synced_at, error_message, created_at")
         .eq("project_id", project_id)
         .order("created_at")
         .execute()
@@ -119,7 +119,7 @@ def get_project_dashboard(
             id=r["id"],
             provider=r["provider"],
             name=name,
-            node_id=r.get("node_id"),
+            path=r.get("path"),
             node_name=None,
             direction=r.get("direction"),
             status=r.get("status", "active"),

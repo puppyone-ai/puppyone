@@ -23,7 +23,7 @@ export function registerPublish(program) {
         publishes.map((p) => ({
           id: (p.id ?? "").slice(0, 8),
           key: p.publish_key ?? p.key ?? "-",
-          path: p.path ?? p.node_id ?? "-",
+          path: p.path ?? "-",
           updated: formatDate(p.updated_at),
         })),
         [

@@ -134,24 +134,19 @@ class DBConnectorService:
         }
 
         import json
-        from src.mut_engine.dependencies import create_ephemeral_client
-        auth_ctx = {
-            "agent": f"db_connector:{connection_id}",
-            "_scope": {"id": "_db_conn", "path": "", "exclude": [], "mode": "rw"},
-        }
-        client = create_ephemeral_client(project_id, auth_ctx)
-        client.clone()
+        from src.mut_engine.dependencies import create_mut_ops
+        ops = create_mut_ops()
         content_bytes = json.dumps(content_data, ensure_ascii=False, indent=2).encode("utf-8")
         file_path = f"{name}.json" if not name.endswith(".json") else name
-        push_result = client.push(
-            modified={file_path: content_bytes},
-            message=f"Save table '{table}' from DB connector",
+        write_result = await ops.write_file(
+            project_id, file_path, content_bytes,
             who=f"db_connector:{connection_id}",
+            message=f"Save table '{table}' from DB connector",
         )
 
         self.repo.update_last_used(conn.id)
 
         return {
-            "content_node_id": file_path,
+            "content_path": file_path,
             "row_count": result.row_count,
         }

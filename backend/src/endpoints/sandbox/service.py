@@ -24,14 +24,14 @@ class SandboxEndpointService:
         project_repo = ProjectRepositorySupabase()
         return project_repo.verify_project_access(project_id, user_id) is not None
 
-    def get_by_node(self, node_id: str) -> Optional[dict]:
-        return self._repo.get_by_node_id(node_id)
+    def get_by_path(self, path: str) -> Optional[dict]:
+        return self._repo.get_by_path(path)
 
     def create_endpoint(
         self,
         project_id: str,
         name: str = "Sandbox",
-        node_id: Optional[str] = None,
+        path: Optional[str] = None,
         description: Optional[str] = None,
         mounts: Optional[List[SandboxMountItem]] = None,
         runtime: str = "alpine",
@@ -41,7 +41,7 @@ class SandboxEndpointService:
         return self._repo.create(
             project_id=project_id,
             name=name,
-            node_id=node_id,
+            path=path,
             description=description,
             mounts=[m.model_dump() for m in mounts] if mounts else [],
             runtime=runtime,

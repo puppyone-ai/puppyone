@@ -180,7 +180,7 @@ class InternalApiClient:
         创建表格数据
         
         Args:
-            table_id: 表格ID（node_id）
+            table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
             elements: 要创建的元素列表
             
@@ -218,7 +218,7 @@ class InternalApiClient:
         更新表格数据
         
         Args:
-            table_id: 表格ID（node_id）
+            table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
             elements: 要更新的元素列表
             
@@ -256,7 +256,7 @@ class InternalApiClient:
         删除表格数据
         
         Args:
-            table_id: 表格ID（node_id）
+            table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
             keys: 要删除的key列表
             

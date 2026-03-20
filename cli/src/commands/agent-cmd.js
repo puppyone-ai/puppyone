@@ -101,7 +101,7 @@ export function registerAgent(program) {
       if (info.accesses?.length) {
         out.info("\n  Node access:");
         for (const a of info.accesses) {
-          out.info(`    - ${a.node_name ?? a.node_id ?? a.id}`);
+          out.info(`    - ${a.node_name ?? a.path ?? a.id}`);
         }
       }
 

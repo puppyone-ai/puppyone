@@ -112,14 +112,9 @@ async def submit_file_ingest(
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    from src.mut_engine.dependencies import create_ephemeral_client
+    from src.mut_engine.dependencies import create_mut_ops
 
-    auth_ctx = {
-        "agent": f"ingest:{current_user.user_id}",
-        "_scope": {"id": "_ingest", "path": "", "exclude": [], "mode": "rw"},
-    }
-    client = create_ephemeral_client(project_id, auth_ctx)
-    client.clone()
+    ops = create_mut_ops()
 
     items: list[IngestSubmitItem] = []
     modified_files: dict[str, bytes] = {}
@@ -196,7 +191,7 @@ async def submit_file_ingest(
                     status=IngestStatus.PENDING if task.status == ETLTaskStatus.PENDING else IngestStatus.PROCESSING,
                     filename=original_filename,
                     s3_key=s3_key,
-                    node_id=file_path,
+                    path=file_path,
                 ))
 
             else:
@@ -230,10 +225,11 @@ async def submit_file_ingest(
 
     if modified_files:
         try:
-            client.push(
-                modified=modified_files,
+            await ops.bulk_write(
+                project_id,
+                modified_files,
+                who=f"ingest:{current_user.user_id}",
                 message=f"Upload {len(modified_files)} file(s)",
-                who=current_user.user_id,
             )
         except Exception as e:
             logger.error(f"MUT push failed during file ingest: {e}", exc_info=True)
@@ -311,7 +307,7 @@ def _make_completed_item(
         status=IngestStatus.COMPLETED,
         filename=filename,
         s3_key=s3_key,
-        node_id=path,
+        path=path,
     )
 
 
@@ -427,7 +423,7 @@ async def submit_saas_ingest(
             user_id=current_user.user_id,
         )
 
-        node_id = syncs[0].node_id if syncs else None
+        node_path = syncs[0].path if syncs else None
 
         for s in syncs:
             try:
@@ -442,7 +438,7 @@ async def submit_saas_ingest(
                     source_type=SourceType.SAAS if provider != "url" else SourceType.URL,
                     ingest_type=_provider_to_ingest_type(provider),
                     status=IngestStatus.COMPLETED,
-                    node_id=node_id,
+                    path=node_path,
                 )
             ],
             total=1,

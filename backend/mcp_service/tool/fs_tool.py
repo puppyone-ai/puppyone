@@ -169,8 +169,8 @@ class FsToolImplementation:
             prefix = scope.get("path_prefix", "")
             if prefix:
                 paths.append(prefix.strip("/"))
-            elif a.get("node_id"):
-                paths.append(a["node_id"])
+            elif a.get("path"):
+                paths.append(a["path"])
         return paths if paths else None
 
     @staticmethod

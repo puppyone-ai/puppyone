@@ -64,7 +64,7 @@ class TablePreviewResponse(BaseModel):
 
 
 class SaveResultResponse(BaseModel):
-    content_node_id: str
+    content_path: str
     row_count: int
 
 

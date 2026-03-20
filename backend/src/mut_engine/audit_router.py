@@ -2,7 +2,7 @@
 Audit Logs — API Router
 
 Endpoints:
-  GET  /nodes/{node_id}/audit-logs     节点审计日志
+  GET  /nodes/{path:path}/audit-logs     节点审计日志
 """
 
 from typing import Optional, List
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/nodes", tags=["audit-logs"])
 class AuditLogItem(BaseModel):
     id: int
     action: str
-    node_id: str
+    path: str
     old_version: Optional[int] = None
     new_version: Optional[int] = None
     operator_type: str
@@ -42,7 +42,7 @@ class AuditLogItem(BaseModel):
 
 
 class AuditLogListResponse(BaseModel):
-    node_id: str
+    path: str
     logs: List[AuditLogItem]
     total: int
 
@@ -68,9 +68,9 @@ def _ensure_project_access(
 # Endpoints
 # ============================================================
 
-@router.get("/{node_id}/audit-logs", response_model=ApiResponse[AuditLogListResponse])
+@router.get("/{path:path}/audit-logs", response_model=ApiResponse[AuditLogListResponse])
 def get_node_audit_logs(
-    node_id: str,
+    path: str,
     project_id: str = Query(..., description="Project ID"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -81,13 +81,13 @@ def get_node_audit_logs(
     """获取节点的审计日志"""
     _ensure_project_access(project_service, current_user, project_id)
 
-    rows = audit_repo.list_by_node(node_id, limit, offset)
-    total = audit_repo.count_by_node(node_id)
+    rows = audit_repo.list_by_path(path, limit, offset)
+    total = audit_repo.count_by_path(path)
 
     logs = [AuditLogItem(**row) for row in rows]
 
     return ApiResponse.success(data=AuditLogListResponse(
-        node_id=node_id,
+        path=path,
         logs=logs,
         total=total,
     ))

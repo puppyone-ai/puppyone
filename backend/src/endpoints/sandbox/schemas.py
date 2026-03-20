@@ -9,7 +9,7 @@ class SandboxMountPermissions(BaseModel):
 
 
 class SandboxMountItem(BaseModel):
-    node_id: str
+    path: str
     mount_path: str = "/workspace"
     permissions: SandboxMountPermissions = Field(default_factory=SandboxMountPermissions)
 
@@ -21,7 +21,7 @@ class SandboxResourceLimits(BaseModel):
 
 class SandboxEndpointCreate(BaseModel):
     project_id: str = Field(..., description="所属项目 ID")
-    node_id: Optional[str] = Field(None, description="关联的 content node ID")
+    path: Optional[str] = Field(None, description="关联的 MUT path")
     name: str = Field(default="Sandbox", min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=500)
     mounts: List[SandboxMountItem] = Field(default_factory=list)
@@ -33,7 +33,7 @@ class SandboxEndpointCreate(BaseModel):
 class SandboxEndpointUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     status: Optional[str] = None
     mounts: Optional[List[SandboxMountItem]] = None
     runtime: Optional[Literal["alpine", "python", "node"]] = None
@@ -44,7 +44,7 @@ class SandboxEndpointUpdate(BaseModel):
 class SandboxEndpointOut(BaseModel):
     id: str
     project_id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     name: str
     description: Optional[str] = None
     access_key: str

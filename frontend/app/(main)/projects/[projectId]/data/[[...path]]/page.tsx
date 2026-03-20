@@ -630,7 +630,7 @@ export default function DataPage({ params }: DataPageProps) {
     const nodes: Record<string, string> = { ...tableNameById };
     if (syncStatusData?.syncs) {
       for (const s of syncStatusData.syncs) {
-        if (s.node_id && !nodes[s.node_id] && s.name) nodes[s.node_id] = s.name;
+        if (s.path && !nodes[s.path] && s.name) nodes[s.path] = s.name;
       }
     }
     const syncs: Record<string, string> = {};
@@ -665,7 +665,7 @@ export default function DataPage({ params }: DataPageProps) {
     const jsonPath = normalizeJsonPath(toolPath);
     const byType = new Map<string, Tool>();
     for (const t of existingTools) {
-      if (t.node_id !== nodeId) continue;
+      if (t.path !== nodeId) continue;
       if ((t.json_path || '') !== jsonPath) continue;
       const toolType = t.type as string;
       if (toolType === 'shell_access' || toolType === 'shell_access_readonly') continue;
@@ -683,7 +683,7 @@ export default function DataPage({ params }: DataPageProps) {
     for (const id of toDelete) await deleteTool(id);
     for (const type of toCreate) {
       await createTool({
-        node_id: nodeId, json_path: jsonPath, type,
+        path: nodeId, json_path: jsonPath, type,
         name: `${type}_${nodeId}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
         description: undefined,
       });
@@ -693,7 +693,7 @@ export default function DataPage({ params }: DataPageProps) {
   async function deleteAllToolsForPath(params: { nodeId: string; path: string; existingTools: Tool[] }) {
     const { nodeId, path: toolPath, existingTools } = params;
     const jsonPath = normalizeJsonPath(toolPath);
-    const toDelete = existingTools.filter(t => t.node_id === nodeId && (t.json_path || '') === jsonPath);
+    const toDelete = existingTools.filter(t => t.path === nodeId && (t.json_path || '') === jsonPath);
     for (const t of toDelete) await deleteTool(t.id);
   }
 

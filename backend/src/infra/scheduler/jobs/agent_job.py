@@ -103,7 +103,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
             agent_id=agent_id,
             task_content=task_content,
             user_id=user_id,
-            tree_reader=None,
+            ops=None,
             sandbox_service=sandbox_service,
             agent_config_service=agent_config_service,
         )

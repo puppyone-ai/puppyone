@@ -19,7 +19,7 @@ class AuditRepository:
     def insert(
         self,
         action: str,
-        node_id: str,
+        path: str,
         operator_type: str = "user",
         operator_id: Optional[str] = None,
         old_version: Optional[int] = None,
@@ -32,7 +32,7 @@ class AuditRepository:
         """插入一条审计日志"""
         data: dict[str, Any] = {
             "action": action,
-            "node_id": node_id,
+            "path": path,
             "operator_type": operator_type,
         }
         if operator_id is not None:
@@ -52,42 +52,42 @@ class AuditRepository:
 
         self.client.table(self.TABLE_NAME).insert(data).execute()
 
-    def list_by_node(
-        self, node_id: str, limit: int = 50, offset: int = 0
+    def list_by_path(
+        self, path: str, limit: int = 50, offset: int = 0
     ) -> List[dict]:
         """查询节点的审计日志"""
         response = (
             self.client.table(self.TABLE_NAME)
             .select("*")
-            .eq("node_id", node_id)
+            .eq("path", path)
             .order("created_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
         )
         return response.data
 
-    def list_by_node_ids(
-        self, node_ids: List[str], limit: int = 100, offset: int = 0
+    def list_by_paths(
+        self, paths: List[str], limit: int = 100, offset: int = 0
     ) -> List[dict]:
         """查询多个节点的审计日志"""
-        if not node_ids:
+        if not paths:
             return []
         response = (
             self.client.table(self.TABLE_NAME)
             .select("*")
-            .in_("node_id", node_ids)
+            .in_("path", paths)
             .order("created_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
         )
         return response.data
 
-    def count_by_node(self, node_id: str) -> int:
+    def count_by_path(self, path: str) -> int:
         """统计节点的审计日志数量"""
         response = (
             self.client.table(self.TABLE_NAME)
             .select("id", count="exact")
-            .eq("node_id", node_id)
+            .eq("path", path)
             .execute()
         )
         return response.count or 0
