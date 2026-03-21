@@ -11,10 +11,9 @@ import secrets
 from typing import Optional
 from datetime import datetime
 
-from src.content_node.repository import ContentNodeRepository
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.schemas import Sync
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_info
 
 
@@ -32,7 +31,6 @@ class OpenClawService:
     ):
         self._supabase = supabase
         self._sync_repo = sync_repo
-        self._node_repo = ContentNodeRepository(supabase)
 
     # ----------------------------------------------------------
     # Auth: access key → Sync
@@ -56,17 +54,17 @@ class OpenClawService:
     def bootstrap(
         self,
         project_id: str,
-        node_id: str,
+        path: str,
     ) -> Sync:
-        """Create a new filesystem sync endpoint bound to a folder.
+        """Create a new filesystem sync endpoint bound to a folder path.
         Returns the sync with a fresh access_key for CLI auth."""
-        existing = self._sync_repo.get_by_node(node_id)
+        existing = self._sync_repo.get_by_node(path)
         if existing and existing.provider == "filesystem":
             return existing
 
         sync = self._sync_repo.create(
             project_id=project_id,
-            node_id=node_id,
+            path=path,
             direction="bidirectional",
             provider="filesystem",
             access_key=_generate_cli_key(),
@@ -74,7 +72,7 @@ class OpenClawService:
             trigger={"type": "cli_push"},
             conflict_strategy="three_way_merge",
         )
-        log_info(f"[Filesystem] Bootstrapped sync #{sync.id} for node {node_id}")
+        log_info(f"[Filesystem] Bootstrapped sync #{sync.id} for path {path}")
         return sync
 
     # ----------------------------------------------------------
@@ -112,7 +110,7 @@ class OpenClawService:
         return {
             "connected": daemon_active,
             "sync_id": sync.id,
-            "folder_id": sync.node_id,
+            "folder_path": sync.path,
             "workspace_path": sync.config.get("path"),
             "connected_at": sync.created_at,
             "last_seen_at": sync.updated_at,

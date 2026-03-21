@@ -40,8 +40,8 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
 
     if (syncStatusData?.syncs) {
       for (const s of syncStatusData.syncs) {
-        if (s.node_id)
-          append(s.node_id, {
+        if (s.path)
+          append(s.path, {
             syncId: s.id,
             provider: s.provider,
             direction: s.direction,

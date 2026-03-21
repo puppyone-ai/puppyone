@@ -266,7 +266,10 @@ async function executeMerge(api, folder, cloudNodes, localFiles, out, folderId) 
         });
         if (!putRes.ok) continue;
         const confirmResp = await api.post(`${syncBase}/confirm-upload`, {
-          filename: relPath, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
+          filename: relPath,
+          s3_key: urlResp.s3_key,
+          size_bytes: fileBuf.length,
+          content_hash: hashBuffer(fileBuf),
         });
         if (confirmResp.ok) {
           fileMap[relPath] = { version: confirmResp.version ?? 1, hash: file.hash, s3: true };
@@ -378,7 +381,7 @@ async function connectSync(absPath, folder, opts, cmd, out) {
 // ============================================================
 
 export function nodeToFilename(node) {
-  const name = node.name || node.node_id;
+  const name = node.name || node.path;
   if (node.type === "json") return name.endsWith(".json") ? name : `${name}.json`;
   if (node.type === "markdown") return name.endsWith(".md") ? name : `${name}.md`;
   return name;

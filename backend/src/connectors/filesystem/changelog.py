@@ -6,28 +6,28 @@ Provides cursor-based incremental change tracking (Dropbox Delta model).
 
 Usage:
     repo = SyncChangelogRepository(supabase_client)
-    repo.append(project_id, node_id, "update", version=3, hash="abc")
+    repo.append(project_id, path, "update", version=3, hash="abc")
     entries = repo.list_since(project_id, cursor=1234, limit=200)
 """
 
 from typing import Optional, List
 from dataclasses import dataclass
 
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 
 
 @dataclass
 class ChangelogEntry:
     id: int
     project_id: str
-    node_id: str
+    path: str
     action: str
     node_type: Optional[str]
     version: int
     hash: Optional[str]
     size_bytes: int
     created_at: Optional[str]
-    folder_id: Optional[str] = None
+    folder_path: Optional[str] = None
     filename: Optional[str] = None
 
 
@@ -42,24 +42,24 @@ class SyncChangelogRepository:
     def append(
         self,
         project_id: str,
-        node_id: str,
+        path: str,
         action: str = "update",
         node_type: Optional[str] = None,
         version: int = 0,
         hash: Optional[str] = None,
         size_bytes: int = 0,
-        folder_id: Optional[str] = None,
+        folder_path: Optional[str] = None,
         filename: Optional[str] = None,
     ) -> ChangelogEntry:
         data = {
             "project_id": project_id,
-            "node_id": node_id,
+            "path": path,
             "action": action,
             "node_type": node_type,
             "version": version,
             "hash": hash,
             "size_bytes": size_bytes,
-            "folder_id": folder_id,
+            "folder_path": folder_path,
             "filename": filename,
         }
         resp = self.client.table(self.TABLE).insert(data).execute()
@@ -70,7 +70,7 @@ class SyncChangelogRepository:
         project_id: str,
         cursor: int = 0,
         limit: int = 500,
-        folder_id: Optional[str] = None,
+        folder_path: Optional[str] = None,
     ) -> List[ChangelogEntry]:
         query = (
             self.client.table(self.TABLE)
@@ -80,8 +80,8 @@ class SyncChangelogRepository:
             .order("id")
             .limit(limit)
         )
-        if folder_id:
-            query = query.eq("folder_id", folder_id)
+        if folder_path:
+            query = query.eq("folder_path", folder_path)
         resp = query.execute()
         return [self._to_entry(r) for r in resp.data]
 
@@ -125,13 +125,13 @@ class SyncChangelogRepository:
         return ChangelogEntry(
             id=row["id"],
             project_id=row["project_id"],
-            node_id=row["node_id"],
+            path=row["path"],
             action=row["action"],
             node_type=row.get("node_type"),
             version=row.get("version", 0),
             hash=row.get("hash"),
             size_bytes=row.get("size_bytes", 0),
             created_at=row.get("created_at"),
-            folder_id=row.get("folder_id"),
+            folder_path=row.get("folder_path"),
             filename=row.get("filename"),
         )

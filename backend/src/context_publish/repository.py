@@ -4,11 +4,11 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from src.context_publish.models import ContextPublish
-from src.supabase.context_publish.schemas import (
+from src.context_publish.supabase_schemas import (
     ContextPublishCreate as SbContextPublishCreate,
     ContextPublishUpdate as SbContextPublishUpdate,
 )
-from src.supabase.repository import SupabaseRepository
+from src.infra.supabase.repository import SupabaseRepository
 
 
 class ContextPublishRepositoryBase(ABC):

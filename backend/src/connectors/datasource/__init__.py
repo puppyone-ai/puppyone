@@ -2,7 +2,12 @@
 Data Source Providers — One provider per external system.
 
 Each provider lives in its own directory and implements BaseConnector,
-declaring its capabilities via ConnectorSpec.
+declaring its capabilities via ConnectorSpec. Providers are auto-discovered
+at startup — no manual registration required.
+
+To add a new connector:
+  1. Create  datasource/<provider>/connector.py  with a BaseConnector subclass
+  2. Add a  setup(deps) -> ConnectorSetup  function in that file
 """
 
 from src.connectors.datasource._base import (
@@ -14,28 +19,9 @@ from src.connectors.datasource._base import (
     Credentials,
     FetchResult,
     ConfigField,
+    ConnectorDeps,
+    ConnectorSetup,
 )
-from src.connectors.datasource.gmail.connector import GmailConnector
-from src.connectors.datasource.github.connector import GithubConnector
-from src.connectors.datasource.google_sheets.connector import GoogleSheetsConnector
-from src.connectors.datasource.google_calendar.connector import GoogleCalendarConnector
-from src.connectors.datasource.google_docs.connector import GoogleDocsConnector
-from src.connectors.datasource.google_drive.connector import GoogleDriveConnector
-from src.connectors.datasource.url.connector import UrlConnector
-from src.connectors.filesystem.connector import OpenClawConnector
-from src.connectors.datasource.google_search_console.connector import GoogleSearchConsoleConnector
-
-CONNECTOR_CLASSES: list[type[BaseConnector]] = [
-    GmailConnector,
-    GithubConnector,
-    GoogleSheetsConnector,
-    GoogleCalendarConnector,
-    GoogleDocsConnector,
-    GoogleDriveConnector,
-    UrlConnector,
-    OpenClawConnector,
-    GoogleSearchConsoleConnector,
-]
 
 __all__ = [
     "BaseConnector",
@@ -46,14 +32,6 @@ __all__ = [
     "Credentials",
     "FetchResult",
     "ConfigField",
-    "CONNECTOR_CLASSES",
-    "GmailConnector",
-    "GithubConnector",
-    "GoogleSheetsConnector",
-    "GoogleCalendarConnector",
-    "GoogleDocsConnector",
-    "GoogleDriveConnector",
-    "UrlConnector",
-    "OpenClawConnector",
-    "GoogleSearchConsoleConnector",
+    "ConnectorDeps",
+    "ConnectorSetup",
 ]

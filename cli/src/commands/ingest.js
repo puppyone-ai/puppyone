@@ -2,7 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import { basename, extname, resolve as pathResolve } from "node:path";
 import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
-import { withErrors, requireProject, resolvePath, formatDate } from "../helpers.js";
+import { withErrors, requireProject, normalizePath, formatDate } from "../helpers.js";
 
 const TEXT_EXTS = new Set([
   ".txt", ".md", ".markdown", ".py", ".js", ".ts", ".tsx", ".jsx",
@@ -36,14 +36,12 @@ export function registerIngest(program) {
       const projectId = requireProject(cmd);
 
       const absPath = pathResolve(localPath);
-      const stat = statSync(absPath);
+      statSync(absPath);
       const fileName = opts.name ?? basename(absPath);
       const ext = extname(fileName).toLowerCase();
 
-      let folderId = null;
-      if (opts.folder) {
-        folderId = await resolvePath(client, projectId, opts.folder);
-      }
+      const folderPath = opts.folder ? normalizePath(opts.folder) : "";
+      const destPath = folderPath ? `${folderPath}/${fileName}` : fileName;
 
       let mode = opts.mode;
       if (mode === "raw" && OCR_EXTS.has(ext)) {
@@ -53,65 +51,52 @@ export function registerIngest(program) {
       out.step(`Ingesting ${fileName} (${mode})...`);
 
       if (ext === ".json" && mode === "raw") {
-        const content = JSON.parse(readFileSync(absPath, "utf-8"));
-        const result = await client.post("/nodes/json", {
-          project_id: projectId,
-          name: fileName,
-          parent_id: folderId,
+        const content = readFileSync(absPath, "utf-8");
+        const result = await client.post(`/tree/${projectId}/write`, {
+          path: destPath,
           content,
+          type: "json",
         });
         out.done("done");
-        out.info(`  Created JSON node: ${result.id}`);
-        out.success({ node: result });
+        out.info(`  Created: ${destPath}`);
+        out.success({ path: destPath, result });
         return;
       }
 
       if (TEXT_EXTS.has(ext) && mode === "raw") {
         const content = readFileSync(absPath, "utf-8");
-        const mdName = fileName.endsWith(".md") ? fileName : `${fileName}.md`;
-        const result = await client.post("/nodes/markdown", {
-          project_id: projectId,
-          name: mdName,
-          parent_id: folderId,
+        const mdPath = destPath.endsWith(".md") ? destPath : `${destPath}.md`;
+        const result = await client.post(`/tree/${projectId}/write`, {
+          path: mdPath,
           content,
+          type: "markdown",
         });
         out.done("done");
-        out.info(`  Created markdown node: ${result.id}`);
-        out.success({ node: result });
+        out.info(`  Created: ${mdPath}`);
+        out.success({ path: mdPath, result });
         return;
       }
 
-      const prepData = await client.post("/nodes/upload", {
-        project_id: projectId,
-        name: fileName,
-        parent_id: folderId,
+      const fileContent = readFileSync(absPath);
+      const base64 = fileContent.toString("base64");
+      const result = await client.post(`/tree/${projectId}/write`, {
+        path: destPath,
+        content: base64,
+        encoding: "base64",
+        type: "file",
       });
-
-      if (prepData.upload_url) {
-        const fileContent = readFileSync(absPath);
-        const uploadRes = await fetch(prepData.upload_url, {
-          method: "PUT",
-          body: fileContent,
-          headers: { "Content-Type": "application/octet-stream" },
-        });
-        if (!uploadRes.ok) {
-          out.done("");
-          out.error("UPLOAD_FAILED", `Upload failed: ${uploadRes.status}`);
-          return;
-        }
-      }
 
       if (mode === "ocr_parse" || OCR_EXTS.has(ext)) {
         try {
           const task = await client.post("/ingest/submit/file", {
             project_id: projectId,
-            node_id: prepData.node_id ?? prepData.id,
+            path: destPath,
             mode: "ocr_parse",
           });
           out.done("done");
           out.info(`  File uploaded and ETL task submitted: ${task.task_id ?? task.id ?? "(submitted)"}`);
           out.info(`  Check status: puppyone ingest status ${task.task_id ?? task.id ?? ""}`);
-          out.success({ node: prepData, task });
+          out.success({ path: destPath, task });
           return;
         } catch {
           // fall through if submit endpoint doesn't work
@@ -119,8 +104,8 @@ export function registerIngest(program) {
       }
 
       out.done("done");
-      out.info(`  File uploaded: ${fileName}`);
-      out.success({ node: prepData });
+      out.info(`  File uploaded: ${destPath}`);
+      out.success({ path: destPath, result });
     }));
 
   // ── url ───────────────────────────────────────────────────
@@ -135,10 +120,7 @@ export function registerIngest(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      let folderId = null;
-      if (opts.folder) {
-        folderId = await resolvePath(client, projectId, opts.folder);
-      }
+      const folderPath = opts.folder ? normalizePath(opts.folder) : null;
 
       out.step(`Ingesting ${url}...`);
 
@@ -146,7 +128,7 @@ export function registerIngest(program) {
         project_id: projectId,
         url,
         name: opts.name,
-        folder_id: folderId,
+        folder_path: folderPath,
       });
 
       out.done("done");

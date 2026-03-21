@@ -15,8 +15,8 @@ from src.connectors.agent.chat.schemas import (
     UpdateSessionRequest,
 )
 from src.connectors.agent.chat.service import ChatService
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 
 router = APIRouter(prefix="/chat", tags=["chat"])

@@ -52,7 +52,7 @@ logger_duration = time.time() - logger_start
 
 # 记录各路由模块导入时间
 table_router_start = time.time()
-from src.table.router import router as table_router
+from src.content.table.router import router as table_router
 
 table_router_duration = time.time() - table_router_start
 
@@ -80,16 +80,16 @@ context_publish_router_duration = time.time() - context_publish_router_start
 
 # Unified ingest router (file + SaaS imports)
 ingest_router_start = time.time()
-from src.upload.router import router as ingest_router
+from src.ingest.router import router as ingest_router
 
 ingest_router_duration = time.time() - ingest_router_start
 
 project_router_start = time.time()
-from src.project.router import router as project_router
+from src.platform.project.router import router as project_router
 
 project_router_duration = time.time() - project_router_start
 
-from src.organization.router import router as organization_router
+from src.platform.organization.router import router as organization_router
 
 oauth_router_start = time.time()
 from src.oauth.router import router as oauth_router
@@ -101,30 +101,30 @@ from src.internal.router import router as internal_router
 
 internal_router_duration = time.time() - internal_router_start
 
-content_node_router_start = time.time()
-from src.content_node.router import router as content_node_router
+tree_router_start = time.time()
+from src.mut_engine.tree_router import router as tree_api_router
 
-content_node_router_duration = time.time() - content_node_router_start
+tree_router_duration = time.time() - tree_router_start
 
 analytics_router_start = time.time()
-from src.analytics.router import router as analytics_router
+from src.platform.analytics.router import router as analytics_router
 
 analytics_router_duration = time.time() - analytics_router_start
 
 profile_router_start = time.time()
-from src.profile.router import router as profile_router
+from src.platform.profile.router import router as profile_router
 
 profile_router_duration = time.time() - profile_router_start
 
 db_connector_router_start = time.time()
-from src.db_connector.router import router as db_connector_router
+from src.connectors.database.router import router as db_connector_router
 
 db_connector_router_duration = time.time() - db_connector_router_start
 
 # Scheduler service import
 scheduler_start = time.time()
-from src.scheduler.service import get_scheduler_service
-from src.scheduler.config import scheduler_settings
+from src.infra.scheduler.service import get_scheduler_service
+from src.infra.scheduler.config import scheduler_settings
 
 scheduler_import_duration = time.time() - scheduler_start
 
@@ -158,7 +158,7 @@ routers_duration = (
     + project_router_duration
     + oauth_router_duration
     + internal_router_duration
-    + content_node_router_duration
+    + tree_router_duration
     + analytics_router_duration
     + profile_router_duration
     + db_connector_router_duration
@@ -195,7 +195,7 @@ async def app_lifespan(app: FastAPI):
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
-    log_info(f"  │  └─ content_node_router: {content_node_router_duration * 1000:.2f}ms")
+    log_info(f"  │  └─ tree_router: {tree_router_duration * 1000:.2f}ms")
     log_info(f"  └─ 路由总耗时: {routers_duration * 1000:.2f}ms")
     log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
@@ -241,7 +241,7 @@ async def app_lifespan(app: FastAPI):
         file_ingest_init_start = time.time()
         try:
             log_info("📄 初始化 File Ingest 服务...")
-            from src.upload.file.dependencies import get_etl_service
+            from src.ingest.file.dependencies import get_etl_service
             from pathlib import Path
 
             file_ingest_service = await get_etl_service()
@@ -274,69 +274,39 @@ async def app_lifespan(app: FastAPI):
         registry_duration = time.time() - registry_init_start
         log_error(f"❌ ConnectorRegistry 初始化失败 (耗时: {registry_duration * 1000:.2f}ms): {e}")
 
-    # 5. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
-    sync_init_start = time.time()
+    # 5. Mut tree 初始化：为所有 mut_root_hash 为空的 project 自动初始化空 Mut tree
+    mut_init_start = time.time()
     try:
-        log_info("🔄 初始化 Folder Sync Services...")
-        from src.connectors.filesystem.watcher import FolderSourceService
-        from src.connectors.filesystem.folder_access import FolderAccessService
-        from src.connectors.datasource.repository import SyncRepository
-        from src.collaboration.service import CollaborationService
-        from src.collaboration.lock_service import LockService
-        from src.collaboration.conflict_service import ConflictService
-        from src.collaboration.version_service import VersionService as CollabVersionService
-        from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
-        from src.collaboration.audit_service import AuditService
-        from src.collaboration.audit_repository import AuditRepository
-        from src.content_node.repository import ContentNodeRepository
-        from src.content_node.service import ContentNodeService
-        from src.s3.service import S3Service
-        from src.supabase.client import SupabaseClient
+        log_info("🌳 检查并初始化 Mut tree...")
+        from src.infra.supabase.client import SupabaseClient as _SC
+        from src.mut_engine.dependencies import create_mut_write_service as _cms
 
-        from src.connectors.filesystem.changelog import SyncChangelogRepository
-
-        supabase = SupabaseClient()
-        node_repo = ContentNodeRepository(supabase)
-        s3_service = S3Service()
-        changelog_repo = SyncChangelogRepository(supabase)
-        version_svc = CollabVersionService(
-            node_repo=node_repo,
-            version_repo=FileVersionRepository(supabase),
-            snapshot_repo=FolderSnapshotRepository(supabase),
-            s3_service=s3_service,
-            changelog_repo=changelog_repo,
+        _sb = _SC()
+        resp = (
+            _sb.client.table("projects")
+            .select("id")
+            .or_("mut_root_hash.is.null,mut_root_hash.eq.")
+            .execute()
         )
-        node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service, version_service=version_svc)
-
-        collab_svc = CollaborationService(
-            node_repo=node_repo,
-            node_service=node_svc,
-            lock_service=LockService(node_repo),
-            conflict_service=ConflictService(),
-            version_service=version_svc,
-            audit_service=AuditService(audit_repo=AuditRepository(supabase)),
-        )
-
-        sync_repo = SyncRepository(supabase)
-
-        folder_source = FolderSourceService(
-            node_service=node_svc,
-            sync_repo=sync_repo,
-        )
-        await folder_source.start()
-
-        folder_access = FolderAccessService(
-            collab_service=collab_svc,
-            node_service=node_svc,
-            sync_repo=sync_repo,
-        )
-        await folder_access.start()
-
-        sync_duration = time.time() - sync_init_start
-        log_info(f"✅ Folder Sync Services 启动成功 (耗时: {sync_duration * 1000:.2f}ms)")
+        uninit_projects = resp.data or []
+        if uninit_projects:
+            _writer = _cms()
+            for row in uninit_projects:
+                try:
+                    await _writer.init_tree(row["id"])
+                except Exception as init_err:
+                    log_error(f"  ❌ Failed to init Mut tree for {row['id']}: {init_err}")
+            log_info(f"  ✅ Initialized Mut tree for {len(uninit_projects)} project(s)")
+        else:
+            log_info("  ✅ All projects already have Mut tree")
+        mut_init_duration = time.time() - mut_init_start
+        log_info(f"✅ Mut tree 检查完成 (耗时: {mut_init_duration * 1000:.2f}ms)")
     except Exception as e:
-        sync_duration = time.time() - sync_init_start
-        log_error(f"❌ Folder Sync Services 启动失败 (耗时: {sync_duration * 1000:.2f}ms): {e}")
+        mut_init_duration = time.time() - mut_init_start
+        log_error(f"❌ Mut tree 初始化失败 (耗时: {mut_init_duration * 1000:.2f}ms): {e}")
+
+    # 6. Filesystem sync is now client-side via MUT protocol — no server-side init needed
+    log_info("📁 Filesystem sync: client-side via MUT protocol (no server init needed)")
 
     # 输出总启动时间
     total_startup_time = time.time() - APP_START_TIME
@@ -361,24 +331,13 @@ async def app_lifespan(app: FastAPI):
         except Exception as e:
             log_error(f"Failed to stop Scheduler service: {e}")
 
-    # 停止 Folder Sync Services
-    try:
-        from src.connectors.filesystem.watcher import FolderSourceService
-        from src.connectors.filesystem.folder_access import FolderAccessService
-        fs = FolderSourceService.get_instance()
-        if fs:
-            await fs.stop()
-        fa = FolderAccessService.get_instance()
-        if fa:
-            await fa.stop()
-        log_info("Folder Sync Services stopped successfully")
-    except Exception as e:
-        log_error(f"Failed to stop Folder Sync Services: {e}")
+    # Filesystem sync is client-side — no server cleanup needed
+    log_info("Filesystem sync: client-side, no cleanup needed")
 
     # 停止 File Ingest 服务
     if settings.etl_enabled:
         try:
-            from src.upload.file.dependencies import get_etl_service
+            from src.ingest.file.dependencies import get_etl_service
 
             file_ingest_service = await get_etl_service()
             await file_ingest_service.stop()
@@ -440,30 +399,29 @@ def create_app() -> FastAPI:
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API不加/api/v1前缀
-    app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
-    from src.content_node.version_router import router as version_router
-    app.include_router(version_router, prefix="/api/v1", tags=["content-node-versions"])
-    from src.collaboration.audit_router import router as audit_router
+    from src.mut_engine.tree_router import router as tree_router
+    app.include_router(tree_router, prefix="/api/v1", tags=["tree"])
+    from src.mut_engine.audit_router import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
-    from src.collaboration.router import router as collab_router
-    app.include_router(collab_router, prefix="/api/v1", tags=["collaboration"])
-    from src.workspace.router import router as workspace_router
+    from src.mut_engine.protocol_router import router as mut_protocol_router
+    app.include_router(mut_protocol_router, tags=["mut-protocol"])
+    from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.connectors.datasource.router import router as sync_router
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
     from src.connectors.filesystem.router import router as filesystem_router
     app.include_router(filesystem_router, tags=["filesystem"])
-    from src.auth.router import router as auth_router
+    from src.platform.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
-    from src.connectors.mcp.router import router as mcp_endpoint_router
+    from src.endpoints.mcp.router import router as mcp_endpoint_router
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
-    from src.connectors.sandbox.router import router as sandbox_endpoint_router
+    from src.endpoints.sandbox.router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
-    from src.project.dashboard_router import router as dashboard_router
+    from src.platform.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
     from src.connectors.manager.router import router as connection_router
     app.include_router(connection_router, prefix="/api/v1", tags=["connections"])

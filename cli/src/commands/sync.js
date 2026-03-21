@@ -1,6 +1,6 @@
 import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
-import { withErrors, requireProject, resolvePath, formatDate } from "../helpers.js";
+import { withErrors, requireProject, normalizePath, formatDate } from "../helpers.js";
 
 // ─── Provider Metadata ────────────────────────────────────
 // Static fallback. The `sync providers` command fetches from the API;
@@ -241,8 +241,8 @@ export function registerSync(program) {
       };
 
       if (opts.folder) {
-        const folderId = await resolvePath(client, projectId, opts.folder);
-        if (folderId) body.target_folder_node_id = folderId;
+        const folderPath = normalizePath(opts.folder);
+        body.target_folder_path = folderPath;
       }
 
       out.step(`Adding ${meta.name} sync...`);
@@ -318,13 +318,13 @@ export function registerSync(program) {
       const provName = getProviderMeta(s.provider, null)?.name ?? s.provider;
       const sourceDesc = s.config?.source_url ?? s.config?.feed_type ?? s.config?.site_url ?? "(configured)";
 
-      out.info(`\n  ${provName}  →  ${s.node_name ?? s.node_id ?? "(project root)"}`);
+      out.info(`\n  ${provName}  →  ${s.node_name ?? s.path ?? "(project root)"}`);
       out.info("");
       out.kv([
         ["ID:", s.id],
         ["Provider:", provName],
         ["Source:", sourceDesc],
-        ["Target Node:", s.node_id ?? "-"],
+        ["Target Node:", s.path ?? "-"],
         ["Direction:", s.direction ?? "inbound"],
         ["Status:", s.status ?? s.state ?? "-"],
         ["Mode:", s.sync_mode ?? s.trigger_policy ?? "-"],

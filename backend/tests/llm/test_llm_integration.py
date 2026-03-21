@@ -9,14 +9,14 @@ import os
 
 import pytest
 
-from src.llm.exceptions import (
+from src.infra.llm.exceptions import (
     APIKeyError,
     InvalidResponseError,
     LLMError,
     ModelNotFoundError,
 )
-from src.llm.schemas import TextModelRequest, TextModelResponse
-from src.llm.service import LLMService
+from src.infra.llm.schemas import TextModelRequest, TextModelResponse
+from src.infra.llm.service import LLMService
 
 # 测试使用的模型
 TEST_MODEL = "openrouter/qwen/qwen3-8b"

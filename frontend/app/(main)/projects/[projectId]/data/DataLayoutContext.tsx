@@ -5,7 +5,7 @@ import type { Tool } from '@/lib/mcpApi';
 
 export interface SyncStatusSync {
   id: string;
-  node_id: string | null;
+  path: string | null;
   provider: string;
   direction: string;
   status: string;

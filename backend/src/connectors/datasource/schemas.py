@@ -27,7 +27,7 @@ class Sync:
     """
     id: str
     project_id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     direction: str = "inbound"              # inbound | outbound | bidirectional
     provider: str = ""                      # filesystem | github | notion | ...
     authority: str = "authoritative"        # authoritative | mirror

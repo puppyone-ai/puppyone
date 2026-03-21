@@ -10,7 +10,7 @@ from src.connectors.agent.chat.schemas import (
     ChatSession,
     ChatSessionCreate,
 )
-from src.supabase.exceptions import handle_supabase_error
+from src.infra.supabase.exceptions import handle_supabase_error
 
 
 class ChatRepositorySupabase:

@@ -39,7 +39,7 @@ export function useAvailableTools(
         // Skip any legacy shell_access entries (should be cleaned up in DB)
         if (type === 'shell_access' || type === 'shell_access_readonly') continue;
         
-        const nid = t.node_id || null;
+        const nid = t.path || null;
         const nodeName =
           nid && tableNameById?.[nid]
             ? tableNameById[nid]

@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { updateNode } from '@/lib/contentNodesApi';
+import { writeFile } from '@/lib/contentNodesApi';
 
 export function useMarkdownAutoSave(
-  activeNodeId: string,
+  activeNodePath: string,
   projectId: string,
   setMarkdownContent: (content: string) => void,
 ) {
@@ -26,10 +26,10 @@ export function useMarkdownAutoSave(
     if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current);
 
     saveTimeoutRef.current = setTimeout(async () => {
-      if (!activeNodeId) return;
+      if (!activeNodePath) return;
       setMarkdownSaveStatus('saving');
       try {
-        await updateNode(activeNodeId, projectId, { preview_md: newContent });
+        await writeFile(projectId, activeNodePath, newContent, 'markdown');
         setMarkdownSaveStatus('saved');
         statusTimeoutRef.current = setTimeout(() => setMarkdownSaveStatus('idle'), 2000);
       } catch (err) {
@@ -38,7 +38,7 @@ export function useMarkdownAutoSave(
         statusTimeoutRef.current = setTimeout(() => setMarkdownSaveStatus('idle'), 3000);
       }
     }, 1500);
-  }, [activeNodeId, projectId, setMarkdownContent]);
+  }, [activeNodePath, projectId, setMarkdownContent]);
 
   return { handleMarkdownChange, markdownSaveStatus };
 }

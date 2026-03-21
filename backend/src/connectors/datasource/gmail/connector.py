@@ -12,11 +12,9 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
-
-from src.content_node.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -28,7 +26,7 @@ from src.connectors.datasource._base import (
     ConfigField,
 )
 from src.oauth.gmail_service import GmailOAuthService
-from src.s3.service import S3Service
+from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
 
@@ -57,6 +55,7 @@ class GmailConnector(BaseConnector):
             creation_mode="direct",
             description="Sync emails to JSON",
             accept_types=("folder",),
+            icon_url="https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png",
             config_fields=(
                 ConfigField(
                     key="query",
@@ -86,9 +85,9 @@ class GmailConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         gmail_service: GmailOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.gmail_service = gmail_service
@@ -252,3 +251,16 @@ class GmailConnector(BaseConnector):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    oauth_svc = GmailOAuthService()
+    return ConnectorSetup(
+        connector=GmailConnector(
+            gmail_service=oauth_svc,
+            s3_service=deps.s3_service,
+            node_service=deps.node_service,
+        ),
+        oauth_bindings={"gmail": oauth_svc},
+    )

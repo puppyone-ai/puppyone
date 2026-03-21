@@ -25,11 +25,11 @@ from typing import Optional, Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
-from src.project.dependencies import get_project_service
-from src.project.service import ProjectService
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 
 router = APIRouter(prefix="/api/v1/filesystem", tags=["filesystem"])
 
@@ -57,6 +57,7 @@ class UploadUrlRequest(BaseModel):
 
 class ConfirmUploadRequest(BaseModel):
     filename: str = Field(..., description="File name with extension")
+    s3_key: str = Field(..., description="S3 key returned by upload-url endpoint")
     size_bytes: int = Field(default=0, ge=0)
     content_hash: Optional[str] = Field(default=None)
 
@@ -76,7 +77,7 @@ def _get_lifecycle_service():
         return _cached_lifecycle_svc
 
     from src.connectors.datasource.repository import SyncRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     from src.connectors.filesystem.lifecycle import OpenClawService
 
     supabase = SupabaseClient()
@@ -92,7 +93,7 @@ def _get_folder_services():
     if _cached_folder_svc is not None:
         return _cached_folder_svc, _cached_sync_repo
 
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     from src.connectors.datasource.repository import SyncRepository
     from src.connectors.filesystem.service import FolderSyncService
 
@@ -122,7 +123,7 @@ def _auth_folder(access_key: str, folder_id: str):
     sync = sync_repo.get_by_access_key(access_key)
     if not sync or sync.provider != "filesystem":
         raise HTTPException(status_code=401, detail="Invalid or expired access key")
-    if sync.node_id != folder_id:
+    if sync.path != folder_id:
         raise HTTPException(status_code=403, detail="No access to this folder")
     sync_repo.touch_heartbeat(sync.id)
     return sync, svc
@@ -142,7 +143,7 @@ def _ensure_project_access(project_service: ProjectService, current_user: Curren
 @router.post("/bootstrap", response_model=ApiResponse)
 def bootstrap(
     project_id: str = Query(...),
-    node_id: str = Query(...),
+    path: str = Query(...),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -150,11 +151,11 @@ def bootstrap(
     _ensure_project_access(project_service, current_user, project_id)
 
     svc = _get_lifecycle_service()
-    sync = svc.bootstrap(project_id=project_id, node_id=node_id)
+    sync = svc.bootstrap(project_id=project_id, path=path)
     return ApiResponse.success(data={
         "sync_id": sync.id,
         "access_key": sync.access_key,
-        "node_id": sync.node_id,
+        "path": sync.path,
         "project_id": sync.project_id,
     })
 
@@ -191,7 +192,7 @@ async def connect(
     sync, svc = _auth_access_key(x_access_key)
     svc.connect(sync, request.workspace_path)
 
-    folder_id = sync.node_id
+    folder_id = sync.path
     if not folder_id:
         raise HTTPException(
             status_code=400,
@@ -199,7 +200,7 @@ async def connect(
         )
 
     from src.connectors.filesystem.service import FolderSyncService
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     folder_svc = FolderSyncService(SupabaseClient())
     pull_data = folder_svc.pull(
         project_id=sync.project_id,
@@ -303,7 +304,7 @@ async def push(
 ):
     """Push a file. Backend auto-detects create vs update by name lookup."""
     sync, svc = _auth_folder(x_access_key, folder_id)
-    result = svc.push(
+    result = await svc.push(
         project_id=sync.project_id,
         folder_id=folder_id,
         filename=request.filename,
@@ -341,7 +342,7 @@ async def delete_file(
 ):
     """Delete a file by name."""
     sync, svc = _auth_folder(x_access_key, folder_id)
-    result = svc.delete_file(
+    result = await svc.delete_file(
         project_id=sync.project_id,
         folder_id=folder_id,
         filename=filename,
@@ -368,7 +369,7 @@ async def request_upload_url(
 ):
     """Get S3 presigned upload URL for large files."""
     sync, svc = _auth_folder(x_access_key, folder_id)
-    result = svc.request_upload_url(
+    result = await svc.request_upload_url(
         project_id=sync.project_id,
         folder_id=folder_id,
         filename=request.filename,
@@ -398,14 +399,12 @@ async def confirm_upload(
 ):
     """Confirm S3 upload complete — creates version record + changelog entry."""
     sync, svc = _auth_folder(x_access_key, folder_id)
-    result = svc.confirm_upload(
+    result = await svc.confirm_upload(
         project_id=sync.project_id,
         folder_id=folder_id,
         filename=request.filename,
-        size_bytes=request.size_bytes,
+        s3_key=request.s3_key,
         operator_id=f"sync:{sync.id}",
-        operator_name="OpenClaw CLI",
-        content_hash=request.content_hash,
         source_id=sync.id,
     )
     if not result.get("ok"):

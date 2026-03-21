@@ -221,7 +221,7 @@ export function ChatRuntimeView({
     return draftResources.some((draft, i) => {
       const original = currentAgent.resources![i];
       return draft.nodeId !== original.nodeId || 
-             (draft.readonly ?? true) !== (original.readonly ?? original.terminalReadonly ?? true);
+             (draft.readonly ?? true) !== (original.readonly ?? true);
     });
   }, [draftResources, currentAgent?.resources]);
 
@@ -980,8 +980,7 @@ export function ChatRuntimeView({
             {/* 文件列表 */}
             <div style={{ padding: draftResources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               {draftResources.map(resource => {
-                // 使用新的 readonly 字段，向后兼容 terminalReadonly
-                const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
+                const isReadonly = resource.readonly ?? true;
                 return (
                   <div 
                     key={resource.nodeId}

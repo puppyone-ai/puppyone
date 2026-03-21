@@ -32,7 +32,7 @@ export interface TablePreview {
 }
 
 export interface SaveResult {
-  content_node_id: string;
+  content_path: string;
   row_count: number;
 }
 

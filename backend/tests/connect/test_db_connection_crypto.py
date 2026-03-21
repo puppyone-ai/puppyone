@@ -1,7 +1,7 @@
 import pytest
 
 from src.config import settings
-from src.security.crypto import (
+from src.infra.security.crypto import (
     decrypt_db_connection_config,
     encrypt_db_connection_config,
     is_encrypted_db_connection_config,

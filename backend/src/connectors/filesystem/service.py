@@ -1,752 +1,344 @@
 """
 Folder-level file sync service.
 
-Implements the "Daemon Stateless Mirror" architecture:
-- All operations use filename as identity (no node_id exposed)
-- Backend resolves filename → node internally via id_path + depth + name lookup
-- Push auto-detects create vs update
+Implements server-side of the Filesystem Sync architecture:
+- Client daemon does all watch/diff/sync logic locally
+- Client uses MUT HTTP protocol (clone/push/pull) for data transfer
+- Server provides supplementary APIs: list, pull files, push, delete
+
+All write operations go through MutOps.
+Read operations use MutOps for lightweight access.
 """
 
-import os
-import uuid as _uuid
 import json as _json
+import re
 from typing import Optional, Any
-from datetime import datetime
 
-from src.content_node.repository import ContentNodeRepository
-from src.content_node.service import ContentNodeService
-from src.connectors.datasource.repository import SyncRepository
-from src.connectors.filesystem.changelog import SyncChangelogRepository
-from src.collaboration.service import CollaborationService
-from src.collaboration.schemas import Mutation, MutationType, Operator
-from src.collaboration.version_service import VersionService
-from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
-from src.collaboration.lock_service import LockService
-from src.collaboration.conflict_service import ConflictService
-from src.collaboration.audit_service import AuditService
-from src.collaboration.audit_repository import AuditRepository
-from src.s3.service import get_s3_service_instance, S3Service
-from src.supabase.client import SupabaseClient
+from src.infra.s3.service import get_s3_service_instance
+from src.mut_engine.ops import MutOps
 from src.utils.logger import log_info, log_error
 
 INLINE_TYPES = {"json", "markdown"}
 
+_FORBIDDEN_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
+_FORBIDDEN_NAMES = frozenset([".", "..", "CON", "PRN", "AUX", "NUL"] +
+                              [f"COM{i}" for i in range(1, 10)] +
+                              [f"LPT{i}" for i in range(1, 10)])
+
+
+def _validate_filename(filename: str) -> str | None:
+    """Return error message if filename is invalid, else None."""
+    if not filename or not filename.strip():
+        return "Filename must not be empty"
+    if filename.startswith("/"):
+        return f"Absolute path not allowed: {filename}"
+    if "\\" in filename:
+        return f"Backslash not allowed: {filename}"
+
+    segments = filename.split("/")
+    if any(segment == "" for segment in segments):
+        return f"Double slash not allowed: {filename}"
+    if any(segment == "." for segment in segments):
+        return f"Relative path not allowed: {filename}"
+    if any(segment == ".." for segment in segments):
+        return f"Path traversal not allowed: {filename}"
+    if _FORBIDDEN_CHARS.search(filename):
+        return f"Filename contains forbidden characters: {filename}"
+    basename = filename.rsplit("/", 1)[-1].split(".")[0].upper()
+    if basename in _FORBIDDEN_NAMES:
+        return f"Reserved filename: {filename}"
+    if len(filename) > 255:
+        return "Filename too long (max 255)"
+    return None
+
+
+def _extract_file_ref(content_bytes: bytes) -> str | None:
+    """Return S3 key from a MUT file_ref blob, if present."""
+    try:
+        payload = _json.loads(content_bytes.decode("utf-8"))
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("_type") != "file_ref":
+        return None
+
+    s3_key = payload.get("_s3_key")
+    return s3_key if isinstance(s3_key, str) and s3_key else None
+
+
+def _build_download_url(s3_key: str) -> str | None:
+    """Build a presigned download URL synchronously for legacy pull APIs."""
+    s3 = get_s3_service_instance()
+    if not s3 or not getattr(s3, "client", None):
+        return None
+
+    try:
+        return s3.client.generate_presigned_url(
+            ClientMethod="get_object",
+            Params={"Bucket": s3.bucket_name, "Key": s3_key},
+            ExpiresIn=3600,
+        )
+    except Exception as e:
+        log_error(f"[FolderSync] Download URL failed for {s3_key}: {e}")
+        return None
+
 
 class FolderSyncService:
     """
-    Folder-level sync service — the core of the Daemon Stateless Mirror architecture.
+    Folder-level sync service.
 
-    All public methods accept (project_id, folder_id, filename) — never node_id.
-    The daemon only sees filenames; all ID resolution happens here.
+    The client daemon handles all watch/diff/sync logic via MUT protocol.
+    This service provides supplementary operations for the backend API
+    and legacy CLI push/pull endpoints.
     """
 
-    def __init__(self, supabase: SupabaseClient):
+    def __init__(self, supabase=None):
         self._supabase = supabase
-        self._node_repo = ContentNodeRepository(supabase)
-        self._sync_repo = SyncRepository(supabase)
-        self._changelog = SyncChangelogRepository(supabase)
-        self._s3 = get_s3_service_instance()
 
-    def _build_version_service(self) -> VersionService:
-        return VersionService(
-            node_repo=self._node_repo,
-            version_repo=FileVersionRepository(self._supabase),
-            snapshot_repo=FolderSnapshotRepository(self._supabase),
-            s3_service=self._s3,
-            changelog_repo=self._changelog,
-        )
+    def _get_ops(self) -> MutOps:
+        from src.mut_engine.dependencies import create_mut_ops
+        return create_mut_ops()
 
-    def _build_node_service(self) -> ContentNodeService:
-        return ContentNodeService(
-            repo=self._node_repo,
-            s3_service=self._s3,
-            version_service=self._build_version_service(),
-        )
-
-    def _build_collab_service(self) -> CollaborationService:
-        return CollaborationService(
-            node_repo=self._node_repo,
-            node_service=self._build_node_service(),
-            lock_service=LockService(self._node_repo),
-            conflict_service=ConflictService(),
-            version_service=self._build_version_service(),
-            audit_service=AuditService(
-                audit_repo=AuditRepository(self._supabase),
-            ),
-        )
-
-    # ----------------------------------------------------------
-    # Pull
-    # ----------------------------------------------------------
+    # ================================================================
+    # PULL — read files from MUT tree
+    # ================================================================
 
     def pull(
         self,
         project_id: str,
-        folder_id: str,
+        folder_path: str,
         cursor: int = 0,
-        source_id: Optional[int] = None,
+        source_id: str = "",
+        **kwargs,
     ) -> dict:
-        if cursor == 0:
-            return self._pull_full(project_id, folder_id)
-        return self._pull_incremental(project_id, folder_id, cursor, source_id)
+        """Pull files from the MUT tree for a folder sync."""
+        ops = self._get_ops()
+        current_version = 0
 
-    def _pull_full(self, project_id: str, folder_id: str) -> dict:
-        result_files = self._list_all_files_recursive(project_id, folder_id)
-        new_cursor = self._changelog.get_latest_cursor(project_id)
+        try:
+            current_version = ops.get_version(project_id)
+        except Exception:
+            current_version = 0
+
+        try:
+            entries = ops.list_tree(project_id, folder_path)
+        except Exception:
+            entries = []
+
+        files = []
+        for e in entries:
+            if e.type == "folder":
+                continue
+            rel = e.path
+            if rel.startswith(folder_path):
+                rel = rel[len(folder_path):].lstrip("/")
+
+            file_info = {
+                "name": rel,
+                "path": e.path,
+                "type": e.type,
+                "size": e.size_bytes or 0,
+                "version": current_version,
+            }
+
+            try:
+                content_bytes = ops.read_file(project_id, e.path)
+                if e.type == "json":
+                    try:
+                        file_info["content"] = _json.loads(content_bytes.decode("utf-8"))
+                    except Exception:
+                        file_info["content"] = content_bytes.decode("utf-8", errors="replace")
+                elif e.type == "markdown":
+                    file_info["content"] = content_bytes.decode("utf-8", errors="replace")
+                else:
+                    s3_key = _extract_file_ref(content_bytes)
+                    if s3_key:
+                        file_info["s3_key"] = s3_key
+                        download_url = _build_download_url(s3_key)
+                        if download_url:
+                            file_info["download_url"] = download_url
+            except Exception:
+                if e.type in INLINE_TYPES:
+                    file_info["content"] = ""
+
+            files.append(file_info)
 
         return {
-            "files": result_files,
-            "cursor": new_cursor,
+            "cursor": 0,
+            "version": current_version,
+            "files": files,
             "is_full_sync": True,
             "has_more": False,
         }
 
-    def _pull_incremental(
+    # ================================================================
+    # PUSH — write a single file via MutOps
+    # ================================================================
+
+    async def push(
         self,
         project_id: str,
-        folder_id: str,
-        cursor: int,
-        source_id: Optional[int],
-    ) -> dict:
-        min_available = self._changelog.min_cursor()
-        latest = self._changelog.get_latest_cursor(project_id)
-
-        if min_available > 0 and cursor < min_available:
-            return self._pull_full(project_id, folder_id)
-        if latest > 0 and cursor > latest:
-            return self._pull_full(project_id, folder_id)
-
-        limit = 500
-        entries = self._changelog.list_since(project_id, cursor, limit)
-
-        if not entries:
-            return {
-                "files": [],
-                "cursor": max(cursor, latest),
-                "is_full_sync": False,
-                "has_more": False,
-            }
-
-        descendant_ids = self._get_all_descendant_ids(project_id, folder_id)
-
-        update_ids = list(dict.fromkeys(
-            e.node_id for e in entries
-            if e.action != "delete" and e.node_id in descendant_ids
-        ))
-
-        delete_entries = [
-            e for e in entries if e.action == "delete"
-        ]
-
-        nodes_data = self._node_repo.get_by_ids(update_ids)
-        nodes_map = {n.id: n for n in nodes_data}
-
-        result_files = []
-        seen_updates = set()
-        for nid in update_ids:
-            if nid in seen_updates:
-                continue
-            seen_updates.add(nid)
-            node = nodes_map.get(nid)
-            if not node or node.type == "folder":
-                continue
-            entry = self._serialize_file(node)
-            entry["name"] = self._build_relative_path(node, folder_id)
-            entry["action"] = "update"
-            result_files.append(entry)
-
-        seen_deletes = set()
-        for e in delete_entries:
-            if e.node_id in seen_deletes:
-                continue
-            seen_deletes.add(e.node_id)
-            node = self._node_repo.get_by_id(e.node_id)
-            if node:
-                filename = self._build_relative_path(node, folder_id)
-            else:
-                filename = e.filename or e.hash
-            if filename:
-                result_files.append({"name": filename, "action": "delete"})
-
-        new_cursor = entries[-1].id
-        has_more = len(entries) >= limit
-
-        return {
-            "files": result_files,
-            "cursor": new_cursor,
-            "is_full_sync": False,
-            "has_more": has_more,
-        }
-
-    def _resolve_deleted_filename(
-        self, node_id: str, source_id: Optional[int] = None,
-    ) -> Optional[str]:
-        """Best-effort filename resolution for a deleted node."""
-        node = self._node_repo.get_by_id(node_id)
-        if node:
-            return self._node_to_filename(node)
-        return None
-
-    # ----------------------------------------------------------
-    # Push (auto-detects create vs update)
-    # ----------------------------------------------------------
-
-    def push(
-        self,
-        project_id: str,
-        folder_id: str,
+        folder_path: str,
         filename: str,
         content: Any,
-        base_version: int,
-        node_type: str,
-        operator_id: str,
-        operator_name: str,
-        source_id: Optional[int] = None,
+        base_version: int = 0,
+        node_type: str = "json",
+        operator_id: str = "sync:filesystem",
+        operator_name: str = "OpenClaw CLI",
+        source_id: str = "",
+        **kwargs,
     ) -> dict:
-        invalid_path = self._validate_filename_or_error(
-            filename=filename,
-            operation="push",
-            operator_id=operator_id,
-            source_id=source_id,
-        )
-        if invalid_path:
-            return invalid_path
+        """Push a single file to the MUT tree."""
+        err = _validate_filename(filename)
+        if err:
+            return {"ok": False, "error": "invalid_path", "message": err}
 
-        parent_node, leaf = self._resolve_parent(project_id, folder_id, filename)
-        name = self._leaf_to_node_name(leaf, node_type)
-        existing = self._node_repo.get_child_by_name(
-            project_id, parent_node.id_path, parent_node.depth, name,
-        )
+        file_path = f"{folder_path}/{filename}" if folder_path else filename
 
-        if existing:
-            return self._do_update(
-                existing, content, base_version, node_type,
-                operator_id, operator_name, source_id, filename,
+        if isinstance(content, dict) or isinstance(content, list):
+            content_bytes = _json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
+        elif isinstance(content, str):
+            content_bytes = content.encode("utf-8")
+        elif isinstance(content, bytes):
+            content_bytes = content
+        else:
+            content_bytes = str(content).encode("utf-8")
+
+        try:
+            ops = self._get_ops()
+
+            result = await ops.write_file(
+                project_id, file_path, content_bytes,
+                who=operator_id, message=f"Push {filename}",
             )
-        return self._do_create(
-            project_id, parent_node.id, name, filename, content,
-            node_type, operator_id, operator_name, source_id,
-        )
 
-    def _do_create(
+            log_info(f"[FolderSync] Pushed {file_path} v{result.version}")
+            return {"ok": True, "path": file_path, "version": result.version}
+        except Exception as e:
+            log_error(f"[FolderSync] Push failed for {file_path}: {e}")
+            return {"ok": False, "error": "push_failed", "message": str(e)}
+
+    # ================================================================
+    # DELETE — remove a file via MutOps
+    # ================================================================
+
+    async def delete_file(
         self,
         project_id: str,
-        folder_id: str,
-        name: str,
+        folder_path: str,
         filename: str,
-        content: Any,
-        node_type: str,
-        operator_id: str,
-        operator_name: str,
-        source_id: Optional[int],
+        source_id: str = "",
+        **kwargs,
     ) -> dict:
-        import asyncio
-        collab_svc = self._build_collab_service()
+        """Delete a file from the MUT tree."""
+        err = _validate_filename(filename)
+        if err:
+            return {"ok": False, "error": "invalid_path", "message": err}
+
+        file_path = f"{folder_path}/{filename}" if folder_path else filename
 
         try:
-            mutation = Mutation(
-                type=MutationType.NODE_CREATE,
-                operator=Operator(
-                    type="agent",
-                    id=operator_id,
-                    summary=f"CLI create from '{operator_name}'",
-                ),
-                project_id=project_id,
-                parent_id=folder_id,
-                name=name,
-                node_type=node_type if node_type in ("json", "markdown") else "markdown",
-                content=content,
+            ops = self._get_ops()
+            await ops.delete(
+                project_id, [file_path],
+                who=f"sync:{source_id}", message=f"Delete {filename}",
             )
-
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
-            else:
-                result = asyncio.run(collab_svc.commit(mutation))
-
-            log_info(f"[FolderSync] CREATE {filename} in folder {folder_id}")
-            return {"ok": True, "version": result.version, "status": "created"}
-
+            log_info(f"[FolderSync] Deleted {file_path}")
+            return {"ok": True, "path": file_path}
         except Exception as e:
-            log_error(f"[FolderSync] CREATE failed for {filename}: {e}")
-            return {"ok": False, "error": "create_failed", "message": str(e)}
-
-    def _do_update(
-        self,
-        node,
-        content: Any,
-        base_version: int,
-        node_type: str,
-        operator_id: str,
-        operator_name: str,
-        source_id: Optional[int],
-        filename: str,
-    ) -> dict:
-        import asyncio
-        collab_svc = self._build_collab_service()
-
-        try:
-            mutation = Mutation(
-                type=MutationType.CONTENT_UPDATE,
-                operator=Operator(
-                    type="agent",
-                    id=operator_id,
-                    summary=f"CLI push from '{operator_name}'",
-                ),
-                node_id=node.id,
-                content=content,
-                base_version=base_version,
-                node_type=node_type,
-            )
-
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
-            else:
-                result = asyncio.run(collab_svc.commit(mutation))
-
-            log_info(f"[FolderSync] UPDATE {filename} → v{result.version}")
-            return {"ok": True, "version": result.version, "status": result.status}
-
-        except Exception as e:
-            log_error(f"[FolderSync] UPDATE failed for {filename}: {e}")
-            return {"ok": False, "error": "commit_failed", "message": str(e)}
-
-    # ----------------------------------------------------------
-    # Delete
-    # ----------------------------------------------------------
-
-    def delete_file(
-        self,
-        project_id: str,
-        folder_id: str,
-        filename: str,
-        source_id: Optional[int] = None,
-    ) -> dict:
-        invalid_path = self._validate_filename_or_error(
-            filename=filename,
-            operation="delete_file",
-            source_id=source_id,
-        )
-        if invalid_path:
-            return invalid_path
-
-        node = self._find_node_by_path(project_id, folder_id, filename)
-        if not node:
-            return {"ok": True, "status": "not_found"}
-
-        try:
-            import asyncio
-            collab_svc = self._build_collab_service()
-            mutation = Mutation(
-                type=MutationType.NODE_DELETE,
-                operator=Operator(type="agent", id="system", summary=f"CLI delete: {filename}"),
-                node_id=node.id,
-                project_id=project_id,
-            )
-
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
-            else:
-                asyncio.run(collab_svc.commit(mutation))
-
-            log_info(f"[FolderSync] DELETE {filename} from folder {folder_id}")
-            return {"ok": True, "status": "deleted"}
-
-        except Exception as e:
-            log_error(f"[FolderSync] DELETE failed for {filename}: {e}")
+            log_error(f"[FolderSync] Delete failed for {file_path}: {e}")
             return {"ok": False, "error": "delete_failed", "message": str(e)}
 
-    # ----------------------------------------------------------
-    # File upload (presigned URL flow for non-JSON/MD)
-    # ----------------------------------------------------------
+    # ================================================================
+    # UPLOAD URL — S3 presigned URL for binary files
+    # ================================================================
 
-    def request_upload_url(
+    async def request_upload_url(
         self,
         project_id: str,
-        folder_id: str,
+        folder_path: str,
         filename: str,
-        content_type: str,
-        size_bytes: int,
-        operator_id: str,
-        source_id: Optional[int] = None,
+        content_type: str = "application/octet-stream",
+        size_bytes: int = 0,
+        operator_id: str = "sync:filesystem",
+        **kwargs,
     ) -> dict:
-        invalid_path = self._validate_filename_or_error(
-            filename=filename,
-            operation="request_upload_url",
-            operator_id=operator_id,
-            source_id=source_id,
-        )
-        if invalid_path:
-            return invalid_path
+        """Get S3 presigned upload URL for large/binary files."""
+        err = _validate_filename(filename)
+        if err:
+            return {"ok": False, "error": "invalid_path", "message": err}
 
-        parent_node, leaf = self._resolve_parent(project_id, folder_id, filename)
-        name = self._leaf_to_node_name(leaf, "file")
-        existing = self._node_repo.get_child_by_name(
-            project_id, parent_node.id_path, parent_node.depth, name,
-        )
+        import uuid
+        import os
 
-        if existing:
-            node_id = existing.id
-            s3_key = existing.s3_key or self._make_s3_key(project_id, node_id, filename)
-        else:
-            node_id = str(_uuid.uuid4())
-            s3_key = self._make_s3_key(project_id, node_id, filename)
-            created_by = self._get_project_owner(project_id)
-
-            node = self._node_repo.create(
-                project_id=project_id,
-                name=name,
-                node_type="file",
-                id_path=f"{parent_node.id_path}/{node_id}",
-                created_by=created_by,
-                s3_key=s3_key,
-                mime_type=content_type,
-                size_bytes=size_bytes,
-            )
-            node_id = node.id
+        _, ext = os.path.splitext(filename)
+        safe_name = f"{uuid.uuid4()}{ext}"
+        s3_key = f"projects/{project_id}/filesystem/{folder_path}/{safe_name}"
 
         try:
-            params = {"Bucket": self._s3.bucket_name, "Key": s3_key}
-            if content_type:
-                params["ContentType"] = content_type
-            upload_url = self._s3.client.generate_presigned_url(
-                ClientMethod="put_object",
-                Params=params,
-                ExpiresIn=3600,
+            s3 = get_s3_service_instance()
+            if not s3:
+                return {"ok": False, "error": "s3_unavailable", "message": "S3 service not available"}
+
+            upload_url = await s3.generate_presigned_upload_url(
+                key=s3_key,
+                content_type=content_type,
+                expires_in=3600,
             )
+
+            return {
+                "ok": True,
+                "upload_url": upload_url,
+                "s3_key": s3_key,
+                "filename": filename,
+            }
         except Exception as e:
             log_error(f"[FolderSync] Upload URL failed: {e}")
-            return {"ok": False, "error": "s3_error", "message": str(e)}
+            return {"ok": False, "error": "upload_url_failed", "message": str(e)}
 
-        return {"ok": True, "filename": filename, "upload_url": upload_url}
+    # ================================================================
+    # CONFIRM UPLOAD — create MUT tree reference after S3 upload
+    # ================================================================
 
-    def confirm_upload(
+    async def confirm_upload(
         self,
         project_id: str,
-        folder_id: str,
+        folder_path: str,
         filename: str,
-        size_bytes: int,
-        operator_id: str,
-        operator_name: str,
-        content_hash: Optional[str] = None,
-        source_id: Optional[int] = None,
+        s3_key: str,
+        operator_id: str = "sync:filesystem",
+        source_id: str = "",
+        **kwargs,
     ) -> dict:
-        invalid_path = self._validate_filename_or_error(
-            filename=filename,
-            operation="confirm_upload",
-            operator_id=operator_id,
-            source_id=source_id,
-        )
-        if invalid_path:
-            return invalid_path
+        """Confirm that a binary file has been uploaded to S3."""
+        err = _validate_filename(filename)
+        if err:
+            return {"ok": False, "error": "invalid_path", "message": err}
 
-        node = self._find_node_by_path(project_id, folder_id, filename)
-        if not node:
+        file_path = f"{folder_path}/{filename}" if folder_path else filename
+
+        ref_content = _json.dumps({
+            "_type": "file_ref",
+            "_s3_key": s3_key,
+            "filename": filename,
+        }, ensure_ascii=False, indent=2).encode("utf-8")
+
+        try:
+            ops = self._get_ops()
+            result = await ops.write_file(
+                project_id, file_path, ref_content,
+                who=operator_id, message=f"Upload binary: {filename}",
+            )
+
+            log_info(f"[FolderSync] Confirmed upload: {file_path} → {s3_key}")
             return {
-                "ok": False, "error": "not_found",
-                "message": f"File '{filename}' not found in folder",
+                "ok": True,
+                "path": file_path,
+                "s3_key": s3_key,
+                "version": result.version,
             }
-
-        self._node_repo.update(node_id=node.id, size_bytes=size_bytes)
-
-        version_svc = self._build_version_service()
-        is_new = (node.current_version or 0) == 0
-        try:
-            version = version_svc.create_version(
-                node_id=node.id,
-                operator_type="agent",
-                operation="create" if is_new else "update",
-                s3_key=node.s3_key,
-                operator_id=operator_id,
-                summary=f"CLI upload from '{operator_name}'",
-            )
-            new_version = version.version if version else 1
-
-            log_info(
-                f"[FolderSync] CONFIRM {filename} v{new_version} ({size_bytes} bytes)"
-            )
-            return {"ok": True, "version": new_version, "status": "uploaded"}
-
         except Exception as e:
-            log_error(f"[FolderSync] CONFIRM failed for {filename}: {e}")
+            log_error(f"[FolderSync] Confirm upload failed: {e}")
             return {"ok": False, "error": "confirm_failed", "message": str(e)}
-
-    # ----------------------------------------------------------
-    # Helpers
-    # ----------------------------------------------------------
-
-    def _serialize_file(self, node) -> dict:
-        entry = {
-            "name": self._node_to_filename(node),
-            "type": node.type,
-            "version": node.current_version or 0,
-        }
-        if node.type in INLINE_TYPES:
-            entry["content"] = (
-                node.preview_json if node.type == "json" else node.preview_md
-            )
-        else:
-            entry["s3_key"] = node.s3_key
-            entry["mime_type"] = node.mime_type
-            entry["size_bytes"] = node.size_bytes or 0
-            if node.s3_key:
-                try:
-                    url = self._s3.client.generate_presigned_url(
-                        ClientMethod="get_object",
-                        Params={
-                            "Bucket": self._s3.bucket_name,
-                            "Key": node.s3_key,
-                        },
-                        ExpiresIn=3600,
-                    )
-                    entry["download_url"] = url
-                except Exception:
-                    entry["download_url"] = None
-        return entry
-
-    @staticmethod
-    def _node_to_filename(node) -> str:
-        name = node.name
-        if node.type == "json":
-            return name if name.endswith(".json") else f"{name}.json"
-        if node.type == "markdown":
-            return name if name.endswith(".md") else f"{name}.md"
-        return name
-
-    @staticmethod
-    def _strip_extension(filename: str) -> str:
-        return os.path.splitext(filename)[0] if "." in filename else filename
-
-    @staticmethod
-    def _leaf_to_node_name(leaf: str, node_type: str) -> str:
-        if node_type in INLINE_TYPES:
-            return FolderSyncService._strip_extension(leaf)
-        return leaf
-
-    @staticmethod
-    def _make_s3_key(project_id: str, node_id: str, filename: str) -> str:
-        safe_name = filename.replace("/", "_").replace("\\", "_")
-        return f"projects/{project_id}/openclaw/{node_id}/{safe_name}"
-
-    def _get_project_owner(self, project_id: str) -> Optional[str]:
-        from src.project.repository import ProjectRepositorySupabase
-        try:
-            repo = ProjectRepositorySupabase()
-            project = repo.get_by_id(project_id)
-            return project.created_by if project else None
-        except Exception:
-            return None
-
-    # ----------------------------------------------------------
-    # Path-based helpers (nested folder support)
-    # ----------------------------------------------------------
-
-    def _parse_path(self, filename: str) -> tuple[list[str], str]:
-        """Split 'a/b/c.md' into (['a','b'], 'c.md')."""
-        parts = filename.replace("\\", "/").split("/")
-        for segment in parts:
-            if segment in ("", ".", "..") or "\x00" in segment:
-                raise ValueError(f"Invalid filename path segment: {segment!r}")
-        return parts[:-1], parts[-1]
-
-    def _validate_filename_or_error(
-        self,
-        filename: str,
-        operation: str,
-        source_id: Optional[int] = None,
-        operator_id: Optional[str] = None,
-    ) -> Optional[dict]:
-        try:
-            self._parse_path(filename)
-            return None
-        except ValueError as e:
-            self._audit_invalid_path(
-                operation=operation,
-                filename=filename,
-                source_id=source_id,
-                operator_id=operator_id,
-                reason=str(e),
-            )
-            return {"ok": False, "error": "invalid_path", "message": str(e)}
-
-    @staticmethod
-    def _audit_invalid_path(
-        operation: str,
-        filename: str,
-        source_id: Optional[int],
-        operator_id: Optional[str],
-        reason: str,
-    ) -> None:
-        log_error(
-            "[FolderSync][SECURITY] Reject invalid path "
-            f"(op={operation}, source_id={source_id}, operator_id={operator_id}): "
-            f"{filename!r} ({reason})"
-        )
-
-    def _ensure_folder_path(
-        self, project_id: str, root_folder_id: str, dir_segments: list[str],
-    ):
-        """Walk/create intermediate folders. Returns deepest folder node."""
-        parent_node = self._node_repo.get_by_id(root_folder_id)
-        if not parent_node:
-            raise ValueError(f"Root folder not found: {root_folder_id}")
-        for segment in dir_segments:
-            existing = self._node_repo.get_child_by_name(
-                project_id, parent_node.id_path, parent_node.depth, segment,
-            )
-            if existing and existing.type == "folder":
-                parent_node = existing
-            else:
-                import asyncio
-                collab_svc = self._build_collab_service()
-                mutation = Mutation(
-                    type=MutationType.NODE_CREATE,
-                    operator=Operator(type="agent", id="system"),
-                    project_id=project_id,
-                    parent_id=parent_node.id,
-                    name=segment,
-                    node_type="folder",
-                )
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    import concurrent.futures
-                    with concurrent.futures.ThreadPoolExecutor() as pool:
-                        result = pool.submit(asyncio.run, collab_svc.commit(mutation)).result()
-                else:
-                    result = asyncio.run(collab_svc.commit(mutation))
-                created = self._node_repo.get_by_id(result.node_id)
-                if created:
-                    parent_node = created
-                log_info(f"[FolderSync] Auto-created folder '{segment}' ({result.node_id})")
-        return parent_node
-
-    def _resolve_parent(self, project_id: str, folder_id: str, filename: str):
-        """Resolve filename with path to (parent_node, leaf_filename)."""
-        dirs, leaf = self._parse_path(filename)
-        if dirs:
-            parent_node = self._ensure_folder_path(project_id, folder_id, dirs)
-        else:
-            parent_node = self._node_repo.get_by_id(folder_id)
-        return parent_node, leaf
-
-    def _find_node_by_path(self, project_id: str, root_folder_id: str, rel_path: str):
-        """Find a node by relative path from sync root. Returns node or None."""
-        dirs, leaf = self._parse_path(rel_path)
-        parent_node = self._node_repo.get_by_id(root_folder_id)
-        if not parent_node:
-            return None
-        for seg in dirs:
-            folder = self._node_repo.get_child_by_name(
-                project_id, parent_node.id_path, parent_node.depth, seg,
-            )
-            if not folder or folder.type != "folder":
-                return None
-            parent_node = folder
-        exact = self._node_repo.get_child_by_name(
-            project_id, parent_node.id_path, parent_node.depth, leaf,
-        )
-        if exact:
-            return exact
-
-        legacy_name = self._strip_extension(leaf)
-        if legacy_name == leaf:
-            return None
-
-        legacy = self._node_repo.get_child_by_name(
-            project_id, parent_node.id_path, parent_node.depth, legacy_name,
-        )
-        if not legacy or legacy.type not in INLINE_TYPES:
-            return None
-
-        _, ext = os.path.splitext(leaf.lower())
-        if ext == ".json" and legacy.type != "json":
-            return None
-        if ext == ".md" and legacy.type != "markdown":
-            return None
-        return legacy
-
-    def _list_all_files_recursive(
-        self, project_id: str, folder_id: str, prefix: str = "",
-    ) -> list[dict]:
-        """
-        列出文件夹下所有文件（基于 id_path 前缀，非递归，无环风险）。
-        """
-        folder = self._node_repo.get_by_id(folder_id)
-        if not folder:
-            return []
-        descendants = self._node_repo.list_descendants(project_id, folder.id_path)
-
-        id_to_name = {folder.id: folder.name}
-        for d in descendants:
-            id_to_name[d.id] = d.name
-
-        result: list[dict] = []
-        for node in descendants:
-            if node.type == "folder":
-                continue
-            rel_path = self._build_relative_path_from_id_path(
-                node, folder_id, id_to_name,
-            )
-            entry = self._serialize_file(node)
-            entry["name"] = f"{prefix}{rel_path}"
-            result.append(entry)
-        return result
-
-    def _build_relative_path(self, node, root_folder_id: str) -> str:
-        """
-        基于 id_path 构建从 sync root 到节点的相对路径（无递归，无环风险）。
-        """
-        all_ids = [s for s in node.id_path.strip("/").split("/") if s]
-        root_idx = next((i for i, nid in enumerate(all_ids) if nid == root_folder_id), -1)
-        if root_idx >= 0:
-            relevant_ids = all_ids[root_idx + 1:]
-        else:
-            relevant_ids = all_ids
-
-        if not relevant_ids:
-            return self._node_to_filename(node)
-
-        ancestor_nodes = self._node_repo.get_by_ids(relevant_ids)
-        id_to_name = {n.id: n.name for n in ancestor_nodes}
-
-        parts = []
-        for nid in relevant_ids[:-1]:
-            parts.append(id_to_name.get(nid, nid))
-        parts.append(self._node_to_filename(node))
-        return "/".join(parts)
-
-    def _build_relative_path_from_id_path(
-        self, node, root_folder_id: str, id_to_name: dict,
-    ) -> str:
-        """Build relative path using pre-loaded id_to_name map (batch-optimized)."""
-        all_ids = [s for s in node.id_path.strip("/").split("/") if s]
-        root_idx = next((i for i, nid in enumerate(all_ids) if nid == root_folder_id), -1)
-        if root_idx >= 0:
-            relevant_ids = all_ids[root_idx + 1:]
-        else:
-            relevant_ids = all_ids
-
-        if not relevant_ids:
-            return self._node_to_filename(node)
-
-        parts = []
-        for nid in relevant_ids[:-1]:
-            parts.append(id_to_name.get(nid, nid))
-        parts.append(self._node_to_filename(node))
-        return "/".join(parts)
-
-    def _get_all_descendant_ids(self, project_id: str, folder_id: str) -> set[str]:
-        """获取所有子孙 ID（基于 id_path 前缀，非递归，无环风险）。"""
-        folder = self._node_repo.get_by_id(folder_id)
-        if not folder:
-            return set()
-        ids = self._node_repo.get_descendant_ids(project_id, folder.id_path)
-        return set(ids)

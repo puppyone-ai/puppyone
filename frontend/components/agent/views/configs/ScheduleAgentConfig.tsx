@@ -456,7 +456,7 @@ export function ScheduleAgentConfig({ projectTools }: AgentConfigProps) {
   const toggleReadonly = (nodeId: string) => {
     const r = draftResources.find(r => r.nodeId === nodeId);
     if (!r) return;
-    updateDraftResource(nodeId, { readonly: !(r.readonly ?? r.terminalReadonly ?? true) });
+    updateDraftResource(nodeId, { readonly: !(r.readonly ?? true) });
   };
 
   const selectedTools = useMemo(() => (projectTools || []).filter(t => selectedToolIds.has(t.id)), [projectTools, selectedToolIds]);
@@ -491,7 +491,7 @@ export function ScheduleAgentConfig({ projectTools }: AgentConfigProps) {
             {draftResources.map((resource) => {
               const { icon, color } = getNodeIcon(resource.nodeType);
               const pathDisplay = resource.jsonPath ? `${resource.nodeName} (${resource.jsonPath})` : resource.nodeName;
-              const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
+              const isReadonly = resource.readonly ?? true;
               return (
                 <div key={resource.nodeId}
                   style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', borderRadius: 4, background: '#1a1a1a', border: '1px solid #252525', transition: 'all 0.1s' }}

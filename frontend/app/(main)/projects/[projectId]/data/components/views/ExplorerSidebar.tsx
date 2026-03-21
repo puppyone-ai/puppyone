@@ -119,28 +119,27 @@ const FolderIcon = ({ expanded }: { expanded?: boolean }) => {
 
 const JsonIcon = () => (
   <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-    <rect x='3' y='3' width='18' height='18' rx='2' stroke='#34d399' strokeWidth='1.5' fill='#34d399' fillOpacity='0.08' />
-    <path d='M3 9H21' stroke='#34d399' strokeWidth='1.5' />
-    <path d='M9 3V21' stroke='#34d399' strokeWidth='1.5' />
+    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 2v6h6" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 12l-2 2 2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 12l2 2-2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const MarkdownIcon = () => (
   <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-    <path
-      d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z'
-      stroke='#a1a1aa' strokeWidth='1.5' fill='#a1a1aa' fillOpacity='0.08'
-    />
-    <path d='M14 2V8H20' stroke='#a1a1aa' strokeWidth='1.5' />
-    <path d='M8 13H16' stroke='#a1a1aa' strokeWidth='1.5' strokeLinecap='round' />
-    <path d='M8 17H12' stroke='#a1a1aa' strokeWidth='1.5' strokeLinecap='round' />
+    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 2v6h6" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 16v-4l2.5 2.5L13 12v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 16v-4h2v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 14h2" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const PlainFileIcon = () => (
   <svg width='16' height='16' viewBox='0 0 24 24' fill='none'>
-    <path d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z' stroke='#71717a' strokeWidth='1.5' />
-    <path d='M14 2V8H20' stroke='#71717a' strokeWidth='1.5' />
+    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 2v6h6" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -243,41 +242,48 @@ function SyncBadge({ provider, direction, active }: { provider: string; directio
   );
 }
 
-function EndpointIconRenderer({ ep, size = 14 }: { ep: SyncEndpointInfo, size?: number }) {
+export function EndpointIconRenderer({ ep, size = 14 }: { ep: SyncEndpointInfo, size?: number }) {
   const isAgent = ep.provider.startsWith('agent:');
   const isMcp = ep.provider === 'mcp';
   const isSandbox = ep.provider === 'sandbox';
-  const color = isAgent ? 'rgba(167, 139, 250, 0.8)' : isMcp ? 'rgba(96, 165, 250, 0.8)' : isSandbox ? 'rgba(245, 158, 11, 0.8)' : 'rgba(255, 255, 255, 0.6)';
-  const dotColor = isAgent ? '#a78bfa' : isMcp ? '#60a5fa' : isSandbox ? '#f59e0b' : '#10b981';
+  
+  // All SVG logos should be neutral/monochrome to match the sidebar style
+  const color = '#a1a1aa'; 
+  
+  const dotColor = ep.status === 'error' ? '#ef4444' : ep.status === 'stopped' ? '#71717a' : '#10b981';
 
   return (
-    <>
-      {isAgent ? (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      ) : isMcp ? (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
-          <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-          <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-          <line x1="6" y1="6" x2="6.01" y2="6" />
-          <line x1="6" y1="18" x2="6.01" y2="18" />
-        </svg>
-      ) : isSandbox ? (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
-          <polyline points="4 17 10 11 4 5" />
-          <line x1="12" y1="19" x2="20" y2="19" />
-        </svg>
-      ) : (
-        <SyncSourceIcon size={size} />
-      )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      {/* Status Dot on the left */}
       <div style={{
-        position: 'absolute', bottom: 2, right: 2,
         width: 6, height: 6, borderRadius: '50%',
         background: dotColor,
-        boxShadow: '0 0 0 2px rgba(24, 24, 27, 0.8)', // Semi-transparent dark border to create a cutout effect
+        flexShrink: 0,
       }} />
-    </>
+      
+      {/* Neutral SVG Icon */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: size, height: size }}>
+        {isAgent ? (
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        ) : isMcp ? (
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+            <line x1="6" y1="6" x2="6.01" y2="6" />
+            <line x1="6" y1="18" x2="6.01" y2="18" />
+          </svg>
+        ) : isSandbox ? (
+          <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color }}>
+            <polyline points="4 17 10 11 4 5" />
+            <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+        ) : (
+          <SyncSourceIcon size={size} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -307,7 +313,6 @@ function EndpointHoverMenu({
     if (endpoints.length <= 1) return;
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
-      // "在下面的一横行排开" (Expand downwards and horizontally)
       setPos({ x: rect.left, y: rect.bottom + 2 });
     }
     setOpen(true);
@@ -353,7 +358,7 @@ function EndpointHoverMenu({
           </svg>
         ) : (
           <>
-            <EndpointIconRenderer ep={defaultEndpoint} size={16} />
+            <EndpointIconRenderer ep={defaultEndpoint} size={14} />
             {endpoints.length > 1 && (
               <div style={{
                 position: 'absolute', top: -4, right: -4,
@@ -410,7 +415,7 @@ function EndpointHoverMenu({
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
                 <div style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                  <EndpointIconRenderer ep={ep} size={16} />
+                  <EndpointIconRenderer ep={ep} size={14} />
                 </div>
               </div>
             );
@@ -594,9 +599,8 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 
   const isActive = activeId === item.id;
   const rowPaddingLeft = 8 + (depth * 16);
-  const LEFT_STATUS_COL_WIDTH = 30;
   // childTextPadding aligns the "Empty/Loading" with child row text.
-  const childTextPadding = LEFT_STATUS_COL_WIDTH + rowPaddingLeft + 22;
+  const childTextPadding = rowPaddingLeft + 22;
 
   const isSyncActive = activeSyncNodeId === item.id;
   const isEndpointActive = isSyncActive;
@@ -652,68 +656,6 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           cursor: 'pointer',
         }}
       >
-        {/* Left dedicated status column (sync plug only) */}
-        <div
-          style={{
-            width: LEFT_STATUS_COL_WIDTH,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            boxSizing: 'border-box',
-            background: 'transparent',
-          }}
-        >
-          {syncEndpoint && nodeEndpointMap?.get(item.id) ? (
-            <EndpointHoverMenu
-              endpoints={nodeEndpointMap.get(item.id)!}
-              onEndpointClick={(it, ep, path) => onEndpointClick?.(it, ep, path)}
-              item={item}
-              ancestors={ancestors}
-              defaultClick={() => onSyncClick?.(item, [...ancestors, item.id])}
-            />
-          ) : syncEndpoint ? (
-            <div
-              title={`${syncEndpoint.provider} (Click to configure)`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSyncClick?.(item, [...ancestors, item.id]);
-              }}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
-                position: 'relative',
-                opacity: isEndpointActive || hovered ? 1 : 0.85,
-                background: isEndpointActive ? 'rgba(255,255,255,0.12)' : 'transparent',
-                transition: 'background 0.15s, opacity 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = isEndpointActive ? 'rgba(255,255,255,0.12)' : 'transparent'; }}
-            >
-              <EndpointIconRenderer ep={syncEndpoint} size={16} />
-            </div>
-          ) : hovered ? (
-            <div
-              title="Add connection"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSyncClick?.(item, [...ancestors, item.id]);
-              }}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 24, height: 24, borderRadius: 6, cursor: 'pointer',
-                position: 'relative',
-                transition: 'background 0.15s'
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-            >
-              <SyncSourceIcon size={16} isEmpty={true} />
-            </div>
-          ) : null}
-        </div>
-
         {/* File row content */}
         <div
           style={{
@@ -871,18 +813,6 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
       
       {/* Sidebar Content (Scrollable) */}
       <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative' }}>
-        {/* Continuous vertical line for the left status column */}
-        <div style={{
-          position: 'absolute',
-          left: 36, // 6px (margin) + 30px (status col width)
-          top: 0,
-          bottom: 0,
-          width: 1,
-          background: 'rgba(255,255,255,0.06)',
-          zIndex: 10,
-          pointerEvents: 'none'
-        }} />
-        
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
 
           {/* The true Root node */}
@@ -897,19 +827,6 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
           }}
             {...rootDropHandlers}
           >
-            {/* Simulated left status column to extend the plug line */}
-            <div
-              style={{
-                width: 30, // MATCHES LEFT_STATUS_COL_WIDTH
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                boxSizing: 'border-box',
-              }}
-            ></div>
-            
             {/* Root content */}
             <div style={{ 
               flex: 1, minWidth: 0,

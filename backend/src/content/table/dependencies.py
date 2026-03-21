@@ -1,0 +1,40 @@
+from fastapi import Depends, Path
+from src.content.table.repository import TableRepositorySupabase
+from src.content.table.service import TableService
+from src.content.table.models import Table
+from src.platform.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+
+
+_table_repository = None
+_table_service = None
+
+
+def get_table_repository() -> TableRepositorySupabase:
+    global _table_repository
+    if _table_repository is None:
+        _table_repository = TableRepositorySupabase()
+    return _table_repository
+
+
+def get_table_service() -> TableService:
+    global _table_service
+    if _table_service is None:
+        from src.mut_engine.dependencies import get_repo_manager_standalone
+
+        repo = get_table_repository()
+        repo_manager = get_repo_manager_standalone()
+
+        _table_service = TableService(
+            repo=repo,
+            repo_manager=repo_manager,
+        )
+    return _table_service
+
+
+def get_verified_table(
+    table_id: str = Path(..., description="表格ID (UUID)"),
+    table_service: TableService = Depends(get_table_service),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> Table:
+    return table_service.get_by_id_with_access_check(table_id, current_user.user_id)

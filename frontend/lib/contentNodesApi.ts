@@ -1,74 +1,100 @@
 /**
- * Content Nodes API Client
+ * Tree API Client
  *
- * 用于与后端 /api/v1/nodes 端点交互
- * 支持嵌套文件夹结构
+ * Path-based file system API — all nodes identified by path (e.g. "docs/readme.md").
+ * Backend: /api/v1/tree/{projectId}/...
+ * All responses wrapped in { code: 0, message: "success", data: {...} }
  */
 
 import { apiRequest } from './apiClient';
 
 // === Types ===
 
-// 节点类型（直接决定前端渲染方式）
-// 原生类型: folder, json, markdown, file
-// 同步类型: github, notion, airtable, linear, gmail, google_sheets, google_calendar, google_drive
-// 同步类型的细节在 sync_config.import_type 中
-export type NodeType = string;
+export type NodeType = 'folder' | 'json' | 'markdown' | 'file';
 
-// 原生类型常量
 export const NATIVE_TYPES = ['folder', 'json', 'markdown', 'file'] as const;
-export type NativeType = typeof NATIVE_TYPES[number];
+export type NativeType = (typeof NATIVE_TYPES)[number];
 
-// 同步类型常量
-export const SYNC_TYPES = ['github', 'notion', 'airtable', 'linear', 'gmail', 'google_sheets', 'google_calendar', 'google_drive'] as const;
-export type SyncType = typeof SYNC_TYPES[number];
-
-// 同步状态
-export type SyncStatus = 'not_connected' | 'idle' | 'syncing' | 'error';
-
-export interface NodeInfo {
-  id: string;
+export interface TreeEntry {
   name: string;
-  project_id: string;
-  id_path: string;
-  parent_id: string | null;
-  
-  // 类型字段（直接决定前端渲染方式）
-  // 原生类型: folder | json | markdown | file
-  // 同步类型: github | notion | airtable | linear | gmail | google_sheets | google_calendar | google_drive
+  path: string;
   type: NodeType;
-  
-  mime_type: string | null;
+  content_hash: string | null;
   size_bytes: number;
-  
-  // 同步相关字段（仅非原生类型时有值）
+  mime_type: string | null;
+  children_count: number | null;
+}
+
+export interface TreeStatResponse {
+  path: string;
+  type: NodeType;
+  name: string;
+  content_hash: string | null;
+  exists: boolean;
+}
+
+export interface TreeCatResponse {
+  path: string;
+  type: NodeType;
+  content: any | null;
+  content_text: string | null;
+  content_hash: string | null;
+}
+
+export interface TreeWriteResponse {
+  path: string;
+  content_hash: string;
+  version: number;
+}
+
+export interface TreeMvResponse {
+  old_path: string;
+  new_path: string;
+}
+
+export interface TreeMkdirResponse {
+  path: string;
+}
+
+export interface TreeRmResponse {
+  path: string;
+  permanent: boolean;
+}
+
+export interface TreeRestoreResponse {
+  path: string;
+  restored_to: string;
+}
+
+// NodeInfo compatibility type — used across the frontend
+export interface NodeInfo {
+  name: string;
+  path: string;
+  type: NodeType;
+  content_hash: string | null;
+  size_bytes: number;
+  mime_type: string | null;
+  children_count: number | null;
+
+  // Computed compatibility fields (derived from path)
+  id: string;          // = path (for backward compat)
+  mut_path: string;    // = "/" + path
+  parent_id: string | null; // parent folder path or null
+  project_id: string;  // set by caller
+
+  // Unused legacy fields (always defaults)
+  is_synced: boolean;
+  sync_source: string | null;
   sync_url: string | null;
-  sync_id: string | null;
-  sync_status: SyncStatus;
-  sync_config: {
-    mode?: 'manual' | 'auto';
-    interval?: string;
-    account?: string;
-    last_error?: string;
-    [key: string]: any;
-  } | null;
-  last_synced_at: string | null;
-  
-  // 计算属性
-  is_synced: boolean;          // type 不在 NATIVE_TYPES 中
-  sync_source: string | null;  // 从 type 提取来源，如 github_repo → github
-  
-  // Finder 风格预览摘要
-  preview_snippet: string | null;  // 前 ~120 字符内容摘要
-  children_count: number | null;   // 文件夹的直接子节点数
-  
+  sync_status: 'not_connected';
+  sync_config: null;
+  last_synced_at: null;
+  preview_snippet: null;
   created_at: string;
   updated_at: string;
 }
 
 export interface NodeDetail extends NodeInfo {
-  preview_json: any | null;    // type=json 或 sync 时的 JSON 预览内容
-  preview_md: string | null;   // type=markdown 时的 Markdown 预览内容
   s3_key: string | null;
   permissions: {
     public: boolean;
@@ -78,324 +104,424 @@ export interface NodeDetail extends NodeInfo {
   };
 }
 
+// Response types
 export interface NodeListResponse {
   nodes: NodeInfo[];
   total: number;
 }
 
-export interface UploadUrlResponse {
-  node_id: string;
-  upload_url: string;
-  s3_key: string;
+// === Unwrap helper ===
+// apiRequest already unwraps { code, message, data } envelope.
+// treeRequest is a simple alias for consistency.
+
+async function treeRequest<T>(url: string, options?: RequestInit): Promise<T> {
+  return apiRequest<T>(url, options);
 }
 
-export interface DownloadUrlResponse {
-  download_url: string;
-  expires_in: number;
+// === TreeEntry → NodeInfo adapter ===
+
+function entryToNodeInfo(entry: TreeEntry, projectId: string): NodeInfo {
+  const parentPath = entry.path.includes('/')
+    ? entry.path.substring(0, entry.path.lastIndexOf('/'))
+    : null;
+  return {
+    ...entry,
+    id: entry.path,
+    mut_path: '/' + entry.path,
+    parent_id: parentPath,
+    project_id: projectId,
+    is_synced: false,
+    sync_source: null,
+    sync_url: null,
+    sync_status: 'not_connected',
+    sync_config: null,
+    last_synced_at: null,
+    preview_snippet: null,
+    created_at: '',
+    updated_at: '',
+  };
 }
 
 // === Helper Functions ===
 
-/**
- * 判断节点是否为文件夹
- */
-export function isFolder(node: NodeInfo): boolean {
+export function isFolder(node: { type: string }): boolean {
   return node.type === 'folder';
 }
 
-/**
- * 判断节点是否为 JSON 类型
- */
-export function isJson(node: NodeInfo): boolean {
+export function isJson(node: { type: string }): boolean {
   return node.type === 'json';
 }
 
-/**
- * 判断节点是否为 Markdown 类型
- */
-export function isMarkdown(node: NodeInfo): boolean {
+export function isMarkdown(node: { type: string }): boolean {
   return node.type === 'markdown';
 }
 
-/**
- * 判断节点是否为文件类型
- */
-export function isFile(node: NodeInfo): boolean {
+export function isFile(node: { type: string }): boolean {
   return node.type === 'file';
 }
 
+export function isSynced(): boolean {
+  return false;
+}
+
+export function hasContent(node: { content_hash?: string | null }): boolean {
+  return node.content_hash !== null && node.content_hash !== undefined;
+}
+
+// === Core Tree API Functions ===
+
 /**
- * 判断节点是否为同步类型（非原生类型都是同步类型）
+ * List directory entries at the given path.
+ * GET /api/v1/tree/{projectId}/ls?path=...
  */
-export function isSynced(node: NodeInfo): boolean {
-  return !NATIVE_TYPES.includes(node.type as NativeType);
+export async function listDir(
+  projectId: string,
+  path: string = ''
+): Promise<NodeListResponse> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  const data = await treeRequest<{ entries: TreeEntry[] }>(
+    `/api/v1/tree/${projectId}/ls?${params.toString()}`
+  );
+  const nodes = (data.entries || []).map(e => entryToNodeInfo(e, projectId));
+  return { nodes, total: nodes.length };
 }
 
 /**
- * 判断节点是否有预览内容
- * 需要 NodeDetail 以检查 preview_json 和 preview_md 字段
- */
-export function hasPreview(node: NodeDetail): boolean {
-  return node.preview_json !== null || node.preview_md !== null;
-}
-
-/**
- * 判断节点是否可索引（用于搜索）
- * 需要 NodeDetail 以检查 preview_json 和 preview_md 字段
- */
-export function isIndexable(node: NodeDetail): boolean {
-  return node.type === 'json' || node.type === 'markdown' || 
-         node.preview_json !== null || node.preview_md !== null;
-}
-
-// === API Functions ===
-
-/**
- * 列出指定项目中父节点下的所有子节点
- * @param projectId 项目 ID
- * @param parentId 父节点 ID，null 表示列出项目根节点
+ * Backward-compatible alias — calls listDir under the hood.
  */
 export async function listNodes(
   projectId: string,
-  parentId?: string | null
+  parentPath?: string | null
 ): Promise<NodeListResponse> {
-  const params = new URLSearchParams({ project_id: projectId });
-  if (parentId) {
-    params.set('parent_id', parentId);
-  }
-  return apiRequest<NodeListResponse>(`/api/v1/nodes/?${params.toString()}`);
+  return listDir(projectId, parentPath ?? '');
 }
 
 /**
- * 获取节点详情
- * @param nodeId 节点 ID
- * @param projectId 项目 ID（用于权限检查）
+ * Get file content.
+ * GET /api/v1/tree/{projectId}/cat?path=...
  */
-export async function getNode(nodeId: string, projectId: string): Promise<NodeDetail> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}?${params.toString()}`);
-}
-
-/**
- * 批量获取节点详情（单次请求，最多 50 个）
- */
-export async function getNodesBatch(nodeIds: string[], projectId: string): Promise<NodeDetail[]> {
-  if (nodeIds.length === 0) return [];
-  const params = new URLSearchParams({
-    ids: nodeIds.join(','),
-    project_id: projectId,
-  });
-  return apiRequest<NodeDetail[]>(`/api/v1/nodes/batch?${params.toString()}`);
-}
-
-/**
- * 按 id_path 获取节点
- */
-export async function getNodeByIdPath(
+export async function readFile(
   projectId: string,
-  idPath: string
-): Promise<NodeDetail> {
-  const params = new URLSearchParams({
-    project_id: projectId,
-    id_path: idPath,
-  });
-  return apiRequest<NodeDetail>(
-    `/api/v1/nodes/by-id-path/?${params.toString()}`
+  path: string
+): Promise<TreeCatResponse> {
+  const params = new URLSearchParams({ path });
+  return treeRequest<TreeCatResponse>(
+    `/api/v1/tree/${projectId}/cat?${params.toString()}`
   );
 }
 
 /**
- * 创建文件夹
+ * Stat a path (check existence and type).
+ * GET /api/v1/tree/{projectId}/stat?path=...
  */
-export async function createFolder(
-  name: string,
+export async function stat(
   projectId: string,
-  parentId?: string | null
-): Promise<NodeDetail> {
-  const body: { name: string; project_id: string; parent_id?: string | null } =
-    {
-      name,
-      project_id: projectId,
-    };
-  if (parentId) {
-    body.parent_id = parentId;
-  }
-
-  return apiRequest<NodeDetail>('/api/v1/nodes/folder', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
+  path: string
+): Promise<TreeStatResponse> {
+  const params = new URLSearchParams({ path });
+  return treeRequest<TreeStatResponse>(
+    `/api/v1/tree/${projectId}/stat?${params.toString()}`
+  );
 }
 
 /**
- * 创建 JSON 节点
+ * Recursive tree listing.
+ * GET /api/v1/tree/{projectId}/tree?path=...
  */
-export async function createJsonNode(
-  name: string,
+export async function treeList(
   projectId: string,
+  path: string = ''
+): Promise<TreeEntry[]> {
+  const params = new URLSearchParams();
+  if (path) params.set('path', path);
+  const data = await treeRequest<{ entries: TreeEntry[] }>(
+    `/api/v1/tree/${projectId}/tree?${params.toString()}`
+  );
+  return data.entries || [];
+}
+
+/**
+ * Write file content.
+ * POST /api/v1/tree/{projectId}/write
+ */
+export async function writeFile(
+  projectId: string,
+  path: string,
   content: any,
-  parentId?: string | null
-): Promise<NodeDetail> {
-  const body: {
-    name: string;
-    project_id: string;
-    content: any;
-    parent_id?: string | null;
-  } = {
-    name,
-    project_id: projectId,
-    content,
-  };
-  if (parentId) {
-    body.parent_id = parentId;
-  }
-
-  return apiRequest<NodeDetail>('/api/v1/nodes/json', {
+  nodeType: NodeType = 'json',
+  message?: string,
+  baseVersion?: number
+): Promise<TreeWriteResponse> {
+  const body: Record<string, any> = { path, content, node_type: nodeType };
+  if (message) body.message = message;
+  if (baseVersion !== undefined) body.base_version = baseVersion;
+  return treeRequest<TreeWriteResponse>(`/api/v1/tree/${projectId}/write`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
 }
 
 /**
- * 创建 Markdown 节点
+ * Create directory.
+ * POST /api/v1/tree/{projectId}/mkdir
  */
-export async function createMarkdownNode(
-  name: string,
+export async function mkdir(
   projectId: string,
-  content: string = '',
-  parentId?: string | null
-): Promise<NodeDetail> {
-  const body: { name: string; project_id: string; content: string; parent_id?: string | null } = {
-    name,
-    project_id: projectId,
-    content,
-  };
-  if (parentId) {
-    body.parent_id = parentId;
-  }
+  path: string
+): Promise<TreeMkdirResponse> {
+  return treeRequest<TreeMkdirResponse>(`/api/v1/tree/${projectId}/mkdir`, {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  });
+}
 
-  return apiRequest<NodeDetail>('/api/v1/nodes/markdown', {
+/**
+ * Move/rename a file or folder.
+ * POST /api/v1/tree/{projectId}/mv
+ */
+export async function moveFile(
+  projectId: string,
+  oldPath: string,
+  newPath: string,
+  message?: string
+): Promise<TreeMvResponse> {
+  const body: Record<string, any> = { old_path: oldPath, new_path: newPath };
+  if (message) body.message = message;
+  return treeRequest<TreeMvResponse>(`/api/v1/tree/${projectId}/mv`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
 }
 
 /**
- * 准备文件上传（获取预签名 URL）
+ * Remove file or folder.
+ * POST /api/v1/tree/{projectId}/rm
  */
-export async function prepareUpload(
-  name: string,
+export async function removeFile(
   projectId: string,
-  contentType: string,
-  parentId?: string | null
-): Promise<UploadUrlResponse> {
-  const params = new URLSearchParams({
-    name,
-    project_id: projectId,
-    content_type: contentType,
+  path: string,
+  permanent: boolean = false
+): Promise<TreeRmResponse> {
+  return treeRequest<TreeRmResponse>(`/api/v1/tree/${projectId}/rm`, {
+    method: 'POST',
+    body: JSON.stringify({ path, permanent }),
   });
-  if (parentId) {
-    params.set('parent_id', parentId);
-  }
+}
 
-  return apiRequest<UploadUrlResponse>(
-    `/api/v1/nodes/upload?${params.toString()}`,
+/**
+ * Restore from trash.
+ * POST /api/v1/tree/{projectId}/restore
+ */
+export async function restoreFile(
+  projectId: string,
+  trashPath: string,
+  originalPath: string
+): Promise<TreeRestoreResponse> {
+  return treeRequest<TreeRestoreResponse>(
+    `/api/v1/tree/${projectId}/restore`,
     {
       method: 'POST',
+      body: JSON.stringify({ trash_path: trashPath, original_path: originalPath }),
     }
   );
 }
 
 /**
- * 更新节点
- * @param nodeId 节点 ID
- * @param projectId 项目 ID（用于权限检查）
- * @param updates 更新内容
+ * List trash entries.
+ * GET /api/v1/tree/{projectId}/trash
+ */
+export async function listTrash(
+  projectId: string
+): Promise<TreeEntry[]> {
+  const data = await treeRequest<{ entries: TreeEntry[] }>(
+    `/api/v1/tree/${projectId}/trash`
+  );
+  return data.entries || [];
+}
+
+// === Backward-compatible aliases ===
+
+/**
+ * Get node detail by path — compatibility shim.
+ */
+export async function getNode(
+  path: string,
+  projectId: string
+): Promise<NodeDetail> {
+  const s = await stat(projectId, path);
+  return {
+    name: s.name,
+    path: s.path,
+    type: s.type,
+    content_hash: s.content_hash,
+    size_bytes: 0,
+    mime_type: null,
+    children_count: null,
+    id: s.path,
+    mut_path: '/' + s.path,
+    parent_id: s.path.includes('/') ? s.path.substring(0, s.path.lastIndexOf('/')) : null,
+    project_id: projectId,
+    is_synced: false,
+    sync_source: null,
+    sync_url: null,
+    sync_status: 'not_connected',
+    sync_config: null,
+    last_synced_at: null,
+    preview_snippet: null,
+    created_at: '',
+    updated_at: '',
+    s3_key: null,
+    permissions: { public: false, inherit: true, agents: [], users: [] },
+  };
+}
+
+/**
+ * Create folder — backward-compatible wrapper.
+ */
+export async function createFolder(
+  name: string,
+  projectId: string,
+  parentPath?: string | null
+): Promise<NodeDetail> {
+  const fullPath = parentPath ? `${parentPath}/${name}` : name;
+  await mkdir(projectId, fullPath);
+  return getNode(fullPath, projectId);
+}
+
+/**
+ * Create JSON node — backward-compatible wrapper.
+ */
+export async function createJsonNode(
+  name: string,
+  projectId: string,
+  content: any,
+  parentPath?: string | null
+): Promise<NodeDetail> {
+  const fileName = name.endsWith('.json') ? name : name;
+  const fullPath = parentPath ? `${parentPath}/${fileName}` : fileName;
+  await writeFile(projectId, fullPath, content, 'json');
+  return getNode(fullPath, projectId);
+}
+
+/**
+ * Create Markdown node — backward-compatible wrapper.
+ */
+export async function createMarkdownNode(
+  name: string,
+  projectId: string,
+  content: string = '',
+  parentPath?: string | null
+): Promise<NodeDetail> {
+  const fileName = name.endsWith('.md') ? name : name;
+  const fullPath = parentPath ? `${parentPath}/${fileName}` : fileName;
+  await writeFile(projectId, fullPath, content, 'markdown');
+  return getNode(fullPath, projectId);
+}
+
+/**
+ * Delete node — backward-compatible wrapper.
+ */
+export async function deleteNode(path: string, projectId: string): Promise<void> {
+  await removeFile(projectId, path);
+}
+
+/**
+ * Update node — backward-compatible wrapper for rename/content update.
  */
 export async function updateNode(
-  nodeId: string,
+  path: string,
   projectId: string,
-  updates: { name?: string; preview_json?: any; preview_md?: string }
+  updates: { name?: string; content_json?: any; content_text?: string }
 ): Promise<NodeDetail> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}?${params.toString()}`, {
-    method: 'PUT',
-    body: JSON.stringify(updates),
-  });
+  if (updates.name) {
+    const parentDir = path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+    const newPath = parentDir ? `${parentDir}/${updates.name}` : updates.name;
+    await moveFile(projectId, path, newPath);
+    return getNode(newPath, projectId);
+  }
+  if (updates.content_json !== undefined) {
+    await writeFile(projectId, path, updates.content_json, 'json');
+  }
+  if (updates.content_text !== undefined) {
+    await writeFile(projectId, path, updates.content_text, 'markdown');
+  }
+  return getNode(path, projectId);
 }
 
 /**
- * 移动节点
- * @param nodeId 节点 ID
- * @param projectId 项目 ID（用于权限检查）
- * @param newParentId 新的父节点 ID
+ * Move node — backward-compatible wrapper.
  */
 export async function moveNode(
-  nodeId: string,
+  nodePath: string,
   projectId: string,
-  newParentId: string | null
+  newParentPath: string | null
 ): Promise<NodeDetail> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<NodeDetail>(`/api/v1/nodes/${nodeId}/move?${params.toString()}`, {
-    method: 'POST',
-    body: JSON.stringify({ new_parent_id: newParentId }),
-  });
+  const name = nodePath.includes('/') ? nodePath.substring(nodePath.lastIndexOf('/') + 1) : nodePath;
+  const newPath = newParentPath ? `${newParentPath}/${name}` : name;
+  await moveFile(projectId, nodePath, newPath);
+  return getNode(newPath, projectId);
 }
 
-/**
- * 删除节点
- * @param nodeId 节点 ID
- * @param projectId 项目 ID（用于权限检查）
- */
-export async function deleteNode(nodeId: string, projectId: string): Promise<void> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<void>(`/api/v1/nodes/${nodeId}?${params.toString()}`, {
-    method: 'DELETE',
-  });
+// === Node Content (read via cat endpoint) ===
+
+export interface NodeContentResponse {
+  path: string;
+  node_type: string;
+  content_hash: string | null;
+  content_json: any | null;
+  content_text: string | null;
+  download_url: string | null;
+  size_bytes: number;
 }
 
-/**
- * 获取下载 URL
- * @param nodeId 节点 ID
- * @param projectId 项目 ID（用于权限检查）
- */
-export async function getDownloadUrl(
-  nodeId: string,
+export async function getNodeContent(
+  path: string,
   projectId: string
-): Promise<DownloadUrlResponse> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<DownloadUrlResponse>(`/api/v1/nodes/${nodeId}/download?${params.toString()}`);
+): Promise<NodeContentResponse> {
+  const catResult = await readFile(projectId, path);
+  return {
+    path: path,
+    node_type: catResult.type,
+    content_hash: catResult.content_hash,
+    content_json: catResult.content,
+    content_text: catResult.content_text,
+    download_url: null,
+    size_bytes: 0,
+  };
 }
 
 // === Version History API ===
+// These types match the Mut-Native commit-based model.
+// The backend returns commit history from mut_commits table.
 
 export interface FileVersionInfo {
-  id: number;
   version: number;
-  content_hash: string;
-  size_bytes: number;
-  snapshot_id: number | null;
-  operator_type: string;
-  operator_id: string | null;
-  operation: string;
-  merge_strategy: string | null;
-  summary: string | null;
+  who: string;
+  message: string;
+  changes: MutCommitChange[];
+  conflicts: MutCommitConflict[];
+  root_hash: string;
+  scope_path: string;
   created_at: string | null;
 }
 
-export interface FileVersionDetail extends FileVersionInfo {
-  node_id: string;
-  content_json: any | null;
+export interface FileVersionDetail {
+  version: number;
+  who: string;
+  message: string;
+  changes: MutCommitChange[];
+  root_hash: string;
   content_text: string | null;
-  s3_key: string | null;
-  s3_download_url: string | null;
+  content_json: any | null;
 }
 
 export interface VersionHistoryResponse {
-  node_id: string;
-  node_name: string;
+  project_id: string;
+  path: string | null;
   current_version: number;
-  versions: FileVersionInfo[];
+  root_hash: string;
+  commits: FileVersionInfo[];
   total: number;
 }
 
@@ -407,60 +533,123 @@ export interface DiffItem {
 }
 
 export interface DiffResponse {
-  node_id: string;
+  project_id: string;
   v1: number;
   v2: number;
   changes: DiffItem[];
 }
 
 export interface RollbackResponse {
-  node_id: string;
+  project_id: string;
   new_version: number;
   rolled_back_to: number;
 }
 
 export async function getVersionHistory(
-  nodeId: string,
+  filePath: string,
   projectId: string,
   limit: number = 50,
-  offset: number = 0
+  sinceVersion: number = 0
 ): Promise<VersionHistoryResponse> {
   const params = new URLSearchParams({
-    project_id: projectId,
+    path: filePath,
     limit: String(limit),
-    offset: String(offset),
+    since_version: String(sinceVersion),
   });
-  return apiRequest<VersionHistoryResponse>(`/api/v1/nodes/${nodeId}/versions?${params}`);
+  return treeRequest<VersionHistoryResponse>(
+    `/api/v1/tree/${projectId}/versions?${params}`
+  );
 }
 
 export async function getVersionContent(
-  nodeId: string,
+  filePath: string,
   version: number,
   projectId: string
 ): Promise<FileVersionDetail> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<FileVersionDetail>(`/api/v1/nodes/${nodeId}/versions/${version}?${params}`);
+  const params = new URLSearchParams({
+    path: filePath,
+    version: String(version),
+  });
+  return treeRequest<FileVersionDetail>(
+    `/api/v1/tree/${projectId}/version-content?${params}`
+  );
 }
 
 export async function rollbackToVersion(
-  nodeId: string,
+  filePath: string,
   version: number,
   projectId: string
 ): Promise<RollbackResponse> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<RollbackResponse>(`/api/v1/nodes/${nodeId}/rollback/${version}?${params}`, {
-    method: 'POST',
-  });
+  return treeRequest<RollbackResponse>(
+    `/api/v1/tree/${projectId}/rollback`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ path: filePath, target_version: version }),
+    }
+  );
 }
 
 export async function diffVersions(
-  nodeId: string,
+  filePath: string,
   v1: number,
   v2: number,
   projectId: string
 ): Promise<DiffResponse> {
-  const params = new URLSearchParams({ project_id: projectId });
-  return apiRequest<DiffResponse>(`/api/v1/nodes/${nodeId}/diff/${v1}/${v2}?${params}`);
+  const params = new URLSearchParams({
+    path: filePath,
+    v1: String(v1),
+    v2: String(v2),
+  });
+  return treeRequest<DiffResponse>(
+    `/api/v1/tree/${projectId}/diff?${params}`
+  );
+}
+
+// === Project-level Mut Commit History ===
+
+export interface MutCommitChange {
+  path: string;
+  op: string;
+}
+
+export interface MutCommitConflict {
+  path: string;
+  strategy: string;
+  detail?: string;
+  kept?: string;
+}
+
+export interface MutCommitInfo {
+  version: number;
+  root_hash: string;
+  scope_path: string;
+  who: string;
+  message: string;
+  changes: MutCommitChange[];
+  conflicts: MutCommitConflict[];
+  created_at: string | null;
+}
+
+export interface MutProjectHistoryResponse {
+  project_id: string;
+  current_version: number;
+  root_hash: string;
+  commits: MutCommitInfo[];
+  total: number;
+}
+
+export async function getProjectHistory(
+  projectId: string,
+  limit: number = 50,
+  sinceVersion: number = 0
+): Promise<MutProjectHistoryResponse> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    since_version: String(sinceVersion),
+  });
+  return treeRequest<MutProjectHistoryResponse>(
+    `/api/v1/tree/${projectId}/versions?${params}`
+  );
 }
 
 // === Audit Logs API ===
@@ -468,7 +657,7 @@ export async function diffVersions(
 export interface AuditLogItem {
   id: number;
   action: string;
-  node_id: string;
+  path: string;
   old_version: number | null;
   new_version: number | null;
   operator_type: string;
@@ -481,23 +670,26 @@ export interface AuditLogItem {
 }
 
 export interface AuditLogListResponse {
-  node_id: string;
+  path: string;
   logs: AuditLogItem[];
   total: number;
 }
 
 export async function getNodeAuditLogs(
-  nodeId: string,
+  filePath: string,
   projectId: string,
   limit: number = 50,
   offset: number = 0
 ): Promise<AuditLogListResponse> {
   const params = new URLSearchParams({
+    path: filePath,
     project_id: projectId,
     limit: String(limit),
     offset: String(offset),
   });
-  return apiRequest<AuditLogListResponse>(`/api/v1/nodes/${nodeId}/audit-logs?${params}`);
+  return treeRequest<AuditLogListResponse>(
+    `/api/v1/tree/${projectId}/audit-logs?${params}`
+  );
 }
 
 // === Sync Changelog API ===
@@ -505,7 +697,7 @@ export async function getNodeAuditLogs(
 export interface SyncChangelogItem {
   id: number;
   project_id: string;
-  node_id: string;
+  path: string;
   action: string;
   node_type: string | null;
   version: number;
@@ -535,19 +727,19 @@ export async function getSyncChangelog(
   return apiRequest<SyncChangelogResponse>(`/api/v1/sync/changelog?${params}`);
 }
 
-// === 批量创建 API ===
+// === Batch create (backward compat — now calls write/mkdir for each) ===
 
 export interface BulkCreateNodeItem {
   temp_id: string;
   name: string;
-  type: 'folder' | 'json' | 'markdown' | 'file';  // 节点类型
+  type: 'folder' | 'json' | 'markdown' | 'file';
   parent_temp_id: string | null;
-  content?: any;  // markdown 类型时为字符串，json 类型时为 dict
+  content?: any;
 }
 
 export interface BulkCreateResultItem {
   temp_id: string;
-  node_id: string;
+  path: string;
   name: string;
   type: NodeType;
 }
@@ -557,32 +749,64 @@ export interface BulkCreateResponse {
   total: number;
 }
 
-/**
- * 批量创建节点（用于文件夹上传）
- * 
- * @param projectId 项目 ID
- * @param nodes 节点列表，每个包含 temp_id, name, type, parent_temp_id, content
- * @param parentId 整体挂载到哪个父节点下，null 表示项目根目录
- */
 export async function bulkCreateNodes(
   projectId: string,
   nodes: BulkCreateNodeItem[],
-  parentId?: string | null
+  parentPath?: string | null
 ): Promise<BulkCreateResponse> {
-  const body: {
-    project_id: string;
-    nodes: BulkCreateNodeItem[];
-    parent_id?: string | null;
-  } = {
-    project_id: projectId,
-    nodes,
-  };
-  if (parentId) {
-    body.parent_id = parentId;
+  const results: BulkCreateResultItem[] = [];
+  const tempIdToPath = new Map<string, string>();
+
+  for (const node of nodes) {
+    let parentDir = parentPath || '';
+    if (node.parent_temp_id) {
+      parentDir = tempIdToPath.get(node.parent_temp_id) || parentDir;
+    }
+    const fullPath = parentDir ? `${parentDir}/${node.name}` : node.name;
+
+    if (node.type === 'folder') {
+      await mkdir(projectId, fullPath);
+    } else {
+      await writeFile(projectId, fullPath, node.content ?? (node.type === 'json' ? {} : ''), node.type);
+    }
+
+    tempIdToPath.set(node.temp_id, fullPath);
+    results.push({
+      temp_id: node.temp_id,
+      path: fullPath,
+      name: node.name,
+      type: node.type,
+    });
   }
 
-  return apiRequest<BulkCreateResponse>('/api/v1/nodes/bulk-create', {
-    method: 'POST',
-    body: JSON.stringify(body),
-  });
+  return { created: results, total: results.length };
+}
+
+// === Deprecated stubs (no-op, kept for import compat) ===
+
+/** @deprecated Use stat() instead */
+export async function getNodesBatch(paths: string[], projectId: string): Promise<NodeDetail[]> {
+  const results = await Promise.all(
+    paths.map(p => getNode(p, projectId).catch(() => null))
+  );
+  return results.filter((n): n is NodeDetail => n !== null);
+}
+
+/** @deprecated No longer needed — content comes from cat endpoint */
+export async function getDownloadUrl(): Promise<{ download_url: string; expires_in: number }> {
+  throw new Error('getDownloadUrl is removed. Use readFile() or cat endpoint instead.');
+}
+
+/** @deprecated Use stat() instead */
+export async function getNodeByMutPath(
+  projectId: string,
+  mutPath: string
+): Promise<NodeDetail> {
+  const cleanPath = mutPath.startsWith('/') ? mutPath.slice(1) : mutPath;
+  return getNode(cleanPath, projectId);
+}
+
+/** @deprecated Use writeFile() via the tree/write endpoint */
+export async function prepareUpload(): Promise<never> {
+  throw new Error('prepareUpload is removed. Use writeFile() instead.');
 }

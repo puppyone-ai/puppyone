@@ -23,7 +23,7 @@ export interface ETLTaskStatus {
   status: ETLStatus;
   progress: number;
   message?: string;
-  content_node_id?: string;
+  content_path?: string;
   error?: string;
   created_at: string;
   updated_at: string;
@@ -65,7 +65,7 @@ export interface UploadAndSubmitParams {
   projectId: number | string;
   files: File[];
   ruleId?: number;
-  nodeId?: string;
+  path?: string;
   jsonPath?: string;
   /** Parent node ID for organizing uploaded files */
   parentId?: string;
@@ -148,8 +148,8 @@ export async function uploadAndSubmit(
   if (params.ruleId !== undefined) {
     formData.append('rule_id', params.ruleId.toString());
   }
-  if (params.nodeId !== undefined) {
-    formData.append('node_id', params.nodeId);
+  if (params.path !== undefined) {
+    formData.append('path', params.path);
   }
   if (params.jsonPath !== undefined) {
     formData.append('json_path', params.jsonPath);

@@ -10,12 +10,12 @@ from src.context_publish.cache import PublishCache
 from src.context_publish.models import ContextPublish
 from src.context_publish.repository import ContextPublishRepositoryBase
 from src.exceptions import ErrorCode, NotFoundException, ValidationException
-from src.supabase.exceptions import SupabaseDuplicateKeyError, SupabaseException
-from src.supabase.context_publish.schemas import (
+from src.infra.supabase.exceptions import SupabaseDuplicateKeyError, SupabaseException
+from src.context_publish.supabase_schemas import (
     ContextPublishCreate as SbContextPublishCreate,
     ContextPublishUpdate as SbContextPublishUpdate,
 )
-from src.table.service import TableService
+from src.content.table.service import TableService
 
 
 _BASE62_ALPHABET = string.ascii_letters + string.digits

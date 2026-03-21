@@ -1,24 +1,18 @@
+import asyncio
 from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from src.connectors.filesystem.service import FolderSyncService
+from src.connectors.filesystem.service import FolderSyncService, _validate_filename
 from src.connectors.filesystem.router import router as folder_sync_router
 import src.connectors.filesystem.router as folder_router_module
 
 
 def _build_folder_sync_service() -> FolderSyncService:
     svc = object.__new__(FolderSyncService)
-    svc._node_repo = SimpleNamespace()
-    svc._s3 = SimpleNamespace(
-        bucket_name="bucket",
-        client=SimpleNamespace(
-            generate_presigned_url=lambda **kwargs: "https://example.test/upload"
-        ),
-    )
-    svc._get_project_owner = lambda project_id: "owner-1"
+    svc._supabase = None
     return svc
 
 
@@ -26,19 +20,20 @@ def _build_folder_sync_service() -> FolderSyncService:
     "filename",
     ["../x.md", "a/../b.md", "./x.md", "a//b.md", "a/\x00b.md"],
 )
-def test_folder_sync_rejects_invalid_path_segments(filename: str):
+@pytest.mark.asyncio
+async def test_folder_sync_rejects_invalid_path_segments(filename: str):
     svc = _build_folder_sync_service()
 
-    result = svc.push(
+    result = await svc.push(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename=filename,
         content={},
         base_version=0,
         node_type="json",
         operator_id="sync:1",
         operator_name="OpenClaw CLI",
-        source_id=1,
+        source_id="1",
     )
 
     assert result["ok"] is False
@@ -46,47 +41,53 @@ def test_folder_sync_rejects_invalid_path_segments(filename: str):
 
 
 def test_folder_sync_accepts_normal_nested_path():
-    svc = _build_folder_sync_service()
-    assert svc._validate_filename_or_error("a/b/c.md", operation="push") is None
+    assert _validate_filename("a/b/c.md") is None
 
 
-def test_folder_sync_delete_rejects_invalid_path():
+def test_folder_sync_accepts_nested_dotfiles():
+    assert _validate_filename("a/.gitkeep") is None
+    assert _validate_filename(".well-known/openid-configuration") is None
+
+
+@pytest.mark.asyncio
+async def test_folder_sync_delete_rejects_invalid_path():
     svc = _build_folder_sync_service()
-    result = svc.delete_file(
+    result = await svc.delete_file(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../x.md",
-        source_id=1,
+        source_id="1",
     )
     assert result["ok"] is False
     assert result["error"] == "invalid_path"
 
 
-def test_folder_sync_upload_url_rejects_invalid_path():
+@pytest.mark.asyncio
+async def test_folder_sync_upload_url_rejects_invalid_path():
     svc = _build_folder_sync_service()
-    result = svc.request_upload_url(
+    result = await svc.request_upload_url(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../x.bin",
         content_type="application/octet-stream",
         size_bytes=123,
         operator_id="sync:1",
-        source_id=1,
+        source_id="1",
     )
     assert result["ok"] is False
     assert result["error"] == "invalid_path"
 
 
-def test_folder_sync_confirm_upload_rejects_invalid_path():
+@pytest.mark.asyncio
+async def test_folder_sync_confirm_upload_rejects_invalid_path():
     svc = _build_folder_sync_service()
-    result = svc.confirm_upload(
+    result = await svc.confirm_upload(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../x.bin",
-        size_bytes=123,
+        s3_key="projects/p/filesystem/f/abc.bin",
         operator_id="sync:1",
-        operator_name="OpenClaw CLI",
-        source_id=1,
+        source_id="1",
     )
     assert result["ok"] is False
     assert result["error"] == "invalid_path"
@@ -94,12 +95,25 @@ def test_folder_sync_confirm_upload_rejects_invalid_path():
 
 @pytest.fixture
 def folder_router_client(monkeypatch):
-    fake_sync = SimpleNamespace(id=1, project_id="project-1")
+    fake_sync = SimpleNamespace(id="1", project_id="project-1")
+
+    async def _push(**kwargs):
+        return {"ok": False, "error": "invalid_path", "message": "bad"}
+
+    async def _delete_file(**kwargs):
+        return {"ok": False, "error": "invalid_path", "message": "bad"}
+
+    async def _request_upload_url(**kwargs):
+        return {"ok": False, "error": "invalid_path", "message": "bad"}
+
+    async def _confirm_upload(**kwargs):
+        return {"ok": False, "error": "invalid_path", "message": "bad"}
+
     fake_service = SimpleNamespace(
-        push=lambda **kwargs: {"ok": False, "error": "invalid_path", "message": "bad"},
-        delete_file=lambda **kwargs: {"ok": False, "error": "invalid_path", "message": "bad"},
-        request_upload_url=lambda **kwargs: {"ok": False, "error": "invalid_path", "message": "bad"},
-        confirm_upload=lambda **kwargs: {"ok": False, "error": "invalid_path", "message": "bad"},
+        push=_push,
+        delete_file=_delete_file,
+        request_upload_url=_request_upload_url,
+        confirm_upload=_confirm_upload,
     )
 
     monkeypatch.setattr(

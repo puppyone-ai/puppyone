@@ -121,5 +121,6 @@ class ConnectorRegistry:
                     for f in s.config_fields
                 ],
                 "icon": s.icon,
+                "icon_url": s.icon_url,
             })
         return result

@@ -1,62 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getNode, getNodesBatch, getDownloadUrl } from '@/lib/contentNodesApi';
+import { stat, readFile } from '@/lib/contentNodesApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import { setPendingActiveId } from '../components/views';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 
-const nodeCache = new Map<string, { data: any; ts: number }>();
-const NODE_CACHE_TTL = 60_000;
-
-export async function getCachedNode(nodeId: string, projectId: string) {
-  const key = `${projectId}:${nodeId}`;
-  const cached = nodeCache.get(key);
-  if (cached && Date.now() - cached.ts < NODE_CACHE_TTL) return cached.data;
-  const node = await getNode(nodeId, projectId);
-  nodeCache.set(key, { data: node, ts: Date.now() });
-  return node;
-}
-
-async function getCachedNodesBatch(nodeIds: string[], projectId: string) {
-  const now = Date.now();
-  const result: Record<string, any> = {};
-  const missingIds: string[] = [];
-
-  for (const id of nodeIds) {
-    const key = `${projectId}:${id}`;
-    const cached = nodeCache.get(key);
-    if (cached && now - cached.ts < NODE_CACHE_TTL) {
-      result[id] = cached.data;
-    } else {
-      missingIds.push(id);
-    }
-  }
-
-  if (missingIds.length > 0) {
-    try {
-      const fetched = await getNodesBatch(missingIds, projectId);
-      const ts = Date.now();
-      for (const node of fetched) {
-        nodeCache.set(`${projectId}:${node.id}`, { data: node, ts });
-        result[node.id] = node;
-      }
-    } catch (err) {
-      console.error('Batch node fetch failed, falling back to individual:', err);
-      const fallback = await Promise.all(
-        missingIds.map(id => getCachedNode(id, projectId).catch(() => null))
-      );
-      for (const node of fallback) {
-        if (node) result[node.id] = node;
-      }
-    }
-  }
-
-  return result;
-}
-
 export function usePathResolver(projectId: string, path: string[]) {
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
   const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<Array<{ id: string; name: string }>>([]);
   const [isResolvingPath, setIsResolvingPath] = useState(path.length > 0);
 
@@ -80,7 +31,7 @@ export function usePathResolver(projectId: string, path: string[]) {
       try {
         if (path.length === 0) {
           setPendingActiveId(null);
-          setCurrentFolderId(null);
+          setCurrentFolderPath(null);
           setFolderBreadcrumbs([]);
           setActiveNodeId('');
           setActiveNodeType('');
@@ -89,57 +40,62 @@ export function usePathResolver(projectId: string, path: string[]) {
           return;
         }
 
-        const nodeMap = await getCachedNodesBatch(path, projectId);
-        const results = path.map(id => nodeMap[id] ?? null);
+        // Join URL path segments to form the full file path
+        const fullPath = path.join('/');
+
+        // Stat to determine type
+        const statResult = await stat(projectId, fullPath);
         if (cancelled) return;
 
-        const pathNodes = results
-          .filter((n): n is NonNullable<typeof n> => n != null)
-          .map(n => ({ id: n.id, name: n.name, type: n.type }));
-
-        const folders = pathNodes.filter(n => n.type === 'folder');
-        const lastNode = pathNodes[pathNodes.length - 1];
-
-        if (lastNode?.type === 'folder') {
+        if (!statResult.exists) {
           setPendingActiveId(null);
-          setCurrentFolderId(lastNode.id);
-          setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
+          setCurrentFolderPath(null);
+          setFolderBreadcrumbs([]);
           setActiveNodeId('');
           setActiveNodeType('');
           setActivePreviewType(null);
           setMarkdownContent('');
-        } else if (lastNode) {
+          return;
+        }
+
+        // Build breadcrumbs from path segments
+        const breadcrumbs: Array<{ id: string; name: string }> = [];
+        for (let i = 0; i < path.length; i++) {
+          const segmentPath = path.slice(0, i + 1).join('/');
+          breadcrumbs.push({ id: segmentPath, name: path[i] });
+        }
+
+        if (statResult.type === 'folder') {
           setPendingActiveId(null);
-          setActiveNodeId(lastNode.id);
-          setActiveNodeType(lastNode.type);
+          setCurrentFolderPath(fullPath);
+          setFolderBreadcrumbs(breadcrumbs);
+          setActiveNodeId('');
+          setActiveNodeType('');
+          setActivePreviewType(null);
+          setMarkdownContent('');
+        } else {
+          // It's a file — the folder is everything except the last segment
+          setPendingActiveId(null);
+          setActiveNodeId(fullPath);
+          setActiveNodeType(statResult.type);
           setActivePreviewType(null);
 
-          if (folders.length > 0) {
-            const lastFolder = folders[folders.length - 1];
-            setCurrentFolderId(lastFolder.id);
-            setFolderBreadcrumbs(folders.map(f => ({ id: f.id, name: f.name })));
+          if (path.length > 1) {
+            const folderPath = path.slice(0, -1).join('/');
+            setCurrentFolderPath(folderPath);
+            setFolderBreadcrumbs(breadcrumbs.slice(0, -1));
           } else {
-            setCurrentFolderId(null);
+            setCurrentFolderPath(null);
             setFolderBreadcrumbs([]);
           }
 
-          const nodeConfig = getNodeTypeConfig(lastNode.type);
+          const nodeConfig = getNodeTypeConfig(statResult.type);
           if (nodeConfig.renderAs === 'markdown') {
             setIsLoadingMarkdown(true);
             try {
-              const fullNode = await getCachedNode(lastNode.id, projectId);
+              const content = await readFile(projectId, fullPath);
               if (cancelled) return;
-              if (typeof fullNode.preview_md === 'string') {
-                setMarkdownContent(fullNode.preview_md);
-              } else if (fullNode.s3_key) {
-                const { download_url } = await getDownloadUrl(lastNode.id, projectId);
-                if (cancelled) return;
-                const response = await fetch(download_url);
-                if (cancelled) return;
-                setMarkdownContent(await response.text());
-              } else {
-                setMarkdownContent('');
-              }
+              setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
             } catch (err) {
               if (cancelled) return;
               console.error('Failed to load markdown content:', err);
@@ -162,8 +118,8 @@ export function usePathResolver(projectId: string, path: string[]) {
   }, [projectId, pathKey]);
 
   return {
-    currentFolderId,
-    setCurrentFolderId,
+    currentFolderId: currentFolderPath,
+    setCurrentFolderId: setCurrentFolderPath,
     folderBreadcrumbs,
     isResolvingPath,
     activeNodeId,

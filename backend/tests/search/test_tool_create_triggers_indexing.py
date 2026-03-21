@@ -2,7 +2,7 @@ import datetime as dt
 from types import SimpleNamespace
 
 import src.tool.router as tool_router
-from src.auth.models import CurrentUser
+from src.platform.auth.models import CurrentUser
 from src.tool.models import Tool
 from src.tool.router import create_search_tool_async
 from src.tool.schemas import ToolCreate
@@ -19,15 +19,16 @@ class _FakeBackgroundTasks:
 class _FakeToolService:
     def __init__(self) -> None:
         self.created_payload = None
-        self.node_check_calls: list[tuple[str, str]] = []
+        self.path_check_calls: list[tuple[str, str]] = []
 
         now = dt.datetime(2026, 1, 11, tzinfo=dt.timezone.utc)
         self._tool = Tool(
             id="tool_1",
             created_at=now,
             user_id="u1",
+            org_id="org_1",
             project_id="project_1",
-            node_id="node_123",
+            path="node_123",
             json_path="/scope",
             type="search",
             name="my_search",
@@ -38,8 +39,8 @@ class _FakeToolService:
             metadata={},
         )
 
-    def get_node_with_access_check(self, user_id: str, node_id: str):
-        self.node_check_calls.append((user_id, node_id))
+    def get_path_with_access_check(self, user_id: str, path: str):
+        self.path_check_calls.append((user_id, path))
         return SimpleNamespace(project_id="project_1", type="json")
 
     def create(self, **kwargs):
@@ -74,13 +75,14 @@ def test_create_search_tool_triggers_pending_task_and_background_indexing(monkey
     monkeypatch.setattr(
         tool_router, "SearchIndexTaskRepository", _FakeSearchIndexTaskRepository
     )
+    monkeypatch.setattr(tool_router, "resolve_org_id", lambda org_id, user_id: "org_1")
 
     tool_service = _FakeToolService()
     search_service = _FakeSearchService()
     background_tasks = _FakeBackgroundTasks()
 
     payload = ToolCreate(
-        node_id="node_123",
+        path="node_123",
         json_path="/scope",
         type="search",
         name="my_search",
@@ -101,9 +103,9 @@ def test_create_search_tool_triggers_pending_task_and_background_indexing(monkey
     )
 
     assert resp.code == 0
-    assert tool_service.node_check_calls == [("u1", "node_123")]
+    assert tool_service.path_check_calls == [("u1", "node_123")]
     assert tool_service.created_payload is not None
-    assert tool_service.created_payload["node_id"] == "node_123"
+    assert tool_service.created_payload["path"] == "node_123"
 
     repo = _FakeSearchIndexTaskRepository.last_instance
     assert repo is not None
@@ -112,7 +114,7 @@ def test_create_search_tool_triggers_pending_task_and_background_indexing(monkey
     pending_task = repo.upsert_calls[0]
     assert pending_task.status == "pending"
     assert pending_task.project_id == "project_1"
-    assert pending_task.node_id == "node_123"
+    assert pending_task.path == "node_123"
     assert pending_task.json_path == "/scope"
 
     assert len(background_tasks.calls) == 1
@@ -121,5 +123,5 @@ def test_create_search_tool_triggers_pending_task_and_background_indexing(monkey
     assert call["kwargs"]["tool_id"] == "tool_1"
     assert call["kwargs"]["user_id"] == "u1"
     assert call["kwargs"]["project_id"] == "project_1"
-    assert call["kwargs"]["node_id"] == "node_123"
+    assert call["kwargs"]["path"] == "node_123"
     assert call["kwargs"]["json_path"] == "/scope"

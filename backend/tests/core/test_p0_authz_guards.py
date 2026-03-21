@@ -4,8 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.auth.models import CurrentUser
-from src.content_node.router import _ensure_project_access
+from src.platform.auth.models import CurrentUser
+from src.content.router import _ensure_project_access
 from src.exceptions import NotFoundException
 from src.tool.service import ToolService
 

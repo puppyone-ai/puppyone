@@ -26,13 +26,14 @@ export interface ConnectorSpec {
   accept_types: string[];
   config_fields: ConnectorConfigField[];
   icon: string | null;
+  icon_url: string | null;
 }
 
 export interface CreateSyncRequest {
   project_id: string;
   provider: string;
   config: Record<string, unknown>;
-  target_folder_node_id: string;
+  target_folder_path: string;
   credentials_ref?: string;
   direction?: string;
   conflict_strategy?: string;
@@ -44,7 +45,7 @@ export interface CreateSyncResult {
   sync: {
     id: string;
     project_id: string;
-    node_id: string | null;
+    path: string | null;
     direction: string;
     provider: string;
     config: Record<string, unknown>;
@@ -54,7 +55,7 @@ export interface CreateSyncResult {
   };
   execution_result?: {
     sync_id: string;
-    node_id: string;
+    path: string;
     provider: string;
     version: number;
     status: string;
@@ -65,6 +66,10 @@ export interface CreateSyncResult {
 
 export async function getConnectorSpecs(): Promise<ConnectorSpec[]> {
   return get<ConnectorSpec[]>('/api/v1/sync/connectors');
+}
+
+export async function getConnectionTypes(): Promise<ConnectorSpec[]> {
+  return get<ConnectorSpec[]>('/api/v1/connections/types');
 }
 
 export async function createSyncConnection(

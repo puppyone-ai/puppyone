@@ -1,5 +1,5 @@
-from src.llm.dependencies import get_embedding_service
-from src.llm.embedding_service import EmbeddingService
+from src.infra.llm.dependencies import get_embedding_service
+from src.infra.llm.embedding_service import EmbeddingService
 
 
 def test_get_embedding_service_is_singleton():

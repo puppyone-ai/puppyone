@@ -41,7 +41,7 @@
 {
   "total_files": 3,
   "total_chunks": 5,
-  "folder_node_id": "folder-324d62d3"
+  "folder_path": "folder-324d62d3"
 }
 ```
 
@@ -350,7 +350,7 @@
       "full_text_search": null,
       "regex": null
     },
-    "file_node_id": {
+    "file_path": {
       "type": "string",
       "ann": null,
       "filterable": true,
@@ -414,7 +414,7 @@
     "id": {
       "type": "string"
     },
-    "file_node_id": {
+    "file_path": {
       "type": "string",
       "filterable": true
     },
@@ -485,7 +485,7 @@ TypeError: Object of type datetime is not JSON serializable
 {
   "namespace": "e2e-folder-search-20260127-125742-6d936ea9",
   "project_id": "proj-db2d46b0",
-  "folder_node_id": "folder-324d62d3",
+  "folder_path": "folder-324d62d3",
   "total_files": 3,
   "total_chunks": 5,
   "deleted": false,

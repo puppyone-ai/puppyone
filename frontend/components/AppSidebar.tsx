@@ -68,6 +68,16 @@ export function AppSidebar({
         ),
       },
       {
+        id: 'history',
+        label: 'History',
+        icon: (
+          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        ),
+      },
+      {
         id: 'monitor',
         label: 'Monitor',
         icon: (
@@ -113,6 +123,8 @@ export function AppSidebar({
             router.push(`/projects/${activeProject.id}/data`);
           } else if (viewId === 'connections') {
             router.push(`/projects/${activeProject.id}/connections`);
+          } else if (viewId === 'history') {
+            router.push(`/projects/${activeProject.id}/history`);
           } else if (viewId === 'monitor') {
             router.push(`/projects/${activeProject.id}/monitor`);
           } else if (viewId === 'toolkit') {

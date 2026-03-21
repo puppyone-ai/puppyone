@@ -188,7 +188,7 @@ export function NodeAccessPanel({
 
   // Get existing tools for this node and jsonPath
   const getExistingTool = (type: McpToolType) => 
-    existingTools.find(t => t.node_id === nodeId && t.type === type && (t.json_path || '') === jsonPath);
+    existingTools.find(t => t.path === nodeId && t.type === type && (t.json_path || '') === jsonPath);
 
   const searchTool = getExistingTool('search');
 
@@ -234,7 +234,7 @@ export function NodeAccessPanel({
         const pathSuffix = jsonPath ? `_${jsonPath.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'item'}` : '';
         
         const toolRequest = {
-          node_id: nodeId,
+          path: nodeId,
           json_path: jsonPath,
           type: toolType,
           name: `${toolType}_${safeName}${pathSuffix}`,
@@ -462,7 +462,7 @@ export function NodeAccessButton({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Count enabled tools
-  const enabledCount = existingTools.filter(t => t.node_id === nodeId).length;
+  const enabledCount = existingTools.filter(t => t.path === nodeId).length;
   const hasConfig = enabledCount > 0;
 
   // Close on outside click

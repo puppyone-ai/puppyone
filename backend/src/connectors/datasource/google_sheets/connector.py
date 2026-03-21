@@ -10,11 +10,9 @@ Architecture:
 import hashlib
 import json
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
-
-from src.content_node.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -26,7 +24,7 @@ from src.connectors.datasource._base import (
     ConfigField,
 )
 from src.oauth.google_sheets_service import GoogleSheetsOAuthService
-from src.s3.service import S3Service
+from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
 
@@ -51,6 +49,7 @@ class GoogleSheetsConnector(BaseConnector):
             creation_mode="direct",
             description="Sync spreadsheet data",
             accept_types=("folder",),
+            icon_url="https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png",
             config_fields=(
                 ConfigField(
                     key="source_url",
@@ -65,9 +64,9 @@ class GoogleSheetsConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         sheets_service: GoogleSheetsOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.sheets_service = sheets_service
@@ -223,3 +222,17 @@ class GoogleSheetsConnector(BaseConnector):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.oauth.google_sheets_service import GoogleSheetsOAuthService
+    oauth_svc = GoogleSheetsOAuthService()
+    return ConnectorSetup(
+        connector=GoogleSheetsConnector(
+            sheets_service=oauth_svc,
+            s3_service=deps.s3_service,
+            node_service=deps.node_service,
+        ),
+        oauth_bindings={"sheets": oauth_svc},
+    )

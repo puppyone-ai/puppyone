@@ -1,5 +1,5 @@
-from src.search.service import reciprocal_rank_fusion
-from src.turbopuffer.schemas import TurbopufferRow
+from src.infra.search.service import reciprocal_rank_fusion
+from src.infra.turbopuffer.schemas import TurbopufferRow
 
 
 def test_rrf_fuses_and_dedupes_by_id_and_orders_by_score():

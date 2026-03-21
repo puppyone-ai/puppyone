@@ -16,7 +16,7 @@ class Tool(BaseModel):
     created_by: Optional[str] = None
     org_id: str
     project_id: Optional[str] = None  # 所属项目 ID（用于按项目过滤）
-    node_id: Optional[str] = None  # 绑定的 content_nodes 节点 ID
+    path: Optional[str] = None  # MUT 路径 (path)
     json_path: str = ""  # JSON 内部路径（如 /users/0）
 
     type: str  # 工具类型：search, query_data, create, update, delete, custom_script 等（注：shell_access 已移至 agent_bash）

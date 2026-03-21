@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.config import settings
-from src.auth.dependencies import get_current_user
+from src.platform.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
 from src.oauth.dependencies import (
     get_notion_service,
