@@ -232,16 +232,16 @@ def test_folder_node(main_client: httpx.Client, internal_headers: dict, test_pro
     )
     assert resp.status_code == 200, f"创建文件夹节点失败: {resp.status_code} {resp.text}"
     node = resp.json()
-    node_id = node["node_id"]
-    print(f"[Setup] 创建文件夹节点: {node_id} (name=test-docs)")
-    yield {"node_id": node_id, "name": "test-docs", "type": "folder", "project_id": project_id}
+    path = node["path"]
+    print(f"[Setup] 创建文件夹节点: {path} (name=test-docs)")
+    yield {"path": path, "name": "test-docs", "type": "folder", "project_id": project_id}
 
 
 @pytest.fixture(scope="module")
 def test_agent(main_client: httpx.Client, test_project: dict, test_folder_node: dict):
     """创建测试 Agent 并绑定 BashAccess"""
     project_id = test_project["project_id"]
-    folder_node_id = test_folder_node["node_id"]
+    folder_path = test_folder_node["path"]
 
     # 1. 创建 Agent
     resp = main_client.post(
@@ -264,16 +264,16 @@ def test_agent(main_client: httpx.Client, test_project: dict, test_folder_node: 
     # 2. 添加 BashAccess
     resp = main_client.post(
         f"/api/v1/agent-config/{agent_id}/bash",
-        json={"node_id": folder_node_id, "readonly": False, "json_path": ""},
+        json={"path": folder_path, "readonly": False, "json_path": ""},
     )
     assert resp.status_code in (200, 201), f"创建 BashAccess 失败: {resp.status_code} {resp.text}"
-    print(f"[Setup] 绑定 BashAccess: node_id={folder_node_id}, readonly=False")
+    print(f"[Setup] 绑定 BashAccess: path={folder_path}, readonly=False")
 
     yield {
         "agent_id": agent_id,
         "mcp_api_key": mcp_api_key,
         "project_id": project_id,
-        "folder_node_id": folder_node_id,
+        "folder_path": folder_path,
     }
 
     # Teardown
@@ -423,7 +423,7 @@ class TestPosixTools:
         )
         print(f"  write /hello.md: {json.dumps(result, ensure_ascii=False)}")
         assert "error" not in result, f"write 返回错误: {result}"
-        assert result.get("node_id") or result.get("created"), f"write 未返回有效结果: {result}"
+        assert result.get("path") or result.get("created"), f"write 未返回有效结果: {result}"
 
     def test_03_cat_markdown(self, mcp_session: McpSession):
         """cat 读取刚创建的 Markdown 文件"""
@@ -501,14 +501,14 @@ class TestPosixTools:
 
     def test_12_rm_file(self, mcp_session: McpSession, main_client: httpx.Client, internal_headers: dict, test_agent: dict):
         """rm 删除文件（通过 Internal API 直接软删除，绕过 MCP 的 agent_id → created_by FK 问题）"""
-        # 先通过 MCP 解析路径拿到 node_id
+        # 先通过 MCP 解析路径拿到 path
         resolve_result = mcp_session.call_tool("cat", {"path": "/subfolder/notes.md"})
-        node_id = resolve_result.get("node_id")
-        assert node_id, f"无法获取 notes.md 的 node_id: {resolve_result}"
+        path = resolve_result.get("path")
+        assert path, f"无法获取 notes.md 的 path: {resolve_result}"
 
         # 通过 Internal API 直接删除（使用 "system" 作为 user_id 避免 FK 约束问题）
         resp = main_client.post(
-            f"/internal/nodes/{node_id}/trash",
+            f"/internal/nodes/{path}/trash",
             headers=internal_headers,
             json={"project_id": test_agent["project_id"], "user_id": "system"},
         )
@@ -601,7 +601,7 @@ class TestInternalAPI:
                 "project_id": test_agent["project_id"],
                 "root_accesses": [
                     {
-                        "node_id": test_folder_node["node_id"],
+                        "path": test_folder_node["path"],
                         "node_name": "test-docs",
                         "node_type": "folder",
                     }
@@ -611,8 +611,8 @@ class TestInternalAPI:
         )
         assert resp.status_code == 200, f"resolve-path 失败: {resp.status_code} {resp.text}"
         data = resp.json()
-        print(f"  resolve-path /: node_id={data.get('node_id')}, type={data.get('type')}")
-        assert data.get("node_id") == test_folder_node["node_id"]
+        print(f"  resolve-path /: path={data.get('path')}, type={data.get('type')}")
+        assert data.get("path") == test_folder_node["path"]
         assert data.get("type") == "folder"
 
     def test_list_children(
@@ -621,7 +621,7 @@ class TestInternalAPI:
     ):
         """测试列出子节点 API"""
         resp = main_client.get(
-            f"/internal/nodes/{test_folder_node['node_id']}/children",
+            f"/internal/nodes/{test_folder_node['path']}/children",
             headers=internal_headers,
             params={"project_id": test_agent["project_id"]},
         )
@@ -637,7 +637,7 @@ class TestInternalAPI:
     ):
         """测试重命名 API"""
         project_id = test_agent["project_id"]
-        folder_id = test_agent["folder_node_id"]
+        folder_id = test_agent["folder_path"]
 
         # 创建临时节点
         resp = main_client.post(
@@ -652,11 +652,11 @@ class TestInternalAPI:
             },
         )
         assert resp.status_code == 200
-        node_id = resp.json()["node_id"]
+        path = resp.json()["path"]
 
         # 重命名
         resp = main_client.post(
-            f"/internal/nodes/{node_id}/rename",
+            f"/internal/nodes/{path}/rename",
             headers=internal_headers,
             json={"project_id": project_id, "new_name": "renamed-file.md"},
         )
@@ -668,7 +668,7 @@ class TestInternalAPI:
 
         # 清理
         main_client.post(
-            f"/internal/nodes/{node_id}/trash",
+            f"/internal/nodes/{path}/trash",
             headers=internal_headers,
             json={"project_id": project_id, "user_id": "e2e-test"},
         )
@@ -678,7 +678,7 @@ class TestInternalAPI:
     ):
         """测试移动 API"""
         project_id = test_agent["project_id"]
-        folder_id = test_agent["folder_node_id"]
+        folder_id = test_agent["folder_path"]
 
         # 创建源 / 目标文件夹 + 文件
         src = main_client.post("/internal/nodes/create", headers=internal_headers,
@@ -686,12 +686,12 @@ class TestInternalAPI:
         dst = main_client.post("/internal/nodes/create", headers=internal_headers,
             json={"project_id": project_id, "parent_id": folder_id, "name": "move-dst", "node_type": "folder"})
         f = main_client.post("/internal/nodes/create", headers=internal_headers,
-            json={"project_id": project_id, "parent_id": src.json()["node_id"],
+            json={"project_id": project_id, "parent_id": src.json()["path"],
                   "name": "movable.md", "node_type": "markdown", "content": "move me"})
 
-        src_id = src.json()["node_id"]
-        dst_id = dst.json()["node_id"]
-        file_id = f.json()["node_id"]
+        src_id = src.json()["path"]
+        dst_id = dst.json()["path"]
+        file_id = f.json()["path"]
 
         # 移动
         resp = main_client.post(

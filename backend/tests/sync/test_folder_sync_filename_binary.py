@@ -53,7 +53,7 @@ async def test_request_upload_url_rejects_traversal():
     svc = _build_service()
     result = await svc.request_upload_url(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../report.pdf",
         content_type="application/pdf",
         size_bytes=12,
@@ -84,7 +84,7 @@ def test_pull_binary_file_preserves_file_type_and_download_url(monkeypatch):
         lambda: _FakeS3Service(),
     )
 
-    result = svc.pull(project_id="project-1", folder_id="folder-1")
+    result = svc.pull(project_id="project-1", folder_path="folder-1")
 
     assert result["version"] == 9
     assert len(result["files"]) == 1
@@ -100,7 +100,7 @@ async def test_confirm_upload_rejects_traversal():
     svc = _build_service()
     result = await svc.confirm_upload(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../evil.bin",
         s3_key="projects/p/filesystem/f/abc.bin",
         operator_id="sync:1",

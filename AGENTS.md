@@ -64,7 +64,8 @@ backend/
 │   │   ├── compat_service.py  #   Legacy CollaborationService compatibility layer
 │   │   ├── repo_manager.py    #   Server-side repo lifecycle
 │   │   ├── server_repo.py     #   PuppyOneServerRepo (S3 + Supabase adapter)
-│   │   ├── index_sync.py      #   Sync content_nodes index after commits
+│   │   ├── ops.py             #   MutOps — unified tree operations entry point
+│   │   ├── ephemeral_client.py #  MutEphemeralClient — in-process clone→push
 │   │   ├── protocol_router.py #   MUT wire protocol (/clone /push /pull /negotiate)
 │   │   ├── collab_router.py   #   Collab API (checkout/commit/versions/rollback/diff)
 │   │   ├── audit_router.py    #   Audit log API
@@ -143,7 +144,7 @@ backend/
 - **Fully async**: All I/O operations use `async/await`
 - **Pydantic models**: All request/response defined with Pydantic schemas
 - **Naming conventions**: Files `snake_case.py`, classes `PascalCase`, functions/variables `snake_case`
-- **DB table naming**: All table names use **plural snake_case** (e.g. `projects`, `content_nodes`, `connections`)
+- **DB table naming**: All table names use **plural snake_case** (e.g. `projects`, `connections`, `mut_commits`)
 - **Route prefix**: Business APIs under `/api/v1`, internal APIs under `/internal`
 - **Module structure**: Each module typically contains `router.py`, `service.py`, `repository.py`, `schemas.py`
 
@@ -162,7 +163,7 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `connections` | `connectors/manager/router.py`, `connectors/agent/config/repository.py` | Unified connections (agents/MCP/sandbox/sync) |
 | `connection_accesses` | `connectors/agent/config/repository.py` | Agent ↔ content node access bindings |
 | `connection_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Agent ↔ tool bindings |
-| `content_nodes` | `content_node/repository.py` | Content tree (folder/JSON/MD/file) |
+| `content_nodes` | _(dropped — replaced by MUT tree in S3)_ | Legacy content tree |
 | `tools` | `supabase/tools/repository.py` | Registered tools |
 | `mcps` | `supabase/mcps/repository.py`, `supabase/mcp_v2/repository.py` | MCP server instances |
 | `mcp_bindings` | `supabase/mcp_binding/repository.py` | MCP ↔ tool bindings |

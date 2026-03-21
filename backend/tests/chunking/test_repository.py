@@ -30,7 +30,7 @@ def test_ensure_chunks_idempotent_when_hash_exists():
                 "id": 1,
                 "created_at": "2026-01-11T00:00:00Z",
                 "updated_at": "2026-01-11T00:00:00Z",
-                "node_id": "node-123",
+                "path": "node-123",
                 "json_pointer": "/a",
                 "chunk_index": 0,
                 "total_chunks": 1,
@@ -47,7 +47,7 @@ def test_ensure_chunks_idempotent_when_hash_exists():
     repo = ChunkRepository(client)
     res = ensure_chunks_for_pointer(
         repo=repo,
-        node_id="node-123",
+        path="node-123",
         json_pointer="/a",
         content="hello",
     )
@@ -80,7 +80,7 @@ def test_ensure_chunks_creates_when_missing():
             "id": 10,
             "created_at": "2026-01-11T00:00:00Z",
             "updated_at": "2026-01-11T00:00:00Z",
-            "node_id": "node-1",
+            "path": "node-1",
             "json_pointer": "/p",
             "chunk_index": 0,
             "total_chunks": 2,
@@ -95,7 +95,7 @@ def test_ensure_chunks_creates_when_missing():
             "id": 11,
             "created_at": "2026-01-11T00:00:00Z",
             "updated_at": "2026-01-11T00:00:00Z",
-            "node_id": "node-1",
+            "path": "node-1",
             "json_pointer": "/p",
             "chunk_index": 1,
             "total_chunks": 2,
@@ -118,7 +118,7 @@ def test_ensure_chunks_creates_when_missing():
     )
     res = ensure_chunks_for_pointer(
         repo=repo,
-        node_id="node-1",
+        path="node-1",
         json_pointer="/p",
         content="A" * 10 + "B" * 9,
         config=cfg,

@@ -26,7 +26,7 @@ async def test_folder_sync_rejects_invalid_path_segments(filename: str):
 
     result = await svc.push(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename=filename,
         content={},
         base_version=0,
@@ -54,7 +54,7 @@ async def test_folder_sync_delete_rejects_invalid_path():
     svc = _build_folder_sync_service()
     result = await svc.delete_file(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../x.md",
         source_id="1",
     )
@@ -67,7 +67,7 @@ async def test_folder_sync_upload_url_rejects_invalid_path():
     svc = _build_folder_sync_service()
     result = await svc.request_upload_url(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../x.bin",
         content_type="application/octet-stream",
         size_bytes=123,
@@ -83,7 +83,7 @@ async def test_folder_sync_confirm_upload_rejects_invalid_path():
     svc = _build_folder_sync_service()
     result = await svc.confirm_upload(
         project_id="project-1",
-        folder_id="folder-1",
+        folder_path="folder-1",
         filename="../x.bin",
         s3_key="projects/p/filesystem/f/abc.bin",
         operator_id="sync:1",

@@ -44,8 +44,9 @@ backend/
 │   │   ├── compat_service.py  # MutCompatService (旧 Mutation 接口兼容)
 │   │   ├── repo_manager.py    # per-project Mut 仓库管理
 │   │   ├── server_repo.py     # PuppyOneServerRepo (S3/PG 适配)
-│   │   ├── index_sync.py      # Mut tree → content_nodes 同步
-│   │   ├── collab_router.py   # 协作 API (checkout/commit/versions/rollback/diff)
+│   │   ├── ops.py             # MutOps (统一读写入口)
+│   │   ├── ephemeral_client.py # MutEphemeralClient (clone→push)
+│   │   ├── tree_reader.py     # MutTreeReader (Merkle tree 读取)
 │   │   ├── audit_router.py    # 审计日志 API
 │   │   ├── protocol_router.py # MUT 线路协议 (clone/push/pull/negotiate)
 │   │   └── backends/          # S3 + Supabase 后端适配

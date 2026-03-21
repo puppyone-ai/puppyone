@@ -27,7 +27,7 @@ def _build_folder_namespace(*, project_id: str, folder_path: str) -> str:
 
 def _build_namespace(*, project_id: str, path: str) -> str:
     """Build namespace for single-node search"""
-    return f"project_{project_id}_node_{path}"
+    return f"project_{project_id}_path_{path}"
 
 
 def _build_folder_doc_id(
@@ -111,30 +111,30 @@ class TestBuildFolderNamespace:
     def test_build_folder_namespace(self):
         ns = _build_folder_namespace(
             project_id="proj123",
-            folder_node_id="folder456",
+            folder_path="folder456",
         )
         assert ns == "project_proj123_folder_folder456"
 
     def test_build_folder_namespace_different_from_node_namespace(self):
         folder_ns = _build_folder_namespace(
             project_id="proj1",
-            folder_node_id="node1",
+            folder_path="node1",
         )
         node_ns = _build_namespace(
             project_id="proj1",
-            node_id="node1",
+            path="node1",
         )
         # Folder namespace should be different from node namespace
         assert folder_ns != node_ns
         assert "folder" in folder_ns
-        assert "node" in node_ns
+        assert "path" in node_ns
 
     def test_build_folder_namespace_format(self):
         ns = _build_folder_namespace(
             project_id="abc",
-            folder_node_id="xyz",
+            folder_path="xyz",
         )
-        # Should follow the pattern: project_{project_id}_folder_{folder_node_id}
+        # Should follow the pattern: project_{project_id}_folder_{folder_path}
         parts = ns.split("_")
         assert parts[0] == "project"
         assert parts[1] == "abc"
@@ -147,7 +147,7 @@ class TestBuildFolderDocId:
 
     def test_build_folder_doc_id_length(self):
         doc_id = _build_folder_doc_id(
-            file_node_id="file123456789012345678901234567890",  # Long ID
+            file_path="file123456789012345678901234567890",  # Long ID
             json_pointer="/articles/0/content/deep/nested/path",  # Long pointer
             content_hash="abcdefghijklmnopqrstuvwxyz",
             chunk_index=999,
@@ -157,7 +157,7 @@ class TestBuildFolderDocId:
 
     def test_build_folder_doc_id_contains_file_prefix(self):
         doc_id = _build_folder_doc_id(
-            file_node_id="file123456789012",
+            file_path="file123456789012",
             json_pointer="/content",
             content_hash="abcdefgh",
             chunk_index=0,
@@ -167,13 +167,13 @@ class TestBuildFolderDocId:
 
     def test_build_folder_doc_id_unique_for_different_files(self):
         doc_id1 = _build_folder_doc_id(
-            file_node_id="file1",
+            file_path="file1",
             json_pointer="/content",
             content_hash="hash1",
             chunk_index=0,
         )
         doc_id2 = _build_folder_doc_id(
-            file_node_id="file2",
+            file_path="file2",
             json_pointer="/content",
             content_hash="hash1",
             chunk_index=0,
@@ -182,13 +182,13 @@ class TestBuildFolderDocId:
 
     def test_build_folder_doc_id_unique_for_different_chunks(self):
         doc_id1 = _build_folder_doc_id(
-            file_node_id="file1",
+            file_path="file1",
             json_pointer="/content",
             content_hash="hash1",
             chunk_index=0,
         )
         doc_id2 = _build_folder_doc_id(
-            file_node_id="file1",
+            file_path="file1",
             json_pointer="/content",
             content_hash="hash1",
             chunk_index=1,
@@ -197,13 +197,13 @@ class TestBuildFolderDocId:
 
     def test_build_folder_doc_id_unique_for_different_pointers(self):
         doc_id1 = _build_folder_doc_id(
-            file_node_id="file1",
+            file_path="file1",
             json_pointer="/content/a",
             content_hash="hash1",
             chunk_index=0,
         )
         doc_id2 = _build_folder_doc_id(
-            file_node_id="file1",
+            file_path="file1",
             json_pointer="/content/b",
             content_hash="hash1",
             chunk_index=0,
@@ -315,7 +315,7 @@ class TestSearchResultFormat:
         result = {
             "score": 0.95,
             "file": {
-                "node_id": "file1",
+                "path": "file1",
                 "mut_path": "folder1/data.json",
                 "name": "data.json",
                 "type": "json",
@@ -335,7 +335,7 @@ class TestSearchResultFormat:
         assert "chunk" in result
 
         # Verify file info
-        assert "node_id" in result["file"]
+        assert "path" in result["file"]
         assert "mut_path" in result["file"]
         assert "name" in result["file"]
         assert "type" in result["file"]

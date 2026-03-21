@@ -9,6 +9,7 @@ ToolTypeKey = Literal[
     "get_data_schema",
     "get_all_data",
     "query_data",
+    "search",
     "create",
     "update",
     "delete",
