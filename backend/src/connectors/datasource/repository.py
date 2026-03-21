@@ -11,7 +11,7 @@ external resource.
 
 from datetime import datetime, timezone
 from typing import Optional, List, Any
-from src.supabase.client import SupabaseClient
+from src.infra.supabase.client import SupabaseClient
 from src.connectors.datasource.schemas import Sync
 
 
@@ -31,7 +31,7 @@ class SyncRepository:
         return Sync(
             id=row["id"],
             project_id=row["project_id"],
-            node_id=row.get("node_id"),
+            path=row.get("path"),
             direction=row.get("direction", "inbound"),
             provider=row.get("provider", ""),
             authority=row.get("authority", "authoritative"),
@@ -58,7 +58,7 @@ class SyncRepository:
     def create(
         self,
         project_id: str,
-        node_id: str,
+        path: str,
         direction: str,
         provider: str,
         *,
@@ -72,7 +72,7 @@ class SyncRepository:
     ) -> Sync:
         data: dict[str, Any] = {
             "project_id": project_id,
-            "node_id": node_id,
+            "path": path,
             "direction": direction,
             "provider": provider,
             "authority": authority,
@@ -97,11 +97,11 @@ class SyncRepository:
         )
         return self._to_model(response.data[0]) if response.data else None
 
-    def get_by_node(self, node_id: str) -> Optional[Sync]:
-        """Get the first sync binding for a node (convenience for single-sync nodes)."""
+    def get_by_path(self, path: str) -> Optional[Sync]:
+        """Get the first sync binding for a path (convenience for single-sync nodes)."""
         response = (
             self.client.table(self.TABLE)
-            .select("*").eq("node_id", node_id).limit(1).execute()
+            .select("*").eq("path", path).limit(1).execute()
         )
         return self._to_model(response.data[0]) if response.data else None
 
@@ -145,11 +145,11 @@ class SyncRepository:
         )
         return [self._to_model(r) for r in response.data]
 
-    def list_by_node(self, node_id: str) -> List[Sync]:
-        """All sync bindings for a given node."""
+    def list_by_path(self, path: str) -> List[Sync]:
+        """All sync bindings for a given path."""
         response = (
             self.client.table(self.TABLE)
-            .select("*").eq("node_id", node_id).execute()
+            .select("*").eq("path", path).execute()
         )
         return [self._to_model(r) for r in response.data]
 
@@ -227,9 +227,9 @@ class SyncRepository:
     def delete(self, sync_id: str) -> None:
         self.client.table(self.TABLE).delete().eq("id", sync_id).execute()
 
-    def delete_by_node(self, node_id: str) -> None:
-        """Remove all sync bindings for a node."""
-        self.client.table(self.TABLE).delete().eq("node_id", node_id).execute()
+    def delete_by_path(self, path: str) -> None:
+        """Remove all sync bindings for a path."""
+        self.client.table(self.TABLE).delete().eq("path", path).execute()
 
     def delete_by_project(self, project_id: str) -> None:
         """Remove all syncs for a project."""

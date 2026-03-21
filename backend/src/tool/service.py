@@ -5,16 +5,16 @@ from pathlib import Path
 from typing import List, Optional, Any
 
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
-from src.content_node.service import ContentNodeService
+from src.mut_engine.ops import MutOps
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase
-from src.supabase.tools.schemas import (
+from src.tool.supabase_schemas import (
     ToolCreate as SbToolCreate,
     ToolUpdate as SbToolUpdate,
 )
-from src.supabase.dependencies import get_supabase_repository
-from src.connectors.mcp.cache_invalidator import invalidate_mcp_cache
-from src.project.service import ProjectService
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.mcp.cache_invalidator import invalidate_mcp_cache
+from src.platform.project.service import ProjectService
 
 
 @lru_cache(maxsize=64)
@@ -37,12 +37,12 @@ class ToolService:
     def __init__(
         self,
         repo: ToolRepositoryBase,
-        node_service: ContentNodeService,
+        ops: MutOps,
         project_service: ProjectService,
         supabase_repository: Optional[Any] = None,
     ):
         self.repo = repo
-        self.node_service = node_service
+        self._ops = ops
         self.project_service = project_service
         self._sb = supabase_repository
 
@@ -51,13 +51,37 @@ class ToolService:
             self._sb = get_supabase_repository()
         return self._sb
 
-    def get_node_with_access_check(self, user_id: str, node_id: str):
-        node = self.node_service.get_by_id_unsafe(node_id)
-        if not self.project_service.verify_project_access(node.project_id, user_id):
-            raise NotFoundException(
-                f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND
-            )
-        return node
+    def get_path_with_access_check(self, user_id: str, path: str):
+        """Check that a path is accessible.
+
+        Returns a simple object with project_id and type attributes.
+        """
+        from types import SimpleNamespace
+        tool = self.repo.get_by_path(path) if hasattr(self.repo, 'get_by_path') else None
+        project_id = tool.project_id if tool else None
+
+        if not project_id:
+            all_tools = self.repo.get_by_path_simple(path) if hasattr(self.repo, 'get_by_path_simple') else []
+            if all_tools:
+                project_id = all_tools[0].project_id
+
+        if project_id:
+            if not self.project_service.verify_project_access(project_id, user_id):
+                raise NotFoundException(
+                    f"Node not found: {path}", code=ErrorCode.NOT_FOUND
+                )
+            entry = self._ops.stat(project_id, path)
+            if entry:
+                return SimpleNamespace(
+                    project_id=project_id,
+                    type=entry.type,
+                    name=entry.name,
+                    path=entry.path,
+                )
+
+        raise NotFoundException(
+            f"Node not found: {path}", code=ErrorCode.NOT_FOUND
+        )
 
     def _invalidate_bound_agents_mcp(self, tool_id: str) -> None:
         """
@@ -138,18 +162,18 @@ class ToolService:
     ) -> List[Tool]:
         return self.repo.get_by_org_id(org_id, skip=skip, limit=limit)
 
-    def list_org_tools_by_node_id(
+    def list_org_tools_by_path(
         self,
         user_id: str,
         org_id: str,
         *,
-        node_id: str,
+        path: str,
         skip: int = 0,
         limit: int = 1000,
     ) -> List[Tool]:
-        self.get_node_with_access_check(user_id, node_id)
+        self.get_path_with_access_check(user_id, path)
         return self.repo.get_by_org_id(
-            org_id, skip=skip, limit=limit, node_id=node_id
+            org_id, skip=skip, limit=limit, path=path
         )
 
     def get_by_id(self, tool_id: str) -> Optional[Tool]:
@@ -173,7 +197,7 @@ class ToolService:
         *,
         org_id: str,
         created_by: Optional[str] = None,
-        node_id: Optional[str],
+        path: Optional[str],
         json_path: str,
         type: str,
         name: str,
@@ -187,17 +211,16 @@ class ToolService:
         script_content: Optional[str] = None,
         project_id: Optional[str] = None,
     ) -> Tool:
-        if node_id and created_by:
-            node = self.get_node_with_access_check(created_by, node_id)
+        if path and created_by:
+            node = self.get_path_with_access_check(created_by, path)
             if project_id and project_id != node.project_id:
                 raise BusinessException(
-                    "node_id does not belong to project_id",
+                    "path does not belong to project_id",
                     code=ErrorCode.VALIDATION_ERROR,
                 )
             if not project_id:
                 project_id = node.project_id
 
-        # 默认工具描述：当未传 description（或仅空白）时，根据 type 自动填充默认值
         if description is None or not str(description).strip():
             description = _get_default_tool_description(str(type))
 
@@ -206,7 +229,7 @@ class ToolService:
                 created_by=created_by,
                 org_id=org_id,
                 project_id=project_id,
-                node_id=node_id,
+                path=path,
                 json_path=json_path,
                 type=type,
                 name=name,
@@ -230,19 +253,14 @@ class ToolService:
         if name is not None and name != existing.name:
             self._assert_name_update_no_conflict(tool_id, user_id, name)
 
-        node_id = patch.get("node_id")
-        if node_id is not None:
-            node = self.get_node_with_access_check(user_id, node_id)
-            if existing.project_id and node.project_id != existing.project_id:
-                raise BusinessException(
-                    "cannot move tool across projects via node_id update",
-                    code=ErrorCode.VALIDATION_ERROR,
-                )
+        path = patch.get("path")
+        if path is not None:
+            self.get_path_with_access_check(user_id, path)
 
         updated = self.repo.update(
             tool_id,
             SbToolUpdate(
-                node_id=patch.get("node_id"),
+                path=patch.get("path"),
                 json_path=patch.get("json_path"),
                 type=patch.get("type"),
                 name=patch.get("name"),

@@ -15,7 +15,7 @@ pytest.skip(
 )
 
 from src.mcp.server.tools.table_tool import TableTool
-from src.table.models import Table
+from src.content.table.models import Table
 from src.exceptions import NotFoundException, BusinessException
 
 

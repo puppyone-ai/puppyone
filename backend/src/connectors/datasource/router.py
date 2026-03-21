@@ -14,22 +14,23 @@ CLI-driven sync:
 
 Server-side sync:
   POST   /sync/pull                          Trigger server-side PULL
-  POST   /sync/push/{node_id}               Trigger server-side PUSH
+  POST   /sync/push/{path}                  Trigger server-side PUSH
 """
 
 from typing import Optional, Any
+import os
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from pydantic import BaseModel
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.connectors.datasource.service import SyncService
 from src.connectors.datasource.engine import SyncEngine
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.dependencies import get_sync_service, get_sync_engine, get_connector_registry
 from src.common_schemas import ApiResponse
-from src.project.dependencies import get_project_service
-from src.project.service import ProjectService
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 
 
 router = APIRouter(prefix="/sync", tags=["sync"])
@@ -42,7 +43,7 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 class SyncResponse(BaseModel):
     id: str
     project_id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     direction: str
     provider: str
     config: dict
@@ -53,7 +54,7 @@ class SyncResponse(BaseModel):
 
 class SyncStatusItem(BaseModel):
     id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     node_name: Optional[str] = None
     node_type: Optional[str] = None
     provider: str
@@ -68,7 +69,7 @@ class SyncStatusItem(BaseModel):
 
 class UploadStatusItem(BaseModel):
     id: str
-    node_id: Optional[str] = None
+    path: Optional[str] = None
     type: str
     task_type: Optional[str] = None
     status: str
@@ -86,7 +87,7 @@ class BootstrapRequest(BaseModel):
     project_id: str
     provider: str
     config: dict
-    target_folder_node_id: Optional[str] = None
+    target_folder_path: Optional[str] = None
     credentials_ref: Optional[str] = None
     direction: str = "bidirectional"
     conflict_strategy: str = "three_way_merge"
@@ -102,7 +103,7 @@ class CreateSyncRequest(BaseModel):
     project_id: str
     provider: str
     config: dict
-    target_folder_node_id: str
+    target_folder_path: str
     credentials_ref: Optional[str] = None
     direction: str = "inbound"
     conflict_strategy: str = "three_way_merge"
@@ -136,14 +137,14 @@ class PushFileRequest(BaseModel):
 
 
 class PushFileResponse(BaseModel):
-    node_id: str
+    path: str
     external_resource_id: str
     action: str
     version: int
 
 
 class PullFileItem(BaseModel):
-    node_id: str
+    path: str
     external_resource_id: str
     content_json: Optional[Any] = None
     content_md: Optional[str] = None
@@ -157,7 +158,7 @@ class PullFilesResponse(BaseModel):
 
 
 class AckPullItem(BaseModel):
-    node_id: str
+    path: str
     version: int
     remote_hash: str
 
@@ -215,34 +216,18 @@ async def get_project_sync_status(
     Aggregated sync status for a project.
     Used by the frontend header sync panel.
     """
-    from src.content_node.repository import ContentNodeRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
 
     _ensure_project_access(project_service, current_user, project_id)
 
     syncs = sync_svc.sync_repo.list_by_project(project_id)
 
-    node_ids = [s.node_id for s in syncs if s.node_id]
-    node_info: dict[str, dict] = {}
-    if node_ids:
-        try:
-            node_repo = ContentNodeRepository(SupabaseClient())
-            resp = (
-                node_repo.client.table("content_nodes")
-                .select("id, name, type")
-                .in_("id", node_ids)
-                .execute()
-            )
-            node_info = {r["id"]: r for r in (resp.data or [])}
-        except Exception:
-            pass
-
     sync_items = [
         SyncStatusItem(
             id=s.id,
-            node_id=s.node_id,
-            node_name=node_info.get(s.node_id, {}).get("name") if s.node_id else None,
-            node_type=node_info.get(s.node_id, {}).get("type") if s.node_id else None,
+            path=s.path,
+            node_name=s.path.rsplit("/", 1)[-1] if s.path else None,
+            node_type=None,
             provider=s.provider,
             direction=s.direction,
             status=s.status,
@@ -309,7 +294,7 @@ async def create_sync(
         project_id=body.project_id,
         provider=body.provider,
         config=body.config,
-        target_folder_node_id=body.target_folder_node_id,
+        target_folder_path=body.target_folder_path,
         credentials_ref=body.credentials_ref,
         direction=body.direction,
         conflict_strategy=body.conflict_strategy,
@@ -320,7 +305,7 @@ async def create_sync(
 
     if body.sync_mode == "scheduled" and body.trigger:
         try:
-            from src.scheduler.service import get_scheduler_service
+            from src.infra.scheduler.service import get_scheduler_service
             scheduler = get_scheduler_service()
             await scheduler.add_sync_job(
                 sync_id=sync.id,
@@ -385,7 +370,7 @@ def delete_sync(
     _notify_folder_source("stop", sync_id)
 
     try:
-        from src.scheduler.service import get_scheduler_service
+        from src.infra.scheduler.service import get_scheduler_service
         get_scheduler_service().remove_sync_job(sync_id)
     except Exception:
         pass
@@ -423,7 +408,7 @@ async def update_sync_trigger(
 
     # Manage scheduler job
     try:
-        from src.scheduler.service import get_scheduler_service
+        from src.infra.scheduler.service import get_scheduler_service
         scheduler = get_scheduler_service()
 
         if body.sync_mode == "scheduled" and body.trigger:
@@ -528,7 +513,7 @@ class SyncRunResponse(BaseModel):
 
 def _get_run_repo():
     from src.connectors.datasource.run_repository import SyncRunRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     return SyncRunRepository(SupabaseClient())
 
 
@@ -584,7 +569,7 @@ def get_sync_run(
 @router.post("/syncs/openclaw/bootstrap", response_model=ApiResponse, deprecated=True)
 def bootstrap_openclaw(
     project_id: str = Query(...),
-    node_id: str = Query(...),
+    path: str = Query(...),
     sync_svc: SyncService = Depends(get_sync_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -593,16 +578,16 @@ def bootstrap_openclaw(
     _ensure_project_access(project_service, current_user, project_id)
 
     from src.connectors.filesystem.lifecycle import OpenClawService
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
         sync_repo=sync_svc.sync_repo,
     )
-    sync = svc.bootstrap(project_id=project_id, node_id=node_id)
+    sync = svc.bootstrap(project_id=project_id, path=path)
     return ApiResponse.success(data={
         "sync_id": sync.id,
         "access_key": sync.access_key,
-        "node_id": sync.node_id,
+        "path": sync.path,
         "project_id": sync.project_id,
     })
 
@@ -622,7 +607,7 @@ def get_openclaw_status_by_sync(
     _ensure_project_access(project_service, current_user, sync.project_id)
 
     from src.connectors.filesystem.lifecycle import OpenClawService
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
     svc = OpenClawService(
         supabase=SupabaseClient(),
         sync_repo=sync_svc.sync_repo,
@@ -658,7 +643,7 @@ async def bootstrap(
         project_id=body.project_id,
         provider=body.provider,
         config=body.config,
-        target_folder_node_id=body.target_folder_node_id,
+        target_folder_path=body.target_folder_path,
         credentials_ref=body.credentials_ref,
         direction=body.direction,
         conflict_strategy=body.conflict_strategy,
@@ -669,7 +654,7 @@ async def bootstrap(
 
     if body.sync_mode == "scheduled" and body.trigger:
         try:
-            from src.scheduler.service import get_scheduler_service
+            from src.infra.scheduler.service import get_scheduler_service
             scheduler = get_scheduler_service()
             for s in syncs:
                 await scheduler.add_sync_job(
@@ -709,18 +694,10 @@ async def push_file(
     Creates a new node if no sync binding exists, updates if it does.
     """
     import os
-    from src.content_node.repository import ContentNodeRepository
-    from src.content_node.service import ContentNodeService
-    from src.s3.service import S3Service
-    from src.supabase.client import SupabaseClient
 
     parent_sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
-
-    supabase = SupabaseClient()
-    node_repo = ContentNodeRepository(supabase)
-    node_svc = ContentNodeService(repo=node_repo, s3_service=S3Service())
 
     is_json = body.content_json is not None
     existing = sync_svc.sync_repo.find_by_config_key(
@@ -730,28 +707,30 @@ async def push_file(
     if existing:
         if existing.remote_hash == body.content_hash:
             return ApiResponse.success(data=PushFileResponse(
-                node_id=existing.node_id,
+                path=existing.path,
                 external_resource_id=body.external_resource_id,
                 action="skipped",
                 version=existing.last_sync_version,
             ))
 
-        updated = node_svc.update_node(
-            node_id=existing.node_id,
-            project_id=parent_sync.project_id,
-            preview_json=body.content_json if is_json else None,
-            preview_md=body.content_md if not is_json else None,
-            operator_type="sync",
-            operator_id=f"cli:{body.external_resource_id}",
+        from src.mut_engine.dependencies import create_mut_ops
+        import json as _json
+
+        ops = create_mut_ops()
+        content_bytes = (_json.dumps(body.content_json, ensure_ascii=False, indent=2) if is_json else (body.content_md or "")).encode("utf-8")
+        write_result = await ops.write_file(
+            parent_sync.project_id, existing.path, content_bytes,
+            who=f"sync:cli:{body.external_resource_id}",
+            message=f"push update {body.external_resource_id}",
         )
-        version = updated.current_version or 0
+        version = write_result.version
         sync_svc.sync_repo.update_sync_point(
             sync_id=existing.id,
             last_sync_version=version,
             remote_hash=body.content_hash,
         )
         return ApiResponse.success(data=PushFileResponse(
-            node_id=existing.node_id,
+            path=existing.path,
             external_resource_id=body.external_resource_id,
             action="updated",
             version=version,
@@ -760,28 +739,25 @@ async def push_file(
     file_name = body.name or os.path.splitext(
         os.path.basename(body.external_resource_id)
     )[0]
-    target_folder_id = parent_sync.config.get("target_folder_id")
+    target_folder_path = parent_sync.config.get("target_folder_id", "")
 
-    if is_json:
-        new_node = node_svc.create_json_node(
-            project_id=parent_sync.project_id,
-            name=file_name,
-            content=body.content_json,
-            parent_id=target_folder_id,
-            created_by=current_user.user_id,
-        )
-    else:
-        new_node = await node_svc.create_markdown_node(
-            project_id=parent_sync.project_id,
-            name=file_name,
-            content=body.content_md or "",
-            parent_id=target_folder_id,
-            created_by=current_user.user_id,
-        )
+    from src.mut_engine.dependencies import create_mut_ops as _create_mut_ops
+    import json as _json
 
-    version = new_node.current_version or 0
+    ops = _create_mut_ops()
+    ext = ".json" if is_json else ".md"
+    file_path = f"{target_folder_path}/{file_name}{ext}" if target_folder_path else f"{file_name}{ext}"
+    content_bytes = (_json.dumps(body.content_json, ensure_ascii=False, indent=2) if is_json else (body.content_md or "")).encode("utf-8")
+
+    write_result = await ops.write_file(
+        parent_sync.project_id, file_path, content_bytes,
+        who=f"sync:cli:{body.external_resource_id}",
+        message=f"push create {body.external_resource_id}",
+    )
+
+    version = write_result.version
     return ApiResponse.success(data=PushFileResponse(
-        node_id=new_node.id,
+        path=file_path,
         external_resource_id=body.external_resource_id,
         action="created",
         version=version,
@@ -801,40 +777,60 @@ def pull_files(
     Returns files that have changed on the server since last sync.
     CLI writes them to local filesystem, then calls ack-pull.
     """
-    from src.content_node.repository import ContentNodeRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
 
     parent_sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    node_repo = ContentNodeRepository(SupabaseClient())
     files: list[PullFileItem] = []
 
     syncs = sync_svc.sync_repo.list_by_provider(
         parent_sync.project_id, parent_sync.provider,
     )
 
+    from src.mut_engine.dependencies import create_mut_ops
+    ops = create_mut_ops()
+    current_version = ops.get_version(parent_sync.project_id)
+
     for s in syncs:
-        if not s.node_id:
-            continue
-        node = node_repo.get_by_id(s.node_id)
-        if not node:
+        if not s.path:
             continue
 
-        node_version = node.current_version or 0
-        if node_version <= s.last_sync_version:
+        if current_version <= s.last_sync_version:
             continue
 
         ext_resource_id = s.config.get("external_resource_id", "")
-        is_json = node.preview_json is not None
+        path = s.path
+
+        try:
+            content = ops.read_file(parent_sync.project_id, path)
+        except FileNotFoundError:
+            continue
+
+        from src.mut_engine.tree_reader import detect_type
+        node_type = detect_type(path)
+        is_json = node_type == "json"
+
+        import json as _json
+        if is_json:
+            try:
+                json_content = _json.loads(content.decode("utf-8"))
+                text_content = None
+            except (ValueError, UnicodeDecodeError):
+                json_content = None
+                text_content = content.decode("utf-8", errors="replace")
+        else:
+            json_content = None
+            text_content = content.decode("utf-8", errors="replace")
+
         files.append(PullFileItem(
-            node_id=node.id,
+            path=path,
             external_resource_id=ext_resource_id,
-            content_json=node.preview_json if is_json else None,
-            content_md=node.preview_md if not is_json else None,
+            content_json=json_content if is_json else None,
+            content_md=text_content if not is_json else None,
             node_type="json" if is_json else "markdown",
-            current_version=node_version,
+            current_version=current_version,
         ))
 
     return ApiResponse.success(data=PullFilesResponse(files=files, total=len(files)))
@@ -874,29 +870,45 @@ async def trigger_pull(
     return ApiResponse.success(data=PullResponse(synced=len(results), results=results))
 
 
-@router.post("/push/{node_id}", response_model=ApiResponse[PushResponse])
+@router.post("/push/{path:path}", response_model=ApiResponse[PushResponse])
 async def trigger_push(
-    node_id: str,
-    sync_svc: SyncService = Depends(get_sync_service),
+    path: str,
+    project_id: str = Query(..., description="项目 ID"),
+    engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.content_node.repository import ContentNodeRepository
-    from src.supabase.client import SupabaseClient
+    from src.mut_engine.dependencies import create_mut_ops
 
-    node = ContentNodeRepository(SupabaseClient()).get_by_id(node_id)
-    if not node:
-        return ApiResponse.error(code=1004, message=f"Node not found: {node_id}")
+    ops = create_mut_ops()
+    try:
+        content = ops.read_file(project_id, path)
+    except FileNotFoundError:
+        return ApiResponse.error(code=1004, message=f"File not found: {path}")
 
-    content = node.preview_json if node.preview_json is not None else node.preview_md
-    node_type = "json" if node.preview_json is not None else "markdown"
+    from src.mut_engine.tree_reader import detect_type
+    import json as _json
 
-    results = await sync_svc.push_node(
-        node_id=node_id,
-        version=node.current_version or 0,
-        content=content,
+    node_type = detect_type(path)
+    if node_type == "json":
+        try:
+            parsed_content = _json.loads(content.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            parsed_content = content.decode("utf-8", errors="replace")
+    else:
+        parsed_content = content.decode("utf-8", errors="replace")
+
+    version = ops.get_version(project_id)
+    result = await engine.push_execute(
+        path=path,
+        version=version,
+        content=parsed_content,
         node_type=node_type,
     )
-    return ApiResponse.success(data=PushResponse(pushed=len(results), results=results))
+
+    return ApiResponse.success(data=PushResponse(
+        pushed=1 if result else 0,
+        results=[result] if result else [],
+    ))
 
 
 # ============================================================
@@ -906,7 +918,7 @@ async def trigger_push(
 class ChangelogItem(BaseModel):
     id: int
     project_id: str
-    node_id: str
+    path: str
     action: str
     node_type: Optional[str] = None
     version: int = 0
@@ -936,7 +948,7 @@ def get_sync_changelog(
     _ensure_project_access(project_service, current_user, project_id)
 
     from src.connectors.filesystem.changelog import SyncChangelogRepository
-    from src.supabase.client import SupabaseClient
+    from src.infra.supabase.client import SupabaseClient
 
     changelog_repo = SyncChangelogRepository(SupabaseClient())
     entries = changelog_repo.list_since(project_id, cursor=cursor, limit=limit + 1)
@@ -951,7 +963,7 @@ def get_sync_changelog(
         ChangelogItem(
             id=e.id,
             project_id=e.project_id,
-            node_id=e.node_id,
+            path=e.path,
             action=e.action,
             node_type=e.node_type,
             version=e.version,
@@ -976,24 +988,15 @@ def get_sync_changelog(
 # ============================================================
 
 def _notify_folder_source(action: str, sync_id: str) -> None:
-    try:
-        from src.connectors.filesystem.watcher import FolderSourceService
-        svc = FolderSourceService.get_instance()
-        if not svc:
-            return
-        if action == "start":
-            svc.start_for_sync(sync_id)
-        elif action == "stop":
-            svc.stop_for_sync(sync_id)
-    except Exception:
-        pass
+    """Filesystem sync is now client-side — no server notification needed."""
+    pass
 
 
 def _sync_resp(s) -> SyncResponse:
     return SyncResponse(
         id=s.id,
         project_id=s.project_id,
-        node_id=s.node_id,
+        path=s.path,
         direction=s.direction,
         provider=s.provider,
         config=s.config,

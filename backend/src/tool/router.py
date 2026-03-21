@@ -12,23 +12,21 @@ import datetime as dt
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from typing import List, Optional
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
-from src.s3.service import S3Service
-from src.search.dependencies import get_search_service
-from src.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpsert
-from src.search.index_task_repository import SearchIndexTaskRepository
-from src.search.service import SearchService
-from src.supabase.client import SupabaseClient
-from src.content_node.dependencies import get_content_node_service
-from src.content_node.service import ContentNodeService
+from src.infra.s3.service import S3Service
+from src.infra.search.dependencies import get_search_service
+from src.infra.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpsert
+from src.infra.search.index_task_repository import SearchIndexTaskRepository
+from src.infra.search.service import SearchService
+from src.infra.supabase.client import SupabaseClient
 from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
 from src.tool.service import ToolService
 from src.utils.logger import log_error, log_info
-from src.organization.dependencies import resolve_org_id, resolve_org_ids
+from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
 
 
 router = APIRouter(prefix="/tools", tags=["tools"])
@@ -55,13 +53,13 @@ def list_tools(
 
 
 @router.get(
-    "/by-node/{node_id}",
+    "/by-path/{path:path}",
     response_model=ApiResponse[List[ToolOut]],
-    summary="获取某个 node_id 下的 Tool 列表",
+    summary="获取某个 path 下的 Tool 列表",
     status_code=status.HTTP_200_OK,
 )
-def list_tools_by_node_id(
-    node_id: str,
+def list_tools_by_path(
+    path: str,
     org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=1000, ge=1, le=1000),
@@ -69,10 +67,10 @@ def list_tools_by_node_id(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved = resolve_org_id(org_id, current_user.user_id)
-    tools = tool_service.list_org_tools_by_node_id(
+    tools = tool_service.list_org_tools_by_path(
         current_user.user_id,
         resolved,
-        node_id=node_id,
+        path=path,
         skip=skip,
         limit=limit,
     )
@@ -121,7 +119,7 @@ def create_tool(
     tool = tool_service.create(
         org_id=resolved,
         created_by=current_user.user_id,
-        node_id=payload.node_id,
+        path=payload.path,
         json_path=payload.json_path,
         type=payload.type,
         name=payload.name,
@@ -145,7 +143,7 @@ async def _run_search_indexing_background(
     tool_id: str,
     user_id: str,
     project_id: str,
-    node_id: str,
+    path: str,
     json_path: str,
 ) -> None:
     """
@@ -153,7 +151,7 @@ async def _run_search_indexing_background(
     """
     now = dt.datetime.now(tz=dt.timezone.utc)
     log_info(
-        f"[search_index] background task accepted: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}'"
+        f"[search_index] background task accepted: tool_id={tool_id} project_id={project_id} path={path} json_path='{json_path}'"
     )
     try:
         await asyncio.to_thread(
@@ -162,7 +160,7 @@ async def _run_search_indexing_background(
                 tool_id=tool_id,
                 user_id=user_id,
                 project_id=project_id,
-                node_id=node_id,
+                path=path,
                 json_path=json_path or "",
                 status="indexing",
                 started_at=now,
@@ -174,19 +172,18 @@ async def _run_search_indexing_background(
             ),
         )
     except Exception as e:
-        # best-effort：不阻断 indexing，但要留日志
         log_error(
-            f"[search_index] failed to mark indexing: tool_id={tool_id} node_id={node_id} json_path='{json_path}' err={e}"
+            f"[search_index] failed to mark indexing: tool_id={tool_id} path={path} json_path='{json_path}' err={e}"
         )
 
     try:
         log_info(
-            f"[search_index] start: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}'"
+            f"[search_index] start: tool_id={tool_id} project_id={project_id} path={path} json_path='{json_path}'"
         )
         stats = await asyncio.wait_for(
             search_service.index_scope(
                 project_id=project_id,
-                node_id=node_id,
+                path=path,
                 user_id=user_id,
                 json_path=json_path or "",
             ),
@@ -199,7 +196,7 @@ async def _run_search_indexing_background(
                 tool_id=tool_id,
                 user_id=user_id,
                 project_id=project_id,
-                node_id=node_id,
+                path=path,
                 json_path=json_path or "",
                 status="ready",
                 started_at=now,
@@ -223,7 +220,7 @@ async def _run_search_indexing_background(
                     tool_id=tool_id,
                     user_id=user_id,
                     project_id=project_id,
-                    node_id=node_id,
+                    path=path,
                     json_path=json_path or "",
                     status="error",
                     started_at=now,
@@ -236,7 +233,7 @@ async def _run_search_indexing_background(
                 f"[search_index] failed to write timeout status: tool_id={tool_id} err={e}"
             )
         log_error(
-            f"[search_index] timeout: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}'"
+            f"[search_index] timeout: tool_id={tool_id} project_id={project_id} path={path} json_path='{json_path}'"
         )
     except Exception as e:
         finished = dt.datetime.now(tz=dt.timezone.utc)
@@ -248,7 +245,7 @@ async def _run_search_indexing_background(
                     tool_id=tool_id,
                     user_id=user_id,
                     project_id=project_id,
-                    node_id=node_id,
+                    path=path,
                     json_path=json_path or "",
                     status="error",
                     started_at=now,
@@ -261,7 +258,7 @@ async def _run_search_indexing_background(
                 f"[search_index] failed to write error status: tool_id={tool_id} err={e2}"
             )
         log_error(
-            f"[search_index] failed: tool_id={tool_id} project_id={project_id} node_id={node_id} json_path='{json_path}' err={e}"
+            f"[search_index] failed: tool_id={tool_id} project_id={project_id} path={path} json_path='{json_path}' err={e}"
         )
 
 
@@ -273,7 +270,7 @@ async def _run_folder_search_indexing_background(
     tool_id: str,
     user_id: str,
     project_id: str,
-    folder_node_id: str,
+    folder_path: str,
 ) -> None:
     """
     Background indexing executor for folder search.
@@ -281,7 +278,7 @@ async def _run_folder_search_indexing_background(
     now = dt.datetime.now(tz=dt.timezone.utc)
     log_info(
         f"[folder_search_index] background task accepted: tool_id={tool_id} "
-        f"project_id={project_id} folder_node_id={folder_node_id}"
+        f"project_id={project_id} folder_path={folder_path}"
     )
 
     # Mark as indexing
@@ -292,12 +289,12 @@ async def _run_folder_search_indexing_background(
                 tool_id=tool_id,
                 user_id=user_id,
                 project_id=project_id,
-                node_id=folder_node_id,
+                path=folder_path,
                 json_path="",
                 status="indexing",
                 started_at=now,
                 finished_at=None,
-                folder_node_id=folder_node_id,
+                folder_path=folder_path,
                 total_files=None,
                 indexed_files=0,
                 last_error=None,
@@ -316,11 +313,11 @@ async def _run_folder_search_indexing_background(
                     tool_id=tool_id,
                     user_id=user_id,
                     project_id=project_id,
-                    node_id=folder_node_id,
+                    path=folder_path,
                     json_path="",
                     status="indexing",
                     started_at=now,
-                    folder_node_id=folder_node_id,
+                    folder_path=folder_path,
                     total_files=total_files,
                     indexed_files=indexed_files,
                 )
@@ -330,12 +327,12 @@ async def _run_folder_search_indexing_background(
 
     try:
         log_info(
-            f"[folder_search_index] start: tool_id={tool_id} folder_node_id={folder_node_id}"
+            f"[folder_search_index] start: tool_id={tool_id} folder_path={folder_path}"
         )
         stats = await asyncio.wait_for(
             search_service.index_folder(
                 project_id=project_id,
-                folder_node_id=folder_node_id,
+                folder_path=folder_path,
                 user_id=user_id,
                 s3_service=s3_service,
                 progress_callback=update_progress,
@@ -349,7 +346,7 @@ async def _run_folder_search_indexing_background(
                 tool_id=tool_id,
                 user_id=user_id,
                 project_id=project_id,
-                node_id=folder_node_id,
+                path=folder_path,
                 json_path="",
                 status="ready",
                 started_at=now,
@@ -357,7 +354,7 @@ async def _run_folder_search_indexing_background(
                 nodes_count=int(stats.nodes_count),
                 chunks_count=int(stats.chunks_count),
                 indexed_chunks_count=int(stats.indexed_chunks_count),
-                folder_node_id=folder_node_id,
+                folder_path=folder_path,
                 total_files=int(stats.total_files),
                 indexed_files=int(stats.indexed_files),
                 last_error=None,
@@ -377,12 +374,12 @@ async def _run_folder_search_indexing_background(
                     tool_id=tool_id,
                     user_id=user_id,
                     project_id=project_id,
-                    node_id=folder_node_id,
+                    path=folder_path,
                     json_path="",
                     status="error",
                     started_at=now,
                     finished_at=finished,
-                    folder_node_id=folder_node_id,
+                    folder_path=folder_path,
                     last_error=msg,
                 ),
             )
@@ -391,7 +388,7 @@ async def _run_folder_search_indexing_background(
                 f"[folder_search_index] failed to write timeout status: tool_id={tool_id} err={e}"
             )
         log_error(
-            f"[folder_search_index] timeout: tool_id={tool_id} folder_node_id={folder_node_id}"
+            f"[folder_search_index] timeout: tool_id={tool_id} folder_path={folder_path}"
         )
     except Exception as e:
         finished = dt.datetime.now(tz=dt.timezone.utc)
@@ -403,12 +400,12 @@ async def _run_folder_search_indexing_background(
                     tool_id=tool_id,
                     user_id=user_id,
                     project_id=project_id,
-                    node_id=folder_node_id,
+                    path=folder_path,
                     json_path="",
                     status="error",
                     started_at=now,
                     finished_at=finished,
-                    folder_node_id=folder_node_id,
+                    folder_path=folder_path,
                     last_error=err,
                 ),
             )
@@ -417,7 +414,7 @@ async def _run_folder_search_indexing_background(
                 f"[folder_search_index] failed to write error status: tool_id={tool_id} err={e2}"
             )
         log_error(
-            f"[folder_search_index] failed: tool_id={tool_id} folder_node_id={folder_node_id} err={e}"
+            f"[folder_search_index] failed: tool_id={tool_id} folder_path={folder_path} err={e}"
         )
 
 
@@ -428,8 +425,8 @@ async def _run_folder_search_indexing_background(
     description=(
         "创建 `type=search` 的 Tool，并在响应返回后异步触发 indexing（chunking + embedding + upsert）。\n\n"
         "支持两种模式：\n"
-        "- **JSON Search**: node_id 指向 json 类型节点，索引该节点的 JSON 内容\n"
-        "- **Folder Search**: node_id 指向 folder 类型节点，索引 folder 下所有 json/markdown 文件\n\n"
+        "- **JSON Search**: path 指向 json 类型节点，索引该节点的 JSON 内容\n"
+        "- **Folder Search**: path 指向 folder 类型节点，索引 folder 下所有 json/markdown 文件\n\n"
         "索引状态通过 `/tools/{tool_id}/search-index` 轮询获取。"
     ),
     status_code=status.HTTP_201_CREATED,
@@ -446,17 +443,17 @@ def create_search_tool_async(
     if (payload.type or "").strip() != "search":
         return ApiResponse.error(code=400, message="payload.type must be 'search'")
 
-    if not payload.node_id:
-        return ApiResponse.error(code=400, message="node_id is required for search tool")
+    if not payload.path:
+        return ApiResponse.error(code=400, message="path is required for search tool")
 
-    node = tool_service.get_node_with_access_check(current_user.user_id, payload.node_id)
+    node = tool_service.get_path_with_access_check(current_user.user_id, payload.path)
     project_id = node.project_id
     is_folder_search = node.type == "folder"
 
     tool = tool_service.create(
         org_id=resolved,
         created_by=current_user.user_id,
-        node_id=payload.node_id,
+        path=payload.path,
         json_path=payload.json_path,
         type=payload.type,
         name=payload.name,
@@ -476,7 +473,7 @@ def create_search_tool_async(
     if is_folder_search:
         # Folder Search: index all files in the folder
         log_info(
-            f"[search_index] folder search mode: tool_id={tool.id} folder_node_id={payload.node_id}"
+            f"[search_index] folder search mode: tool_id={tool.id} folder_path={payload.path}"
         )
         
         # 先写入一条 pending（便于轮询端立刻拿到状态）
@@ -486,12 +483,12 @@ def create_search_tool_async(
                     tool_id=str(tool.id),
                     user_id=str(current_user.user_id),
                     project_id=project_id,
-                    node_id=str(payload.node_id),
+                    path=str(payload.path),
                     json_path="",
                     status="pending",
                     started_at=None,
                     finished_at=None,
-                    folder_node_id=str(payload.node_id),
+                    folder_path=str(payload.path),
                     total_files=None,
                     indexed_files=0,
                     last_error=None,
@@ -500,7 +497,7 @@ def create_search_tool_async(
         except Exception as e:
             log_error(
                 f"[search_index] failed to create folder task row: tool_id={tool.id} "
-                f"folder_node_id={payload.node_id} err={e}"
+                f"folder_path={payload.path} err={e}"
             )
 
         # Create S3 service for reading markdown files
@@ -514,7 +511,7 @@ def create_search_tool_async(
             tool_id=str(tool.id),
             user_id=str(current_user.user_id),
             project_id=project_id,
-            folder_node_id=str(payload.node_id),
+            folder_path=str(payload.path),
         )
 
         return ApiResponse.success(
@@ -523,7 +520,7 @@ def create_search_tool_async(
     else:
         # JSON Search: existing behavior
         log_info(
-            f"[search_index] json search mode: tool_id={tool.id} node_id={payload.node_id}"
+            f"[search_index] json search mode: tool_id={tool.id} path={payload.path}"
         )
         
         # 先写入一条 pending（便于轮询端立刻拿到状态）
@@ -533,7 +530,7 @@ def create_search_tool_async(
                     tool_id=str(tool.id),
                     user_id=str(current_user.user_id),
                     project_id=project_id,
-                    node_id=str(payload.node_id),
+                    path=str(payload.path),
                     json_path=payload.json_path or "",
                     status="pending",
                     started_at=None,
@@ -544,7 +541,7 @@ def create_search_tool_async(
         except Exception as e:
             log_error(
                 f"[search_index] failed to create task row: tool_id={tool.id} "
-                f"node_id={payload.node_id} json_path='{payload.json_path}' err={e}"
+                f"path={payload.path} json_path='{payload.json_path}' err={e}"
             )
 
         background_tasks.add_task(
@@ -554,7 +551,7 @@ def create_search_tool_async(
             tool_id=str(tool.id),
             user_id=str(current_user.user_id),
             project_id=project_id,
-            node_id=str(payload.node_id),
+            path=str(payload.path),
             json_path=payload.json_path or "",
         )
 
@@ -621,7 +618,7 @@ def get_search_index_status(
         indexed_chunks_count=task.indexed_chunks_count,
         last_error=task.last_error,
         # Folder search specific fields
-        folder_node_id=task.folder_node_id,
+        folder_path=task.folder_path,
         total_files=task.total_files,
         indexed_files=task.indexed_files,
     )

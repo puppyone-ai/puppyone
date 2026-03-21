@@ -11,7 +11,7 @@
  *
  * Implements the "Stateless Mirror" architecture:
  * - CLI only knows filenames, versions, and hashes
- * - No node_id / UUID anywhere in client code
+ * - No UUID anywhere in client code (uses path instead)
  * - All ID resolution happens on the backend
  */
 
@@ -301,15 +301,11 @@ export function registerAgentSubcommands(oc) {
 
           const folderName = absPath.split("/").pop() || "workspace";
           out.step(`Creating folder "${folderName}"...`);
-          const folder = await jwtClient.post("/nodes/folders", {
-            project_id: projectId,
-            name: folderName,
-          });
-          const nodeId = folder.id;
-          out.done(`node ${nodeId.slice(0, 8)}...`);
+          await jwtClient.post(`/tree/${projectId}/mkdir`, { path: folderName });
+          out.done(`${folderName}`);
 
           out.step("Bootstrapping filesystem connection...");
-          const sync = await jwtClient.post(`/filesystem/bootstrap?project_id=${projectId}&node_id=${nodeId}`);
+          const sync = await jwtClient.post(`/filesystem/bootstrap?project_id=${projectId}&path=${encodeURIComponent(folderName)}`);
           accessKey = sync.access_key;
           if (!accessKey) {
             out.done("");
@@ -687,7 +683,7 @@ function spawnDaemon(absPath) {
 }
 
 // ============================================================
-// Core: Reconcile (simplified — no node_id, no folder expansion)
+// Core: Reconcile (simplified — uses path-based addressing)
 // ============================================================
 
 async function reconcile(syncApi, folder, state, out, opts = {}) {
@@ -974,7 +970,10 @@ async function pushNewS3File(syncApi, folder, relPath, file, fileMap) {
   if (!putRes.ok) return;
 
   const confirmResp = await syncApi.confirmUpload({
-    filename: relPath, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
+    filename: relPath,
+    s3_key: urlResp.s3_key,
+    size_bytes: fileBuf.length,
+    content_hash: hashBuffer(fileBuf),
   });
   if (confirmResp.ok) {
     fileMap[relPath] = { version: confirmResp.version ?? 1, hash: file.hash, s3: true };
@@ -998,7 +997,10 @@ async function pushExistingFile(syncApi, folder, fileName, localFile, state) {
       });
       if (!putRes.ok) return;
       const confirmResp = await syncApi.confirmUpload({
-        filename: fileName, size_bytes: fileBuf.length, content_hash: hashBuffer(fileBuf),
+        filename: fileName,
+        s3_key: urlResp.s3_key,
+        size_bytes: fileBuf.length,
+        content_hash: hashBuffer(fileBuf),
       });
       if (confirmResp.ok) {
         state.files[fileName] = {

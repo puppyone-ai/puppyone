@@ -3,8 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional, List
 
-from src.supabase.repository import SupabaseRepository
-from src.supabase.tools.schemas import (
+from src.infra.supabase.repository import SupabaseRepository
+from src.tool.supabase_schemas import (
     ToolCreate as SbToolCreate,
     ToolUpdate as SbToolUpdate,
 )
@@ -27,7 +27,7 @@ class ToolRepositoryBase(ABC):
         *,
         skip: int = 0,
         limit: int = 100,
-        node_id: Optional[str] = None,
+        path: Optional[str] = None,
         project_id: Optional[str] = None,
     ) -> List[Tool]:
         pass
@@ -52,7 +52,7 @@ class ToolRepositorySupabase(ToolRepositoryBase):
             created_by=resp.created_by if resp.created_by else None,
             org_id=resp.org_id or "",
             project_id=resp.project_id,
-            node_id=resp.node_id,
+            path=resp.path,
             json_path=resp.json_path or "",
             type=resp.type or "",
             name=resp.name or "",
@@ -82,11 +82,11 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         *,
         skip: int = 0,
         limit: int = 100,
-        node_id: Optional[str] = None,
+        path: Optional[str] = None,
         project_id: Optional[str] = None,
     ) -> List[Tool]:
         resps = self._repo.get_tools(
-            skip=skip, limit=limit, org_id=org_id, node_id=node_id, project_id=project_id
+            skip=skip, limit=limit, org_id=org_id, path=path, project_id=project_id
         )
         return [self._to_model(r) for r in resps]
 

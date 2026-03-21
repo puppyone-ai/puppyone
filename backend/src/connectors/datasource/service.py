@@ -3,13 +3,11 @@ L2.5 Sync — SyncService (bidirectional sync orchestrator)
 
 Responsibilities:
   - bootstrap:       First-connect scan → create Sync rows
-  - pull_sync:       External → PuppyOne (via L2.commit)
+  - pull_sync:       External → PuppyOne (via MUT protocol)
   - pull_all:        Pull all active syncs
-  - push_node:       PuppyOne → external (after L2.commit)
+  - push_node:       PuppyOne → external (after write completes)
 
-All writes go through L2. L2.5 is a background conveyor belt, not a write gate.
-
-Connector resolution uses BaseConnector from src.connectors.datasource._base.
+All writes go through MutOps (clone → push under the hood).
 """
 
 import json
@@ -18,11 +16,7 @@ from typing import Optional, List, Any, TYPE_CHECKING
 from src.connectors.datasource._base import BaseConnector
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.schemas import Sync, PullResult, ResourceInfo
-from src.collaboration.schemas import Mutation, MutationType, Operator
 from src.utils.logger import log_info, log_error, log_debug
-
-if TYPE_CHECKING:
-    from src.collaboration.service import CollaborationService
 
 
 class SyncService:
@@ -30,10 +24,8 @@ class SyncService:
 
     def __init__(
         self,
-        collab_service: Optional["CollaborationService"],
         sync_repo: SyncRepository,
     ):
-        self.collab = collab_service
         self.sync_repo = sync_repo
         self._connectors: dict[str, BaseConnector] = {}
 
@@ -66,7 +58,7 @@ class SyncService:
         project_id: str,
         provider: str,
         config: dict,
-        target_folder_node_id: Optional[str] = None,
+        target_folder_path: Optional[str] = None,
         credentials_ref: Optional[str] = None,
         direction: str = "bidirectional",
         conflict_strategy: str = "three_way_merge",
@@ -75,7 +67,7 @@ class SyncService:
         user_id: Optional[str] = None,
     ) -> List[Sync]:
         """
-        First connect: scan external source, create nodes in PuppyOne,
+        First connect: scan external source, create files in PuppyOne,
         and create Sync rows for each binding.
 
         sync_mode: 'import_once' | 'manual' | 'scheduled'
@@ -96,7 +88,7 @@ class SyncService:
         temp_sync = Sync(
             id="",
             project_id=project_id,
-            node_id="",
+            path="",
             direction=direction,
             provider=provider,
             config=config,
@@ -113,10 +105,10 @@ class SyncService:
             if existing:
                 continue
 
-            node_id = await self._ensure_node_exists(
+            file_path = await self._ensure_node_exists(
                 project_id=project_id,
                 resource=res,
-                folder_node_id=target_folder_node_id,
+                folder_path=target_folder_path,
                 user_id=user_id,
             )
 
@@ -129,7 +121,7 @@ class SyncService:
 
             sync = self.sync_repo.create(
                 project_id=project_id,
-                node_id=node_id,
+                path=file_path,
                 direction=direction,
                 provider=provider,
                 config=sync_config,
@@ -138,7 +130,7 @@ class SyncService:
                 trigger=trigger_data,
             )
             created_syncs.append(sync)
-            log_info(f"[L2.5] Bound {res.external_resource_id} → node {node_id} (mode={sync_mode})")
+            log_info(f"[L2.5] Bound {res.external_resource_id} → {file_path} (mode={sync_mode})")
 
         log_info(f"[L2.5] Bootstrap complete: {len(created_syncs)} syncs created (mode={sync_mode})")
         return created_syncs
@@ -148,7 +140,7 @@ class SyncService:
         project_id: str,
         provider: str,
         config: dict,
-        target_folder_node_id: str,
+        target_folder_path: str,
         *,
         credentials_ref: Optional[str] = None,
         direction: str = "inbound",
@@ -159,7 +151,7 @@ class SyncService:
     ) -> Sync:
         """
         Create exactly one sync binding for connectors that fetch a single
-        aggregated resource into one PuppyOne node.
+        aggregated resource into one PuppyOne file.
         """
         connector = self._get_connector(provider)
         if not connector:
@@ -171,8 +163,8 @@ class SyncService:
                 f"Connector {provider} does not support direct sync creation"
             )
 
-        if not target_folder_node_id:
-            raise ValueError("target_folder_node_id is required")
+        if not target_folder_path:
+            raise ValueError("target_folder_path is required")
 
         trigger_data = trigger or {}
         if not trigger_data.get("type"):
@@ -183,23 +175,23 @@ class SyncService:
             name=config.get("name") or spec.display_name,
             node_type=spec.default_node_type,
         )
-        node_id = await self._ensure_node_exists(
+        file_path = await self._ensure_node_exists(
             project_id=project_id,
             resource=placeholder,
-            folder_node_id=target_folder_node_id,
+            folder_path=target_folder_path,
             user_id=user_id,
         )
 
         sync_config = {
             **config,
-            "external_resource_id": f"direct:{provider}:{node_id}",
+            "external_resource_id": f"direct:{provider}:{file_path}",
         }
         if user_id:
             sync_config["user_id"] = user_id
 
         sync = self.sync_repo.create(
             project_id=project_id,
-            node_id=node_id,
+            path=file_path,
             direction=direction,
             provider=provider,
             config=sync_config,
@@ -208,32 +200,35 @@ class SyncService:
             trigger=trigger_data,
         )
         log_info(
-            f"[L2.5] Direct sync created: {provider} → node {node_id} "
+            f"[L2.5] Direct sync created: {provider} → {file_path} "
             f"(mode={sync_mode})"
         )
         return sync
 
     async def _ensure_node_exists(
-        self, project_id: str, resource, folder_node_id: Optional[str],
+        self, project_id: str, resource: ResourceInfo, folder_path: Optional[str],
         user_id: Optional[str] = None,
     ) -> str:
-        """Ensure a corresponding node exists in PuppyOne. Create if missing."""
-        if not self.collab:
-            raise RuntimeError("collab_service required for _ensure_node_exists")
+        """Ensure a corresponding file exists in the Mut tree. Create if missing.
 
+        Returns the mut path of the file (stored in sync.path).
+        """
+        base_folder = folder_path or ""
+        name = resource.name
         node_type = resource.node_type if resource.node_type in ("json", "markdown") else "markdown"
-        mutation = Mutation(
-            type=MutationType.NODE_CREATE,
-            operator=Operator(type="sync", id=user_id),
-            project_id=project_id,
-            parent_id=folder_node_id,
-            name=resource.name,
-            node_type=node_type,
-            content={} if node_type == "json" else "",
-            created_by=user_id,
+        ext = ".json" if node_type == "json" else ".md" if node_type == "markdown" else ""
+        file_path = f"{base_folder}/{name}{ext}" if base_folder else f"{name}{ext}"
+
+        initial_content = b"{}" if node_type == "json" else b""
+        operator = f"sync:{user_id}" if user_id else "sync"
+
+        from src.mut_engine.dependencies import create_mut_ops
+        ops = create_mut_ops()
+        await ops.write_file(
+            project_id, file_path, initial_content,
+            who=operator, message=f"Create sync target: {name}",
         )
-        result = await self.collab.commit(mutation)
-        return result.node_id
+        return file_path
 
     # ============================================================
     # PULL: External → PuppyOne
@@ -241,9 +236,6 @@ class SyncService:
 
     async def pull_sync(self, sync_id: str) -> Optional[dict]:
         """Pull changes for a single sync."""
-        if not self.collab:
-            raise RuntimeError("collab_service required for PULL")
-
         sync = self.sync_repo.get_by_id(sync_id)
         if not sync or sync.status != "active":
             return None
@@ -258,9 +250,6 @@ class SyncService:
 
     async def pull_all(self, provider: Optional[str] = None) -> List[dict]:
         """Pull changes for all active syncs."""
-        if not self.collab:
-            raise RuntimeError("collab_service required for PULL")
-
         syncs = self.sync_repo.list_active(provider)
         results = []
         for sync in syncs:
@@ -274,7 +263,7 @@ class SyncService:
                 results.append(result)
 
         if results:
-            log_info(f"[L2.5] pull_all: {len(results)} nodes synced")
+            log_info(f"[L2.5] pull_all: {len(results)} files synced")
         return results
 
     async def _pull_one(
@@ -286,44 +275,49 @@ class SyncService:
             if not pull_result:
                 return None
 
-            base_content = self._get_base_content(sync)
-
             external_resource_id = sync.config.get("external_resource_id", "")
-            mutation = Mutation(
-                type=MutationType.CONTENT_UPDATE,
-                operator=Operator(
-                    type="sync",
-                    id=f"{sync.provider}:{external_resource_id}",
-                    summary=pull_result.summary or f"Sync from {sync.provider}",
-                ),
-                node_id=sync.node_id,
-                content=pull_result.content,
-                base_version=sync.last_sync_version,
-                node_type=pull_result.node_type,
-                base_content=base_content,
-            )
-            commit_result = await self.collab.commit(mutation)
+            file_path = sync.path
 
+            content = pull_result.content
+            if isinstance(content, dict) or isinstance(content, list):
+                content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
+            elif isinstance(content, str):
+                content_bytes = content.encode("utf-8")
+            elif isinstance(content, bytes):
+                content_bytes = content
+            else:
+                content_bytes = str(content).encode("utf-8")
+
+            operator = f"sync:{sync.provider}:{external_resource_id}"
+
+            from src.mut_engine.dependencies import create_mut_ops
+            ops = create_mut_ops()
+            write_result = await ops.write_file(
+                sync.project_id, file_path, content_bytes,
+                who=operator,
+                message=pull_result.summary or f"Sync from {sync.provider}",
+            )
+
+            new_version = write_result.version
             self.sync_repo.update_sync_point(
                 sync_id=sync.id,
-                last_sync_version=commit_result.version,
+                last_sync_version=new_version,
                 remote_hash=pull_result.remote_hash,
             )
 
             log_info(
                 f"[L2.5] PULL {sync.provider}:{external_resource_id} → "
-                f"node {sync.node_id} v{commit_result.version} ({commit_result.status})"
+                f"{file_path} v{new_version}"
             )
 
             return {
                 "sync_id": sync.id,
-                "node_id": sync.node_id,
-                "version": commit_result.version,
-                "status": commit_result.status,
+                "path": file_path,
+                "version": new_version,
             }
 
         except Exception as e:
-            log_error(f"[L2.5] PULL failed for node {sync.node_id}: {e}")
+            log_error(f"[L2.5] PULL failed for {sync.path}: {e}")
             self.sync_repo.update_error(sync.id, str(e))
             return None
 
@@ -333,16 +327,16 @@ class SyncService:
 
     async def push_node(
         self,
-        node_id: str,
+        path: str,
         version: int,
         content: Any,
         node_type: str,
     ) -> List[dict]:
         """
-        Called after L2.commit() succeeds.
-        Push changes to the external system bound to this node.
+        Called after a write completes.
+        Push changes to the external system bound to this path.
         """
-        sync = self.sync_repo.get_by_node(node_id)
+        sync = self.sync_repo.get_by_node(path)
         if not sync:
             return []
 
@@ -367,11 +361,11 @@ class SyncService:
                 )
                 external_resource_id = sync.config.get("external_resource_id", "")
                 log_info(
-                    f"[L2.5] PUSH node {node_id} v{version} → "
+                    f"[L2.5] PUSH {path} v{version} → "
                     f"{sync.provider}:{external_resource_id}"
                 )
                 return [{
-                    "node_id": sync.node_id,
+                    "path": sync.path,
                     "provider": sync.provider,
                     "success": True,
                 }]
@@ -380,7 +374,7 @@ class SyncService:
                 return []
 
         except Exception as e:
-            log_error(f"[L2.5] PUSH failed for node {node_id}: {e}")
+            log_error(f"[L2.5] PUSH failed for {path}: {e}")
             self.sync_repo.update_error(sync.id, str(e))
             return []
 
@@ -388,16 +382,17 @@ class SyncService:
     # Internal helpers
     # ============================================================
 
-    def _get_base_content(self, sync: Sync) -> Optional[str]:
+    async def _get_base_content(self, sync: Sync) -> Optional[str]:
         """Get base content for three-way merge (content at last sync version)."""
-        if sync.last_sync_version <= 0 or not self.collab:
+        if sync.last_sync_version <= 0:
             return None
         try:
-            ver = self.collab.get_version_content(sync.node_id, sync.last_sync_version)
-            if ver.content_text:
-                return ver.content_text
-            if ver.content_json is not None:
-                return json.dumps(ver.content_json, ensure_ascii=False, indent=2)
+            from src.mut_engine.dependencies import create_mut_write_service
+            admin = create_mut_write_service()
+            content_bytes = await admin.get_version_content(
+                sync.project_id, sync.path, sync.last_sync_version,
+            )
+            return content_bytes.decode("utf-8", errors="replace")
         except Exception:
             log_debug(f"[L2.5] Could not load base content for v{sync.last_sync_version}")
         return None

@@ -5,11 +5,9 @@ Imports Google Docs documents into content nodes as Markdown.
 """
 
 import hashlib
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
-
-from src.content_node.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -21,7 +19,7 @@ from src.connectors.datasource._base import (
     ConfigField,
 )
 from src.oauth.google_docs_service import GoogleDocsOAuthService
-from src.s3.service import S3Service
+from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
 
@@ -46,6 +44,7 @@ class GoogleDocsConnector(BaseConnector):
             creation_mode="direct",
             description="Sync documents",
             accept_types=("folder",),
+            icon_url="https://www.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png",
             config_fields=(
                 ConfigField(
                     key="source_url",
@@ -60,9 +59,9 @@ class GoogleDocsConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         docs_service: GoogleDocsOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.docs_service = docs_service
@@ -212,3 +211,17 @@ class GoogleDocsConnector(BaseConnector):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.oauth.google_docs_service import GoogleDocsOAuthService
+    oauth_svc = GoogleDocsOAuthService()
+    return ConnectorSetup(
+        connector=GoogleDocsConnector(
+            docs_service=oauth_svc,
+            s3_service=deps.s3_service,
+            node_service=deps.node_service,
+        ),
+        oauth_bindings={"docs": oauth_svc},
+    )

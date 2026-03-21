@@ -24,9 +24,9 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from src.llm.embedding_service import EmbeddingService
-from src.turbopuffer.config import TurbopufferConfig
-from src.turbopuffer.service import TurbopufferSearchService
+from src.infra.llm.embedding_service import EmbeddingService
+from src.infra.turbopuffer.config import TurbopufferConfig
+from src.infra.turbopuffer.service import TurbopufferSearchService
 from tests.e2e._reporter import E2EReporter
 
 
@@ -97,14 +97,14 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
     #   ├── data.json (json)
     #   └── notes.md (markdown)
 
-    folder_node_id = "folder-" + uuid4().hex[:8]
+    folder_path = "folder-" + uuid4().hex[:8]
     project_id = "proj-" + uuid4().hex[:8]
 
     # 模拟文件内容
     files = [
         {
-            "file_node_id": "file-readme-" + uuid4().hex[:6],
-            "file_id_path": f"/{folder_node_id}/readme-{uuid4().hex[:4]}",
+            "file_path": "file-readme-" + uuid4().hex[:6],
+            "file_mut_path": f"project-folder/readme.md",
             "file_name": "readme.md",
             "file_type": "markdown",
             "chunks": [
@@ -123,8 +123,8 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             ],
         },
         {
-            "file_node_id": "file-data-" + uuid4().hex[:6],
-            "file_id_path": f"/{folder_node_id}/data-{uuid4().hex[:4]}",
+            "file_path": "file-data-" + uuid4().hex[:6],
+            "file_mut_path": f"project-folder/data.json",
             "file_name": "data.json",
             "file_type": "json",
             "chunks": [
@@ -143,8 +143,8 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             ],
         },
         {
-            "file_node_id": "file-notes-" + uuid4().hex[:6],
-            "file_id_path": f"/{folder_node_id}/notes-{uuid4().hex[:4]}",
+            "file_path": "file-notes-" + uuid4().hex[:6],
+            "file_mut_path": f"project-folder/notes.md",
             "file_name": "notes.md",
             "file_type": "markdown",
             "chunks": [
@@ -165,8 +165,8 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
         for chunk in file["chunks"]:
             all_texts.append(chunk["text"])
             chunk_metadata.append({
-                "file_node_id": file["file_node_id"],
-                "file_id_path": file["file_id_path"],
+                "file_path": file["file_path"],
+                "file_mut_path": file["file_mut_path"],
                 "file_name": file["file_name"],
                 "file_type": file["file_type"],
                 "json_pointer": chunk["json_pointer"],
@@ -179,7 +179,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
         details={
             "total_files": len(files),
             "total_chunks": len(all_texts),
-            "folder_node_id": folder_node_id,
+            "folder_path": folder_path,
         },
     )
 
@@ -203,7 +203,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
     # 构建写入数据
     upsert_rows = []
     for i, (text, meta, vec) in enumerate(zip(all_texts, chunk_metadata, vectors)):
-        doc_id = f"{meta['file_node_id'][:12]}_{i}_{uuid4().hex[:6]}"
+        doc_id = f"{meta['file_path'][:12]}_{i}_{uuid4().hex[:6]}"
         upsert_rows.append({
             "id": doc_id,
             "vector": vec,
@@ -215,8 +215,8 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             "content_hash": f"hash-{i}",
             "chunk_id": i + 1,
             # 文件路径信息
-            "file_node_id": meta["file_node_id"],
-            "file_id_path": meta["file_id_path"],
+            "file_path": meta["file_path"],
+            "file_mut_path": meta["file_mut_path"],
             "file_name": meta["file_name"],
             "file_type": meta["file_type"],
         })
@@ -274,7 +274,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
                 attrs = row.attributes or {}
                 print(f"  [{j+1}] score={row.score or row.distance}")
                 print(f"      file: {attrs.get('file_name')} ({attrs.get('file_type')})")
-                print(f"      path: {attrs.get('file_id_path')}")
+                print(f"      path: {attrs.get('file_mut_path')}")
                 print(f"      pointer: {attrs.get('json_pointer')}")
                 if attrs.get('chunk_text'):
                     text_preview = attrs.get('chunk_text', '')[:100]
@@ -295,7 +295,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
                             "distance": r.distance,
                             "file_name": (r.attributes or {}).get("file_name"),
                             "file_type": (r.attributes or {}).get("file_type"),
-                            "file_id_path": (r.attributes or {}).get("file_id_path"),
+                            "file_mut_path": (r.attributes or {}).get("file_mut_path"),
                         }
                         for r in result.rows
                     ]
@@ -306,8 +306,8 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             assert result.rows, f"搜索 '{query}' 无结果"
             top_result = result.rows[0]
             attrs = top_result.attributes or {}
-            assert attrs.get("file_node_id"), "结果缺少 file_node_id"
-            assert attrs.get("file_id_path"), "结果缺少 file_id_path"
+            assert attrs.get("file_path"), "结果缺少 file_path"
+            assert attrs.get("file_mut_path"), "结果缺少 file_mut_path"
             assert attrs.get("file_name"), "结果缺少 file_name"
             assert attrs.get("file_type"), "结果缺少 file_type"
 
@@ -331,10 +331,10 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             "namespace": namespace,
             "region": cfg.region,
             "project_id": project_id,
-            "folder_node_id": folder_node_id,
+            "folder_path": folder_path,
             "files": [
                 {
-                    "file_node_id": f["file_node_id"],
+                    "file_path": f["file_path"],
                     "file_name": f["file_name"],
                     "file_type": f["file_type"],
                     "chunks_count": len(f["chunks"]),
@@ -358,7 +358,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
         summary={
             "namespace": namespace,
             "project_id": project_id,
-            "folder_node_id": folder_node_id,
+            "folder_path": folder_path,
             "total_files": len(files),
             "total_chunks": len(all_texts),
             "deleted": False,
@@ -377,8 +377,8 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
     print(f"1. 通过 Turbopuffer 控制台查看 namespace: {namespace}")
     print(f"2. 使用以下代码查询数据：")
     print(f"""
-    from src.turbopuffer.service import TurbopufferSearchService
-    from src.turbopuffer.config import TurbopufferConfig
+    from src.infra.turbopuffer.service import TurbopufferSearchService
+    from src.infra.turbopuffer.config import TurbopufferConfig
     import asyncio
 
     svc = TurbopufferSearchService()

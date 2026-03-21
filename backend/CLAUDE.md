@@ -38,31 +38,57 @@ backend/
 ├── src/                       # 主源码
 │   ├── main.py                # 应用入口 & 生命周期
 │   ├── config.py              # 全局配置 (Pydantic Settings)
-│   ├── auth/                  # JWT 认证
-│   ├── project/               # 项目管理
-│   ├── content_node/          # 内容节点树
-│   ├── table/                 # 结构化数据表 (JSON Pointer)
+│   │
+│   ├── mut_engine/            # MUT 版本引擎 (核心写入通道)
+│   │   ├── write_service.py   # 唯一写入入口
+│   │   ├── compat_service.py  # MutCompatService (旧 Mutation 接口兼容)
+│   │   ├── repo_manager.py    # per-project Mut 仓库管理
+│   │   ├── server_repo.py     # PuppyOneServerRepo (S3/PG 适配)
+│   │   ├── ops.py             # MutOps (统一读写入口)
+│   │   ├── ephemeral_client.py # MutEphemeralClient (clone→push)
+│   │   ├── tree_reader.py     # MutTreeReader (Merkle tree 读取)
+│   │   ├── audit_router.py    # 审计日志 API
+│   │   ├── protocol_router.py # MUT 线路协议 (clone/push/pull/negotiate)
+│   │   └── backends/          # S3 + Supabase 后端适配
+│   │
+│   ├── content/               # 内容节点树 (read index)
+│   │   └── table/             # 结构化数据表 (JSON Pointer)
 │   ├── tool/                  # 工具注册 & 搜索索引
-│   ├── agent/                 # Agent 聊天 (SSE) & 配置 & MCP 绑定
-│   ├── upload/                # 文件上传 & 摄取 ETL
-│   ├── sync/                  # SaaS 同步 (Notion/GitHub 等) & OpenClaw 文件夹同步
-│   ├── workspace/             # 工作区管理
-│   ├── collaboration/         # 协作 & 版本历史 & 审计日志
-│   ├── access/                # 访问控制 (OpenClaw 兼容层)
-│   ├── db_connector/          # 数据库连接器
-│   ├── security/              # 安全模块 (AES-256-GCM 加密)
-│   ├── search/                # 向量搜索 (Turbopuffer + RRF)
-│   ├── chunking/              # 文本分块
-│   ├── llm/                   # LLM 服务
-│   ├── oauth/                 # OAuth 集成 (9+ 平台)
-│   ├── s3/                    # S3 存储服务
-│   ├── sandbox/               # 代码沙盒 (E2B/Docker)
-│   ├── scheduler/             # 定时任务 (APScheduler)
-│   ├── context_publish/       # 公开 JSON 发布
-│   ├── analytics/             # 分析
-│   ├── profile/               # 用户画像
+│   │
+│   ├── connectors/            # 连接器
+│   │   ├── manager/           # 统一连接 CRUD (connections 表)
+│   │   ├── agent/             # AI Agent (config/chat/MCP 绑定)
+│   │   ├── datasource/        # SaaS 数据源 (Gmail/GitHub/Notion/...)
+│   │   ├── database/          # 外部数据库连接器
+│   │   └── filesystem/        # 本地文件夹同步 (OpenClaw)
+│   │
+│   ├── endpoints/             # 端点管理
+│   │   ├── mcp/               # MCP 端点 CRUD
+│   │   └── sandbox/           # Sandbox 端点 CRUD
+│   │
+│   ├── platform/              # 平台服务
+│   │   ├── auth/              # JWT 认证
+│   │   ├── organization/      # 组织 & 成员
+│   │   ├── project/           # 项目 CRUD & Dashboard
+│   │   ├── profile/           # 用户画像
+│   │   ├── workspace/         # 工作区
+│   │   └── analytics/         # 使用统计
+│   │
+│   ├── infra/                 # 基础设施
+│   │   ├── supabase/          # Supabase 客户端
+│   │   ├── s3/                # S3 存储
+│   │   ├── llm/               # LLM 服务
+│   │   ├── search/            # 向量搜索 (Turbopuffer)
+│   │   ├── chunking/          # 文本分块
+│   │   ├── scheduler/         # 定时任务 (APScheduler)
+│   │   ├── security/          # AES-256-GCM 加密
+│   │   └── turbopuffer/       # 向量 DB 客户端
+│   │
+│   ├── ingest/                # 数据摄取 ETL
+│   ├── oauth/                 # OAuth (9+ 平台)
+│   ├── sandbox/               # 沙盒运行时 (Docker/E2B)
+│   ├── context_publish/       # 公开 JSON 短链接
 │   ├── internal/              # 内部 API
-│   ├── supabase/              # Supabase 客户端 & Repository
 │   └── utils/                 # 工具库 (日志/中间件)
 ├── mcp_service/               # MCP Server 独立服务
 ├── sql/                       # 数据库 DDL
@@ -147,20 +173,26 @@ uv run arq src.upload.file.jobs.worker.WorkerSettings
 
 | 路由前缀 | 模块 | 说明 |
 |----------|------|------|
-| `/api/v1/projects` | project | 项目 CRUD |
-| `/api/v1/nodes` | content_node | 内容节点 (文件夹/JSON/MD/文件) |
-| `/api/v1/tables` | table | 数据表 & JSON Pointer 操作 |
+| `/api/v1/projects` | platform/project | 项目 CRUD & Dashboard |
+| `/api/v1/organizations` | platform/organization | 组织 & 成员 |
+| `/api/v1/nodes` | content | 内容节点 (文件夹/JSON/MD/文件) |
+| `/api/v1/tables` | content/table | 数据表 & JSON Pointer 操作 |
 | `/api/v1/tools` | tool | 工具注册 & 搜索索引 |
-| `/api/v1/agents` | agent | Agent SSE 流式对话 |
-| `/api/v1/mcp` | agent/mcp | MCP 工具绑定 & 代理 |
-| `/api/v1/ingest` | upload | 文件上传 & 摄取 ETL |
-| `/api/v1/sync` | sync | SaaS 同步 & OpenClaw 文件夹同步 |
-| `/api/v1/workspace` | workspace | 工作区管理 |
-| `/api/v1/collaboration` | collaboration | 协作 & 版本历史 & 审计日志 |
-| `/api/v1/db-connector` | db_connector | 数据库连接器 |
+| `/api/v1/agents` | connectors/agent | Agent SSE 流式对话 |
+| `/api/v1/agent-config` | connectors/agent/config | Agent CRUD & 权限 |
+| `/api/v1/mcp` | connectors/agent/mcp | MCP 工具绑定 & 代理 |
+| `/api/v1/mcp-endpoints` | endpoints/mcp | MCP 端点 CRUD |
+| `/api/v1/sandbox-endpoints` | endpoints/sandbox | Sandbox 端点 CRUD |
+| `/api/v1/connections` | connectors/manager | 统一连接管理 |
+| `/api/v1/sync` | connectors/datasource | SaaS 数据源同步 |
+| `/api/v1/collab` | mut_engine | 协作 (checkout/commit/versions/rollback/diff) |
+| `/api/v1/mut/{project_id}` | mut_engine | MUT 协议 (clone/push/pull/negotiate) |
+| `/api/v1/ingest` | ingest | 文件/URL 数据摄取 ETL |
+| `/api/v1/db-connector` | connectors/database | 数据库连接器 |
+| `/api/v1/workspace` | platform/workspace | 工作区管理 |
 | `/api/v1/publishes` | context_publish | 公开 JSON 短链接 |
 | `/api/v1/oauth` | oauth | OAuth 授权 (9+ 平台) |
-| `/api/v1/auth` | auth | 认证相关 |
+| `/api/v1/auth` | platform/auth | 认证相关 |
 | `/internal` | internal | 内部服务 API |
 | `/health` | main | 健康检查 |
 

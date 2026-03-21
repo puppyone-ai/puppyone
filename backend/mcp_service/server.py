@@ -67,7 +67,7 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
     # Part 1: 基于 agent_bash 的内置数据 CRUD 工具
     # ==========================================
     for idx, access in enumerate(accesses):
-        node_id = access.get("node_id", "")
+        path = access.get("path", "")
         json_path = access.get("json_path", "")
         
         # 生成工具名前缀（使用索引避免冲突）
@@ -78,21 +78,21 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_get_schema",
-                    description=f"[Legacy] Get JSON data schema (node: {node_id}). Prefer using 'cat' instead.",
+                    description=f"[Legacy] Get JSON data schema (node: {path}). Prefer using 'cat' instead.",
                     inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
                 )
             )
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_get_all_data",
-                    description=f"[Legacy] Get all JSON data (node: {node_id}). Prefer using 'cat' instead.",
+                    description=f"[Legacy] Get all JSON data (node: {path}). Prefer using 'cat' instead.",
                     inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
                 )
             )
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_query_data",
-                    description=f"[Legacy] Query JSON data with JMESPath (node: {node_id}). Useful for fine-grained JSON queries.",
+                    description=f"[Legacy] Query JSON data with JMESPath (node: {path}). Useful for fine-grained JSON queries.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -109,7 +109,7 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_create",
-                    description=f"[Legacy] Create JSON data elements (node: {node_id}). Prefer using 'write' instead.",
+                    description=f"[Legacy] Create JSON data elements (node: {path}). Prefer using 'write' instead.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -133,7 +133,7 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_update",
-                    description=f"[Legacy] Update JSON data elements (node: {node_id}). Prefer using 'write' instead.",
+                    description=f"[Legacy] Update JSON data elements (node: {path}). Prefer using 'write' instead.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -157,7 +157,7 @@ def _build_agent_tools_list(config: dict[str, Any]) -> list[mcp_types.Tool]:
             tools.append(
                 mcp_types.Tool(
                     name=f"{prefix}_delete",
-                    description=f"[Legacy] Delete JSON data elements (node: {node_id}). Prefer using 'rm' instead.",
+                    description=f"[Legacy] Delete JSON data elements (node: {path}). Prefer using 'rm' instead.",
                     inputSchema={
                         "type": "object",
                         "properties": {"keys": {"type": "array", "items": {"type": "string"}}},
@@ -516,40 +516,40 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 # 内置 JSON CRUD 工具执行 (基于 agent_bash)
                 else:
                     access = tool_config
-                    node_id = access.get("node_id", "")
+                    path = access.get("path", "")
                     json_path = access.get("json_path", "")
 
-                    if not node_id:
-                        return [mcp_types.TextContent(type="text", text="错误: node_id 缺失")]
+                    if not path:
+                        return [mcp_types.TextContent(type="text", text="错误: path 缺失")]
 
                     if tool_type == "get_schema":
                         if not access.get("tool_query"):
                             return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
-                        result = await table_tool.get_data_schema(table_id=node_id, json_path=json_path)
+                        result = await table_tool.get_data_schema(table_id=path, json_path=json_path)
                     elif tool_type == "get_all_data":
                         if not access.get("tool_query"):
                             return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
-                        result = await table_tool.get_all_data(table_id=node_id, json_path=json_path)
+                        result = await table_tool.get_all_data(table_id=path, json_path=json_path)
                     elif tool_type == "query_data":
                         if not access.get("tool_query"):
                             return [mcp_types.TextContent(type="text", text="错误: 没有查询权限")]
                         query = arguments.get("query")
-                        result = await table_tool.query_data(table_id=node_id, json_path=json_path, query=query)
+                        result = await table_tool.query_data(table_id=path, json_path=json_path, query=query)
                     elif tool_type == "create":
                         if not access.get("tool_create"):
                             return [mcp_types.TextContent(type="text", text="错误: 没有创建权限")]
                         elements = arguments.get("elements", [])
-                        result = await table_tool.create_element(table_id=node_id, json_path=json_path, elements=elements)
+                        result = await table_tool.create_element(table_id=path, json_path=json_path, elements=elements)
                     elif tool_type == "update":
                         if not access.get("tool_update"):
                             return [mcp_types.TextContent(type="text", text="错误: 没有更新权限")]
                         updates = arguments.get("updates", [])
-                        result = await table_tool.update_element(table_id=node_id, json_path=json_path, updates=updates)
+                        result = await table_tool.update_element(table_id=path, json_path=json_path, updates=updates)
                     elif tool_type == "delete":
                         if not access.get("tool_delete"):
                             return [mcp_types.TextContent(type="text", text="错误: 没有删除权限")]
                         keys = arguments.get("keys", [])
-                        result = await table_tool.delete_element(table_id=node_id, json_path=json_path, keys=keys)
+                        result = await table_tool.delete_element(table_id=path, json_path=json_path, keys=keys)
                     else:
                         return [mcp_types.TextContent(type="text", text=f"错误: 未支持的工具类型: {tool_type}")]
             

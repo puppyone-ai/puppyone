@@ -4,7 +4,7 @@ from supabase import Client
 
 from src.connectors.agent.chat.repository import ChatRepositorySupabase
 from src.connectors.agent.chat.service import ChatService
-from src.supabase.dependencies import get_supabase_client
+from src.infra.supabase.dependencies import get_supabase_client
 
 _chat_service: ChatService | None = None
 

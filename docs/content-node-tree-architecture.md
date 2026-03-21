@@ -539,5 +539,5 @@ Closure Table 的空间开销约为其他方案的 2 倍。
 | `content_node/repository.py` | `delete_by_id_path_prefix` | 按前缀删除 |
 | `content_node/repository.py` | `update_children_id_path_prefix` | 移动时更新子孙路径 |
 | `content_node/repository.py` | `list_by_project` | 按 id_path 排序列出项目节点 |
-| `collaboration/version_service.py` | `create_folder_snapshot` | 收集子孙版本 |
+| `mut_core/compat_service.py` | `create_folder_snapshot` | 文件夹快照（stub，版本历史已统一到 mut_commits） |
 | `search/service.py` | `index_folder` | 索引文件夹 |

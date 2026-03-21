@@ -70,7 +70,7 @@ export interface Tool {
   user_id: string;
   created_at: string;
 
-  node_id: string | null;  // 绑定的 content_nodes 节点 ID
+  path: string | null;  // 绑定的节点路径
   json_path: string;
   type: McpToolType;
   name: string;
@@ -91,7 +91,7 @@ export interface Tool {
  * 创建 Tool 请求
  */
 export interface ToolCreateRequest {
-  node_id?: string | null;  // 绑定的 content_nodes 节点 ID
+  path?: string | null;  // 绑定的节点路径
   json_path?: string; // 默认 ""
   type: McpToolType;
   name: string;
@@ -110,7 +110,7 @@ export interface ToolCreateRequest {
  * 更新 Tool 请求
  */
 export interface ToolUpdateRequest {
-  node_id?: string | null;
+  path?: string | null;
   json_path?: string;
   type?: McpToolType;
   name?: string;
@@ -196,7 +196,7 @@ export interface BoundTool {
 
   name: string;
   type: McpToolType;
-  node_id: string | null;  // 改为 node_id
+  path: string | null;
   json_path: string;
 
   alias?: string | null;
@@ -300,7 +300,7 @@ export interface SearchIndexTask {
   nodes_count: number | null;
   chunks_count: number | null;
   indexed_chunks_count: number | null;
-  folder_node_id?: string | null;
+  folder_path?: string | null;
   total_files?: number | null;
   indexed_files?: number | null;
   last_error: string | null;
@@ -385,13 +385,13 @@ export async function getTools(skip = 0, limit = 100): Promise<Tool[]> {
 /**
  * 获取指定节点的所有 Tool
  */
-export async function getToolsByNodeId(
+export async function getToolsByPath(
   nodeId: string,
   skip = 0,
   limit = 1000
 ): Promise<Tool[]> {
   return get<Tool[]>(
-    `/api/v1/tools/by-node/${nodeId}?skip=${skip}&limit=${limit}`
+    `/api/v1/tools/by-path/${nodeId}?skip=${skip}&limit=${limit}`
   );
 }
 
@@ -738,7 +738,7 @@ export async function createToolsAndMcp(params: {
     toolTypes.map(type => {
       const customDef = customDefinitions?.[type];
       return createTool({
-        node_id: nodeId,
+        path: nodeId,
         json_path: jsonPath,
         type: type,
         name: customDef?.name || `${toolNamePrefix}${type}`,

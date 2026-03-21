@@ -58,7 +58,7 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
         },
         "accesses": [
             {
-                "node_id": a.get("node_id"),
+                "path": a.get("path"),
                 "node_name": a.get("node_name", ""),
                 "node_type": a.get("node_type", ""),
                 "bash_enabled": a.get("bash_enabled", True),
@@ -78,7 +78,7 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
                 "name": t.get("name"),
                 "type": t.get("type"),
                 "description": t.get("description"),
-                "node_id": t.get("node_id"),
+                "path": t.get("path"),
                 "json_path": t.get("json_path", ""),
                 "input_schema": t.get("input_schema"),
                 "category": t.get("category", "builtin"),

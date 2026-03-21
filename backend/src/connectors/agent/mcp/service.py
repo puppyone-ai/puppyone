@@ -16,8 +16,8 @@ from src.connectors.agent.config.models import Agent, AgentTool
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositoryBase, ToolRepositorySupabase
 from src.tool.models import Tool
-from src.supabase.dependencies import get_supabase_repository
-from src.connectors.mcp.cache_invalidator import invalidate_mcp_cache
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.mcp.cache_invalidator import invalidate_mcp_cache
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
 
 from .models import McpAgentInfo, McpBoundTool
@@ -114,7 +114,7 @@ class McpV3Service:
                     name=tool.name,
                     type=tool.type,
                     description=tool.description,
-                    node_id=tool.node_id,
+                    path=tool.path,
                     json_path=tool.json_path,
                     enabled=at.enabled,
                     mcp_exposed=at.mcp_exposed,

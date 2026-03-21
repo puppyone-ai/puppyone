@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 
-from src.auth.dependencies import get_current_user
+from src.platform.auth.dependencies import get_current_user
 from src.oauth.notion_service import NotionOAuthService
 from src.oauth.github_service import GithubOAuthService
 from src.oauth.google_sheets_service import GoogleSheetsOAuthService

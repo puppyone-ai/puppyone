@@ -5,7 +5,7 @@
  *
  * Implements the "Stateless Mirror" architecture:
  * - Only knows filenames, content hashes, and versions
- * - No UUIDs, no node_ids, no parent_ids
+ * - No UUIDs, no paths need internal IDs, no parent_ids
  * - All ID resolution happens on the backend via /sync/{folder_id}/ endpoints
  *
  * Usage (internal, not user-facing):
@@ -444,6 +444,7 @@ async function pushS3File(api, absPath, relPath, state) {
 
     const confirmResp = await api.confirmUpload({
       filename: relPath,
+      s3_key: urlResp.s3_key,
       size_bytes: fileBuf.length,
       content_hash: currentHash,
     });

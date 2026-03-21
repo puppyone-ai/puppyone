@@ -8,7 +8,7 @@ interface McpEndpointData {
   name: string;
   api_key: string;
   status: string;
-  accesses: { node_id: string; json_path: string; readonly: boolean }[];
+  accesses: { path: string; json_path: string; readonly: boolean }[];
 }
 
 interface McpConfigPanelProps {
@@ -64,7 +64,7 @@ export function McpConfigPanel({ endpoint, onClose }: McpConfigPanelProps) {
 
   const serverUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/mcp/proxy/${endpoint.api_key}`;
   const targetLabel = endpoint.accesses.length > 0
-    ? endpoint.accesses[0].node_id
+    ? endpoint.accesses[0].path
     : 'Workspace';
 
   return (
@@ -135,7 +135,7 @@ export function McpConfigPanel({ endpoint, onClose }: McpConfigPanelProps) {
             <SectionLabel>Accesses ({endpoint.accesses.length})</SectionLabel>
             {endpoint.accesses.map((a, i) => (
               <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
-                {a.node_id} {a.readonly ? '(read-only)' : '(read-write)'}
+                {a.path} {a.readonly ? '(read-only)' : '(read-write)'}
               </div>
             ))}
           </div>

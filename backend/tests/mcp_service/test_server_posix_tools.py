@@ -15,7 +15,7 @@ def test_build_agent_tools_list_includes_posix_and_legacy_tools():
         "agent": {"id": "agent-1", "name": "Agent"},
         "accesses": [
             {
-                "node_id": "node-folder",
+                "path": "node-folder",
                 "node_name": "docs",
                 "node_type": "folder",
                 "bash_readonly": False,
@@ -67,7 +67,7 @@ def test_build_agent_tools_list_readonly_folder_has_readonly_posix_only():
         "agent": {"id": "agent-1", "name": "Agent"},
         "accesses": [
             {
-                "node_id": "node-folder",
+                "path": "node-folder",
                 "node_name": "docs",
                 "node_type": "folder",
                 "bash_readonly": True,
@@ -96,7 +96,7 @@ def test_build_agent_tools_list_without_folder_access_has_no_posix_tools():
         "agent": {"id": "agent-1", "name": "Agent"},
         "accesses": [
             {
-                "node_id": "node-json",
+                "path": "node-json",
                 "node_name": "users",
                 "node_type": "json",
                 "bash_readonly": False,
@@ -124,7 +124,7 @@ def test_find_access_and_tool_type_handles_custom_builtin_and_invalid():
     config = {
         "accesses": [
             {
-                "node_id": "node-1",
+                "path": "node-1",
                 "tool_query": True,
                 "tool_create": False,
                 "tool_update": False,

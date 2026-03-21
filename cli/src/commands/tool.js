@@ -48,7 +48,7 @@ export function registerTool(program) {
     .description("Create a tool")
     .argument("<name>", "tool name")
     .option("--type <type>", "tool type", "search")
-    .option("--node <node-id>", "content node to index")
+    .option("--node <path>", "content path to index")
     .option("--description <desc>", "tool description")
     .action(withErrors(async (name, opts, cmd) => {
       const out = createOutput(cmd);
@@ -62,7 +62,7 @@ export function registerTool(program) {
         description: opts.description,
       };
 
-      if (opts.node) body.node_id = opts.node;
+      if (opts.node) body.path = opts.node;
 
       let created;
       if (opts.type === "search") {
@@ -90,7 +90,7 @@ export function registerTool(program) {
         ["ID:", info.id],
         ["Type:", info.type ?? "-"],
         ["Description:", info.description ?? "(none)"],
-        ["Node:", info.node_id ?? "-"],
+        ["Node:", info.path ?? "-"],
         ["Created:", formatDate(info.created_at)],
         ["Updated:", formatDate(info.updated_at)],
       ]);

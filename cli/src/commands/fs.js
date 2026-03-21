@@ -4,16 +4,9 @@ import { pipeline } from "node:stream/promises";
 import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
 import {
-  withErrors, requireProject, resolvePath, resolveNode,
+  withErrors, requireProject, normalizePath,
   splitPath, formatDate, formatSize, typeIcon,
 } from "../helpers.js";
-
-async function listChildren(client, projectId, parentId) {
-  const query = { project_id: projectId };
-  if (parentId) query.parent_id = parentId;
-  const data = await client.get("/nodes", query);
-  return Array.isArray(data) ? data : data?.items ?? [];
-}
 
 export function registerFs(program) {
   const fs = program
@@ -31,34 +24,33 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const parentId = await resolvePath(client, projectId, pathArg);
-      const children = await listChildren(client, projectId, parentId);
+      const path = normalizePath(pathArg);
+      const data = await client.get(`/tree/${projectId}/ls`, { path });
+      const entries = data?.entries ?? data?.items ?? (Array.isArray(data) ? data : []);
 
       if (opts.long) {
         out.table(
-          children.map((n) => ({
+          entries.map((n) => ({
             type: n.type,
             name: n.name,
-            id: n.id?.slice(0, 8),
-            size: formatSize(n.size),
-            updated: formatDate(n.updated_at),
+            path: n.path,
+            size: formatSize(n.size_bytes),
           })),
           [
             { key: "type", label: "TYPE" },
             { key: "name", label: "NAME" },
-            { key: "id", label: "ID" },
+            { key: "path", label: "PATH" },
             { key: "size", label: "SIZE" },
-            { key: "updated", label: "UPDATED" },
           ]
         );
       } else {
-        for (const n of children) {
+        for (const n of entries) {
           out.info(`  ${typeIcon(n.type)} ${n.name}${n.type === "folder" ? "/" : ""}`);
         }
-        if (!children.length) out.info("  (empty)");
+        if (!entries.length) out.info("  (empty)");
       }
 
-      out.success({ path: pathArg, nodes: children });
+      out.success({ path: pathArg, entries });
     }));
 
   // ── tree ──────────────────────────────────────────────────
@@ -73,26 +65,25 @@ export function registerFs(program) {
       const projectId = requireProject(cmd);
       const maxDepth = parseInt(opts.depth, 10) || 3;
 
-      const parentId = await resolvePath(client, projectId, pathArg);
-
-      async function walk(pid, prefix, depth) {
+      async function walk(dirPath, prefix, depth) {
         if (depth > maxDepth) return;
-        const children = await listChildren(client, projectId, pid);
-        for (let i = 0; i < children.length; i++) {
-          const n = children[i];
-          const isLast = i === children.length - 1;
+        const data = await client.get(`/tree/${projectId}/ls`, { path: dirPath });
+        const entries = data?.entries ?? data?.items ?? (Array.isArray(data) ? data : []);
+        for (let i = 0; i < entries.length; i++) {
+          const n = entries[i];
+          const isLast = i === entries.length - 1;
           const connector = isLast ? "└── " : "├── ";
           const icon = typeIcon(n.type);
           out.info(`${prefix}${connector}${icon} ${n.name}${n.type === "folder" ? "/" : ""}`);
           if (n.type === "folder") {
             const childPrefix = prefix + (isLast ? "    " : "│   ");
-            await walk(n.id, childPrefix, depth + 1);
+            await walk(n.path, childPrefix, depth + 1);
           }
         }
       }
 
       out.info(`  ${pathArg ?? "/"}`);
-      await walk(parentId, "  ", 1);
+      await walk(normalizePath(pathArg), "  ", 1);
       out.success({ path: pathArg });
     }));
 
@@ -106,30 +97,22 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) {
-        out.error("NOT_FOUND", `File not found: ${pathArg}`);
-        return;
-      }
+      const path = normalizePath(pathArg);
+      const data = await client.get(`/tree/${projectId}/cat`, { path });
 
-      if (node.type === "folder") {
-        out.error("IS_FOLDER", `${pathArg} is a folder. Use \`fs ls\` instead.`);
-        return;
-      }
-
-      const detail = await client.get(`/nodes/${node.id}`);
-
-      if (detail.content != null) {
-        if (typeof detail.content === "string") {
-          out.raw(detail.content);
+      if (data.content != null) {
+        if (typeof data.content === "string") {
+          out.raw(data.content);
         } else {
-          out.raw(JSON.stringify(detail.content, null, 2));
+          out.raw(JSON.stringify(data.content, null, 2));
         }
-      } else if (detail.type === "file") {
+      } else if (data.content_text != null) {
+        out.raw(data.content_text);
+      } else if (data.type === "file") {
         out.info(`(binary file — use \`puppyone fs download ${pathArg}\` to download)`);
       }
 
-      out.success({ node: detail });
+      out.success({ path, data });
     }));
 
   // ── mkdir ─────────────────────────────────────────────────
@@ -142,17 +125,11 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const { parentPath, name } = splitPath(pathArg);
-      const parentId = parentPath ? await resolvePath(client, projectId, parentPath) : null;
+      const path = normalizePath(pathArg);
+      const result = await client.post(`/tree/${projectId}/mkdir`, { path });
 
-      const created = await client.post("/nodes/folder", {
-        project_id: projectId,
-        name,
-        parent_id: parentId,
-      });
-
-      out.info(`Created folder: ${pathArg} (${created.id})`);
-      out.success({ node: created });
+      out.info(`Created folder: ${pathArg}`);
+      out.success({ path, result });
     }));
 
   // ── touch ─────────────────────────────────────────────────
@@ -166,26 +143,23 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const { parentPath, name } = splitPath(pathArg);
-      const parentId = parentPath ? await resolvePath(client, projectId, parentPath) : null;
+      const path = normalizePath(pathArg);
+      const ext = extname(path).toLowerCase();
 
-      const ext = extname(name).toLowerCase();
       let fileType = opts.type;
       if (ext === ".md" || ext === ".markdown") fileType = "markdown";
       else if (ext === ".json") fileType = "json";
 
-      const endpoint = fileType === "markdown" ? "/nodes/markdown" : "/nodes/json";
-      const content = fileType === "markdown" ? "" : {};
+      const content = fileType === "markdown" ? "" : "{}";
 
-      const created = await client.post(endpoint, {
-        project_id: projectId,
-        name,
-        parent_id: parentId,
+      const result = await client.post(`/tree/${projectId}/write`, {
+        path,
         content,
+        type: fileType,
       });
 
-      out.info(`Created ${fileType}: ${pathArg} (${created.id})`);
-      out.success({ node: created });
+      out.info(`Created ${fileType}: ${pathArg}`);
+      out.success({ path, result });
     }));
 
   // ── write ─────────────────────────────────────────────────
@@ -213,15 +187,16 @@ export function registerFs(program) {
         try { content = JSON.parse(raw); } catch { content = raw; }
       }
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) {
-        out.error("NOT_FOUND", `File not found: ${pathArg}`, "Create it first with `puppyone fs touch`.");
-        return;
-      }
+      const path = normalizePath(pathArg);
+      const contentStr = typeof content === "string" ? content : JSON.stringify(content, null, 2);
 
-      await client.put(`/nodes/${node.id}`, { content });
+      const result = await client.post(`/tree/${projectId}/write`, {
+        path,
+        content: contentStr,
+      });
+
       out.info(`Updated: ${pathArg}`);
-      out.success({ path: pathArg, node_id: node.id });
+      out.success({ path, result });
     }));
 
   // ── mv ────────────────────────────────────────────────────
@@ -235,29 +210,10 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const srcNode = await resolveNode(client, projectId, src);
-      if (!srcNode) {
-        out.error("NOT_FOUND", `Source not found: ${src}`);
-        return;
-      }
+      const srcPath = normalizePath(src);
+      const dstPath = normalizePath(dst);
 
-      let dstNode = null;
-      try { dstNode = await resolveNode(client, projectId, dst); } catch { /* not found is ok */ }
-
-      if (dstNode && dstNode.type === "folder") {
-        await client.post(`/nodes/${srcNode.id}/move`, { parent_id: dstNode.id });
-      } else {
-        const { parentPath: dstParent, name: dstName } = splitPath(dst);
-
-        if (dstParent) {
-          const newParentId = await resolvePath(client, projectId, dstParent);
-          await client.post(`/nodes/${srcNode.id}/move`, { parent_id: newParentId });
-        }
-
-        if (dstName && dstName !== srcNode.name) {
-          await client.put(`/nodes/${srcNode.id}`, { name: dstName });
-        }
-      }
+      await client.post(`/tree/${projectId}/move`, { src: srcPath, dst: dstPath });
 
       out.info(`Moved: ${src} → ${dst}`);
       out.success({ from: src, to: dst });
@@ -266,22 +222,18 @@ export function registerFs(program) {
   // ── rm ────────────────────────────────────────────────────
   fs
     .command("rm")
-    .description("Delete a file or folder (soft delete)")
+    .description("Delete a file or folder (soft delete → .trash)")
     .argument("<path>", "remote path")
     .action(withErrors(async (pathArg, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) {
-        out.error("NOT_FOUND", `Not found: ${pathArg}`);
-        return;
-      }
+      const path = normalizePath(pathArg);
+      await client.post(`/tree/${projectId}/rm`, { path });
 
-      await client.del(`/nodes/${node.id}`);
       out.info(`Deleted: ${pathArg}`);
-      out.success({ deleted: pathArg, node_id: node.id });
+      out.success({ deleted: pathArg });
     }));
 
   // ── info ──────────────────────────────────────────────────
@@ -294,26 +246,20 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) {
-        out.error("NOT_FOUND", `Not found: ${pathArg}`);
-        return;
-      }
-
-      const detail = await client.get(`/nodes/${node.id}`);
+      const path = normalizePath(pathArg);
+      const data = await client.get(`/tree/${projectId}/stat`, { path });
 
       out.kv([
-        ["Name:", detail.name],
-        ["ID:", detail.id],
-        ["Type:", detail.type],
-        ["Version:", String(detail.version ?? 1)],
-        ["Size:", formatSize(detail.size)],
-        ["Created:", formatDate(detail.created_at)],
-        ["Updated:", formatDate(detail.updated_at)],
-        ["Parent:", detail.parent_id ?? "(root)"],
+        ["Name:", data.name],
+        ["Path:", data.path],
+        ["Type:", data.type],
+        ["Size:", formatSize(data.size_bytes)],
+        ["MIME:", data.mime_type ?? "-"],
+        ["Children:", data.children_count != null ? String(data.children_count) : "-"],
+        ["Hash:", data.content_hash ?? "-"],
       ]);
 
-      out.success({ node: detail });
+      out.success({ entry: data });
     }));
 
   // ── upload ────────────────────────────────────────────────
@@ -321,7 +267,7 @@ export function registerFs(program) {
     .command("upload")
     .description("Upload a local file to the cloud file system")
     .argument("<local-path>", "local file to upload")
-    .argument("[remote-path]", "remote destination folder path")
+    .argument("[remote-path]", "remote destination folder or file path")
     .action(withErrors(async (localPath, remotePath, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
@@ -329,37 +275,38 @@ export function registerFs(program) {
 
       const absLocal = pathResolve(localPath);
       const fileName = basename(absLocal);
+      const ext = extname(fileName).toLowerCase();
+      const fileContent = readFileSync(absLocal);
 
-      let parentId = null;
-      if (remotePath) {
-        parentId = await resolvePath(client, projectId, remotePath);
-      }
+      const destPath = remotePath
+        ? normalizePath(remotePath) + "/" + fileName
+        : fileName;
 
       out.step(`Uploading ${fileName}...`);
 
-      const prepData = await client.post("/nodes/upload", {
-        project_id: projectId,
-        name: fileName,
-        parent_id: parentId,
-      });
-
-      if (prepData.upload_url) {
-        const fileContent = readFileSync(absLocal);
-        const uploadRes = await fetch(prepData.upload_url, {
-          method: "PUT",
-          body: fileContent,
-          headers: { "Content-Type": "application/octet-stream" },
+      if (ext === ".json" || ext === ".md" || ext === ".markdown" || ext === ".txt") {
+        const text = fileContent.toString("utf-8");
+        const type = ext === ".json" ? "json" : "markdown";
+        await client.post(`/tree/${projectId}/write`, {
+          path: destPath,
+          content: text,
+          type,
         });
-        if (!uploadRes.ok) {
-          out.done("");
-          out.error("UPLOAD_FAILED", `S3 upload failed: ${uploadRes.status}`);
-          return;
-        }
+        out.done("done");
+        out.info(`  Uploaded: ${fileName} → ${destPath}`);
+      } else {
+        const base64 = fileContent.toString("base64");
+        await client.post(`/tree/${projectId}/write`, {
+          path: destPath,
+          content: base64,
+          encoding: "base64",
+          type: "file",
+        });
+        out.done("done");
+        out.info(`  Uploaded: ${fileName} → ${destPath}`);
       }
 
-      out.done("done");
-      out.info(`  Uploaded: ${fileName} → ${remotePath ?? "/"}`);
-      out.success({ file: fileName, node: prepData });
+      out.success({ file: fileName, path: destPath });
     }));
 
   // ── download ──────────────────────────────────────────────
@@ -373,133 +320,119 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, remotePath);
-      if (!node) {
-        out.error("NOT_FOUND", `Not found: ${remotePath}`);
-        return;
-      }
+      const path = normalizePath(remotePath);
+      const data = await client.get(`/tree/${projectId}/cat`, { path });
 
-      if (node.type === "folder") {
-        out.error("IS_FOLDER", "Cannot download a folder.");
-        return;
-      }
+      const fileName = path.includes("/") ? path.split("/").pop() : path;
+      const destFile = localPath ? pathResolve(localPath) : pathResolve(fileName);
 
-      if (node.type === "json" || node.type === "markdown") {
-        const detail = await client.get(`/nodes/${node.id}`);
-        const destFile = localPath
-          ? pathResolve(localPath)
-          : pathResolve(node.name);
-
-        const text = typeof detail.content === "string"
-          ? detail.content
-          : JSON.stringify(detail.content, null, 2);
+      if (data.content != null) {
+        const text = typeof data.content === "string"
+          ? data.content
+          : JSON.stringify(data.content, null, 2);
         writeFileSync(destFile, text, "utf-8");
-        out.info(`Downloaded: ${remotePath} → ${destFile}`);
-        out.success({ path: destFile });
+      } else if (data.content_text != null) {
+        writeFileSync(destFile, data.content_text, "utf-8");
+      } else if (data.download_url) {
+        out.step(`Downloading ${fileName}...`);
+        const res = await fetch(data.download_url);
+        if (!res.ok) {
+          out.done("");
+          out.error("DOWNLOAD_FAILED", `Download failed: ${res.status}`);
+          return;
+        }
+        const ws = createWriteStream(destFile);
+        await pipeline(res.body, ws);
+        out.done("done");
+      } else {
+        out.error("NO_CONTENT", "File has no downloadable content.");
         return;
       }
 
-      const dlData = await client.get(`/nodes/${node.id}/download`);
-      if (!dlData?.download_url) {
-        out.error("NO_URL", "No download URL available.");
-        return;
-      }
-
-      const destFile = localPath
-        ? pathResolve(localPath)
-        : pathResolve(node.name);
-
-      out.step(`Downloading ${node.name}...`);
-
-      const res = await fetch(dlData.download_url);
-      if (!res.ok) {
-        out.done("");
-        out.error("DOWNLOAD_FAILED", `Download failed: ${res.status}`);
-        return;
-      }
-
-      const ws = createWriteStream(destFile);
-      await pipeline(res.body, ws);
-
-      out.done("done");
-      out.info(`  Downloaded: ${remotePath} → ${destFile}`);
+      out.info(`Downloaded: ${remotePath} → ${destFile}`);
       out.success({ path: destFile });
     }));
 
   // ── versions ──────────────────────────────────────────────
   fs
     .command("versions")
-    .description("Show version history of a file")
-    .argument("<path>", "remote file path")
+    .description("Show version history")
+    .argument("[path]", "file path (omit for project-level history)")
     .action(withErrors(async (pathArg, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) { out.error("NOT_FOUND", `Not found: ${pathArg}`); return; }
+      const params = { limit: "50" };
+      if (pathArg) params.path = normalizePath(pathArg);
 
-      const data = await client.get(`/nodes/${node.id}/versions`);
-      const versions = Array.isArray(data) ? data : data?.items ?? [];
+      const data = await client.get(`/tree/${projectId}/versions`, params);
+      const commits = data?.commits ?? [];
 
-      out.table(
-        versions.map((v) => ({
-          version: String(v.version ?? v.id),
-          date: formatDate(v.created_at),
-          author: v.author ?? v.user_email ?? "-",
-          size: formatSize(v.size),
-        })),
-        [
-          { key: "version", label: "VERSION" },
-          { key: "date", label: "DATE" },
-          { key: "author", label: "AUTHOR" },
-          { key: "size", label: "SIZE" },
-        ]
-      );
-      out.success({ node_id: node.id, versions });
+      for (const c of commits) {
+        const isHead = c.version === data.current_version;
+        const tag = isHead ? " ● HEAD" : "";
+        const changes = (c.changes || []);
+        const added = changes.filter(x => x.op === "added").length;
+        const modified = changes.filter(x => x.op === "modified").length;
+        const deleted = changes.filter(x => x.op === "deleted").length;
+        const stats = [
+          added ? `+${added}` : "",
+          modified ? `~${modified}` : "",
+          deleted ? `-${deleted}` : "",
+        ].filter(Boolean).join(" ");
+
+        out.info(`  v${c.version}${tag}  ${c.who}  "${c.message}"  ${stats}  ${formatDate(c.created_at)}`);
+      }
+
+      if (!commits.length) out.info("  No commits yet.");
+      out.success({ current_version: data.current_version, commits });
     }));
 
   // ── diff ──────────────────────────────────────────────────
   fs
     .command("diff")
-    .description("Compare two versions of a file")
-    .argument("<path>", "remote file path")
+    .description("Compare two versions")
     .argument("<v1>", "first version number")
     .argument("<v2>", "second version number")
-    .action(withErrors(async (pathArg, v1, v2, opts, cmd) => {
+    .option("--path <path>", "file path to diff")
+    .action(withErrors(async (v1, v2, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) { out.error("NOT_FOUND", `Not found: ${pathArg}`); return; }
+      const params = { v1, v2 };
+      if (opts.path) params.path = normalizePath(opts.path);
 
-      const data = await client.get(`/nodes/${node.id}/diff/${v1}/${v2}`);
-      if (data?.diff) {
-        out.raw(typeof data.diff === "string" ? data.diff : JSON.stringify(data.diff, null, 2));
+      const data = await client.get(`/tree/${projectId}/diff`, params);
+      if (data?.changes) {
+        for (const c of data.changes) {
+          const color = c.change_type === "added" ? "+" : c.change_type === "removed" ? "-" : "~";
+          out.info(`  ${color} ${c.path}`);
+        }
       } else {
         out.raw(JSON.stringify(data, null, 2));
       }
-      out.success({ node_id: node.id, v1, v2, diff: data });
+      out.success({ diff: data });
     }));
 
   // ── rollback ──────────────────────────────────────────────
   fs
     .command("rollback")
-    .description("Rollback a file to a previous version")
-    .argument("<path>", "remote file path")
+    .description("Rollback to a previous version")
     .argument("<version>", "version number to rollback to")
-    .action(withErrors(async (pathArg, version, opts, cmd) => {
+    .option("--path <path>", "file path to rollback")
+    .action(withErrors(async (version, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) { out.error("NOT_FOUND", `Not found: ${pathArg}`); return; }
+      const body = { target_version: parseInt(version, 10) };
+      if (opts.path) body.path = normalizePath(opts.path);
 
-      await client.post(`/nodes/${node.id}/rollback/${version}`);
-      out.info(`Rolled back ${pathArg} to version ${version}`);
-      out.success({ node_id: node.id, version });
+      const result = await client.post(`/tree/${projectId}/rollback`, body);
+      out.info(`Rolled back to version ${version}`);
+      out.success({ result });
     }));
 
   // ── audit ─────────────────────────────────────────────────
@@ -512,26 +445,24 @@ export function registerFs(program) {
       const client = createClient(cmd);
       const projectId = requireProject(cmd);
 
-      const node = await resolveNode(client, projectId, pathArg);
-      if (!node) { out.error("NOT_FOUND", `Not found: ${pathArg}`); return; }
-
-      const data = await client.get(`/nodes/${node.id}/audit-logs`);
-      const logs = Array.isArray(data) ? data : data?.items ?? [];
+      const path = normalizePath(pathArg);
+      const data = await client.get(`/nodes/${encodeURIComponent(path)}/audit-logs`, { project_id: projectId });
+      const logs = data?.logs ?? (Array.isArray(data) ? data : data?.items ?? []);
 
       out.table(
         logs.map((l) => ({
           time: formatDate(l.created_at ?? l.timestamp),
           action: l.action ?? l.event_type ?? "-",
-          user: l.user_email ?? l.actor ?? "-",
+          who: l.operator_id ?? l.user_email ?? l.actor ?? "-",
           detail: l.detail ?? l.description ?? "-",
         })),
         [
           { key: "time", label: "TIME" },
           { key: "action", label: "ACTION" },
-          { key: "user", label: "USER" },
+          { key: "who", label: "WHO" },
           { key: "detail", label: "DETAIL" },
         ]
       );
-      out.success({ node_id: node.id, audit_logs: logs });
+      out.success({ path, audit_logs: logs });
     }));
 }

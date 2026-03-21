@@ -3,10 +3,15 @@ Agent Config 数据仓库
 
 统一架构：Agent 数据存储在 connections 表中 (provider='agent')。
 AgentRepository 是 connections 表上的一个领域视图，专门处理 agent 类型的记录。
-connection_access / connection_tool 为共享权限表，FK 指向 connections.id。
+
+Mut-Native 架构: Agent 访问权限存储在 connections.config.scope 中 (JSONB)。
+connection_accesses 表已被删除。scope 格式:
+  { "path": "docs/", "exclude": [], "mode": "rw" }
+前端 bash_accesses 由 scope 派生而来。
 """
 
 from typing import List, Optional
+from datetime import datetime, timezone
 import secrets
 
 from src.connectors.agent.config.models import Agent, AgentBash, AgentTool
@@ -16,17 +21,25 @@ from src.utils.id_generator import generate_uuid_v7
 AGENT_PROVIDER = "agent"
 
 
-def _row_to_bash(row: dict) -> AgentBash:
-    """Map connection_access DB row to AgentBash model."""
-    permission = row.get("permission", "r")
-    return AgentBash(
-        id=row["id"],
-        agent_id=row.get("connection_id", row.get("agent_id", "")),
-        node_id=row["node_id"],
-        json_path=row.get("json_path", ""),
-        readonly=(permission == "r"),
-        created_at=row["created_at"],
-    )
+def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
+    """Derive AgentBash list from connections.config.scope (Mut-Native)."""
+    scope = config.get("scope")
+    if not scope:
+        return []
+    if scope.get("_orphaned_from"):
+        return []
+    path = scope.get("path", "")
+    if not path:
+        return []
+    mode = scope.get("mode", "r")
+    return [AgentBash(
+        id=f"{agent_id}:scope",
+        agent_id=agent_id,
+        path=path,
+        json_path="",
+        readonly=(mode == "r"),
+        created_at=datetime.now(timezone.utc),
+    )]
 
 
 def _row_to_tool(row: dict) -> AgentTool:
@@ -66,7 +79,7 @@ def _row_to_agent(row: dict) -> Agent:
         trigger_type=trigger.get("type", "manual"),
         trigger_config=trigger.get("config"),
         task_content=config.get("task_content"),
-        task_node_id=config.get("task_node_id"),
+        task_path=config.get("task_path"),
         external_config=config.get("external_config"),
         llm_model=config.get("llm_model"),
         system_prompt=config.get("system_prompt"),
@@ -82,7 +95,7 @@ class AgentRepository:
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
-            from src.supabase.dependencies import get_supabase_client
+            from src.infra.supabase.dependencies import get_supabase_client
             self._client = get_supabase_client()
         else:
             self._client = supabase_client
@@ -105,10 +118,17 @@ class AgentRepository:
         return None
 
     def get_by_id_with_accesses(self, agent_id: str) -> Optional[Agent]:
-        agent = self.get_by_id(agent_id)
-        if agent:
-            agent.bash_accesses = self.get_bash_by_agent_id(agent_id)
-            agent.tools = self.get_tools_by_agent_id(agent_id)
+        response = (
+            self._query()
+            .eq("id", agent_id)
+            .execute()
+        )
+        if not response.data:
+            return None
+        row = response.data[0]
+        agent = _row_to_agent(row)
+        agent.bash_accesses = _scope_to_bash(agent_id, row.get("config") or {})
+        agent.tools = self.get_tools_by_agent_id(agent_id)
         return agent
 
     def get_by_project_id(self, project_id: str) -> List[Agent]:
@@ -121,23 +141,24 @@ class AgentRepository:
         return [_row_to_agent(row) for row in response.data]
 
     def get_by_project_id_with_accesses(self, project_id: str) -> List[Agent]:
-        agents = self.get_by_project_id(project_id)
+        """Load agents with scope-derived bash_accesses and tool bindings."""
+        response = (
+            self._query()
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        agents = [_row_to_agent(row) for row in response.data]
         if not agents:
             return agents
 
         agent_ids = [a.id for a in agents]
 
-        all_bash = (
-            self._client.table("connection_accesses")
-            .select("*")
-            .in_("connection_id", agent_ids)
-            .order("created_at")
-            .execute()
-        ).data
+        # Derive bash_accesses from connections.config.scope
+        config_by_id = {row["id"]: (row.get("config") or {}) for row in response.data}
         bash_by_agent: dict[str, list[AgentBash]] = {}
-        for row in all_bash:
-            cid = row.get("connection_id", "")
-            bash_by_agent.setdefault(cid, []).append(_row_to_bash(row))
+        for aid, cfg in config_by_id.items():
+            bash_by_agent[aid] = _scope_to_bash(aid, cfg)
 
         all_tools = (
             self._client.table("connection_tools")
@@ -180,10 +201,17 @@ class AgentRepository:
         return None
 
     def get_by_mcp_api_key_with_accesses(self, mcp_api_key: str) -> Optional[Agent]:
-        agent = self.get_by_mcp_api_key(mcp_api_key)
-        if agent:
-            agent.bash_accesses = self.get_bash_by_agent_id(agent.id)
-            agent.tools = self.get_tools_by_agent_id_for_mcp(agent.id)
+        response = (
+            self._query()
+            .eq("access_key", mcp_api_key)
+            .execute()
+        )
+        if not response.data:
+            return None
+        row = response.data[0]
+        agent = _row_to_agent(row)
+        agent.bash_accesses = _scope_to_bash(agent.id, row.get("config") or {})
+        agent.tools = self.get_tools_by_agent_id_for_mcp(agent.id)
         return agent
 
     def create(
@@ -197,7 +225,7 @@ class AgentRepository:
         trigger_type: Optional[str] = "manual",
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
         llm_model: Optional[str] = None,
         system_prompt: Optional[str] = None,
@@ -212,7 +240,7 @@ class AgentRepository:
             "description": description,
             "is_default": is_default,
             "task_content": task_content,
-            "task_node_id": task_node_id,
+            "task_path": task_path,
             "external_config": external_config,
             "llm_model": llm_model,
             "system_prompt": system_prompt,
@@ -225,7 +253,7 @@ class AgentRepository:
         data = {
             "id": agent_id,
             "project_id": project_id,
-            "node_id": task_node_id,  # nullable
+            "path": task_path,  # nullable
             "direction": "bidirectional",
             "provider": AGENT_PROVIDER,
             "config": config,
@@ -248,7 +276,7 @@ class AgentRepository:
         trigger_type: Optional[str] = None,
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
         llm_model: Optional[str] = None,
         system_prompt: Optional[str] = None,
@@ -282,8 +310,8 @@ class AgentRepository:
             config["is_default"] = is_default
         if task_content is not None:
             config["task_content"] = task_content
-        if task_node_id is not None:
-            config["task_node_id"] = task_node_id
+        if task_path is not None:
+            config["task_path"] = task_path
         if external_config is not None:
             config["external_config"] = external_config
         if llm_model is not None:
@@ -302,8 +330,8 @@ class AgentRepository:
         }
         if mcp_api_key is not None:
             update_data["access_key"] = mcp_api_key
-        if task_node_id is not None:
-            update_data["node_id"] = task_node_id
+        if task_path is not None:
+            update_data["path"] = task_path
 
         resp = (
             self._client.table(self.TABLE)
@@ -340,53 +368,72 @@ class AgentRepository:
         org_id = response.data[0].get("org_id")
         if not org_id:
             return False
-        from src.organization.repository import OrganizationRepository
+        from src.platform.organization.repository import OrganizationRepository
         org_repo = OrganizationRepository(supabase_client=self._client)
         member = org_repo.get_member(org_id, user_id)
         return member is not None
 
     # ============================================
-    # AgentBash CRUD
+    # AgentBash CRUD — operates on connections.config.scope (JSONB)
     # ============================================
 
-    def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
-        response = (
-            self._client.table("connection_accesses")
-            .select("*")
-            .eq("connection_id", agent_id)
-            .order("created_at")
+    def _get_agent_config(self, agent_id: str) -> Optional[dict]:
+        """Read raw config JSONB for an agent."""
+        resp = (
+            self._client.table(self.TABLE)
+            .select("config")
+            .eq("id", agent_id)
             .execute()
         )
-        return [_row_to_bash(row) for row in response.data]
+        if resp.data:
+            return resp.data[0].get("config") or {}
+        return None
+
+    def _update_scope(self, agent_id: str, scope: dict) -> None:
+        """Write scope back into connections.config.scope."""
+        config = self._get_agent_config(agent_id)
+        if config is None:
+            return
+        config["scope"] = scope
+        self._client.table(self.TABLE).update(
+            {"config": config, "updated_at": "now()"}
+        ).eq("id", agent_id).execute()
+
+    def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
+        config = self._get_agent_config(agent_id)
+        if config is None:
+            return []
+        return _scope_to_bash(agent_id, config)
 
     def get_bash_by_id(self, bash_id: str) -> Optional[AgentBash]:
-        response = (
-            self._client.table("connection_accesses")
-            .select("*")
-            .eq("id", bash_id)
-            .execute()
-        )
-        if response.data:
-            return _row_to_bash(response.data[0])
+        agent_id = bash_id.split(":")[0] if ":" in bash_id else bash_id
+        accesses = self.get_bash_by_agent_id(agent_id)
+        for a in accesses:
+            if a.id == bash_id:
+                return a
         return None
 
     def create_bash(
         self,
         agent_id: str,
-        node_id: str,
+        path: str,
         json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
-        bash_id = generate_uuid_v7()
-        data = {
-            "id": bash_id,
-            "connection_id": agent_id,
-            "node_id": node_id,
-            "json_path": json_path,
-            "permission": "r" if readonly else "rw",
+        scope = {
+            "path": path,
+            "exclude": [],
+            "mode": "r" if readonly else "rw",
         }
-        response = self._client.table("connection_accesses").insert(data).execute()
-        return _row_to_bash(response.data[0])
+        self._update_scope(agent_id, scope)
+        return AgentBash(
+            id=f"{agent_id}:scope",
+            agent_id=agent_id,
+            path=path,
+            json_path=json_path,
+            readonly=readonly,
+            created_at=datetime.now(timezone.utc),
+        )
 
     def update_bash(
         self,
@@ -394,106 +441,41 @@ class AgentRepository:
         json_path: Optional[str] = None,
         readonly: Optional[bool] = None,
     ) -> Optional[AgentBash]:
-        data = {}
-        if json_path is not None:
-            data["json_path"] = json_path
+        agent_id = bash_id.split(":")[0] if ":" in bash_id else bash_id
+        config = self._get_agent_config(agent_id)
+        if config is None:
+            return None
+        scope = config.get("scope", {})
         if readonly is not None:
-            data["permission"] = "r" if readonly else "rw"
-        if not data:
-            return self.get_bash_by_id(bash_id)
-
-        response = (
-            self._client.table("connection_accesses")
-            .update(data)
-            .eq("id", bash_id)
-            .execute()
-        )
-        if response.data:
-            return _row_to_bash(response.data[0])
-        return None
+            scope["mode"] = "r" if readonly else "rw"
+        self._update_scope(agent_id, scope)
+        return self.get_bash_by_id(bash_id)
 
     def delete_bash(self, bash_id: str) -> bool:
-        response = (
-            self._client.table("connection_accesses")
-            .delete()
-            .eq("id", bash_id)
-            .execute()
-        )
-        return len(response.data) > 0
+        agent_id = bash_id.split(":")[0] if ":" in bash_id else bash_id
+        config = self._get_agent_config(agent_id)
+        if config is None:
+            return False
+        if "scope" in config:
+            del config["scope"]
+            self._client.table(self.TABLE).update(
+                {"config": config, "updated_at": "now()"}
+            ).eq("id", agent_id).execute()
+        return True
 
     def delete_bash_by_agent_id(self, agent_id: str) -> int:
-        response = (
-            self._client.table("connection_accesses")
-            .delete()
-            .eq("connection_id", agent_id)
-            .execute()
-        )
-        return len(response.data)
+        if self.delete_bash(f"{agent_id}:scope"):
+            return 1
+        return 0
 
     def upsert_bash(
         self,
         agent_id: str,
-        node_id: str,
+        path: str,
         json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
-        bash_id = generate_uuid_v7()
-        data = {
-            "id": bash_id,
-            "connection_id": agent_id,
-            "node_id": node_id,
-            "json_path": json_path,
-            "permission": "r" if readonly else "rw",
-        }
-        response = (
-            self._client.table("connection_accesses")
-            .upsert(data, on_conflict="connection_id,node_id,json_path")
-            .execute()
-        )
-        return _row_to_bash(response.data[0])
-
-    # ============================================
-    # Backward-compatible aliases
-    # ============================================
-
-    def get_accesses_by_agent_id(self, agent_id: str) -> List[AgentBash]:
-        return self.get_bash_by_agent_id(agent_id)
-
-    def get_access_by_id(self, access_id: str) -> Optional[AgentBash]:
-        return self.get_bash_by_id(access_id)
-
-    def create_access(
-        self,
-        agent_id: str,
-        node_id: str,
-        terminal: bool = False,
-        terminal_readonly: bool = True,
-        can_read: bool = False,
-        can_write: bool = False,
-        can_delete: bool = False,
-        json_path: str = "",
-    ) -> AgentBash:
-        readonly = terminal_readonly if terminal else True
-        return self.create_bash(agent_id, node_id, json_path, readonly)
-
-    def update_access(
-        self,
-        access_id: str,
-        terminal: Optional[bool] = None,
-        terminal_readonly: Optional[bool] = None,
-        can_read: Optional[bool] = None,
-        can_write: Optional[bool] = None,
-        can_delete: Optional[bool] = None,
-        json_path: Optional[str] = None,
-    ) -> Optional[AgentBash]:
-        readonly = terminal_readonly
-        return self.update_bash(access_id, json_path, readonly)
-
-    def delete_access(self, access_id: str) -> bool:
-        return self.delete_bash(access_id)
-
-    def delete_accesses_by_agent_id(self, agent_id: str) -> int:
-        return self.delete_bash_by_agent_id(agent_id)
+        return self.create_bash(agent_id, path, json_path, readonly)
 
     # ============================================
     # AgentTool CRUD

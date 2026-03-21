@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from src.connectors.agent.config.models import Agent, AgentBash
 from src.connectors.agent.config.repository import AgentRepository
-from src.connectors.agent.config.schemas import AgentAccessCreate, AgentBashCreate
+from src.connectors.agent.config.schemas import AgentBashCreate
 
 
 class AgentConfigService:
@@ -52,24 +52,16 @@ class AgentConfigService:
         type: str = "chat",
         description: Optional[str] = None,
         is_default: bool = False,
-        accesses: List[AgentAccessCreate] = None,
-        # Schedule Agent 新字段
+        bash_accesses: List[AgentBashCreate] = None,
         trigger_type: Optional[str] = "manual",
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
     ) -> Agent:
-        """
-        创建 Agent
-        
-        如果设置为默认，会先取消项目中其他默认 Agent
-        """
-        # 如果设置为默认，先取消其他默认
         if is_default:
             self._clear_default_agent(project_id)
 
-        # 创建 Agent
         agent = self._repo.create(
             project_id=project_id,
             name=name,
@@ -80,19 +72,17 @@ class AgentConfigService:
             trigger_type=trigger_type,
             trigger_config=trigger_config,
             task_content=task_content,
-            task_node_id=task_node_id,
+            task_path=task_path,
             external_config=external_config,
         )
 
-        # 创建访问权限（向后兼容旧的 accesses 格式）
-        if accesses:
-            for access in accesses:
-                readonly = access.terminal_readonly if access.terminal else True
+        if bash_accesses:
+            for ba in bash_accesses:
                 self._repo.create_bash(
                     agent_id=agent.id,
-                    node_id=access.node_id,
-                    json_path=access.json_path,
-                    readonly=readonly,
+                    path=ba.path,
+                    json_path=ba.json_path,
+                    readonly=ba.readonly,
                 )
             agent.bash_accesses = self._repo.get_bash_by_agent_id(agent.id)
 
@@ -111,7 +101,7 @@ class AgentConfigService:
         trigger_type: Optional[str] = None,
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,
-        task_node_id: Optional[str] = None,
+        task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
     ) -> Optional[Agent]:
         """更新 Agent"""
@@ -133,7 +123,7 @@ class AgentConfigService:
             trigger_type=trigger_type,
             trigger_config=trigger_config,
             task_content=task_content,
-            task_node_id=task_node_id,
+            task_path=task_path,
             external_config=external_config,
         )
         if agent:
@@ -161,7 +151,7 @@ class AgentConfigService:
         self,
         agent_id: str,
         user_id: str,
-        node_id: str,
+        path: str,
         json_path: str = "",
         readonly: bool = True,
     ) -> Optional[AgentBash]:
@@ -172,7 +162,7 @@ class AgentConfigService:
 
         return self._repo.create_bash(
             agent_id=agent_id,
-            node_id=node_id,
+            path=path,
             json_path=json_path,
             readonly=readonly,
         )
@@ -232,68 +222,13 @@ class AgentConfigService:
         for bash in bash_list:
             new_bash = self._repo.create_bash(
                 agent_id=agent_id,
-                node_id=bash.node_id,
+                path=bash.path,
                 json_path=bash.json_path,
                 readonly=bash.readonly,
             )
             result.append(new_bash)
 
         return result
-
-    # ============================================
-    # 向后兼容的别名方法
-    # ============================================
-
-    def add_access(
-        self,
-        agent_id: str,
-        user_id: str,
-        node_id: str,
-        terminal: bool = False,
-        terminal_readonly: bool = True,
-        can_read: bool = False,
-        can_write: bool = False,
-        can_delete: bool = False,
-        json_path: str = "",
-    ) -> Optional[AgentBash]:
-        """添加访问权限（向后兼容）"""
-        readonly = terminal_readonly if terminal else True
-        return self.add_bash(agent_id, user_id, node_id, json_path, readonly)
-
-    def update_access(
-        self,
-        access_id: str,
-        user_id: str,
-        terminal: Optional[bool] = None,
-        terminal_readonly: Optional[bool] = None,
-        can_read: Optional[bool] = None,
-        can_write: Optional[bool] = None,
-        can_delete: Optional[bool] = None,
-        json_path: Optional[str] = None,
-    ) -> Optional[AgentBash]:
-        """更新访问权限（向后兼容）"""
-        return self.update_bash(access_id, user_id, json_path, terminal_readonly)
-
-    def remove_access(self, access_id: str, user_id: str) -> bool:
-        """删除访问权限（向后兼容）"""
-        return self.remove_bash(access_id, user_id)
-
-    def sync_accesses(
-        self,
-        agent_id: str,
-        user_id: str,
-        accesses: List[AgentAccessCreate],
-    ) -> List[AgentBash]:
-        """同步访问权限（向后兼容）"""
-        bash_list = [
-            AgentBashCreate(
-                node_id=a.node_id,
-                json_path=a.json_path,
-                readonly=a.terminal_readonly if a.terminal else True,
-            )
-            for a in accesses
-        ]
-        return self.sync_bash(agent_id, user_id, bash_list)
 
     # ============================================
     # Execution History

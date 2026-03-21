@@ -1,180 +1,132 @@
 """
-L2.5 Sync — SyncWorker
+Workspace lower sync worker.
 
-同步 PG/S3 数据到本地 Lower 目录。
-Lower 目录是所有 Agent 工作区的基准数据来源。
+Filesystem folder sync is client-side via MUT protocol. This worker only
+materializes the current MUT tree into the local `lower/` cache used by the
+workspace provider for external agent workspaces.
 
-同步策略：
-  - 增量同步：比对 content_nodes.updated_at 和 .metadata.json 中的时间戳
-  - 只同步有变化的文件
-  - JSON → 序列化为 .json 文件
-  - Markdown → 写为 .md 文件
-  - S3 文件 → 下载到 Lower 目录
-  - 保持文件夹层级结构，使用人类可读的文件名
-
-迁移自 workspace/sync_worker.py（逻辑完全保留，依赖 CacheManager 管理文件）
+Binary files stored as file_ref in MUT are resolved by downloading
+the actual object from S3, so agents see real files — not JSON stubs.
 """
 
-import json
-import time
-from typing import Optional, Dict, Any, List
+from __future__ import annotations
 
-from src.content_node.repository import ContentNodeRepository
-from src.content_node.models import ContentNode
-from src.s3.service import S3Service
-from src.supabase.client import SupabaseClient
+import json as _json
+import os
+import time
+
 from src.connectors.filesystem.cache import CacheManager
-from src.connectors.datasource.schemas import SyncResult
-from src.utils.logger import log_info, log_error, log_debug
+from src.infra.s3.service import get_s3_service_instance
+from src.mut_engine.ops import MutOps
+from src.utils.logger import log_error, log_info
+
+
+def _extract_file_ref(data: bytes) -> str | None:
+    """Return the S3 key from a file_ref blob, or None."""
+    try:
+        obj = _json.loads(data.decode("utf-8"))
+    except Exception:
+        return None
+    if isinstance(obj, dict) and obj.get("_type") == "file_ref":
+        key = obj.get("_s3_key")
+        return key if isinstance(key, str) and key else None
+    return None
 
 
 class SyncWorker:
-    """同步 PG/S3 数据到本地 Lower 目录"""
+    """
+    Materialize a project snapshot from MUT into the local lower cache.
+    """
 
-    def __init__(
-        self,
-        node_repo: Optional[ContentNodeRepository] = None,
-        s3_service: Optional[S3Service] = None,
-        base_dir: str = "/tmp/contextbase",
-        cache_manager: Optional[CacheManager] = None,
-    ):
-        self._node_repo = node_repo or ContentNodeRepository(SupabaseClient())
-        self._s3 = s3_service
-        self._cache = cache_manager or CacheManager(base_dir=base_dir)
+    def __init__(self, ops: MutOps | None = None, base_dir: str = "/tmp/contextbase", **kwargs):
+        self._ops = ops
+        self._cache = CacheManager(base_dir=base_dir)
 
-    @property
-    def lower_dir(self) -> str:
-        return self._cache.lower_dir
+    def _get_ops(self) -> MutOps:
+        if self._ops is not None:
+            return self._ops
 
-    def _build_path_map(self, nodes: List[ContentNode]) -> Dict[str, str]:
-        """
-        基于 id_path 构建 node_id → 文件系统路径 的映射（无递归，无环风险）。
+        from src.mut_engine.dependencies import create_mut_ops
 
-        通过解析每个节点的 id_path 获取祖先 ID 链，
-        从预加载的 id→name 映射中直接拼接出人类可读路径。O(N) 时间复杂度。
-        """
-        id_to_name: Dict[str, str] = {n.id: (n.name or n.id) for n in nodes}
+        self._ops = create_mut_ops()
+        return self._ops
 
-        result: Dict[str, str] = {}
-        for node in nodes:
-            if node.type == "folder":
-                continue
-            segments = [s for s in node.id_path.strip("/").split("/") if s]
-            name_parts = [id_to_name.get(seg, seg) for seg in segments]
-            result[node.id] = "/".join(name_parts)
+    async def sync(self, project_id: str | None = None, *args, **kwargs) -> dict:
+        if not project_id:
+            log_info("[SyncWorker] sync() skipped: project_id missing")
+            return {"status": "skipped"}
+        return await self.sync_project(project_id, **kwargs)
 
-        return result
+    async def sync_project(self, project_id: str, **kwargs) -> dict:
+        ops = self._get_ops()
+        self._cache.clean_project(project_id)
+        project_dir = self._cache.get_project_dir(project_id)
 
-    # ============================================================
-    # 核心同步
-    # ============================================================
+        file_count = 0
+        dir_count = 0
+        binary_count = 0
 
-    async def sync_project(self, project_id: str, force: bool = False) -> SyncResult:
-        """
-        同步一个项目的所有内容节点到 Lower 目录
-
-        Args:
-            project_id: 项目 ID
-            force: True = 忽略增量标记，全量重新同步
-
-        Returns:
-            SyncResult
-        """
-        start_time = time.time()
-
-        nodes = self._node_repo.list_by_project(project_id)
-        path_map = self._build_path_map(nodes)
-        metadata = {} if force else self._cache.read_metadata(project_id)
-
-        synced = 0
-        skipped = 0
-        failed = 0
-        new_metadata: Dict[str, Any] = {}
-
-        for node in nodes:
-            if node.type == "folder":
-                continue
-
-            node_meta = metadata.get(node.id, {})
-            last_sync = node_meta.get("updated_at", "")
-            node_updated = node.updated_at.isoformat() if node.updated_at else ""
-
-            if not force and last_sync and last_sync >= node_updated:
-                skipped += 1
-                new_metadata[node.id] = node_meta
-                continue
-
-            file_path = path_map.get(node.id, node.name or node.id)
-            success = await self._sync_node(project_id, node, file_path)
-
-            if success:
-                synced += 1
-                new_metadata[node.id] = {
-                    "updated_at": node_updated,
-                    "name": node.name,
-                    "type": node.type,
-                    "file_path": file_path,
-                    "version": getattr(node, "current_version", 0),
-                }
-            else:
-                failed += 1
-                new_metadata[node.id] = node_meta
-
-        self._cache.write_metadata(project_id, new_metadata)
-
-        elapsed = time.time() - start_time
-        log_info(
-            f"[SyncWorker] Project {project_id}: "
-            f"synced={synced}, skipped={skipped}, failed={failed}, "
-            f"total={len(nodes)}, elapsed={elapsed:.2f}s"
-        )
-
-        return SyncResult(
-            synced=synced,
-            skipped=skipped,
-            failed=failed,
-            total=len(nodes),
-            elapsed_seconds=round(elapsed, 2),
-        )
-
-    async def _sync_node(self, project_id: str, node: ContentNode, file_path: str) -> bool:
-        """同步单个节点到 Lower 目录"""
         try:
-            if node.preview_json is not None:
-                content = json.dumps(node.preview_json, ensure_ascii=False, indent=2)
-                if not file_path.endswith(".json"):
-                    file_path = f"{file_path}.json"
-                return self._cache.write_file(project_id, file_path, content)
+            version = ops.get_version(project_id)
+        except Exception:
+            version = 0
 
-            elif node.preview_md is not None:
-                if not file_path.endswith(".md"):
-                    file_path = f"{file_path}.md"
-                return self._cache.write_file(project_id, file_path, node.preview_md)
-
-            elif node.s3_key and self._s3:
-                try:
-                    content_bytes = await self._s3.download_file(node.s3_key)
-                    return self._cache.write_bytes(project_id, file_path, content_bytes)
-                except Exception as e:
-                    log_error(f"[SyncWorker] S3 download failed for {node.id} ({file_path}): {e}")
-                    return False
-
-            else:
-                log_debug(f"[SyncWorker] Node {node.id} ({file_path}) has no content, skipping")
-                return True
-
+        try:
+            entries = ops.list_tree(project_id)
         except Exception as e:
-            log_error(f"[SyncWorker] Failed to sync node {node.id} ({file_path}): {e}")
-            return False
+            log_error(f"[SyncWorker] Failed to list MUT tree for {project_id}: {e}")
+            entries = []
 
-    async def sync_node_by_id(self, project_id: str, node_id: str) -> bool:
-        """同步单个节点（用于增量更新）"""
-        node = self._node_repo.get_by_id(node_id)
-        if not node:
-            return False
+        s3 = None  # lazy-init only when a binary is encountered
 
-        nodes = self._node_repo.list_by_project(project_id)
-        path_map = self._build_path_map(nodes)
-        file_path = path_map.get(node_id, node.name or node_id)
+        for entry in entries:
+            local_path = os.path.join(project_dir, entry.path)
+            if entry.type == "folder":
+                os.makedirs(local_path, exist_ok=True)
+                dir_count += 1
+                continue
 
-        return await self._sync_node(project_id, node, file_path)
+            try:
+                data = ops.read_file(project_id, entry.path)
+            except Exception as e:
+                log_error(f"[SyncWorker] Failed to read {entry.path}: {e}")
+                continue
+
+            s3_key = _extract_file_ref(data)
+            if s3_key:
+                if s3 is None:
+                    s3 = get_s3_service_instance()
+
+                if s3:
+                    try:
+                        data = await s3.download_file(s3_key)
+                        binary_count += 1
+                    except Exception as e:
+                        log_error(f"[SyncWorker] S3 download failed for {entry.path} ({s3_key}): {e}")
+
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(data)
+            file_count += 1
+
+        self._cache.write_metadata(project_id, {
+            "project_id": project_id,
+            "version": version,
+            "synced_at": int(time.time()),
+            "file_count": file_count,
+            "dir_count": dir_count,
+            "binary_count": binary_count,
+        })
+
+        log_info(
+            f"[SyncWorker] Materialized lower cache for {project_id}: "
+            f"{file_count} files ({binary_count} binary from S3), {dir_count} dirs, v{version}"
+        )
+        return {
+            "status": "ok",
+            "version": version,
+            "file_count": file_count,
+            "dir_count": dir_count,
+            "binary_count": binary_count,
+            "path": project_dir,
+        }

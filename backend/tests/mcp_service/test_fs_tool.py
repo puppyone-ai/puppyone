@@ -1,4 +1,4 @@
-"""mcp_service.tool.fs_tool POSIX 行为测试。"""
+"""mcp_service.tool.fs_tool POSIX path-based tests (Mut-Native)."""
 
 from __future__ import annotations
 
@@ -9,222 +9,160 @@ import pytest
 from mcp_service.tool.fs_tool import FsToolImplementation
 
 
-@pytest.mark.asyncio
-async def test_ls_virtual_root_returns_access_entries():
+def _rpc(**overrides):
     rpc = Mock()
-    rpc.resolve_path = AsyncMock(return_value={"virtual_root": True, "path": "/"})
-    rpc.list_children = AsyncMock()
+    rpc.list_dir = AsyncMock(return_value=overrides.get("list_dir", {"children": [], "path": ""}))
+    rpc.read_file = AsyncMock(return_value=overrides.get("read_file", {}))
+    rpc.write_file = AsyncMock(return_value=overrides.get("write_file", {}))
+    rpc.mkdir = AsyncMock(return_value=overrides.get("mkdir_result", {}))
+    rpc.trash = AsyncMock(return_value=overrides.get("trash_result", {}))
+    rpc.stat = AsyncMock(return_value=overrides.get("stat_result", {}))
+    return rpc
+
+
+@pytest.mark.asyncio
+async def test_ls_root_no_scope():
+    """ls at root with no scope restrictions should call list_dir."""
+    rpc = _rpc(list_dir={
+        "path": "",
+        "entries": [
+            {"name": "docs", "path": "docs", "type": "folder"},
+            {"name": "users.json", "path": "users.json", "type": "json"},
+        ],
+    })
     fs = FsToolImplementation(rpc)
 
-    accesses = [
-        {"node_id": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": False},
-        {"node_id": "n2", "node_name": "users.json", "node_type": "json", "bash_readonly": True},
-    ]
-
-    result = await fs.ls("proj-1", accesses, "/")
+    result = await fs.ls("proj-1", [], "/")
 
     assert result["path"] == "/"
-    assert result["entries"] == [
-        {"name": "docs/", "path": "/docs", "type": "folder"},
-        {"name": "users.json", "path": "/users.json", "type": "json"},
-    ]
-    rpc.list_children.assert_not_called()
+    assert len(result["entries"]) == 2
+    rpc.list_dir.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_ls_folder_formats_children_entries():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(
-        return_value={"node_id": "folder-1", "type": "folder", "path": "/docs"}
-    )
-    rpc.list_children = AsyncMock(
-        return_value={
-            "children": [
-                {
-                    "node_id": "a",
-                    "name": "drafts",
-                    "type": "folder",
-                    "updated_at": "2026-02-11T10:00:00+00:00",
-                },
-                {
-                    "node_id": "b",
-                    "name": "readme.md",
-                    "type": "markdown",
-                    "size_bytes": 11,
-                },
-            ]
-        }
-    )
-    fs = FsToolImplementation(rpc)
-
-    result = await fs.ls("proj-1", [{"node_id": "root", "node_name": "docs", "node_type": "folder"}], "/docs")
-
-    assert result == {
-        "path": "/docs",
+async def test_ls_folder_returns_entries():
+    """ls a folder should return children entries."""
+    rpc = _rpc(list_dir={
+        "path": "docs",
         "entries": [
-            {
-                "name": "drafts/",
-                "path": "/docs/drafts",
-                "type": "folder",
-                "updated_at": "2026-02-11T10:00:00+00:00",
-            },
-            {
-                "name": "readme.md",
-                "path": "/docs/readme.md",
-                "type": "markdown",
-                "size_bytes": 11,
-            },
+            {"name": "drafts", "path": "docs/drafts", "type": "folder"},
+            {"name": "readme.md", "path": "docs/readme.md", "type": "markdown", "size_bytes": 11},
         ],
-    }
+    })
+    fs = FsToolImplementation(rpc)
+
+    result = await fs.ls("proj-1", [], "/docs")
+
+    assert result["path"] == "/docs"
+    assert len(result["entries"]) == 2
+    assert result["entries"][0]["name"] == "drafts"
 
 
 @pytest.mark.asyncio
-async def test_ls_non_directory_returns_error():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(
-        return_value={"node_id": "json-1", "type": "json", "path": "/users.json"}
-    )
+async def test_ls_scope_denied():
+    """ls outside scope should return access denied."""
+    rpc = _rpc()
     fs = FsToolImplementation(rpc)
 
-    result = await fs.ls("proj-1", [{"node_id": "json-1", "node_name": "users.json", "node_type": "json"}], "/users.json")
+    accesses = [{"scope": {"path_prefix": "docs"}}]
+    result = await fs.ls("proj-1", accesses, "/other")
 
-    assert result == {"error": "Not a directory: /users.json"}
+    assert "error" in result
+    assert "Access denied" in result["error"]
 
 
 @pytest.mark.asyncio
-async def test_cat_file_reads_content_and_appends_display_path():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(
-        return_value={"node_id": "md-1", "type": "markdown", "path": "/docs/readme.md"}
-    )
-    rpc.read_node_content = AsyncMock(return_value={"node_id": "md-1", "content": "hello"})
+async def test_cat_reads_file_content():
+    """cat should call read_file and return content."""
+    rpc = _rpc(read_file={"name": "readme.md", "type": "markdown", "content": "hello"})
     fs = FsToolImplementation(rpc)
 
-    result = await fs.cat("proj-1", [{"node_id": "root", "node_name": "docs", "node_type": "folder"}], "/docs/readme.md")
+    result = await fs.cat("proj-1", [], "/docs/readme.md")
 
-    assert result == {"node_id": "md-1", "content": "hello", "path": "/docs/readme.md"}
+    assert result["content"] == "hello"
+    assert result["path"] == "/docs/readme.md"
+    rpc.read_file.assert_awaited_once_with("proj-1", "docs/readme.md")
 
 
 @pytest.mark.asyncio
-async def test_cat_folder_behaves_like_ls():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(
-        return_value={"node_id": "folder-1", "type": "folder", "path": "/docs"}
-    )
-    rpc.list_children = AsyncMock(return_value={"children": []})
+async def test_cat_root_behaves_like_ls():
+    """cat at root should act like ls."""
+    rpc = _rpc(list_dir={"path": "", "entries": []})
     fs = FsToolImplementation(rpc)
 
-    result = await fs.cat("proj-1", [{"node_id": "root", "node_name": "docs", "node_type": "folder"}], "/docs")
+    result = await fs.cat("proj-1", [], "/")
 
-    assert result == {"path": "/docs", "entries": []}
+    assert result["path"] == "/"
+    rpc.list_dir.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_write_existing_file_updates_content():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(
-        return_value={"node_id": "md-1", "type": "markdown", "path": "/docs/readme.md"}
-    )
-    rpc.write_node_content = AsyncMock(return_value={"updated": True, "node_id": "md-1"})
-    rpc.create_node = AsyncMock()
+async def test_write_calls_write_file():
+    """write should call rpc.write_file."""
+    rpc = _rpc(write_file={"path": "docs/readme.md", "version": 2, "updated": True})
     fs = FsToolImplementation(rpc)
 
-    result = await fs.write(
-        "proj-1",
-        [{"node_id": "root", "node_name": "docs", "node_type": "folder", "bash_readonly": False}],
-        "/docs/readme.md",
-        "new-content",
-    )
+    result = await fs.write("proj-1", [], "/docs/readme.md", "new-content")
 
-    assert result == {"updated": True, "node_id": "md-1", "path": "/docs/readme.md"}
-    rpc.write_node_content.assert_awaited_once_with("md-1", "proj-1", "new-content")
-    rpc.create_node.assert_not_called()
+    assert result["updated"] is True
+    assert result["path"] == "/docs/readme.md"
+    rpc.write_file.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_write_new_file_under_single_root_creates_markdown_node():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(side_effect=[RuntimeError("not found")])
-    rpc.create_node = AsyncMock(
-        return_value={"node_id": "new-1", "name": "readme.md", "type": "markdown", "created": True}
-    )
+async def test_write_readonly_denied():
+    """write in read-only scope should be denied."""
+    rpc = _rpc()
     fs = FsToolImplementation(rpc)
 
-    result = await fs.write(
-        "proj-1",
-        [{"node_id": "root-folder", "node_name": "docs", "node_type": "folder", "bash_readonly": False}],
-        "/readme.md",
-        "hello",
-    )
+    accesses = [{"scope": {"path_prefix": "docs", "readonly": True}}]
+    result = await fs.write("proj-1", accesses, "/docs/readme.md", "content")
 
-    assert result["node_id"] == "new-1"
-    assert result["path"] == "/readme.md"
-    rpc.create_node.assert_awaited_once_with(
-        project_id="proj-1",
-        parent_id="root-folder",
-        name="readme.md",
-        node_type="markdown",
-        content="hello",
-    )
+    assert "error" in result
+    assert "Read-only" in result["error"]
 
 
 @pytest.mark.asyncio
-async def test_write_new_file_at_virtual_root_is_rejected_in_multi_root_mode():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(side_effect=[RuntimeError("not found")])
-    rpc.create_node = AsyncMock()
+async def test_mkdir_calls_rpc():
+    """mkdir should call rpc.mkdir."""
+    rpc = _rpc(mkdir_result={"path": "docs/sub", "created": True, "version": 1})
     fs = FsToolImplementation(rpc)
 
-    result = await fs.write(
-        "proj-1",
-        [
-            {"node_id": "a", "node_name": "docs", "node_type": "folder", "bash_readonly": False},
-            {"node_id": "b", "node_name": "wiki", "node_type": "folder", "bash_readonly": False},
-        ],
-        "/todo.md",
-        "x",
-    )
+    result = await fs.mkdir("proj-1", [], "/docs/sub")
 
-    assert result == {"error": "Cannot create files at virtual root in multi-root mode"}
-    rpc.create_node.assert_not_called()
+    assert result["created"] is True
+    rpc.mkdir.assert_awaited_once_with("proj-1", "docs/sub")
 
 
 @pytest.mark.asyncio
-async def test_mkdir_parent_not_found_returns_error():
-    rpc = Mock()
-    rpc.resolve_path = AsyncMock(side_effect=RuntimeError("No such file or directory: docs"))
-    rpc.create_node = AsyncMock()
+async def test_mkdir_empty_path_error():
+    """mkdir with empty path should return error."""
+    rpc = _rpc()
     fs = FsToolImplementation(rpc)
 
-    result = await fs.mkdir(
-        "proj-1",
-        [{"node_id": "root", "node_name": "root", "node_type": "folder", "bash_readonly": False}],
-        "/docs/sub",
-    )
+    result = await fs.mkdir("proj-1", [], "/")
 
-    assert result["error"].startswith("Parent directory not found:")
-    rpc.create_node.assert_not_called()
+    assert result["error"] == "Path cannot be empty"
 
 
 @pytest.mark.asyncio
-async def test_rm_handles_not_found_virtual_root_and_success():
-    rpc = Mock()
+async def test_rm_calls_trash():
+    """rm should call rpc.trash."""
+    rpc = _rpc(trash_result={"path": "docs/x.md", "removed": True})
     fs = FsToolImplementation(rpc)
-    accesses = [{"node_id": "root", "node_name": "docs", "node_type": "folder", "bash_readonly": False}]
 
-    rpc.resolve_path = AsyncMock(side_effect=RuntimeError("No such file or directory: x"))
-    not_found = await fs.rm("proj-1", accesses, "/docs/x.md", user_id="agent-1")
-    assert not_found["error"].startswith("No such file or directory:")
+    result = await fs.rm("proj-1", [], "/docs/x.md", user_id="agent-1")
 
-    rpc.resolve_path = AsyncMock(return_value={"virtual_root": True, "path": "/"})
-    root_err = await fs.rm("proj-1", accesses, "/", user_id="agent-1")
-    assert root_err == {"error": "Cannot remove the root directory"}
+    assert result["removed"] is True
+    rpc.trash.assert_awaited_once_with("proj-1", "docs/x.md")
 
-    rpc.resolve_path = AsyncMock(
-        return_value={"node_id": "n1", "type": "markdown", "path": "/docs/x.md"}
-    )
-    rpc.trash_node = AsyncMock(return_value={"node_id": "n1", "removed": True})
-    ok = await fs.rm("proj-1", accesses, "/docs/x.md", user_id="agent-1")
-    assert ok == {"node_id": "n1", "removed": True, "path": "/docs/x.md"}
-    rpc.trash_node.assert_awaited_once_with("n1", "proj-1", "agent-1")
 
+@pytest.mark.asyncio
+async def test_rm_root_denied():
+    """rm at root should be denied."""
+    rpc = _rpc()
+    fs = FsToolImplementation(rpc)
+
+    result = await fs.rm("proj-1", [], "/", user_id="agent-1")
+
+    assert result == {"error": "Cannot remove the root directory"}

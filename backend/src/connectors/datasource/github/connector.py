@@ -18,9 +18,9 @@ from urllib.parse import urlparse
 
 import httpx
 
-from src.content_node.service import ContentNodeService
+from typing import Any
 from src.oauth.github_service import GithubOAuthService
-from src.s3.service import S3Service
+from src.infra.s3.service import S3Service
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -52,6 +52,7 @@ class GithubConnector(BaseConnector):
             creation_mode="direct",
             description="Sync repos, issues, or PRs",
             accept_types=("folder",),
+            icon_url="https://github.githubassets.com/favicons/favicon-dark.svg",
             config_fields=(
                 ConfigField(
                     key="source_url",
@@ -66,9 +67,9 @@ class GithubConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         github_service: GithubOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.github_service = github_service
@@ -154,3 +155,16 @@ class GithubConnector(BaseConnector):
             node_name=repo,
             summary=f"GitHub repo '{owner}/{repo}' — {len(file_paths)} files, {repo_data.get('stargazers_count', 0)} stars",
         )
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    oauth_svc = GithubOAuthService()
+    return ConnectorSetup(
+        connector=GithubConnector(
+            github_service=oauth_svc,
+            s3_service=deps.s3_service,
+            node_service=deps.node_service,
+        ),
+        oauth_bindings={"github": oauth_svc},
+    )

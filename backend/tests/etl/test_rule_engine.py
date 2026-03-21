@@ -14,10 +14,10 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from jsonschema import ValidationError
 
-from src.upload.file.rules.engine import RuleEngine
-from src.upload.file.rules.schemas import ETLRule, TransformationResult
-from src.llm.exceptions import LLMError
-from src.llm.schemas import TextModelResponse
+from src.ingest.file.rules.engine import RuleEngine
+from src.ingest.file.rules.schemas import ETLRule, TransformationResult
+from src.infra.llm.exceptions import LLMError
+from src.infra.llm.schemas import TextModelResponse
 
 
 # ============= Fixtures =============

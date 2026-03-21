@@ -18,9 +18,9 @@ pytest.skip(
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.auth.dependencies import get_user_service
-from src.auth.router import router
-from src.auth.models import User
+from src.platform.auth.dependencies import get_user_service
+from src.platform.auth.router import router
+from src.platform.auth.models import User
 
 
 # ============= Fixtures =============

@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from src.llm.embedding_service import EmbeddingService
-from src.llm.exceptions import APIKeyError, InvalidInputError, RateLimitError, TextTooLongError
+from src.infra.llm.embedding_service import EmbeddingService
+from src.infra.llm.exceptions import APIKeyError, InvalidInputError, RateLimitError, TextTooLongError
 
 
 def _make_service(monkeypatch, *, call_impl, dimensions=3, models=None):

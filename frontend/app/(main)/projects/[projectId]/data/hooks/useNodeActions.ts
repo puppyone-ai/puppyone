@@ -2,16 +2,16 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
-import { updateNode, deleteNode, moveNode, type NodeInfo } from '@/lib/contentNodesApi';
+import { moveFile, removeFile, type NodeInfo } from '@/lib/contentNodesApi';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
 import { ensureExpanded } from '../components/views';
 
-export function useNodeActions(projectId: string, currentFolderId: string | null) {
+export function useNodeActions(projectId: string, currentFolderPath: string | null) {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
 
-  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string; id_path?: string } | null>(null);
+  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string; mut_path?: string } | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -24,8 +24,8 @@ export function useNodeActions(projectId: string, currentFolderId: string | null
 
   const [toolPanelTarget, setToolPanelTarget] = useState<{ id: string; name: string; type: string; jsonPath?: string } | null>(null);
 
-  const handleRename = useCallback((id: string, currentName: string) => {
-    setRenameTarget({ id, name: currentName });
+  const handleRename = useCallback((path: string, currentName: string) => {
+    setRenameTarget({ id: path, name: currentName });
     setRenameError(null);
     setRenameDialogOpen(true);
   }, []);
@@ -34,7 +34,10 @@ export function useNodeActions(projectId: string, currentFolderId: string | null
     if (!renameTarget) return;
     setRenameError(null);
     try {
-      await updateNode(renameTarget.id, projectId, { name: newName });
+      const oldPath = renameTarget.id;
+      const parentDir = oldPath.includes('/') ? oldPath.substring(0, oldPath.lastIndexOf('/')) : '';
+      const newPath = parentDir ? `${parentDir}/${newName}` : newName;
+      await moveFile(projectId, oldPath, newPath);
       refreshAllContentNodes(projectId);
       setRenameDialogOpen(false);
       setRenameTarget(null);
@@ -46,11 +49,11 @@ export function useNodeActions(projectId: string, currentFolderId: string | null
     }
   }, [renameTarget, projectId]);
 
-  const handleDelete = useCallback(async (id: string, name: string) => {
+  const handleDelete = useCallback(async (path: string, name: string) => {
     const confirmed = window.confirm(`Are you sure you want to delete "${name}"?`);
     if (confirmed) {
       try {
-        await deleteNode(id, projectId);
+        await removeFile(projectId, path);
         refreshAllContentNodes(projectId);
       } catch (err) {
         console.error('Failed to delete:', err);
@@ -60,29 +63,31 @@ export function useNodeActions(projectId: string, currentFolderId: string | null
   }, [projectId]);
 
   const handleMoveNode = useCallback(async (
-    nodeId: string,
-    targetFolderId: string | null,
-    sourceParentId: string | null = currentFolderId,
+    nodePath: string,
+    targetFolderPath: string | null,
+    sourceParentPath: string | null = currentFolderPath,
   ) => {
-    if (sourceParentId === targetFolderId) return;
+    if (sourceParentPath === targetFolderPath) return;
 
-    const sourceKey = ['nodes', projectId, sourceParentId ?? '__root__'];
-    const targetKey = ['nodes', projectId, targetFolderId ?? '__root__'];
+    const sourceKey = ['tree', projectId, sourceParentPath ?? ''];
+    const targetKey = ['tree', projectId, targetFolderPath ?? ''];
 
     let movedNode: NodeInfo | undefined;
 
     mutate(
       sourceKey,
       (nodes: NodeInfo[] | undefined) => {
-        movedNode = (nodes ?? []).find(n => n.id === nodeId);
-        return (nodes ?? []).filter(n => n.id !== nodeId);
+        movedNode = (nodes ?? []).find(n => n.path === nodePath || n.id === nodePath);
+        return (nodes ?? []).filter(n => n.path !== nodePath && n.id !== nodePath);
       },
       { revalidate: false },
     );
 
     if (movedNode) {
-      const nodeForTarget = { ...movedNode, parent_id: targetFolderId };
-      if (targetFolderId) ensureExpanded(targetFolderId);
+      const name = movedNode.name;
+      const newPath = targetFolderPath ? `${targetFolderPath}/${name}` : name;
+      const nodeForTarget = { ...movedNode, path: newPath, id: newPath, parent_id: targetFolderPath };
+      if (targetFolderPath) ensureExpanded(targetFolderPath);
       mutate(
         targetKey,
         (nodes: NodeInfo[] | undefined) => nodes ? [...nodes, nodeForTarget] : undefined,
@@ -91,21 +96,23 @@ export function useNodeActions(projectId: string, currentFolderId: string | null
     }
 
     try {
-      await moveNode(nodeId, projectId, targetFolderId);
+      const name = nodePath.includes('/') ? nodePath.substring(nodePath.lastIndexOf('/') + 1) : nodePath;
+      const newPath = targetFolderPath ? `${targetFolderPath}/${name}` : name;
+      await moveFile(projectId, nodePath, newPath);
       refreshAllContentNodes(projectId);
     } catch (err: unknown) {
       refreshAllContentNodes(projectId);
       const msg = (err as { message?: string })?.message || 'Failed to move item';
       showToast(msg, 'error');
     }
-  }, [projectId, currentFolderId, showToast]);
+  }, [projectId, currentFolderPath, showToast]);
 
-  const handleMoveRequest = useCallback((id: string, name: string, id_path?: string) => {
-    setMoveDialogTarget({ id, name, id_path });
+  const handleMoveRequest = useCallback((path: string, name: string, mut_path?: string) => {
+    setMoveDialogTarget({ id: path, name, mut_path });
   }, []);
 
-  const handleCreateTool = useCallback((id: string, name: string, type: string, jsonPath?: string) => {
-    setToolPanelTarget({ id, name, type, jsonPath });
+  const handleCreateTool = useCallback((path: string, name: string, type: string, jsonPath?: string) => {
+    setToolPanelTarget({ id: path, name, type, jsonPath });
   }, []);
 
   const closeRenameDialog = useCallback(() => {

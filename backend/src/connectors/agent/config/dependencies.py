@@ -9,8 +9,8 @@ from fastapi import Depends, HTTPException, status
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.config.repository import AgentRepository
 from src.connectors.agent.config.models import Agent
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 
 
 def get_agent_repository() -> AgentRepository:

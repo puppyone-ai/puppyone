@@ -53,7 +53,7 @@ export interface ImportSubmitResponse {
   task_id: string;
   status: ImportStatus;
   import_type: ImportType;
-  node_id?: string;
+  path?: string;
 }
 
 export interface ImportTaskResponse {
@@ -63,8 +63,8 @@ export interface ImportTaskResponse {
   status: ImportStatus;
   progress: number;
   message?: string;
-  content_node_id?: string;
-  node_id?: string;
+  content_path?: string;
+  path?: string;
   items_count?: number;
   error?: string;
   created_at?: string;
@@ -181,12 +181,12 @@ export async function submitImport(
     task_id: item?.task_id || '',
     status: item?.status || 'completed',
     import_type: item?.ingest_type || 'url',
-    node_id: item?.node_id,
+    path: item?.path,
   };
 }
 
 /**
- * Import from URL — returns the created node ID.
+ * Import from URL — returns the created path.
  */
 export async function importFromUrl(
   projectId: string,
@@ -199,7 +199,7 @@ export async function importFromUrl(
     name: options?.name,
     crawl_options: options?.crawlOptions,
   });
-  return response.node_id || response.task_id;
+  return response.path || response.task_id;
 }
 
 /**

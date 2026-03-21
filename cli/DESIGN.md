@@ -486,8 +486,8 @@ CLI:  puppyone access agent up <path> --key <key>
   },
   "cursor": 8847,
   "files": {
-    "README.md": { "node_id": "nd_xxx", "version": 3, "hash": "sha256:..." },
-    "report.pdf": { "node_id": "nd_yyy", "version": 1, "hash": "sha256:...", "s3": true }
+    "README.md": { "path": "/README.md", "version": 3, "hash": "sha256:..." },
+    "report.pdf": { "path": "/report.pdf", "version": 1, "hash": "sha256:...", "s3": true }
   }
 }
 ```
@@ -862,3 +862,4 @@ up → spawnDaemon()
 | D3 | 旧命令保留为 hidden alias | 不 break 现有用户/脚本 | 直接删除 (不友好) |
 | D4 | token 刷新在 api.js 内部透明处理 | 所有命令自动享受，无需每个命令单独处理 | 每个命令自己 catch 401 (重复代码) |
 | D5 | `project use` 匹配项目名时先精确后模糊 | 减少用户输入；但保持确定性 (多匹配时报错) | 只支持 ID (太严格) |
+| D6 | REST 请求/响应里内容定位用 `path`（项目内路径），不再使用 `node_id` | 与后端 mut/path 单一事实源一致；CLI 如 `tool create --node` 仍映射为 body `path` | 长期同时接受 `node_id` 与 `path`（维护成本高） |

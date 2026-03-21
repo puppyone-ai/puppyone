@@ -31,7 +31,7 @@ class McpBoundTool(BaseModel):
     name: str = Field(..., description="工具名称")
     type: str = Field(..., description="工具类型")
     description: Optional[str] = Field(None, description="工具描述")
-    node_id: Optional[str] = Field(None, description="绑定的节点 ID")
+    path: Optional[str] = Field(None, description="绑定的 MUT 路径 (path)")
     json_path: str = Field(default="", description="JSON 路径")
     enabled: bool = Field(default=True, description="是否启用")
     mcp_exposed: bool = Field(default=True, description="是否 MCP 暴露")

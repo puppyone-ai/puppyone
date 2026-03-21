@@ -6,11 +6,9 @@ Imports files from Google Drive into content nodes.
 
 import hashlib
 import json
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
-
-from src.content_node.service import ContentNodeService
 from src.connectors.datasource._base import (
     BaseConnector,
     ConnectorSpec,
@@ -22,7 +20,7 @@ from src.connectors.datasource._base import (
     ConfigField,
 )
 from src.oauth.google_drive_service import GoogleDriveOAuthService
-from src.s3.service import S3Service
+from src.infra.s3.service import S3Service
 
 
 class GoogleDriveConnector(BaseConnector):
@@ -63,6 +61,7 @@ class GoogleDriveConnector(BaseConnector):
             creation_mode="direct",
             description="Sync files from Drive",
             accept_types=("folder",),
+            icon_url="https://www.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png",
             ui_visible=False,
             config_fields=(
                 ConfigField(
@@ -78,9 +77,9 @@ class GoogleDriveConnector(BaseConnector):
 
     def __init__(
         self,
-        node_service: ContentNodeService,
         drive_service: GoogleDriveOAuthService,
         s3_service: S3Service,
+        node_service: Any = None,
     ):
         self.node_service = node_service
         self.drive_service = drive_service
@@ -211,3 +210,17 @@ class GoogleDriveConnector(BaseConnector):
     async def close(self):
         """Close HTTP client."""
         await self.client.aclose()
+
+
+def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.oauth.google_drive_service import GoogleDriveOAuthService
+    oauth_svc = GoogleDriveOAuthService()
+    return ConnectorSetup(
+        connector=GoogleDriveConnector(
+            drive_service=oauth_svc,
+            s3_service=deps.s3_service,
+            node_service=deps.node_service,
+        ),
+        oauth_bindings={"drive": oauth_svc},
+    )

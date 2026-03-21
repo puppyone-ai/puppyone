@@ -1,0 +1,254 @@
+"""
+Project 数据仓库
+
+定义 Project 的数据访问接口和实现
+"""
+
+from abc import ABC, abstractmethod
+from typing import List, Optional
+
+from src.platform.project.models import Project
+
+
+class ProjectRepositoryBase(ABC):
+    """抽象 Project 仓库接口"""
+
+    @abstractmethod
+    def get_by_id(self, project_id: str) -> Optional[Project]:
+        """根据ID获取项目"""
+        pass
+
+    @abstractmethod
+    def get_by_org_id(self, org_id: str) -> List[Project]:
+        """根据组织ID获取项目列表"""
+        pass
+
+    @abstractmethod
+    def create(
+        self,
+        name: str,
+        description: Optional[str],
+        org_id: str,
+        created_by: str,
+    ) -> Project:
+        """创建项目"""
+        pass
+
+    @abstractmethod
+    def update(
+        self,
+        project_id: str,
+        name: Optional[str],
+        description: Optional[str],
+    ) -> Optional[Project]:
+        """更新项目"""
+        pass
+
+    @abstractmethod
+    def delete(self, project_id: str) -> bool:
+        """删除项目"""
+        pass
+
+    @abstractmethod
+    def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
+        """验证用户是否有权限访问指定的项目，返回角色字符串或 None"""
+        pass
+
+
+class ProjectRepositorySupabase(ProjectRepositoryBase):
+    """基于 Supabase 的 Project 仓库实现"""
+
+    def __init__(self, supabase_repo=None):
+        """
+        初始化仓库
+
+        Args:
+            supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则创建新实例
+        """
+        if supabase_repo is None:
+            from src.infra.supabase.dependencies import get_supabase_repository
+
+            self._supabase_repo = get_supabase_repository()
+        else:
+            self._supabase_repo = supabase_repo
+
+    def get_by_id(self, project_id: str) -> Optional[Project]:
+        """
+        根据ID获取项目
+
+        Args:
+            project_id: 项目ID
+
+        Returns:
+            Project对象，如果不存在则返回None
+        """
+        project_response = self._supabase_repo.get_project(project_id)
+        if project_response:
+            return self._project_response_to_project(project_response)
+        return None
+
+    def get_by_org_id(self, org_id: str) -> List[Project]:
+        """
+        根据组织ID获取项目列表
+
+        Args:
+            org_id: 组织ID
+
+        Returns:
+            Project列表
+        """
+        projects_response = self._supabase_repo.get_projects(org_id=org_id)
+        return [self._project_response_to_project(p) for p in projects_response]
+
+    def create(
+        self,
+        name: str,
+        description: Optional[str],
+        org_id: str,
+        created_by: str,
+    ) -> Project:
+        """
+        创建项目
+
+        Args:
+            name: 项目名称
+            description: 项目描述
+            org_id: 组织ID
+            created_by: 创建者用户ID
+
+        Returns:
+            创建的Project对象
+        """
+        from src.platform.project.supabase_schemas import ProjectCreate
+        from src.utils.id_generator import generate_uuid_v7
+
+        project_data = ProjectCreate(
+            id=generate_uuid_v7(),
+            name=name,
+            description=description,
+            org_id=org_id,
+            created_by=created_by,
+        )
+        project_response = self._supabase_repo.create_project(project_data)
+        return self._project_response_to_project(project_response)
+
+    def update(
+        self,
+        project_id: str,
+        name: Optional[str],
+        description: Optional[str],
+        visibility: Optional[str] = None,
+    ) -> Optional[Project]:
+        """
+        更新项目
+
+        Args:
+            project_id: 项目ID
+            name: 项目名称（可选，如果为None则不更新）
+            description: 项目描述（可选，如果为None则不更新）
+            visibility: 可见性（可选）
+
+        Returns:
+            更新后的Project对象，如果不存在则返回None
+        """
+        from src.platform.project.supabase_schemas import ProjectUpdate
+
+        update_data = ProjectUpdate(
+            name=name,
+            description=description,
+        )
+        if visibility is not None:
+            update_data.visibility = visibility
+        project_response = self._supabase_repo.update_project(project_id, update_data)
+        if project_response:
+            return self._project_response_to_project(project_response)
+        return None
+
+    def delete(self, project_id: str) -> bool:
+        """
+        删除项目
+
+        Args:
+            project_id: 项目ID
+
+        Returns:
+            是否删除成功
+        """
+        return self._supabase_repo.delete_project(project_id)
+
+    def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
+        """
+        验证用户是否有权限访问指定的项目
+
+        权限逻辑:
+        1. visibility='org' → org 的任何 member 都可访问
+        2. visibility='private' → 只有 org owner 或 project_members 中的人可访问
+
+        Uses per-request contextvar cache to avoid redundant DB lookups
+        when the same project+user pair is checked multiple times.
+
+        Returns:
+            角色字符串 (org 角色或 project 角色)，无权限则返回 None
+        """
+        from src.utils.request_context import project_access_cache_var
+
+        cache_key = f"{project_id}:{user_id}"
+        cache = project_access_cache_var.get()
+        if cache is not None and cache_key in cache:
+            return cache[cache_key]
+
+        result = self._verify_project_access_uncached(project_id, user_id)
+
+        if cache is not None:
+            cache[cache_key] = result
+
+        return result
+
+    def _verify_project_access_uncached(self, project_id: str, user_id: str) -> Optional[str]:
+        project = self.get_by_id(project_id)
+        if not project:
+            return None
+
+        from src.platform.organization.repository import OrganizationRepository
+        org_repo = OrganizationRepository()
+        member = org_repo.get_member(project.org_id, user_id)
+
+        if project.visibility == "org":
+            return member.role if member else None
+
+        if member and member.role == "owner":
+            return "owner"
+
+        from src.infra.supabase.dependencies import get_supabase_client
+        client = get_supabase_client()
+        resp = (
+            client.table("project_members")
+            .select("role")
+            .eq("project_id", project_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        if resp.data:
+            return resp.data[0]["role"]
+
+        return None
+
+    def _project_response_to_project(self, project_response) -> Project:
+        """
+        将 ProjectResponse 转换为 Project 模型
+
+        Args:
+            project_response: ProjectResponse对象
+
+        Returns:
+            Project对象
+        """
+        return Project(
+            id=project_response.id,
+            name=project_response.name,
+            description=project_response.description,
+            org_id=project_response.org_id,
+            visibility=getattr(project_response, 'visibility', 'org'),
+            created_by=project_response.created_by,
+            created_at=project_response.created_at,
+        )

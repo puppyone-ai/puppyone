@@ -3,10 +3,10 @@ from src.config import settings
 from src.mcp.repository import McpInstanceRepositoryJSON, McpInstanceRepositorySupabase
 from src.mcp.service import McpService
 from src.mcp.models import McpInstance
-from src.auth.models import CurrentUser
-from src.auth.dependencies import get_current_user
-from src.project.dependencies import get_project_service
-from src.project.service import ProjectService
+from src.platform.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 
 
 # 使用全局变量存储单例，而不是 lru_cache

@@ -4,7 +4,7 @@ import React from 'react';
 import { PanelShell } from './PanelShell';
 
 interface SandboxMount {
-  node_id: string;
+  path: string;
   mount_path: string;
   permissions?: { read?: boolean; write?: boolean; exec?: boolean };
 }
@@ -73,7 +73,7 @@ export function SandboxConfigPanel({ endpoint, onClose }: SandboxConfigPanelProp
 
   const execUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/sandbox-endpoints/${endpoint.id}/exec`;
   const targetLabel = endpoint.mounts.length > 0
-    ? endpoint.mounts[0].node_id
+    ? endpoint.mounts[0].path
     : 'Workspace';
 
   return (
@@ -146,7 +146,7 @@ export function SandboxConfigPanel({ endpoint, onClose }: SandboxConfigPanelProp
             <SectionLabel>Mounts ({endpoint.mounts.length})</SectionLabel>
             {endpoint.mounts.map((m, i) => (
               <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
-                {m.mount_path} → {m.node_id} ({m.permissions?.write ? 'read-write' : 'read-only'})
+                {m.mount_path} → {m.path} ({m.permissions?.write ? 'read-write' : 'read-only'})
               </div>
             ))}
           </div>

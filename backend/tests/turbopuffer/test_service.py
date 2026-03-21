@@ -7,14 +7,14 @@ from typing import Any
 import httpx
 import pytest
 
-from src.turbopuffer.config import TurbopufferConfig
-from src.turbopuffer.exceptions import (
+from src.infra.turbopuffer.config import TurbopufferConfig
+from src.infra.turbopuffer.exceptions import (
     TurbopufferAuthError,
     TurbopufferConfigError,
     TurbopufferNotFound,
     TurbopufferRequestError,
 )
-from src.turbopuffer.service import TurbopufferSearchService
+from src.infra.turbopuffer.service import TurbopufferSearchService
 
 
 class _FakeNamespace:

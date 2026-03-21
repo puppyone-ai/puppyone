@@ -20,12 +20,10 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.connectors.filesystem.router import router as folder_router
-from src.content_node.version_router import router as version_router
-from src.collaboration.audit_router import router as audit_router
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
-from src.project.dependencies import get_project_service
-from src.content_node.dependencies import get_version_service
+from src.mut_engine.audit_router import router as audit_router
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.project.dependencies import get_project_service
 
 
 # ============================================================
@@ -40,48 +38,46 @@ class InMemoryNodes:
         self._counter = 0
 
     def insert(self, **kwargs) -> SimpleNamespace:
-        node_id = kwargs.get("id", f"node-{self._counter}")
+        path = kwargs.get("id", f"node-{self._counter}")
         self._counter += 1
         parent_id = kwargs.get("parent_id")
-        if "id_path" in kwargs:
-            id_path = kwargs["id_path"]
+        if "mut_path" in kwargs:
+            mut_path = kwargs["mut_path"]
         elif parent_id:
             parent = self._store.get(parent_id)
-            id_path = f"{parent['id_path']}/{node_id}" if parent else f"/{node_id}"
+            mut_path = f"{parent['mut_path']}/{kwargs.get('name', 'test')}" if parent else kwargs.get("name", "test")
         else:
-            id_path = f"/{node_id}"
+            mut_path = kwargs.get("name", "test")
         node = {
-            "id": node_id,
+            "id": path,
             "project_id": kwargs.get("project_id", "proj-1"),
             "name": kwargs.get("name", "test"),
             "type": kwargs.get("type", "json"),
-            "id_path": id_path,
-            "preview_json": kwargs.get("preview_json"),
-            "preview_md": kwargs.get("preview_md"),
+            "mut_path": mut_path,
             "s3_key": kwargs.get("s3_key"),
             "current_version": kwargs.get("current_version", 0),
             "content_hash": kwargs.get("content_hash"),
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._store[node_id] = node
+        self._store[path] = node
         return self._to_ns(node)
 
-    def get(self, node_id: str):
-        if node_id in self._store:
-            return self._to_ns(self._store[node_id])
+    def get(self, path: str):
+        if path in self._store:
+            return self._to_ns(self._store[path])
         return None
 
-    def update(self, node_id: str, **kwargs):
-        if node_id in self._store:
-            self._store[node_id].update(kwargs)
-            return self._to_ns(self._store[node_id])
+    def update(self, path: str, **kwargs):
+        if path in self._store:
+            self._store[path].update(kwargs)
+            return self._to_ns(self._store[path])
         return None
 
     def list_children(self, project_id: str, parent_id: str):
         if parent_id:
             parent = self._store.get(parent_id)
-            parent_path = parent["id_path"] if parent else None
+            parent_path = parent["mut_path"] if parent else None
         else:
             parent_path = None
         return [
@@ -89,9 +85,9 @@ class InMemoryNodes:
             for n in self._store.values()
             if n["project_id"] == project_id
             and (
-                (parent_path and n["id_path"].startswith(parent_path + "/")
-                 and n["id_path"].count("/") == parent_path.count("/") + 1)
-                or (not parent_path and n["id_path"].count("/") == 1)
+                (parent_path and n["mut_path"].startswith(parent_path + "/")
+                 and n["mut_path"].count("/") == parent_path.count("/") + 1)
+                or (not parent_path and "/" not in n["mut_path"])
             )
         ]
 
@@ -155,33 +151,33 @@ class InMemoryVersions:
         self._versions.append(ver)
         return SimpleNamespace(**ver)
 
-    def list_by_node(self, node_id: str, limit: int = 50, offset: int = 0):
+    def list_by_node(self, path: str, limit: int = 50, offset: int = 0):
         results = [
             SimpleNamespace(**v) for v in self._versions
-            if v["node_id"] == node_id
+            if v["path"] == path
         ]
         results.sort(key=lambda v: v.version, reverse=True)
         return results[offset:offset + limit]
 
-    def count_by_node(self, node_id: str) -> int:
-        return len([v for v in self._versions if v["node_id"] == node_id])
+    def count_by_node(self, path: str) -> int:
+        return len([v for v in self._versions if v["path"] == path])
 
-    def get_by_node_and_version(self, node_id: str, version: int):
+    def get_by_node_and_version(self, path: str, version: int):
         for v in self._versions:
-            if v["node_id"] == node_id and v["version"] == version:
+            if v["path"] == path and v["version"] == version:
                 return SimpleNamespace(**v)
         return None
 
-    def get_latest_by_node(self, node_id: str):
-        results = [v for v in self._versions if v["node_id"] == node_id]
+    def get_latest_by_node(self, path: str):
+        results = [v for v in self._versions if v["path"] == path]
         if results:
             results.sort(key=lambda v: v["version"], reverse=True)
             return SimpleNamespace(**results[0])
         return None
 
-    def find_by_hash(self, node_id: str, content_hash: str):
+    def find_by_hash(self, path: str, content_hash: str):
         for v in self._versions:
-            if v["node_id"] == node_id and v.get("content_hash") == content_hash:
+            if v["path"] == path and v.get("content_hash") == content_hash:
                 return SimpleNamespace(**v)
         return None
 
@@ -207,16 +203,22 @@ class InMemoryAuditLogs:
         }
         self._logs.append(log)
 
-    def list_by_node(self, node_id: str, limit: int = 50, offset: int = 0):
-        results = [l for l in self._logs if l["node_id"] == node_id]
+    def list_by_node(self, path: str, limit: int = 50, offset: int = 0):
+        results = [l for l in self._logs if l["path"] == path]
         results.sort(key=lambda l: l["created_at"], reverse=True)
         return results[offset:offset + limit]
 
-    def count_by_node(self, node_id: str) -> int:
-        return len([l for l in self._logs if l["node_id"] == node_id])
+    def list_by_path(self, path: str, limit: int = 50, offset: int = 0):
+        return self.list_by_node(path, limit, offset)
 
-    def list_by_node_ids(self, node_ids: list, limit: int = 100, offset: int = 0):
-        results = [l for l in self._logs if l["node_id"] in node_ids]
+    def count_by_node(self, path: str) -> int:
+        return len([l for l in self._logs if l["path"] == path])
+
+    def count_by_path(self, path: str) -> int:
+        return self.count_by_node(path)
+
+    def list_by_paths(self, paths: list, limit: int = 100, offset: int = 0):
+        results = [l for l in self._logs if l["path"] in paths]
         results.sort(key=lambda l: l["created_at"], reverse=True)
         return results[offset:offset + limit]
 
@@ -283,7 +285,7 @@ def setup_sync(stores):
     sync = syncs.add(
         id="sync-1",
         project_id="proj-1",
-        node_id="folder-1",
+        path="folder-1",
         direction="bidirectional",
         provider="openclaw",
         config={},
@@ -312,7 +314,7 @@ class TestLocalPushToCloud:
         changelog = stores["changelog"]
         entry = changelog.append(
             project_id="proj-1",
-            node_id="test-node-1",
+            path="test-node-1",
             action="create",
             node_type="json",
             version=1,
@@ -332,7 +334,7 @@ class TestLocalPushToCloud:
         """Push should create a file_version record."""
         versions = stores["versions"]
         v = versions.create(
-            node_id="test-node-1",
+            path="test-node-1",
             version=1,
             content_json={"key": "value"},
             content_hash="hash-1",
@@ -351,13 +353,13 @@ class TestLocalPushToCloud:
         """Pushing updated content creates a new version."""
         versions = stores["versions"]
         versions.create(
-            node_id="test-node-1", version=1,
+            path="test-node-1", version=1,
             content_json={"key": "v1"}, content_hash="h1",
             size_bytes=10, operator_type="sync",
             operator_id="cli:openclaw", operation="create",
         )
         versions.create(
-            node_id="test-node-1", version=2,
+            path="test-node-1", version=2,
             content_json={"key": "v2"}, content_hash="h2",
             size_bytes=12, operator_type="sync",
             operator_id="cli:openclaw", operation="update",
@@ -376,13 +378,13 @@ class TestCloudPullToLocal:
         """After cloud edits, changelog cursor should advance."""
         changelog = stores["changelog"]
         changelog.append(
-            project_id="proj-1", node_id="n1",
+            project_id="proj-1", path="n1",
             action="update", node_type="json",
             version=2, hash="h2", size_bytes=50,
             folder_id="folder-1", filename="data.json",
         )
         changelog.append(
-            project_id="proj-1", node_id="n2",
+            project_id="proj-1", path="n2",
             action="create", node_type="markdown",
             version=1, hash="h3", size_bytes=100,
             folder_id="folder-1", filename="notes.md",
@@ -403,7 +405,7 @@ class TestCloudPullToLocal:
 
         for i in range(5):
             changelog.append(
-                project_id="proj-1", node_id=f"n{i}",
+                project_id="proj-1", path=f"n{i}",
                 action="update", node_type="json",
                 version=i + 1, hash=f"h{i}", size_bytes=10,
                 folder_id="folder-1", filename=f"file{i}.json",
@@ -426,7 +428,7 @@ class TestVersionHistory:
         versions = stores["versions"]
         for i in range(1, 6):
             versions.create(
-                node_id="n1", version=i,
+                path="n1", version=i,
                 content_json={"v": i}, content_hash=f"h{i}",
                 size_bytes=i * 10, operator_type="sync",
                 operation="update" if i > 1 else "create",
@@ -440,12 +442,12 @@ class TestVersionHistory:
         """Each version's content should be retrievable."""
         versions = stores["versions"]
         versions.create(
-            node_id="n1", version=1,
+            path="n1", version=1,
             content_json={"step": 1}, content_hash="h1",
             size_bytes=20, operator_type="user", operation="create",
         )
         versions.create(
-            node_id="n1", version=2,
+            path="n1", version=2,
             content_json={"step": 2}, content_hash="h2",
             size_bytes=25, operator_type="sync", operation="update",
         )
@@ -463,12 +465,12 @@ class TestVersionHistory:
         ops = [("create", 1), ("update", 2), ("update", 3)]
         for action, ver in ops:
             versions.create(
-                node_id="n1", version=ver,
+                path="n1", version=ver,
                 content_json={"v": ver}, content_hash=f"h{ver}",
                 size_bytes=10, operator_type="sync", operation=action,
             )
             changelog.append(
-                project_id="proj-1", node_id="n1",
+                project_id="proj-1", path="n1",
                 action=action, node_type="json",
                 version=ver, hash=f"h{ver}", size_bytes=10,
                 folder_id="folder-1", filename="data.json",
@@ -485,19 +487,19 @@ class TestRollback:
         """Rollback should create a NEW version (not delete old ones)."""
         versions = stores["versions"]
         versions.create(
-            node_id="n1", version=1,
+            path="n1", version=1,
             content_json={"data": "original"}, content_hash="h1",
             size_bytes=20, operator_type="user", operation="create",
         )
         versions.create(
-            node_id="n1", version=2,
+            path="n1", version=2,
             content_json={"data": "modified"}, content_hash="h2",
             size_bytes=25, operator_type="sync", operation="update",
         )
 
         old = versions.get_by_node_and_version("n1", 1)
         new_ver = versions.create(
-            node_id="n1", version=3,
+            path="n1", version=3,
             content_json=old.content_json, content_hash=old.content_hash,
             size_bytes=old.size_bytes, operator_type="user",
             operation="rollback", summary="Rollback to v1",
@@ -512,7 +514,7 @@ class TestRollback:
         audit = stores["audit"]
         audit.insert(
             action="rollback",
-            node_id="n1",
+            path="n1",
             operator_type="user",
             operator_id="user-1",
             old_version=1,
@@ -530,7 +532,7 @@ class TestRollback:
         versions = stores["versions"]
         for i in range(1, 4):
             versions.create(
-                node_id="n1", version=i,
+                path="n1", version=i,
                 content_json={"v": i}, content_hash=f"h{i}",
                 size_bytes=10, operator_type="user",
                 operation="create" if i == 1 else "update",
@@ -538,7 +540,7 @@ class TestRollback:
 
         old_v1 = versions.get_by_node_and_version("n1", 1)
         versions.create(
-            node_id="n1", version=4,
+            path="n1", version=4,
             content_json=old_v1.content_json, content_hash=old_v1.content_hash,
             size_bytes=old_v1.size_bytes, operator_type="user",
             operation="rollback",
@@ -571,7 +573,7 @@ class TestConflict:
         audit = stores["audit"]
         audit.insert(
             action="conflict",
-            node_id="conflict-node",
+            path="conflict-node",
             operator_type="sync",
             operator_id="cli:openclaw",
             strategy="lww",
@@ -590,19 +592,19 @@ class TestAuditLogApi:
 
     def test_audit_log_endpoint(self):
         """GET /nodes/{id}/audit-logs should return audit logs."""
-        from src.collaboration.audit_router import router, _get_audit_repo
+        from src.mut_engine.audit_router import router, _get_audit_repo
 
         app = FastAPI()
         app.include_router(router, prefix="/api/v1")
 
         mock_repo = InMemoryAuditLogs()
         mock_repo.insert(
-            action="commit", node_id="n1",
+            action="commit", path="n1",
             operator_type="user", operator_id="u1",
             old_version=1, new_version=2, status="clean",
         )
         mock_repo.insert(
-            action="rollback", node_id="n1",
+            action="rollback", path="n1",
             operator_type="user", operator_id="u1",
             old_version=2, new_version=3,
         )

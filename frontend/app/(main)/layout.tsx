@@ -36,6 +36,7 @@ function MainLayoutInner({
     if (pathname.startsWith('/home')) return 'home';
     if (pathname.includes('/projects/')) {
       if (pathname.includes('/toolkit')) return 'toolkit';
+      if (pathname.includes('/history')) return 'history';
       if (pathname.includes('/connections')) return 'connections';
       if (pathname.includes('/monitor')) return 'monitor';
       if (pathname.includes('/settings')) return 'settings';

@@ -40,6 +40,7 @@ dependencies = [
     "apscheduler>=3.10.4",
     "watchdog>=6.0.0",
     "pymupdf>=1.25.0",
+    "mut",
 ]
 
 [build-system]
@@ -53,3 +54,6 @@ asyncio_mode = "auto"
 markers = [
     "e2e: end-to-end tests that may call real external services",
 ]
+
+[tool.uv.sources]
+mut = { path = "../../mut" }

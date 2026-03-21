@@ -10,7 +10,7 @@ import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/compon
 
 interface SyncDetail {
   id: string;
-  node_id: string;
+  path: string;
   node_name: string | null;
   node_type: string | null;
   provider: string;

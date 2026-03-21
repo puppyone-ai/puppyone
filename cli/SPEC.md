@@ -85,7 +85,7 @@ puppyone project rm <id>             Delete project
 
 ### `fs` — Cloud File System
 
-POSIX-like interface to the content node tree backed by Supabase + S3.
+POSIX-like interface to the Mut tree, backed by S3 (Merkle objects) + PostgreSQL (commit history).
 
 ```
 puppyone fs ls [path]                List files/folders (-l for details)
@@ -95,15 +95,17 @@ puppyone fs mkdir <path>             Create folder
 puppyone fs touch <path>             Create empty file (-t json|markdown)
 puppyone fs write <path>             Write content (-d data, -f file, or stdin)
 puppyone fs mv <src> <dst>           Move or rename
-puppyone fs rm <path>                Soft delete
-puppyone fs info <path>              Detailed node info
+puppyone fs rm <path>                Soft delete (move to .trash)
+puppyone fs info <path>              Detailed file info (path, type, size, hash)
 puppyone fs upload <local> [remote]  Upload local file
 puppyone fs download <remote> [local] Download to local
-puppyone fs versions <path>          Version history
-puppyone fs diff <path> <v1> <v2>    Compare two versions
-puppyone fs rollback <path> <ver>    Rollback to previous version
+puppyone fs versions [path]          Version / commit history (project-level if path omitted)
+puppyone fs diff <v1> <v2>           Compare two versions (--path for file-level)
+puppyone fs rollback <version>       Rollback to previous version (--path for file-level)
 puppyone fs audit <path>             Audit log
 ```
+
+All operations are path-native — no UUIDs in user-facing commands.
 
 ### `sync` — Data Source Sync
 
@@ -217,7 +219,7 @@ Create public JSON endpoints for sharing data.
 
 ```
 puppyone publish ls                  List published endpoints
-puppyone publish create <node-id>    Create publish (--key)
+puppyone publish create <path>       Create publish (--key)
 puppyone publish rm <id>             Delete publish
 puppyone publish url <key>           Fetch public data
 ```
@@ -312,7 +314,7 @@ puppyone conn trigger <id> <mode>    Set trigger mode (manual|import_once|schedu
 | `agent` | — | `conn add agent "My Bot" --model gpt-4o` |
 | `mcp` | — | `conn add mcp "My Endpoint"` |
 | `sandbox` | — | `conn add sandbox "My Sandbox" --type e2b` |
-| `folder` | `filesystem`, `local` | `conn add folder ~/workspace --name "Dev Sync"` |
+| `folder` | `filesystem`, `local` | `conn add folder /my-docs --name "Dev Sync"` |
 | `posthog` | `ph` | `conn add posthog --api-key phx_... --config '{...}'` |
 | ... | | All 15+ sync providers supported |
 

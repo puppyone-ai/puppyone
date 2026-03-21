@@ -270,7 +270,7 @@ export default function Step2Page() {
         {
           projectId: Number(currentProjectId),
           files: newFiles,
-          nodeId: currentTableId,  // 使用 nodeId (UUID 字符串)
+          path: currentTableId,
         },
         token
       );

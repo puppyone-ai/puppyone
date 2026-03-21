@@ -52,7 +52,7 @@ export function registerTable(program) {
     .description("Create a table")
     .argument("<name>", "table name")
     .option("-d, --data <json>", "initial data (JSON string)")
-    .option("--node <node-id>", "attach to content node")
+    .option("--node <path>", "attach at content path")
     .action(withErrors(async (name, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
@@ -60,7 +60,7 @@ export function registerTable(program) {
 
       const body = { name, project_id: projectId };
       if (opts.data) body.data = JSON.parse(opts.data);
-      if (opts.node) body.node_id = opts.node;
+      if (opts.node) body.path = opts.node;
 
       const created = await client.post("/tables", body);
       out.info(`Table created: ${created.name} (${created.id})`);

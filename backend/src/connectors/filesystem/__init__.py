@@ -1,13 +1,15 @@
 """
-Filesystem Connector — Bidirectional local folder sync (OpenClaw).
+Filesystem Connector — Folder sync via MUT protocol.
+
+Architecture: Client-side daemon handles all watch/diff/sync via MUT HTTP protocol.
+Server provides: MUT protocol endpoints + supplementary read/push APIs.
 
 Components:
-  - service.py        FolderSyncService  — core pull/push/delete logic
+  - service.py        FolderSyncService  — server-side read/push helpers
   - lifecycle.py      OpenClawService    — CLI connect/disconnect lifecycle
-  - watcher.py        FolderSourceService — one-way local→cloud watcher
-  - folder_access.py  FolderAccessService — bidirectional workspace sync
+  - watcher.py        FolderSourceService — stub (client-side now)
+  - folder_access.py  FolderAccessService — stub (client-side now)
   - connector.py      OpenClawConnector  — ConnectorSpec declaration
-  - io/               Pure file I/O engine (scan, diff, write, watch)
   - router.py         HTTP endpoints     — /api/v1/filesystem/*
 """
 
