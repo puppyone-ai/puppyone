@@ -28,6 +28,7 @@ from src.connectors.datasource.engine import SyncEngine
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.dependencies import get_sync_service, get_sync_engine, get_connector_registry
 from src.common_schemas import ApiResponse
+from src.utils.logger import log_error
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
 from src.connectors.datasource.cli_handlers import (
@@ -39,6 +40,8 @@ from src.connectors.datasource.cli_handlers import (
 
 
 router = APIRouter(prefix="/sync", tags=["sync"])
+
+_PROJECT_ID_DESC = "Project ID"
 
 
 # ============================================================
@@ -212,7 +215,7 @@ def _get_sync_with_access(
 
 @router.get("/status", response_model=ApiResponse[ProjectSyncStatusResponse])
 async def get_project_sync_status(
-    project_id: str = Query(..., description="Project ID"),
+    project_id: str = Query(..., description=_PROJECT_ID_DESC),
     sync_svc: SyncService = Depends(get_sync_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -221,7 +224,6 @@ async def get_project_sync_status(
     Aggregated sync status for a project.
     Used by the frontend header sync panel.
     """
-    from src.infra.supabase.client import SupabaseClient
 
     _ensure_project_access(project_service, current_user, project_id)
 
@@ -324,7 +326,6 @@ async def create_sync(
     try:
         execution_result = await engine.execute(sync.id)
     except Exception as e:
-        from src.utils.logger import log_error
         log_error(f"[CreateSync] First fetch failed for sync {sync.id}: {e}")
 
     refreshed_sync = sync_svc.sync_repo.get_by_id(sync.id) or sync
@@ -674,7 +675,6 @@ async def bootstrap(
         try:
             await engine.execute(s.id)
         except Exception as e:
-            from src.utils.logger import log_error
             log_error(f"[Bootstrap] First fetch failed for sync {s.id}: {e}")
 
     return ApiResponse.success(data=BootstrapResponse(syncs_created=len(syncs)))
@@ -784,7 +784,7 @@ async def trigger_pull(
 @router.post("/push/{path:path}", response_model=ApiResponse[PushResponse])
 async def trigger_push(
     path: str,
-    project_id: str = Query(..., description="Project ID"),
+    project_id: str = Query(..., description=_PROJECT_ID_DESC),
     engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -803,7 +803,7 @@ async def trigger_push(
     if node_type == "json":
         try:
             parsed_content = _json.loads(content.decode("utf-8"))
-        except (ValueError, UnicodeDecodeError):
+        except ValueError:
             parsed_content = content.decode("utf-8", errors="replace")
     else:
         parsed_content = content.decode("utf-8", errors="replace")
@@ -848,7 +848,7 @@ class ChangelogResponse(BaseModel):
 
 @router.get("/changelog", response_model=ApiResponse[ChangelogResponse])
 def get_sync_changelog(
-    project_id: str = Query(..., description="Project ID"),
+    project_id: str = Query(..., description=_PROJECT_ID_DESC),
     cursor: int = Query(0, ge=0, description="Cursor for pagination"),
     limit: int = Query(100, ge=1, le=500),
     sync_svc: SyncService = Depends(get_sync_service),

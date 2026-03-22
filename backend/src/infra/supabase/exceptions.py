@@ -6,12 +6,13 @@ Defines custom exceptions related to Supabase.
 
 from postgrest.exceptions import APIError
 from src.exceptions import BusinessException, ErrorCode
+from typing import Optional
 
 
 class SupabaseException(BusinessException):
     """Supabase base exception"""
 
-    def __init__(self, message: str, original_error: Exception = None):
+    def __init__(self, message: str, original_error: Optional[Exception] = None):
         super().__init__(message=message, code=ErrorCode.BAD_REQUEST)
         self.original_error = original_error
 
@@ -20,7 +21,7 @@ class SupabaseDuplicateKeyError(SupabaseException):
     """Primary key conflict error"""
 
     def __init__(
-        self, table: str, key: str, value: any, original_error: Exception = None
+        self, table: str, key: str, value: any, original_error: Optional[Exception] = None
     ):
         message = f"Record already exists: table '{table}' already has a record with {key}={value}"
         super().__init__(message=message, original_error=original_error)
@@ -43,7 +44,7 @@ class SupabaseNotFoundError(SupabaseException):
 class SupabaseForeignKeyError(SupabaseException):
     """Foreign key constraint error"""
 
-    def __init__(self, message: str, original_error: Exception = None):
+    def __init__(self, message: str, original_error: Optional[Exception] = None):
         super().__init__(message=message, original_error=original_error)
 
 
@@ -126,6 +127,6 @@ def handle_supabase_error(
 
     # Non-APIError exceptions, wrap directly
     return SupabaseException(
-        message=f"{operation} failed: {str(error)}",
+        message=f"{operation} failed: {error!s}",
         original_error=error,
     )

@@ -7,7 +7,6 @@ Endpoints:
   GET  /workspace/{agent_id}/status     View workspace status
 """
 
-import json as json_mod
 import os
 import time as time_mod
 

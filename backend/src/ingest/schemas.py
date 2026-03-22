@@ -23,7 +23,7 @@ class IngestType(str, Enum):
     IMAGE = "image"
     DOCUMENT = "document"  # docx, xlsx, etc.
     TEXT = "text"          # txt, md, json, code files
-    
+
     # SaaS types (SAAS source → SyncEngine)
     GITHUB = "github"
     NOTION = "notion"
@@ -34,7 +34,7 @@ class IngestType(str, Enum):
     GOOGLE_CALENDAR = "google_calendar"
     AIRTABLE = "airtable"
     LINEAR = "linear"
-    
+
     # URL types
     WEB_PAGE = "web_page"
 
@@ -61,10 +61,10 @@ class IngestSubmitRequest(BaseModel):
     """Unified submit request (JSON body, excluding files)."""
     project_id: str = Field(..., description="Target project ID")
     source_type: SourceType = Field(..., description="Source type")
-    
+
     # SaaS/URL source (source_type = saas | url)
     url: Optional[str] = Field(None, description="SaaS or Web URL")
-    
+
     # Optional configuration
     name: Optional[str] = Field(None, description="Custom name")
     mode: IngestMode = Field(IngestMode.SMART, description="Processing mode")
@@ -113,22 +113,22 @@ class IngestTaskResponse(BaseModel):
     status: IngestStatus
     progress: int = Field(0, ge=0, le=100)
     message: Optional[str] = None
-    
+
     # Result
     content_path: Optional[str] = None
     items_count: Optional[int] = None
-    
+
     # Error
     error: Optional[str] = None
-    
+
     # Timestamps
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime] = None
-    
+
     # Original filename (FILE type)
     filename: Optional[str] = None
-    
+
     # Metadata
     metadata: dict[str, Any] = Field(default_factory=dict)
 

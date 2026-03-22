@@ -50,7 +50,7 @@ def detect_source_type(url: str) -> str:
 class UrlParser:
     """
     URL Parser for preview data extraction.
-    
+
     Supports:
     - Generic URLs (via Firecrawl or BeautifulSoup fallback)
     - JSON endpoints
@@ -102,11 +102,11 @@ class UrlParser:
     ) -> Dict[str, Any]:
         """
         Parse a URL and return structured preview data.
-        
+
         Args:
             url: URL to parse
             crawl_options: Optional Firecrawl crawl options for multi-page crawl
-            
+
         Returns:
             Dict with: data, source_type, title, fields (optional)
         """
@@ -132,7 +132,7 @@ class UrlParser:
             # JSON content
             if "application/json" in content_type or url.lower().endswith(".json"):
                 return self._parse_json(response.text, url, source_type)
-            
+
             # HTML content - try Firecrawl first
             if self.firecrawl_client.is_available():
                 firecrawl_result = await self._parse_with_firecrawl(url, source_type, crawl_options)
@@ -150,7 +150,7 @@ class UrlParser:
             raise ValueError("Request timeout")
         except Exception as e:
             log_error(f"Error parsing {url}: {e}")
-            raise ValueError(f"Parse error: {str(e)}")
+            raise ValueError(f"Parse error: {e!s}")
 
     async def _parse_with_firecrawl(
         self,
@@ -189,7 +189,7 @@ class UrlParser:
                 )
                 if result:
                     return self._process_scrape_result(result, url, source_type)
-            
+
             return None
         except Exception as e:
             log_error(f"Firecrawl error for {url}: {e}")
@@ -258,7 +258,7 @@ class UrlParser:
         self,
         markdown: str,
         default_title: str,
-        page_url: str = None
+        page_url: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Convert markdown to structured sections."""
         lines = markdown.split("\n")
@@ -370,7 +370,7 @@ class UrlParser:
 
         except Exception as e:
             log_error(f"HTML parsing error: {e}")
-            raise ValueError(f"HTML parse error: {str(e)}")
+            raise ValueError(f"HTML parse error: {e!s}")
 
     def _extract_table_data(self, table) -> List[Dict[str, Any]]:
         """Extract data from HTML table."""

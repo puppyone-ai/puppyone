@@ -351,7 +351,7 @@ class MineRUClient:
             raise MineRUAPIError(0, "Markdown file not found in result")
 
         # Read Markdown content
-        with open(markdown_path, "r", encoding="utf-8") as f:
+        with open(markdown_path, encoding="utf-8") as f:
             content = f.read()
 
         logger.info(

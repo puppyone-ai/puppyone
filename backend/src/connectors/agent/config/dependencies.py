@@ -13,6 +13,9 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 
 
+_AGENT_NOT_FOUND = "Agent not found"
+
+
 def get_agent_repository() -> AgentRepository:
     """Get AgentRepository instance."""
     return AgentRepository()
@@ -40,7 +43,7 @@ def get_verified_agent(
     if not agent:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Agent not found",
+            detail=_AGENT_NOT_FOUND,
         )
     # Verify user access via the project table
     if not service.verify_access(agent_id, current_user.user_id):

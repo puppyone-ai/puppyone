@@ -52,10 +52,7 @@ class IgnoreRules:
 
     def should_ignore_dir(self, dir_name: str) -> bool:
         """Determine whether a directory name should be ignored (for os.walk dirs filtering)."""
-        for pattern in self.patterns:
-            if fnmatch.fnmatch(dir_name, pattern):
-                return True
-        return False
+        return any(fnmatch.fnmatch(dir_name, pattern) for pattern in self.patterns)
 
     def add_pattern(self, pattern: str) -> None:
         if pattern not in self.patterns:

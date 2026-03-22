@@ -52,7 +52,7 @@ class AgentConfigService:
         type: str = "chat",
         description: Optional[str] = None,
         is_default: bool = False,
-        bash_accesses: List[AgentBashCreate] = None,
+        bash_accesses: Optional[List[AgentBashCreate]] = None,
         trigger_type: Optional[str] = "manual",
         trigger_config: Optional[dict] = None,
         task_content: Optional[str] = None,

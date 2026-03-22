@@ -29,7 +29,6 @@ class McpBase(BaseModel):
 class McpCreate(McpBase):
     """MCP instance creation model"""
 
-    pass
 
 
 class McpUpdate(BaseModel):

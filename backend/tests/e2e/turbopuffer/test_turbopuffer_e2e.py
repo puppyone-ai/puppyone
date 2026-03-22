@@ -30,7 +30,7 @@ def _make_namespace(prefix: str = "e2e-tpuf-") -> str:
 
 def simple_chunk(text: str, *, max_chars: int = 80) -> list[str]:
     """
-    一个“足够简单”的 chunker：
+    一个"足够简单"的 chunker：
     - 以句号分句
     - 按 max_chars 聚合
     """

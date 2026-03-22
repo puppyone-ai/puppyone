@@ -136,7 +136,7 @@ class AirtableOAuthService:
                 logger.warning(f"Failed to fetch Airtable user info: {e}")
 
             expires_at = None
-            if "expires_in" in token_data and token_data["expires_in"]:
+            if token_data.get("expires_in"):
                 expires_at = datetime.now(timezone.utc) + timedelta(
                     seconds=int(token_data["expires_in"])
                 )
@@ -187,7 +187,7 @@ class AirtableOAuthService:
                 pass
             return False, error_message, None
         except Exception as exc:
-            return False, f"Failed to handle Airtable callback: {str(exc)}", None
+            return False, f"Failed to handle Airtable callback: {exc!s}", None
 
     async def get_connection(self, user_id: str) -> Optional[OAuthConnection]:
         """Get Airtable connection for a user."""
@@ -235,7 +235,7 @@ class AirtableOAuthService:
             token_data = response.json()
 
             expires_at = None
-            if "expires_in" in token_data and token_data["expires_in"]:
+            if token_data.get("expires_in"):
                 expires_at = datetime.now(timezone.utc) + timedelta(
                     seconds=int(token_data["expires_in"])
                 )

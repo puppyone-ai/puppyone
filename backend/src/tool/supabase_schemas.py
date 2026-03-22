@@ -42,7 +42,6 @@ class ToolBase(BaseModel):
 class ToolCreate(ToolBase):
     """Create Tool model"""
 
-    pass
 
 
 class ToolUpdate(BaseModel):

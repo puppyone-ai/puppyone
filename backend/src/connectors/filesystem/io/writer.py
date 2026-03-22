@@ -9,7 +9,7 @@ and the write_file() logic of sync/cache_manager.py.
 
 import json
 import os
-from typing import Any, Optional
+from typing import Any
 
 from src.connectors.filesystem.io.schemas import FileEntry
 from src.connectors.filesystem.io.scanner import compute_hash, detect_type

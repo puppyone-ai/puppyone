@@ -4,7 +4,6 @@ Normalizers - Convert ETL tasks to unified format.
 SaaS normalizers removed — SaaS imports now go through Bootstrap + SyncEngine.
 """
 
-from typing import Optional
 
 from src.ingest.schemas import (
     SourceType,

@@ -92,7 +92,7 @@ class GoogleDocsOAuthService:
             user_info = await self.fetch_user_info(access_token)
 
             expires_at = None
-            if "expires_in" in token_data and token_data["expires_in"]:
+            if token_data.get("expires_in"):
                 expires_at = datetime.now(timezone.utc) + timedelta(
                     seconds=int(token_data["expires_in"])
                 )
@@ -139,7 +139,7 @@ class GoogleDocsOAuthService:
                 pass
             return False, error_message, None
         except Exception as exc:
-            return False, f"Failed to handle Google Docs callback: {str(exc)}", None
+            return False, f"Failed to handle Google Docs callback: {exc!s}", None
 
     async def get_connection(self, user_id: str) -> Optional[OAuthConnection]:
         """Get Google Docs connection for a user."""
@@ -182,7 +182,7 @@ class GoogleDocsOAuthService:
             token_data = response.json()
 
             expires_at = None
-            if "expires_in" in token_data and token_data["expires_in"]:
+            if token_data.get("expires_in"):
                 expires_at = datetime.now(timezone.utc) + timedelta(
                     seconds=int(token_data["expires_in"])
                 )

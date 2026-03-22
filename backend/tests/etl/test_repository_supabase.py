@@ -14,7 +14,8 @@ from src.infra.supabase.exceptions import SupabaseException
 from src.infra.supabase.dependencies import get_supabase_client
 
 
-if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
+_REAL_SUPABASE = os.getenv("SUPABASE_URL", "") and "localhost:54321" not in os.getenv("SUPABASE_URL", "")
+if not _REAL_SUPABASE:
     pytest.skip("Skip Supabase-dependent tests (SUPABASE_URL/KEY not set)", allow_module_level=True)
 
 @pytest.fixture

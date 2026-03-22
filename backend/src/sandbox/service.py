@@ -23,7 +23,7 @@ class SandboxService:
     Acts as a facade/proxy class, delegating to concrete sandbox implementations (E2B or Docker).
     Supports automatic backend switching via configuration or environment variables.
     """
-    
+
     def __init__(
         self,
         sandbox_impl: Optional[SandboxBase] = None,
@@ -45,51 +45,51 @@ class SandboxService:
         else:
             # Auto-create based on configuration
             self._impl = _create_sandbox_impl()
-    
+
     async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
         """Create a sandbox session and preload a single JSON data"""
         return await self._impl.start(session_id, data, readonly)
-    
+
     async def start_with_files(
-        self, 
-        session_id: str, 
-        files: list, 
-        readonly: bool, 
+        self,
+        session_id: str,
+        files: list,
+        readonly: bool,
         s3_service: Optional[Any] = None
     ) -> dict:
         """Create a sandbox session and preload multiple files"""
         return await self._impl.start_with_files(session_id, files, readonly, s3_service)
-    
+
     async def exec(self, session_id: str, command: str) -> dict:
         """Execute a command in the sandbox"""
         return await self._impl.exec(session_id, command)
-    
+
     async def read(self, session_id: str) -> dict:
         """Read the contents of /workspace/data.json"""
         return await self._impl.read(session_id)
-    
+
     async def read_file(self, session_id: str, path: str, parse_json: bool = False) -> dict:
         """Read a file at the specified path in the sandbox"""
         return await self._impl.read_file(session_id, path, parse_json)
-    
+
     async def stop(self, session_id: str) -> dict:
         """Stop and clean up a sandbox session"""
         return await self._impl.stop(session_id)
-    
+
     async def status(self, session_id: str) -> dict:
         """Get sandbox session status"""
         return await self._impl.status(session_id)
-    
+
     async def stop_all(self) -> None:
         """Stop all sandbox sessions"""
         await self._impl.stop_all()
-    
+
     @property
     def sandbox_type(self) -> str:
         """Return the currently used sandbox type"""
         from .e2b_sandbox import E2BSandbox
         from .docker_sandbox import DockerSandbox
-        
+
         if isinstance(self._impl, E2BSandbox):
             return "e2b"
         elif isinstance(self._impl, DockerSandbox):
@@ -107,9 +107,9 @@ def _create_sandbox_impl() -> SandboxBase:
     2. In auto mode, detect whether E2B_API_KEY exists
     """
     from src.config import settings
-    
+
     sandbox_type = settings.SANDBOX_TYPE
-    
+
     # Auto mode: detect environment
     if sandbox_type == "auto":
         if os.getenv("E2B_API_KEY"):
@@ -118,7 +118,7 @@ def _create_sandbox_impl() -> SandboxBase:
         else:
             sandbox_type = "docker"
             print("[SandboxService] No E2B_API_KEY found, using Docker sandbox")
-    
+
     # Create the corresponding implementation
     if sandbox_type == "e2b":
         from .e2b_sandbox import E2BSandbox
@@ -137,13 +137,13 @@ def get_sandbox_type() -> str:
     Used by the frontend to query the current configuration
     """
     from src.config import settings
-    
+
     sandbox_type = settings.SANDBOX_TYPE
-    
+
     if sandbox_type == "auto":
         if os.getenv("E2B_API_KEY"):
             return "e2b"
         else:
             return "docker"
-    
+
     return sandbox_type

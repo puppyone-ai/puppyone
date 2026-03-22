@@ -306,7 +306,7 @@ class TableToolImplementation:
                     "data_type": "List[mixed]"
                 }
             
-            # 必须传入 keys：否则无法达成“只挑选必要决策信息”的目的
+            # 必须传入 keys：否则无法达成"只挑选必要决策信息"的目的
             if not keys or not isinstance(keys, list):
                 return {"error": "keys 参数必须是非空列表（List[str]）"}
             normalized_keys: list[str] = [str(k).strip() for k in keys if str(k).strip()]

@@ -4,16 +4,20 @@ PuppyOneAuthenticator — MUT protocol authentication adapter
 Maps PuppyOne's authentication system to the MUT (agent, _scope) model:
   - JWT Bearer → user + full project scope (mode=rw)
   - Access Key → connection + restricted scope (via ScopeManager)
+
+Supports:
+  - Key revocation (revoked connections are rejected)
+  - User identity binding via X-Mut-User header
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import Depends, Header, HTTPException, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials
 
-from src.platform.auth.dependencies import get_auth_service, security
+from src.platform.auth.dependencies import security
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_warning
@@ -25,11 +29,17 @@ class PuppyOneAuthenticator:
     def __init__(self, supabase: SupabaseClient):
         self._client = supabase.client
 
-    def authenticate(self, token: str, project_id: str) -> dict:
+    def authenticate(self, token: str, project_id: str,
+                     user_identity: str = "") -> dict:
         """Resolve a Bearer token to MUT auth context.
 
+        Args:
+            token: Bearer token (JWT or access key)
+            project_id: Target project ID
+            user_identity: X-Mut-User header value (for identity binding)
+
         Returns:
-            {"agent": str, "_scope": {"id": str, "path": str, "exclude": list, "mode": str}}
+            {"agent": str, "_scope": {"id", "path", "exclude", "mode"}}
         """
         if settings.SKIP_AUTH:
             log_warning("SKIP_AUTH enabled — MUT auth returning mock user")
@@ -47,6 +57,21 @@ class PuppyOneAuthenticator:
 
         conn = self._try_access_key(token, project_id)
         if conn:
+            # Check revocation
+            if conn.get("revoked_at"):
+                raise HTTPException(
+                    status_code=401, detail="Access key has been revoked"
+                )
+
+            # Check user identity binding
+            bound_identity = conn.get("config", {}).get("user_identity", "")
+            if bound_identity and user_identity:
+                if user_identity != bound_identity:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="User identity mismatch: key is bound to a different user",
+                    )
+
             scope = self._resolve_scope(conn, project_id)
             return {
                 "agent": conn["id"],
@@ -83,7 +108,7 @@ class PuppyOneAuthenticator:
         try:
             resp = (
                 self._client.table("connections")
-                .select("id, project_id, provider")
+                .select("id, project_id, provider, config, revoked_at")
                 .eq("access_key", key)
                 .maybe_single()
                 .execute()
@@ -96,6 +121,47 @@ class PuppyOneAuthenticator:
         except Exception:
             return None
 
+    # ── Key management ──
+
+    def revoke(self, access_key: str) -> bool:
+        """Revoke an access key by setting revoked_at timestamp."""
+        try:
+            from datetime import datetime, timezone
+            self._client.table("connections").update(
+                {"revoked_at": datetime.now(timezone.utc).isoformat()}
+            ).eq("access_key", access_key).execute()
+            return True
+        except Exception:
+            return False
+
+    def revoke_by_scope(self, scope_id: str, project_id: str) -> int:
+        """Revoke all keys for a given scope within a project.
+
+        Matches connections whose config->scope->id equals scope_id.
+        """
+        try:
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).isoformat()
+            resp = (
+                self._client.table("connections")
+                .select("id, config")
+                .eq("project_id", project_id)
+                .is_("revoked_at", "null")
+                .execute()
+            )
+            count = 0
+            for row in (resp.data or []):
+                cfg = row.get("config") or {}
+                scope = cfg.get("scope") or {}
+                if scope.get("id") == scope_id:
+                    self._client.table("connections").update(
+                        {"revoked_at": now}
+                    ).eq("id", row["id"]).execute()
+                    count += 1
+            return count
+        except Exception:
+            return 0
+
 
 async def get_mut_auth(
     request: Request,
@@ -106,5 +172,8 @@ async def get_mut_auth(
     if not credentials:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
 
+    user_identity = request.headers.get("x-mut-user", "")
     authenticator = PuppyOneAuthenticator(SupabaseClient())
-    return authenticator.authenticate(credentials.credentials, project_id)
+    return authenticator.authenticate(
+        credentials.credentials, project_id, user_identity=user_identity,
+    )

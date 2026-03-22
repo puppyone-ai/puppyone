@@ -8,7 +8,6 @@ from pydantic import BaseModel
 class OAuthAuthorizeRequest(BaseModel):
     """Request for OAuth authorization."""
 
-    pass
 
 
 class OAuthAuthorizeResponse(BaseModel):

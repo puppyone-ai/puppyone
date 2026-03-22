@@ -7,10 +7,7 @@ This layer persists to Supabase/Postgres table: public.chunks
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any, List, Optional
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, List, Optional
 
 from src.infra.chunking.config import ChunkingConfig
 from src.infra.chunking.schemas import Chunk, ChunkCreate, EnsureChunksResult

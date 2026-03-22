@@ -7,8 +7,6 @@ Interface-compatible with Mut's native AuditLog (filesystem JSON).
 
 from __future__ import annotations
 
-import json
-from typing import Optional
 
 from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_error

@@ -11,11 +11,11 @@ All writes go through MutOps (clone → push under the hood).
 """
 
 import json
-from typing import Optional, List, Any, TYPE_CHECKING
+from typing import Optional, List, Any
 
 from src.connectors.datasource._base import BaseConnector
 from src.connectors.datasource.repository import SyncRepository
-from src.connectors.datasource.schemas import Sync, PullResult, ResourceInfo
+from src.connectors.datasource.schemas import Sync, ResourceInfo
 from src.utils.logger import log_info, log_error, log_debug
 
 
@@ -279,7 +279,7 @@ class SyncService:
             file_path = sync.path
 
             content = pull_result.content
-            if isinstance(content, dict) or isinstance(content, list):
+            if isinstance(content, (dict, list)):
                 content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
             elif isinstance(content, str):
                 content_bytes = content.encode("utf-8")

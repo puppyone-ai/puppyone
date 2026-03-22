@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class TurbopufferConfig(BaseSettings):
     model_config = SettingsConfigDict(
         # This project calls `load_dotenv()` centrally in `src.main`; here we only read from env vars
-        # to avoid the uncontrollable behavior of “env var not set but implicitly injected by .env” in tests/multi-env.
+        # to avoid the uncontrollable behavior of "env var not set but implicitly injected by .env" in tests/multi-env.
         env_file=None,
         extra="ignore",
         env_ignore_empty=True,
@@ -38,7 +38,7 @@ class TurbopufferConfig(BaseSettings):
         return bool(self.api_key and self.api_key.strip())
 
     @model_validator(mode="after")
-    def _warn_if_missing_key(self) -> "TurbopufferConfig":
+    def _warn_if_missing_key(self) -> TurbopufferConfig:
         if not self.configured:
             logger.warning(
                 "TURBOPUFFER_API_KEY is not set. Turbopuffer calls may fail at runtime."

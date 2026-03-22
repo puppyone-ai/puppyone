@@ -213,7 +213,7 @@ class GoogleDriveConnector(BaseConnector):
 
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
-    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.connectors.datasource._base import ConnectorSetup
     from src.oauth.google_drive_service import GoogleDriveOAuthService
     oauth_svc = GoogleDriveOAuthService()
     return ConnectorSetup(

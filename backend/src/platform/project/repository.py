@@ -16,12 +16,10 @@ class ProjectRepositoryBase(ABC):
     @abstractmethod
     def get_by_id(self, project_id: str) -> Optional[Project]:
         """Get project by ID"""
-        pass
 
     @abstractmethod
     def get_by_org_id(self, org_id: str) -> List[Project]:
         """Get project list by organization ID"""
-        pass
 
     @abstractmethod
     def create(
@@ -32,7 +30,6 @@ class ProjectRepositoryBase(ABC):
         created_by: str,
     ) -> Project:
         """Create a project"""
-        pass
 
     @abstractmethod
     def update(
@@ -42,17 +39,14 @@ class ProjectRepositoryBase(ABC):
         description: Optional[str],
     ) -> Optional[Project]:
         """Update a project"""
-        pass
 
     @abstractmethod
     def delete(self, project_id: str) -> bool:
         """Delete a project"""
-        pass
 
     @abstractmethod
     def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
         """Verify whether user has access to the specified project; returns role string or None"""
-        pass
 
 
 class ProjectRepositorySupabase(ProjectRepositoryBase):

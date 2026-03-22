@@ -21,7 +21,7 @@ class IngestConfig(BaseSettings):
         default=True,
         description="Enable file ingestion (ETL)",
     )
-    
+
     ingest_saas_enabled: bool = Field(
         default=True,
         description="Enable SaaS ingestion (Import)",

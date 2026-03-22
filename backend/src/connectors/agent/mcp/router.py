@@ -27,10 +27,8 @@ from src.connectors.agent.config.models import Agent
 from .dependencies import get_mcp_v3_service, get_agent_by_mcp_api_key
 from .service import McpV3Service
 from .schemas import (
-    McpAgentOut,
     McpBoundToolOut,
     McpStatusOut,
-    BindToolRequest,
     BindToolsRequest,
     UpdateToolBindingRequest,
 )
@@ -255,7 +253,7 @@ async def proxy_mcp_server(
         filtered: dict[str, str] = {}
         for k, v in raw_headers.items():
             lk = k.lower()
-            if lk.startswith("mcp-") or lk.startswith("x-"):
+            if lk.startswith(("mcp-", "x-")):
                 filtered[lk] = v
         return filtered
 
@@ -307,7 +305,7 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"Cannot connect to MCP Server ({mcp_server_url}): {str(e)}",
+                f"Cannot connect to MCP Server ({mcp_server_url}): {e!s}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except httpx.TimeoutException as e:
@@ -315,7 +313,7 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"MCP Server request timed out ({mcp_server_url}): {str(e)}",
+                f"MCP Server request timed out ({mcp_server_url}): {e!s}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except Exception as e:
@@ -323,7 +321,7 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"Error forwarding request to MCP Server: {str(e)}",
+                f"Error forwarding request to MCP Server: {e!s}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
     else:
@@ -362,16 +360,16 @@ async def proxy_mcp_server(
                 )
             except httpx.ConnectError as e:
                 raise NotFoundException(
-                    f"Cannot connect to MCP Server ({mcp_server_url}): {str(e)}",
+                    f"Cannot connect to MCP Server ({mcp_server_url}): {e!s}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )
             except httpx.TimeoutException as e:
                 raise NotFoundException(
-                    f"MCP Server request timed out ({mcp_server_url}): {str(e)}",
+                    f"MCP Server request timed out ({mcp_server_url}): {e!s}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )
             except Exception as e:
                 raise NotFoundException(
-                    f"Error forwarding request to MCP Server: {str(e)}",
+                    f"Error forwarding request to MCP Server: {e!s}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )

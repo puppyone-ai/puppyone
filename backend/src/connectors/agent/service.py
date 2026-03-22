@@ -30,19 +30,14 @@ from src.connectors.agent.chat.service import ChatService
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.sandbox_data import (
     SandboxFile, SandboxData,
-    prepare_sandbox_data, extract_data_by_path, merge_data_by_path,
+    prepare_sandbox_data, merge_data_by_path,
 )
 from src.mut_engine.ops import MutOps
 from src.platform.analytics.service import log_context_access, log_bash_execution
 from src.connectors.agent.request_builder import (
-    BASH_TOOL_NATIVE,
-    BASH_TOOL_COMPAT,
-    _use_native_anthropic,
     _get_bash_tool,
     _sanitize_tool_name,
     _default_anthropic_client,
-    _get_attr,
-    _normalize_content,
 )
 import time as time_module  # For latency tracking
 
@@ -99,35 +94,35 @@ class AgentService:
             s3_service: S3Service (optional)
             agent_config_service: AgentConfigService
             max_iterations: Maximum number of iterations
-            
+
         Returns:
             dict with execution results
         """
         import time
         from src.config import settings
-        
+
         result = {
             "status": "success",
             "output_summary": "",
             "tool_calls": [],
             "updated_nodes": [],
         }
-        
+
         try:
             # ========== 1. Get Agent configuration ==========
             if not agent_config_service:
                 return {"status": "failed", "error": "agent_config_service is required"}
-            
+
             agent = agent_config_service.get_agent(agent_id)
             if not agent:
                 return {"status": "failed", "error": f"Agent not found: {agent_id}"}
-            
+
             # Verify access via project
             if not agent_config_service.verify_access(agent_id, user_id):
                 return {"status": "failed", "error": "Unauthorized access to agent"}
-            
+
             logger.info(f"[ScheduleAgent] Executing agent: {agent.name} (id={agent_id})")
-            
+
             # ========== 2. Collect bash tools ==========
             bash_tools: list[dict] = []
             for ba in agent.bash_accesses:
@@ -137,21 +132,21 @@ class AgentService:
                     "readonly": ba.readonly,
                 })
                 logger.info(f"[ScheduleAgent] Found bash access: path={ba.path}")
-            
+
             use_bash = len(bash_tools) > 0
             sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
-            
+
             # ========== 3. Prepare sandbox data ==========
             sandbox_data: SandboxData | None = None
             sandbox_session_id = None
             node_path_map: dict = {}
-            
+
             if use_bash and ops:
                 all_files: list[SandboxFile] = []
                 primary_node_type = "folder"
                 primary_path = ""
                 primary_node_name = ""
-                
+
                 for i, tool in enumerate(bash_tools):
                     try:
                         data = await prepare_sandbox_data(
@@ -163,7 +158,7 @@ class AgentService:
                         )
                         logger.info(f"[ScheduleAgent] Prepared sandbox data: path={tool['path']}, files={len(data.files)}")
                         all_files.extend(data.files)
-                        
+
                         if data.files:
                             main_path = data.files[0].path
                             node_path_map[tool["path"]] = {
@@ -172,14 +167,14 @@ class AgentService:
                                 "json_path": tool["json_path"],
                                 "readonly": tool["readonly"],
                             }
-                        
+
                         if i == 0:
                             primary_node_type = data.node_type
                             primary_path = data.root_path
                             primary_node_name = data.root_node_name
                     except Exception as e:
                         logger.warning(f"[ScheduleAgent] Failed to prepare sandbox data: {e}")
-                
+
                 sandbox_data = SandboxData(
                     files=all_files,
                     node_type=primary_node_type if len(bash_tools) == 1 else "multi",
@@ -187,11 +182,11 @@ class AgentService:
                     root_node_name=primary_node_name,
                     node_path_map=node_path_map,
                 )
-            
+
             # ========== 4. Start sandbox ==========
             if use_bash and sandbox_service:
                 sandbox_session_id = f"schedule-{int(time.time() * 1000)}"
-                
+
                 if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
                     json_content = {}
                     if sandbox_data.files:
@@ -211,15 +206,15 @@ class AgentService:
                         readonly=sandbox_readonly,
                         s3_service=s3_service,
                     )
-                
+
                 if not start_result.get("success"):
                     return {"status": "failed", "error": start_result.get("error", "Failed to start sandbox")}
-                
+
                 logger.info(f"[ScheduleAgent] Sandbox started: {sandbox_session_id}")
-            
+
             # ========== 5. Build Claude request ==========
             tools: list[dict[str, Any]] = [_get_bash_tool()] if use_bash else []
-            
+
             if use_bash and sandbox_data:
                 node_type = sandbox_data.node_type
                 if node_type == "json":
@@ -232,7 +227,7 @@ class AgentService:
                     system_prompt = f"You are an AI agent with access to a {node_type} file. Use the bash tool to analyze the file in /workspace/."
             else:
                 system_prompt = "You are an AI agent, a helpful assistant."
-            
+
             # Build user message
             user_content = task_content
             if use_bash and sandbox_data:
@@ -245,17 +240,17 @@ class AgentService:
                     f"[Task]\n"
                 )
                 user_content = context_prefix + task_content
-            
+
             messages = [{"role": "user", "content": user_content}]
-            
+
             # ========== 6. Call Claude (non-streaming loop) ==========
             iterations = 0
             all_text_outputs = []
-            
+
             while iterations < max_iterations:
                 iterations += 1
                 logger.info(f"[ScheduleAgent] Claude iteration {iterations}")
-                
+
                 try:
                     # Build API call parameters (omit tools when empty to avoid proxy gateway compatibility issues)
                     create_kwargs: dict[str, Any] = {
@@ -266,16 +261,16 @@ class AgentService:
                     }
                     if tools:
                         create_kwargs["tools"] = tools
-                    
+
                     response = await self._anthropic.messages.create(**create_kwargs)
-                    
+
                     stop_reason = response.stop_reason
                     content_blocks = response.content
-                    
+
                     # Process response content
                     tool_uses = []
                     response_content = []
-                    
+
                     for block in content_blocks:
                         block_type = getattr(block, "type", None)
                         if block_type == "text":
@@ -294,28 +289,28 @@ class AgentService:
                                 "name": getattr(block, "name", ""),
                                 "input": getattr(block, "input", {}),
                             })
-                    
+
                     logger.info(f"[ScheduleAgent] Claude response: stop_reason={stop_reason}, tool_uses={len(tool_uses)}")
-                    
+
                     # No tool calls, finish
                     if not tool_uses:
                         break
-                    
+
                     # Execute tools
                     tool_results = []
                     for tool in tool_uses:
                         tool_name = tool.get("name", "")
                         tool_input = tool.get("input", {})
-                        
+
                         if tool_name == "bash" and use_bash and sandbox_service:
                             command = tool_input.get("command", "")
                             logger.info(f"[ScheduleAgent] Executing bash: {command[:100]}")
-                            
+
                             # Track execution time
                             exec_start = time_module.time()
                             exec_result = await sandbox_service.exec(sandbox_session_id, command)
                             exec_latency = int((time_module.time() - exec_start) * 1000)
-                            
+
                             if exec_result.get("success"):
                                 output = exec_result.get("output", "")
                                 result["tool_calls"].append({
@@ -350,25 +345,25 @@ class AgentService:
                                 )
                         else:
                             output = f"Unknown tool: {tool_name}"
-                        
+
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": tool.get("id", ""),
                             "content": output,
                         })
-                    
+
                     messages.append({"role": "assistant", "content": response_content})
                     messages.append({"role": "user", "content": tool_results})
-                    
+
                     if stop_reason == "end_turn":
                         break
-                        
+
                 except Exception as e:
                     logger.error(f"[ScheduleAgent] Claude error: {e}")
                     result["status"] = "failed"
                     result["error"] = str(e)
                     break
-            
+
             # ========== 7. Write data back to database (Mut Protocol) ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
                 if sandbox_data and sandbox_data.node_path_map:
@@ -437,18 +432,18 @@ class AgentService:
                             logger.info(f"[ScheduleAgent] Pushed {len(modified_files)} files via MUT protocol")
                         except Exception as e:
                             logger.warning(f"[ScheduleAgent] MUT push failed: {e}")
-                
+
                 # Stop sandbox
                 await sandbox_service.stop(sandbox_session_id)
-                logger.info(f"[ScheduleAgent] Sandbox stopped")
+                logger.info("[ScheduleAgent] Sandbox stopped")
             elif sandbox_session_id and sandbox_service:
                 await sandbox_service.stop(sandbox_session_id)
-            
+
             # ========== 8. Return results ==========
             result["output_summary"] = "\n".join(all_text_outputs)[:2000]
             logger.info(f"[ScheduleAgent] Execution completed: {result['status']}")
             return result
-            
+
         except Exception as e:
             logger.error(f"[ScheduleAgent] Execution failed: {e}")
             return {"status": "failed", "error": str(e)}
@@ -473,25 +468,25 @@ class AgentService:
         1. bash (sandbox) — configured via agent_bash
         2. search — search-type tools linked via agent_tool
         """
-        
+
         # ========== 1. Parse configuration, prefer new agent_access ==========
         bash_tools: list[dict] = []  # [{path, json_path, readonly}, ...]
-        
+
         logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}, user_id={current_user.user_id if current_user else None}")
-        
+
         # New version: if agent_id exists, read configuration from agent_bash table
         if request.agent_id and current_user and agent_config_service:
             try:
                 agent = agent_config_service.get_agent(request.agent_id)
                 logger.info(f"[Agent DEBUG] Got agent: {agent.id if agent else None}, project_id={agent.project_id if agent else None}")
-                
+
                 # Verify access: check whether the user has permission to access this Agent via project_id
                 # Note: the Agent model has no user_id field; verification goes through the project table
                 has_access = False
                 if agent:
                     has_access = agent_config_service.verify_access(request.agent_id, current_user.user_id)
                     logger.info(f"[Agent DEBUG] Access check: has_access={has_access}")
-                
+
                 if agent and has_access:
                     logger.info(f"[Agent] Found agent config: id={agent.id}, bash_accesses={len(agent.bash_accesses)}")
                     # Collect all Bash access permissions (in the new architecture all bash_accesses are terminal accesses)
@@ -507,29 +502,29 @@ class AgentService:
                     logger.warning(f"[Agent] Agent not found or unauthorized: agent_id={request.agent_id}, has_access={has_access}")
             except Exception as e:
                 logger.warning(f"[Agent] Failed to get agent config: {e}", exc_info=True)
-        
+
         # NOTE: Legacy fallback to tool table for shell_access has been removed.
         # Shell/bash access is now managed exclusively via agent_bash table.
         # See architecture: agents → agent_bash (data access) + agent_tool (tool bindings)
-        
+
         # ========== 1b. Collect Search Tools (from agent_tool bindings) ==========
         search_tools_map: dict[str, SearchToolConfig] = {}  # {claude_tool_name: SearchToolConfig}
-        
+
         if request.agent_id and current_user and agent_config_service and tool_service and search_service:
             try:
                 agent_for_tools = agent_config_service.get_agent(request.agent_id)
-                
+
                 if agent_for_tools and agent_for_tools.tools:
                     used_names: set[str] = set()
                     for agent_tool_binding in agent_for_tools.tools:
                         if not agent_tool_binding.enabled:
                             continue
-                        
+
                         # Load full info from tool table
                         tool_info = tool_service.get_by_id(agent_tool_binding.tool_id)
                         if not tool_info or tool_info.type != "search":
                             continue
-                        
+
                         # Get node info to determine search type
                         try:
                             node = ops.stat(agent_for_tools.project_id, tool_info.path) if ops else None
@@ -537,14 +532,14 @@ class AgentService:
                                 continue
                         except Exception:
                             continue
-                        
+
                         # Generate a Claude-compatible tool name (avoid conflicts)
                         base_name = _sanitize_tool_name(tool_info.name)
                         claude_name = f"search_{base_name}"
                         if claude_name in used_names:
                             claude_name = f"search_{base_name}_{tool_info.id[:8]}"
                         used_names.add(claude_name)
-                        
+
                         search_tools_map[claude_name] = SearchToolConfig(
                             tool_id=tool_info.id,
                             path=tool_info.path,
@@ -556,19 +551,19 @@ class AgentService:
                             claude_tool_name=claude_name,
                         )
                         logger.info(f"[Agent] Loaded search tool: {claude_name} (tool_id={tool_info.id}, node_type={node.type})")
-                    
+
                     if search_tools_map:
                         logger.info(f"[Agent] Total search tools: {len(search_tools_map)}")
             except Exception as e:
                 logger.warning(f"[Agent] Failed to load search tools: {e}", exc_info=True)
-        
+
         # ========== 2. Chat persistence (best-effort) ==========
         persisted_session_id: str | None = None
         created_session = False
         should_persist = current_user is not None and chat_service is not None
-        
+
         logger.info(f"[Chat Persist] should_persist={should_persist}, current_user={current_user is not None}, chat_service={chat_service is not None}")
-        
+
         if should_persist:
             try:
                 persisted_session_id, created_session = chat_service.ensure_session(
@@ -627,7 +622,7 @@ class AgentService:
         _agent_project_id = ""
         # If any access is not readonly, the entire sandbox is not readonly
         sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
-        
+
         if use_bash and ops and current_user:
             # Collect files from all bash accesses
             all_files: list[SandboxFile] = []
@@ -636,14 +631,14 @@ class AgentService:
             primary_node_name = ""
             # Track each node's sandbox path and type for write-back
             node_path_map: dict = {}  # {path: {path, node_type, json_path}}
-            
+
             # Determine project_id from agent config
             _agent_project_id = ""
             if request.agent_id and agent_config_service:
                 _agent_obj = agent_config_service.get_agent(request.agent_id)
                 if _agent_obj:
                     _agent_project_id = _agent_obj.project_id
-            
+
             for i, tool in enumerate(bash_tools):
                 try:
                     data = await prepare_sandbox_data(
@@ -656,7 +651,7 @@ class AgentService:
                     logger.info(f"[Agent] Prepared sandbox data for access {i+1}/{len(bash_tools)}: "
                                f"path={tool['path']}, type={data.node_type}, files={len(data.files)}")
                     all_files.extend(data.files)
-                    
+
                     # Log context access (data egress tracking)
                     await log_context_access(
                         path=tool["path"],
@@ -666,7 +661,7 @@ class AgentService:
                         agent_id=request.agent_id,
                         session_id=request.session_id,
                     )
-                    
+
                     # Record path mapping (for write-back and display)
                     if data.node_type == "folder" and data.files:
                         # Folder type: create an independent write-back mapping for each child file
@@ -708,7 +703,7 @@ class AgentService:
                             "readonly": tool["readonly"],
                             "is_empty": True,
                         }
-                    
+
                     # The first access determines the primary type
                     if i == 0:
                         primary_node_type = data.node_type
@@ -716,7 +711,7 @@ class AgentService:
                         primary_node_name = data.root_node_name
                 except Exception as e:
                     logger.warning(f"[Agent] Failed to prepare sandbox data for node {tool['path']}: {e}")
-            
+
             sandbox_data = SandboxData(
                 files=all_files,
                 node_type=primary_node_type if len(bash_tools) == 1 else "multi",  # mark as multi when there are multiple
@@ -730,14 +725,14 @@ class AgentService:
             from src.sandbox.registry import get_sandbox_registry, build_manifest
             sandbox_registry = get_sandbox_registry()
             sandbox_parent_path = ""
-            
+
             chat_key = persisted_session_id or f"agent-{request.agent_id}-{int(time.time() * 1000)}"
             existing_session = sandbox_registry.get(chat_key)
-            
+
             if existing_session:
                 sandbox_session_id = existing_session.sandbox_session_id
                 sandbox_registry.touch(chat_key)
-                
+
                 status = await sandbox_service.status(sandbox_session_id)
                 if status.get("success") and status.get("status") != "stopped":
                     start_result = {"success": True}
@@ -746,10 +741,10 @@ class AgentService:
                     sandbox_registry.remove(chat_key)
                     existing_session = None
                     logger.info(f"[Agent] Sandbox {sandbox_session_id} expired, creating new one")
-            
+
             if not existing_session:
                 sandbox_session_id = f"agent-{int(time.time() * 1000)}"
-                
+
                 if sandbox_data and sandbox_data.node_type == "json" and len(bash_tools) == 1:
                     json_content = {}
                     if sandbox_data.files:
@@ -769,7 +764,7 @@ class AgentService:
                         readonly=sandbox_readonly,
                         s3_service=s3_service,
                     )
-                
+
                 if start_result.get("success"):
                     if sandbox_data and _agent_project_id and ops:
                         root_path = sandbox_data.root_path
@@ -793,7 +788,7 @@ class AgentService:
                         project_id=_agent_project_id,
                         parent_path=sandbox_parent_path,
                     )
-            
+
             if not start_result.get("success"):
                 err_msg = start_result.get("error", "Failed to start sandbox")
                 yield {"type": "error", "message": err_msg}
@@ -807,12 +802,12 @@ class AgentService:
                     except Exception:
                         pass
                 return
-            
+
             yield {"type": "status", "message": "Sandbox ready"}
 
         # ========== 4. Build Claude request ==========
         tools: list[dict[str, Any]] = [_get_bash_tool()] if use_bash else []
-        
+
         # Register Search Tools with Claude
         for claude_name, stc in search_tools_map.items():
             tools.append({
@@ -834,9 +829,9 @@ class AgentService:
                     "required": ["query"],
                 },
             })
-        
+
         use_search = len(search_tools_map) > 0
-        
+
         # Build system prompt based on node type
         if use_bash and sandbox_data:
             node_type = sandbox_data.node_type
@@ -872,7 +867,7 @@ class AgentService:
         if use_bash and sandbox_data:
             node_type = sandbox_data.node_type
             node_path_map = sandbox_data.node_path_map or {}
-            
+
             # Generate detailed permissions list
             def build_access_list() -> str:
                 lines = []
@@ -884,7 +879,7 @@ class AgentService:
                     suffix = " 📁 (empty folder)" if is_empty else ""
                     lines.append(f"  - {path} ({mode}){suffix}")
                 return "\n".join(lines) if lines else "  - /workspace/ (unknown)"
-            
+
             if node_type == "json" and len(bash_tools) == 1:
                 json_path = bash_tools[0]["json_path"] or "/"
                 mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
@@ -935,7 +930,7 @@ class AgentService:
                     f"[User Message]\n"
                 )
             user_content = context_prefix + request.prompt
-        
+
         messages.append({"role": "user", "content": user_content})
 
         # ========== 5. Call Claude (streaming), handle tool calls ==========
@@ -945,12 +940,12 @@ class AgentService:
 
         while iterations < max_iterations:
             iterations += 1
-            
+
             logger.info(f"[CLAUDE REQUEST] Iteration {iterations} (streaming)")
             logger.info(f"[CLAUDE DEBUG] system_prompt = {system_prompt}")
             logger.info(f"[CLAUDE DEBUG] tools = {json.dumps(tools, ensure_ascii=False)}")
             logger.info(f"[CLAUDE DEBUG] messages = {json.dumps(messages, ensure_ascii=False, default=str)[:2000]}")
-            
+
             try:
                 # ===== Streaming call to Claude =====
                 current_text_content = ""
@@ -959,7 +954,7 @@ class AgentService:
                 current_tool_input_json = ""
                 stop_reason = None
                 response_content: list[Any] = []
-                
+
                 # Build API call parameters (omit tools when empty to avoid proxy gateway compatibility issues)
                 stream_kwargs: dict[str, Any] = {
                     "model": settings.ANTHROPIC_MODEL,
@@ -969,15 +964,15 @@ class AgentService:
                 }
                 if tools:
                     stream_kwargs["tools"] = tools
-                
+
                 async with self._anthropic.messages.stream(**stream_kwargs) as stream:
                     async for event in stream:
                         event_type = getattr(event, "type", None)
-                        
+
                         if event_type == "content_block_start":
                             block = getattr(event, "content_block", None)
                             block_type = getattr(block, "type", None) if block else None
-                            
+
                             if block_type == "text":
                                 current_text_content = ""
                             elif block_type == "tool_use":
@@ -987,37 +982,37 @@ class AgentService:
                                     "input": {},
                                 }
                                 current_tool_input_json = ""
-                        
+
                         elif event_type == "content_block_delta":
                             delta = getattr(event, "delta", None)
                             delta_type = getattr(delta, "type", None) if delta else None
-                            
+
                             if delta_type == "text_delta":
                                 text = getattr(delta, "text", "")
                                 if text:
                                     current_text_content += text
                                     # Yield each text fragment in real time!
                                     yield {"type": "text_delta", "content": text}
-                            
+
                             elif delta_type == "input_json_delta":
                                 partial_json = getattr(delta, "partial_json", "")
                                 if partial_json:
                                     current_tool_input_json += partial_json
-                        
+
                         elif event_type == "content_block_stop":
                             if current_text_content:
                                 # Text block finished, save complete text
                                 persisted_parts.append({"type": "text", "content": current_text_content})
                                 response_content.append({"type": "text", "text": current_text_content})
                                 current_text_content = ""
-                            
+
                             if current_tool:
                                 # Tool block finished, parse JSON input
                                 try:
                                     current_tool["input"] = json.loads(current_tool_input_json) if current_tool_input_json else {}
                                 except json.JSONDecodeError:
                                     current_tool["input"] = {"raw": current_tool_input_json}
-                                
+
                                 tool_uses.append(current_tool)
                                 response_content.append({
                                     "type": "tool_use",
@@ -1027,14 +1022,14 @@ class AgentService:
                                 })
                                 current_tool = None
                                 current_tool_input_json = ""
-                        
+
                         elif event_type == "message_delta":
                             delta = getattr(event, "delta", None)
                             if delta:
                                 stop_reason = getattr(delta, "stop_reason", None)
-                
+
                 logger.info(f"[CLAUDE RESPONSE] Iteration {iterations}: stop_reason={stop_reason}, tool_uses={len(tool_uses)}")
-                
+
             except Exception as e:
                 msg = str(e)
                 logger.error(f"[CLAUDE ERROR] {msg}")
@@ -1066,14 +1061,14 @@ class AgentService:
                 tool_index += 1
                 tool_name = tool.get("name", "")
                 tool_input = tool.get("input", {})
-                
+
                 yield {
                     "type": "tool_start",
                     "toolId": current_tool_index,
                     "toolName": tool_name,
                     "toolInput": tool_input.get("command") if tool_name == "bash" else json.dumps(tool_input),
                 }
-                
+
                 persisted_parts.append({
                     "type": "tool",
                     "toolId": str(current_tool_index),
@@ -1084,15 +1079,15 @@ class AgentService:
 
                 success = True
                 output = ""
-                
+
                 if tool_name == "bash" and use_bash and sandbox_service:
                     command = tool_input.get("command", "")
-                    
+
                     # Track execution time
                     exec_start = time_module.time()
                     exec_result = await sandbox_service.exec(sandbox_session_id, command)
                     exec_latency = int((time_module.time() - exec_start) * 1000)
-                    
+
                     if exec_result.get("success"):
                         output = exec_result.get("output", "")
                         # Log bash execution
@@ -1125,7 +1120,7 @@ class AgentService:
                     stc = search_tools_map[tool_name]
                     query = tool_input.get("query", "")
                     top_k = tool_input.get("top_k", 5)
-                    
+
                     exec_start = time_module.time()
                     try:
                         if stc.node_type == "folder":
@@ -1152,7 +1147,7 @@ class AgentService:
                         )
                     except Exception as e:
                         exec_latency = int((time_module.time() - exec_start) * 1000)
-                        output = f"Search error: {str(e)}"
+                        output = f"Search error: {e!s}"
                         success = False
                         logger.error(f"[Agent] Search tool failed: {tool_name}, error={e}, latency={exec_latency}ms")
                 else:
@@ -1166,7 +1161,7 @@ class AgentService:
                     "output": output[:500],
                     "success": success,
                 }
-                
+
                 # Update persisted state
                 for i in range(len(persisted_parts) - 1, -1, -1):
                     p = persisted_parts[i]
@@ -1184,7 +1179,7 @@ class AgentService:
 
             messages.append({"role": "assistant", "content": response_content})
             messages.append({"role": "user", "content": tool_results})
-            
+
             if stop_reason == "end_turn":
                 break
 
@@ -1202,7 +1197,7 @@ class AgentService:
                 chat_service.add_assistant_message(
                     session_id=persisted_session_id, content=final_content, parts=persisted_parts
                 )
-                logger.info(f"[Chat Persist] Assistant message saved successfully!")
+                logger.info("[Chat Persist] Assistant message saved successfully!")
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save assistant message: {e}")
         else:
@@ -1211,10 +1206,10 @@ class AgentService:
         if use_bash and sandbox_service and sandbox_session_id:
             from src.sandbox.registry import get_sandbox_registry, diff_and_writeback
             sandbox_registry = get_sandbox_registry()
-            
+
             chat_key = persisted_session_id or f"agent-{request.agent_id}-ephemeral"
             live_session = sandbox_registry.get(chat_key)
-            
+
             updated_nodes = []
             if live_session and live_session.manifest.files and current_user:
                 _project_id = ""
@@ -1248,7 +1243,7 @@ class AgentService:
                     ops=writeback_ops,
                     operator_info=operator_info,
                 )
-            
+
             if updated_nodes:
                 yield {
                     "type": "result",
@@ -1257,10 +1252,10 @@ class AgentService:
                 }
             else:
                 yield {"type": "result", "success": True}
-            
+
             # Touch the session — sandbox stays alive for future messages
             sandbox_registry.touch(chat_key)
-            
+
         else:
             yield {"type": "result", "success": True}
 

@@ -475,7 +475,7 @@ def create_search_tool_async(
         log_info(
             f"[search_index] folder search mode: tool_id={tool.id} folder_path={payload.path}"
         )
-        
+
         # Write a pending record first (so the polling endpoint can get the status immediately)
         try:
             repo.upsert(
@@ -522,7 +522,7 @@ def create_search_tool_async(
         log_info(
             f"[search_index] json search mode: tool_id={tool.id} path={payload.path}"
         )
-        
+
         # Write a pending record first (so the polling endpoint can get the status immediately)
         try:
             repo.upsert(

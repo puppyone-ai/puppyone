@@ -11,7 +11,6 @@ macOS only (APFS filesystem).
 
 import asyncio
 import hashlib
-import json
 import os
 import shutil
 import time
@@ -21,7 +20,7 @@ from src.platform.workspace.provider import (
     WorkspaceProvider, WorkspaceInfo, WorkspaceChanges,
 )
 from src.connectors.datasource.schemas import SyncResult
-from src.utils.logger import log_info, log_error, log_debug
+from src.utils.logger import log_info, log_debug
 
 
 class APFSWorkspaceProvider(WorkspaceProvider):
@@ -181,7 +180,7 @@ def _file_hash(path: str) -> str:
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(8192), b""):
                 h.update(chunk)
-    except (OSError, IOError):
+    except OSError:
         return ""
     return h.hexdigest()
 
@@ -189,10 +188,10 @@ def _file_hash(path: str) -> str:
 def _read_file(path: str) -> str:
     """Read file content as string"""
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return f.read()
     except UnicodeDecodeError:
         # Binary file, return empty (binary file diff needs separate handling)
         return ""
-    except (OSError, IOError):
+    except OSError:
         return ""

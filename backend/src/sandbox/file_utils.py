@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-import tempfile
 from typing import Any, Optional
 from src.config import settings
 
@@ -31,9 +30,9 @@ async def download_files_parallel(
     """
     if max_concurrent is None:
         max_concurrent = settings.SANDBOX_DOWNLOAD_CONCURRENCY
-    
+
     semaphore = asyncio.Semaphore(max_concurrent)
-    
+
     async def download_one(f) -> tuple[str, Any, Optional[str]]:
         """Download a single file"""
         async with semaphore:
@@ -41,23 +40,23 @@ async def download_files_parallel(
             path = f.get("path") if isinstance(f, dict) else getattr(f, "path", None)
             content = f.get("content") if isinstance(f, dict) else getattr(f, "content", None)
             s3_key = f.get("s3_key") if isinstance(f, dict) else getattr(f, "s3_key", None)
-            
+
             if not path:
                 return ("", None, "No path specified")
-            
+
             # If content already exists, return directly
             if content is not None:
                 return (path, content, None)
-            
+
             # Download from S3
             if s3_key and s3_service:
                 try:
                     # Check file size
                     file_size = await _get_file_size(s3_service, s3_key)
-                    
+
                     if file_size and file_size > LARGE_FILE_MEMORY_WARNING_THRESHOLD:
                         print(f"[file_utils] Warning: downloading large file ({file_size / 1024 / 1024:.1f}MB) to memory: {s3_key}")
-                    
+
                     if file_size and file_size > settings.SANDBOX_LARGE_FILE_THRESHOLD:
                         # Large file: use chunked download (reduce peak memory)
                         content = await _download_file_chunked(s3_service, s3_key)
@@ -71,7 +70,7 @@ async def download_files_parallel(
 
             # No content and no S3 key
             return (path, "", None)  # Return empty string to represent an empty file
-    
+
     # Download all files in parallel
     results = await asyncio.gather(*[download_one(f) for f in files])
     return list(results)
@@ -105,7 +104,7 @@ async def _download_file_chunked(s3_service: Any, s3_key: str) -> bytes:
         # Print progress every 10MB
         if total_size % (10 * 1024 * 1024) < len(chunk):
             print(f"[file_utils] Downloaded {total_size / 1024 / 1024:.1f}MB of {s3_key}")
-    
+
     return b"".join(chunks)
 
 
@@ -127,13 +126,13 @@ async def download_file_to_disk(
     """
     # Ensure directory exists
     os.makedirs(os.path.dirname(local_path), exist_ok=True)
-    
+
     total_size = 0
     with open(local_path, "wb") as f:
         async for chunk in s3_service.download_file_stream(s3_key):
             f.write(chunk)
             total_size += len(chunk)
-    
+
     return total_size
 
 
@@ -156,19 +155,19 @@ async def prepare_files_for_sandbox(
         - failed_files: [{"path": str, "error": str}, ...]
     """
     results = await download_files_parallel(files, s3_service)
-    
+
     prepared_files = []
     failed_files = []
-    
+
     for path, content, error in results:
         if not path:
             continue
-        
+
         if error:
             failed_files.append({"path": path, "error": error})
         else:
             prepared_files.append({"path": path, "content": content})
-    
+
     return prepared_files, failed_files
 
 
@@ -191,7 +190,7 @@ async def prepare_files_for_docker_sandbox(
         - failed_files: [{"path": str, "error": str}, ...]
     """
     semaphore = asyncio.Semaphore(settings.SANDBOX_DOWNLOAD_CONCURRENCY)
-    
+
     async def process_one(f) -> tuple[Optional[str], Optional[dict]]:
         """Process a single file"""
         async with semaphore:
@@ -199,36 +198,36 @@ async def prepare_files_for_docker_sandbox(
             path = f.get("path") if isinstance(f, dict) else getattr(f, "path", None)
             content = f.get("content") if isinstance(f, dict) else getattr(f, "content", None)
             s3_key = f.get("s3_key") if isinstance(f, dict) else getattr(f, "s3_key", None)
-            
+
             if not path:
                 return (None, {"path": "", "error": "No path specified"})
-            
+
             # Calculate local path
             relative_path = path
             if path.startswith("/workspace/"):
                 relative_path = path[len("/workspace/"):]
             elif path.startswith("/"):
                 relative_path = path[1:]
-            
+
             # Security check
             normalized_path = os.path.normpath(relative_path)
-            if normalized_path.startswith("..") or normalized_path.startswith("/"):
+            if normalized_path.startswith(("..", "/")):
                 return (None, {"path": path, "error": "Path traversal detected"})
-            
+
             local_path = os.path.join(workspace_dir, normalized_path)
-            
+
             # Secondary validation
             real_local_path = os.path.realpath(local_path)
             real_workspace_dir = os.path.realpath(workspace_dir)
             if not real_local_path.startswith(real_workspace_dir + os.sep) and real_local_path != real_workspace_dir:
                 return (None, {"path": path, "error": "Path traversal detected (resolved)"})
-            
+
             # Ensure directory exists
             try:
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
             except Exception as e:
                 return (None, {"path": path, "error": f"Failed to create directory: {e}"})
-            
+
             try:
                 # If content already exists, write directly
                 if content is not None:
@@ -243,11 +242,11 @@ async def prepare_files_for_docker_sandbox(
                         with open(local_path, "w", encoding="utf-8") as file:
                             file.write(str(content))
                     return (local_path, None)
-                
+
                 # Download from S3
                 if s3_key and s3_service:
                     file_size = await _get_file_size(s3_service, s3_key)
-                    
+
                     if file_size and file_size > settings.SANDBOX_LARGE_FILE_THRESHOLD:
                         # Large file: stream directly to disk
                         await download_file_to_disk(s3_service, s3_key, local_path)
@@ -257,25 +256,25 @@ async def prepare_files_for_docker_sandbox(
                         with open(local_path, "wb") as file:
                             file.write(file_content)
                     return (local_path, None)
-                
+
                 # No content and no S3 key, create empty file
                 with open(local_path, "w", encoding="utf-8") as file:
                     pass
                 return (local_path, None)
-                
+
             except Exception as e:
                 return (None, {"path": path, "error": str(e)})
-    
+
     # Process all files in parallel
     results = await asyncio.gather(*[process_one(f) for f in files])
-    
+
     written_paths = []
     failed_files = []
-    
+
     for written_path, failure in results:
         if failure:
             failed_files.append(failure)
         elif written_path:
             written_paths.append(written_path)
-    
+
     return written_paths, failed_files

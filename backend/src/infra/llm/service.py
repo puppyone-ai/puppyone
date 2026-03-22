@@ -12,9 +12,6 @@ import json
 import logging
 from typing import Any, Literal, Optional
 
-# Deferred import of litellm - only imported when actually used
-# from litellm import acompletion  # Do NOT import here!
-
 from src.infra.llm.config import llm_config
 from src.infra.llm.exceptions import (
     APIKeyError,
@@ -229,14 +226,14 @@ class LLMService:
 
             except APIError as e:
                 logger.error(f"API error on attempt {attempt + 1}: {e}")
-                last_error = LLMError(f"API error: {str(e)}", original_error=e)
+                last_error = LLMError(f"API error: {e!s}", original_error=e)
                 if attempt < self.config.llm_max_retries - 1:
                     await asyncio.sleep(2**attempt)
                 continue
 
             except Exception as e:
                 logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
-                last_error = LLMError(f"Unexpected error: {str(e)}", original_error=e)
+                last_error = LLMError(f"Unexpected error: {e!s}", original_error=e)
                 if attempt < self.config.llm_max_retries - 1:
                     await asyncio.sleep(2**attempt)
                 continue

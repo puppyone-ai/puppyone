@@ -248,13 +248,13 @@ class EmbeddingService:
                         and attempt < self.config.llm_max_retries - 1
                     ):
                         last_error = LLMError(
-                            f"OpenRouter API error: {str(e)}", original_error=e
+                            f"OpenRouter API error: {e!s}", original_error=e
                         )
                         await asyncio.sleep(2**attempt)
                         continue
 
                     raise LLMError(
-                        f"OpenRouter API error: {str(e)}", original_error=e
+                        f"OpenRouter API error: {e!s}", original_error=e
                     ) from e
 
                 # Unexpected error
@@ -265,7 +265,7 @@ class EmbeddingService:
                     exc_info=True,
                 )
                 last_error = LLMError(
-                    f"Unexpected embedding error: {str(e)}", original_error=e
+                    f"Unexpected embedding error: {e!s}", original_error=e
                 )
                 if attempt < self.config.llm_max_retries - 1:
                     await asyncio.sleep(2**attempt)

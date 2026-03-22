@@ -12,7 +12,7 @@ from src.connectors.datasource._base import (
     BaseConnector, ConnectorSpec, Capability, AuthRequirement, TriggerMode,
     FetchResult, Credentials,
 )
-from src.connectors.datasource.schemas import Sync, PullResult, PushResult, ResourceInfo
+from src.connectors.datasource.schemas import Sync, PushResult, ResourceInfo
 
 
 class OpenClawConnector(BaseConnector):

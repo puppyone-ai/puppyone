@@ -22,8 +22,6 @@ from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
-from src.exceptions import BusinessException, ErrorCode
-from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
 
 logger = logging.getLogger(__name__)
@@ -57,7 +55,7 @@ def _chunk_text(text: str, chunk_size: int, max_chunks: int) -> list[str]:
 async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
     """
     OCR stage: Parse document -> upload markdown artifact -> enqueue postprocess job.
-    
+
     Supports multiple OCR providers (MineRU, Reducto, etc.) via pluggable OCRProvider interface.
     """
     repo = ctx["task_repository"]

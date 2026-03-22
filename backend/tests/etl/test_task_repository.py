@@ -17,7 +17,8 @@ from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
 
 
 # 需要真实 Supabase 环境变量；未配置时跳过，避免本地/CI 失败
-if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
+_REAL_SUPABASE = os.getenv("SUPABASE_URL", "") and "localhost:54321" not in os.getenv("SUPABASE_URL", "")
+if not _REAL_SUPABASE:
     pytest.skip("Skip Supabase-dependent tests (SUPABASE_URL/KEY not set)", allow_module_level=True)
 
 # ============= Fixtures =============

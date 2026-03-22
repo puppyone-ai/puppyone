@@ -71,7 +71,7 @@ class RuleEngine:
                     output_json = json.loads(llm_response.content)
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid JSON from LLM: {e}")
-                    last_error = f"Invalid JSON: {str(e)}"
+                    last_error = f"Invalid JSON: {e!s}"
                     if attempt < max_retries:
                         # Add error feedback to prompt and retry
                         user_prompt += f"\n\nPrevious attempt failed with error: {last_error}. Please fix and return valid JSON."
@@ -106,7 +106,7 @@ class RuleEngine:
                 return TransformationResult(
                     success=False,
                     output=None,
-                    error=f"LLM error: {str(e)}",
+                    error=f"LLM error: {e!s}",
                     llm_usage=None,
                 )
 

@@ -18,7 +18,6 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env"
 load_dotenv(_env_path, override=True)
 
-import os
 
 import logging
 
@@ -42,20 +41,20 @@ async def startup(ctx: dict) -> None:
     # ========== ETL Services ==========
     ctx["s3_service"] = S3Service()
     ctx["llm_service"] = LLMService()
-    
+
     # Use pluggable OCR provider (configured via OCR_PROVIDER env var)
     # Supports: 'mineru', 'reducto'
     ocr_provider = get_ocr_provider()
     ctx["ocr_provider"] = ocr_provider
     # Keep legacy key for backward compatibility
     ctx["mineru_client"] = ocr_provider
-    
+
     ctx["task_repository"] = ETLTaskRepositorySupabase()
 
     # ETL Redis runtime state repo (shares same Redis as ARQ)
     ctx["state_repo"] = ETLStateRepositoryRedis(ctx["redis"])
     ctx["arq_queue_name"] = etl_config.etl_arq_queue_name
-    
+
     logger.info(f"ETL ARQ worker startup complete (OCR provider: {ocr_provider.name})")
 
 

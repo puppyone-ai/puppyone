@@ -11,7 +11,7 @@ Pure file system operations extracted from workspace/sync_worker.py.
 
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 from src.utils.logger import log_error, log_debug
 
@@ -43,9 +43,9 @@ class CacheManager:
         meta_path = os.path.join(self.get_project_dir(project_id), ".metadata.json")
         if os.path.exists(meta_path):
             try:
-                with open(meta_path, "r", encoding="utf-8") as f:
+                with open(meta_path, encoding="utf-8") as f:
                     return json.load(f)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 pass
         return {}
 
@@ -67,7 +67,7 @@ class CacheManager:
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
             return True
-        except (IOError, OSError) as e:
+        except OSError as e:
             log_error(f"[CacheManager] Failed to write {filename}: {e}")
             return False
 
@@ -79,7 +79,7 @@ class CacheManager:
             with open(file_path, "wb") as f:
                 f.write(data)
             return True
-        except (IOError, OSError) as e:
+        except OSError as e:
             log_error(f"[CacheManager] Failed to write bytes {filename}: {e}")
             return False
 

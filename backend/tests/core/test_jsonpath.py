@@ -1,75 +1,63 @@
-"""
-测试如何使用jsonpointer库来对json实现任意的定位
-"""
+"""Tests for jsonpointer operations (resolve, set, delete)."""
 
 from jsonpointer import resolve_pointer, set_pointer
-import json
-import os
 
-base_path = (
-    "/Volumes/Portable/puppy-agents-workspace/ContextBase/backend/tests/core/data"
-)
-json_file_name = "demo.json"
+
+_SAMPLE_DATA = [
+    {
+        "department": {
+            "name": "cardiology",
+            "doctors": [
+                {"name": "Dr. Smith", "specialty": "heart"},
+                {"name": "Dr. Jones", "specialty": "vascular"},
+            ],
+        }
+    }
+]
+
+
+def _fresh_data():
+    """Return a deep copy of sample data for each test."""
+    import json
+    return json.loads(json.dumps(_SAMPLE_DATA))
 
 
 def test_find_node():
-    with open(os.path.join(base_path, json_file_name), "r") as f:
-        data = json.load(f)
-
-    print(resolve_pointer(data, "/0/department/doctors", None))
+    data = _fresh_data()
+    result = resolve_pointer(data, "/0/department/doctors", None)
+    assert isinstance(result, list)
+    assert len(result) == 2
+    assert result[0]["name"] == "Dr. Smith"
 
 
 def test_create_node():
-    """
-    设置一个新的键值对，如果已存在则覆盖
-    """
-    with open(os.path.join(base_path, json_file_name), "r") as f:
-        data = json.load(f)
-
-    # 在 doctors/1 插入新字段，例如 "new_field"
+    """Set a new key-value pair (creates if not exists, overwrites if exists)."""
+    data = _fresh_data()
     set_pointer(data, "/0/department/doctors/1/new_field", "new_created_value")
-    with open(os.path.join(base_path, json_file_name), "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    assert data[0]["department"]["doctors"][1]["new_field"] == "new_created_value"
 
 
 def test_update_node():
-    """
-    更新已存在的节点
-    """
-    with open(os.path.join(base_path, json_file_name), "r") as f:
-        data = json.load(f)
-
-    # 假设路径已存在，则改动原值
-    set_pointer(data, "/0/department/doctors/1/what", "updated_value")
-    with open(os.path.join(base_path, json_file_name), "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Update an existing node value."""
+    data = _fresh_data()
+    set_pointer(data, "/0/department/doctors/1/specialty", "updated_value")
+    assert data[0]["department"]["doctors"][1]["specialty"] == "updated_value"
 
 
 def test_delete_node():
-    """
-    删除指定节点
-    """
-    with open(os.path.join(base_path, json_file_name), "r") as f:
-        data = json.load(f)
+    """Delete a node at a specified pointer path."""
+    data = _fresh_data()
+    set_pointer(data, "/0/department/doctors/1/temp_key", "to_delete")
+    assert "temp_key" in data[0]["department"]["doctors"][1]
 
-    pointer = "/0/department/doctors/1/what"
-    # 先找到父节点和要删的key/idx
+    # Manually delete using pointer traversal
+    pointer = "/0/department/doctors/1/temp_key"
     parts = pointer.strip("/").split("/")
-    parent_pointer = "/" + "/".join(parts[:-1]) if len(parts) > 1 else ""
+    parent_pointer = "/" + "/".join(parts[:-1])
     key = parts[-1]
+    parent = resolve_pointer(data, parent_pointer)
 
-    parent = resolve_pointer(data, parent_pointer) if parent_pointer else data
+    if isinstance(parent, dict) and key in parent:
+        del parent[key]
 
-    if isinstance(parent, list):
-        idx = int(key)
-        if 0 <= idx < len(parent):
-            del parent[idx]
-    elif isinstance(parent, dict):
-        if key in parent:
-            del parent[key]
-
-    with open(os.path.join(base_path, json_file_name), "w") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-test_find_node()
+    assert "temp_key" not in data[0]["department"]["doctors"][1]

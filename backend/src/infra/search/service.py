@@ -38,7 +38,7 @@ def _extract_by_pointer(data: Any, pointer: str) -> Any:
     """
     if not pointer or pointer == "/":
         return data
-    
+
     segments = [s for s in pointer.split("/") if s]
     current = data
     for seg in segments:
@@ -512,7 +512,7 @@ class SearchService:
         namespace = self.build_folder_namespace(
             project_id=project_id, folder_path=folder_path
         )
-        
+
         total_nodes = 0
         total_chunks = 0
         total_indexed = 0
@@ -800,17 +800,17 @@ class SearchService:
         out: list[dict[str, Any]] = []
         for r in rows[:top_k]:
             attrs = r.attributes or {}
-            
+
             # Extract file information
             file_path_val = str(attrs.get("file_path") or attrs.get("file_node_id") or "")
             file_mut_path = str(attrs.get("file_mut_path") or attrs.get("file_id_path") or "")
             file_name = str(attrs.get("file_name") or "")
             file_type = str(attrs.get("file_type") or "")
-            
+
             # Extract chunk information
             json_pointer = str(attrs.get("json_pointer") or "")
             json_pointer = _normalize_json_pointer(json_pointer)
-            
+
             cid = attrs.get("chunk_id")
             chunk_id_int: int | None = None
             try:

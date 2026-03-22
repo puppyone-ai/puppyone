@@ -19,6 +19,7 @@ from src.utils.id_generator import generate_uuid_v7
 
 
 AGENT_PROVIDER = "agent"
+_NOW = "now()"
 
 
 def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
@@ -86,6 +87,35 @@ def _row_to_agent(row: dict) -> Agent:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
+
+
+def _merge_agent_updates(
+    config: dict, trigger: dict, **kwargs,
+) -> tuple[dict, dict]:
+    """Merge non-None update fields into config and trigger dicts."""
+    # Simple config fields (set directly if not None)
+    _simple_keys = (
+        "name", "icon", "type", "description", "is_default",
+        "task_content", "task_path", "external_config",
+    )
+    for key in _simple_keys:
+        val = kwargs.get(key)
+        if val is not None:
+            config[key] = val
+
+    # Fields that clear to None on empty string
+    for key in ("llm_model", "system_prompt"):
+        val = kwargs.get(key)
+        if val is not None:
+            config[key] = val if val != "" else None
+
+    # Trigger fields
+    if kwargs.get("trigger_type") is not None:
+        trigger["type"] = kwargs["trigger_type"]
+    if kwargs.get("trigger_config") is not None:
+        trigger["config"] = kwargs["trigger_config"]
+
+    return config, trigger
 
 
 class AgentRepository:
@@ -298,35 +328,17 @@ class AgentRepository:
         config = dict(response.data[0].get("config") or {})
         trigger = dict(response.data[0].get("trigger") or {})
 
-        if name is not None:
-            config["name"] = name
-        if icon is not None:
-            config["icon"] = icon
-        if type is not None:
-            config["type"] = type
-        if description is not None:
-            config["description"] = description
-        if is_default is not None:
-            config["is_default"] = is_default
-        if task_content is not None:
-            config["task_content"] = task_content
-        if task_path is not None:
-            config["task_path"] = task_path
-        if external_config is not None:
-            config["external_config"] = external_config
-        if llm_model is not None:
-            config["llm_model"] = llm_model if llm_model != "" else None
-        if system_prompt is not None:
-            config["system_prompt"] = system_prompt if system_prompt != "" else None
-        if trigger_type is not None:
-            trigger["type"] = trigger_type
-        if trigger_config is not None:
-            trigger["config"] = trigger_config
+        config, trigger = _merge_agent_updates(
+            config, trigger,
+            name=name, icon=icon, type=type, description=description,
+            is_default=is_default, task_content=task_content,
+            task_path=task_path, external_config=external_config,
+            llm_model=llm_model, system_prompt=system_prompt,
+            trigger_type=trigger_type, trigger_config=trigger_config,
+        )
 
         update_data: dict = {
-            "config": config,
-            "trigger": trigger,
-            "updated_at": "now()",
+            "config": config, "trigger": trigger, "updated_at": _NOW,
         }
         if mcp_api_key is not None:
             update_data["access_key"] = mcp_api_key
@@ -396,7 +408,7 @@ class AgentRepository:
             return
         config["scope"] = scope
         self._client.table(self.TABLE).update(
-            {"config": config, "updated_at": "now()"}
+            {"config": config, "updated_at": _NOW}
         ).eq("id", agent_id).execute()
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
@@ -459,7 +471,7 @@ class AgentRepository:
         if "scope" in config:
             del config["scope"]
             self._client.table(self.TABLE).update(
-                {"config": config, "updated_at": "now()"}
+                {"config": config, "updated_at": _NOW}
             ).eq("id", agent_id).execute()
         return True
 

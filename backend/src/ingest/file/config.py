@@ -4,7 +4,6 @@ ETL Configuration
 Configuration settings for ETL service.
 """
 
-from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

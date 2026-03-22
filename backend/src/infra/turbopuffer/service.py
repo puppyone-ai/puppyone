@@ -175,13 +175,13 @@ class TurbopufferSearchService:
         cursor: str | None = None,
         page_size: int | None = None,
     ) -> TurbopufferListNamespacesResponse:
-        “””
+        """
         List namespaces (corresponds to GET /v1/namespaces).
 
         Notes:
-        - SDK form may be iterator/paginator; here we do “loose adaptation” for stable schema output.
+        - SDK form may be iterator/paginator; here we do "loose adaptation" for stable schema output.
         - `next_cursor` will return None if the SDK doesn't expose it.
-        “””
+        """
 
         client = self._get_client()
         params: dict[str, Any] = {}

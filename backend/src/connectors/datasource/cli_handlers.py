@@ -5,7 +5,6 @@ Extracted from router.py to keep route handlers thin.
 Contains the core business logic for push-file and pull-files endpoints.
 """
 
-from typing import Optional, Any
 import os
 import json as _json
 
@@ -14,7 +13,6 @@ from src.connectors.datasource.service import SyncService
 
 def _notify_folder_source(action: str, sync_id: str) -> None:
     """Filesystem sync is now client-side — no server notification needed."""
-    pass
 
 
 def _sync_resp(s):
