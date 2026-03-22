@@ -1,5 +1,5 @@
 """
-Agent Config 数据模型
+Agent Config Data Models
 """
 
 from datetime import datetime
@@ -12,10 +12,10 @@ TriggerType = Literal["manual", "cron", "webhook"]
 
 
 class AgentBash(BaseModel):
-    """Agent Bash 终端访问权限模型"""
+    """Agent Bash terminal access permission model."""
 
-    id: str = Field(..., description="Bash 权限 ID")
-    agent_id: str = Field(..., description="所属 Agent ID")
+    id: str = Field(..., description="Bash permission ID")
+    agent_id: str = Field(..., description="Owning Agent ID")
     path: str = Field(..., description="MUT path")
     json_path: str = Field(default="", description="JSON sub-path")
     readonly: bool = Field(default=True)
@@ -25,7 +25,7 @@ class AgentBash(BaseModel):
 
 
 class AgentTool(BaseModel):
-    """Agent Tool 关联模型"""
+    """Agent Tool association model."""
 
     id: str = Field(...)
     agent_id: str = Field(...)
@@ -38,7 +38,7 @@ class AgentTool(BaseModel):
 
 
 class Agent(BaseModel):
-    """Agent 领域模型"""
+    """Agent domain model."""
 
     id: str = Field(...)
     project_id: str = Field(...)

@@ -1,7 +1,7 @@
 """
-Context Publish 数据访问层
+Context Publish Data Access Layer
 
-提供针对 public.context_publish 表的增删改查操作。
+Provides CRUD operations for the public.context_publish table.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ class ContextPublishRepository:
 
     def _normalize_payload(self, payload: dict) -> dict:
         """
-        Supabase/PostgREST 的 JSON body 需要是 JSON-serializable。
-        这里将 datetime 等类型规范化为 ISO 字符串。
+        Supabase/PostgREST JSON body must be JSON-serializable.
+        Normalizes types like datetime to ISO strings.
         """
         expires_at = payload.get("expires_at")
         if isinstance(expires_at, datetime):
@@ -43,7 +43,7 @@ class ContextPublishRepository:
             response = self._client.table("context_publishes").insert(payload).execute()
             return ContextPublishResponse(**response.data[0])
         except Exception as e:
-            raise handle_supabase_error(e, "创建 ContextPublish")
+            raise handle_supabase_error(e, "create ContextPublish")
 
     def get_by_id(self, publish_id: int) -> Optional[ContextPublishResponse]:
         response = (
@@ -101,7 +101,7 @@ class ContextPublishRepository:
                 return ContextPublishResponse(**response.data[0])
             return None
         except Exception as e:
-            raise handle_supabase_error(e, "更新 ContextPublish")
+            raise handle_supabase_error(e, "update ContextPublish")
 
     def delete(self, publish_id: int) -> bool:
         response = (

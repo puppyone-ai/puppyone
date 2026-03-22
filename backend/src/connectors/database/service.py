@@ -1,4 +1,4 @@
-"""DB Connector Service - 核心业务逻辑"""
+"""DB Connector Service - Core business logic"""
 
 import logging
 from typing import Any, List
@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 
 class DBConnectorService:
     """
-    DB Connector 核心服务。
+    DB Connector core service.
 
-    职责：
-    - 连接管理（CRUD）
-    - 列出表 / 预览表数据
-    - 保存整张表为 Mut tree file
+    Responsibilities:
+    - Connection management (CRUD)
+    - List tables / preview table data
+    - Save entire table as Mut tree file
     """
 
     def __init__(
@@ -31,7 +31,7 @@ class DBConnectorService:
         self.repo = repo
         self.project_service = project_service
 
-    # === 连接管理 ===
+    # === Connection Management ===
 
     async def create_connection(
         self,
@@ -41,7 +41,7 @@ class DBConnectorService:
         provider: str,
         config: dict,
     ) -> dict[str, Any]:
-        """创建连接并立即测试。"""
+        """Create a connection and test it immediately."""
         db_provider = get_provider(provider)
         test_result = await db_provider.test_connection(config)
 
@@ -76,10 +76,10 @@ class DBConnectorService:
         conn = self.get_connection(connection_id, user_id)
         return self.repo.delete(conn.id)
 
-    # === 表数据 ===
+    # === Table Data ===
 
     async def list_tables(self, connection_id: str, user_id: str) -> list[TableInfo]:
-        """列出所有表（含列信息）"""
+        """List all tables (including column info)."""
         conn = self.get_connection(connection_id, user_id)
         provider = get_provider(conn.provider)
         tables = await provider.list_tables(conn.config)
@@ -93,7 +93,7 @@ class DBConnectorService:
         table: str,
         limit: int = 50,
     ) -> QueryResult:
-        """预览某张表的数据"""
+        """Preview data from a table."""
         conn = self.get_connection(connection_id, user_id)
         provider = get_provider(conn.provider)
 
@@ -106,7 +106,7 @@ class DBConnectorService:
         self.repo.update_last_used(conn.id)
         return result
 
-    # === 保存表数据 ===
+    # === Save Table Data ===
 
     async def save_table(
         self,
@@ -117,7 +117,7 @@ class DBConnectorService:
         table: str,
         limit: int = 1000,
     ) -> dict[str, Any]:
-        """拉取整张表数据并保存为 Mut tree file。"""
+        """Fetch entire table data and save as a Mut tree file."""
         conn = self.get_connection(connection_id, user_id)
         provider = get_provider(conn.provider)
 

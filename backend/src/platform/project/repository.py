@@ -1,7 +1,7 @@
 """
-Project 数据仓库
+Project Repository
 
-定义 Project 的数据访问接口和实现
+Defines the data access interface and implementation for Project
 """
 
 from abc import ABC, abstractmethod
@@ -11,16 +11,16 @@ from src.platform.project.models import Project
 
 
 class ProjectRepositoryBase(ABC):
-    """抽象 Project 仓库接口"""
+    """Abstract Project repository interface"""
 
     @abstractmethod
     def get_by_id(self, project_id: str) -> Optional[Project]:
-        """根据ID获取项目"""
+        """Get project by ID"""
         pass
 
     @abstractmethod
     def get_by_org_id(self, org_id: str) -> List[Project]:
-        """根据组织ID获取项目列表"""
+        """Get project list by organization ID"""
         pass
 
     @abstractmethod
@@ -31,7 +31,7 @@ class ProjectRepositoryBase(ABC):
         org_id: str,
         created_by: str,
     ) -> Project:
-        """创建项目"""
+        """Create a project"""
         pass
 
     @abstractmethod
@@ -41,29 +41,29 @@ class ProjectRepositoryBase(ABC):
         name: Optional[str],
         description: Optional[str],
     ) -> Optional[Project]:
-        """更新项目"""
+        """Update a project"""
         pass
 
     @abstractmethod
     def delete(self, project_id: str) -> bool:
-        """删除项目"""
+        """Delete a project"""
         pass
 
     @abstractmethod
     def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
-        """验证用户是否有权限访问指定的项目，返回角色字符串或 None"""
+        """Verify whether user has access to the specified project; returns role string or None"""
         pass
 
 
 class ProjectRepositorySupabase(ProjectRepositoryBase):
-    """基于 Supabase 的 Project 仓库实现"""
+    """Supabase-based Project repository implementation"""
 
     def __init__(self, supabase_repo=None):
         """
-        初始化仓库
+        Initialize the repository
 
         Args:
-            supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则创建新实例
+            supabase_repo: Optional SupabaseRepository instance; creates a new one if not provided
         """
         if supabase_repo is None:
             from src.infra.supabase.dependencies import get_supabase_repository
@@ -74,13 +74,13 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
 
     def get_by_id(self, project_id: str) -> Optional[Project]:
         """
-        根据ID获取项目
+        Get project by ID
 
         Args:
-            project_id: 项目ID
+            project_id: Project ID
 
         Returns:
-            Project对象，如果不存在则返回None
+            Project object, or None if not found
         """
         project_response = self._supabase_repo.get_project(project_id)
         if project_response:
@@ -89,13 +89,13 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
 
     def get_by_org_id(self, org_id: str) -> List[Project]:
         """
-        根据组织ID获取项目列表
+        Get project list by organization ID
 
         Args:
-            org_id: 组织ID
+            org_id: Organization ID
 
         Returns:
-            Project列表
+            List of Projects
         """
         projects_response = self._supabase_repo.get_projects(org_id=org_id)
         return [self._project_response_to_project(p) for p in projects_response]
@@ -108,16 +108,16 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         created_by: str,
     ) -> Project:
         """
-        创建项目
+        Create a project
 
         Args:
-            name: 项目名称
-            description: 项目描述
-            org_id: 组织ID
-            created_by: 创建者用户ID
+            name: Project name
+            description: Project description
+            org_id: Organization ID
+            created_by: Creator user ID
 
         Returns:
-            创建的Project对象
+            Created Project object
         """
         from src.platform.project.supabase_schemas import ProjectCreate
         from src.utils.id_generator import generate_uuid_v7
@@ -140,16 +140,16 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         visibility: Optional[str] = None,
     ) -> Optional[Project]:
         """
-        更新项目
+        Update a project
 
         Args:
-            project_id: 项目ID
-            name: 项目名称（可选，如果为None则不更新）
-            description: 项目描述（可选，如果为None则不更新）
-            visibility: 可见性（可选）
+            project_id: Project ID
+            name: Project name (optional, not updated if None)
+            description: Project description (optional, not updated if None)
+            visibility: Visibility (optional)
 
         Returns:
-            更新后的Project对象，如果不存在则返回None
+            Updated Project object, or None if not found
         """
         from src.platform.project.supabase_schemas import ProjectUpdate
 
@@ -166,29 +166,29 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
 
     def delete(self, project_id: str) -> bool:
         """
-        删除项目
+        Delete a project
 
         Args:
-            project_id: 项目ID
+            project_id: Project ID
 
         Returns:
-            是否删除成功
+            Whether deletion was successful
         """
         return self._supabase_repo.delete_project(project_id)
 
     def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
         """
-        验证用户是否有权限访问指定的项目
+        Verify whether user has access to the specified project
 
-        权限逻辑:
-        1. visibility='org' → org 的任何 member 都可访问
-        2. visibility='private' → 只有 org owner 或 project_members 中的人可访问
+        Access logic:
+        1. visibility='org' -> any member of the org can access
+        2. visibility='private' -> only org owner or members in project_members can access
 
         Uses per-request contextvar cache to avoid redundant DB lookups
         when the same project+user pair is checked multiple times.
 
         Returns:
-            角色字符串 (org 角色或 project 角色)，无权限则返回 None
+            Role string (org role or project role), or None if no access
         """
         from src.utils.request_context import project_access_cache_var
 
@@ -235,13 +235,13 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
 
     def _project_response_to_project(self, project_response) -> Project:
         """
-        将 ProjectResponse 转换为 Project 模型
+        Convert ProjectResponse to Project model
 
         Args:
-            project_response: ProjectResponse对象
+            project_response: ProjectResponse object
 
         Returns:
-            Project对象
+            Project object
         """
         return Project(
             id=project_response.id,

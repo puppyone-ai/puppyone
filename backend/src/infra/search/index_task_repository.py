@@ -146,4 +146,4 @@ class SearchIndexTaskRepository:
                 return got
             return _row_to_task(rows[0])
         except Exception as e:
-            raise handle_supabase_error(e, "写入 uploads (search_index)")
+            raise handle_supabase_error(e, "write to uploads (search_index)")

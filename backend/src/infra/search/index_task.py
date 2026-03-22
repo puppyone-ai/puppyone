@@ -17,7 +17,7 @@ class SearchIndexTask(BaseModel):
     tool_id: str
     user_id: Optional[str] = None
     project_id: Optional[str] = None
-    path: str  # MUT 路径 (path)
+    path: str  # MUT path
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"
@@ -40,7 +40,7 @@ class SearchIndexTaskUpsert(BaseModel):
     tool_id: str
     user_id: Optional[str] = None
     project_id: Optional[str] = None
-    path: str  # MUT 路径 (path)
+    path: str  # MUT path
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"
@@ -64,7 +64,7 @@ class SearchIndexTaskUpsert(BaseModel):
         for k in ("started_at", "finished_at"):
             if k in d and isinstance(d[k], dt.datetime):
                 d[k] = d[k].isoformat()
-        # updated_at 由应用层维护（没有触发器时更可靠）
+        # updated_at is maintained by the application layer (more reliable without triggers)
         d["updated_at"] = dt.datetime.now(tz=dt.timezone.utc).isoformat()
         return d
 

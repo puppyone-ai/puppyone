@@ -1,7 +1,7 @@
 """
 Profile Module
 
-管理用户 Profile 信息和 Onboarding 流程
+Manages user Profile information and Onboarding flow
 """
 
 from src.platform.profile.models import Profile

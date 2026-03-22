@@ -1,4 +1,4 @@
-"""沙盒抽象基类定义"""
+"""Sandbox abstract base class definitions"""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -8,8 +8,8 @@ import time
 
 @dataclass
 class SandboxSession:
-    """沙盒会话数据"""
-    sandbox: Any  # 具体的沙盒实例（E2B Sandbox 或 Docker container ID）
+    """Sandbox session data"""
+    sandbox: Any  # Concrete sandbox instance (E2B Sandbox or Docker container ID)
     readonly: bool
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
@@ -17,23 +17,23 @@ class SandboxSession:
 
 class SandboxBase(ABC):
     """
-    沙盒服务抽象基类
-    
-    定义了沙盒服务的统一接口，支持 E2B 云沙盒和 Docker 本地沙盒两种实现。
+    Sandbox service abstract base class
+
+    Defines the unified interface for sandbox services, supporting both E2B cloud sandbox and Docker local sandbox implementations.
     """
     
     @abstractmethod
     async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
         """
-        创建沙盒会话并预加载单个 JSON 数据到 /workspace/data.json
-        
+        Create a sandbox session and preload a single JSON data into /workspace/data.json
+
         Args:
-            session_id: 会话唯一标识
-            data: JSON 数据（将被写入 /workspace/data.json）
-            readonly: 是否只读模式
-            
+            session_id: Unique session identifier
+            data: JSON data (will be written to /workspace/data.json)
+            readonly: Whether to use read-only mode
+
         Returns:
-            {"success": True} 或 {"success": False, "error": str}
+            {"success": True} or {"success": False, "error": str}
         """
         ...
     
@@ -46,70 +46,70 @@ class SandboxBase(ABC):
         s3_service: Optional[Any] = None
     ) -> dict:
         """
-        创建沙盒会话并预加载多个文件
-        
+        Create a sandbox session and preload multiple files
+
         Args:
-            session_id: 会话唯一标识
-            files: SandboxFile 列表，每个包含 path, content, s3_key
-            readonly: 是否只读模式
-            s3_service: S3 服务实例（用于下载 S3 文件）
-            
+            session_id: Unique session identifier
+            files: List of SandboxFile, each containing path, content, s3_key
+            readonly: Whether to use read-only mode
+            s3_service: S3 service instance (for downloading S3 files)
+
         Returns:
-            {"success": True} 或 {"success": False, "error": str}
-            可能包含 "warnings" 字段列出失败的文件
+            {"success": True} or {"success": False, "error": str}
+            May include a "warnings" field listing failed files
         """
         ...
     
     @abstractmethod
     async def exec(self, session_id: str, command: str) -> dict:
         """
-        在沙盒中执行命令
-        
+        Execute a command in the sandbox
+
         Args:
-            session_id: 会话标识
-            command: 要执行的 bash 命令
-            
+            session_id: Session identifier
+            command: Bash command to execute
+
         Returns:
-            {"success": True, "output": str} 或 {"success": False, "error": str}
+            {"success": True, "output": str} or {"success": False, "error": str}
         """
         ...
     
     @abstractmethod
     async def read(self, session_id: str) -> dict:
         """
-        读取 /workspace/data.json 的内容
-        
+        Read the contents of /workspace/data.json
+
         Args:
-            session_id: 会话标识
-            
+            session_id: Session identifier
+
         Returns:
-            {"success": True, "data": dict} 或 {"success": False, "error": str}
+            {"success": True, "data": dict} or {"success": False, "error": str}
         """
         ...
     
     @abstractmethod
     async def read_file(self, session_id: str, path: str, parse_json: bool = False) -> dict:
         """
-        读取沙盒中指定路径的文件
-        
+        Read a file at the specified path in the sandbox
+
         Args:
-            session_id: 会话标识
-            path: 文件路径（如 /workspace/myfile.json）
-            parse_json: 是否解析为 JSON
-            
+            session_id: Session identifier
+            path: File path (e.g. /workspace/myfile.json)
+            parse_json: Whether to parse as JSON
+
         Returns:
-            {"success": True, "content": str/dict} 或 {"success": False, "error": str}
+            {"success": True, "content": str/dict} or {"success": False, "error": str}
         """
         ...
     
     @abstractmethod
     async def stop(self, session_id: str) -> dict:
         """
-        停止并清理沙盒会话
-        
+        Stop and clean up a sandbox session
+
         Args:
-            session_id: 会话标识
-            
+            session_id: Session identifier
+
         Returns:
             {"success": True}
         """
@@ -118,17 +118,17 @@ class SandboxBase(ABC):
     @abstractmethod
     async def status(self, session_id: str) -> dict:
         """
-        获取沙盒会话状态
-        
+        Get sandbox session status
+
         Args:
-            session_id: 会话标识
-            
+            session_id: Session identifier
+
         Returns:
-            {"active": bool, ...} 包含其他元数据
+            {"active": bool, ...} including other metadata
         """
         ...
     
     @abstractmethod
     async def stop_all(self) -> None:
-        """停止所有沙盒会话（用于服务关闭时）"""
+        """Stop all sandbox sessions (used during service shutdown)"""
         ...

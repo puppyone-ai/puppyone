@@ -1,7 +1,7 @@
 """
-Supabase 异常处理
+Supabase exception handling.
 
-定义 Supabase 相关的自定义异常。
+Defines custom exceptions related to Supabase.
 """
 
 from postgrest.exceptions import APIError
@@ -9,7 +9,7 @@ from src.exceptions import BusinessException, ErrorCode
 
 
 class SupabaseException(BusinessException):
-    """Supabase 基础异常"""
+    """Supabase base exception"""
 
     def __init__(self, message: str, original_error: Exception = None):
         super().__init__(message=message, code=ErrorCode.BAD_REQUEST)
@@ -17,12 +17,12 @@ class SupabaseException(BusinessException):
 
 
 class SupabaseDuplicateKeyError(SupabaseException):
-    """主键冲突错误"""
+    """Primary key conflict error"""
 
     def __init__(
         self, table: str, key: str, value: any, original_error: Exception = None
     ):
-        message = f"记录已存在: 表 '{table}' 中已存在 {key}={value} 的记录"
+        message = f"Record already exists: table '{table}' already has a record with {key}={value}"
         super().__init__(message=message, original_error=original_error)
         self.table = table
         self.key = key
@@ -30,10 +30,10 @@ class SupabaseDuplicateKeyError(SupabaseException):
 
 
 class SupabaseNotFoundError(SupabaseException):
-    """记录不存在错误"""
+    """Record not found error"""
 
     def __init__(self, table: str, key: str, value: any):
-        message = f"记录不存在: 表 '{table}' 中不存在 {key}={value} 的记录"
+        message = f"Record not found: table '{table}' has no record with {key}={value}"
         super().__init__(message=message)
         self.table = table
         self.key = key
@@ -41,27 +41,27 @@ class SupabaseNotFoundError(SupabaseException):
 
 
 class SupabaseForeignKeyError(SupabaseException):
-    """外键约束错误"""
+    """Foreign key constraint error"""
 
     def __init__(self, message: str, original_error: Exception = None):
         super().__init__(message=message, original_error=original_error)
 
 
 def handle_supabase_error(
-    error: Exception, operation: str = "操作"
+    error: Exception, operation: str = "operation"
 ) -> SupabaseException:
     """
-    处理 Supabase API 错误，转换为友好的异常
+    Handle Supabase API errors and convert them to user-friendly exceptions.
 
     Args:
-        error: 原始异常
-        operation: 操作描述
+        error: Original exception
+        operation: Operation description
 
     Returns:
-        转换后的异常
+        Converted exception
     """
     if isinstance(error, APIError):
-        # APIError 的错误信息在 args[0] 中，是一个字典
+        # APIError's error info is in args[0], which is a dict
         error_dict = (
             error.args[0] if error.args and isinstance(error.args[0], dict) else {}
         )
@@ -70,27 +70,27 @@ def handle_supabase_error(
         details = error_dict.get("details", "") or ""
         hint = error_dict.get("hint", "") or ""
 
-        # 处理主键冲突 (23505)
+        # Handle primary key conflict (23505)
         if error_code == "23505":
             import re
 
-            # 键信息通常在 details 字段中，格式: "Key (id)=(1) already exists."
-            # 也可能在 error_message 中
+            # Key info is usually in the details field, format: "Key (id)=(1) already exists."
+            # It may also be in error_message
             key_info = details if details else error_message
 
-            # 尝试提取键名和值
+            # Try to extract key name and value
             match = re.search(r"Key \(([^)]+)\)=\(([^)]+)\)", key_info)
             if match:
                 key_name = match.group(1)
                 key_value = match.group(2)
 
-                # 从 error_message 中提取表名（通常在约束名称中）
-                # 例如: 'duplicate key value violates unique constraint "table_pkey"'
+                # Extract table name from error_message (usually in constraint name)
+                # e.g.: 'duplicate key value violates unique constraint "table_pkey"'
                 table_match = re.search(r'"([^"]+)_pkey"', error_message)
                 if table_match:
                     table_name = table_match.group(1)
                 else:
-                    # 尝试从其他位置提取表名
+                    # Try to extract table name from other locations
                     table_match = re.search(
                         r'table "([^"]+)"', error_message + details + hint
                     )
@@ -103,7 +103,7 @@ def handle_supabase_error(
                     original_error=error,
                 )
 
-            # 如果无法解析，返回通用错误
+            # If unable to parse, return a generic error
             return SupabaseDuplicateKeyError(
                 table="unknown",
                 key="id",
@@ -111,21 +111,21 @@ def handle_supabase_error(
                 original_error=error,
             )
 
-        # 处理外键约束 (23503)
+        # Handle foreign key constraint (23503)
         if error_code == "23503":
             return SupabaseForeignKeyError(
-                message=f"外键约束错误: {error_message}",
+                message=f"Foreign key constraint error: {error_message}",
                 original_error=error,
             )
 
-        # 其他数据库错误
+        # Other database errors
         return SupabaseException(
-            message=f"{operation}失败: {error_message}",
+            message=f"{operation} failed: {error_message}",
             original_error=error,
         )
 
-    # 非 APIError 异常，直接包装
+    # Non-APIError exceptions, wrap directly
     return SupabaseException(
-        message=f"{operation}失败: {str(error)}",
+        message=f"{operation} failed: {str(error)}",
         original_error=error,
     )

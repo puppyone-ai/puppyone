@@ -1,5 +1,5 @@
 """
-Project 模块
+Project Module
 
-提供项目管理相关的 API 接口。
+Provides API endpoints for project management.
 """

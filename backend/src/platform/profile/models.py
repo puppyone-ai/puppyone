@@ -1,7 +1,7 @@
 """
-Profile 数据模型
+Profile Data Models
 
-定义用户 Profile 的业务领域模型
+Defines business domain models for user Profile
 """
 
 from datetime import datetime
@@ -10,32 +10,32 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Profile(BaseModel):
-    """用户 Profile 领域模型"""
+    """User Profile domain model"""
 
-    user_id: str = Field(..., description="用户ID (UUID，关联 auth.users)")
-    email: str = Field(..., description="用户邮箱")
-    display_name: Optional[str] = Field(None, description="显示名称")
-    avatar_url: Optional[str] = Field(None, description="头像 URL")
-    default_org_id: Optional[str] = Field(None, description="默认组织 ID")
-    created_at: datetime = Field(..., description="创建时间")
-    updated_at: datetime = Field(..., description="更新时间")
+    user_id: str = Field(..., description="User ID (UUID, references auth.users)")
+    email: str = Field(..., description="User email")
+    display_name: Optional[str] = Field(None, description="Display name")
+    avatar_url: Optional[str] = Field(None, description="Avatar URL")
+    default_org_id: Optional[str] = Field(None, description="Default organization ID")
+    created_at: datetime = Field(..., description="Creation time")
+    updated_at: datetime = Field(..., description="Update time")
 
-    # Onboarding 相关字段
+    # Onboarding related fields
     has_onboarded: bool = Field(
-        default=False, description="是否已完成首次 Onboarding"
+        default=False, description="Whether first-time Onboarding has been completed"
     )
     onboarded_at: Optional[datetime] = Field(
-        None, description="完成 Onboarding 的时间"
+        None, description="Time when Onboarding was completed"
     )
     demo_project_id: Optional[int] = Field(
-        None, description="自动创建的 Demo Project ID"
+        None, description="Auto-created Demo Project ID"
     )
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class ProfileUpdate(BaseModel):
-    """Profile 更新数据"""
+    """Profile update data"""
 
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None

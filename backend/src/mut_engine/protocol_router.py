@@ -1,12 +1,12 @@
 """
-MUT Protocol Router — MutOps 的 MUT 线协议 HTTP 外壳
+MUT Protocol Router — HTTP shell for the MUT wire protocol around MutOps
 
-将 MUT 原生 HTTP 同步协议暴露给外部客户端:
-  - CLI daemon 通过 clone/push/pull 同步本地文件夹
-  - 远程 MUT client 通过标准协议操作内容树
+Exposes the MUT native HTTP sync protocol to external clients:
+  - CLI daemon syncs local folders via clone/push/pull
+  - Remote MUT clients operate on the content tree via the standard protocol
 
-MutOps 是唯一的操作入口，本文件只做:
-  HTTP 参数解析 + 认证 + 调用 MutOps.handle_* + 日志
+MutOps is the sole operation entry point; this file only handles:
+  HTTP parameter parsing + authentication + calling MutOps.handle_* + logging
 """
 
 from __future__ import annotations

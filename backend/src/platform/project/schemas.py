@@ -1,7 +1,7 @@
 """
 Project API Schemas
 
-定义前端 API 请求/响应模型，匹配前端 ProjectInfo 类型。
+Defines frontend API request/response models, matching the frontend ProjectInfo type.
 """
 
 from typing import Optional, List, Any
@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 
 class NodeInfo(BaseModel):
-    """节点信息（简化版，用于项目列表）"""
+    """Node information (simplified, used for project listing)"""
 
     id: str
     name: str
@@ -18,16 +18,16 @@ class NodeInfo(BaseModel):
 
 
 class ProjectOut(BaseModel):
-    """项目输出模型 - 匹配前端 ProjectInfo 类型"""
+    """Project output model - matches frontend ProjectInfo type"""
 
     id: str
     name: str
     description: Optional[str] = None
-    nodes: List[NodeInfo] = []  # 从 tables 改为 nodes
+    nodes: List[NodeInfo] = []  # Renamed from tables to nodes
 
 
 class ProjectCreate(BaseModel):
-    """创建项目请求"""
+    """Create project request"""
 
     name: str
     description: Optional[str] = None
@@ -36,7 +36,7 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    """更新项目请求"""
+    """Update project request"""
 
     name: Optional[str] = None
     description: Optional[str] = None
@@ -44,7 +44,7 @@ class ProjectUpdate(BaseModel):
 
 
 class ProjectMemberOut(BaseModel):
-    """项目成员输出"""
+    """Project member output"""
 
     id: str
     user_id: str
@@ -56,13 +56,13 @@ class ProjectMemberOut(BaseModel):
 
 
 class AddProjectMember(BaseModel):
-    """添加项目成员"""
+    """Add project member"""
 
     user_id: str
     role: str = "editor"
 
 
 class UpdateProjectMemberRole(BaseModel):
-    """更新项目成员角色"""
+    """Update project member role"""
 
     role: str

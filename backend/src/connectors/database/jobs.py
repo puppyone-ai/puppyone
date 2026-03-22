@@ -1,5 +1,5 @@
 """
-DB Connector Sync Job - 定时重跑查询刷新 Mut tree 文件数据。
+DB Connector Sync Job - Periodically re-run queries to refresh Mut tree file data.
 """
 
 import json
@@ -14,13 +14,13 @@ from src.utils.logger import log_info, log_error
 
 async def db_sync_job(ctx: dict[str, Any], content_path: str) -> dict[str, Any]:
     """
-    重跑某个 content path 关联的 REST API 查询，刷新数据。
+    Re-run the REST API query associated with a content path to refresh data.
 
-    由 Scheduler 定时触发，在 Worker 进程中执行。
+    Triggered periodically by the Scheduler, executed in a Worker process.
 
     Args:
         ctx: ARQ context
-        content_path: 要刷新的 content path (Mut tree path)
+        content_path: Content path to refresh (Mut tree path)
     """
     db_repo: DBConnectionRepository = ctx["db_repo"]
 

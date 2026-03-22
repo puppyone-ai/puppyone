@@ -3,8 +3,8 @@ Embedding Service
 
 Core service for generating embeddings via OpenRouter (using OpenAI client).
 
-使用 OpenAI 客户端直接调用 OpenRouter 的 embedding API，
-避免 litellm 不支持 OpenRouter embedding 的问题。
+Uses the OpenAI client to call the OpenRouter embedding API directly,
+avoiding the issue where litellm does not support OpenRouter embeddings.
 """
 
 import asyncio
@@ -33,7 +33,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 class EmbeddingService:
     """Service for interacting with embedding models via OpenRouter."""
 
-    # OpenAI 的 embedding token limit 示例（用于输入预检，避免难以定位的批量错误）
+    # OpenAI embedding token limit example (used for input pre-check to avoid hard-to-diagnose batch errors)
     _DEFAULT_MAX_INPUT_TOKENS = 8191
 
     def __init__(self):
@@ -53,7 +53,7 @@ class EmbeddingService:
 
     def _ensure_client(self) -> None:
         """
-        确保 OpenAI 客户端已加载（懒加载）
+        Ensure the OpenAI client is loaded (lazy initialization).
         """
         if self._client_loaded:
             return
@@ -83,9 +83,9 @@ class EmbeddingService:
     @staticmethod
     def _normalize_model_name(model: str) -> str:
         """
-        将模型名称转换为 OpenRouter 格式。
-        
-        例如：
+        Convert model name to OpenRouter format.
+
+        Examples:
         - "openrouter/qwen/qwen3-embedding-8b" -> "qwen/qwen3-embedding-8b"
         - "qwen/qwen3-embedding-8b" -> "qwen/qwen3-embedding-8b"
         """
@@ -96,9 +96,9 @@ class EmbeddingService:
     @staticmethod
     def _estimate_tokens(text: str) -> int:
         """
-        粗略估算 token 数（避免引入额外依赖）
+        Rough token count estimation (avoids introducing extra dependencies).
 
-        经验值：英文平均 ~4 chars/token；中文会更紧凑，但作为预检足够。
+        Rule of thumb: English averages ~4 chars/token; CJK is more compact, but sufficient for pre-check.
         """
         if not text:
             return 0
@@ -107,7 +107,7 @@ class EmbeddingService:
     def _validate_text(self, text: str, index: int | None = None) -> str:
         stripped = (text or "").strip()
         if not stripped:
-            raise InvalidInputError("文本不能为空", index=index)
+            raise InvalidInputError("Text must not be empty", index=index)
 
         estimated_tokens = self._estimate_tokens(stripped)
         if estimated_tokens > self._DEFAULT_MAX_INPUT_TOKENS:
@@ -165,11 +165,11 @@ class EmbeddingService:
         self, texts: list[str], model: str
     ) -> list[list[float]]:
         """
-        调用 OpenRouter embedding API（带重试）
+        Call the OpenRouter embedding API (with retries).
         """
         self._ensure_client()
 
-        # 转换模型名称（去掉 openrouter/ 前缀）
+        # Convert model name (strip openrouter/ prefix)
         openrouter_model = self._normalize_model_name(model)
 
         last_error: Exception | None = None
@@ -183,14 +183,14 @@ class EmbeddingService:
                     len(texts),
                 )
 
-                # 构建请求参数
+                # Build request parameters
                 create_params: dict[str, Any] = {
                     "model": openrouter_model,
                     "input": texts,
                     "encoding_format": "float",
                 }
 
-                # OpenAI text-embedding-3-* 支持 dimensions 参数
+                # OpenAI text-embedding-3-* supports the dimensions parameter
                 if "text-embedding-3" in model and self.dimensions:
                     create_params["dimensions"] = self.dimensions
 

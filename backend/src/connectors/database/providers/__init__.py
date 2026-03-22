@@ -3,7 +3,7 @@
 from src.connectors.database.providers.base import BaseDBProvider
 from src.connectors.database.providers.supabase_rest import SupabaseRestProvider
 
-# 注册表：加新数据库在这里加一行
+# Registry: add a new line here for each new database
 PROVIDERS: dict[str, type[BaseDBProvider]] = {
     "supabase": SupabaseRestProvider,
     # "mysql": MySQLProvider,
@@ -11,7 +11,7 @@ PROVIDERS: dict[str, type[BaseDBProvider]] = {
 
 
 def get_provider(provider_type: str) -> BaseDBProvider:
-    """获取对应的 Provider 实例"""
+    """Get the corresponding Provider instance."""
     cls = PROVIDERS.get(provider_type)
     if not cls:
         supported = ", ".join(PROVIDERS.keys())

@@ -1,7 +1,7 @@
 """
 ETL Rules Repository Dependencies
 
-提供依赖注入函数，用于获取 ETL 规则仓库实例。
+Provides dependency injection functions for obtaining ETL rule repository instances.
 """
 
 import logging
@@ -20,14 +20,14 @@ def get_rule_repository(
     supabase_client=Depends(get_supabase_client),
 ) -> RuleRepositorySupabase:
     """
-    获取 ETL 规则仓库实例。
+    Get ETL rule repository instance.
 
     Args:
-        current_user: 当前用户（从 token 中获取）
-        supabase_client: Supabase 客户端实例
+        current_user: Current user (extracted from token)
+        supabase_client: Supabase client instance
 
     Returns:
-        规则仓库实例
+        Rule repository instance
     """
     logger.debug(f"Creating rule repository for user: {current_user.user_id}")
     return RuleRepositorySupabase(

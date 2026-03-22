@@ -27,14 +27,14 @@ def _normalize_json_pointer(pointer: str) -> str:
     if not p:
         return ""
     if not p.startswith("/"):
-        # 这里不强制抛错，保持兼容；但内部我们统一用 RFC6901 绝对指针
+        # Don't force an error here for compatibility; internally we use RFC6901 absolute pointers
         p = "/" + p
     return p
 
 
 def _extract_by_pointer(data: Any, pointer: str) -> Any:
     """
-    从 JSON 数据中提取指定 JSON Pointer 路径的子数据。
+    Extract sub-data at the specified JSON Pointer path from JSON data.
     """
     if not pointer or pointer == "/":
         return data
@@ -62,9 +62,9 @@ def _extract_by_pointer(data: Any, pointer: str) -> Any:
 
 def _relative_pointer(*, base: str, absolute: str) -> str:
     """
-    将绝对 json_pointer 转为相对于 base 的路径（两者均为 RFC6901）。
+    Convert an absolute json_pointer to a path relative to base (both are RFC6901).
 
-    例：
+    Examples:
     - base="/articles", absolute="/articles/0/content" -> "/0/content"
     - base="", absolute="/a/b" -> "/a/b"
     """
@@ -77,7 +77,7 @@ def _relative_pointer(*, base: str, absolute: str) -> str:
     prefix = b + "/"
     if a.startswith(prefix):
         return a[len(b) :]
-    # 不在 scope 内：保持返回绝对路径（更利于排障；也避免误导）
+    # Not within scope: keep returning absolute path (better for debugging; avoids confusion)
     return a
 
 
@@ -98,10 +98,10 @@ def reciprocal_rank_fusion(
         for rank, row in enumerate(results, start=1):
             doc_id = row.id
             scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)
-            # 保留一份 row（属性一致即可；不同 query 的 row attributes 通常相同）
+            # Keep one copy of the row (attributes are consistent; row attributes from different queries are usually the same)
             items[doc_id] = row
 
-    # 按融合分数排序（高到低）
+    # Sort by fused score (high to low)
     return [
         (items[doc_id], score)
         for doc_id, score in sorted(scores.items(), key=lambda x: x[1], reverse=True)
@@ -127,9 +127,9 @@ class FolderIndexStats:
 
 class SearchService:
     """
-    Search Tool 核心能力：
+    Search Tool core capabilities:
     - index_tool: (path, json_path) scope -> chunking -> embedding -> turbopuffer upsert
-    - search_tool: ANN -> 结构化输出（chunk_text 通过 DB 回填）
+    - search_tool: ANN -> structured output (chunk_text backfilled from DB)
     """
 
     def __init__(
@@ -186,8 +186,8 @@ class SearchService:
         return f"{file_path[:12]}_{pointer_hash}_{content_hash[:8]}_{chunk_index}"
 
     async def ensure_namespace_schema(self, *, namespace: str) -> None:
-        # 兼容保留：当前实现不再依赖 turbopuffer 的 BM25，因此无需 schema。
-        # 若未来重新引入 BM25，可在此恢复 update_schema。
+        # Kept for compatibility: current implementation no longer relies on turbopuffer BM25, so no schema needed.
+        # If BM25 is reintroduced in the future, update_schema can be restored here.
         _ = namespace
         return None
 
@@ -200,7 +200,7 @@ class SearchService:
         json_path: str,
     ) -> SearchIndexStats:
         """
-        从 (path, json_path) 读取 scope 数据并完成 indexing。
+        Read scope data from (path, json_path) and perform indexing.
         """
         t0 = time.perf_counter()
         scope_pointer = _normalize_json_pointer(json_path)
@@ -209,7 +209,7 @@ class SearchService:
             f"[index_scope] start: project_id={project_id} path={path} json_path='{json_path}'"
         )
 
-        # 1) 读取 scope 数据（从 MUT ObjectStore 获取）
+        # 1) Read scope data (from MUT ObjectStore)
         t1 = time.perf_counter()
         content_bytes = await asyncio.to_thread(
             self._ops.read_file, project_id, path
@@ -224,7 +224,7 @@ class SearchService:
             f"[index_scope] step1_get_scope_data: path={path} elapsed_ms={int((time.perf_counter() - t1) * 1000)}"
         )
 
-        # 2) 提取大字符串节点（json_pointer 必须是"绝对指针"）
+        # 2) Extract large string nodes (json_pointer must be "absolute pointer")
         t2 = time.perf_counter()
         nodes = await asyncio.to_thread(
             lambda: list(
@@ -248,7 +248,7 @@ class SearchService:
                 nodes_count=0, chunks_count=0, indexed_chunks_count=0
             )
 
-        # 3) ensure chunks（幂等）
+        # 3) Ensure chunks (idempotent)
         t3 = time.perf_counter()
         all_chunks: list[Chunk] = []
         for i, n in enumerate(nodes):
@@ -278,7 +278,7 @@ class SearchService:
                 nodes_count=len(nodes), chunks_count=0, indexed_chunks_count=0
             )
 
-        # 4) embedding（批量）
+        # 4) Embedding (batch)
         t4 = time.perf_counter()
         texts = [c.chunk_text for c in all_chunks]
         log_info(
@@ -289,8 +289,8 @@ class SearchService:
             f"[index_scope] step4_embedding_done: path={path} vectors_count={len(vectors)} elapsed_ms={int((time.perf_counter() - t4) * 1000)}"
         )
 
-        # 5) turbopuffer upsert（批量）
-        # 注意：write 带 schema 参数会自动创建 namespace，支持增量更新
+        # 5) Turbopuffer upsert (batch)
+        # Note: write with schema parameter auto-creates namespace and supports incremental updates
         t5 = time.perf_counter()
         namespace = self.build_namespace(project_id=project_id, path=path)
 
@@ -308,7 +308,7 @@ class SearchService:
                 {
                     "id": doc_id,
                     "vector": vec,
-                    # metadata（用于回填 chunk_text 与定位）
+                    # metadata (for backfilling chunk_text and locating)
                     "json_pointer": c.json_pointer,
                     "chunk_index": c.chunk_index,
                     "total_chunks": c.total_chunks,
@@ -331,7 +331,7 @@ class SearchService:
             f"[index_scope] step5_turbopuffer_done: path={path} elapsed_ms={int((time.perf_counter() - t5) * 1000)}"
         )
 
-        # 6) 回写 chunks 表的 turbopuffer 字段（best-effort）
+        # 6) Write back turbopuffer fields to chunks table (best-effort)
         t6 = time.perf_counter()
         for c, doc_id in zip(all_chunks, doc_ids, strict=True):
             try:
@@ -349,7 +349,7 @@ class SearchService:
                     )
                 )
             except Exception:
-                # 不阻断 indexing：后续可通过重建/补齐逻辑再修复
+                # Don't block indexing: can be fixed later via rebuild/backfill logic
                 pass
         log_info(
             f"[index_scope] step6_update_chunks_done: path={path} elapsed_ms={int((time.perf_counter() - t6) * 1000)}"
@@ -374,7 +374,7 @@ class SearchService:
         top_k: int = 5,
     ) -> list[dict[str, Any]]:
         """
-        在 namespace 上执行向量 ANN 检索，返回 rows（chunk_text 通过 DB 回填）。
+        Execute ANN vector search on namespace, returning rows (chunk_text backfilled from DB).
         """
         q = (query or "").strip()
         if not q:
@@ -398,7 +398,7 @@ class SearchService:
         rows = resp.rows or []
         scope_base = _normalize_json_pointer(tool_json_path)
 
-        # 批量回填 chunk_text（避免在 turbopuffer 存储冗余大字段）
+        # Batch backfill chunk_text (avoid storing redundant large fields in turbopuffer)
         chunk_ids: list[int] = []
         for r in rows[:top_k]:
             attrs = r.attributes or {}
@@ -418,8 +418,8 @@ class SearchService:
             json_pointer = _normalize_json_pointer(json_pointer)
             json_path = _relative_pointer(base=scope_base, absolute=json_pointer)
 
-            # 仅返回对 Agent 有用的字段
-            # 移除内部字段: path, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
+            # Only return fields useful for the Agent
+            # Remove internal fields: path, content_hash, turbopuffer_namespace, turbopuffer_doc_id, char_start, char_end
             cid = attrs.get("chunk_id")
             chunk_id_int: int | None = None
             try:
@@ -428,7 +428,7 @@ class SearchService:
             except (TypeError, ValueError):
                 chunk_id_int = None
 
-            # 尽量用 score；否则用距离构造一个单调分数（越接近越大）
+            # Prefer score; otherwise construct a monotonic score from distance (closer = higher)
             score = None
             if r.score is not None:
                 score = float(r.score)

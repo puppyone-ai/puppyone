@@ -1,9 +1,9 @@
 """
 Folder Sync Engine — Ignore Rules
 
-文件过滤规则。决定哪些文件/目录应被跳过。
-提取自 sync/triggers/file_watcher.py 的 _should_ignore 逻辑，
-并扩展为可配置的规则引擎。
+File filtering rules. Determines which files/directories should be skipped.
+Extracted from the _should_ignore logic of sync/triggers/file_watcher.py,
+and extended into a configurable rules engine.
 """
 
 import os
@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 
 
 DEFAULT_IGNORE_PATTERNS: list[str] = [
-    ".*",                # 隐藏文件/目录 (.git, .DS_Store, .env, ...)
-    "*~",                # 编辑器备份
+    ".*",                # Hidden files/directories (.git, .DS_Store, .env, ...)
+    "*~",                # Editor backup files
     "*.tmp",
     "*.swp",
     "*.swo",
@@ -22,7 +22,7 @@ DEFAULT_IGNORE_PATTERNS: list[str] = [
     "*.pyo",
     "__pycache__",
     "node_modules",
-    ".metadata.json",    # folder_sync 自身的元数据文件
+    ".metadata.json",    # folder_sync's own metadata file
     "Thumbs.db",
 ]
 
@@ -30,15 +30,15 @@ DEFAULT_IGNORE_PATTERNS: list[str] = [
 @dataclass
 class IgnoreRules:
     """
-    可配置的忽略规则。
+    Configurable ignore rules.
 
-    支持 fnmatch 通配符，分别匹配文件名和目录名。
-    上层可以传入额外的 patterns 覆盖或扩展默认规则。
+    Supports fnmatch wildcards, matching file names and directory names separately.
+    Upper layers can pass additional patterns to override or extend the default rules.
     """
     patterns: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORE_PATTERNS))
 
     def should_ignore_file(self, rel_path: str) -> bool:
-        """判断一个文件（相对路径）是否应被忽略。"""
+        """Determine whether a file (relative path) should be ignored."""
         basename = os.path.basename(rel_path)
         for pattern in self.patterns:
             if fnmatch.fnmatch(basename, pattern):
@@ -51,7 +51,7 @@ class IgnoreRules:
         return False
 
     def should_ignore_dir(self, dir_name: str) -> bool:
-        """判断一个目录名是否应被忽略（用于 os.walk 的 dirs 过滤）。"""
+        """Determine whether a directory name should be ignored (for os.walk dirs filtering)."""
         for pattern in self.patterns:
             if fnmatch.fnmatch(dir_name, pattern):
                 return True

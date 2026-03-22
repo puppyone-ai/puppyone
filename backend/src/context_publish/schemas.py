@@ -8,16 +8,16 @@ from pydantic import BaseModel, Field
 
 
 class PublishCreate(BaseModel):
-    table_id: str = Field(..., description="目标 table_id (UUID)")
-    json_path: str = Field(default="", description="JSON Pointer 路径")
+    table_id: str = Field(..., description="Target table_id (UUID)")
+    json_path: str = Field(default="", description="JSON Pointer path")
     expires_at: Optional[datetime] = Field(
-        default=None, description="可选过期时间；不传则默认 7 天"
+        default=None, description="Optional expiration time; defaults to 7 days if not provided"
     )
 
 
 class PublishUpdate(BaseModel):
-    status: Optional[bool] = Field(default=None, description="启用/禁用（revoke）")
-    expires_at: Optional[datetime] = Field(default=None, description="更新过期时间")
+    status: Optional[bool] = Field(default=None, description="Enable/disable (revoke)")
+    expires_at: Optional[datetime] = Field(default=None, description="Update expiration time")
 
 
 class PublishOut(BaseModel):

@@ -1,7 +1,7 @@
 """
 Profile Service
 
-处理用户 Profile 和 Onboarding 的业务逻辑
+Handles user Profile and Onboarding business logic
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ DEMO_PROJECT_DESCRIPTION = (
 
 
 class ProfileService:
-    """Profile 业务服务"""
+    """Profile business service"""
 
     def __init__(
         self,
@@ -164,7 +164,7 @@ class ProfileService:
 
     async def _create_demo_content(self, project_id: str, user_id: str):
         """
-        在 Demo Project 中创建预置内容
+        Create preset content in the Demo Project
 
         All writes go through MUT protocol (MutOps).
         """

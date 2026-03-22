@@ -1,14 +1,14 @@
 """
-MutRepoManager — per-project Mut repo 工厂
+MutRepoManager — per-project Mut repo factory
 
-每个 PuppyOne project 对应一个 Mut "repo"，由以下组件构成:
-  - ObjectStore (S3StorageBackend)  → 内容存储
-  - HistoryManager (Supabase)       → 版本历史
-  - AuditLog (Supabase)             → 审计日志
+Each PuppyOne project corresponds to one Mut "repo", composed of:
+  - ObjectStore (S3StorageBackend)  -> content storage
+  - HistoryManager (Supabase)       -> version history
+  - AuditLog (Supabase)             -> audit logs
 
-提供两种 repo 视图:
-  - ProjectRepo  → 供 MutWriteService 使用（内部写入）
-  - PuppyOneServerRepo → 供 MUT 协议 handlers 使用（clone/push/pull）
+Provides two repo views:
+  - ProjectRepo  -> used by MutWriteService (internal writes)
+  - PuppyOneServerRepo -> used by MUT protocol handlers (clone/push/pull)
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from src.utils.logger import log_error
 
 @dataclass
 class ProjectRepo:
-    """一个 project 的 Mut repo 实例"""
+    """A single project's Mut repo instance"""
     project_id: str
     store: ObjectStore
     history: SupabaseHistoryManager
@@ -40,7 +40,7 @@ class ProjectRepo:
 
 
 class MutRepoManager:
-    """管理所有 project 的 Mut repo 实例"""
+    """Manages Mut repo instances for all projects"""
 
     def __init__(self, s3: S3Service, supabase: SupabaseClient):
         self._s3 = s3
@@ -104,7 +104,7 @@ class MutRepoManager:
             return "project"
 
     def init_repo(self, project_id: str) -> ProjectRepo:
-        """初始化新 project 的 Mut repo 状态"""
+        """Initialize the Mut repo state for a new project"""
         repo = self.get_repo(project_id)
         if repo.history.get_latest_version() == 0:
             repo.history.set_latest_version(0)

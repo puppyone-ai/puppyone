@@ -320,10 +320,10 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 for idx, ch in enumerate(chunks, start=1):
                     resp = await llm.call_text_model(
                         prompt=(
-                            "请将以下文档分块内容总结为要点（保留关键字段名/数值/表格信息），输出纯文本。\n\n"
-                            f"分块 {idx}/{len(chunks)}:\n{ch}"
+                            "Please summarize the following document chunk into key points (retain key field names/values/table information), output plain text.\n\n"
+                            f"Chunk {idx}/{len(chunks)}:\n{ch}"
                         ),
-                        system_prompt="你是一个严谨的文档摘要助手。",
+                        system_prompt="You are a rigorous document summarization assistant.",
                         response_format="text",
                     )
                     summaries.append(resp.content)

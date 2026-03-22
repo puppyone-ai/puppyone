@@ -1,10 +1,10 @@
 """
-Turbopuffer 模块异常
+Turbopuffer module exceptions.
 
-目标：
-- 隔离第三方 SDK / HTTP client 的异常类型
-- 上层不会因为 SDK 变动而被迫修改异常处理逻辑
-- 不在异常/日志中泄露敏感信息（如 API Key）
+Goals:
+- Isolate third-party SDK / HTTP client exception types
+- Upper layers won't be forced to modify exception handling due to SDK changes
+- Don't leak sensitive information (e.g. API Key) in exceptions/logs
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from src.exceptions import AppException, ErrorCode
 
 
 class TurbopufferError(AppException):
-    """模块基础异常类"""
+    """Module base exception class"""
 
     def __init__(
         self,
@@ -53,7 +53,7 @@ class TurbopufferRequestError(TurbopufferError):
     def __init__(
         self, message: str = "Turbopuffer request failed", *, status_code: int = 502
     ) -> None:
-        # 作为外部依赖，默认按 502 处理更贴近语义（上层可统一映射）
+        # As an external dependency, 502 is semantically closer by default (upper layers can remap)
         super().__init__(
             message=message,
             code=ErrorCode.INTERNAL_SERVER_ERROR,
@@ -63,15 +63,15 @@ class TurbopufferRequestError(TurbopufferError):
 
 def map_external_exception(exc: Exception) -> TurbopufferError:
     """
-    将第三方异常映射为模块异常。
+    Map third-party exceptions to module exceptions.
 
-    注意：不要使用 str(exc) 拼接原始异常信息（可能包含 request/headers 等敏感字段）。
+    Note: Do not use str(exc) to concatenate original exception info (may contain sensitive fields like request/headers).
     """
 
     if isinstance(exc, TurbopufferError):
         return exc
 
-    # turbopuffer SDK 异常（不强依赖 import，基于类名/模块名做宽松适配）
+    # turbopuffer SDK exceptions (no hard dependency on import; loosely matched by class name/module name)
     exc_type = type(exc)
     exc_mod = getattr(exc_type, "__module__", "") or ""
     exc_name = getattr(exc_type, "__name__", "") or ""
@@ -85,7 +85,7 @@ def map_external_exception(exc: Exception) -> TurbopufferError:
         if exc_name in {"NotFoundError"}:
             return TurbopufferNotFound()
         if exc_name in {"APIStatusError"}:
-            # 尽量提取 status_code（不同版本字段名可能不同）
+            # Try to extract status_code (field name may differ across versions)
             status = getattr(exc, "status_code", None)
             if status is None and hasattr(exc, "response"):
                 status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -100,7 +100,7 @@ def map_external_exception(exc: Exception) -> TurbopufferError:
             return TurbopufferRequestError(
                 "Turbopuffer request failed", status_code=502
             )
-        # APIError / 其它错误：兜底
+        # APIError / other errors: fallback
         return TurbopufferRequestError("Turbopuffer request failed", status_code=502)
 
     if isinstance(exc, httpx.TimeoutException):
@@ -112,7 +112,7 @@ def map_external_exception(exc: Exception) -> TurbopufferError:
             return TurbopufferAuthError()
         if status == 404:
             return TurbopufferNotFound()
-        # 不暴露 response 内容；仅返回 status 码
+        # Don't expose response content; only return status code
         return TurbopufferRequestError(
             f"Turbopuffer request failed (status={status})", status_code=502
         )
@@ -120,5 +120,5 @@ def map_external_exception(exc: Exception) -> TurbopufferError:
     if isinstance(exc, httpx.RequestError):
         return TurbopufferRequestError("Turbopuffer network error", status_code=502)
 
-    # 兜底：不要泄露 exc 文本
+    # Fallback: don't leak exc text
     return TurbopufferRequestError("Turbopuffer request failed", status_code=502)

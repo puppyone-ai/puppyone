@@ -1,18 +1,18 @@
 """
-Mut Engine — PuppyOne 的版本管理内核
+Mut Engine — PuppyOne's version control core
 
-三层架构:
-  上层 Channels → 中层 MutOps → 底层 MUT Server Handlers
+Three-layer architecture:
+  Upper: Channels → Middle: MutOps → Lower: MUT Server Handlers
 
-模块结构:
-  ops.py              MutOps — 所有 channel 的统一读写入口
-  ephemeral_client.py MutEphemeralClient — MutOps 内部的 clone→push 封装
-  tree_reader.py      MutTreeReader — MutOps 内部的轻量级读取
-  tree_router.py      MutOps 的 REST HTTP 外壳 (Web UI / internal)
-  protocol_router.py  MutOps 的 MUT 线协议 HTTP 外壳 (CLI daemon)
-  write_service.py    MutWriteService — 仅 admin: init_tree / rollback / 版本历史
-  repo_manager.py     per-project Mut repo 工厂
-  dependencies.py     FastAPI DI 工厂 (get_mut_ops / create_mut_ops)
-  audit_router.py     审计日志 API
-  backends/           S3 + Supabase 后端实现
+Module structure:
+  ops.py              MutOps — unified read/write entry point for all channels
+  ephemeral_client.py MutEphemeralClient — clone->push wrapper used internally by MutOps
+  tree_reader.py      MutTreeReader — lightweight reader used internally by MutOps
+  tree_router.py      REST HTTP shell for MutOps (Web UI / internal)
+  protocol_router.py  MUT wire-protocol HTTP shell for MutOps (CLI daemon)
+  write_service.py    MutWriteService — admin only: init_tree / rollback / version history
+  repo_manager.py     Per-project Mut repo factory
+  dependencies.py     FastAPI DI factory (get_mut_ops / create_mut_ops)
+  audit_router.py     Audit log API
+  backends/           S3 + Supabase backend implementations
 """

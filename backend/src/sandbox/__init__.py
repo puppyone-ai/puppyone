@@ -6,13 +6,13 @@ from .e2b_sandbox import E2BSandbox
 from .docker_sandbox import DockerSandbox, DockerSession
 
 __all__ = [
-    # 抽象基类
+    # Abstract base classes
     "SandboxBase",
     "SandboxSession",
-    # 统一服务
+    # Unified service
     "SandboxService",
     "get_sandbox_type",
-    # 具体实现
+    # Concrete implementations
     "E2BSandbox",
     "DockerSandbox",
     "DockerSession",

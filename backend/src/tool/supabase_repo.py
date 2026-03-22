@@ -1,7 +1,7 @@
 """
-Tool 数据访问层
+Tool data access layer
 
-提供针对 public.tool 表的增删改查操作。
+Provides CRUD operations for the public.tool table.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from src.utils.id_generator import generate_uuid_v7
 
 
 class ToolRepository:
-    """Tool 数据访问仓库"""
+    """Tool data access repository"""
 
     def __init__(self, client: Client):
         self._client = client
@@ -26,12 +26,12 @@ class ToolRepository:
             data = tool_data.model_dump(exclude_none=True)
             data.pop("id", None)
             data.pop("created_at", None)
-            # 生成 UUID v7 作为主键
+            # Generate UUID v7 as primary key
             data["id"] = generate_uuid_v7()
             response = self._client.table("tools").insert(data).execute()
             return ToolResponse(**response.data[0])
         except Exception as e:
-            raise handle_supabase_error(e, "创建 Tool")
+            raise handle_supabase_error(e, "create Tool")
 
     def get_by_id(self, tool_id: str) -> Optional[ToolResponse]:
         response = self._client.table("tools").select("*").eq("id", tool_id).execute()
@@ -72,7 +72,7 @@ class ToolRepository:
                 return ToolResponse(**response.data[0])
             return None
         except Exception as e:
-            raise handle_supabase_error(e, "更新 Tool")
+            raise handle_supabase_error(e, "update Tool")
 
     def delete(self, tool_id: str) -> bool:
         response = self._client.table("tools").delete().eq("id", tool_id).execute()

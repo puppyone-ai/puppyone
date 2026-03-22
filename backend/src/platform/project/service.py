@@ -1,7 +1,7 @@
 """
-Project 服务层
+Project Service Layer
 
-负责 Project 的业务逻辑处理
+Handles business logic for Project
 """
 
 import logging
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TableInfo:
-    """表信息"""
+    """Table information"""
 
     id: str
     name: str
@@ -25,38 +25,38 @@ class TableInfo:
 
 
 class ProjectService:
-    """封装项目的业务逻辑层"""
+    """Encapsulates business logic for projects"""
 
     def __init__(self, repo: ProjectRepositoryBase):
         self.repo = repo
 
     def get_by_id(self, project_id: str) -> Optional[Project]:
         """
-        根据ID获取项目
+        Get project by ID
 
         Args:
-            project_id: 项目ID (UUID)
+            project_id: Project ID (UUID)
 
         Returns:
-            Project对象，如果不存在则返回None
+            Project object, or None if not found
         """
         return self.repo.get_by_id(project_id)
 
     def get_by_id_with_access_check(self, project_id: str, user_id: str) -> Project:
         """
-        获取项目并验证用户权限
+        Get project and verify user access
 
-        通过 org_members 表检查用户是否属于项目所在组织
+        Checks whether the user belongs to the project's organization via the org_members table
 
         Args:
-            project_id: 项目ID
-            user_id: 用户ID
+            project_id: Project ID
+            user_id: User ID
 
         Returns:
-            已验证的 Project 对象
+            Verified Project object
 
         Raises:
-            NotFoundException: 如果项目不存在或用户无权限
+            NotFoundException: If project does not exist or user has no access
         """
         project = self.get_by_id(project_id)
         if not project:
@@ -74,13 +74,13 @@ class ProjectService:
 
     def get_by_org_id(self, org_id: str) -> List[Project]:
         """
-        获取组织下的所有项目
+        Get all projects under an organization
 
         Args:
-            org_id: 组织ID
+            org_id: Organization ID
 
         Returns:
-            项目列表
+            List of projects
         """
         return self.repo.get_by_org_id(org_id)
 
@@ -92,16 +92,16 @@ class ProjectService:
         created_by: str,
     ) -> Project:
         """
-        创建项目
+        Create a project
 
         Args:
-            name: 项目名称
-            description: 项目描述
-            org_id: 组织ID
-            created_by: 创建者用户ID
+            name: Project name
+            description: Project description
+            org_id: Organization ID
+            created_by: Creator user ID
 
         Returns:
-            创建的Project对象
+            Created Project object
         """
         return self.repo.create(
             name=name,
@@ -117,18 +117,18 @@ class ProjectService:
         description: Optional[str],
     ) -> Project:
         """
-        更新项目
+        Update a project
 
         Args:
-            project_id: 项目ID
-            name: 项目名称（可选）
-            description: 项目描述（可选）
+            project_id: Project ID
+            name: Project name (optional)
+            description: Project description (optional)
 
         Returns:
-            更新后的Project对象
+            Updated Project object
 
         Raises:
-            NotFoundException: 如果项目不存在
+            NotFoundException: If project does not exist
         """
         updated = self.repo.update(
             project_id=project_id,
@@ -143,13 +143,13 @@ class ProjectService:
 
     def delete(self, project_id: str) -> None:
         """
-        删除项目
+        Delete a project
 
         Args:
-            project_id: 项目ID (UUID)
+            project_id: Project ID (UUID)
 
         Raises:
-            NotFoundException: 如果项目不存在
+            NotFoundException: If project does not exist
         """
         success = self.repo.delete(project_id)
         if not success:
@@ -159,14 +159,14 @@ class ProjectService:
 
     def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
         """
-        验证用户是否有权限访问指定的项目
+        Verify whether the user has access to the specified project
 
         Args:
-            project_id: 项目ID
-            user_id: 用户ID
+            project_id: Project ID
+            user_id: User ID
 
         Returns:
-            用户在组织中的角色字符串，无权限则返回 None
+            User's role string in the organization, or None if no access
         """
         return self.repo.verify_project_access(project_id, user_id)
 

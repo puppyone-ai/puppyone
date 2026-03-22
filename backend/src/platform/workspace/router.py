@@ -1,10 +1,10 @@
 """
-Workspace API — 给外部 Agent 使用的文件夹接口
+Workspace API — Folder interface for external Agents
 
-端点：
-  POST /workspace/create                创建工作区（返回路径）
-  POST /workspace/{agent_id}/complete   Agent 完成后触发合并（通过 Mut 内核）
-  GET  /workspace/{agent_id}/status     查看工作区状态
+Endpoints:
+  POST /workspace/create                Create workspace (returns path)
+  POST /workspace/{agent_id}/complete   Trigger merge after Agent completes (via Mut kernel)
+  GET  /workspace/{agent_id}/status     View workspace status
 """
 
 import json as json_mod
@@ -28,7 +28,7 @@ router = APIRouter(
 
 
 # ============================================================
-# 请求/响应模型
+# Request/Response Models
 # ============================================================
 
 class CreateWorkspaceRequest(BaseModel):
@@ -59,7 +59,7 @@ class WorkspaceStatusResponse(BaseModel):
 
 
 # ============================================================
-# 创建工作区
+# Create Workspace
 # ============================================================
 
 @router.post("/create", response_model=ApiResponse[CreateWorkspaceResponse])
@@ -100,21 +100,21 @@ async def create_workspace(
 
 
 # ============================================================
-# Agent 完成后触发合并（通过 MutWriteService）
+# Trigger merge after Agent completes (via MutWriteService)
 # ============================================================
 
 @router.post("/{agent_id}/complete", response_model=ApiResponse[CompleteWorkspaceResponse])
 async def complete_workspace(
     agent_id: str,
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    外部 Agent 完成后调用此接口 — 通过 MUT protocol push 变更
+    Called by external Agent after completion - pushes changes via MUT protocol
 
-    1. detect_changes: 对比 workspace vs lower
-    2. 构建修改/删除列表
-    3. 通过 MutOps.bulk_write 完成原子提交
+    1. detect_changes: compare workspace vs lower
+    2. Build modified/deleted lists
+    3. Perform atomic commit via MutOps.bulk_write
     """
     from src.platform.workspace.provider import get_workspace_provider
     from src.mut_engine.dependencies import create_mut_ops
@@ -181,7 +181,7 @@ async def complete_workspace(
 
 
 # ============================================================
-# 查看工作区状态
+# View Workspace Status
 # ============================================================
 
 @router.get("/{agent_id}/status", response_model=ApiResponse[WorkspaceStatusResponse])

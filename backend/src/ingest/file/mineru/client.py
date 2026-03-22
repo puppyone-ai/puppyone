@@ -110,7 +110,7 @@ class MineRUClient:
                 data = response.json()
                 result = CreateTaskResponse(**data)
 
-                # 检查 API 返回的 code 字段
+                # Check the code field in API response
                 if result.code != 0:
                     error_msg = f"{result.msg} (code: {result.code})"
                     logger.error(f"MineRU API error: {error_msg}")
@@ -159,7 +159,7 @@ class MineRUClient:
                 data = response.json()
                 result = TaskStatusResponse(**data)
 
-                # 检查 API 返回的 code 字段
+                # Check the code field in API response
                 if result.code != 0:
                     error_msg = f"{result.msg} (code: {result.code})"
                     logger.error(f"MineRU API error: {error_msg}")
@@ -237,15 +237,15 @@ class MineRUClient:
         zip_path = task_cache_dir / "result.zip"
 
         # Download ZIP file with extended timeout and retry logic
-        # 配置 httpx 客户端以支持更好的网络环境
+        # Configure httpx client for better network environment support
         client_kwargs = {
             "timeout": httpx.Timeout(300.0, connect=60.0),
             "follow_redirects": True,
-            "verify": True,  # 验证 SSL 证书
+            "verify": True,  # Verify SSL certificates
         }
 
-        # 如果设置了代理环境变量,httpx 会自动使用
-        # 支持: HTTP_PROXY, HTTPS_PROXY, ALL_PROXY
+        # If proxy environment variables are set, httpx will use them automatically
+        # Supported: HTTP_PROXY, HTTPS_PROXY, ALL_PROXY
 
         async with httpx.AsyncClient(**client_kwargs) as client:
             try:
@@ -268,17 +268,17 @@ class MineRUClient:
 
             except httpx.ConnectError as e:
                 error_msg = (
-                    f"无法连接到 MineRU CDN 服务器 ({zip_url[:50]}...)。\n"
-                    f"可能的原因:\n"
-                    f"  1. 网络连接问题或需要配置代理\n"
-                    f"  2. CDN 服务器暂时不可达\n"
-                    f"  3. 防火墙或安全策略阻止了连接\n"
-                    f"建议: 检查网络连接,或配置 HTTP_PROXY/HTTPS_PROXY 环境变量"
+                    f"Unable to connect to MineRU CDN server ({zip_url[:50]}...).\n"
+                    f"Possible causes:\n"
+                    f"  1. Network connection issue or proxy configuration needed\n"
+                    f"  2. CDN server temporarily unreachable\n"
+                    f"  3. Firewall or security policy blocking the connection\n"
+                    f"Suggestion: Check network connection, or configure HTTP_PROXY/HTTPS_PROXY environment variables"
                 )
                 logger.error(error_msg)
                 raise MineRUAPIError(0, error_msg) from e
             except httpx.TimeoutException as e:
-                error_msg = f"下载 MineRU 结果超时 (300秒): {e}"
+                error_msg = f"MineRU result download timed out (300s): {e}"
                 logger.error(error_msg)
                 raise MineRUAPIError(0, error_msg) from e
             except httpx.HTTPError as e:
@@ -313,11 +313,11 @@ class MineRUClient:
         Raises:
             MineRUAPIError: If Markdown file not found
         """
-        # 尝试多种可能的 Markdown 文件路径
+        # Try multiple possible Markdown file paths
         possible_paths = [
-            cache_dir / "full.md",  # MineRU 新版本
-            cache_dir / "auto" / "auto.md",  # 旧版本路径
-            cache_dir / "result.md",  # 备选路径
+            cache_dir / "full.md",  # MineRU new version
+            cache_dir / "auto" / "auto.md",  # Legacy version path
+            cache_dir / "result.md",  # Fallback path
         ]
 
         markdown_path = None
@@ -326,14 +326,14 @@ class MineRUClient:
                 markdown_path = path
                 break
 
-        # 如果上述路径都不存在,使用通配符查找任何 .md 文件
+        # If none of the above paths exist, use glob to find any .md file
         if not markdown_path:
             md_files = list(cache_dir.glob("*.md"))
             if md_files:
                 markdown_path = md_files[0]
                 logger.info(f"Found markdown file via glob: {markdown_path}")
             else:
-                # 递归查找
+                # Recursive search
                 md_files = list(cache_dir.glob("**/*.md"))
                 if md_files:
                     markdown_path = md_files[0]
@@ -342,7 +342,7 @@ class MineRUClient:
                     )
 
         if not markdown_path:
-            # 列出目录内容以便调试
+            # List directory contents for debugging
             dir_contents = list(cache_dir.rglob("*"))
             logger.error(
                 f"Markdown file not found in {cache_dir}. "
@@ -397,7 +397,7 @@ class MineRUClient:
         # Extract Markdown
         markdown_content = await self.extract_markdown(cache_dir)
 
-        # 查找实际的 markdown 文件路径
+        # Find the actual markdown file path
         possible_paths = [
             cache_dir / "full.md",
             cache_dir / "auto" / "auto.md",
@@ -410,7 +410,7 @@ class MineRUClient:
                 markdown_path = path
                 break
 
-        # 如果都不存在,使用通配符查找
+        # If none exist, use glob to find
         if not markdown_path:
             md_files = list(cache_dir.glob("*.md"))
             if md_files:
@@ -420,7 +420,7 @@ class MineRUClient:
                 if md_files:
                     markdown_path = md_files[0]
 
-        # 默认路径(如果找不到)
+        # Default path (if not found)
         if not markdown_path:
             markdown_path = cache_dir / "full.md"
 

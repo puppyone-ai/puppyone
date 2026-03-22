@@ -1,17 +1,17 @@
 """
-Supabase 客户端模块
+Supabase client module.
 
-提供 Supabase 客户端的单例封装和针对数据库表的 CRUD 操作。
+Provides a singleton wrapper for the Supabase client and CRUD operations for database tables.
 
-模块结构:
-- client: Supabase 客户端单例
-- repository: 统一的数据访问仓库 (Facade)
-- projects: Project 相关的数据访问层
-- tables: Table 相关的数据访问层
-- mcps: MCP 相关的数据访问层
-- dependencies: 依赖注入
-- exceptions: 异常处理
-- schemas: 数据模型 (向后兼容)
+Module structure:
+- client: Supabase client singleton
+- repository: Unified data access repository (Facade)
+- projects: Project data access layer
+- tables: Table data access layer
+- mcps: MCP data access layer
+- dependencies: Dependency injection
+- exceptions: Exception handling
+- schemas: Data models (backward compatible)
 """
 
 from src.infra.supabase.client import SupabaseClient
@@ -50,22 +50,22 @@ from src.mcp.supabase_schemas import (
 )
 
 __all__ = [
-    # 客户端和主仓库
+    # Client and main repository
     "SupabaseClient",
     "SupabaseRepository",
     "get_supabase_client",
     "get_supabase_repository",
-    # 子模块的 Repository (可选使用)
+    # Sub-module Repositories (optional usage)
     "ProjectRepository",
     "TableRepository",
     "McpRepository",
-    # 异常
+    # Exceptions
     "SupabaseException",
     "SupabaseDuplicateKeyError",
     "SupabaseNotFoundError",
     "SupabaseForeignKeyError",
     "handle_supabase_error",
-    # Schema (向后兼容)
+    # Schema (backward compatible)
     "ProjectCreate",
     "ProjectUpdate",
     "ProjectResponse",

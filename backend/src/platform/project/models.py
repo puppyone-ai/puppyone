@@ -1,7 +1,7 @@
 """
-Project 数据模型
+Project Data Models
 
-定义 Project 的业务领域模型
+Defines business domain models for Project
 """
 
 from datetime import datetime
@@ -10,14 +10,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Project(BaseModel):
-    """项目领域模型"""
+    """Project domain model"""
 
-    id: str = Field(..., description="项目ID (UUID)")
-    name: str = Field(..., description="项目名称")
-    description: Optional[str] = Field(None, description="项目描述")
-    org_id: str = Field(..., description="所属组织ID")
-    visibility: str = Field(default="org", description="可见性: org (组织内可见) / private (仅授权成员)")
-    created_by: Optional[str] = Field(None, description="创建者用户ID")
-    created_at: datetime = Field(..., description="创建时间")
+    id: str = Field(..., description="Project ID (UUID)")
+    name: str = Field(..., description="Project name")
+    description: Optional[str] = Field(None, description="Project description")
+    org_id: str = Field(..., description="Owning organization ID")
+    visibility: str = Field(default="org", description="Visibility: org (visible within organization) / private (authorized members only)")
+    created_by: Optional[str] = Field(None, description="Creator user ID")
+    created_at: datetime = Field(..., description="Creation time")
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,8 +1,8 @@
 """
 User Initialization Service
 
-幂等地确保新用户拥有完整的 profile + organization + membership。
-触发器只创建 profile，其余由本服务在应用层完成。
+Idempotently ensures new users have a complete profile + organization + membership.
+The trigger only creates the profile; the rest is handled by this service at the application layer.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class UserInitializationService:
-    """幂等用户初始化：无论调用多少次，结果一致。"""
+    """Idempotent user initialization: produces the same result regardless of how many times it is called."""
 
     def __init__(
         self,
@@ -34,20 +34,20 @@ class UserInitializationService:
         display_name: Optional[str] = None,
     ) -> dict:
         """
-        确保用户拥有 profile + default org + membership。
+        Ensure user has profile + default org + membership.
 
         Returns:
             {"org_id": str, "is_new_org": bool}
         """
         name = display_name or (email.split("@")[0] if email else "User")
 
-        # 1. 确保 profile 存在（触发器通常已创建，这是兜底）
+        # 1. Ensure profile exists (trigger usually creates it; this is a safety net)
         profile = self._profile_repo.get_or_create(user_id, email)
         if not profile:
             log_error(f"Failed to get/create profile for user {user_id}")
             raise RuntimeError(f"Cannot initialize user {user_id}: profile creation failed")
 
-        # 2. 确保有至少一个 organization
+        # 2. Ensure at least one organization exists
         orgs = self._org_repo.list_by_user(user_id)
         is_new_org = False
 
@@ -58,7 +58,7 @@ class UserInitializationService:
         else:
             org = orgs[0]
 
-        # 3. 确保 profile.default_org_id 已设置
+        # 3. Ensure profile.default_org_id is set
         if not profile.default_org_id:
             from src.platform.profile.models import ProfileUpdate
             self._profile_repo.update(

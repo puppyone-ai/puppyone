@@ -1,7 +1,7 @@
 """
-MCP V3 API 模型
+MCP V3 API Models
 
-请求/响应的数据结构定义
+Request/response data structure definitions.
 """
 
 from __future__ import annotations
@@ -12,38 +12,38 @@ from pydantic import BaseModel, Field
 
 
 # ============================================
-# 请求模型
+# Request models
 # ============================================
 
 class BindToolRequest(BaseModel):
-    """绑定工具请求"""
-    tool_id: str = Field(..., description="要绑定的 Tool ID")
-    enabled: bool = Field(default=True, description="是否启用")
-    mcp_exposed: bool = Field(default=True, description="是否通过 MCP 暴露")
+    """Bind tool request."""
+    tool_id: str = Field(..., description="Tool ID to bind")
+    enabled: bool = Field(default=True, description="Whether enabled")
+    mcp_exposed: bool = Field(default=True, description="Whether exposed via MCP")
 
 
 class BindToolsRequest(BaseModel):
-    """批量绑定工具请求"""
-    bindings: List[BindToolRequest] = Field(..., description="绑定列表")
+    """Batch bind tools request."""
+    bindings: List[BindToolRequest] = Field(..., description="List of bindings")
 
 
 class UpdateToolBindingRequest(BaseModel):
-    """更新工具绑定请求"""
-    enabled: Optional[bool] = Field(None, description="是否启用")
-    mcp_exposed: Optional[bool] = Field(None, description="是否通过 MCP 暴露")
+    """Update tool binding request."""
+    enabled: Optional[bool] = Field(None, description="Whether enabled")
+    mcp_exposed: Optional[bool] = Field(None, description="Whether exposed via MCP")
 
 
 class RegenerateMcpKeyRequest(BaseModel):
-    """重新生成 MCP API Key 请求"""
-    pass  # 暂时不需要参数
+    """Regenerate MCP API Key request."""
+    pass  # No parameters needed for now
 
 
 # ============================================
-# 响应模型
+# Response models
 # ============================================
 
 class McpAgentOut(BaseModel):
-    """MCP Agent 响应"""
+    """MCP Agent response."""
     id: str
     name: str
     icon: str
@@ -53,8 +53,8 @@ class McpAgentOut(BaseModel):
 
 
 class McpBoundToolOut(BaseModel):
-    """MCP 绑定工具响应"""
-    id: str  # agent_tool 关联 ID
+    """MCP bound tool response."""
+    id: str  # agent_tool association ID
     tool_id: str
     name: str
     type: str
@@ -68,7 +68,7 @@ class McpBoundToolOut(BaseModel):
 
 
 class McpStatusOut(BaseModel):
-    """MCP 状态响应"""
+    """MCP status response."""
     agent_id: str
     mcp_api_key: str
     mcp_enabled: bool

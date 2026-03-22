@@ -1,14 +1,14 @@
 """
-L3-Folder: Workspace 文件接口层
+L3-Folder: Workspace File Interface Layer
 
-给 Agent 提供本地文件夹形式的数据访问方式。
+Provides Agents with data access via local folder structure.
 
-负责：
-- 为每个 Agent 创建隔离的工作区（APFS Clone / 全量复制 / OverlayFS）
-- 检测 Agent 的改动（diff）
-- 提供 /api/v1/workspace/* API 端点
+Responsible for:
+- Creating an isolated workspace for each Agent (APFS Clone / full copy / OverlayFS)
+- Detecting Agent changes (diff)
+- Providing /api/v1/workspace/* API endpoints
 
-不再负责（已迁移）：
-- 同步 PG/S3 → 本地 → 迁移到 src/sync/ (L2.5)
-- 冲突解决 / 三方合并 → 迁移到 src/collaboration/ (L2)
+No longer responsible for (migrated):
+- Syncing PG/S3 -> local -> migrated to src/sync/ (L2.5)
+- Conflict resolution / three-way merge -> migrated to src/collaboration/ (L2)
 """

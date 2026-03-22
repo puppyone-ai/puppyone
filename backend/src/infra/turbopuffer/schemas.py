@@ -1,8 +1,8 @@
 """
-本模块的输入/输出 schemas
+Input/output schemas for this module.
 
-目的：
-- 归一化 turbopuffer SDK 的返回结构，避免上层依赖 SDK 的 Pydantic 模型
+Purpose:
+- Normalize the turbopuffer SDK return structures so upper layers don't depend on SDK Pydantic models
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 class TurbopufferRow(BaseModel):
     id: int | str
-    # 如果 include_attributes 返回了 vector（float 数组或 base64），这里会透出，便于 export/debug
+    # If include_attributes returns a vector (float array or base64), it will be exposed here for export/debug
     vector: Any | None = None
     distance: float | None = None
     score: float | None = None

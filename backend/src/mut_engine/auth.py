@@ -1,7 +1,7 @@
 """
-PuppyOneAuthenticator — MUT 协议认证适配器
+PuppyOneAuthenticator — MUT protocol authentication adapter
 
-将 PuppyOne 的认证体系映射到 MUT 的 (agent, _scope) 模型:
+Maps PuppyOne's authentication system to the MUT (agent, _scope) model:
   - JWT Bearer → user + full project scope (mode=rw)
   - Access Key → connection + restricted scope (via ScopeManager)
 """

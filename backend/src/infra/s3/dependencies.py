@@ -1,4 +1,4 @@
-"""S3 存储模块的依赖注入"""
+"""S3 storage module dependency injection"""
 
 from fastapi import Depends, HTTPException, Path
 from typing import Annotated
@@ -10,32 +10,32 @@ from src.infra.s3.exceptions import S3Error, S3FileNotFoundError
 
 def get_s3_service() -> S3Service:
     """
-    获取 S3 服务实例
+    Get S3 service instance.
 
     Returns:
-        S3Service: S3 服务单例
+        S3Service: S3 service singleton
     """
     return get_s3_service_instance()
 
 
 async def valid_s3_key(
-    key: Annotated[str, Path(description="S3 对象键")],
+    key: Annotated[str, Path(description="S3 object key")],
     service: S3Service = Depends(get_s3_service),
 ) -> str:
     """
-    验证 S3 对象键格式
+    Validate S3 object key format.
 
     Args:
-        key: S3 对象键
-        service: S3 服务实例
+        key: S3 object key
+        service: S3 service instance
 
     Returns:
-        str: 验证通过的 key
+        str: Validated key
 
     Raises:
-        HTTPException: key 格式无效时
+        HTTPException: When key format is invalid
     """
-    # 基本格式验证
+    # Basic format validation
     if not key or key.startswith("/") or key.endswith("/"):
         raise HTTPException(
             status_code=400,
@@ -50,17 +50,17 @@ async def existing_s3_file(
     service: S3Service = Depends(get_s3_service),
 ) -> FileMetadata:
     """
-    验证文件存在并返回元信息
+    Verify file exists and return its metadata.
 
     Args:
-        key: S3 对象键
-        service: S3 服务实例
+        key: S3 object key
+        service: S3 service instance
 
     Returns:
-        FileMetadata: 文件元信息
+        FileMetadata: File metadata
 
     Raises:
-        HTTPException: 文件不存在或获取失败时
+        HTTPException: When file does not exist or retrieval fails
     """
     try:
         metadata = await service.get_file_metadata(key)
@@ -80,17 +80,17 @@ async def validate_file_size(
     service: S3Service = Depends(get_s3_service),
 ) -> int:
     """
-    验证文件大小是否在限制内
+    Validate that file size is within limits.
 
     Args:
-        file_size: 文件大小(字节)
-        service: S3 服务实例
+        file_size: File size in bytes
+        service: S3 service instance
 
     Returns:
-        int: 验证通过的文件大小
+        int: Validated file size
 
     Raises:
-        HTTPException: 文件大小超限时
+        HTTPException: When file size exceeds the limit
     """
     if file_size > service.max_file_size:
         raise HTTPException(
@@ -110,17 +110,17 @@ async def validate_batch_keys_count(
     max_count: int = 1000,
 ) -> list[str]:
     """
-    验证批量操作的键数量
+    Validate the number of keys in a batch operation.
 
     Args:
-        keys: 键列表
-        max_count: 最大允许数量
+        keys: List of keys
+        max_count: Maximum allowed count
 
     Returns:
-        list[str]: 验证通过的键列表
+        list[str]: Validated list of keys
 
     Raises:
-        HTTPException: 键数量超限时
+        HTTPException: When key count exceeds the limit
     """
     if len(keys) > max_count:
         raise HTTPException(
@@ -136,16 +136,16 @@ async def validate_batch_keys_count(
 
 async def validate_presigned_url_expiry(expires_in: int) -> int:
     """
-    验证预签名 URL 过期时间
+    Validate presigned URL expiration time.
 
     Args:
-        expires_in: 过期时间(秒)
+        expires_in: Expiration time in seconds
 
     Returns:
-        int: 验证通过的过期时间
+        int: Validated expiration time
 
     Raises:
-        HTTPException: 过期时间无效时
+        HTTPException: When expiration time is invalid
     """
     if expires_in < 1 or expires_in > 86400:
         raise HTTPException(
@@ -161,16 +161,16 @@ async def validate_presigned_url_expiry(expires_in: int) -> int:
 
 async def validate_multipart_part_number(part_number: int) -> int:
     """
-    验证分片编号
+    Validate multipart part number.
 
     Args:
-        part_number: 分片编号
+        part_number: Part number
 
     Returns:
-        int: 验证通过的分片编号
+        int: Validated part number
 
     Raises:
-        HTTPException: 分片编号无效时
+        HTTPException: When part number is invalid
     """
     if part_number < 1 or part_number > 10000:
         raise HTTPException(

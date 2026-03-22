@@ -4,103 +4,103 @@ from typing import List, Any, Optional
 
 
 class TableCreate(BaseModel):
-    """创建Table的请求"""
+    """Request to create a Table"""
 
-    project_id: str = Field(..., description="项目ID（必须，所有Table必须属于一个Project）")
-    name: str = Field(..., description="Table名称")
-    description: str = Field(default="", description="Table描述")
+    project_id: str = Field(..., description="Project ID (required, all Tables must belong to a Project)")
+    name: str = Field(..., description="Table name")
+    description: str = Field(default="", description="Table description")
     data: Any = Field(
-        default_factory=dict, description="Table数据（可以是Dict、List或其他JSON类型）"
+        default_factory=dict, description="Table data (can be Dict, List, or other JSON types)"
     )
 
 
 class TableUpdate(BaseModel):
-    """更新Table的请求"""
+    """Request to update a Table"""
 
-    name: Optional[str] = Field(None, description="Table名称")
-    description: Optional[str] = Field(None, description="Table描述")
+    name: Optional[str] = Field(None, description="Table name")
+    description: Optional[str] = Field(None, description="Table description")
     data: Optional[Any] = Field(
-        None, description="Table数据（可选，可以是Dict、List或其他JSON类型）"
+        None, description="Table data (optional, can be Dict, List, or other JSON types)"
     )
 
 
 class TableOut(BaseModel):
-    """Table响应模型"""
+    """Table response model"""
 
     id: str = Field(..., description="Table ID (UUID)")
-    name: Optional[str] = Field(None, description="Table名称")
-    project_id: Optional[str] = Field(None, description="项目ID (UUID)")
-    created_by: Optional[str] = Field(None, description="创建者用户ID")
-    description: Optional[str] = Field(None, description="Table描述")
+    name: Optional[str] = Field(None, description="Table name")
+    project_id: Optional[str] = Field(None, description="Project ID (UUID)")
+    created_by: Optional[str] = Field(None, description="Creator user ID")
+    description: Optional[str] = Field(None, description="Table description")
     data: Optional[Any] = Field(
-        None, description="Table数据（JSON数据，可以是Dict、List或其他JSON类型）"
+        None, description="Table data (JSON data, can be Dict, List, or other JSON types)"
     )
-    created_at: datetime = Field(..., description="创建时间")
+    created_at: datetime = Field(..., description="Creation time")
 
     model_config = ConfigDict(from_attributes=True)
 
 
-# Context Data 相关的 Schema（保持命名不变以兼容API）
+# Context Data related schemas (naming preserved for API compatibility)
 class ContextDataElement(BaseModel):
-    """data 字段操作的元素"""
+    """Element for data field operations"""
 
-    key: str = Field(..., description="数据项的键名")
+    key: str = Field(..., description="Key name of the data item")
     content: Any = Field(
         ...,
-        description="数据项的内容，可以是任意JSON对象结构（dict、list、str、int、float、bool等）",
+        description="Content of the data item, can be any JSON object structure (dict, list, str, int, float, bool, etc.)",
     )
 
 
 class ContextDataCreate(BaseModel):
-    """创建 data 字段数据的请求"""
+    """Request to create data in the data field"""
 
     mounted_json_pointer_path: str = Field(
         ...,
-        description='JSON指针路径，数据将挂载到此路径下。使用RFC 6901标准格式（例如："/users"、"/users/123"）。根路径使用空字符串 "" 可以在 data 的根路径下添加 key',
+        description='JSON pointer path where data will be mounted. Uses RFC 6901 format (e.g., "/users", "/users/123"). Use empty string "" to add keys at the root of data',
     )
-    elements: List[ContextDataElement] = Field(..., description="要创建的元素数组")
+    elements: List[ContextDataElement] = Field(..., description="Array of elements to create")
 
 
 class ContextDataUpdate(BaseModel):
-    """更新 data 字段数据的请求"""
+    """Request to update data in the data field"""
 
     json_pointer_path: str = Field(
         ...,
-        description='JSON指针路径。使用RFC 6901标准格式（例如："/users"、"/users/123"）。根路径使用空字符串 "" 可以在 data 的根路径下更新 key',
+        description='JSON pointer path. Uses RFC 6901 format (e.g., "/users", "/users/123"). Use empty string "" to update keys at the root of data',
     )
-    elements: List[ContextDataElement] = Field(..., description="要更新的元素数组")
+    elements: List[ContextDataElement] = Field(..., description="Array of elements to update")
 
 
 class ContextDataDelete(BaseModel):
-    """删除 data 字段数据的请求"""
+    """Request to delete data in the data field"""
 
     json_pointer_path: str = Field(
         ...,
-        description='JSON指针路径。使用RFC 6901标准格式（例如："/users"、"/users/123"）。根路径使用空字符串 "" 可以在 data 的根路径下删除 key',
+        description='JSON pointer path. Uses RFC 6901 format (e.g., "/users", "/users/123"). Use empty string "" to delete keys at the root of data',
     )
-    keys: List[str] = Field(..., description="要删除的键列表")
+    keys: List[str] = Field(..., description="List of keys to delete")
 
 
 class ContextDataGet(BaseModel):
-    """获取 data 字段数据的响应"""
+    """Response for getting data field data"""
 
     data: Any = Field(
         ...,
-        description="获取到的JSON数据，可以是任意类型（dict、list、str、int、float、bool等）",
+        description="Retrieved JSON data, can be any type (dict, list, str, int, float, bool, etc.)",
     )
 
 
 class ProjectWithTables(BaseModel):
-    """包含项目信息和其下所有表格的响应模型"""
+    """Response model containing project info and all its tables"""
 
-    id: str = Field(..., description="项目ID (UUID)")
-    name: Optional[str] = Field(None, description="项目名称")
-    description: Optional[str] = Field(None, description="项目描述")
-    org_id: Optional[str] = Field(None, description="所属组织ID")
-    created_by: Optional[str] = Field(None, description="创建者用户ID")
-    created_at: datetime = Field(..., description="创建时间")
+    id: str = Field(..., description="Project ID (UUID)")
+    name: Optional[str] = Field(None, description="Project name")
+    description: Optional[str] = Field(None, description="Project description")
+    org_id: Optional[str] = Field(None, description="Organization ID")
+    created_by: Optional[str] = Field(None, description="Creator user ID")
+    created_at: datetime = Field(..., description="Creation time")
     tables: List[TableOut] = Field(
-        default_factory=list, description="该项目下的所有表格列表"
+        default_factory=list, description="List of all tables under this project"
     )
 
     model_config = ConfigDict(from_attributes=True)

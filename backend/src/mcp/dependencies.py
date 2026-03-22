@@ -9,14 +9,14 @@ from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
 
 
-# 使用全局变量存储单例，而不是 lru_cache
-# 这样可以避免 reload 时的缓存问题
+# Use a global variable to store the singleton instead of lru_cache
+# This avoids caching issues during reload
 _mcp_service = None
 
 
 def get_mcp_instance_service() -> McpService:
     """
-    mcp_instance_service的依赖注入工厂。支持通过配置项来决定存储策略
+    Dependency injection factory for mcp_instance_service. Supports choosing storage strategy via configuration.
     """
     global _mcp_service
     if _mcp_service is None:
@@ -30,31 +30,31 @@ def get_mcp_instance_service() -> McpService:
 
 
 async def get_verified_mcp_instance(
-    api_key: str = Path(..., description="MCP实例的API Key"),
+    api_key: str = Path(..., description="API Key of the MCP instance"),
     mcp_instance_service: McpService = Depends(get_mcp_instance_service),
     current_user: CurrentUser = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
 ) -> McpInstance:
     """
-    依赖注入函数：获取并验证用户对 MCP 实例的访问权限（project_id-based access）
+    Dependency injection function: Get and verify user's access to an MCP instance (project_id-based access)
 
-    这个依赖会自动验证：
-    1. MCP 实例是否存在
-    2. 用户是否有权访问 MCP 实例所属的项目
+    This dependency automatically verifies:
+    1. Whether the MCP instance exists
+    2. Whether the user has access to the project the MCP instance belongs to
 
-    如果验证失败，会抛出 NotFoundException
+    Raises NotFoundException if verification fails
 
     Args:
-        api_key: MCP 实例的 API Key（从路径参数获取）
-        mcp_instance_service: McpService 实例（通过依赖注入）
-        current_user: 当前用户（通过依赖注入）
-        project_service: ProjectService 实例（用于验证项目访问权限）
+        api_key: API Key of the MCP instance (from path parameter)
+        mcp_instance_service: McpService instance (via dependency injection)
+        current_user: Current user (via dependency injection)
+        project_service: ProjectService instance (for verifying project access)
 
     Returns:
-        已验证的 McpInstance 对象
+        Verified McpInstance object
 
     Raises:
-        NotFoundException: 如果实例不存在或用户无权限
+        NotFoundException: If instance does not exist or user lacks permission
     """
     verify_access = lambda pid, uid: project_service.verify_project_access(pid, uid) is not None
     return await mcp_instance_service.get_mcp_instance_by_api_key_with_access_check(
@@ -63,30 +63,30 @@ async def get_verified_mcp_instance(
 
 
 async def get_mcp_instance_by_api_key(
-    api_key: str = Path(..., description="MCP实例的API Key"),
+    api_key: str = Path(..., description="API Key of the MCP instance"),
     mcp_instance_service: McpService = Depends(get_mcp_instance_service),
 ) -> McpInstance:
     """
-    依赖注入函数：仅验证 API Key 是否有效，不检查用户权限
+    Dependency injection function: Only validates whether the API Key is valid, does not check user permissions
 
-    用于代理路由等不需要用户登录的场景
+    Used for proxy routes and other scenarios that don't require user login
 
-    这个依赖只验证：
-    1. MCP 实例是否存在
+    This dependency only verifies:
+    1. Whether the MCP instance exists
 
-    不验证：
-    - 用户登录状态
-    - 用户对实例的所有权
+    Does not verify:
+    - User login status
+    - User ownership of the instance
 
     Args:
-        api_key: MCP 实例的 API Key（从路径参数获取）
-        mcp_instance_service: McpService 实例（通过依赖注入）
+        api_key: API Key of the MCP instance (from path parameter)
+        mcp_instance_service: McpService instance (via dependency injection)
 
     Returns:
-        McpInstance 对象
+        McpInstance object
 
     Raises:
-        NotFoundException: 如果实例不存在
+        NotFoundException: If instance does not exist
     """
     from src.exceptions import NotFoundException, ErrorCode
 

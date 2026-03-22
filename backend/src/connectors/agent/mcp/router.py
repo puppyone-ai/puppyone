@@ -1,9 +1,9 @@
 """
-MCP V3 路由
+MCP V3 Router
 
-基于 Agent 架构的 MCP API 端点：
-1. /mcp/agents/{agent_id}/... - Agent 的 MCP 配置管理
-2. /mcp/proxy/... - 代理到 MCP Server（推荐 Header: X-MCP-API-Key，兼容 legacy path key）
+MCP API endpoints based on the Agent architecture:
+1. /mcp/agents/{agent_id}/... - Agent MCP configuration management
+2. /mcp/proxy/... - Proxy to MCP Server (recommended: Header X-MCP-API-Key, with legacy path key fallback)
 """
 
 from __future__ import annotations
@@ -40,14 +40,14 @@ router = APIRouter(prefix="/mcp", tags=["mcp"])
 
 
 # ============================================
-# Agent MCP 配置管理
+# Agent MCP Configuration Management
 # ============================================
 
 
 @router.get(
     "/agents/{agent_id}/status",
     response_model=ApiResponse[McpStatusOut],
-    summary="获取 Agent 的 MCP 状态",
+    summary="Get MCP status for an Agent",
     status_code=status.HTTP_200_OK,
 )
 def get_mcp_status(
@@ -56,13 +56,13 @@ def get_mcp_status(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     data = svc.get_mcp_status(agent_id, current_user.user_id)
-    return ApiResponse.success(data=data, message="获取 MCP 状态成功")
+    return ApiResponse.success(data=data, message="MCP status retrieved successfully")
 
 
 @router.post(
     "/agents/{agent_id}/regenerate-key",
     response_model=ApiResponse[dict],
-    summary="重新生成 Agent 的 MCP API Key",
+    summary="Regenerate MCP API Key for an Agent",
     status_code=status.HTTP_200_OK,
 )
 def regenerate_mcp_key(
@@ -73,25 +73,25 @@ def regenerate_mcp_key(
     new_key = svc.regenerate_mcp_key(agent_id, current_user.user_id)
     return ApiResponse.success(
         data={"mcp_api_key": new_key},
-        message="重新生成 MCP API Key 成功",
+        message="MCP API Key regenerated successfully",
     )
 
 
 # ============================================
-# Tool 绑定管理
+# Tool Binding Management
 # ============================================
 
 
 @router.get(
     "/agents/{agent_id}/tools",
     response_model=ApiResponse[List[McpBoundToolOut]],
-    summary="获取 Agent 绑定的 Tools",
+    summary="Get Tools bound to an Agent",
     status_code=status.HTTP_200_OK,
 )
 def list_bound_tools(
     agent_id: str,
     mcp_exposed_only: bool = Query(
-        default=False, description="是否只返回 MCP 暴露的工具"
+        default=False, description="Whether to return only MCP-exposed tools"
     ),
     svc: McpV3Service = Depends(get_mcp_v3_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -101,13 +101,13 @@ def list_bound_tools(
         current_user.user_id,
         mcp_exposed_only=mcp_exposed_only,
     )
-    return ApiResponse.success(data=data, message="获取绑定 Tools 成功")
+    return ApiResponse.success(data=data, message="Bound tools retrieved successfully")
 
 
 @router.post(
     "/agents/{agent_id}/tools",
     response_model=ApiResponse[None],
-    summary="批量绑定 Tools 到 Agent",
+    summary="Batch bind Tools to an Agent",
     status_code=status.HTTP_201_CREATED,
 )
 def bind_tools(
@@ -117,13 +117,13 @@ def bind_tools(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     svc.bind_tools(agent_id, current_user.user_id, payload.bindings)
-    return ApiResponse.success(data=None, message="绑定 Tools 成功")
+    return ApiResponse.success(data=None, message="Tools bound successfully")
 
 
 @router.put(
     "/agents/{agent_id}/tools/{tool_id}",
     response_model=ApiResponse[None],
-    summary="更新 Tool 绑定状态",
+    summary="Update Tool binding status",
     status_code=status.HTTP_200_OK,
 )
 def update_tool_binding(
@@ -140,13 +140,13 @@ def update_tool_binding(
         enabled=payload.enabled,
         mcp_exposed=payload.mcp_exposed,
     )
-    return ApiResponse.success(data=None, message="更新 Tool 绑定成功")
+    return ApiResponse.success(data=None, message="Tool binding updated successfully")
 
 
 @router.delete(
     "/agents/{agent_id}/tools/{tool_id}",
     response_model=ApiResponse[None],
-    summary="解绑 Tool",
+    summary="Unbind a Tool",
     status_code=status.HTTP_200_OK,
 )
 def unbind_tool(
@@ -156,40 +156,40 @@ def unbind_tool(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     svc.unbind_tool(agent_id, current_user.user_id, tool_id)
-    return ApiResponse.success(data=None, message="解绑 Tool 成功")
+    return ApiResponse.success(data=None, message="Tool unbound successfully")
 
 
 # ============================================
-# MCP Server 代理
+# MCP Server Proxy
 # ============================================
 
 
 @router.api_route(
     "/proxy/{api_key}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server 代理路由（Legacy）",
-    description="Legacy 路由：通过 URL path 传 mcp_api_key（仅兼容迁移期）。",
+    summary="MCP Server proxy route (Legacy)",
+    description="Legacy route: pass mcp_api_key via URL path (migration compatibility only).",
     include_in_schema=False,
 )
 @router.api_route(
     "/proxy/{api_key}/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server 代理路由（Legacy）",
-    description="Legacy 路由：通过 URL path 传 mcp_api_key（仅兼容迁移期）。",
+    summary="MCP Server proxy route (Legacy)",
+    description="Legacy route: pass mcp_api_key via URL path (migration compatibility only).",
     include_in_schema=False,
 )
 @router.api_route(
     "/proxy",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server 代理路由（推荐）",
-    description="将请求转发到 MCP Server。请通过 `X-MCP-API-Key` Header 提供密钥。",
+    summary="MCP Server proxy route (Recommended)",
+    description="Forward requests to MCP Server. Provide the key via `X-MCP-API-Key` header.",
     include_in_schema=True,
 )
 @router.api_route(
     "/proxy/{path:path}",
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
-    summary="MCP Server 代理路由（推荐）",
-    description="将请求转发到 MCP Server。请通过 `X-MCP-API-Key` Header 提供密钥。",
+    summary="MCP Server proxy route (Recommended)",
+    description="Forward requests to MCP Server. Provide the key via `X-MCP-API-Key` header.",
     include_in_schema=True,
 )
 async def proxy_mcp_server(
@@ -198,20 +198,20 @@ async def proxy_mcp_server(
     agent: Agent = Depends(get_agent_by_mcp_api_key),
 ):
     """
-    代理请求到 MCP Server。
+    Proxy requests to MCP Server.
 
-    推荐方式：通过 Header `X-MCP-API-Key` 传递密钥。
-    同时兼容 Legacy 路由 `/mcp/proxy/{api_key}`（迁移期）。
+    Recommended: pass the key via `X-MCP-API-Key` header.
+    Also compatible with legacy route `/mcp/proxy/{api_key}` (migration period).
     """
-    # 1. 拼接 MCP Server 地址
+    # 1. Build MCP Server URL
     mcp_server_url = (settings.MCP_SERVER_URL or "").rstrip("/")
     if not mcp_server_url:
         raise ValueError("MCP_SERVER_URL should not be empty.")
 
     normalized_path = (path or "").lstrip("/")
     legacy_api_key = request.path_params.get("api_key")
-    # 当请求匹配到 legacy 路由但同时使用了 Header key（推荐方式）时，
-    # 需要把 legacy 的 api_key path segment 还原为真实下游路径的一部分。
+    # When the request matches the legacy route but also uses the Header key (recommended),
+    # we need to restore the legacy api_key path segment as part of the real downstream path.
     if legacy_api_key and request.headers.get("X-MCP-API-Key"):
         normalized_path = (
             f"{legacy_api_key}/{normalized_path}"
@@ -228,7 +228,7 @@ async def proxy_mcp_server(
 
     target_url = f"{mcp_server_url}{downstream_path}"
 
-    # 2. 读取请求体
+    # 2. Read request body
     body = b""
     if request.method not in {"GET", "HEAD", "OPTIONS"}:
         try:
@@ -236,18 +236,18 @@ async def proxy_mcp_server(
         except ClientDisconnect:
             return Response(status_code=204)
 
-    # 3. 准备转发的请求头
+    # 3. Prepare forwarding request headers
     headers = dict(request.headers)
     headers.pop("host", None)
     headers.pop("content-length", None)
     headers.pop("x-mcp-api-key", None)
     headers.pop("X-MCP-API-Key", None)
-    headers["X-API-KEY"] = agent.mcp_api_key  # 使用 Agent 的 mcp_api_key
+    headers["X-API-KEY"] = agent.mcp_api_key  # Use the Agent's mcp_api_key
 
-    # 4. 查询参数
+    # 4. Query parameters
     query_params = dict(request.query_params)
 
-    # 5. SSE / 普通请求分流
+    # 5. SSE / normal request routing
     accept = (request.headers.get("accept") or "").lower()
     wants_sse = "text/event-stream" in accept
 
@@ -260,7 +260,7 @@ async def proxy_mcp_server(
         return filtered
 
     if wants_sse:
-        # SSE 流式响应
+        # SSE streaming response
         timeout = httpx.Timeout(connect=10.0, read=None, write=30.0, pool=10.0)
         client = httpx.AsyncClient(timeout=timeout, trust_env=False)
         upstream_response: httpx.Response | None = None
@@ -307,7 +307,7 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"无法连接到 MCP Server ({mcp_server_url}): {str(e)}",
+                f"Cannot connect to MCP Server ({mcp_server_url}): {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except httpx.TimeoutException as e:
@@ -315,7 +315,7 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"MCP Server 请求超时 ({mcp_server_url}): {str(e)}",
+                f"MCP Server request timed out ({mcp_server_url}): {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
         except Exception as e:
@@ -323,11 +323,11 @@ async def proxy_mcp_server(
                 await upstream_response.aclose()
             await client.aclose()
             raise NotFoundException(
-                f"转发请求到 MCP Server 时发生错误: {str(e)}",
+                f"Error forwarding request to MCP Server: {str(e)}",
                 code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
             )
     else:
-        # 普通请求
+        # Normal request
         timeout = httpx.Timeout(connect=10.0, read=30.0, write=30.0, pool=10.0)
         async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             try:
@@ -362,16 +362,16 @@ async def proxy_mcp_server(
                 )
             except httpx.ConnectError as e:
                 raise NotFoundException(
-                    f"无法连接到 MCP Server ({mcp_server_url}): {str(e)}",
+                    f"Cannot connect to MCP Server ({mcp_server_url}): {str(e)}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )
             except httpx.TimeoutException as e:
                 raise NotFoundException(
-                    f"MCP Server 请求超时 ({mcp_server_url}): {str(e)}",
+                    f"MCP Server request timed out ({mcp_server_url}): {str(e)}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )
             except Exception as e:
                 raise NotFoundException(
-                    f"转发请求到 MCP Server 时发生错误: {str(e)}",
+                    f"Error forwarding request to MCP Server: {str(e)}",
                     code=ErrorCode.MCP_INSTANCE_NOT_FOUND,
                 )

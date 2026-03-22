@@ -1,11 +1,12 @@
 """
-MutOps — 统一的 MUT tree 操作入口。
+MutOps — Unified entry point for MUT tree operations.
 
-所有 channel (Web UI / Agent / Sandbox / MCP / Datasource / Ingest / Table / Seed)
-通过此类操作 MUT tree。channel 不直接接触 MutEphemeralClient 或 MutTreeReader。
+All channels (Web UI / Agent / Sandbox / MCP / Datasource / Ingest / Table / Seed)
+operate on the MUT tree through this class. Channels do not directly touch
+MutEphemeralClient or MutTreeReader.
 
-写操作: clone → modify → push (通过 MutEphemeralClient)
-读操作: 直接读 Merkle tree (通过 MutTreeReader)
+Write operations: clone → modify → push (via MutEphemeralClient)
+Read operations: direct Merkle tree reads (via MutTreeReader)
 
 Usage:
     ops = MutOps(repo_manager)
@@ -36,14 +37,14 @@ class WriteResult:
 
 
 class MutOps:
-    """统一的 MUT tree 操作入口。"""
+    """Unified entry point for MUT tree operations."""
 
     def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
         self._reader = MutTreeReader(repo_manager)
 
     # ══════════════════════════════════════════════
-    # 写操作 (async — all go through clone → push)
+    # Write operations (async — all go through clone → push)
     # ══════════════════════════════════════════════
 
     async def write_file(
@@ -270,7 +271,7 @@ class MutOps:
         return self._to_result(result, deleted)
 
     # ══════════════════════════════════════════════
-    # 读操作 (sync — direct Merkle tree reads)
+    # Read operations (sync — direct Merkle tree reads)
     # ══════════════════════════════════════════════
 
     def read_file(self, project_id: str, path: str) -> bytes:

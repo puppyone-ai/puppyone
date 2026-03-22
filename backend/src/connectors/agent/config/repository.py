@@ -1,13 +1,13 @@
 """
-Agent Config 数据仓库
+Agent Config Repository
 
-统一架构：Agent 数据存储在 connections 表中 (provider='agent')。
-AgentRepository 是 connections 表上的一个领域视图，专门处理 agent 类型的记录。
+Unified architecture: Agent data is stored in the connections table (provider='agent').
+AgentRepository is a domain view on the connections table, specifically handling agent-type records.
 
-Mut-Native 架构: Agent 访问权限存储在 connections.config.scope 中 (JSONB)。
-connection_accesses 表已被删除。scope 格式:
+Mut-Native architecture: Agent access permissions are stored in connections.config.scope (JSONB).
+The connection_accesses table has been removed. Scope format:
   { "path": "docs/", "exclude": [], "mode": "rw" }
-前端 bash_accesses 由 scope 派生而来。
+Frontend bash_accesses are derived from scope.
 """
 
 from typing import List, Optional
@@ -89,7 +89,7 @@ def _row_to_agent(row: dict) -> Agent:
 
 
 class AgentRepository:
-    """Agent 数据仓库 — 读写 connections 表 (provider='agent')"""
+    """Agent repository -- reads/writes the connections table (provider='agent')."""
 
     TABLE = "connections"
 

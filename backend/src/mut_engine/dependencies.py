@@ -1,7 +1,7 @@
 """
-Mut Engine — FastAPI 依赖注入
+Mut Engine — FastAPI dependency injection
 
-提供 MutWriteService、MutOps 的 DI 工厂函数。
+Provides DI factory functions for MutWriteService and MutOps.
 """
 
 from __future__ import annotations
@@ -67,9 +67,10 @@ def read_blob_content(project_id: str, content_hash: str | None, node_type: str 
 
 
 def create_mut_write_service() -> MutWriteService:
-    """在非请求上下文中构造 MutWriteService。
+    """Construct MutWriteService outside of a request context.
 
-    用于 Scheduler job、ARQ worker、测试等无法使用 FastAPI Depends 的场景。
+    Used by scheduler jobs, ARQ workers, tests, and other scenarios
+    where FastAPI Depends is not available.
     """
     repo_manager = get_repo_manager_standalone()
     return MutWriteService(repo_manager)

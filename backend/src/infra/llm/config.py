@@ -23,7 +23,7 @@ class LLMConfig(BaseSettings):
     """Configuration for LLM service."""
 
     model_config = SettingsConfigDict(
-        # 在某些受限环境（如沙盒/CI）中 `.env` 可能不可读；此时不应阻断应用启动
+        # In some restricted environments (e.g. sandbox/CI), `.env` may not be readable; this should not block app startup
         env_file=_ENV_FILE_FOR_SETTINGS,
         env_file_encoding="utf-8",
         extra="ignore",

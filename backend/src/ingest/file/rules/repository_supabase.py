@@ -1,7 +1,7 @@
 """
 ETL Rule Repository - Supabase Implementation
 
-管理 ETL 转换规则的存储和检索 (Supabase 数据库实现)。
+Manages storage and retrieval of ETL transformation rules (Supabase database implementation).
 """
 
 import logging
@@ -25,20 +25,20 @@ def _parse_timestamp(
     timestamp_str: str | None, fallback: str | None = None
 ) -> datetime:
     """
-    安全地解析时间戳字符串。
+    Safely parse a timestamp string.
 
     Args:
-        timestamp_str: 时间戳字符串
-        fallback: 备用时间戳字符串
+        timestamp_str: Timestamp string
+        fallback: Fallback timestamp string
 
     Returns:
-        解析后的 datetime 对象
+        Parsed datetime object
     """
     ts = timestamp_str or fallback
     if ts is None:
         return datetime.now(UTC)
 
-    # 处理 Supabase 返回的时间戳格式（可能带 Z 后缀）
+    # Handle Supabase timestamp format (may have Z suffix)
     if isinstance(ts, str):
         ts = ts.replace("Z", "+00:00")
     return datetime.fromisoformat(ts)
@@ -51,12 +51,12 @@ class RuleRepositorySupabase:
 
     def __init__(self, supabase_client, org_id: Optional[str] = None, created_by: Optional[str] = None):
         """
-        初始化 Supabase rule repository.
+        Initialize Supabase rule repository.
 
         Args:
-            supabase_client: Supabase client 实例
-            org_id: 组织 ID，用于过滤规则
-            created_by: 创建者用户 ID，用于记录创建者
+            supabase_client: Supabase client instance
+            org_id: Organization ID, used for filtering rules
+            created_by: Creator user ID, used for recording the creator
         """
         self.supabase = supabase_client
         self.org_id = org_id
@@ -65,18 +65,18 @@ class RuleRepositorySupabase:
 
     def create_rule(self, request: RuleCreateRequest) -> ETLRule:
         """
-        创建新的 ETL 规则。
+        Create a new ETL rule.
 
         Args:
-            request: 规则创建请求
+            request: Rule creation request
 
         Returns:
-            创建的 ETLRule
+            Created ETLRule
 
         Raises:
-            SupabaseException: 数据库操作失败时
+            SupabaseException: When database operation fails
         """
-        # 生成唯一规则 ID（历史遗留：Supabase 使用 bigint 主键，这里仅用于追踪/兼容）
+        # Generate unique rule ID (legacy: Supabase uses bigint primary key, only for tracking/compatibility)
         _ = str(uuid.uuid4())
         now = datetime.now(UTC)
 
@@ -86,7 +86,7 @@ class RuleRepositorySupabase:
             postprocess_strategy=request.postprocess_strategy,
         )
 
-        # 准备插入数据
+        # Prepare insert data
         insert_data = {
             "name": request.name,
             "description": request.description,
@@ -99,7 +99,7 @@ class RuleRepositorySupabase:
         }
 
         try:
-            # 插入到数据库
+            # Insert into database
             response = (
                 self.supabase.table(self.TABLE_NAME).insert(insert_data).execute()
             )
@@ -107,7 +107,7 @@ class RuleRepositorySupabase:
             if not response.data or len(response.data) == 0:
                 raise Exception("Failed to create rule: no data returned")
 
-            # 获取插入的记录
+            # Get the inserted record
             row = response.data[0]
             mode, strategy, schema = parse_rule_payload(row["json_schema"])
 
@@ -129,20 +129,20 @@ class RuleRepositorySupabase:
             return rule
 
         except Exception as e:
-            handle_supabase_error(e, "创建 ETL 规则")
+            handle_supabase_error(e, "create ETL rule")
 
     def get_rule(self, rule_id: str) -> Optional[ETLRule]:
         """
-        根据 ID 获取规则。
+        Get rule by ID.
 
         Args:
-            rule_id: 规则标识符
+            rule_id: Rule identifier
 
         Returns:
-            如果找到返回 ETLRule，否则返回 None
+            ETLRule if found, None otherwise
         """
         try:
-            # 将 rule_id 转换为 bigint
+            # Convert rule_id to bigint
             try:
                 id_int = int(rule_id)
             except ValueError:
@@ -163,7 +163,7 @@ class RuleRepositorySupabase:
             row = response.data[0]
             mode, strategy, schema = parse_rule_payload(row["json_schema"])
 
-            # 从数据库记录构建 ETLRule
+            # Build ETLRule from database record
             rule = ETLRule(
                 rule_id=str(row["id"]),
                 name=row.get("name", ""),
@@ -188,24 +188,24 @@ class RuleRepositorySupabase:
         self, rule_id: str, request: RuleUpdateRequest
     ) -> Optional[ETLRule]:
         """
-        更新现有规则。
+        Update an existing rule.
 
         Args:
-            rule_id: 规则标识符
-            request: 更新请求
+            rule_id: Rule identifier
+            request: Update request
 
         Returns:
-            如果找到返回更新后的 ETLRule，否则返回 None
+            Updated ETLRule if found, None otherwise
 
         Raises:
-            SupabaseException: 数据库操作失败时
+            SupabaseException: When database operation fails
         """
-        # 先检查规则是否存在
+        # First check if the rule exists
         existing_rule = self.get_rule(rule_id)
         if not existing_rule:
             return None
 
-        # 准备更新数据
+        # Prepare update data
         update_data: dict = {}
         if request.name is not None:
             update_data["name"] = request.name
@@ -238,14 +238,14 @@ class RuleRepositorySupabase:
             )
 
         if not update_data:
-            # 没有需要更新的字段
+            # No fields to update
             return existing_rule
 
-        # 添加 updated_at 时间戳
+        # Add updated_at timestamp
         update_data["updated_at"] = datetime.now(UTC).isoformat()
 
         try:
-            # 将 rule_id 转换为 bigint
+            # Convert rule_id to bigint
             id_int = int(rule_id)
 
             query = (
@@ -266,7 +266,7 @@ class RuleRepositorySupabase:
             row = response.data[0]
             mode, strategy, schema = parse_rule_payload(row["json_schema"])
 
-            # 构建更新后的 ETLRule
+            # Build updated ETLRule
             rule = ETLRule(
                 rule_id=str(row["id"]),
                 name=row["name"],
@@ -285,23 +285,23 @@ class RuleRepositorySupabase:
             return rule
 
         except Exception as e:
-            handle_supabase_error(e, "更新 ETL 规则")
+            handle_supabase_error(e, "update ETL rule")
 
     def delete_rule(self, rule_id: str) -> bool:
         """
-        删除规则。
+        Delete a rule.
 
         Args:
-            rule_id: 规则标识符
+            rule_id: Rule identifier
 
         Returns:
-            如果删除成功返回 True，如果未找到返回 False
+            True if deleted successfully, False if not found
 
         Raises:
-            SupabaseException: 数据库操作失败时
+            SupabaseException: When database operation fails
         """
         try:
-            # 将 rule_id 转换为 bigint
+            # Convert rule_id to bigint
             try:
                 id_int = int(rule_id)
             except ValueError:
@@ -323,18 +323,18 @@ class RuleRepositorySupabase:
             return True
 
         except Exception as e:
-            handle_supabase_error(e, "删除 ETL 规则")
+            handle_supabase_error(e, "delete ETL rule")
 
     def list_rules(self, limit: int = 100, offset: int = 0) -> list[ETLRule]:
         """
-        列出所有规则（支持分页）。
+        List all rules (with pagination).
 
         Args:
-            limit: 最大返回数量
-            offset: 跳过的数量
+            limit: Maximum number of results
+            offset: Number of results to skip
 
         Returns:
-            ETLRule 对象列表
+            List of ETLRule objects
         """
         try:
             query = self.supabase.table(self.TABLE_NAME).select("*")
@@ -342,7 +342,7 @@ class RuleRepositorySupabase:
             if self.org_id is not None:
                 query = query.eq("org_id", self.org_id)
 
-            # 应用分页
+            # Apply pagination
             query = query.range(offset, offset + limit - 1).order(
                 "created_at", desc=True
             )
@@ -376,10 +376,10 @@ class RuleRepositorySupabase:
 
     def count_rules(self) -> int:
         """
-        统计规则总数。
+        Count total number of rules.
 
         Returns:
-            规则总数
+            Total number of rules
         """
         try:
             query = self.supabase.table(self.TABLE_NAME).select("id", count="exact")

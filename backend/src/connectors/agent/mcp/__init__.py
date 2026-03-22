@@ -1,5 +1,5 @@
 """
-MCP 协议运行时
+MCP Protocol Runtime
 
-Agent 的 MCP 工具绑定、状态管理、代理转发。
+Agent MCP tool bindings, status management, and proxy forwarding.
 """

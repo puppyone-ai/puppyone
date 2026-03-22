@@ -15,15 +15,15 @@ class ChunkingConfig(BaseSettings):
     """Chunking behavior configuration (character-based).
 
     All values can be configured via environment variables:
-    - CHUNK_THRESHOLD_CHARS: 超过此字符数的内容才会被分块 (default: 15000)
-    - CHUNK_SIZE_CHARS: 每个分块的目标大小 (default: 1000)
-    - CHUNK_OVERLAP_CHARS: 分块之间的重叠字符数 (default: 200)
-    - MAX_CONTENT_SIZE_CHARS: 单个内容的最大字符数 (default: 500000)
-    - MAX_CHUNKS_PER_NODE: 单个节点最大分块数 (default: 500)
+    - CHUNK_THRESHOLD_CHARS: Content exceeding this character count will be chunked (default: 15000)
+    - CHUNK_SIZE_CHARS: Target size per chunk (default: 1000)
+    - CHUNK_OVERLAP_CHARS: Number of overlapping characters between chunks (default: 200)
+    - MAX_CONTENT_SIZE_CHARS: Maximum character count for a single content (default: 500000)
+    - MAX_CHUNKS_PER_NODE: Maximum number of chunks per node (default: 500)
     """
 
     model_config = SettingsConfigDict(
-        env_file=None,  # 由 src.main 统一 load_dotenv()
+        env_file=None,  # load_dotenv() is called centrally in src.main
         extra="ignore",
         env_ignore_empty=True,
         populate_by_name=True,
@@ -41,5 +41,5 @@ class ChunkingConfig(BaseSettings):
     max_chunks_per_node: int = Field(default=500, ge=1, alias="MAX_CHUNKS_PER_NODE")
 
 
-# 全局配置实例（与项目中其它模块保持一致的使用方式）
+# Global config instance (consistent with the usage pattern of other modules in the project)
 chunking_config = ChunkingConfig()

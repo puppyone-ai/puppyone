@@ -1,24 +1,24 @@
 """
-Tree API — MutOps 的 REST HTTP 外壳
+Tree API — REST HTTP shell for MutOps
 
-MutOps 是唯一的操作入口，本文件只做:
-  HTTP 参数解析 + 认证 + 调用 MutOps + 格式化响应
+MutOps is the sole entry point for operations; this file only handles:
+  HTTP parameter parsing + authentication + calling MutOps + formatting responses
 
-端点:
-  GET  /ls       — 列出目录内容
-  GET  /cat      — 读取文件内容
-  GET  /stat     — 获取文件/目录信息
-  GET  /tree     — 获取完整目录树
-  POST /write    — 写入文件
-  POST /mkdir    — 创建目录
-  POST /mv       — 移动/重命名
-  POST /rm       — 删除（移入 .trash）
-  POST /restore  — 从 .trash 恢复
-  GET  /trash    — 列出回收站
-  GET  /versions — 版本历史
-  GET  /version-content — 获取某版本文件内容
-  GET  /diff     — 对比两个版本
-  POST /rollback — 回滚到指定版本
+Endpoints:
+  GET  /ls       — list directory contents
+  GET  /cat      — read file contents
+  GET  /stat     — get file/directory info
+  GET  /tree     — get full directory tree
+  POST /write    — write a file
+  POST /mkdir    — create a directory
+  POST /mv       — move/rename
+  POST /rm       — delete (move to .trash)
+  POST /restore  — restore from .trash
+  GET  /trash    — list trash bin contents
+  GET  /versions — version history
+  GET  /version-content — get file contents at a specific version
+  GET  /diff     — compare two versions
+  POST /rollback — rollback to a specific version
 """
 
 from __future__ import annotations
@@ -89,17 +89,17 @@ def _entry_to_response(entry: MutEntry) -> MutEntryResponse:
 
 
 # ═══════════════════════════════════════════════
-# 读取 API
+# Read API
 # ═══════════════════════════════════════════════
 
 @router.get(
     "/{project_id}/ls",
     response_model=ApiResponse[ListDirResponse],
-    summary="列出目录内容",
+    summary="List directory contents",
 )
 def list_dir(
     project_id: str,
-    path: str = Query("", description="目录路径，空 = 根目录"),
+    path: str = Query("", description="Directory path, empty = root directory"),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -121,11 +121,11 @@ def list_dir(
 @router.get(
     "/{project_id}/cat",
     response_model=ApiResponse[ReadFileResponse],
-    summary="读取文件内容",
+    summary="Read file contents",
 )
 def read_file(
     project_id: str,
-    path: str = Query(..., description="文件路径"),
+    path: str = Query(..., description="File path"),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -166,11 +166,11 @@ def read_file(
 @router.get(
     "/{project_id}/stat",
     response_model=ApiResponse[StatResponse],
-    summary="获取文件/目录信息",
+    summary="Get file/directory info",
 )
 def stat(
     project_id: str,
-    path: str = Query(..., description="路径"),
+    path: str = Query(..., description="Path"),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -202,12 +202,12 @@ def stat(
 @router.get(
     "/{project_id}/tree",
     response_model=ApiResponse[TreeResponse],
-    summary="获取完整目录树",
+    summary="Get full directory tree",
 )
 def full_tree(
     project_id: str,
-    path: str = Query("", description="起始路径"),
-    max_depth: int = Query(-1, description="最大递归深度，-1 = 无限"),
+    path: str = Query("", description="Starting path"),
+    max_depth: int = Query(-1, description="Maximum recursion depth, -1 = unlimited"),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -229,7 +229,7 @@ def full_tree(
 @router.get(
     "/{project_id}/trash",
     response_model=ApiResponse[TrashListResponse],
-    summary="列出回收站内容",
+    summary="List trash bin contents",
 )
 def list_trash(
     project_id: str,
@@ -246,12 +246,12 @@ def list_trash(
 
 
 # ═══════════════════════════════════════════════
-# 写入 API (via MutOps)
+# Write API (via MutOps)
 # ═══════════════════════════════════════════════
 
 @router.post(
     "/{project_id}/write",
-    summary="写入文件",
+    summary="Write a file",
 )
 async def write_file_endpoint(
     project_id: str,
@@ -298,7 +298,7 @@ async def write_file_endpoint(
 
 @router.post(
     "/{project_id}/mkdir",
-    summary="创建目录",
+    summary="Create a directory",
 )
 async def mkdir(
     project_id: str,
@@ -315,7 +315,7 @@ async def mkdir(
 
 @router.post(
     "/{project_id}/mv",
-    summary="移动/重命名",
+    summary="Move/rename",
 )
 async def move(
     project_id: str,
@@ -344,7 +344,7 @@ async def move(
 
 @router.post(
     "/{project_id}/rm",
-    summary="删除（移入 .trash）",
+    summary="Delete (move to .trash)",
 )
 async def remove(
     project_id: str,
@@ -376,7 +376,7 @@ async def remove(
 
 @router.post(
     "/{project_id}/restore",
-    summary="从 .trash 恢复",
+    summary="Restore from .trash",
 )
 async def restore(
     project_id: str,
@@ -401,7 +401,7 @@ async def restore(
 
 @router.post(
     "/{project_id}/bulk-write",
-    summary="批量写入文件",
+    summary="Bulk write files",
 )
 async def bulk_write(
     project_id: str,
@@ -441,19 +441,19 @@ async def bulk_write(
 
 
 # ═══════════════════════════════════════════════
-# 版本历史 API (uses MutWriteService for admin/history queries)
+# Version history API (uses MutWriteService for admin/history queries)
 # ═══════════════════════════════════════════════
 
 @router.get(
     "/{project_id}/versions",
     response_model=ApiResponse[VersionHistoryResponse],
-    summary="版本历史",
+    summary="Version history",
 )
 async def get_versions(
     project_id: str,
-    path: str = Query(None, description="文件路径（不传 = 项目级历史）"),
-    limit: int = Query(50, description="最大返回数"),
-    since_version: int = Query(0, description="从此版本之后开始"),
+    path: str = Query(None, description="File path (omit for project-level history)"),
+    limit: int = Query(50, description="Maximum number of results"),
+    since_version: int = Query(0, description="Start from after this version"),
     mut_write: MutWriteService = Depends(get_mut_write_service),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
@@ -496,12 +496,12 @@ async def get_versions(
 
 @router.get(
     "/{project_id}/version-content",
-    summary="获取某版本的文件内容",
+    summary="Get file contents at a specific version",
 )
 async def get_version_content(
     project_id: str,
-    path: str = Query(..., description="文件路径"),
-    version: int = Query(..., description="版本号"),
+    path: str = Query(..., description="File path"),
+    version: int = Query(..., description="Version number"),
     mut_write: MutWriteService = Depends(get_mut_write_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -538,12 +538,12 @@ async def get_version_content(
 
 @router.get(
     "/{project_id}/diff",
-    summary="对比两个版本",
+    summary="Compare two versions",
 )
 async def diff_versions(
     project_id: str,
-    v1: int = Query(..., description="版本 1"),
-    v2: int = Query(..., description="版本 2"),
+    v1: int = Query(..., description="Version 1"),
+    v2: int = Query(..., description="Version 2"),
     mut_write: MutWriteService = Depends(get_mut_write_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -566,7 +566,7 @@ async def diff_versions(
 @router.post(
     "/{project_id}/rollback",
     response_model=ApiResponse[RollbackResponse],
-    summary="回滚到指定版本",
+    summary="Rollback to a specific version",
 )
 async def rollback(
     project_id: str,

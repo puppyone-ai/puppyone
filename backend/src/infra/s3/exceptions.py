@@ -1,8 +1,8 @@
-"""S3 存储模块的自定义异常类型"""
+"""S3 storage module custom exception types"""
 
 
 class S3Error(Exception):
-    """S3 操作基础异常"""
+    """S3 operation base exception"""
 
     def __init__(self, message: str, details: dict | None = None):
         self.message = message
@@ -11,7 +11,7 @@ class S3Error(Exception):
 
 
 class S3FileNotFoundError(S3Error):
-    """文件未找到异常"""
+    """File not found exception"""
 
     def __init__(self, key: str):
         super().__init__(f"File not found: {key}", {"key": key})
@@ -19,13 +19,13 @@ class S3FileNotFoundError(S3Error):
 
 
 class S3OperationError(S3Error):
-    """S3 操作失败异常"""
+    """S3 operation failure exception"""
 
     pass
 
 
 class S3FileSizeExceededError(S3Error):
-    """文件大小超限异常"""
+    """File size exceeded exception"""
 
     def __init__(self, size: int, max_size: int):
         super().__init__(
@@ -37,13 +37,13 @@ class S3FileSizeExceededError(S3Error):
 
 
 class S3MultipartError(S3Error):
-    """分片上传异常"""
+    """Multipart upload exception"""
 
     pass
 
 
 class S3InvalidPartSizeError(S3MultipartError):
-    """分片大小无效异常"""
+    """Invalid part size exception"""
 
     def __init__(self, part_number: int, size: int, min_size: int):
         super().__init__(

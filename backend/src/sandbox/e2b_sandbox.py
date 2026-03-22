@@ -1,4 +1,4 @@
-"""E2B 云沙盒实现"""
+"""E2B cloud sandbox implementation"""
 
 import asyncio
 import inspect
@@ -12,15 +12,15 @@ from typing import Any, Callable, Optional
 from .base import SandboxBase, SandboxSession
 
 
-# 沙盒会话默认超时时间（秒）
-DEFAULT_SESSION_TIMEOUT = 1800  # 30 分钟
+# Default sandbox session timeout (seconds)
+DEFAULT_SESSION_TIMEOUT = 1800  # 30 minutes
 
 
 class E2BSandbox(SandboxBase):
     """
-    E2B 云沙盒实现
-    
-    使用 e2b-code-interpreter SDK 提供云端隔离的代码执行环境。
+    E2B cloud sandbox implementation
+
+    Uses the e2b-code-interpreter SDK to provide a cloud-based isolated code execution environment.
     """
 
     def __init__(
@@ -29,20 +29,20 @@ class E2BSandbox(SandboxBase):
         session_timeout: float = DEFAULT_SESSION_TIMEOUT,
     ):
         """
-        初始化 E2B 沙盒服务
-        
+        Initialize E2B sandbox service
+
         Args:
-            sandbox_factory: 沙盒工厂函数（主要用于测试）
-            session_timeout: 会话超时时间（秒）
+            sandbox_factory: Sandbox factory function (mainly for testing)
+            session_timeout: Session timeout in seconds
         """
         self._sandbox_factory = sandbox_factory or _default_e2b_factory
         self._sessions: dict[str, SandboxSession] = {}
-        self._lock = threading.Lock()  # 保护 _sessions 的并发访问
+        self._lock = threading.Lock()  # Protects concurrent access to _sessions
         self._session_timeout = session_timeout
         self._cleanup_task: Optional[asyncio.Task] = None
 
     async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
-        """创建沙盒会话并预加载数据到 /workspace/data.json"""
+        """Create a sandbox session and preload data into /workspace/data.json"""
         if data is None:
             return {"success": False, "error": "data is required"}
         
@@ -53,7 +53,7 @@ class E2BSandbox(SandboxBase):
             sandbox = await _call_maybe_async(self._sandbox_factory)
         except Exception as e:
             msg = str(e)
-            # e2b-code-interpreter 会在未配置认证信息时抛出该类错误：
+            # e2b-code-interpreter raises this type of error when authentication is not configured:
             # "Could not resolve authentication method. Expected either api_key or auth_token ..."
             if "Could not resolve authentication method" in msg:
                 hint = (
@@ -75,7 +75,7 @@ class E2BSandbox(SandboxBase):
                 sandbox=sandbox, readonly=bool(readonly), created_at=now, last_activity=now
             )
         
-        # 启动清理任务（如果尚未运行）
+        # Start cleanup task (if not already running)
         await self._ensure_cleanup_task()
         return {"success": True}
 
@@ -87,13 +87,13 @@ class E2BSandbox(SandboxBase):
         s3_service: Optional[Any] = None
     ) -> dict:
         """
-        创建沙盒会话并预加载多个文件
-        
+        Create a sandbox session and preload multiple files
+
         Args:
-            session_id: 会话唯一标识
-            files: SandboxFile 列表，每个包含 path, content, s3_key
-            readonly: 是否只读模式
-            s3_service: S3 服务实例（用于下载 S3 文件）
+            session_id: Unique session identifier
+            files: List of SandboxFile, each containing path, content, s3_key
+            readonly: Whether to use read-only mode
+            s3_service: S3 service instance (for downloading S3 files)
         """
         from .file_utils import prepare_files_for_sandbox
         
@@ -114,15 +114,15 @@ class E2BSandbox(SandboxBase):
                 msg = f"{hint}\nOriginal error: {msg}"
             return {"success": False, "error": msg}
         
-        # 并行下载所有文件
+        # Download all files in parallel
         prepared_files, failed_files = await prepare_files_for_sandbox(files, s3_service)
         
-        # 创建目录并写入文件到沙盒
+        # Create directories and write files to the sandbox
         created_dirs: set[str] = set()
         write_failures: list[dict] = []
         
-        # 首先确保 /workspace 目录存在
-        # E2B 沙盒以普通用户运行，需要 sudo 在根目录创建文件夹
+        # First ensure /workspace directory exists
+        # E2B sandbox runs as a regular user, needs sudo to create folders in the root directory
         try:
             mkdir_result = await _call_maybe_async(
                 sandbox.commands.run, 
@@ -132,7 +132,7 @@ class E2BSandbox(SandboxBase):
             if exit_code is not None and exit_code != 0:
                 stderr = getattr(mkdir_result, "stderr", "")
                 print(f"[E2BSandbox] Warning: Failed to create /workspace directory with sudo: exit_code={exit_code}, stderr={stderr}")
-                # 尝试使用用户目录作为备选
+                # Try using user directory as fallback
                 fallback_result = await _call_maybe_async(
                     sandbox.commands.run,
                     "mkdir -p ~/workspace && sudo ln -sf ~/workspace /workspace 2>/dev/null || true"
@@ -151,17 +151,17 @@ class E2BSandbox(SandboxBase):
             path = f["path"]
             content = f["content"]
             
-            # 安全检查：防止路径穿越攻击
-            # 规范化路径并检查是否尝试逃逸 /workspace
+            # Security check: prevent path traversal attacks
+            # Normalize path and check if it attempts to escape /workspace
             normalized_path = os.path.normpath(path)
-            # 只允许 /workspace 下的路径
+            # Only allow paths under /workspace
             if not normalized_path.startswith("/workspace/") and normalized_path != "/workspace":
-                # 如果路径不以 /workspace 开头，自动添加前缀
+                # If path doesn't start with /workspace, automatically add the prefix
                 if normalized_path.startswith("/"):
                     normalized_path = "/workspace" + normalized_path
                 else:
                     normalized_path = "/workspace/" + normalized_path
-            # 检查是否有 .. 逃逸
+            # Check for .. escape attempts
             if ".." in normalized_path.split("/"):
                 write_failures.append({
                     "path": path, 
@@ -170,13 +170,13 @@ class E2BSandbox(SandboxBase):
                 print(f"[E2BSandbox] Path traversal attempt blocked: {path}")
                 continue
             
-            # 使用规范化后的路径
+            # Use the normalized path
             path = normalized_path
             print(f"[E2BSandbox] Writing file to: {path}")
             
-            # Create parent directories (使用 shlex.quote 防止命令注入)
-            # 由于 /workspace 已经用 sudo 创建并设为 777，子目录应该不需要 sudo
-            # 但为保险起见，如果普通 mkdir 失败则尝试 sudo
+            # Create parent directories (use shlex.quote to prevent command injection)
+            # Since /workspace was already created with sudo and set to 777, subdirectories shouldn't need sudo
+            # But as a safety measure, try sudo if regular mkdir fails
             dir_path = os.path.dirname(path)
             if dir_path and dir_path not in created_dirs:
                 try:
@@ -184,7 +184,7 @@ class E2BSandbox(SandboxBase):
                     mkdir_result = await _call_maybe_async(sandbox.commands.run, f"mkdir -p {safe_dir_path}")
                     exit_code = getattr(mkdir_result, "exit_code", None)
                     if exit_code is not None and exit_code != 0:
-                        # 尝试使用 sudo
+                        # Try using sudo
                         sudo_result = await _call_maybe_async(
                             sandbox.commands.run, 
                             f"sudo mkdir -p {safe_dir_path} && sudo chmod 777 {safe_dir_path}"
@@ -219,7 +219,7 @@ class E2BSandbox(SandboxBase):
                 write_failures.append({"path": path, "error": str(e)})
                 print(f"[E2BSandbox] Failed to write file {path}: {e}")
         
-        # 合并所有失败的文件
+        # Merge all failed files
         all_failures = failed_files + write_failures
         
         now = time.time()
@@ -228,16 +228,16 @@ class E2BSandbox(SandboxBase):
                 sandbox=sandbox, readonly=bool(readonly), created_at=now, last_activity=now
             )
         
-        # 启动清理任务（如果尚未运行）
+        # Start cleanup task (if not already running)
         await self._ensure_cleanup_task()
-        
+
         result: dict[str, Any] = {"success": True}
         if all_failures:
             result["warnings"] = all_failures
         return result
 
     async def exec(self, session_id: str, command: str) -> dict:
-        """在沙盒中执行命令并返回输出"""
+        """Execute a command in the sandbox and return its output"""
         with self._lock:
             session = self._sessions.get(session_id)
         
@@ -247,20 +247,20 @@ class E2BSandbox(SandboxBase):
                 "error": "Sandbox session not found. Call start first.",
             }
         
-        # 更新最后活动时间
+        # Update last activity time
         session.last_activity = time.time()
-        
+
         # Execute in sandbox and normalize output to text.
         try:
             result = await _call_maybe_async(session.sandbox.commands.run, command)
             output = getattr(result, "text", str(result))
-            
-            # 检查是否有错误输出（E2B 可能在 stderr 中返回错误）
+
+            # Check for error output (E2B may return errors in stderr)
             stderr = getattr(result, "stderr", None)
             exit_code = getattr(result, "exit_code", None)
             
             if exit_code is not None and exit_code != 0:
-                # 命令执行失败
+                # Command execution failed
                 error_output = stderr if stderr else output
                 return {
                     "success": False,
@@ -279,16 +279,16 @@ class E2BSandbox(SandboxBase):
             }
 
     async def read(self, session_id: str) -> dict:
-        """读取并解析 /workspace/data.json 的 JSON 数据"""
+        """Read and parse JSON data from /workspace/data.json"""
         with self._lock:
             session = self._sessions.get(session_id)
         
         if not session:
             return {"success": False, "error": "Sandbox session not found"}
         
-        # 更新最后活动时间
+        # Update last activity time
         session.last_activity = time.time()
-        
+
         raw = await _call_maybe_async(session.sandbox.files.read, "/workspace/data.json")
         try:
             if isinstance(raw, bytes):
@@ -300,15 +300,15 @@ class E2BSandbox(SandboxBase):
 
     async def read_file(self, session_id: str, path: str, parse_json: bool = False) -> dict:
         """
-        读取沙盒中指定路径的文件
-        
+        Read a file at the specified path in the sandbox
+
         Args:
-            session_id: 会话标识
-            path: 文件路径（如 /workspace/myfile.json）
-            parse_json: 是否解析为 JSON
-        
+            session_id: Session identifier
+            path: File path (e.g. /workspace/myfile.json)
+            parse_json: Whether to parse as JSON
+
         Returns:
-            {"success": True, "content": str/dict} 或 {"success": False, "error": str}
+            {"success": True, "content": str/dict} or {"success": False, "error": str}
         """
         with self._lock:
             session = self._sessions.get(session_id)
@@ -316,9 +316,9 @@ class E2BSandbox(SandboxBase):
         if not session:
             return {"success": False, "error": "Sandbox session not found"}
         
-        # 更新最后活动时间
+        # Update last activity time
         session.last_activity = time.time()
-        
+
         try:
             raw = await _call_maybe_async(session.sandbox.files.read, path)
             if isinstance(raw, bytes):
@@ -336,7 +336,7 @@ class E2BSandbox(SandboxBase):
             return {"success": False, "error": f"Failed to read {path}: {str(e)}"}
 
     async def stop(self, session_id: str) -> dict:
-        """关闭并移除沙盒会话"""
+        """Close and remove sandbox session"""
         with self._lock:
             session = self._sessions.pop(session_id, None)
         
@@ -354,7 +354,7 @@ class E2BSandbox(SandboxBase):
         return {"success": True}
 
     async def status(self, session_id: str) -> dict:
-        """返回会话状态和基本元数据"""
+        """Return session status and basic metadata"""
         with self._lock:
             session = self._sessions.get(session_id)
         
@@ -371,7 +371,7 @@ class E2BSandbox(SandboxBase):
         }
 
     async def stop_all(self) -> None:
-        """停止所有沙盒会话（用于服务关闭时）"""
+        """Stop all sandbox sessions (used during service shutdown)"""
         with self._lock:
             session_ids = list(self._sessions.keys())
         
@@ -386,15 +386,15 @@ class E2BSandbox(SandboxBase):
                 pass
 
     async def _ensure_cleanup_task(self):
-        """确保清理任务正在运行"""
+        """Ensure the cleanup task is running"""
         if self._cleanup_task is None or self._cleanup_task.done():
             self._cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
 
     async def _cleanup_expired_sessions(self):
-        """定期清理过期的沙盒会话"""
+        """Periodically clean up expired sandbox sessions"""
         while True:
             try:
-                await asyncio.sleep(60)  # 每分钟检查一次
+                await asyncio.sleep(60)  # Check every minute
                 now = time.time()
                 expired_sessions = []
                 
@@ -407,7 +407,7 @@ class E2BSandbox(SandboxBase):
                     print(f"[E2BSandbox] Cleaning up expired session: {session_id}")
                     await self.stop(session_id)
                 
-                # 如果没有活跃会话，退出清理任务
+                # If no active sessions, exit the cleanup task
                 with self._lock:
                     if not self._sessions:
                         break
@@ -418,14 +418,14 @@ class E2BSandbox(SandboxBase):
 
 
 def _default_e2b_factory():
-    """默认工厂：创建 E2B 沙盒实例"""
+    """Default factory: create an E2B sandbox instance"""
     from e2b_code_interpreter import Sandbox
 
     return Sandbox.create()
 
 
 async def _call_maybe_async(func: Callable[..., Any], *args, **kwargs):
-    """运行同步调用在线程中；直接 await 异步调用"""
+    """Run synchronous calls in a thread; directly await async calls"""
     if inspect.iscoroutinefunction(func):
         return await func(*args, **kwargs)
     result = await asyncio.to_thread(func, *args, **kwargs)

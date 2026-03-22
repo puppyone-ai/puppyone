@@ -1,4 +1,4 @@
-"""S3 存储服务核心业务逻辑"""
+"""S3 storage service core business logic"""
 
 import asyncio
 import logging
@@ -31,36 +31,36 @@ T = TypeVar("T")
 
 
 class S3Service:
-    """S3 存储服务类"""
+    """S3 storage service class"""
 
     def __init__(self):
-        """初始化 S3 服务"""
+        """Initialize S3 service"""
         self.bucket_name = s3_settings.S3_BUCKET_NAME
         self.region = s3_settings.S3_REGION
         self.endpoint_url = s3_settings.S3_ENDPOINT_URL
         self.access_key_id = s3_settings.S3_ACCESS_KEY_ID
         self.secret_access_key = s3_settings.S3_SECRET_ACCESS_KEY
 
-        # 文件大小限制配置
+        # File size limit configuration
         self.max_file_size = s3_settings.S3_MAX_FILE_SIZE
         self.multipart_threshold = s3_settings.S3_MULTIPART_THRESHOLD
         self.multipart_chunksize = s3_settings.S3_MULTIPART_CHUNKSIZE
 
-        # 创建 boto3 客户端（线程安全）
+        # Create boto3 client (thread-safe)
         from botocore.config import Config
 
-        # 配置签名版本为 v4 (Supabase Storage 要求)
+        # Configure signature version to v4 (required by Supabase Storage)
         config = Config(
             signature_version="s3v4",
             s3={
-                "addressing_style": "path"  # 使用路径样式 (bucket/key)
+                "addressing_style": "path"  # Use path style (bucket/key)
             },
-            # 增加重试次数和超时时间，避免SSL错误
+            # Increase retry count and timeout to avoid SSL errors
             retries={"max_attempts": 5, "mode": "adaptive"},
             connect_timeout=60,
             read_timeout=300,
-            # 禁用SSL验证（如果使用自签名证书或开发环境）
-            # 注意：生产环境应该使用有效的SSL证书
+            # Disable SSL verification (if using self-signed certificates or dev environment)
+            # Note: Production should use valid SSL certificates
             # verify=False
         )
 
@@ -78,20 +78,20 @@ class S3Service:
 
     async def _run_sync(self, func: Callable[..., T], *args, **kwargs) -> T:
         """
-        将同步函数包装为异步执行
+        Wrap a synchronous function for async execution.
 
         Args:
-            func: 同步函数
-            *args: 位置参数
-            **kwargs: 关键字参数
+            func: Synchronous function
+            *args: Positional arguments
+            **kwargs: Keyword arguments
 
         Returns:
-            函数执行结果
+            Function execution result
         """
         return await asyncio.to_thread(func, *args, **kwargs)
 
     def _handle_client_error(self, error: ClientError, operation: str) -> None:
-        """处理 boto3 ClientError"""
+        """Handle boto3 ClientError"""
         error_code = error.response.get("Error", {}).get("Code", "Unknown")
         error_message = error.response.get("Error", {}).get("Message", str(error))
         http_status = error.response.get("ResponseMetadata", {}).get(
@@ -107,9 +107,9 @@ class S3Service:
             },
         )
 
-        # 处理各种错误码
+        # Handle various error codes
         if error_code == "NoSuchKey" or error_code == "404" or http_status == 404:
-            # 404 可能是文件不存在或 bucket 不存在
+            # 404 could mean file not found or bucket not found
             if operation in ["upload_file", "create_multipart_upload"]:
                 raise S3OperationError(
                     f"Bucket '{self.bucket_name}' may not exist or is not accessible: {error_message}"
@@ -123,7 +123,7 @@ class S3Service:
         else:
             raise S3OperationError(f"{operation} failed: {error_message}")
 
-    # ============= 文件上传 =============
+    # ============= File Upload =============
 
     async def upload_file(
         self,
@@ -133,27 +133,27 @@ class S3Service:
         metadata: dict[str, str] | None = None,
     ) -> FileUploadResponse:
         """
-        上传单个文件到 S3（智能选择单次上传或分片上传）
+        Upload a single file to S3 (automatically choosing single or multipart upload).
 
         Args:
-            key: S3 对象键
-            content: 文件内容
-            content_type: 文件类型
-            metadata: 自定义元数据
+            key: S3 object key
+            content: File content
+            content_type: Content type
+            metadata: Custom metadata
 
         Returns:
-            FileUploadResponse: 上传结果
+            FileUploadResponse: Upload result
 
         Raises:
-            S3FileSizeExceededError: 文件大小超限
-            S3OperationError: 上传失败
+            S3FileSizeExceededError: File size exceeded
+            S3OperationError: Upload failed
         """
-        # 检查文件大小
+        # Check file size
         file_size = len(content)
         if file_size > self.max_file_size:
             raise S3FileSizeExceededError(file_size, self.max_file_size)
 
-        # 如果文件大小超过分片上传阈值，使用分片上传避免SSL错误
+        # If file size exceeds multipart upload threshold, use multipart upload to avoid SSL errors
         if file_size > self.multipart_threshold:
             logger.info(
                 f"File size ({file_size} bytes) exceeds threshold ({self.multipart_threshold} bytes), "
@@ -163,7 +163,7 @@ class S3Service:
                 key, content, content_type, metadata
             )
 
-        # 小文件使用单次上传
+        # Small files use single upload
         try:
             extra_args = {}
             if content_type:
@@ -191,7 +191,7 @@ class S3Service:
 
         except ClientError as e:
             self._handle_client_error(e, "upload_file")
-            raise  # 永远不会执行,但类型检查器需要
+            raise  # Never reached, but required by type checker
 
     async def _upload_file_multipart(
         self,
@@ -201,35 +201,35 @@ class S3Service:
         metadata: dict[str, str] | None = None,
     ) -> FileUploadResponse:
         """
-        使用分片上传方式上传大文件
+        Upload a large file using multipart upload.
 
         Args:
-            key: S3 对象键
-            content: 文件内容
-            content_type: 文件类型
-            metadata: 自定义元数据
+            key: S3 object key
+            content: File content
+            content_type: Content type
+            metadata: Custom metadata
 
         Returns:
-            FileUploadResponse: 上传结果
+            FileUploadResponse: Upload result
         """
         file_size = len(content)
         upload_id = None
 
         try:
-            # 1. 创建分片上传
+            # 1. Create multipart upload
             upload_id = await self.create_multipart_upload(key, content_type, metadata)
 
-            # 2. 分片上传
+            # 2. Upload parts
             parts = []
             part_number = 1
             offset = 0
 
             while offset < file_size:
-                # 计算当前分片大小
+                # Calculate current part size
                 chunk_size = min(self.multipart_chunksize, file_size - offset)
                 chunk_data = content[offset : offset + chunk_size]
 
-                # 上传分片
+                # Upload part
                 etag = await self.upload_part(key, upload_id, part_number, chunk_data)
                 parts.append((part_number, etag))
 
@@ -241,7 +241,7 @@ class S3Service:
                 offset += chunk_size
                 part_number += 1
 
-            # 3. 完成分片上传
+            # 3. Complete multipart upload
             result = await self.complete_multipart_upload(key, upload_id, parts)
 
             logger.info(f"Multipart upload completed for {key} ({file_size} bytes)")
@@ -255,7 +255,7 @@ class S3Service:
             )
 
         except Exception as e:
-            # 如果上传失败，取消分片上传
+            # If upload failed, abort multipart upload
             if upload_id:
                 try:
                     await self.abort_multipart_upload(key, upload_id)
@@ -265,20 +265,20 @@ class S3Service:
                         f"Failed to abort multipart upload for {key}: {abort_error}"
                     )
 
-            # 重新抛出原始错误
+            # Re-raise original error
             raise S3OperationError(f"Multipart upload failed for {key}: {e}")
 
     async def upload_files_batch(
         self, files: list[tuple[str, bytes, str | None]]
     ) -> list[tuple[str, bool, str | None, FileUploadResponse | None]]:
         """
-        批量上传文件
+        Batch upload files.
 
         Args:
-            files: 文件列表 [(key, content, content_type), ...]
+            files: File list [(key, content, content_type), ...]
 
         Returns:
-            list: 每个文件的结果 [(key, success, message, response), ...]
+            list: Result for each file [(key, success, message, response), ...]
         """
         results = []
 
@@ -294,28 +294,28 @@ class S3Service:
 
         return results
 
-    # ============= 文件下载 =============
+    # ============= File Download =============
 
     async def download_file(self, key: str) -> bytes:
         """
-        下载文件并返回完整内容
+        Download file and return full content.
 
         Args:
-            key: S3 对象键
+            key: S3 object key
 
         Returns:
-            bytes: 文件内容
+            bytes: File content
 
         Raises:
-            S3FileNotFoundError: 文件不存在
-            S3OperationError: 下载失败
+            S3FileNotFoundError: File not found
+            S3OperationError: Download failed
         """
         try:
             response = await self._run_sync(
                 self.client.get_object, Bucket=self.bucket_name, Key=key
             )
 
-            # 读取完整内容
+            # Read full content
             content = await self._run_sync(response["Body"].read)
 
             logger.info(f"File downloaded successfully: {key} ({len(content)} bytes)")
@@ -329,31 +329,31 @@ class S3Service:
         self, key: str, chunk_size: int = 8192
     ) -> AsyncIterator[bytes]:
         """
-        流式下载文件
+        Stream download a file.
 
         Args:
-            key: S3 对象键
-            chunk_size: 每块大小
+            key: S3 object key
+            chunk_size: Size of each chunk
 
         Yields:
-            bytes: 文件数据块
+            bytes: File data chunks
 
         Raises:
-            S3FileNotFoundError: 文件不存在
-            S3OperationError: 下载失败
+            S3FileNotFoundError: File not found
+            S3OperationError: Download failed
         """
 
         def _get_response():
-            """获取 S3 响应"""
+            """Get S3 response"""
             return self.client.get_object(Bucket=self.bucket_name, Key=key)
 
         try:
-            # 在线程池中获取响应
+            # Get response in thread pool
             response = await self._run_sync(_get_response)
             stream = response["Body"]
 
             try:
-                # 逐块读取数据
+                # Read data chunk by chunk
                 while True:
                     chunk = await self._run_sync(stream.read, chunk_size)
                     if not chunk:
@@ -368,17 +368,17 @@ class S3Service:
             self._handle_client_error(e, "download_file")
             raise
 
-    # ============= 文件存在性检查 =============
+    # ============= File Existence Check =============
 
     async def file_exists(self, key: str) -> bool:
         """
-        检查文件是否存在
+        Check if a file exists.
 
         Args:
-            key: S3 对象键
+            key: S3 object key
 
         Returns:
-            bool: 文件是否存在
+            bool: Whether the file exists
         """
         try:
             await self._run_sync(
@@ -392,20 +392,20 @@ class S3Service:
             logger.error(f"Error checking file existence for {key}: {e}")
             return False
 
-    # ============= 文件删除 =============
+    # ============= File Deletion =============
 
     async def delete_file(self, key: str) -> None:
         """
-        删除单个文件
+        Delete a single file.
 
         Args:
-            key: S3 对象键
+            key: S3 object key
 
         Raises:
-            S3FileNotFoundError: 文件不存在
-            S3OperationError: 删除失败
+            S3FileNotFoundError: File not found
+            S3OperationError: Delete failed
         """
-        # 先检查文件是否存在
+        # First check if file exists
         if not await self.file_exists(key):
             raise S3FileNotFoundError(key)
 
@@ -421,13 +421,13 @@ class S3Service:
 
     async def delete_files_batch(self, keys: list[str]) -> list[BatchDeleteResult]:
         """
-        批量删除文件
+        Batch delete files.
 
         Args:
-            keys: 要删除的键列表
+            keys: List of keys to delete
 
         Returns:
-            list[BatchDeleteResult]: 每个文件的删除结果
+            list[BatchDeleteResult]: Delete result for each file
         """
         results = []
 
@@ -453,7 +453,7 @@ class S3Service:
 
         return results
 
-    # ============= 文件列表 =============
+    # ============= File Listing =============
 
     async def list_files(
         self,
@@ -463,16 +463,16 @@ class S3Service:
         continuation_token: str | None = None,
     ) -> tuple[list[FileListItem], list[str], str | None, bool]:
         """
-        列出文件
+        List files.
 
         Args:
-            prefix: 键前缀
-            delimiter: 分隔符(用于模拟文件夹)
-            max_keys: 最大返回数量
-            continuation_token: 分页 token
+            prefix: Key prefix
+            delimiter: Delimiter (for simulating folders)
+            max_keys: Maximum number of results
+            continuation_token: Pagination token
 
         Returns:
-            tuple: (文件列表, 公共前缀列表, 下一页token, 是否截断)
+            tuple: (file list, common prefix list, next page token, is truncated)
         """
         try:
             kwargs = {
@@ -488,7 +488,7 @@ class S3Service:
 
             response = await self._run_sync(self.client.list_objects_v2, **kwargs)
 
-            # 解析文件列表
+            # Parse file list
             files = []
             for obj in response.get("Contents", []):
                 files.append(
@@ -500,12 +500,12 @@ class S3Service:
                     )
                 )
 
-            # 解析公共前缀(文件夹)
+            # Parse common prefixes (folders)
             common_prefixes = [
                 cp["Prefix"] for cp in response.get("CommonPrefixes", [])
             ]
 
-            # 分页信息
+            # Pagination info
             next_token = response.get("NextContinuationToken")
             is_truncated = response.get("IsTruncated", False)
 
@@ -515,21 +515,21 @@ class S3Service:
             self._handle_client_error(e, "list_files")
             raise
 
-    # ============= 文件元信息 =============
+    # ============= File Metadata =============
 
     async def get_file_metadata(self, key: str) -> FileMetadata:
         """
-        获取文件元信息
+        Get file metadata.
 
         Args:
-            key: S3 对象键
+            key: S3 object key
 
         Returns:
-            FileMetadata: 文件元信息
+            FileMetadata: File metadata
 
         Raises:
-            S3FileNotFoundError: 文件不存在
-            S3OperationError: 获取失败
+            S3FileNotFoundError: File not found
+            S3OperationError: Retrieval failed
         """
         try:
             response = await self._run_sync(
@@ -550,21 +550,21 @@ class S3Service:
             self._handle_client_error(e, "get_file_metadata")
             raise
 
-    # ============= 预签名 URL =============
+    # ============= Presigned URLs =============
 
     async def generate_presigned_upload_url(
         self, key: str, expires_in: int = 3600, content_type: str | None = None
     ) -> str:
         """
-        生成上传预签名 URL
+        Generate a presigned upload URL.
 
         Args:
-            key: 目标对象键
-            expires_in: 过期时间(秒)
-            content_type: 限制的文件类型
+            key: Target object key
+            expires_in: Expiration time (seconds)
+            content_type: Restricted content type
 
         Returns:
-            str: 预签名 URL
+            str: Presigned URL
         """
         try:
             params = {"Bucket": self.bucket_name, "Key": key}
@@ -593,15 +593,15 @@ class S3Service:
         response_content_disposition: str | None = None,
     ) -> str:
         """
-        生成下载预签名 URL
+        Generate a presigned download URL.
 
         Args:
-            key: 对象键
-            expires_in: 过期时间(秒)
-            response_content_disposition: 响应的 Content-Disposition 头
+            key: Object key
+            expires_in: Expiration time (seconds)
+            response_content_disposition: Response Content-Disposition header
 
         Returns:
-            str: 预签名 URL
+            str: Presigned URL
         """
         try:
             params = {"Bucket": self.bucket_name, "Key": key}
@@ -623,7 +623,7 @@ class S3Service:
             self._handle_client_error(e, "generate_presigned_download_url")
             raise
 
-    # ============= 分片上传 =============
+    # ============= Multipart Upload =============
 
     async def create_multipart_upload(
         self,
@@ -632,18 +632,18 @@ class S3Service:
         metadata: dict[str, str] | None = None,
     ) -> str:
         """
-        创建分片上传
+        Create a multipart upload.
 
         Args:
-            key: 目标对象键
-            content_type: 文件类型
-            metadata: 自定义元数据
+            key: Target object key
+            content_type: Content type
+            metadata: Custom metadata
 
         Returns:
-            str: 上传会话 ID
+            str: Upload session ID
 
         Raises:
-            S3OperationError: 创建失败
+            S3OperationError: Creation failed
         """
         try:
             kwargs = {"Bucket": self.bucket_name, "Key": key}
@@ -669,27 +669,27 @@ class S3Service:
         self, key: str, upload_id: str, part_number: int, data: bytes
     ) -> str:
         """
-        上传单个分片
+        Upload a single part.
 
         Args:
-            key: 对象键
-            upload_id: 上传会话 ID
-            part_number: 分片编号
-            data: 分片数据
+            key: Object key
+            upload_id: Upload session ID
+            part_number: Part number
+            data: Part data
 
         Returns:
-            str: 分片 ETag
+            str: Part ETag
 
         Raises:
-            S3InvalidPartSizeError: 分片大小无效
-            S3MultipartError: 上传失败
+            S3InvalidPartSizeError: Invalid part size
+            S3MultipartError: Upload failed
         """
         part_size = len(data)
 
-        # 分片大小验证(最后一个分片除外)
+        # Part size validation (except for the last part)
         min_part_size = 5 * 1024 * 1024  # 5MB
         if part_size < min_part_size:
-            # 注意: 这里简化处理,实际应用中最后一个分片可以小于 5MB
+            # Note: Simplified handling here; in practice the last part can be smaller than 5MB
             logger.warning(
                 f"Part {part_number} size {part_size} is less than {min_part_size} bytes"
             )
@@ -716,18 +716,18 @@ class S3Service:
         self, key: str, upload_id: str, parts: list[tuple[int, str]]
     ) -> MultipartCompleteResponse:
         """
-        完成分片上传
+        Complete a multipart upload.
 
         Args:
-            key: 对象键
-            upload_id: 上传会话 ID
-            parts: 分片列表 [(part_number, etag), ...]
+            key: Object key
+            upload_id: Upload session ID
+            parts: Parts list [(part_number, etag), ...]
 
         Returns:
-            MultipartCompleteResponse: 完成响应
+            MultipartCompleteResponse: Completion response
 
         Raises:
-            S3MultipartError: 完成失败
+            S3MultipartError: Completion failed
         """
         try:
             multipart_upload = {
@@ -746,7 +746,7 @@ class S3Service:
 
             logger.info(f"Completed multipart upload for {key}")
 
-            # 获取文件大小
+            # Get file size
             try:
                 metadata = await self.get_file_metadata(key)
                 file_size = metadata.size
@@ -766,14 +766,14 @@ class S3Service:
 
     async def abort_multipart_upload(self, key: str, upload_id: str) -> None:
         """
-        取消分片上传
+        Abort a multipart upload.
 
         Args:
-            key: 对象键
-            upload_id: 上传会话 ID
+            key: Object key
+            upload_id: Upload session ID
 
         Raises:
-            S3MultipartError: 取消失败
+            S3MultipartError: Abort failed
         """
         try:
             await self._run_sync(
@@ -793,14 +793,14 @@ class S3Service:
         self, prefix: str = "", max_uploads: int = 1000
     ) -> tuple[list[MultipartUploadListItem], str | None]:
         """
-        列出进行中的分片上传
+        List in-progress multipart uploads.
 
         Args:
-            prefix: 键前缀
-            max_uploads: 最大返回数量
+            prefix: Key prefix
+            max_uploads: Maximum number of results
 
         Returns:
-            tuple: (上传列表, 下一页token)
+            tuple: (upload list, next page token)
         """
         try:
             response = await self._run_sync(
@@ -831,15 +831,15 @@ class S3Service:
         self, key: str, upload_id: str, max_parts: int = 1000
     ) -> tuple[list[MultipartPartListItem], int | None]:
         """
-        列出已上传的分片
+        List uploaded parts.
 
         Args:
-            key: 对象键
-            upload_id: 上传会话 ID
-            max_parts: 最大返回数量
+            key: Object key
+            upload_id: Upload session ID
+            max_parts: Maximum number of results
 
         Returns:
-            tuple: (分片列表, 下一页分片编号标记)
+            tuple: (parts list, next page part number marker)
         """
         try:
             response = await self._run_sync(
@@ -869,16 +869,16 @@ class S3Service:
             raise
 
 
-# 创建全局服务实例（延迟初始化，避免在模块导入时立即创建）
+# Create global service instance (lazy initialization, avoid creating immediately on module import)
 _s3_service_instance = None
 
 
 def get_s3_service_instance() -> S3Service:
     """
-    获取 S3 服务单例
+    Get S3 service singleton.
 
     Returns:
-        S3Service 实例
+        S3Service instance
     """
     global _s3_service_instance
     if _s3_service_instance is None:
@@ -886,14 +886,14 @@ def get_s3_service_instance() -> S3Service:
     return _s3_service_instance
 
 
-# 为了保持向后兼容，保留 s3_service 变量但使用懒加载
-# 注意：直接访问 s3_service 会触发初始化，建议使用 get_s3_service_instance()
+# For backward compatibility, keep the s3_service variable but use lazy loading
+# Note: Accessing s3_service directly will trigger initialization; prefer get_s3_service_instance()
 @property
 def _lazy_s3_service():
     return get_s3_service_instance()
 
 
-# 使用属性描述符实现懒加载
+# Use property descriptor for lazy loading
 class _S3ServiceProxy:
     def __getattr__(self, name):
         return getattr(get_s3_service_instance(), name)

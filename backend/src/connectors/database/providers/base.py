@@ -1,4 +1,4 @@
-"""Base DB Provider - 所有数据库 Provider 的抽象接口"""
+"""Base DB Provider - Abstract interface for all database Providers"""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -7,7 +7,7 @@ from typing import Any
 
 @dataclass
 class QueryResult:
-    """统一的查询结果"""
+    """Unified query result."""
     columns: list[str]
     rows: list[dict[str, Any]]
     row_count: int
@@ -16,7 +16,7 @@ class QueryResult:
 
 @dataclass
 class TableInfo:
-    """表基本信息"""
+    """Basic table information."""
     name: str
     type: str = "table"  # table | view
     columns: list[dict[str, str]] = field(default_factory=list)  # [{"name": "id", "type": "uuid"}, ...]
@@ -24,17 +24,17 @@ class TableInfo:
 
 class BaseDBProvider(ABC):
     """
-    数据库 Provider 抽象基类。
+    Abstract base class for database Providers.
 
-    添加新数据库只需：
-    1. 继承此类，实现下面的方法
-    2. 在 providers/__init__.py 注册
+    To add a new database:
+    1. Inherit this class and implement the methods below
+    2. Register in providers/__init__.py
     """
 
     @abstractmethod
     async def test_connection(self, config: dict) -> dict[str, Any]:
         """
-        测试连接，返回连接信息。
+        Test the connection, return connection info.
 
         Returns:
             {"ok": True, "tables_count": 23}
@@ -45,7 +45,7 @@ class BaseDBProvider(ABC):
 
     @abstractmethod
     async def list_tables(self, config: dict) -> list[TableInfo]:
-        """列出所有表（含字段信息）"""
+        """List all tables (including column info)."""
         pass
 
     @abstractmethod
@@ -60,15 +60,15 @@ class BaseDBProvider(ABC):
         offset: int = 0,
     ) -> QueryResult:
         """
-        查询单张表。
+        Query a single table.
 
         Args:
-            config: 连接配置
-            table: 表名
-            select: 要查询的列，逗号分隔 (e.g. "id,name,email")
-            filters: PostgREST 风格的 filter 列表 [{"column": "status", "op": "eq", "value": "active"}]
-            order: 排序 (e.g. "created_at.desc")
-            limit: 最大行数
-            offset: 偏移量
+            config: Connection configuration
+            table: Table name
+            select: Columns to query, comma-separated (e.g. "id,name,email")
+            filters: PostgREST-style filter list [{"column": "status", "op": "eq", "value": "active"}]
+            order: Sort order (e.g. "created_at.desc")
+            limit: Maximum number of rows
+            offset: Offset
         """
         pass

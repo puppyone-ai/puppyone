@@ -1,7 +1,7 @@
 """
 Agent Config Router
 
-Agent 配置的 REST API
+REST API for Agent configuration.
 """
 
 import asyncio
@@ -33,9 +33,9 @@ router = APIRouter(
     prefix="/agent-config",
     tags=["agent-config"],
     responses={
-        404: {"description": "资源未找到"},
-        403: {"description": "无权限访问"},
-        500: {"description": "服务器内部错误"},
+        404: {"description": "Resource not found"},
+        403: {"description": "Access denied"},
+        500: {"description": "Internal server error"},
     },
 )
 
@@ -79,30 +79,30 @@ def _to_agent_out(agent: Agent) -> AgentOut:
 @router.get(
     "/",
     response_model=ApiResponse[List[AgentOut]],
-    summary="获取 Agent 列表",
-    description="获取指定项目的 Agent 列表",
+    summary="List Agents",
+    description="Get the list of Agents for a specified project",
 )
 def list_agents(
-    project_id: str = Query(..., description="项目 ID（必填）"),
+    project_id: str = Query(..., description="Project ID (required)"),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    # 权限检查由 RLS 或 service 层处理
+    # Access checks are handled by RLS or the service layer
     agents = service.list_agents(project_id)
     return ApiResponse.success(
         data=[_to_agent_out(a) for a in agents],
-        message="Agent 列表获取成功",
+        message="Agent list retrieved successfully",
     )
 
 
 @router.get(
     "/default",
     response_model=ApiResponse[AgentOut],
-    summary="获取默认 Agent",
-    description="获取指定项目的默认 Agent",
+    summary="Get default Agent",
+    description="Get the default Agent for a specified project",
 )
 def get_default_agent(
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
@@ -114,22 +114,22 @@ def get_default_agent(
         )
     return ApiResponse.success(
         data=_to_agent_out(agent),
-        message="默认 Agent 获取成功",
+        message="Default Agent retrieved successfully",
     )
 
 
 @router.get(
     "/{agent_id}",
     response_model=ApiResponse[AgentOut],
-    summary="获取 Agent 详情",
-    description="根据 ID 获取 Agent 详情",
+    summary="Get Agent details",
+    description="Get Agent details by ID",
 )
 def get_agent(
     agent: Agent = Depends(get_verified_agent),
 ):
     return ApiResponse.success(
         data=_to_agent_out(agent),
-        message="Agent 获取成功",
+        message="Agent retrieved successfully",
     )
 
 
@@ -172,8 +172,8 @@ def _sync_scheduler_remove(agent_id: str):
 @router.post(
     "/",
     response_model=ApiResponse[AgentOut],
-    summary="创建 Agent",
-    description="创建新的 Agent",
+    summary="Create Agent",
+    description="Create a new Agent",
     status_code=status.HTTP_201_CREATED,
 )
 def create_agent(
@@ -215,15 +215,15 @@ def create_agent(
     
     return ApiResponse.success(
         data=_to_agent_out(agent),
-        message="Agent 创建成功",
+        message="Agent created successfully",
     )
 
 
 @router.put(
     "/{agent_id}",
     response_model=ApiResponse[AgentOut],
-    summary="更新 Agent",
-    description="更新 Agent 信息",
+    summary="Update Agent",
+    description="Update Agent information",
 )
 def update_agent(
     payload: AgentUpdate,
@@ -240,7 +240,7 @@ def update_agent(
         type=payload.type,
         description=payload.description,
         is_default=payload.is_default,
-        # Schedule Agent 新字段
+        # Schedule Agent new fields
         trigger_type=payload.trigger_type,
         trigger_config=payload.trigger_config,
         task_content=payload.task_content,
@@ -274,15 +274,15 @@ def update_agent(
     
     return ApiResponse.success(
         data=_to_agent_out(updated),
-        message="Agent 更新成功",
+        message="Agent updated successfully",
     )
 
 
 @router.delete(
     "/{agent_id}",
     response_model=ApiResponse[None],
-    summary="删除 Agent",
-    description="删除 Agent 及其所有访问权限",
+    summary="Delete Agent",
+    description="Delete an Agent and all its access permissions",
 )
 def delete_agent(
     background_tasks: BackgroundTasks,
@@ -301,18 +301,18 @@ def delete_agent(
     # Remove from scheduler
     background_tasks.add_task(_sync_scheduler_remove, agent_id)
     
-    return ApiResponse.success(message="Agent 删除成功")
+    return ApiResponse.success(message="Agent deleted successfully")
 
 
 # ============================================
-# AgentBash CRUD (新版)
+# AgentBash CRUD (new version)
 # ============================================
 
 @router.post(
     "/{agent_id}/bash",
     response_model=ApiResponse[AgentBashOut],
-    summary="添加 Bash 访问权限",
-    description="为 Agent 添加一个新的 Bash 终端访问权限",
+    summary="Add Bash access permission",
+    description="Add a new Bash terminal access permission to an Agent",
     status_code=status.HTTP_201_CREATED,
 )
 def add_bash(
@@ -341,15 +341,15 @@ def add_bash(
             json_path=bash.json_path,
             readonly=bash.readonly,
         ),
-        message="Bash 访问权限添加成功",
+        message="Bash access permission added successfully",
     )
 
 
 @router.put(
     "/{agent_id}/bash/{bash_id}",
     response_model=ApiResponse[AgentBashOut],
-    summary="更新 Bash 访问权限",
-    description="更新 Agent 的 Bash 终端访问权限",
+    summary="Update Bash access permission",
+    description="Update Bash terminal access permission for an Agent",
 )
 def update_bash(
     bash_id: str,
@@ -377,15 +377,15 @@ def update_bash(
             json_path=bash.json_path,
             readonly=bash.readonly,
         ),
-        message="Bash 访问权限更新成功",
+        message="Bash access permission updated successfully",
     )
 
 
 @router.delete(
     "/{agent_id}/bash/{bash_id}",
     response_model=ApiResponse[None],
-    summary="删除 Bash 访问权限",
-    description="删除 Agent 的单个 Bash 终端访问权限",
+    summary="Delete Bash access permission",
+    description="Delete a single Bash terminal access permission for an Agent",
 )
 def remove_bash(
     bash_id: str,
@@ -399,7 +399,7 @@ def remove_bash(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Bash access not found or not authorized",
         )
-    return ApiResponse.success(message="Bash 访问权限删除成功")
+    return ApiResponse.success(message="Bash access permission deleted successfully")
 
 
 # ============================================
@@ -409,8 +409,8 @@ def remove_bash(
 @router.get(
     "/{agent_id}/executions",
     response_model=ApiResponse[List[dict]],
-    summary="获取执行历史",
-    description="获取 Agent 的执行历史记录",
+    summary="Get execution history",
+    description="Get Agent execution history records",
 )
 def get_execution_history(
     agent: Agent = Depends(get_verified_agent),
@@ -421,15 +421,15 @@ def get_execution_history(
     executions = service.get_execution_history(agent.id, limit)
     return ApiResponse.success(
         data=executions,
-        message="执行历史获取成功",
+        message="Execution history retrieved successfully",
     )
 
 
 @router.put(
     "/{agent_id}/bash",
     response_model=ApiResponse[List[AgentBashOut]],
-    summary="同步 Bash 访问权限",
-    description="全量替换 Agent 的所有 Bash 终端访问权限",
+    summary="Sync Bash access permissions",
+    description="Full replacement of all Bash terminal access permissions for an Agent",
 )
 def sync_bash(
     bash_list: List[AgentBashCreate],
@@ -453,5 +453,5 @@ def sync_bash(
             )
             for a in result
         ],
-        message="Bash 访问权限同步成功",
+        message="Bash access permissions synced successfully",
     )

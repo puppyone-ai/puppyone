@@ -1,9 +1,9 @@
 """
-Turbopuffer 配置
+Turbopuffer configuration.
 
-约定：
-- 缺失关键配置（如 API Key）时：仅 warning，不阻断应用启动
-- 但在真正发起请求时：需要抛出明确的模块异常，方便上层处理
+Conventions:
+- When key config is missing (e.g. API Key): only warn, do not block app startup
+- When actually making requests: throw explicit module exceptions for upstream handling
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 
 class TurbopufferConfig(BaseSettings):
     model_config = SettingsConfigDict(
-        # 本项目在 `src.main` 里统一 `load_dotenv()`，这里仅从环境变量读取，避免测试/多环境下出现
-        # “没设置 env var，但被 .env 隐式注入”的不可控行为。
+        # This project calls `load_dotenv()` centrally in `src.main`; here we only read from env vars
+        # to avoid the uncontrollable behavior of “env var not set but implicitly injected by .env” in tests/multi-env.
         env_file=None,
         extra="ignore",
         env_ignore_empty=True,
@@ -30,7 +30,7 @@ class TurbopufferConfig(BaseSettings):
     api_key: str | None = Field(default=None, alias="TURBOPUFFER_API_KEY")
     region: str = Field(default="gcp-us-central1", alias="TURBOPUFFER_REGION")
 
-    # 给未来扩展预留（如自定义 base_url / timeout），但本版本不强制使用
+    # Reserved for future extension (e.g. custom base_url / timeout), not required in this version
     timeout_seconds: float = Field(default=30.0, alias="TURBOPUFFER_TIMEOUT_SECONDS")
 
     @property
@@ -46,5 +46,5 @@ class TurbopufferConfig(BaseSettings):
         return self
 
 
-# 全局配置实例（与项目中其它模块保持一致的使用方式）
+# Global config instance (consistent with the usage pattern of other modules in the project)
 turbopuffer_config = TurbopufferConfig()

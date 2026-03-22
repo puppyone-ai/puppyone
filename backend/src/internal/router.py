@@ -1,6 +1,6 @@
 """
-Internal API路由
-供内部服务（如MCP Server）调用，使用SECRET鉴权
+Internal API Router
+Called by internal services (e.g., MCP Server), authenticated via SECRET
 """
 
 import hmac
@@ -48,8 +48,8 @@ router.include_router(
 
 @router.get(
     "/table/{table_id}",
-    summary="获取表格元数据",
-    description="根据table_id获取表格的元数据（不包含数据内容）",
+    summary="Get table metadata",
+    description="Get table metadata by table_id (excluding data content)",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_metadata(table_id: str, table_service=Depends(get_table_service)):
@@ -67,19 +67,19 @@ async def get_table_metadata(table_id: str, table_service=Depends(get_table_serv
 
 
 # ============================================================
-# 新版 internal 端点（命名更规范，参数更清晰）
+# New internal endpoints (more standardized naming, clearer parameters)
 # ============================================================
 
 
 @router.get(
     "/tables/{table_id}/context-schema",
-    summary="获取表格挂载点数据结构",
-    description="根据 table_id + json_path（JSON Pointer）获取结构（不包含实际值）",
+    summary="Get table mount point data structure",
+    description="Get structure by table_id + json_path (JSON Pointer), excluding actual values",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_context_schema(
     table_id: str,
-    json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
+    json_path: str = Query(default="", description="Mount point JSON Pointer path"),
     table_service=Depends(get_table_service),
 ):
     try:
@@ -94,15 +94,15 @@ async def get_table_context_schema(
 
 @router.get(
     "/tables/{table_id}/context-data",
-    summary="获取表格挂载点数据（可选JMESPath查询）",
-    description="根据 table_id + json_path 获取数据；如传 query 则在该数据上做 JMESPath 查询",
+    summary="Get table mount point data (optional JMESPath query)",
+    description="Get data by table_id + json_path; if query is provided, performs JMESPath query on the data",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_context_data(
     table_id: str,
-    json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
+    json_path: str = Query(default="", description="Mount point JSON Pointer path"),
     query: Optional[str] = Query(
-        default=None, description="JMESPath 查询表达式（可选）"
+        default=None, description="JMESPath query expression (optional)"
     ),
     table_service=Depends(get_table_service),
 ):
@@ -122,8 +122,8 @@ async def get_table_context_data(
 
 @router.post(
     "/tables/{table_id}/context-data",
-    summary="在挂载点批量创建元素",
-    description="根据 table_id + json_path 在挂载点创建元素；挂载点是 dict 时按 key 写入，list 时按顺序追加 content",
+    summary="Batch create elements at mount point",
+    description="Create elements at mount point by table_id + json_path; writes by key for dict, appends content in order for list",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def create_table_context_data(
@@ -139,7 +139,7 @@ async def create_table_context_data(
             mounted_json_pointer_path=json_path,
             elements=elements,
         )
-        return {"message": "创建成功", "data": data}
+        return {"message": "Created successfully", "data": data}
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -148,8 +148,8 @@ async def create_table_context_data(
 
 @router.put(
     "/tables/{table_id}/context-data",
-    summary="在挂载点批量更新元素",
-    description="根据 table_id + json_path 更新元素；dict 时按 key 替换，list 时 key 视为下标替换",
+    summary="Batch update elements at mount point",
+    description="Update elements by table_id + json_path; replaces by key for dict, treats key as index for list",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def update_table_context_data(
@@ -163,7 +163,7 @@ async def update_table_context_data(
         data = await table_service.update_context_data(
             table_id=table_id, json_pointer_path=json_path, elements=elements
         )
-        return {"message": "更新成功", "data": data}
+        return {"message": "Updated successfully", "data": data}
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -172,8 +172,8 @@ async def update_table_context_data(
 
 @router.delete(
     "/tables/{table_id}/context-data",
-    summary="在挂载点批量删除元素",
-    description="根据 table_id + json_path 删除 keys；dict 时按 key 删除，list 时 key 视为下标删除",
+    summary="Batch delete elements at mount point",
+    description="Delete keys by table_id + json_path; deletes by key for dict, treats key as index for list",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def delete_table_context_data(
@@ -187,7 +187,7 @@ async def delete_table_context_data(
         data = await table_service.delete_context_data(
             table_id=table_id, json_pointer_path=json_path, keys=keys
         )
-        return {"message": "删除成功", "data": data}
+        return {"message": "Deleted successfully", "data": data}
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -195,20 +195,20 @@ async def delete_table_context_data(
 
 
 # ============================================================
-# Search Tool internal endpoints（供 mcp_service v2 调用）
+# Search Tool internal endpoints (called by mcp_service v2)
 # ============================================================
 
 
 @router.post(
     "/tools/{tool_id}/search",
     response_model=SearchToolQueryResponse,
-    summary="执行 Search Tool（ANN retrieval）",
+    summary="Execute Search Tool (ANN retrieval)",
     description=(
-        "根据 tool_id 执行语义向量检索（ANN），返回结构化结果。\n\n"
-        "给前端/调用方的关键点：\n"
-        "- 该端点为 Internal API，需要 `X-Internal-Secret` 鉴权；\n"
-        "- tool 必须是 `type=search`，且必须绑定 `path`；\n"
-        "- 返回的 `results[*].json_path` 为 **相对于 tool.json_path 的 RFC6901 路径**，便于前端在 scope 内定位。"
+        "Execute semantic vector retrieval (ANN) by tool_id, returning structured results.\n\n"
+        "Key points for frontend/callers:\n"
+        "- This is an Internal API endpoint, requiring `X-Internal-Secret` authentication;\n"
+        "- Tool must be `type=search` and must have a bound `path`;\n"
+        "- Returned `results[*].json_path` is **relative to tool.json_path in RFC6901 format**, for frontend scoped positioning."
     ),
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -271,15 +271,15 @@ async def search_tool(
 
 
 # ============================================================
-# ContentNode POSIX endpoints（供 mcp_service POSIX 工具调用）
+# ContentNode POSIX endpoints (called by mcp_service POSIX tools)
 # All path-based, using MutOps (MUT clone/push under the hood)
 # ============================================================
 
 
 @router.post(
     "/nodes/resolve-path",
-    summary="解析路径到节点信息",
-    description="根据 project_id + path 解析到具体节点信息",
+    summary="Resolve path to node info",
+    description="Resolve to specific node info by project_id + path",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def resolve_node_path(
@@ -315,13 +315,13 @@ async def resolve_node_path(
 
 @router.get(
     "/nodes/list",
-    summary="列出目录内容",
-    description="列出指定路径的子条目（含元信息）",
+    summary="List directory contents",
+    description="List child entries at specified path (including metadata)",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def list_node_children(
-    project_id: str = Query(..., description="项目 ID"),
-    path: str = Query("", description="目录路径"),
+    project_id: str = Query(..., description="Project ID"),
+    path: str = Query("", description="Directory path"),
     ops: MutOps = Depends(get_mut_ops),
 ):
     try:
@@ -351,13 +351,13 @@ async def list_node_children(
 
 @router.get(
     "/nodes/read",
-    summary="读取文件内容",
-    description="根据路径和类型返回 JSON 内容 / Markdown 文本 / 文件元信息",
+    summary="Read file content",
+    description="Return JSON content / Markdown text / file metadata based on path and type",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def read_node_content(
-    project_id: str = Query(..., description="项目 ID"),
-    path: str = Query(..., description="文件路径"),
+    project_id: str = Query(..., description="Project ID"),
+    path: str = Query(..., description="File path"),
     ops: MutOps = Depends(get_mut_ops),
 ):
     try:
@@ -415,21 +415,21 @@ async def read_node_content(
 
 @router.put(
     "/nodes/write",
-    summary="写入文件内容（via MutOps）",
-    description="创建或更新文件内容",
+    summary="Write file content (via MutOps)",
+    description="Create or update file content",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def write_node_content(
     payload: Dict[str, Any],
 ):
     """
-    写入文件内容 via MutOps.
+    Write file content via MutOps.
 
     payload:
         project_id: str
         path: str
-        content: Any (JSON 对象或 Markdown 字符串)
-        operator_id: str (可选)
+        content: Any (JSON object or Markdown string)
+        operator_id: str (optional)
     """
     try:
         project_id = payload.get("project_id", "")
@@ -473,22 +473,22 @@ async def write_node_content(
 
 @router.post(
     "/nodes/create",
-    summary="创建文件或目录（via MutOps）",
-    description="在指定路径创建新文件（JSON / Markdown）或空目录",
+    summary="Create file or directory (via MutOps)",
+    description="Create a new file (JSON / Markdown) or empty directory at the specified path",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def create_node(
     payload: Dict[str, Any],
 ):
     """
-    创建文件/目录 via MutOps.
+    Create file/directory via MutOps.
 
     payload:
         project_id: str
         path: str
         node_type: str (json | markdown | folder)
-        content: Any (可选)
-        created_by: str (可选)
+        content: Any (optional)
+        created_by: str (optional)
     """
     try:
         project_id = payload.get("project_id", "")
@@ -545,15 +545,15 @@ async def create_node(
 
 @router.post(
     "/nodes/trash",
-    summary="软删除（via MutOps）",
-    description="将文件或目录移入 .trash",
+    summary="Soft delete (via MutOps)",
+    description="Move file or directory to .trash",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def trash_node(
     payload: Dict[str, Any],
 ):
     """
-    软删除：移入 .trash via MutOps.
+    Soft delete: move to .trash via MutOps.
 
     payload:
         project_id: str
@@ -587,13 +587,13 @@ async def trash_node(
 
 
 # ============================================================
-# Node rename / move（供 AGFS puppyonefs 等调用）
+# Node rename / move (called by AGFS puppyonefs, etc.)
 # ============================================================
 
 @router.post(
     "/nodes/rename",
-    summary="重命名文件或目录（via MutOps）",
-    description="移动路径来实现重命名",
+    summary="Rename file or directory (via MutOps)",
+    description="Rename by moving paths",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def rename_node(
@@ -633,8 +633,8 @@ async def rename_node(
 
 @router.post(
     "/nodes/move",
-    summary="移动文件或目录到新路径（via MutOps）",
-    description="移动文件/目录到新的父目录下",
+    summary="Move file or directory to new path (via MutOps)",
+    description="Move file/directory to a new parent directory",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def move_node_internal(
@@ -672,7 +672,7 @@ async def move_node_internal(
 
 
 # ============================================================
-# Agent internal endpoints（供 mcp_service 调用，新架构）
+# Agent internal endpoints (called by mcp_service, new architecture)
 # ============================================================
 
 def get_agent_config_service() -> AgentConfigService:
@@ -681,8 +681,8 @@ def get_agent_config_service() -> AgentConfigService:
 
 @router.get(
     "/agent-by-mcp-key/{mcp_api_key}",
-    summary="根据 MCP API key 获取 Agent 及其访问权限和工具",
-    description="MCP Server 调用此端点获取 Agent 配置，用于生成工具列表",
+    summary="Get Agent and its access permissions and tools by MCP API key",
+    description="MCP Server calls this endpoint to get Agent configuration for generating tool lists",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_agent_by_mcp_key(
@@ -742,8 +742,8 @@ async def get_agent_by_mcp_key(
 
 @router.get(
     "/mcp-endpoint-by-key/{api_key}",
-    summary="根据 API key 获取独立 MCP 端点配置",
-    description="MCP Server 调用此端点获取独立 MCP Endpoint 配置",
+    summary="Get standalone MCP endpoint configuration by API key",
+    description="MCP Server calls this endpoint to get standalone MCP Endpoint configuration",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_mcp_endpoint_by_key(api_key: str):
@@ -804,8 +804,8 @@ async def get_mcp_endpoint_by_key(api_key: str):
 
 @router.get(
     "/sandbox-endpoint-by-key/{access_key}",
-    summary="根据 access key 获取独立 Sandbox 端点配置",
-    description="外部消费者调用执行前，先获取 Sandbox 端点的 mounts、runtime 等配置",
+    summary="Get standalone Sandbox endpoint configuration by access key",
+    description="External consumers call this to get Sandbox endpoint mounts, runtime, and other configuration before execution",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_sandbox_endpoint_by_key(access_key: str):

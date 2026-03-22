@@ -46,10 +46,10 @@ def _to_out(row: dict) -> McpEndpointOut:
 @router.get(
     "",
     response_model=ApiResponse[List[McpEndpointOut]],
-    summary="列出项目的 MCP 端点",
+    summary="List MCP endpoints for a project",
 )
 def list_endpoints(
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
     service: McpEndpointService = Depends(get_mcp_endpoint_service),
 ):
@@ -62,7 +62,7 @@ def list_endpoints(
 @router.get(
     "/{endpoint_id}",
     response_model=ApiResponse[McpEndpointOut],
-    summary="获取 MCP 端点详情",
+    summary="Get MCP endpoint details",
 )
 def get_endpoint(
     endpoint: dict = Depends(get_verified_mcp_endpoint),
@@ -73,7 +73,7 @@ def get_endpoint(
 @router.get(
     "/by-path/{path:path}",
     response_model=ApiResponse[McpEndpointOut],
-    summary="按路径查 MCP 端点",
+    summary="Get MCP endpoint by path",
 )
 def get_by_path(
     path: str,
@@ -91,7 +91,7 @@ def get_by_path(
 @router.post(
     "",
     response_model=ApiResponse[McpEndpointOut],
-    summary="创建 MCP 端点",
+    summary="Create MCP endpoint",
 )
 def create_endpoint(
     payload: McpEndpointCreate,
@@ -114,7 +114,7 @@ def create_endpoint(
 @router.put(
     "/{endpoint_id}",
     response_model=ApiResponse[McpEndpointOut],
-    summary="更新 MCP 端点",
+    summary="Update MCP endpoint",
 )
 def update_endpoint(
     payload: McpEndpointUpdate,
@@ -132,7 +132,7 @@ def update_endpoint(
 @router.delete(
     "/{endpoint_id}",
     response_model=ApiResponse,
-    summary="删除 MCP 端点",
+    summary="Delete MCP endpoint",
 )
 def delete_endpoint(
     endpoint: dict = Depends(get_verified_mcp_endpoint),
@@ -146,7 +146,7 @@ def delete_endpoint(
 @router.post(
     "/{endpoint_id}/regenerate-key",
     response_model=ApiResponse[McpEndpointOut],
-    summary="重新生成 API key",
+    summary="Regenerate API key",
 )
 def regenerate_key(
     endpoint: dict = Depends(get_verified_mcp_endpoint),

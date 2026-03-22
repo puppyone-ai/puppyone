@@ -1,4 +1,4 @@
-"""Docker 沙盒实现"""
+"""Docker sandbox implementation"""
 
 import asyncio
 import json
@@ -16,50 +16,50 @@ from src.config import settings
 from .base import SandboxBase, SandboxSession
 
 
-# Docker 会话超时时间（秒）
-DEFAULT_DOCKER_SESSION_TIMEOUT = 600  # 10 分钟
+# Docker session timeout (seconds)
+DEFAULT_DOCKER_SESSION_TIMEOUT = 600  # 10 minutes
 
 
 @dataclass
 class DockerSession(SandboxSession):
-    """Docker 沙盒会话数据"""
+    """Docker sandbox session data"""
     container_id: str = ""
-    temp_path: str = ""  # 临时文件或目录路径
+    temp_path: str = ""  # Temporary file or directory path
 
 
 class DockerSandbox(SandboxBase):
     """
-    Docker 本地沙盒实现
-    
-    使用 Docker 容器运行沙盒环境，支持：
-    - 单文件 JSON 数据挂载
-    - 多文件挂载
-    - 命令执行
-    - 文件读取
+    Docker local sandbox implementation
+
+    Uses Docker containers to run sandbox environments, supporting:
+    - Single-file JSON data mounting
+    - Multi-file mounting
+    - Command execution
+    - File reading
     """
     
     def __init__(self, session_timeout: float = DEFAULT_DOCKER_SESSION_TIMEOUT):
         """
-        初始化 Docker 沙盒服务
-        
+        Initialize Docker sandbox service
+
         Args:
-            session_timeout: 会话超时时间（秒），默认 10 分钟
+            session_timeout: Session timeout in seconds, default 10 minutes
         """
         self._sessions: dict[str, DockerSession] = {}
-        self._lock = threading.Lock()  # 用于快速的同步访问
-        self._async_lock = asyncio.Lock()  # 用于异步操作的互斥
+        self._lock = threading.Lock()  # For fast synchronous access
+        self._async_lock = asyncio.Lock()  # For async operation mutual exclusion
         self._session_timeout = session_timeout
         self._cleanup_task: Optional[asyncio.Task] = None
         self._docker_available: Optional[bool] = None
-        self._docker_check_time: float = 0  # 上次检查时间
-        self._docker_cache_ttl: float = 60.0  # 缓存有效期（秒）
+        self._docker_check_time: float = 0  # Last check time
+        self._docker_cache_ttl: float = 60.0  # Cache TTL (seconds)
 
     def _get_sandbox_temp_root(self) -> str:
         """
-        返回 Docker 沙盒专用临时目录。
+        Return the dedicated temporary directory for Docker sandbox.
 
-        当 SANDBOX_TMPDIR 未配置时，回退到系统默认临时目录，
-        以兼容本地直接运行 backend 的场景。
+        Falls back to the system default temporary directory when SANDBOX_TMPDIR
+        is not configured, for compatibility with running the backend locally.
         """
         sandbox_tmpdir = (settings.SANDBOX_TMPDIR or "").strip()
         if sandbox_tmpdir:
@@ -68,7 +68,7 @@ class DockerSandbox(SandboxBase):
         return tempfile.gettempdir()
 
     def _create_temp_json_file(self, session_id: str) -> str:
-        """为单文件沙盒创建宿主机可见的临时 JSON 文件。"""
+        """Create a host-visible temporary JSON file for a single-file sandbox."""
         fd, temp_file_path = tempfile.mkstemp(
             prefix=f"sandbox-{session_id}-",
             suffix=".json",
@@ -78,7 +78,7 @@ class DockerSandbox(SandboxBase):
         return temp_file_path
 
     def _create_temp_workspace_dir(self, session_id: str) -> str:
-        """为多文件沙盒创建宿主机可见的临时工作目录。"""
+        """Create a host-visible temporary workspace directory for a multi-file sandbox."""
         return tempfile.mkdtemp(
             prefix=f"sandbox-{session_id}-",
             dir=self._get_sandbox_temp_root(),
@@ -86,26 +86,26 @@ class DockerSandbox(SandboxBase):
     
     async def _check_docker_available(self, force_recheck: bool = False) -> bool:
         """
-        检查 Docker 是否可用
-        
+        Check if Docker is available
+
         Args:
-            force_recheck: 强制重新检查，忽略缓存
-        
+            force_recheck: Force recheck, ignoring cache
+
         Returns:
-            Docker 是否可用
+            Whether Docker is available
         """
         now = time.time()
         
-        # 检查缓存是否有效
-        # 1. 如果缓存为 True 且未过期，直接返回
-        # 2. 如果缓存为 False，总是重新检查（Docker 可能刚启动）
-        # 3. 如果 force_recheck 为 True，强制重新检查
+        # Check if cache is valid
+        # 1. If cache is True and not expired, return directly
+        # 2. If cache is False, always recheck (Docker may have just started)
+        # 3. If force_recheck is True, force recheck
         cache_expired = (now - self._docker_check_time) > self._docker_cache_ttl
         
         if not force_recheck and self._docker_available is True and not cache_expired:
             return True
         
-        # 如果 Docker 之前不可用，或者缓存过期，或者强制检查，则重新检测
+        # If Docker was previously unavailable, or cache expired, or force check, re-detect
         try:
             proc = await asyncio.create_subprocess_exec(
                 "docker", "info",
@@ -126,12 +126,12 @@ class DockerSandbox(SandboxBase):
         timeout: float = 30.0
     ) -> tuple[int, str, str]:
         """
-        执行 Docker 命令
-        
+        Execute a Docker command
+
         Args:
-            *args: 命令参数
-            timeout: 超时时间（秒）
-        
+            *args: Command arguments
+            timeout: Timeout in seconds
+
         Returns:
             (return_code, stdout, stderr)
         """
@@ -160,10 +160,10 @@ class DockerSandbox(SandboxBase):
             return (-1, "", str(e))
     
     async def _cleanup_expired_sessions(self):
-        """定期清理过期的沙盒会话"""
+        """Periodically clean up expired sandbox sessions"""
         while True:
             try:
-                await asyncio.sleep(60)  # 每分钟检查一次
+                await asyncio.sleep(60)  # Check every minute
                 now = time.time()
                 expired_sessions = []
                 
@@ -172,13 +172,13 @@ class DockerSandbox(SandboxBase):
                         if now - session.last_activity > self._session_timeout:
                             expired_sessions.append(session_id)
                 
-                # 使用异步锁逐个清理
+                # Clean up one by one using async lock
                 for session_id in expired_sessions:
                     print(f"[DockerSandbox] Cleaning up expired session: {session_id}")
                     async with self._async_lock:
                         await self._stop_internal(session_id)
                 
-                # 如果没有活跃会话，退出清理任务
+                # If no active sessions, exit the cleanup task
                 with self._lock:
                     if not self._sessions:
                         break
@@ -186,9 +186,9 @@ class DockerSandbox(SandboxBase):
                 break
             except Exception as e:
                 print(f"[DockerSandbox] Cleanup task error: {e}")
-    
+
     async def _ensure_cleanup_task(self):
-        """确保清理任务正在运行"""
+        """Ensure the cleanup task is running"""
         if self._cleanup_task is None or self._cleanup_task.done():
             self._cleanup_task = asyncio.create_task(self._cleanup_expired_sessions())
     
@@ -199,18 +199,18 @@ class DockerSandbox(SandboxBase):
         retry_interval: float = 1.0
     ) -> bool:
         """
-        等待容器就绪（通过执行简单命令验证）
-        
+        Wait for the container to be ready (verified by executing a simple command)
+
         Args:
-            container_id: 容器 ID
-            max_retries: 最大重试次数
-            retry_interval: 重试间隔（秒）
-        
+            container_id: Container ID
+            max_retries: Maximum number of retries
+            retry_interval: Retry interval in seconds
+
         Returns:
-            是否就绪
+            Whether the container is ready
         """
         for i in range(max_retries):
-            # 尝试执行一个简单命令来验证容器是否就绪
+            # Try executing a simple command to verify the container is ready
             returncode, stdout, _ = await self._run_docker_command(
                 "exec", container_id, "echo", "ready",
                 timeout=5.0
@@ -229,37 +229,37 @@ class DockerSandbox(SandboxBase):
         use_custom_image: bool = True
     ) -> tuple[bool, str, str]:
         """
-        尝试启动 Docker 容器
-        
+        Attempt to start a Docker container
+
         Args:
-            mount_args: 挂载参数列表
-            use_custom_image: 是否使用自定义镜像
-        
+            mount_args: List of mount arguments
+            use_custom_image: Whether to use a custom image
+
         Returns:
             (success, container_id, error_message)
         """
-        # 资源限制：防止单个容器耗尽宿主机资源
+        # Resource limits: prevent a single container from exhausting host resources
         resource_args = ["--memory=128m", "--cpus=0.5", "--pids-limit=100"]
         
         if use_custom_image:
-            # 尝试使用自定义 json-sandbox 镜像
+            # Try using the custom json-sandbox image
             args = ["run", "-d", "--rm"] + resource_args + mount_args + ["json-sandbox"]
             returncode, stdout, stderr = await self._run_docker_command(*args, timeout=30.0)
             
             if returncode == 0:
                 container_id = stdout.strip()
-                # 等待容器就绪
+                # Wait for container to be ready
                 if await self._wait_for_container_ready(container_id, max_retries=10):
                     return (True, container_id, "")
                 else:
-                    # 容器未就绪，清理并失败
+                    # Container not ready, clean up and fail
                     await self._run_docker_command("stop", container_id, timeout=5.0)
                     return (False, "", "Container started but not ready")
-            
-            # 自定义镜像不存在，降级到 alpine
+
+            # Custom image not found, fall back to alpine
             print(f"[DockerSandbox] json-sandbox image not found, falling back to alpine:3.19")
         
-        # 使用 alpine:3.19 并安装 jq 和 bash
+        # Use alpine:3.19 and install jq and bash
         args = ["run", "-d", "--rm"] + resource_args + mount_args + [
             "alpine:3.19",
             "sh", "-c",
@@ -269,12 +269,12 @@ class DockerSandbox(SandboxBase):
         
         if returncode == 0:
             container_id = stdout.strip()
-            # 等待 apk 安装完成并验证容器就绪
-            # 给 alpine 更多时间，因为需要安装包
+            # Wait for apk installation to complete and verify container is ready
+            # Give alpine more time since it needs to install packages
             if await self._wait_for_container_ready(container_id, max_retries=30, retry_interval=1.0):
                 return (True, container_id, "")
             else:
-                # 容器未就绪，清理并失败
+                # Container not ready, clean up and fail
                 await self._run_docker_command("stop", container_id, timeout=5.0)
                 return (False, "", "Container started but packages not installed in time")
         
@@ -282,36 +282,36 @@ class DockerSandbox(SandboxBase):
     
     async def start(self, session_id: str, data: Any, readonly: bool = False) -> dict:
         """
-        创建沙盒会话并预加载单个 JSON 数据到 /workspace/data.json
-        
+        Create a sandbox session and preload a single JSON data into /workspace/data.json
+
         Args:
-            session_id: 会话唯一标识
-            data: JSON 数据（将被写入 /workspace/data.json）
-            readonly: 是否只读模式
-            
+            session_id: Unique session identifier
+            data: JSON data (will be written to /workspace/data.json)
+            readonly: Whether to use read-only mode
+
         Returns:
-            {"success": True} 或 {"success": False, "error": str}
+            {"success": True} or {"success": False, "error": str}
         """
-        # 检查 Docker 是否可用
+        # Check if Docker is available
         if not await self._check_docker_available():
             return {
                 "success": False, 
                 "error": "Docker is not available. Please ensure Docker is installed and running."
             }
         
-        # 清理过期会话
+        # Clean up expired sessions
         await self._ensure_cleanup_task()
-        
-        # 如果已存在，先停止（使用异步锁保护整个检查-停止操作）
+
+        # If already exists, stop first (use async lock to protect the check-stop operation)
         async with self._async_lock:
             with self._lock:
                 session_exists = session_id in self._sessions
             if session_exists:
                 await self._stop_internal(session_id)
-        
-        # 创建临时 JSON 文件
+
+        # Create temporary JSON file
         temp_file_path = self._create_temp_json_file(session_id)
-        
+
         try:
             json_content = json.dumps(data, ensure_ascii=False, indent=2)
             with open(temp_file_path, "w", encoding="utf-8") as f:
@@ -319,24 +319,24 @@ class DockerSandbox(SandboxBase):
         except Exception as e:
             return {"success": False, "error": f"Failed to create temp file: {e}"}
         
-        # 构建挂载参数
+        # Build mount arguments
         mount_option = f"{temp_file_path}:/workspace/data.json"
         if readonly:
             mount_option += ":ro"
         mount_args = ["-v", mount_option]
         
-        # 启动容器
+        # Start container
         success, container_id, error = await self._try_start_container(mount_args)
-        
+
         if not success:
-            # 清理临时文件
+            # Clean up temporary file
             try:
                 os.unlink(temp_file_path)
             except Exception:
                 pass
             return {"success": False, "error": error}
-        
-        # 记录会话
+
+        # Record session
         now = time.time()
         with self._lock:
             self._sessions[session_id] = DockerSession(
@@ -359,65 +359,65 @@ class DockerSandbox(SandboxBase):
         s3_service: Optional[Any] = None
     ) -> dict:
         """
-        创建沙盒会话并预加载多个文件
-        
+        Create a sandbox session and preload multiple files
+
         Args:
-            session_id: 会话唯一标识
-            files: SandboxFile 列表，每个包含 path, content, s3_key
-            readonly: 是否只读模式
-            s3_service: S3 服务实例（用于下载 S3 文件）
-            
+            session_id: Unique session identifier
+            files: List of SandboxFile, each containing path, content, s3_key
+            readonly: Whether to use read-only mode
+            s3_service: S3 service instance (for downloading S3 files)
+
         Returns:
-            {"success": True} 或 {"success": False, "error": str}
-            可能包含 "warnings" 字段列出失败的文件
+            {"success": True} or {"success": False, "error": str}
+            May include a "warnings" field listing failed files
         """
-        
-        # 检查 Docker 是否可用
+
+        # Check if Docker is available
         if not await self._check_docker_available():
             return {
                 "success": False, 
                 "error": "Docker is not available. Please ensure Docker is installed and running."
             }
         
-        # 清理过期会话
+        # Clean up expired sessions
         await self._ensure_cleanup_task()
-        
-        # 如果已存在，先停止（使用异步锁保护整个检查-停止操作）
+
+        # If already exists, stop first (use async lock to protect the check-stop operation)
         async with self._async_lock:
             with self._lock:
                 session_exists = session_id in self._sessions
             if session_exists:
                 await self._stop_internal(session_id)
-        
-        # 创建临时目录存放所有文件
+
+        # Create temporary directory to store all files
         temp_dir = self._create_temp_workspace_dir(session_id)
         workspace_dir = os.path.join(temp_dir, "workspace")
         os.makedirs(workspace_dir, exist_ok=True)
         
-        # 使用专用的 Docker 文件准备函数，大文件直接流式写入磁盘
+        # Use the dedicated Docker file preparation function, large files are streamed directly to disk
         from .file_utils import prepare_files_for_docker_sandbox
         written_paths, all_failures = await prepare_files_for_docker_sandbox(
             files, workspace_dir, s3_service
         )
         
-        # 构建挂载参数
+        # Build mount arguments
         mount_option = f"{workspace_dir}:/workspace"
         if readonly:
             mount_option += ":ro"
         mount_args = ["-v", mount_option]
         
-        # 启动容器
+        # Start container
         success, container_id, error = await self._try_start_container(mount_args)
-        
+
         if not success:
-            # 清理临时目录
+            # Clean up temporary directory
             try:
                 shutil.rmtree(temp_dir)
             except Exception:
                 pass
             return {"success": False, "error": error}
         
-        # 记录会话
+        # Record session
         now = time.time()
         with self._lock:
             self._sessions[session_id] = DockerSession(
@@ -426,7 +426,7 @@ class DockerSandbox(SandboxBase):
                 created_at=now,
                 last_activity=now,
                 container_id=container_id,
-                temp_path=temp_dir  # 保存整个临时目录
+                temp_path=temp_dir  # Save the entire temporary directory
             )
         
         print(f"[DockerSandbox] Started session {session_id} with {len(written_paths)} files written, container: {container_id[:12]}, readonly: {readonly}")
@@ -438,14 +438,14 @@ class DockerSandbox(SandboxBase):
     
     async def exec(self, session_id: str, command: str) -> dict:
         """
-        在沙盒中执行命令
-        
+        Execute a command in the sandbox
+
         Args:
-            session_id: 会话标识
-            command: 要执行的 bash 命令
-            
+            session_id: Session identifier
+            command: Bash command to execute
+
         Returns:
-            {"success": True, "output": str} 或 {"success": False, "error": str}
+            {"success": True, "output": str} or {"success": False, "error": str}
         """
         with self._lock:
             session = self._sessions.get(session_id)
@@ -456,14 +456,14 @@ class DockerSandbox(SandboxBase):
                 "error": "Sandbox session not found. Call start first."
             }
         
-        # 更新最后活动时间
+        # Update last activity time
         session.last_activity = time.time()
-        
-        # 安全说明：
-        # 1. _run_docker_command 使用 asyncio.subprocess_exec，不经过 host shell，
-        #    所以 command 作为单个参数传递给容器内的 sh -c，host 层面无注入风险
-        # 2. 在容器内执行任意命令是沙盒的设计目的，不需要在此层面限制
-        # 3. 容器本身提供了隔离，限制了潜在危害范围
+
+        # Security notes:
+        # 1. _run_docker_command uses asyncio.subprocess_exec, bypassing the host shell,
+        #    so command is passed as a single argument to sh -c inside the container, no host-level injection risk
+        # 2. Executing arbitrary commands inside the container is the sandbox's design purpose, no need to restrict at this level
+        # 3. The container itself provides isolation, limiting the potential scope of damage
         
         returncode, stdout, stderr = await self._run_docker_command(
             "exec", session.container_id,
@@ -474,8 +474,8 @@ class DockerSandbox(SandboxBase):
         if returncode == 0:
             return {"success": True, "output": stdout}
         else:
-            # 命令执行失败，统一返回 success=False
-            # 同时提供 output 和 exit_code 以便调用方获取详细信息
+            # Command execution failed, uniformly return success=False
+            # Also provide output and exit_code for the caller to get detailed info
             output = stdout + stderr
             return {
                 "success": False,
@@ -486,13 +486,13 @@ class DockerSandbox(SandboxBase):
     
     async def read(self, session_id: str) -> dict:
         """
-        读取 /workspace/data.json 的内容
-        
+        Read the contents of /workspace/data.json
+
         Args:
-            session_id: 会话标识
-            
+            session_id: Session identifier
+
         Returns:
-            {"success": True, "data": dict} 或 {"success": False, "error": str}
+            {"success": True, "data": dict} or {"success": False, "error": str}
         """
         result = await self.exec(session_id, "cat /workspace/data.json")
         
@@ -507,17 +507,17 @@ class DockerSandbox(SandboxBase):
     
     async def read_file(self, session_id: str, path: str, parse_json: bool = False) -> dict:
         """
-        读取沙盒中指定路径的文件
-        
+        Read a file at the specified path in the sandbox
+
         Args:
-            session_id: 会话标识
-            path: 文件路径（如 /workspace/myfile.json）
-            parse_json: 是否解析为 JSON
-            
+            session_id: Session identifier
+            path: File path (e.g. /workspace/myfile.json)
+            parse_json: Whether to parse as JSON
+
         Returns:
-            {"success": True, "content": str/dict} 或 {"success": False, "error": str}
+            {"success": True, "content": str/dict} or {"success": False, "error": str}
         """
-        # 使用 shlex.quote 防止路径注入
+        # Use shlex.quote to prevent path injection
         safe_path = shlex.quote(path)
         result = await self.exec(session_id, f"cat {safe_path}")
         
@@ -537,21 +537,21 @@ class DockerSandbox(SandboxBase):
     
     async def _stop_internal(self, session_id: str) -> bool:
         """
-        内部停止方法，不获取异步锁
-        
+        Internal stop method, does not acquire the async lock
+
         Args:
-            session_id: 会话标识
-            
+            session_id: Session identifier
+
         Returns:
-            是否成功停止（会话是否存在）
+            Whether the session was successfully stopped (whether it existed)
         """
         with self._lock:
             session = self._sessions.pop(session_id, None)
         
         if not session:
-            return False  # 已经不存在
-        
-        # 停止容器
+            return False  # Already does not exist
+
+        # Stop container
         try:
             await self._run_docker_command(
                 "stop", session.container_id,
@@ -560,7 +560,7 @@ class DockerSandbox(SandboxBase):
         except Exception as e:
             print(f"[DockerSandbox] Error stopping container {session_id}: {e}")
         
-        # 清理临时文件/目录
+        # Clean up temporary files/directories
         if session.temp_path:
             try:
                 if os.path.isdir(session.temp_path):
@@ -575,11 +575,11 @@ class DockerSandbox(SandboxBase):
     
     async def stop(self, session_id: str) -> dict:
         """
-        停止并清理沙盒会话
-        
+        Stop and clean up a sandbox session
+
         Args:
-            session_id: 会话标识
-            
+            session_id: Session identifier
+
         Returns:
             {"success": True}
         """
@@ -589,13 +589,13 @@ class DockerSandbox(SandboxBase):
     
     async def status(self, session_id: str) -> dict:
         """
-        获取沙盒会话状态
-        
+        Get sandbox session status
+
         Args:
-            session_id: 会话标识
-            
+            session_id: Session identifier
+
         Returns:
-            {"active": bool, ...} 包含其他元数据
+            {"active": bool, ...} including other metadata
         """
         with self._lock:
             session = self._sessions.get(session_id)
@@ -612,7 +612,7 @@ class DockerSandbox(SandboxBase):
         }
     
     async def stop_all(self) -> None:
-        """停止所有沙盒会话（用于服务关闭时）"""
+        """Stop all sandbox sessions (used during service shutdown)"""
         async with self._async_lock:
             with self._lock:
                 session_ids = list(self._sessions.keys())

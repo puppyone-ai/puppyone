@@ -1,16 +1,16 @@
 """
 Folder Sync Engine — Scanner
 
-目录扫描、文件读取、类型检测、哈希计算。
+Directory scanning, file reading, type detection, hash computation.
 
-提取自 sync/adapters/filesystem.py 的核心 I/O 逻辑，
-去除对 SyncSource/SyncMapping 的依赖。
+Extracted from the core I/O logic of sync/adapters/filesystem.py,
+with dependencies on SyncSource/SyncMapping removed.
 
-核心函数：
-  - scan_directory()  : 全量扫描目录 → FolderSnapshot
-  - read_file()       : 读取单个文件 → FileContent
+Core functions:
+  - scan_directory()  : Full directory scan -> FolderSnapshot
+  - read_file()       : Read a single file -> FileContent
   - compute_hash()    : SHA-256
-  - detect_type()     : 根据扩展名 + 内容探测 content_type
+  - detect_type()     : Detect content_type based on extension + content
 """
 
 import hashlib
@@ -24,18 +24,18 @@ from src.connectors.filesystem.io.ignore import IgnoreRules, DEFAULT_IGNORE_PATT
 
 
 def compute_hash(data: bytes) -> str:
-    """SHA-256 哈希。"""
+    """SHA-256 hash."""
     return hashlib.sha256(data).hexdigest()
 
 
 def detect_type(rel_path: str, raw_bytes: Optional[bytes] = None) -> str:
     """
-    文件类型检测。
+    File type detection.
 
-    策略（与现有代码一致）：
-      1. .json 扩展名 → 尝试 parse，成功则 "json"，否则 "markdown"
-      2. 其它文本文件 → "markdown"
-      3. 无法 decode UTF-8 → "binary"
+    Strategy (consistent with existing code):
+      1. .json extension -> try to parse; if successful "json", otherwise "markdown"
+      2. Other text files -> "markdown"
+      3. Cannot decode UTF-8 -> "binary"
     """
     if rel_path.endswith(".json"):
         if raw_bytes is not None:
@@ -59,10 +59,10 @@ def detect_type(rel_path: str, raw_bytes: Optional[bytes] = None) -> str:
 
 def read_file(base_path: str, rel_path: str) -> Optional[FileContent]:
     """
-    读取单个文件，返回内容 + 元信息。
+    Read a single file, return content + metadata.
 
     Returns:
-        FileContent 或 None（文件不存在 / 读取失败）
+        FileContent or None (file does not exist / read failed)
     """
     full_path = os.path.join(base_path, rel_path)
     if not os.path.isfile(full_path):
@@ -103,10 +103,10 @@ def scan_directory(
     ignore_rules: Optional[IgnoreRules] = None,
 ) -> FolderSnapshot:
     """
-    全量扫描目录，生成 FolderSnapshot。
+    Full directory scan, generating a FolderSnapshot.
 
-    不读取文件内容（只计算 hash + 检测类型），保持轻量。
-    如需内容，后续调用 read_file()。
+    Does not read file contents (only computes hash + detects type) to stay lightweight.
+    For content, call read_file() afterwards.
     """
     if ignore_rules is None:
         ignore_rules = IgnoreRules()
@@ -117,7 +117,7 @@ def scan_directory(
         return FolderSnapshot(root_path=root_path, scanned_at=time.time())
 
     for dirpath, dirnames, filenames in os.walk(root_path):
-        # 原地修改 dirnames 以跳过忽略的目录（阻止 os.walk 递归进入）
+        # Modify dirnames in-place to skip ignored directories (prevent os.walk from recursing into them)
         dirnames[:] = [
             d for d in dirnames
             if not ignore_rules.should_ignore_dir(d)
@@ -165,10 +165,10 @@ def scan_paths(
     ignore_rules: Optional[IgnoreRules] = None,
 ) -> dict[str, Optional[FileEntry]]:
     """
-    增量扫描：只扫描指定的相对路径。
+    Incremental scan: only scan specified relative paths.
 
-    用于 watcher 回调后，只检查变更的文件。
-    返回 rel_path → FileEntry（None 表示文件已删除）。
+    Used after a watcher callback to check only changed files.
+    Returns rel_path -> FileEntry (None means the file has been deleted).
     """
     if ignore_rules is None:
         ignore_rules = IgnoreRules()

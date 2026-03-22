@@ -1,7 +1,7 @@
 """
-MCP 数据模型
+MCP data models
 
-定义 mcp 表对应的 Pydantic 模型，用于类型检查和数据验证。
+Defines Pydantic models corresponding to the mcp table, used for type checking and data validation.
 """
 
 from datetime import datetime
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class McpBase(BaseModel):
-    """MCP 基础模型"""
+    """MCP base model"""
 
     api_key: Optional[str] = None
     created_by: Optional[str] = None  # nullable, was user_id
@@ -27,13 +27,13 @@ class McpBase(BaseModel):
 
 
 class McpCreate(McpBase):
-    """创建 MCP 实例模型"""
+    """MCP instance creation model"""
 
     pass
 
 
 class McpUpdate(BaseModel):
-    """更新 MCP 实例模型"""
+    """MCP instance update model"""
 
     api_key: Optional[str] = None
     created_by: Optional[str] = None  # nullable, was user_id
@@ -50,7 +50,7 @@ class McpUpdate(BaseModel):
 
 
 class McpResponse(McpBase):
-    """MCP 响应模型"""
+    """MCP response model"""
 
     id: int
     created_at: datetime

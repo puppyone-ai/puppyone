@@ -1,9 +1,9 @@
 """
-Fallback WorkspaceProvider — 全量复制
+Fallback WorkspaceProvider — Full Copy
 
-在不支持 APFS Clone 或 OverlayFS 的平台上使用。
-功能完全一样，只是创建工作区时做全量复制（稍慢）。
-Merge Daemon 代码完全不受影响。
+Used on platforms that do not support APFS Clone or OverlayFS.
+Functionally identical, but creates workspaces via full copy (slightly slower).
+Merge Daemon code is completely unaffected.
 """
 
 import hashlib
@@ -20,7 +20,7 @@ from src.utils.logger import log_info, log_debug
 
 
 class FallbackWorkspaceProvider(WorkspaceProvider):
-    """全量复制实现（任何平台）"""
+    """Full copy implementation (any platform)"""
 
     def __init__(self, base_dir: str = "/tmp/contextbase"):
         self._base_dir = base_dir
@@ -37,7 +37,7 @@ class FallbackWorkspaceProvider(WorkspaceProvider):
     async def create_workspace(
         self, agent_id: str, project_id: str, base_snapshot_id: Optional[int] = None
     ) -> WorkspaceInfo:
-        """全量复制创建工作区"""
+        """Create workspace via full copy"""
         lower_path = self.get_lower_path(project_id)
         workspace_path = os.path.join(self._workspaces_dir, agent_id)
 
@@ -65,7 +65,7 @@ class FallbackWorkspaceProvider(WorkspaceProvider):
         return info
 
     async def detect_changes(self, agent_id: str) -> WorkspaceChanges:
-        """和 APFS Provider 完全相同的 diff 逻辑"""
+        """Same diff logic as the APFS Provider"""
         info = self._registry.get(agent_id)
         if not info:
             return WorkspaceChanges(agent_id=agent_id)

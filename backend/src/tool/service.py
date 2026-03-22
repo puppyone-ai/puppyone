@@ -20,7 +20,7 @@ from src.platform.project.service import ProjectService
 @lru_cache(maxsize=64)
 def _get_default_tool_description(tool_type: str) -> Optional[str]:
     """
-    从 `src/mcp/description/{tool_type}.txt` 读取默认工具描述（用于 Tool.description 的默认值）。
+    Read default tool description from `src/mcp/description/{tool_type}.txt` (used as default for Tool.description).
     """
     desc_dir = Path(__file__).resolve().parents[1] / "mcp" / "description"
     p = desc_dir / f"{tool_type}.txt"
@@ -85,12 +85,12 @@ class ToolService:
 
     def _invalidate_bound_agents_mcp(self, tool_id: str) -> None:
         """
-        best-effort：当 tool 发生变化时，通知所有绑定了该 tool 的 Agent 使 MCP 缓存失效。
-        
-        基于 connection_tool 表结构：
-        - 查找所有绑定了该 tool 的 connection_tool 记录
-        - 获取对应 Agent 的 mcp_api_key
-        - 使 MCP 缓存失效
+        Best-effort: when a tool changes, notify all Agents bound to this tool to invalidate their MCP cache.
+
+        Based on the connection_tool table structure:
+        - Find all connection_tool records bound to this tool
+        - Get the corresponding Agent's mcp_api_key
+        - Invalidate MCP cache
         """
         from src.connectors.agent.config.repository import AgentRepository
         
@@ -154,7 +154,7 @@ class ToolService:
         except BusinessException:
             raise
         except Exception:
-            # 其他异常忽略
+            # Ignore other exceptions
             pass
 
     def list_org_tools(
@@ -248,7 +248,7 @@ class ToolService:
     def update(self, *, tool_id: str, user_id: str, patch: dict[str, Any]) -> Tool:
         existing = self.get_by_id_with_access_check(tool_id, user_id)
 
-        # 只处理传入的字段（路由层已用 exclude_unset 生成 patch）
+        # Only process fields that were passed in (router layer used exclude_unset to generate patch)
         name = patch.get("name")
         if name is not None and name != existing.name:
             self._assert_name_update_no_conflict(tool_id, user_id, name)
@@ -275,7 +275,7 @@ class ToolService:
             ),
         )
         if not updated:
-            # 理论上不会发生（已做 get_by_id_with_access_check），这里做兜底
+            # Should not happen in practice (already did get_by_id_with_access_check); this is a safety net
             raise BusinessException(
                 "Tool update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
@@ -285,7 +285,7 @@ class ToolService:
                 "Tool org mismatch after update", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
 
-        # 触发所有绑定该 tool 的 Agent MCP 缓存失效
+        # Trigger MCP cache invalidation for all Agents bound to this tool
         self._invalidate_bound_agents_mcp(tool_id)
 
         return updated

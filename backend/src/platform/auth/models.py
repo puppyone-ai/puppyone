@@ -1,5 +1,5 @@
 """
-认证相关的数据模型
+Authentication data models
 """
 
 from pydantic import BaseModel
@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, List
 
 
 class AuthMethod(BaseModel):
-    """认证方法"""
+    """Authentication method"""
 
     method: str
     timestamp: int
@@ -16,15 +16,15 @@ class AuthMethod(BaseModel):
 class TokenClaims(BaseModel):
     """JWT Token Claims"""
 
-    # 必需字段
-    sub: str  # 用户ID
-    aud: str  # 受众
-    exp: int  # 过期时间
-    iat: int  # 签发时间
-    iss: str  # 签发者
-    role: str  # 角色
+    # Required fields
+    sub: str  # User ID
+    aud: str  # Audience
+    exp: int  # Expiration time
+    iat: int  # Issued at
+    iss: str  # Issuer
+    role: str  # Role
 
-    # 可选字段
+    # Optional fields
     email: Optional[str] = None
     phone: Optional[str] = None
     session_id: Optional[str] = None
@@ -36,12 +36,12 @@ class TokenClaims(BaseModel):
 
     @property
     def user_id(self) -> str:
-        """获取用户ID（sub字段的别名）"""
+        """Get user ID (alias for the sub field)"""
         return self.sub
 
 
 class CurrentUser(BaseModel):
-    """当前认证用户信息"""
+    """Current authenticated user information"""
 
     user_id: str
     email: Optional[str] = None
@@ -53,7 +53,7 @@ class CurrentUser(BaseModel):
 
     @classmethod
     def from_claims(cls, claims: TokenClaims) -> "CurrentUser":
-        """从 TokenClaims 创建 CurrentUser"""
+        """Create CurrentUser from TokenClaims"""
         return cls(
             user_id=claims.user_id,
             email=claims.email,

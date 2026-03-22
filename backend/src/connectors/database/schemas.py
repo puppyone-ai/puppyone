@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 # === Request ===
 
 class CreateConnectionRequest(BaseModel):
-    """创建连接请求"""
+    """Create connection request."""
     name: str = Field(..., description="Connection name", examples=["My Supabase"])
     provider: str = Field("supabase", description="Database type", examples=["supabase"])
     project_url: str = Field(..., description="Supabase Project URL", examples=["https://abcdefg.supabase.co"])
@@ -26,10 +26,10 @@ class CreateConnectionRequest(BaseModel):
 
 
 class SaveTableRequest(BaseModel):
-    """保存整张表到项目"""
-    name: str = Field(..., description="保存名称", examples=["users"])
-    table: str = Field(..., description="表名")
-    limit: int = Field(1000, ge=1, le=10000, description="最大行数")
+    """Save an entire table to the project."""
+    name: str = Field(..., description="Save name", examples=["users"])
+    table: str = Field(..., description="Table name")
+    limit: int = Field(1000, ge=1, le=10000, description="Maximum number of rows")
 
 
 # === Response ===
@@ -56,7 +56,7 @@ class TableInfoResponse(BaseModel):
 
 
 class TablePreviewResponse(BaseModel):
-    """表数据预览"""
+    """Table data preview."""
     columns: List[str]
     rows: List[dict[str, Any]]
     row_count: int

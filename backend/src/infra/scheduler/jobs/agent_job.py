@@ -90,7 +90,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         # 3. Initialize services
         log_info(f"🔧 Initializing services...")
         
-        # 创建服务实例
+        # Create service instances
         supabase_client = SupabaseClient()
         agent_service = AgentService()
         agent_config_service = AgentConfigService()

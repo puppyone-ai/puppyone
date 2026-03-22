@@ -1,7 +1,7 @@
 """
-Table 数据模型
+Table Data Models
 
-定义 table 表对应的 Pydantic 模型，用于类型检查和数据验证。
+Defines Pydantic models corresponding to the table table, used for type checking and data validation.
 """
 
 from datetime import datetime
@@ -10,32 +10,32 @@ from pydantic import BaseModel, ConfigDict
 
 
 class TableBase(BaseModel):
-    """表基础模型"""
+    """Table base model"""
 
     name: Optional[str] = None
     project_id: Optional[str] = None
-    created_by: Optional[str] = None  # 创建者用户ID，支持裸 Table
+    created_by: Optional[str] = None  # Creator user ID, supports standalone Table
     description: Optional[str] = None
-    data: Optional[Any] = None  # 支持任意JSON类型（Dict, List, str, int等）
+    data: Optional[Any] = None  # Supports any JSON type (Dict, List, str, int, etc.)
 
 
 class TableCreate(TableBase):
-    """创建表模型"""
+    """Table creation model"""
 
     id: Optional[str] = None
 
 
 class TableUpdate(BaseModel):
-    """更新表模型"""
+    """Table update model"""
 
     name: Optional[str] = None
     project_id: Optional[str] = None
     description: Optional[str] = None
-    data: Optional[Any] = None  # 支持任意JSON类型（Dict, List, str, int等）
+    data: Optional[Any] = None  # Supports any JSON type (Dict, List, str, int, etc.)
 
 
 class TableResponse(TableBase):
-    """表响应模型"""
+    """Table response model"""
 
     id: str
     created_at: datetime

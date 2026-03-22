@@ -1,8 +1,9 @@
 """
-SupabaseHistoryManager — Mut History 的 PostgreSQL 实现
+SupabaseHistoryManager — PostgreSQL implementation of Mut History
 
-使用 mut_commits 表存储版本历史，使用 projects 表存储 root_hash 和 latest_version。
-与 Mut 原生的 HistoryManager（文件系统 JSON）接口一致。
+Uses the mut_commits table to store version history, and the projects table
+to store root_hash and latest_version.
+Interface-compatible with Mut's native HistoryManager (filesystem JSON).
 """
 
 from __future__ import annotations
@@ -16,10 +17,10 @@ from src.utils.logger import log_info, log_error
 
 
 class SupabaseHistoryManager:
-    """Mut HistoryManager 的 Supabase/PostgreSQL 实现。
+    """Supabase/PostgreSQL implementation of Mut HistoryManager.
 
-    接口与 mut.server.history.HistoryManager 保持一致，
-    以便未来 Mut 支持 HistoryBackend 抽象后直接对接。
+    Interface-compatible with mut.server.history.HistoryManager,
+    so it can plug in directly once Mut supports the HistoryBackend abstraction.
     """
 
     TABLE = "mut_commits"

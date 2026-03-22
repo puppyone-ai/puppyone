@@ -1,16 +1,16 @@
 """
 Folder Sync Engine — FolderWatcher
 
-基于 watchdog 的实时文件系统监听。
+Real-time file system monitoring based on watchdog.
 
-从 sync/triggers/file_watcher.py 提取并解耦：
-  - 去除 source_id 耦合（由上层包装器提供业务上下文）
-  - 保留 debounce + 批量回调核心机制
-  - 集成 IgnoreRules 替代硬编码的过滤逻辑
+Extracted and decoupled from sync/triggers/file_watcher.py:
+  - Removed source_id coupling (business context is provided by upper-layer wrappers)
+  - Retained debounce + batch callback core mechanism
+  - Integrated IgnoreRules to replace hard-coded filtering logic
 
-上层使用：
-  - sync/folder_source.py:  on_change → 读文件 → ContentNodeService.update()
-  - access/folder_access.py: on_change → 读文件 → CollaborationService.commit()
+Upper-layer usage:
+  - sync/folder_source.py:  on_change -> read file -> ContentNodeService.update()
+  - access/folder_access.py: on_change -> read file -> CollaborationService.commit()
 """
 
 import os
@@ -24,7 +24,7 @@ from src.connectors.filesystem.io.ignore import IgnoreRules
 
 
 class _DebouncedHandler(FileSystemEventHandler):
-    """收集文件变更事件，debounce 后批量回调。"""
+    """Collect file change events and batch-invoke the callback after debounce."""
 
     def __init__(
         self,
@@ -89,12 +89,12 @@ OnChangeCallback = Callable[[Set[str]], None]
 
 class FolderWatcher:
     """
-    监听本地文件夹变更，通过回调通知上层。
+    Monitor local folder changes and notify the upper layer via callbacks.
 
-    与旧 FileWatcher 的区别：
-      - 回调签名简化为 (changed_rel_paths: Set[str]) → None
-      - 不感知 source_id，由上层包装器负责业务上下文
-      - 使用 IgnoreRules 替代硬编码过滤
+    Differences from the old FileWatcher:
+      - Callback signature simplified to (changed_rel_paths: Set[str]) -> None
+      - Unaware of source_id; business context is handled by upper-layer wrappers
+      - Uses IgnoreRules instead of hard-coded filtering
 
     Usage:
         watcher = FolderWatcher("/path/to/dir")
@@ -115,7 +115,7 @@ class FolderWatcher:
         self._observer: Optional[Observer] = None
 
     def start(self, on_change: OnChangeCallback) -> None:
-        """启动 watchdog 监听。"""
+        """Start watchdog monitoring."""
         if self._observer:
             return
 
@@ -131,7 +131,7 @@ class FolderWatcher:
         self._observer.start()
 
     def stop(self) -> None:
-        """停止 watchdog 监听。"""
+        """Stop watchdog monitoring."""
         if self._observer:
             self._observer.stop()
             self._observer.join(timeout=5)

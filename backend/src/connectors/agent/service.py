@@ -1,27 +1,26 @@
 """
-Agent Service — 编排器
+Agent Service — Orchestrator
 
-前端只需要传 active_tool_ids，后端自动处理一切：
-1. 根据 tool_id 查库获取 tool 配置
-2. 如果是 bash tool，自动查表数据、启动沙盒
-3. 如果是 search tool，注册到 Claude 并直接调用 SearchService
-4. 构建 Claude 请求
-5. 沙盒回写通过 CollaborationService (L2)
+The frontend only needs to pass active_tool_ids; the backend handles everything automatically:
+1. Look up tool configuration from the database by tool_id
+2. If it is a bash tool, automatically fetch table data and start a sandbox
+3. If it is a search tool, register it with Claude and call SearchService directly
+4. Build the Claude request
+5. Sandbox write-back via CollaborationService (L2)
 
-支持的节点类型：
-- folder: 递归获取子文件，在沙盒中重建目录结构
-- json: 导出 content 为 data.json（可选 json_path 提取子数据）
-- file/pdf/image/etc: 下载单个文件
+Supported node types:
+- folder: recursively fetch child files and rebuild directory structure in the sandbox
+- json: export content as data.json (optionally extract sub-data via json_path)
+- file/pdf/image/etc: download a single file
 
-支持的工具类型：
-- bash (sandbox): 通过 agent_bash 配置，数据沙盒执行
-- search: 通过 agent_tool 关联，向量检索（Turbopuffer）
+Supported tool types:
+- bash (sandbox): configured via agent_bash, executed in a data sandbox
+- search: linked via agent_tool, vector retrieval (Turbopuffer)
 """
 import json
-import re
 import time
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator, Iterable, Optional
+from typing import Any, AsyncGenerator, Optional
 
 from loguru import logger
 
@@ -35,6 +34,16 @@ from src.connectors.agent.sandbox_data import (
 )
 from src.mut_engine.ops import MutOps
 from src.platform.analytics.service import log_context_access, log_bash_execution
+from src.connectors.agent.request_builder import (
+    BASH_TOOL_NATIVE,
+    BASH_TOOL_COMPAT,
+    _use_native_anthropic,
+    _get_bash_tool,
+    _sanitize_tool_name,
+    _default_anthropic_client,
+    _get_attr,
+    _normalize_content,
+)
 import time as time_module  # For latency tracking
 
 def _get_changelog_repo(supabase_client):
@@ -46,68 +55,21 @@ def _get_changelog_repo(supabase_client):
         return None
 
 
-# Anthropic 官方 bash 工具（Computer Use 格式，仅官方 API 支持）
-BASH_TOOL_NATIVE = {"type": "bash_20250124", "name": "bash"}
-
-# 通用 bash 工具定义（兼容第三方代理网关）
-BASH_TOOL_COMPAT = {
-    "name": "bash",
-    "description": (
-        "Execute a bash command in the sandbox environment. "
-        "Use this to run shell commands, view files, manipulate data, etc. "
-        "Returns the command output (stdout and stderr combined)."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "command": {
-                "type": "string",
-                "description": "The bash command to execute",
-            }
-        },
-        "required": ["command"],
-    },
-}
-
-
-def _use_native_anthropic() -> bool:
-    """判断是否使用 Anthropic 官方 API（非第三方代理）"""
-    base_url = settings.ANTHROPIC_BASE_URL
-    if not base_url:
-        return True
-    return "api.anthropic.com" in base_url
-
-
-def _get_bash_tool() -> dict:
-    """根据 API 端点选择合适的 bash tool 定义"""
-    if _use_native_anthropic():
-        return BASH_TOOL_NATIVE
-    return BASH_TOOL_COMPAT
-
-
-def _sanitize_tool_name(name: str) -> str:
-    """将工具名称转换为 Claude 兼容的格式 (仅 a-zA-Z0-9_-)"""
-    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
-    # 去掉首尾的下划线并去重连续下划线
-    sanitized = re.sub(r"_+", "_", sanitized).strip("_")
-    return sanitized or "unnamed"
-
-
 @dataclass
 class SearchToolConfig:
-    """Agent 关联的 Search Tool 配置"""
-    tool_id: str           # tool 表的 ID
-    path: str              # 绑定的 content_node path
-    json_path: str         # JSON 路径
-    project_id: str        # 项目 ID
-    node_type: str         # 节点类型（folder / json / markdown 等）
-    name: str              # 工具原始名称
-    description: str       # 工具描述
-    claude_tool_name: str  # 注册到 Claude 的工具名称
+    """Search Tool configuration associated with an Agent."""
+    tool_id: str           # ID from the tool table
+    path: str              # Bound content_node path
+    json_path: str         # JSON path
+    project_id: str        # Project ID
+    node_type: str         # Node type (folder / json / markdown etc.)
+    name: str              # Original tool name
+    description: str       # Tool description
+    claude_tool_name: str  # Tool name registered with Claude
 
 
 class AgentService:
-    """Agent 核心逻辑"""
+    """Agent core logic."""
 
     def __init__(self, anthropic_client=None):
         self._anthropic = anthropic_client or _default_anthropic_client()
@@ -124,19 +86,19 @@ class AgentService:
         max_iterations: int = 15,
     ) -> dict:
         """
-        非流式执行 Agent 任务（用于 Schedule Agent）
-        
-        复用 stream_events 的核心逻辑，但不需要流式输出和聊天历史。
-        
+        Non-streaming Agent task execution (used by Schedule Agent).
+
+        Reuses the core logic of stream_events but without streaming output or chat history.
+
         Args:
             agent_id: Agent ID
-            task_content: 任务内容（来自 agent.task_content）
-            user_id: 用户 ID（agent 的 owner）
+            task_content: Task content (from agent.task_content)
+            user_id: User ID (agent owner)
             ops: MutOps for reading/writing Mut tree
             sandbox_service: SandboxService
-            s3_service: S3Service（可选）
+            s3_service: S3Service (optional)
             agent_config_service: AgentConfigService
-            max_iterations: 最大迭代次数
+            max_iterations: Maximum number of iterations
             
         Returns:
             dict with execution results
@@ -152,7 +114,7 @@ class AgentService:
         }
         
         try:
-            # ========== 1. 获取 Agent 配置 ==========
+            # ========== 1. Get Agent configuration ==========
             if not agent_config_service:
                 return {"status": "failed", "error": "agent_config_service is required"}
             
@@ -160,13 +122,13 @@ class AgentService:
             if not agent:
                 return {"status": "failed", "error": f"Agent not found: {agent_id}"}
             
-            # 通过 project 验证权限
+            # Verify access via project
             if not agent_config_service.verify_access(agent_id, user_id):
                 return {"status": "failed", "error": "Unauthorized access to agent"}
             
             logger.info(f"[ScheduleAgent] Executing agent: {agent.name} (id={agent_id})")
             
-            # ========== 2. 收集 bash tools ==========
+            # ========== 2. Collect bash tools ==========
             bash_tools: list[dict] = []
             for ba in agent.bash_accesses:
                 bash_tools.append({
@@ -179,7 +141,7 @@ class AgentService:
             use_bash = len(bash_tools) > 0
             sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
             
-            # ========== 3. 准备沙盒数据 ==========
+            # ========== 3. Prepare sandbox data ==========
             sandbox_data: SandboxData | None = None
             sandbox_session_id = None
             node_path_map: dict = {}
@@ -226,7 +188,7 @@ class AgentService:
                     node_path_map=node_path_map,
                 )
             
-            # ========== 4. 启动沙盒 ==========
+            # ========== 4. Start sandbox ==========
             if use_bash and sandbox_service:
                 sandbox_session_id = f"schedule-{int(time.time() * 1000)}"
                 
@@ -235,7 +197,7 @@ class AgentService:
                     if sandbox_data.files:
                         try:
                             json_content = json.loads(sandbox_data.files[0].content or "{}")
-                        except:
+                        except (TypeError, ValueError):
                             json_content = {}
                     start_result = await sandbox_service.start(
                         session_id=sandbox_session_id,
@@ -255,7 +217,7 @@ class AgentService:
                 
                 logger.info(f"[ScheduleAgent] Sandbox started: {sandbox_session_id}")
             
-            # ========== 5. 构建 Claude 请求 ==========
+            # ========== 5. Build Claude request ==========
             tools: list[dict[str, Any]] = [_get_bash_tool()] if use_bash else []
             
             if use_bash and sandbox_data:
@@ -271,22 +233,22 @@ class AgentService:
             else:
                 system_prompt = "You are an AI agent, a helpful assistant."
             
-            # 构建用户消息
+            # Build user message
             user_content = task_content
             if use_bash and sandbox_data:
-                mode_str = "⚠️ 只读模式" if sandbox_readonly else "✏️ 可读写模式"
+                mode_str = "⚠️ Read-only mode" if sandbox_readonly else "✏️ Read-write mode"
                 context_prefix = (
-                    f"[数据上下文]\n"
-                    f"工作目录: /workspace/\n"
-                    f"文件数量: {len(sandbox_data.files)}\n"
-                    f"权限: {mode_str}\n"
-                    f"[任务]\n"
+                    f"[Data Context]\n"
+                    f"Working directory: /workspace/\n"
+                    f"Number of files: {len(sandbox_data.files)}\n"
+                    f"Permissions: {mode_str}\n"
+                    f"[Task]\n"
                 )
                 user_content = context_prefix + task_content
             
             messages = [{"role": "user", "content": user_content}]
             
-            # ========== 6. 调用 Claude (非流式循环) ==========
+            # ========== 6. Call Claude (non-streaming loop) ==========
             iterations = 0
             all_text_outputs = []
             
@@ -295,7 +257,7 @@ class AgentService:
                 logger.info(f"[ScheduleAgent] Claude iteration {iterations}")
                 
                 try:
-                    # 构建 API 调用参数（tools 为空时不传递，避免代理网关兼容问题）
+                    # Build API call parameters (omit tools when empty to avoid proxy gateway compatibility issues)
                     create_kwargs: dict[str, Any] = {
                         "model": settings.ANTHROPIC_MODEL,
                         "max_tokens": 4096,
@@ -310,7 +272,7 @@ class AgentService:
                     stop_reason = response.stop_reason
                     content_blocks = response.content
                     
-                    # 处理响应内容
+                    # Process response content
                     tool_uses = []
                     response_content = []
                     
@@ -335,11 +297,11 @@ class AgentService:
                     
                     logger.info(f"[ScheduleAgent] Claude response: stop_reason={stop_reason}, tool_uses={len(tool_uses)}")
                     
-                    # 没有工具调用，结束
+                    # No tool calls, finish
                     if not tool_uses:
                         break
                     
-                    # 执行工具
+                    # Execute tools
                     tool_results = []
                     for tool in tool_uses:
                         tool_name = tool.get("name", "")
@@ -407,7 +369,7 @@ class AgentService:
                     result["error"] = str(e)
                     break
             
-            # ========== 7. 回写数据到数据库（Mut Protocol） ==========
+            # ========== 7. Write data back to database (Mut Protocol) ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
                 if sandbox_data and sandbox_data.node_path_map:
                     from src.mut_engine.dependencies import create_mut_ops
@@ -476,13 +438,13 @@ class AgentService:
                         except Exception as e:
                             logger.warning(f"[ScheduleAgent] MUT push failed: {e}")
                 
-                # 停止沙盒
+                # Stop sandbox
                 await sandbox_service.stop(sandbox_session_id)
                 logger.info(f"[ScheduleAgent] Sandbox stopped")
             elif sandbox_session_id and sandbox_service:
                 await sandbox_service.stop(sandbox_session_id)
             
-            # ========== 8. 返回结果 ==========
+            # ========== 8. Return results ==========
             result["output_summary"] = "\n".join(all_text_outputs)[:2000]
             logger.info(f"[ScheduleAgent] Execution completed: {result['status']}")
             return result
@@ -505,26 +467,26 @@ class AgentService:
         max_iterations: int = 15,
     ) -> AsyncGenerator[dict, None]:
         """
-        处理 Agent 请求的主入口
-        
-        支持的工具类型：
-        1. bash (sandbox) — 通过 agent_bash 配置
-        2. search — 通过 agent_tool 关联的 search 类型工具
+        Main entry point for handling Agent requests.
+
+        Supported tool types:
+        1. bash (sandbox) — configured via agent_bash
+        2. search — search-type tools linked via agent_tool
         """
         
-        # ========== 1. 解析配置，优先使用新版 agent_access ==========
+        # ========== 1. Parse configuration, prefer new agent_access ==========
         bash_tools: list[dict] = []  # [{path, json_path, readonly}, ...]
         
         logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}, user_id={current_user.user_id if current_user else None}")
         
-        # 新版：如果有 agent_id，从 agent_bash 表读取配置
+        # New version: if agent_id exists, read configuration from agent_bash table
         if request.agent_id and current_user and agent_config_service:
             try:
                 agent = agent_config_service.get_agent(request.agent_id)
                 logger.info(f"[Agent DEBUG] Got agent: {agent.id if agent else None}, project_id={agent.project_id if agent else None}")
                 
-                # 验证权限：通过 project_id 检查用户是否有权限访问此 Agent
-                # 注意：Agent 模型没有 user_id 字段，需要通过 project 表验证
+                # Verify access: check whether the user has permission to access this Agent via project_id
+                # Note: the Agent model has no user_id field; verification goes through the project table
                 has_access = False
                 if agent:
                     has_access = agent_config_service.verify_access(request.agent_id, current_user.user_id)
@@ -532,7 +494,7 @@ class AgentService:
                 
                 if agent and has_access:
                     logger.info(f"[Agent] Found agent config: id={agent.id}, bash_accesses={len(agent.bash_accesses)}")
-                    # 收集所有 Bash 访问权限（新版架构下所有 bash_accesses 都是终端访问）
+                    # Collect all Bash access permissions (in the new architecture all bash_accesses are terminal accesses)
                     for bash in agent.bash_accesses:
                         bash_tools.append({
                             "path": bash.path,
@@ -550,7 +512,7 @@ class AgentService:
         # Shell/bash access is now managed exclusively via agent_bash table.
         # See architecture: agents → agent_bash (data access) + agent_tool (tool bindings)
         
-        # ========== 1b. 收集 Search Tools（从 agent_tool 绑定） ==========
+        # ========== 1b. Collect Search Tools (from agent_tool bindings) ==========
         search_tools_map: dict[str, SearchToolConfig] = {}  # {claude_tool_name: SearchToolConfig}
         
         if request.agent_id and current_user and agent_config_service and tool_service and search_service:
@@ -563,12 +525,12 @@ class AgentService:
                         if not agent_tool_binding.enabled:
                             continue
                         
-                        # 从 tool 表加载完整信息
+                        # Load full info from tool table
                         tool_info = tool_service.get_by_id(agent_tool_binding.tool_id)
                         if not tool_info or tool_info.type != "search":
                             continue
                         
-                        # 获取节点信息以确定搜索类型
+                        # Get node info to determine search type
                         try:
                             node = ops.stat(agent_for_tools.project_id, tool_info.path) if ops else None
                             if not node:
@@ -576,7 +538,7 @@ class AgentService:
                         except Exception:
                             continue
                         
-                        # 生成 Claude 兼容的工具名称（避免冲突）
+                        # Generate a Claude-compatible tool name (avoid conflicts)
                         base_name = _sanitize_tool_name(tool_info.name)
                         claude_name = f"search_{base_name}"
                         if claude_name in used_names:
@@ -616,7 +578,7 @@ class AgentService:
                     mode="agent",
                 )
                 logger.info(f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}")
-                # 如果是新建的 session，先设置 title，再通知前端
+                # If this is a newly created session, set the title first, then notify the frontend
                 if created_session and persisted_session_id:
                     try:
                         chat_service.maybe_set_title_on_first_message(
@@ -633,7 +595,7 @@ class AgentService:
                 persisted_session_id = None
                 should_persist = False
 
-        # 加载历史消息
+        # Load history messages
         messages: list[dict[str, Any]] = []
         if should_persist and persisted_session_id:
             try:
@@ -650,7 +612,7 @@ class AgentService:
                 for item in request.chatHistory:
                     messages.append({"role": item.role, "content": item.content})
 
-        # 保存用户消息
+        # Save user message
         if should_persist and persisted_session_id:
             try:
                 chat_service.add_user_message(session_id=persisted_session_id, content=request.prompt)
@@ -658,21 +620,21 @@ class AgentService:
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to save user message: {e}")
 
-        # ========== 3. 如果有 bash tools，准备沙盒数据、启动沙盒 ==========
+        # ========== 3. If bash tools exist, prepare sandbox data and start sandbox ==========
         use_bash = len(bash_tools) > 0
         sandbox_data: SandboxData | None = None
         sandbox_session_id = None
         _agent_project_id = ""
-        # 如果任意一个 access 不是 readonly，则整个沙盒不是 readonly
+        # If any access is not readonly, the entire sandbox is not readonly
         sandbox_readonly = all(tool["readonly"] for tool in bash_tools) if bash_tools else True
         
         if use_bash and ops and current_user:
-            # 收集所有 bash access 的文件
+            # Collect files from all bash accesses
             all_files: list[SandboxFile] = []
-            primary_node_type = "folder"  # 默认类型
+            primary_node_type = "folder"  # default type
             primary_path = ""
             primary_node_name = ""
-            # 追踪每个 node 对应的沙盒路径和类型，用于回写
+            # Track each node's sandbox path and type for write-back
             node_path_map: dict = {}  # {path: {path, node_type, json_path}}
             
             # Determine project_id from agent config
@@ -705,20 +667,20 @@ class AgentService:
                         session_id=request.session_id,
                     )
                     
-                    # 记录路径映射（用于回写和显示）
+                    # Record path mapping (for write-back and display)
                     if data.node_type == "folder" and data.files:
-                        # 文件夹类型：为每个子文件建立独立的回写映射
+                        # Folder type: create an independent write-back mapping for each child file
                         for f in data.files:
                             if f.path and f.node_type in ("json", "markdown"):
                                 node_path_map[f.path] = {
                                     "path": f.path,
                                     "node_type": f.node_type,
-                                    "json_path": "",  # 子文件没有 json_path
+                                    "json_path": "",  # child files have no json_path
                                     "readonly": tool["readonly"],
                                     "base_version": f.base_version,
-                                    "base_content": f.content,  # 记录 Agent 读取时的原始内容
+                                    "base_content": f.content,  # record original content at the time Agent reads it
                                 }
-                        # 同时记录文件夹本身（用于显示）
+                        # Also record the folder itself (for display)
                         node_path_map[tool["path"]] = {
                             "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace",
                             "node_type": "folder",
@@ -727,7 +689,7 @@ class AgentService:
                             "is_folder_parent": True,
                         }
                     elif data.files:
-                        # 非文件夹类型（JSON、单文件等）：记录主文件路径
+                        # Non-folder type (JSON, single file, etc.): record main file path
                         main_file = data.files[0]
                         node_path_map[tool["path"]] = {
                             "path": main_file.path,
@@ -738,7 +700,7 @@ class AgentService:
                             "base_content": main_file.content,
                         }
                     else:
-                        # 空文件夹也记录，使用文件夹名作为路径
+                        # Record empty folders too, using the folder name as the path
                         node_path_map[tool["path"]] = {
                             "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace/(empty folder)",
                             "node_type": data.node_type,
@@ -747,7 +709,7 @@ class AgentService:
                             "is_empty": True,
                         }
                     
-                    # 第一个 access 决定主类型
+                    # The first access determines the primary type
                     if i == 0:
                         primary_node_type = data.node_type
                         primary_path = data.root_path
@@ -757,7 +719,7 @@ class AgentService:
             
             sandbox_data = SandboxData(
                 files=all_files,
-                node_type=primary_node_type if len(bash_tools) == 1 else "multi",  # 多个时标记为 multi
+                node_type=primary_node_type if len(bash_tools) == 1 else "multi",  # mark as multi when there are multiple
                 root_path=primary_path,
                 root_node_name=primary_node_name,
                 node_path_map=node_path_map,
@@ -793,7 +755,7 @@ class AgentService:
                     if sandbox_data.files:
                         try:
                             json_content = json.loads(sandbox_data.files[0].content or "{}")
-                        except:
+                        except (TypeError, ValueError):
                             json_content = {}
                     start_result = await sandbox_service.start(
                         session_id=sandbox_session_id,
@@ -848,10 +810,10 @@ class AgentService:
             
             yield {"type": "status", "message": "Sandbox ready"}
 
-        # ========== 4. 构建 Claude 请求 ==========
+        # ========== 4. Build Claude request ==========
         tools: list[dict[str, Any]] = [_get_bash_tool()] if use_bash else []
         
-        # 注册 Search Tools 到 Claude
+        # Register Search Tools with Claude
         for claude_name, stc in search_tools_map.items():
             tools.append({
                 "name": claude_name,
@@ -875,7 +837,7 @@ class AgentService:
         
         use_search = len(search_tools_map) > 0
         
-        # 根据节点类型构建系统提示
+        # Build system prompt based on node type
         if use_bash and sandbox_data:
             node_type = sandbox_data.node_type
             if node_type == "json":
@@ -889,7 +851,7 @@ class AgentService:
         else:
             system_prompt = "You are an AI agent, a helpful assistant."
 
-        # 如果有 search tools，在系统提示中补充说明
+        # If search tools exist, add supplementary description to the system prompt
         if use_search:
             search_tool_descriptions = []
             for claude_name, stc in search_tools_map.items():
@@ -905,13 +867,13 @@ class AgentService:
             )
             system_prompt += search_prompt_suffix
 
-        # 构建用户消息：如果使用 bash，添加数据上下文
+        # Build user message: if using bash, add data context
         user_content = request.prompt
         if use_bash and sandbox_data:
             node_type = sandbox_data.node_type
             node_path_map = sandbox_data.node_path_map or {}
             
-            # 生成详细的权限清单
+            # Generate detailed permissions list
             def build_access_list() -> str:
                 lines = []
                 for tool in bash_tools:
@@ -925,58 +887,58 @@ class AgentService:
             
             if node_type == "json" and len(bash_tools) == 1:
                 json_path = bash_tools[0]["json_path"] or "/"
-                mode_str = "⚠️ 只读模式 - 修改不会被保存" if sandbox_readonly else "✏️ 可读写模式"
+                mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
                 context_prefix = (
-                    f"[数据上下文]\n"
-                    f"节点类型: JSON\n"
-                    f"数据文件: /workspace/data.json\n"
-                    f"JSON 路径: {json_path}\n"
-                    f"权限: {mode_str}\n"
-                    f"[用户消息]\n"
+                    f"[Data Context]\n"
+                    f"Node type: JSON\n"
+                    f"Data file: /workspace/data.json\n"
+                    f"JSON path: {json_path}\n"
+                    f"Permissions: {mode_str}\n"
+                    f"[User Message]\n"
                 )
             elif node_type == "folder" and len(bash_tools) == 1:
-                mode_str = "⚠️ 只读模式 - 修改不会被保存" if sandbox_readonly else "✏️ 可读写模式"
+                mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
                 context_prefix = (
-                    f"[数据上下文]\n"
-                    f"节点类型: 文件夹\n"
-                    f"文件夹名: {sandbox_data.root_node_name}\n"
-                    f"工作目录: /workspace/\n"
-                    f"文件数量: {len(sandbox_data.files)}\n"
-                    f"权限: {mode_str}\n"
-                    f"[用户消息]\n"
+                    f"[Data Context]\n"
+                    f"Node type: Folder\n"
+                    f"Folder name: {sandbox_data.root_node_name}\n"
+                    f"Working directory: /workspace/\n"
+                    f"Number of files: {len(sandbox_data.files)}\n"
+                    f"Permissions: {mode_str}\n"
+                    f"[User Message]\n"
                 )
             elif node_type == "multi" or len(bash_tools) > 1:
-                # 多个 access - 显示详细权限清单
+                # Multiple accesses - show detailed permissions list
                 access_list = build_access_list()
                 context_prefix = (
-                    f"[数据上下文]\n"
-                    f"工作目录: /workspace/\n"
-                    f"总文件数: {len(sandbox_data.files)}\n\n"
-                    f"📂 可访问的资源:\n"
+                    f"[Data Context]\n"
+                    f"Working directory: /workspace/\n"
+                    f"Total files: {len(sandbox_data.files)}\n\n"
+                    f"📂 Accessible resources:\n"
                     f"{access_list}\n\n"
-                    f"⚠️ 重要提示:\n"
-                    f"  - 只有上述路径的内容会被保存\n"
-                    f"  - /workspace/ 根目录不能创建新文件\n"
-                    f"  - View Only 路径的修改不会被持久化\n"
-                    f"[用户消息]\n"
+                    f"⚠️ Important notes:\n"
+                    f"  - Only content at the above paths will be saved\n"
+                    f"  - New files cannot be created in the /workspace/ root directory\n"
+                    f"  - Changes to View Only paths will not be persisted\n"
+                    f"[User Message]\n"
                 )
             else:
-                # file/pdf/image 等单个文件
+                # Single file such as file/pdf/image etc.
                 file_name = sandbox_data.files[0].path.split("/")[-1] if sandbox_data.files else "file"
-                mode_str = "⚠️ 只读模式 - 修改不会被保存" if sandbox_readonly else "✏️ 可读写模式"
+                mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
                 context_prefix = (
-                    f"[数据上下文]\n"
-                    f"节点类型: {node_type}\n"
-                    f"文件名: {file_name}\n"
-                    f"文件路径: /workspace/{file_name}\n"
-                    f"权限: {mode_str}\n"
-                    f"[用户消息]\n"
+                    f"[Data Context]\n"
+                    f"Node type: {node_type}\n"
+                    f"File name: {file_name}\n"
+                    f"File path: /workspace/{file_name}\n"
+                    f"Permissions: {mode_str}\n"
+                    f"[User Message]\n"
                 )
             user_content = context_prefix + request.prompt
         
         messages.append({"role": "user", "content": user_content})
 
-        # ========== 5. 调用 Claude (流式)，处理工具调用 ==========
+        # ========== 5. Call Claude (streaming), handle tool calls ==========
         persisted_parts: list[dict[str, Any]] = []
         tool_index = 0
         iterations = 0
@@ -990,7 +952,7 @@ class AgentService:
             logger.info(f"[CLAUDE DEBUG] messages = {json.dumps(messages, ensure_ascii=False, default=str)[:2000]}")
             
             try:
-                # ===== 流式调用 Claude =====
+                # ===== Streaming call to Claude =====
                 current_text_content = ""
                 tool_uses: list[dict[str, Any]] = []
                 current_tool: dict[str, Any] | None = None
@@ -998,7 +960,7 @@ class AgentService:
                 stop_reason = None
                 response_content: list[Any] = []
                 
-                # 构建 API 调用参数（tools 为空时不传递，避免代理网关兼容问题）
+                # Build API call parameters (omit tools when empty to avoid proxy gateway compatibility issues)
                 stream_kwargs: dict[str, Any] = {
                     "model": settings.ANTHROPIC_MODEL,
                     "max_tokens": 4096,
@@ -1034,7 +996,7 @@ class AgentService:
                                 text = getattr(delta, "text", "")
                                 if text:
                                     current_text_content += text
-                                    # 实时 yield 每个文本片段！
+                                    # Yield each text fragment in real time!
                                     yield {"type": "text_delta", "content": text}
                             
                             elif delta_type == "input_json_delta":
@@ -1044,13 +1006,13 @@ class AgentService:
                         
                         elif event_type == "content_block_stop":
                             if current_text_content:
-                                # 文本块结束，保存完整文本
+                                # Text block finished, save complete text
                                 persisted_parts.append({"type": "text", "content": current_text_content})
                                 response_content.append({"type": "text", "text": current_text_content})
                                 current_text_content = ""
                             
                             if current_tool:
-                                # 工具块结束，解析 JSON 输入
+                                # Tool block finished, parse JSON input
                                 try:
                                     current_tool["input"] = json.loads(current_tool_input_json) if current_tool_input_json else {}
                                 except json.JSONDecodeError:
@@ -1093,11 +1055,11 @@ class AgentService:
                         pass
                 return
 
-            # 没有工具调用，结束循环
+            # No tool calls, exit loop
             if not tool_uses:
                 break
 
-            # 执行工具
+            # Execute tools
             tool_results = []
             for tool in tool_uses:
                 current_tool_index = tool_index
@@ -1159,7 +1121,7 @@ class AgentService:
                             latency_ms=exec_latency,
                         )
                 elif tool_name in search_tools_map and search_service:
-                    # ===== Search Tool 执行 =====
+                    # ===== Search Tool execution =====
                     stc = search_tools_map[tool_name]
                     query = tool_input.get("query", "")
                     top_k = tool_input.get("top_k", 5)
@@ -1205,7 +1167,7 @@ class AgentService:
                     "success": success,
                 }
                 
-                # 更新持久化状态
+                # Update persisted state
                 for i in range(len(persisted_parts) - 1, -1, -1):
                     p = persisted_parts[i]
                     if p.get("type") == "tool" and p.get("toolId") == str(current_tool_index):
@@ -1226,7 +1188,7 @@ class AgentService:
             if stop_reason == "end_turn":
                 break
 
-        # ========== 6. 保存结果、清理沙盒 ==========
+        # ========== 6. Save results, clean up sandbox ==========
         logger.info(f"[Chat Persist] Attempting to save assistant message: should_persist={should_persist}, session_id={persisted_session_id}, parts_count={len(persisted_parts)}")
         if should_persist and persisted_session_id:
             try:
@@ -1303,35 +1265,8 @@ class AgentService:
             yield {"type": "result", "success": True}
 
 
-# ========== 工具函数 ==========
+# ========== Utility functions ==========
 # prepare_sandbox_data, extract_data_by_path, merge_data_by_path
-# 已迁移到 src.connectors.agent.sandbox_data 模块，通过顶部 import 引入
+# Migrated to src.connectors.agent.sandbox_data module, imported at the top
 
 
-def _default_anthropic_client():
-    from anthropic import AsyncAnthropic
-    api_key = settings.ANTHROPIC_API_KEY or None
-    base_url = settings.ANTHROPIC_BASE_URL or None
-    return AsyncAnthropic(api_key=api_key, base_url=base_url)
-
-
-def _get_attr(obj, name: str, default=None):
-    if isinstance(obj, dict):
-        return obj.get(name, default)
-    return getattr(obj, name, default)
-
-
-def _normalize_content(content: Iterable[Any]):
-    normalized = []
-    for block in content:
-        block_type = _get_attr(block, "type")
-        if block_type == "text":
-            normalized.append({"type": "text", "text": _get_attr(block, "text")})
-        elif block_type == "tool_use":
-            normalized.append({
-                "type": "tool_use",
-                "id": _get_attr(block, "id"),
-                "name": _get_attr(block, "name"),
-                "input": _get_attr(block, "input"),
-            })
-    return normalized

@@ -1,7 +1,7 @@
 """
-Profile 数据仓库
+Profile Repository
 
-定义 Profile 的数据访问接口和 Supabase 实现
+Defines the data access interface and Supabase implementation for Profile
 """
 
 from abc import ABC, abstractmethod
@@ -16,43 +16,43 @@ from src.utils.logger import log_info, log_error
 
 
 class ProfileRepositoryBase(ABC):
-    """抽象 Profile 仓库接口"""
+    """Abstract Profile repository interface"""
 
     @abstractmethod
     def get_by_user_id(self, user_id: str) -> Optional[Profile]:
-        """根据用户ID获取 Profile"""
+        """Get Profile by user ID"""
         pass
 
     @abstractmethod
     def create(self, user_id: str, email: str) -> Optional[Profile]:
-        """创建新的 Profile 记录"""
+        """Create a new Profile record"""
         pass
 
     @abstractmethod
     def get_or_create(self, user_id: str, email: str) -> Optional[Profile]:
-        """获取 Profile，如果不存在则自动创建"""
+        """Get Profile, auto-create if it does not exist"""
         pass
 
     @abstractmethod
     def update(self, user_id: str, data: ProfileUpdate) -> Optional[Profile]:
-        """更新 Profile"""
+        """Update Profile"""
         pass
 
     @abstractmethod
     def mark_onboarded(
         self, user_id: str, demo_project_id: Optional[int] = None
     ) -> Optional[Profile]:
-        """标记用户已完成 Onboarding"""
+        """Mark user as having completed Onboarding"""
         pass
 
     @abstractmethod
     def reset_onboarding(self, user_id: str) -> Optional[Profile]:
-        """重置用户 Onboarding 状态（用于测试）"""
+        """Reset user Onboarding status (for testing)"""
         pass
 
 
 class ProfileRepositorySupabase(ProfileRepositoryBase):
-    """基于 Supabase 的 Profile 仓库实现"""
+    """Supabase-based Profile repository implementation"""
 
     TABLE_NAME = "profiles"
 
@@ -64,9 +64,9 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
 
     def create(self, user_id: str, email: str) -> Optional[Profile]:
         """
-        创建新的 Profile 记录
-        
-        如果 Profile 已存在，返回现有记录（upsert 行为）
+        Create a new Profile record
+
+        If Profile already exists, return the existing record (upsert behavior)
         """
         try:
             now = datetime.now(timezone.utc).isoformat()
@@ -78,7 +78,7 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
                 "updated_at": now,
             }
 
-            # 使用 upsert 避免重复插入错误
+            # Use upsert to avoid duplicate insert errors
             response = (
                 self._client.table(self.TABLE_NAME)
                 .upsert(insert_data, on_conflict="user_id")
@@ -96,20 +96,20 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
 
     def get_or_create(self, user_id: str, email: str) -> Optional[Profile]:
         """
-        获取 Profile，如果不存在则自动创建
-        
-        这是首选的获取方法，确保 Profile 始终存在
+        Get Profile, auto-create if it does not exist
+
+        This is the preferred retrieval method, ensuring Profile always exists
         """
         profile = self.get_by_user_id(user_id)
         if profile is not None:
             return profile
         
-        # Profile 不存在，创建新的
+        # Profile does not exist, create a new one
         log_info(f"Profile not found for user {user_id}, creating new one")
         return self.create(user_id, email)
 
     def _row_to_model(self, row: dict) -> Profile:
-        """将数据库行转换为 Profile 模型"""
+        """Convert a database row to a Profile model"""
         return Profile(
             user_id=row["user_id"],
             email=row["email"],
@@ -124,7 +124,7 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
         )
 
     def get_by_user_id(self, user_id: str) -> Optional[Profile]:
-        """根据用户ID获取 Profile"""
+        """Get Profile by user ID"""
         try:
             response = (
                 self._client.table(self.TABLE_NAME)
@@ -139,12 +139,12 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
             return None
 
         except Exception as e:
-            # Supabase 在找不到数据时会抛出异常
+            # Supabase throws an exception when no data is found
             log_error(f"Failed to get profile for user {user_id}: {e}")
             return None
 
     def update(self, user_id: str, data: ProfileUpdate) -> Optional[Profile]:
-        """更新 Profile"""
+        """Update Profile"""
         try:
             update_data = data.model_dump(exclude_unset=True, exclude_none=True)
             update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -167,7 +167,7 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
     def mark_onboarded(
         self, user_id: str, demo_project_id: Optional[int] = None
     ) -> Optional[Profile]:
-        """标记用户已完成 Onboarding"""
+        """Mark user as having completed Onboarding"""
         try:
             now = datetime.now(timezone.utc).isoformat()
             update_data = {
@@ -196,7 +196,7 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
             return None
 
     def reset_onboarding(self, user_id: str) -> Optional[Profile]:
-        """重置用户 Onboarding 状态（用于测试）"""
+        """Reset user Onboarding status (for testing)"""
         try:
             now = datetime.now(timezone.utc).isoformat()
             update_data = {

@@ -1,16 +1,16 @@
 """
-MutWriteService — PuppyOne 的唯一内容写入入口
+MutWriteService — The sole content write entry point for PuppyOne
 
-所有内容变更通过 Mut 操作:
-  1. 内容 → ObjectStore (S3, content-addressable)
-  2. 树更新 → Merkle tree (graft)
-  3. 版本记录 → SupabaseHistoryManager
-  4. 审计日志 → SupabaseAuditManager
-  5. 一致性维护 → post-commit hook (connections path + scope path)
+All content changes go through Mut operations:
+  1. Content → ObjectStore (S3, content-addressable)
+  2. Tree updates → Merkle tree (graft)
+  3. Version recording → SupabaseHistoryManager
+  4. Audit logging → SupabaseAuditManager
+  5. Consistency maintenance → post-commit hook (connections path + scope path)
 
-设计原则：
-  - Mut tree 是唯一 SOT（内容 + 树结构）
-  - connections.path 和 scope.path 通过 post-commit 保持一致
+Design principles:
+  - Mut tree is the single SOT (content + tree structure)
+  - connections.path and scope.path are kept consistent via post-commit hooks
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from src.utils.logger import log_info, log_error, log_warning
 
 
 class MutWriteService:
-    """PuppyOne 的唯一写入入口。所有内容变更通过 Mut 操作。"""
+    """The sole write entry point for PuppyOne. All content changes go through Mut operations."""
 
     def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
@@ -42,7 +42,7 @@ class MutWriteService:
         return SupabaseClient()
 
     # ================================================================
-    # Post-commit hook: 维护 connections 表一致性
+    # Post-commit hook: maintain connections table consistency
     # ================================================================
 
     def _post_commit_delete(self, project_id: str, deleted_paths: list[str]) -> None:
@@ -144,14 +144,14 @@ class MutWriteService:
         return path
 
     # ================================================================
-    # 初始化
+    # Initialization
     # ================================================================
 
     async def init_tree(self, project_id: str) -> str:
-        """为项目初始化一个空的 Mut tree。
+        """Initialize an empty Mut tree for a project.
 
-        如果项目已有 root_hash 且 blob 存在于 S3，则不操作（幂等）。
-        返回 root_hash。
+        If the project already has a root_hash and the blob exists in S3,
+        no action is taken (idempotent). Returns the root_hash.
         """
         repo = self._repos.get_repo(project_id)
         existing = repo.history.get_root_hash()
@@ -181,7 +181,7 @@ class MutWriteService:
         return root_hash
 
     # ================================================================
-    # 写入操作
+    # Write operations
     # ================================================================
 
     async def write_file(
@@ -193,7 +193,7 @@ class MutWriteService:
         message: str = "",
         base_version: int = 0,
     ) -> WriteResult:
-        """创建或更新文件 — 核心写操作。"""
+        """Create or update a file — core write operation."""
         repo = self._repos.get_repo(project_id)
 
         blob_hash = repo.store.put(content)
@@ -281,7 +281,7 @@ class MutWriteService:
         operator: str,
         message: str = "",
     ) -> DeleteResult:
-        """删除文件（从 Mut tree 中移除）。"""
+        """Delete a file (remove from the Mut tree)."""
         repo = self._repos.get_repo(project_id)
         current_root = repo.history.get_root_hash()
         current_version = repo.history.get_latest_version()
@@ -322,7 +322,7 @@ class MutWriteService:
         operator: str,
         message: str = "",
     ) -> MoveResult:
-        """移动/重命名文件。"""
+        """Move / rename a file."""
         repo = self._repos.get_repo(project_id)
         current_root = repo.history.get_root_hash()
         current_version = repo.history.get_latest_version()
@@ -374,7 +374,7 @@ class MutWriteService:
         operator: str,
         message: str = "",
     ) -> MoveResult:
-        """移动/重命名文件夹（批量移动子树中所有文件）。"""
+        """Move / rename a folder (batch-move all files in the subtree)."""
         repo = self._repos.get_repo(project_id)
         current_root = repo.history.get_root_hash()
         current_version = repo.history.get_latest_version()
@@ -434,7 +434,7 @@ class MutWriteService:
         path: str,
         operator: str,
     ) -> WriteResult:
-        """创建空目录（通过写入 .keep sentinel 文件）。"""
+        """Create an empty directory (by writing a .keep sentinel file)."""
         keep_path = f"{path}/.keep"
         return await self.write_file(
             project_id=project_id,
@@ -450,7 +450,7 @@ class MutWriteService:
         path: str,
         operator: str,
     ) -> MoveResult:
-        """软删除：移动到 .trash/ 目录。"""
+        """Soft delete: move to the .trash/ directory."""
         basename = path.rsplit("/", 1)[-1] if "/" in path else path
         trash_path = f".trash/{basename}_{int(time.time())}"
 
@@ -473,7 +473,7 @@ class MutWriteService:
         original_path: str,
         operator: str,
     ) -> MoveResult:
-        """从 .trash 恢复。"""
+        """Restore from .trash."""
         from src.mut_engine.tree_reader import MutTreeReader
         reader = MutTreeReader(self._repos)
         entry = reader.stat(project_id, trash_path)
@@ -493,7 +493,7 @@ class MutWriteService:
         operator: str,
         message: str = "",
     ) -> DeleteResult:
-        """删除文件夹（从 Mut tree 中移除所有子文件）。"""
+        """Delete a folder (remove all child files from the Mut tree)."""
         repo = self._repos.get_repo(project_id)
         current_root = repo.history.get_root_hash()
         current_version = repo.history.get_latest_version()
@@ -547,11 +547,11 @@ class MutWriteService:
         )
 
     # ================================================================
-    # 读取操作
+    # Read operations
     # ================================================================
 
     async def read_file(self, project_id: str, path: str) -> bytes:
-        """从 Mut ObjectStore 读取文件内容"""
+        """Read file content from the Mut ObjectStore."""
         repo = self._repos.get_repo(project_id)
         root = repo.history.get_root_hash()
         if not root:
@@ -570,7 +570,7 @@ class MutWriteService:
         limit: int = 50,
         since_version: int = 0,
     ) -> list[dict]:
-        """获取版本历史"""
+        """Get version history."""
         repo = self._repos.get_repo(project_id)
         entries = repo.history.get_since(since_version, limit=limit)
 
@@ -588,7 +588,7 @@ class MutWriteService:
         path: str,
         version: int,
     ) -> bytes:
-        """获取某个版本的文件内容"""
+        """Get file content at a specific version."""
         repo = self._repos.get_repo(project_id)
         entry = repo.history.get_entry(version)
         if not entry:
@@ -607,7 +607,7 @@ class MutWriteService:
     async def compute_diff(
         self, project_id: str, v1: int, v2: int
     ) -> list[dict]:
-        """对比两个版本的差异"""
+        """Compute the diff between two versions."""
         repo = self._repos.get_repo(project_id)
 
         entry1 = repo.history.get_entry(v1)
@@ -629,7 +629,7 @@ class MutWriteService:
         target_version: int,
         operator: str,
     ) -> int:
-        """回滚到指定版本"""
+        """Roll back to a specified version."""
         repo = self._repos.get_repo(project_id)
 
         entry = repo.history.get_entry(target_version)
@@ -673,7 +673,7 @@ class MutWriteService:
 
 
 # ================================================================
-# Tree 操作辅助函数
+# Tree operation helper functions
 # ================================================================
 
 def _resolve_path_hash(store: ObjectStore, root_hash: str, path: str) -> str:

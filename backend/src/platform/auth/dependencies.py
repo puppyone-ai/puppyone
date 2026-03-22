@@ -1,5 +1,5 @@
 """
-认证相关的依赖注入
+Authentication dependency injection
 """
 
 from typing import Optional
@@ -13,12 +13,12 @@ from src.exceptions import AuthException
 from src.config import settings
 from src.utils.logger import log_warning
 
-# 定义 HTTPBearer 安全方案
+# Define HTTPBearer security scheme
 security = HTTPBearer(auto_error=False)
 
 
-# 使用全局变量存储单例，而不是 lru_cache
-# 这样可以避免 reload 时的缓存问题
+# Use global variables for singletons instead of lru_cache
+# This avoids caching issues during reload
 _auth_service = None
 _initialization_service = None
 
@@ -37,10 +37,10 @@ def get_initialization_service() -> UserInitializationService:
 
 def get_auth_service() -> AuthService:
     """
-    获取认证服务实例
+    Get authentication service instance
 
     Returns:
-        AuthService: 认证服务实例
+        AuthService: Authentication service instance
     """
     global _auth_service
     if _auth_service is None:
@@ -53,23 +53,23 @@ def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> CurrentUser:
     """
-    从请求头中提取并验证 JWT token，返回当前用户信息
+    Extract and verify JWT token from request headers, return current user info
 
-    这是一个 FastAPI 依赖函数，用于需要认证的路由中。
+    This is a FastAPI dependency function for routes that require authentication.
 
-    如果配置了 SKIP_AUTH=True，将跳过鉴权并返回一个模拟的测试用户。
+    If SKIP_AUTH=True is configured, authentication is skipped and a mock test user is returned.
 
     Args:
-        credentials: HTTP Bearer 认证凭证
-        auth_service: 认证服务实例
+        credentials: HTTP Bearer authentication credentials
+        auth_service: Authentication service instance
 
     Returns:
-        CurrentUser: 当前认证的用户信息
+        CurrentUser: Currently authenticated user information
 
     Raises:
-        HTTPException: 认证失败时抛出 401 错误（仅在 SKIP_AUTH=False 时）
+        HTTPException: Raises 401 error on authentication failure (only when SKIP_AUTH=False)
     """
-    # 如果启用了跳过鉴权配置，返回模拟的测试用户
+    # If skip-auth is enabled, return a mock test user
     if settings.SKIP_AUTH:
         log_warning("SKIP_AUTH is enabled - returning mock test user")
         return CurrentUser(
@@ -82,7 +82,7 @@ def get_current_user(
             user_metadata={},
         )
 
-    # 检查是否提供了认证凭证
+    # Check if authentication credentials are provided
     if not credentials:
         raise HTTPException(
             status_code=401,
@@ -93,7 +93,7 @@ def get_current_user(
     token = credentials.credentials
 
     try:
-        # 验证 token 并获取用户信息
+        # Verify token and get user information
         auth_service = get_auth_service()
         current_user = auth_service.get_current_user(token)
         return current_user
@@ -115,20 +115,20 @@ def get_current_user_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> Optional[CurrentUser]:
     """
-    可选的用户认证依赖，如果没有提供 token 则返回 None
+    Optional user authentication dependency; returns None if no token is provided
 
-    这个依赖适用于既可以公开访问，又可以提供用户专属功能的接口。
+    This dependency is for endpoints that can be publicly accessed but also offer user-specific features.
 
-    如果配置了 SKIP_AUTH=True，将始终返回模拟的测试用户。
+    If SKIP_AUTH=True is configured, a mock test user is always returned.
 
     Args:
-        credentials: HTTP Bearer 认证凭证
-        auth_service: 认证服务实例
+        credentials: HTTP Bearer authentication credentials
+        auth_service: Authentication service instance
 
     Returns:
-        Optional[CurrentUser]: 当前用户信息，如果未认证则返回 None（SKIP_AUTH=False 时）
+        Optional[CurrentUser]: Current user info, or None if not authenticated (when SKIP_AUTH=False)
     """
-    # 如果启用了跳过鉴权配置，返回模拟的测试用户
+    # If skip-auth is enabled, return a mock test user
     if settings.SKIP_AUTH:
         log_warning("SKIP_AUTH is enabled - returning mock test user")
         return CurrentUser(
@@ -141,7 +141,7 @@ def get_current_user_optional(
             user_metadata={},
         )
 
-    # 如果没有提供认证凭证，返回 None
+    # If no authentication credentials are provided, return None
     if not credentials:
         return None
 
@@ -152,5 +152,5 @@ def get_current_user_optional(
         current_user = auth_service.get_current_user(token)
         return current_user
     except Exception:
-        # 对于可选认证，验证失败时返回 None 而不是抛出异常
+        # For optional auth, return None on failure instead of raising an exception
         return None

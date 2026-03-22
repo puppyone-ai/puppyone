@@ -1,10 +1,12 @@
 """
 TurbopufferSearchService
 
-说明：
-- 本服务提供 async-first 接口；底层默认使用同步 turbopuffer SDK，并通过 `asyncio.to_thread`
-  避免阻塞事件循环（后续如 SDK 提供原生 async client，可再做替换）
-- 本服务不会对外暴露 turbopuffer SDK 的模型对象；返回值统一归一化为本模块 schemas
+Notes:
+- This service provides async-first interfaces; underneath it uses the synchronous turbopuffer SDK
+  by default, wrapped with `asyncio.to_thread` to avoid blocking the event loop
+  (can be replaced if the SDK provides a native async client in the future)
+- This service does not expose turbopuffer SDK model objects externally; return values are normalized
+  to this module's schemas
 """
 
 from __future__ import annotations
@@ -48,7 +50,7 @@ def _normalize_rows(rows: Any) -> list[TurbopufferRow]:
     if rows is None:
         return []
     if not isinstance(rows, list):
-        # 有些 SDK 返回可能是 tuple/iterable
+        # Some SDK returns may be tuple/iterable
         try:
             rows = list(rows)
         except TypeError:
@@ -66,7 +68,7 @@ def _normalize_rows(rows: Any) -> list[TurbopufferRow]:
 
         vector = d.get("vector")
 
-        # turbopuffer 的返回常见包含 "$dist"；也可能包含 "dist"/"distance"
+        # turbopuffer responses commonly contain "$dist"; may also contain "dist"/"distance"
         dist = None
         for k in ("$dist", "dist", "distance"):
             if k in d:
@@ -127,7 +129,7 @@ class TurbopufferSearchService:
             return self._client
 
         sdk = self._import_sdk()
-        # 官方示例：turbopuffer.Turbopuffer(api_key=..., region=...)
+        # Official example: turbopuffer.Turbopuffer(api_key=..., region=...)
         self._client = sdk.Turbopuffer(
             api_key=self._config.api_key, region=self._config.region
         )
@@ -136,11 +138,11 @@ class TurbopufferSearchService:
     def _get_namespace(self, namespace: str) -> Any:
         client = self._get_client()
 
-        # turbopuffer SDK 常见提供 `.namespace(name)` 返回 namespace 对象
+        # turbopuffer SDK commonly provides `.namespace(name)` returning a namespace object
         if hasattr(client, "namespace"):
             return client.namespace(namespace)
 
-        # 兼容 stainless 风格：client.namespaces.<op>(namespace=..., **params)
+        # Compatible with stainless style: client.namespaces.<op>(namespace=..., **params)
         if hasattr(client, "namespaces"):
             return _NamespaceProxy(client.namespaces, namespace)
 
@@ -151,7 +153,7 @@ class TurbopufferSearchService:
             return await asyncio.to_thread(fn)
         except Exception as e:
             mapped = map_external_exception(e)
-            # 记录更详细的错误信息以便调试
+            # Log more detailed error info for debugging
             error_body = None
             if hasattr(e, "body"):
                 error_body = getattr(e, "body", None)
@@ -173,13 +175,13 @@ class TurbopufferSearchService:
         cursor: str | None = None,
         page_size: int | None = None,
     ) -> TurbopufferListNamespacesResponse:
-        """
-        列出 namespaces（对应 GET /v1/namespaces）。
+        “””
+        List namespaces (corresponds to GET /v1/namespaces).
 
-        说明：
-        - SDK 形态可能是 iterator/paginator，这里尽量做“宽松适配”，输出稳定的 schemas。
-        - `next_cursor` 若 SDK 未暴露，将返回 None。
-        """
+        Notes:
+        - SDK form may be iterator/paginator; here we do “loose adaptation” for stable schema output.
+        - `next_cursor` will return None if the SDK doesn't expose it.
+        “””
 
         client = self._get_client()
         params: dict[str, Any] = {}
@@ -229,21 +231,21 @@ class TurbopufferSearchService:
         )
 
     async def delete_namespace(self, namespace: str) -> None:
-        """删除整个 namespace（对应 Delete namespace API）。"""
+        """Delete an entire namespace (corresponds to Delete namespace API)."""
         ns = self._get_namespace(namespace)
 
-        # 兼容：有些 SDK 提供 ns.delete()
+        # Compatibility: some SDKs provide ns.delete()
         if hasattr(ns, "delete"):
             await self._call(lambda: ns.delete())
             return
 
-        # 兼容：旧实现/其它 SDK 可能提供 ns.delete_namespace()
+        # Compatibility: old implementations/other SDKs may provide ns.delete_namespace()
         if hasattr(ns, "delete_namespace"):
             await self._call(lambda: getattr(ns, "delete_namespace")())
             return
 
-        # turbopuffer==1.12.0：Namespace 仅提供 delete_all()（清空数据），
-        # 删除整个 namespace 需要调用 HTTP: DELETE /v2/namespaces/:namespace
+        # turbopuffer==1.12.0: Namespace only provides delete_all() (clears data),
+        # Deleting an entire namespace requires HTTP: DELETE /v2/namespaces/:namespace
         client = self._get_client()
         if hasattr(client, "delete"):
             await self._call(
@@ -271,13 +273,13 @@ class TurbopufferSearchService:
         return await self._call(lambda: ns.update_schema(schema=schema))
 
     async def metadata(self, namespace: str) -> dict[str, Any]:
-        """获取 namespace 元信息（对应 GET /v1/namespaces/:namespace/metadata）。"""
+        """Get namespace metadata (corresponds to GET /v1/namespaces/:namespace/metadata)."""
         ns = self._get_namespace(namespace)
         raw = await self._call(lambda: ns.metadata())
         return _safe_row_dict(raw)
 
     async def hint_cache_warm(self, namespace: str) -> dict[str, Any]:
-        """提示 turbopuffer 预热缓存（对应 GET /v1/namespaces/:namespace/hint_cache_warm）。"""
+        """Hint turbopuffer to warm cache (corresponds to GET /v1/namespaces/:namespace/hint_cache_warm)."""
         ns = self._get_namespace(namespace)
         raw = await self._call(lambda: ns.hint_cache_warm())
         return _safe_row_dict(raw)
@@ -291,7 +293,7 @@ class TurbopufferSearchService:
         filters: Any | None = None,
         queries: list[list[float]] | None = None,
     ) -> dict[str, Any]:
-        """测量向量召回（对应 POST /v1/namespaces/:namespace/_debug/recall）。"""
+        """Measure vector recall (corresponds to POST /v1/namespaces/:namespace/_debug/recall)."""
         ns = self._get_namespace(namespace)
         params: dict[str, Any] = {}
         if num is not None:
@@ -380,11 +382,11 @@ class TurbopufferSearchService:
         self, namespace: str, payload: dict[str, Any]
     ) -> TurbopufferWriteResponse:
         """
-        原样透传写入 payload 到 SDK（高级/调试用）。
+        Pass-through write payload to SDK as-is (for advanced/debug use).
 
-        用途：
-        - 覆盖 write API 的所有参数（包括未来新增参数），避免服务层滞后。
-        - 上层对 payload 负责；本方法只做异常隔离与返回归一化。
+        Purpose:
+        - Cover all write API parameters (including future additions), avoiding service layer lag.
+        - Caller is responsible for payload; this method only does exception isolation and return normalization.
         """
 
         ns = self._get_namespace(namespace)
@@ -416,9 +418,9 @@ class TurbopufferSearchService:
     ) -> TurbopufferQueryResponse:
         ns = self._get_namespace(namespace)
         params: dict[str, Any] = {}
-        # 注意：
-        # - rank_by 查询：top_k 表示返回的 documents 数量（等价于 limit.total 的常见别名）
-        # - aggregate_by 且不带 group_by 的纯聚合查询：turbopuffer 会拒绝 top_k（400）
+        # Note:
+        # - rank_by query: top_k represents the number of documents returned (common alias for limit.total)
+        # - aggregate_by without group_by (pure aggregation query): turbopuffer rejects top_k (400)
         if not (rank_by is None and aggregate_by is not None and group_by is None):
             params["top_k"] = top_k
         if rank_by is not None:
@@ -463,10 +465,10 @@ class TurbopufferSearchService:
         self, namespace: str, payload: dict[str, Any]
     ) -> TurbopufferQueryResponse:
         """
-        原样透传查询 payload 到 SDK（高级/调试用）。
+        Pass-through query payload to SDK as-is (for advanced/debug use).
 
-        - 适合做 export / 聚合 / 多样性 limit / 一致性等高级参数尝试
-        - 返回会尽量归一化为本模块 schemas（rows / aggregations / billing 等）
+        - Suitable for export / aggregation / diversity limit / consistency and other advanced parameter experiments
+        - Returns are normalized as much as possible to this module's schemas (rows / aggregations / billing, etc.)
         """
 
         ns = self._get_namespace(namespace)
@@ -539,9 +541,9 @@ class TurbopufferSearchService:
         self, namespace: str, payload: dict[str, Any]
     ) -> TurbopufferMultiQueryResponse:
         """
-        原样透传 multi_query payload 到 SDK（高级/调试用）。
+        Pass-through multi_query payload to SDK as-is (for advanced/debug use).
 
-        注意：payload 需要包含 `queries` 字段。
+        Note: payload must contain a `queries` field.
         """
 
         ns = self._get_namespace(namespace)
@@ -580,7 +582,7 @@ class TurbopufferSearchService:
 
 class _NamespaceProxy:
     """
-    将 stainless 风格的 `client.namespaces.<op>(namespace=..., **params)` 适配为 `ns.<op>(**params)`.
+    Adapt stainless-style `client.namespaces.<op>(namespace=..., **params)` to `ns.<op>(**params)`.
     """
 
     def __init__(self, namespaces_resource: Any, namespace: str) -> None:

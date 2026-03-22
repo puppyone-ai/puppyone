@@ -109,7 +109,7 @@ class ETLQueue:
         """
         List tasks with optional filters.
 
-        从数据库和内存缓存中合并任务列表。
+        Merges task lists from database and in-memory cache.
 
         Args:
             project_id: Filter by project ID
@@ -118,26 +118,26 @@ class ETLQueue:
         Returns:
             List of matching tasks
         """
-        # 从数据库获取任务列表
+        # Get task list from database
         db_tasks = self.task_repository.list_tasks(
             project_id=project_id, status=status
         )
 
-        # 创建任务字典（以 task_id 为 key）
+        # Create task dictionary (keyed by task_id)
         task_dict = {task.task_id: task for task in db_tasks}
 
-        # 用内存中的任务状态覆盖数据库中的状态（内存中的状态更新）
+        # Override database status with in-memory task status (in-memory status is more up-to-date)
         for task_id, memory_task in self.tasks.items():
-            # 应用过滤条件 (use project_id for scoping)
+            # Apply filter conditions (use project_id for scoping)
             if project_id is not None and memory_task.project_id != project_id:
                 continue
             if status is not None and memory_task.status != status:
-                # 如果内存中的任务不匹配过滤条件，从结果中移除
+                # If in-memory task does not match filter conditions, remove from results
                 if task_id in task_dict:
                     del task_dict[task_id]
                 continue
 
-            # 用内存中的任务覆盖或添加
+            # Override or add with in-memory task
             task_dict[task_id] = memory_task
 
         return list(task_dict.values())

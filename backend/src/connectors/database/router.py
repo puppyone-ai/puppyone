@@ -36,16 +36,16 @@ def _conn_to_response(conn) -> ConnectionResponse:
     )
 
 
-# === 连接管理 ===
+# === Connection Management ===
 
 @router.post(
     "/connections",
     response_model=ApiResponse[ConnectionCreatedResponse],
-    summary="创建数据库连接（自动测试）",
+    summary="Create database connection (auto-test)",
 )
 async def create_connection(
     req: CreateConnectionRequest,
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     user: CurrentUser = Depends(get_current_user),
     service: DBConnectorService = Depends(get_db_connector_service),
 ):
@@ -72,10 +72,10 @@ async def create_connection(
 @router.get(
     "/connections",
     response_model=ApiResponse[List[ConnectionResponse]],
-    summary="列出项目下的数据库连接",
+    summary="List database connections for a project",
 )
 async def list_connections(
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     user: CurrentUser = Depends(get_current_user),
     service: DBConnectorService = Depends(get_db_connector_service),
 ):
@@ -86,7 +86,7 @@ async def list_connections(
 @router.delete(
     "/connections/{connection_id}",
     response_model=ApiResponse,
-    summary="删除数据库连接",
+    summary="Delete database connection",
 )
 async def delete_connection(
     connection_id: str = Path(...),
@@ -97,12 +97,12 @@ async def delete_connection(
     return ApiResponse.success(message="Connection deleted")
 
 
-# === 表数据 ===
+# === Table Data ===
 
 @router.get(
     "/connections/{connection_id}/tables",
     response_model=ApiResponse[List[TableInfoResponse]],
-    summary="列出数据库中的所有表",
+    summary="List all tables in the database",
 )
 async def list_tables(
     connection_id: str = Path(...),
@@ -121,7 +121,7 @@ async def list_tables(
 @router.get(
     "/connections/{connection_id}/tables/{table_name}/preview",
     response_model=ApiResponse[TablePreviewResponse],
-    summary="预览表数据（前50行）",
+    summary="Preview table data (first 50 rows)",
 )
 async def preview_table(
     connection_id: str = Path(...),
@@ -151,17 +151,17 @@ async def preview_table(
         raise HTTPException(status_code=500, detail="Preview failed")
 
 
-# === 保存 ===
+# === Save ===
 
 @router.post(
     "/connections/{connection_id}/save",
     response_model=ApiResponse[SaveResultResponse],
-    summary="保存整张表为 content_node",
+    summary="Save entire table as content_node",
 )
 async def save_table(
     req: SaveTableRequest,
     connection_id: str = Path(...),
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     user: CurrentUser = Depends(get_current_user),
     service: DBConnectorService = Depends(get_db_connector_service),
 ):

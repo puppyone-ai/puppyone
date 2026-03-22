@@ -1,7 +1,7 @@
 """
-Tool 数据模型
+Tool data models
 
-定义 public.tool 表对应的 Pydantic 模型，用于类型检查和数据验证。
+Defines Pydantic models corresponding to the public.tool table for type checking and data validation.
 """
 
 from __future__ import annotations
@@ -16,13 +16,13 @@ ToolCategory = Literal["builtin", "custom"]
 
 
 class ToolBase(BaseModel):
-    """Tool 基础模型"""
+    """Tool base model"""
 
     created_by: Optional[str] = None
     org_id: Optional[str] = None
-    project_id: Optional[str] = None  # 所属项目 ID
-    path: Optional[str] = None  # MUT 路径 (path)
-    json_path: Optional[str] = None  # JSON 内部路径
+    project_id: Optional[str] = None  # Associated project ID
+    path: Optional[str] = None  # MUT path
+    json_path: Optional[str] = None  # JSON internal path
 
     type: Optional[str] = None
     name: Optional[str] = None
@@ -33,23 +33,23 @@ class ToolBase(BaseModel):
     output_schema: Optional[Any] = None
     metadata: Optional[Any] = None
 
-    # 新增字段
+    # Additional fields
     category: Optional[ToolCategory] = None
     script_type: Optional[str] = None
     script_content: Optional[str] = None
 
 
 class ToolCreate(ToolBase):
-    """创建 Tool 模型"""
+    """Create Tool model"""
 
     pass
 
 
 class ToolUpdate(BaseModel):
-    """更新 Tool 模型"""
+    """Update Tool model"""
 
-    project_id: Optional[str] = None  # 所属项目 ID
-    path: Optional[str] = None  # MUT 路径 (path)
+    project_id: Optional[str] = None  # Associated project ID
+    path: Optional[str] = None  # MUT path
     json_path: Optional[str] = None
 
     type: Optional[str] = None
@@ -61,14 +61,14 @@ class ToolUpdate(BaseModel):
     output_schema: Optional[Any] = None
     metadata: Optional[Any] = None
 
-    # 新增字段
+    # Additional fields
     category: Optional[ToolCategory] = None
     script_type: Optional[str] = None
     script_content: Optional[str] = None
 
 
 class ToolResponse(ToolBase):
-    """Tool 响应模型"""
+    """Tool response model"""
 
     id: str
     created_at: datetime
