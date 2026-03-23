@@ -41,12 +41,10 @@ class BaseDBProvider(ABC):
         Raises:
             Exception on failure
         """
-        pass
 
     @abstractmethod
     async def list_tables(self, config: dict) -> list[TableInfo]:
         """List all tables (including column info)."""
-        pass
 
     @abstractmethod
     async def query_table(
@@ -71,4 +69,3 @@ class BaseDBProvider(ABC):
             limit: Maximum number of rows
             offset: Offset
         """
-        pass

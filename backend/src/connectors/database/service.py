@@ -138,7 +138,7 @@ class DBConnectorService:
         ops = create_mut_ops()
         content_bytes = json.dumps(content_data, ensure_ascii=False, indent=2).encode("utf-8")
         file_path = f"{name}.json" if not name.endswith(".json") else name
-        write_result = await ops.write_file(
+        await ops.write_file(
             project_id, file_path, content_bytes,
             who=f"db_connector:{connection_id}",
             message=f"Save table '{table}' from DB connector",

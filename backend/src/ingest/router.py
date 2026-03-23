@@ -11,7 +11,6 @@ Dual-layer routing architecture:
 """
 
 import base64
-import hashlib
 import json
 import logging
 import os
@@ -32,7 +31,6 @@ from src.infra.s3.exceptions import S3Error, S3FileSizeExceededError
 from src.ingest.schemas import (
     SourceType,
     IngestType,
-    IngestMode,
     IngestStatus,
     IngestSubmitItem,
     IngestSubmitResponse,
@@ -59,8 +57,8 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 JSON_EXTS = {'.json'}
 
 TEXT_EXTS = {
-    '.txt', '.md', '.py', '.js', '.ts', '.jsx', '.tsx', '.java', 
-    '.c', '.cpp', '.h', '.html', '.css', '.xml', '.yaml', '.yml', 
+    '.txt', '.md', '.py', '.js', '.ts', '.jsx', '.tsx', '.java',
+    '.c', '.cpp', '.h', '.html', '.css', '.xml', '.yaml', '.yml',
     '.csv', '.sh', '.sql', '.go', '.rs', '.rb', '.php', '.swift',
     '.kt', '.scala', '.r', '.m', '.pl', '.lua', '.dart', '.coffee',
     '.toml', '.ini', '.cfg', '.log', '.tsv', '.bat', '.ps1',
@@ -91,12 +89,12 @@ async def submit_file_ingest(
     # Required fields
     project_id: str = Form(..., description="Target project ID"),
     files: list[UploadFile] = File(..., description="Files to upload"),
-    
+
     # Optional configuration
     mode: str = Form("ocr_parse", description="Processing mode: raw | ocr_parse"),
     rule_id: Optional[int] = Form(None, description="ETL rule ID (for ocr_parse mode)"),
     parent_path: Optional[str] = Form(None, description="Parent directory path for new files"),
-    
+
     # Dependencies
     etl_service: ETLService = Depends(get_etl_service),
     s3_service: S3Service = Depends(get_s3_service),
@@ -105,7 +103,7 @@ async def submit_file_ingest(
 ):
     """
     Submit file ingest tasks.
-    
+
     All text/JSON files are written directly to the Mut tree via MUT protocol.
     Binary/OCR files go to S3 + ETL Worker.
     """
@@ -123,14 +121,14 @@ async def submit_file_ingest(
         original_filename = f.filename or "file"
         original_basename = Path(original_filename).name
         _, ext = os.path.splitext(original_basename)
-        
+
         content = await f.read()
-        content_size = len(content)
-        
+        len(content)
+
         file_type = classify_file_type(ext)
-        
+
         file_path = f"{parent_path.strip('/')}/{original_basename}" if parent_path else original_basename
-        
+
         try:
             if file_type == "json":
                 try:
@@ -148,7 +146,7 @@ async def submit_file_ingest(
                     original_filename, rule_id, file_path, "json"
                 )
                 items.append(_make_completed_item(task, original_filename, file_path))
-                
+
             elif file_type == "text":
                 modified_files[file_path] = content
 
@@ -157,12 +155,12 @@ async def submit_file_ingest(
                     original_filename, rule_id, file_path, "markdown"
                 )
                 items.append(_make_completed_item(task, original_filename, file_path))
-                
+
             elif file_type == "ocr_needed" and mode == "ocr_parse":
                 s3_key = await _upload_to_s3(
                     s3_service, project_id, original_filename, content, f.content_type
                 )
-                
+
                 try:
                     task = await etl_service.submit_etl_task(
                         user_id=current_user.user_id,
@@ -179,11 +177,11 @@ async def submit_file_ingest(
                         original_filename, s3_key, str(e)
                     ))
                     continue
-                
+
                 task.metadata["mount_path"] = file_path
                 task.metadata["s3_key"] = s3_key
                 etl_service.task_repository.update_task(task)
-                
+
                 items.append(IngestSubmitItem(
                     task_id=str(task.task_id or 0),
                     source_type=SourceType.FILE,
@@ -198,13 +196,13 @@ async def submit_file_ingest(
                 s3_key = await _upload_to_s3(
                     s3_service, project_id, original_filename, content, f.content_type
                 )
-                
+
                 task = await _create_completed_task(
                     etl_service, current_user.user_id, project_id,
                     original_filename, rule_id, file_path, "file"
                 )
                 items.append(_make_completed_item(task, original_filename, file_path, s3_key))
-                
+
         except S3FileSizeExceededError as e:
             items.append(_make_failed_item(
                 await etl_service.create_failed_task(
@@ -249,11 +247,11 @@ async def _upload_to_s3(
     _, ext = os.path.splitext(original_filename)
     safe_filename = f"{uuid.uuid4()}{ext}"
     s3_key = f"projects/{project_id}/files/{safe_filename}"
-    
+
     original_filename_b64 = base64.b64encode(
         original_filename.encode("utf-8")
     ).decode("ascii")
-    
+
     await s3_service.upload_file(
         key=s3_key,
         content=content,
@@ -477,10 +475,10 @@ async def get_ingest_task(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     task = await service.get_task(task_id, source_type, current_user.user_id)
-    
+
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+
     return task
 
 
@@ -505,10 +503,10 @@ async def cancel_ingest_task(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     success = await service.cancel_task(task_id, source_type, current_user.user_id)
-    
+
     if not success:
         raise HTTPException(status_code=404, detail="Task not found or cannot cancel")
-    
+
     return {"task_id": task_id, "cancelled": True}
 
 

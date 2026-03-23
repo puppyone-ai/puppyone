@@ -4,11 +4,12 @@ PuppyOneServerRepo — S3/PG adapter for MUT ServerRepo
 Implements the ServerRepo interface required by MUT handlers.py, but backed by
 S3 ObjectStore + Supabase History/Audit/Scope instead of a local filesystem.
 
-Key differences:
-  - No current/ directory
-  - list_scope_files() reconstructs files by traversing the Merkle tree in S3
+Key differences from Mut's filesystem-based ServerRepo:
+  - No current/ directory — files reconstructed from Merkle tree in S3
   - write_scope_files() stages to memory (for use by build_scope_tree)
   - delete_scope_file() is a no-op (merged_files already reflects deletions)
+  - Per-scope versioning via mut_scope_state table (no global lock needed)
+  - next_global_version() uses PG atomic update for cross-scope ordering
 """
 
 from __future__ import annotations
@@ -24,12 +25,16 @@ from mut.server.scope_manager import ScopeManager
 
 from src.mut_engine.backends.supabase_history import SupabaseHistoryManager
 from src.mut_engine.backends.supabase_audit import SupabaseAuditManager
-from src.mut_engine.backends.supabase_scope import SupabaseScopeBackend
 from src.utils.logger import log_error
 
 
 class PuppyOneServerRepo:
-    """MUT ServerRepo adapter backed by S3 + Supabase."""
+    """MUT ServerRepo adapter backed by S3 + Supabase.
+
+    Supports Mut v4 per-scope versioning: each scope independently tracks
+    its own version number (scope_version) and Merkle tree hash (scope_hash).
+    The global version counter provides cross-scope ordering.
+    """
 
     def __init__(
         self,
@@ -53,6 +58,10 @@ class PuppyOneServerRepo:
         self._pending_scope: dict[str, tuple[str, dict[str, bytes]]] = {}
         self._last_scope_build: Optional[tuple[str, str]] = None
 
+        # In-memory global version counter for atomic increment
+        self._version_counter: int | None = None
+        self._version_lock = threading.Lock()
+
     # ── Project info ──
 
     def get_project_name(self) -> str:
@@ -64,7 +73,7 @@ class PuppyOneServerRepo:
                   exclude: list | None = None) -> dict:
         return self.scopes.add(scope_id, path, exclude)
 
-    # ── Version / Root (delegate to SupabaseHistoryManager) ──
+    # ── Global Version ──
 
     def get_latest_version(self) -> int:
         return self.history.get_latest_version()
@@ -72,36 +81,62 @@ class PuppyOneServerRepo:
     def set_latest_version(self, version: int) -> None:
         self.history.set_latest_version(version)
 
+    def next_global_version(self) -> int:
+        """Atomically increment and return the next global version.
+
+        Thread-safe via threading.Lock (called from asyncio.to_thread).
+        """
+        with self._version_lock:
+            if self._version_counter is None:
+                self._version_counter = self.history.get_latest_version()
+            self._version_counter += 1
+            self.history.set_latest_version(self._version_counter)
+            return self._version_counter
+
+    # ── Global Root Hash (deprecated, kept for backwards compat) ──
+
     def get_root_hash(self) -> str:
         return self.history.get_root_hash()
 
     def set_root_hash(self, h: str) -> None:
         self.history.set_root_hash(h)
 
-    # ── History (delegate, with root_hash→root key mapping) ──
+    # ── Per-Scope Version + Hash ──
+
+    def get_scope_version(self, scope_path: str) -> int:
+        return self.history.get_scope_version(scope_path)
+
+    def set_scope_version(self, scope_path: str, version: int) -> None:
+        self.history.set_scope_version(scope_path, version)
+
+    def get_scope_hash(self, scope_path: str) -> str:
+        return self.history.get_scope_hash(scope_path)
+
+    def set_scope_hash(self, scope_path: str, h: str) -> None:
+        self.history.set_scope_hash(scope_path, h)
+
+    # ── History ──
 
     def record_history(
         self, version: int, who: str, message: str,
         scope_path: str, changes: list,
-        conflicts: list | None = None, root_hash: str = "",
+        conflicts: list | None = None,
+        scope_hash: str = "", scope_version: str = "",
+        root_hash: str = "",
     ) -> None:
         self.history.record(
-            version, who, message, scope_path, changes, conflicts, root_hash,
+            version, who, message, scope_path, changes, conflicts,
+            root_hash=root_hash, scope_hash=scope_hash,
+            scope_version=scope_version,
         )
 
     def get_history_since(
         self, since_version: int, scope_path: str | None = None, limit: int = 0,
     ) -> list[dict]:
-        entries = self.history.get_since(since_version, scope_path, limit)
-        for e in entries:
-            e["root"] = e.get("root_hash", "")
-        return entries
+        return self.history.get_since(since_version, scope_path, limit)
 
     def get_history_entry(self, version: int) -> dict | None:
-        entry = self.history.get_entry(version)
-        if entry:
-            entry["root"] = entry.get("root_hash", "")
-        return entry
+        return self.history.get_entry(version)
 
     # ── Audit (delegate) ──
 
@@ -129,13 +164,22 @@ class PuppyOneServerRepo:
     # ── File operations (Merkle tree based, no filesystem) ──
 
     def list_scope_files(self, scope: dict) -> dict[str, bytes]:
-        """Walk the Merkle tree in S3 to reconstruct scope files."""
+        """Walk the Merkle tree in S3 to reconstruct scope files.
+
+        Prefers scope_hash for the current scope state, falls back to
+        global root_hash + tree navigation for backwards compatibility.
+        """
+        scope_path = normalize_path(scope.get("path", ""))
+
+        # Try scope_hash first (new per-scope versioning)
+        scope_hash = self.get_scope_hash(scope_path)
+        if scope_hash and self.store.exists(scope_hash):
+            return self._files_from_tree(scope_hash, scope_path, scope)
+
+        # Fallback: global root_hash + tree navigation
         root_hash = self.get_root_hash()
         if not root_hash:
             return {}
-
-        scope_path = normalize_path(scope.get("path", ""))
-        excludes = [normalize_path(e) for e in scope.get("exclude", [])]
 
         try:
             if scope_path:
@@ -145,19 +189,23 @@ class PuppyOneServerRepo:
             else:
                 subtree_hash = root_hash
 
-            flat = tree_to_flat(self.store, subtree_hash)
-
-            result: dict[str, bytes] = {}
-            for rel_path, blob_hash in flat.items():
-                full_rel = f"{scope_path}/{rel_path}" if scope_path else rel_path
-                if _is_excluded(full_rel, excludes):
-                    continue
-                result[rel_path] = self.store.get(blob_hash)
-
-            return result
+            return self._files_from_tree(subtree_hash, scope_path, scope)
         except Exception as e:
             log_error(f"[ServerRepo] list_scope_files failed: {e}")
             return {}
+
+    def _files_from_tree(self, tree_hash: str, scope_path: str,
+                         scope: dict) -> dict[str, bytes]:
+        """Extract files from a tree hash, applying exclude filters."""
+        excludes = [normalize_path(e) for e in scope.get("exclude", [])]
+        flat = tree_to_flat(self.store, tree_hash)
+        result: dict[str, bytes] = {}
+        for rel_path, blob_hash in flat.items():
+            full_rel = f"{scope_path}/{rel_path}" if scope_path else rel_path
+            if _is_excluded(full_rel, excludes):
+                continue
+            result[rel_path] = self.store.get(blob_hash)
+        return result
 
     def write_scope_files(self, scope: dict, files: dict[str, bytes]) -> None:
         """Stage merged files for build_scope_tree (no filesystem write)."""
@@ -166,7 +214,6 @@ class PuppyOneServerRepo:
 
     def delete_scope_file(self, scope: dict, rel_path: str) -> None:
         """No-op: merged_files dict already reflects deletions."""
-        pass
 
     def build_scope_tree(self, scope: dict) -> str:
         """Build Merkle tree for scope files."""
@@ -178,12 +225,16 @@ class PuppyOneServerRepo:
             self._last_scope_build = (scope_path, tree_hash)
             return tree_hash
 
+        # No pending write — return current scope hash or navigate tree
+        scope_path = normalize_path(scope.get("path", ""))
+        scope_hash = self.get_scope_hash(scope_path)
+        if scope_hash and self.store.exists(scope_hash):
+            return scope_hash
+
         root_hash = self.get_root_hash()
         if not root_hash:
-            empty_hash = self.store.put(json.dumps({}, sort_keys=True).encode())
-            return empty_hash
+            return self.store.put(json.dumps({}, sort_keys=True).encode())
 
-        scope_path = normalize_path(scope.get("path", ""))
         if scope_path:
             subtree_hash = self._navigate_to_subtree(root_hash, scope_path)
             if subtree_hash:

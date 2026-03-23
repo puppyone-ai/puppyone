@@ -21,7 +21,7 @@ class SandboxBase(ABC):
 
     Defines the unified interface for sandbox services, supporting both E2B cloud sandbox and Docker local sandbox implementations.
     """
-    
+
     @abstractmethod
     async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
         """
@@ -36,13 +36,13 @@ class SandboxBase(ABC):
             {"success": True} or {"success": False, "error": str}
         """
         ...
-    
+
     @abstractmethod
     async def start_with_files(
-        self, 
-        session_id: str, 
-        files: list, 
-        readonly: bool, 
+        self,
+        session_id: str,
+        files: list,
+        readonly: bool,
         s3_service: Optional[Any] = None
     ) -> dict:
         """
@@ -59,7 +59,7 @@ class SandboxBase(ABC):
             May include a "warnings" field listing failed files
         """
         ...
-    
+
     @abstractmethod
     async def exec(self, session_id: str, command: str) -> dict:
         """
@@ -73,7 +73,7 @@ class SandboxBase(ABC):
             {"success": True, "output": str} or {"success": False, "error": str}
         """
         ...
-    
+
     @abstractmethod
     async def read(self, session_id: str) -> dict:
         """
@@ -86,7 +86,7 @@ class SandboxBase(ABC):
             {"success": True, "data": dict} or {"success": False, "error": str}
         """
         ...
-    
+
     @abstractmethod
     async def read_file(self, session_id: str, path: str, parse_json: bool = False) -> dict:
         """
@@ -101,7 +101,7 @@ class SandboxBase(ABC):
             {"success": True, "content": str/dict} or {"success": False, "error": str}
         """
         ...
-    
+
     @abstractmethod
     async def stop(self, session_id: str) -> dict:
         """
@@ -114,7 +114,7 @@ class SandboxBase(ABC):
             {"success": True}
         """
         ...
-    
+
     @abstractmethod
     async def status(self, session_id: str) -> dict:
         """
@@ -127,7 +127,7 @@ class SandboxBase(ABC):
             {"active": bool, ...} including other metadata
         """
         ...
-    
+
     @abstractmethod
     async def stop_all(self) -> None:
         """Stop all sandbox sessions (used during service shutdown)"""

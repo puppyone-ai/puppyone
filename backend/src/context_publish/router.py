@@ -26,10 +26,7 @@ public_router = APIRouter(tags=["publishes"])
 
 def _build_public_url(request: Request, publish_key: str) -> str:
     base = (settings.PUBLIC_URL or "").strip()
-    if base:
-        base = base.rstrip("/")
-    else:
-        base = str(request.base_url).rstrip("/")
+    base = base.rstrip("/") if base else str(request.base_url).rstrip("/")
     return f"{base}/p/{publish_key}"
 
 

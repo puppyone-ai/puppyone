@@ -148,7 +148,7 @@ class NotionOAuthService:
             return False, error_message, None
 
         except Exception as e:
-            return False, f"Failed to handle Notion callback: {str(e)}", None
+            return False, f"Failed to handle Notion callback: {e!s}", None
 
     async def get_connection(self, user_id: str) -> Optional[OAuthConnection]:
         """Get Notion connection for user."""

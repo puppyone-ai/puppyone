@@ -106,7 +106,7 @@ def get_current_user(
     except Exception as e:
         raise HTTPException(
             status_code=401,
-            detail=f"Authentication failed: {str(e)}",
+            detail=f"Authentication failed: {e!s}",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

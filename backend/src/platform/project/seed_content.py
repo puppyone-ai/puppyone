@@ -9,7 +9,6 @@ All writes go through MUT protocol (MutOps).
 Used by both CLI `puppyone init` and web onboarding.
 """
 
-import json
 
 
 GETTING_STARTED_MD = """\

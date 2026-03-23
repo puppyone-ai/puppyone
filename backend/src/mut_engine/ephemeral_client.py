@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import base64
 import json
-from typing import Optional
 
 from mut.foundation.hash import hash_bytes as mut_hash
 from mut.server.handlers import (
@@ -113,7 +112,7 @@ class MutEphemeralClient:
             for path, b64 in result.get("files", {}).items()
         }
 
-        for h in result.get("objects", {}).keys():
+        for h in result.get("objects", {}):
             self._object_hashes.add(h)
 
         return dict(self._files)

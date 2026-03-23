@@ -19,6 +19,8 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 
+_SESSION_NOT_FOUND = "Session not found"
+
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
@@ -85,7 +87,7 @@ async def get_session(
 ):
     session = chat_service.get_session(user_id=current_user.user_id, session_id=session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=_SESSION_NOT_FOUND)
     return ApiResponse.success(data=_session_to_response(session))
 
 
@@ -102,7 +104,7 @@ async def update_session(
         title=body.title,
     )
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=_SESSION_NOT_FOUND)
     return ApiResponse.success(data=_session_to_response(session))
 
 
@@ -114,7 +116,7 @@ async def delete_session(
 ):
     ok = chat_service.delete_session(user_id=current_user.user_id, session_id=session_id)
     if not ok:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=_SESSION_NOT_FOUND)
     return ApiResponse.success(message="Session deleted")
 
 

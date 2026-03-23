@@ -21,34 +21,28 @@ class ProfileRepositoryBase(ABC):
     @abstractmethod
     def get_by_user_id(self, user_id: str) -> Optional[Profile]:
         """Get Profile by user ID"""
-        pass
 
     @abstractmethod
     def create(self, user_id: str, email: str) -> Optional[Profile]:
         """Create a new Profile record"""
-        pass
 
     @abstractmethod
     def get_or_create(self, user_id: str, email: str) -> Optional[Profile]:
         """Get Profile, auto-create if it does not exist"""
-        pass
 
     @abstractmethod
     def update(self, user_id: str, data: ProfileUpdate) -> Optional[Profile]:
         """Update Profile"""
-        pass
 
     @abstractmethod
     def mark_onboarded(
         self, user_id: str, demo_project_id: Optional[int] = None
     ) -> Optional[Profile]:
         """Mark user as having completed Onboarding"""
-        pass
 
     @abstractmethod
     def reset_onboarding(self, user_id: str) -> Optional[Profile]:
         """Reset user Onboarding status (for testing)"""
-        pass
 
 
 class ProfileRepositorySupabase(ProfileRepositoryBase):
@@ -103,7 +97,7 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
         profile = self.get_by_user_id(user_id)
         if profile is not None:
             return profile
-        
+
         # Profile does not exist, create a new one
         log_info(f"Profile not found for user {user_id}, creating new one")
         return self.create(user_id, email)

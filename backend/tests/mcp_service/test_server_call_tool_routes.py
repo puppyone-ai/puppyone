@@ -160,7 +160,7 @@ async def test_call_tool_denies_write_when_all_accesses_readonly(server_env, mon
     )
 
     out = await fake_server._call_tool_fn("write", {"path": "/x.md", "content": "x"})
-    assert "没有写入权限" in out[0].text
+    assert "no write permission" in out[0].text
 
 
 @pytest.mark.asyncio
@@ -239,7 +239,7 @@ async def test_call_tool_builtin_permission_denied(server_env, monkeypatch):
     )
 
     out = await fake_server._call_tool_fn("node_0_query_data", {"query": "*"})
-    assert "没有查询权限" in out[0].text
+    assert "no query permission" in out[0].text
 
 
 @pytest.mark.asyncio
@@ -259,5 +259,5 @@ async def test_call_tool_unknown_name_returns_error(server_env, monkeypatch):
     )
 
     out = await fake_server._call_tool_fn("unknown_tool", {})
-    assert "未知的工具名称" in out[0].text
+    assert "unknown tool name" in out[0].text
 

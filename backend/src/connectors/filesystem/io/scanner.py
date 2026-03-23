@@ -20,7 +20,7 @@ import time
 from typing import Optional
 
 from src.connectors.filesystem.io.schemas import FileEntry, FileContent, FolderSnapshot
-from src.connectors.filesystem.io.ignore import IgnoreRules, DEFAULT_IGNORE_PATTERNS
+from src.connectors.filesystem.io.ignore import IgnoreRules
 
 
 def compute_hash(data: bytes) -> str:
@@ -71,7 +71,7 @@ def read_file(base_path: str, rel_path: str) -> Optional[FileContent]:
     try:
         with open(full_path, "rb") as f:
             raw_bytes = f.read()
-    except (IOError, OSError):
+    except OSError:
         return None
 
     content_hash = compute_hash(raw_bytes)
@@ -139,7 +139,7 @@ def scan_directory(
                 with open(full_path, "rb") as f:
                     raw = f.read()
                 content_hash = compute_hash(raw)
-            except (IOError, OSError):
+            except OSError:
                 continue
 
             content_type = detect_type(rel_path, raw)
@@ -198,7 +198,7 @@ def scan_paths(
                 size_bytes=stat.st_size,
                 modified_at=stat.st_mtime,
             )
-        except (IOError, OSError):
+        except OSError:
             results[rel_path] = None
 
     return results

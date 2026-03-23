@@ -120,7 +120,7 @@ def test_list_tools_by_path_success(
     assert resp.status_code == 200
     body = resp.json()
     assert body["code"] == 0
-    assert body["message"] == "获取 Tool 列表成功"
+    assert body["message"] == "Tool list retrieved successfully"
     assert len(body["data"]) == 2
     mock_tool_service.list_org_tools_by_path.assert_called_once_with(
         current_user.user_id,

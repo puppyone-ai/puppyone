@@ -71,7 +71,7 @@ class AuthService:
         except pyjwt.InvalidTokenError as e:
             log_error(f"Local JWT verification failed: {e}")
             raise AuthException(
-                message=f"Token verification failed: {str(e)}",
+                message=f"Token verification failed: {e!s}",
                 code=ErrorCode.INVALID_TOKEN,
             )
 
@@ -117,7 +117,7 @@ class AuthService:
         except Exception as e:
             log_error(f"Failed to parse claims: {e}")
             raise AuthException(
-                message=f"Invalid token format: {str(e)}",
+                message=f"Invalid token format: {e!s}",
                 code=ErrorCode.INVALID_TOKEN,
             )
 

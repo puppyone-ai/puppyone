@@ -13,7 +13,7 @@ It does NOT know who triggered it or how data is stored.
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Flag, auto, Enum
-from typing import Any, Callable, List, Optional
+from typing import Any, List, Optional, TYPE_CHECKING
 
 
 # ============================================================
@@ -205,6 +205,5 @@ class ConnectorSetup:
     oauth_bindings: dict[str, Any] = field(default_factory=dict)
 
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from src.connectors.datasource.schemas import Sync, PullResult, PushResult, ResourceInfo
+    from src.connectors.datasource.schemas import Sync, PushResult, ResourceInfo

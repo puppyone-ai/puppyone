@@ -10,9 +10,8 @@ after content_nodes was removed.
 
 from __future__ import annotations
 
-import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from mut.core.object_store import ObjectStore
@@ -25,7 +24,7 @@ from src.utils.logger import log_error
 def detect_type(name: str) -> str:
     if name.endswith(".json"):
         return "json"
-    if name.endswith(".md") or name.endswith(".markdown"):
+    if name.endswith((".md", ".markdown")):
         return "markdown"
     return "file"
 

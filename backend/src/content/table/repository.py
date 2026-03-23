@@ -11,14 +11,12 @@ class TableRepositoryBase(ABC):
     @abstractmethod
     def get_by_org_id(self, org_id: str) -> List[Table]:
         """Get all Tables by organization ID (via project association)"""
-        pass
 
     @abstractmethod
     def get_projects_with_tables_by_org_id(
         self, org_id: str
     ) -> List[ProjectWithTables]:
         """Get all projects and their tables for an organization"""
-        pass
 
     @abstractmethod
     def get_by_id(self, table_id: str) -> Optional[Table]:
@@ -52,7 +50,6 @@ class TableRepositoryBase(ABC):
     @abstractmethod
     def update_context_data(self, table_id: str, data: dict) -> Optional[Table]:
         """Update the data field"""
-        pass
 
     @abstractmethod
     def verify_table_access(self, table_id: str, user_id: str) -> bool:
@@ -66,7 +63,6 @@ class TableRepositoryBase(ABC):
         Returns:
             True if the user has access, False otherwise
         """
-        pass
 
     @abstractmethod
     def verify_project_access(self, project_id: str, user_id: str) -> bool:
@@ -82,7 +78,6 @@ class TableRepositoryBase(ABC):
         Returns:
             True if the user has access, False otherwise
         """
-        pass
 
 
 class TableRepositorySupabase(TableRepositoryBase):

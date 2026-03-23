@@ -9,19 +9,13 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import UploadFile
 
 from src.ingest.schemas import (
     SourceType,
-    IngestType,
-    IngestStatus,
-    IngestMode,
-    IngestSubmitItem,
     IngestTaskResponse,
 )
 from src.ingest.shared.task.normalizers import (
     normalize_file_task,
-    detect_file_ingest_type,
 )
 
 logger = logging.getLogger(__name__)

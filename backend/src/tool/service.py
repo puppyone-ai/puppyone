@@ -93,15 +93,15 @@ class ToolService:
         - Invalidate MCP cache
         """
         from src.connectors.agent.config.repository import AgentRepository
-        
+
         try:
             response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
-            
+
             agent_repo = AgentRepository()
             seen_keys = set()
-            
+
             for row in response.data:
                 conn_id = row.get("connection_id")
                 if not conn_id:
@@ -124,19 +124,19 @@ class ToolService:
         in the same connection (Agent or MCP).
         """
         from src.connectors.agent.config.repository import AgentRepository
-        
+
         try:
             response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
-            
+
             agent_repo = AgentRepository()
-            
+
             for row in response.data:
                 conn_id = row.get("connection_id")
                 if not conn_id:
                     continue
-                
+
                 agent_tools = agent_repo.get_tools_by_agent_id(conn_id)
                 for at in agent_tools:
                     if at.tool_id == tool_id:

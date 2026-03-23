@@ -4,7 +4,7 @@ Project API Schemas
 Defines frontend API request/response models, matching the frontend ProjectInfo type.
 """
 
-from typing import Optional, List, Any
+from typing import Optional, List
 from pydantic import BaseModel
 
 

@@ -35,7 +35,7 @@ class UpdateToolBindingRequest(BaseModel):
 
 class RegenerateMcpKeyRequest(BaseModel):
     """Regenerate MCP API Key request."""
-    pass  # No parameters needed for now
+    # No parameters needed for now
 
 
 # ============================================

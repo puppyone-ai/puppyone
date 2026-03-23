@@ -12,7 +12,7 @@ Read operations use MutOps for lightweight access.
 
 import json as _json
 import re
-from typing import Optional, Any
+from typing import Any
 
 from src.infra.s3.service import get_s3_service_instance
 from src.mut_engine.ops import MutOps
@@ -197,7 +197,7 @@ class FolderSyncService:
 
         file_path = f"{folder_path}/{filename}" if folder_path else filename
 
-        if isinstance(content, dict) or isinstance(content, list):
+        if isinstance(content, (dict, list)):
             content_bytes = _json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
         elif isinstance(content, str):
             content_bytes = content.encode("utf-8")

@@ -21,13 +21,11 @@ All data writes go through MutOps.
 from __future__ import annotations
 
 import json
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional
 
-from src.connectors.datasource._base import FetchResult
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.run_repository import SyncRunRepository
-from src.connectors.datasource.schemas import Sync
 from src.utils.logger import log_info, log_error, log_debug
 
 
@@ -103,7 +101,7 @@ class SyncEngine:
             external_resource_id = (sync.config or {}).get("external_resource_id", "")
 
             content = result.content
-            if isinstance(content, dict) or isinstance(content, list):
+            if isinstance(content, (dict, list)):
                 content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
             elif isinstance(content, str):
                 content_bytes = content.encode("utf-8")

@@ -205,7 +205,7 @@ class InMemoryAuditLogs:
 
     def list_by_node(self, path: str, limit: int = 50, offset: int = 0):
         results = [l for l in self._logs if l["path"] == path]
-        results.sort(key=lambda l: l["created_at"], reverse=True)
+        results.sort(key=lambda l: (l["created_at"], l["id"]), reverse=True)
         return results[offset:offset + limit]
 
     def list_by_path(self, path: str, limit: int = 50, offset: int = 0):

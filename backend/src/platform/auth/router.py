@@ -116,7 +116,7 @@ def refresh_token(body: RefreshRequest):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Refresh failed: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Refresh failed: {e!s}")
 
 
 class InitializeResponse(BaseModel):

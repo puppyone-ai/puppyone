@@ -5,7 +5,7 @@ Each row records one invocation of SyncEngine.execute() for a connection,
 capturing status, duration, stdout, errors, and result summary.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, List, Any
 from src.infra.supabase.client import SupabaseClient

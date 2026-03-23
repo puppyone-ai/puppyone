@@ -232,7 +232,7 @@ class ETLQueue:
                         f"Worker {worker_id}: Error processing task {task_id}: {e}",
                         exc_info=True,
                     )
-                    task.mark_failed(f"Worker error: {str(e)}")
+                    task.mark_failed(f"Worker error: {e!s}")
 
                     # Persist failure to database
                     try:

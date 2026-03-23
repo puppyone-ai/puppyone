@@ -95,7 +95,7 @@ class McpCreate(BaseModel):
                 "search",
                 "custom_script",
             }
-            for key in v.keys():
+            for key in v:
                 if key not in valid_keys:
                     raise ValueError(
                         f"Invalid tool type key: {key}. Must be one of {valid_keys}"
@@ -186,7 +186,7 @@ class McpUpdate(BaseModel):
                 "search",
                 "custom_script",
             }
-            for key in v.keys():
+            for key in v:
                 if key not in valid_keys:
                     raise ValueError(
                         f"Invalid tool type key: {key}. Must be one of {valid_keys}"

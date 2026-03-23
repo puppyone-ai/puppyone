@@ -27,12 +27,10 @@ class McpInstanceRepositoryBase(ABC):
     @abstractmethod
     def get_by_project_id(self, project_id: str) -> List[McpInstance]:
         """Get all MCP instances for a project by project_id"""
-        pass
 
     @abstractmethod
     def get_all(self) -> List[McpInstance]:
         """Get all MCP instances"""
-        pass
 
     @abstractmethod
     def create(
@@ -103,7 +101,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
 
     def _read_data(self) -> List[McpInstance]:
         try:
-            with open(DATA_PATH, "r", encoding="utf-8") as f:
+            with open(DATA_PATH, encoding="utf-8") as f:
                 instances = json.load(f)
                 # Data migration: convert old context_id field to table_id
                 for instance in instances:

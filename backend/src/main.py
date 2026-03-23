@@ -102,7 +102,6 @@ from src.internal.router import router as internal_router
 internal_router_duration = time.time() - internal_router_start
 
 tree_router_start = time.time()
-from src.mut_engine.tree_router import router as tree_api_router
 
 tree_router_duration = time.time() - tree_router_start
 
@@ -390,10 +389,10 @@ def create_app() -> FastAPI:
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
     # public short link: /p/{publish_key}
     app.include_router(context_publish_public_router, tags=["publishes"])
-    
+
     # Unified ingest router (file + SaaS imports)
     app.include_router(ingest_router, prefix="/api/v1", tags=["ingest"])
-    
+
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(

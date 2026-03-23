@@ -128,16 +128,16 @@ def _file_hash(path: str) -> str:
         with open(path, "rb") as f:
             for chunk in iter(lambda: f.read(8192), b""):
                 h.update(chunk)
-    except (OSError, IOError):
+    except OSError:
         return ""
     return h.hexdigest()
 
 
 def _read_file(path: str) -> str:
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return f.read()
     except UnicodeDecodeError:
         return ""
-    except (OSError, IOError):
+    except OSError:
         return ""

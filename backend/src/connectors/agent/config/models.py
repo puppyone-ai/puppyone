@@ -49,9 +49,9 @@ class Agent(BaseModel):
     description: Optional[str] = Field(None)
 
     is_default: bool = Field(default=False)
-    
+
     mcp_api_key: Optional[str] = Field(None)
-    
+
     trigger_type: Optional[str] = Field(default="manual")
     trigger_config: Optional[dict] = Field(None)
     task_content: Optional[str] = Field(None)

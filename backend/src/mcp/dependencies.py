@@ -56,7 +56,8 @@ async def get_verified_mcp_instance(
     Raises:
         NotFoundException: If instance does not exist or user lacks permission
     """
-    verify_access = lambda pid, uid: project_service.verify_project_access(pid, uid) is not None
+    def verify_access(pid, uid):
+        return project_service.verify_project_access(pid, uid) is not None
     return await mcp_instance_service.get_mcp_instance_by_api_key_with_access_check(
         api_key, current_user.user_id, verify_access
     )

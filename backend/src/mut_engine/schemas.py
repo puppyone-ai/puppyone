@@ -9,8 +9,8 @@ All data types used by the PuppyOne platform layer:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
-from typing import Optional, Any, List, Dict
+from pydantic import BaseModel
+from typing import Optional, Any, List
 from datetime import datetime
 
 

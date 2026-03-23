@@ -5,7 +5,7 @@ generated from a shared template. This replaces ~1200 lines of duplicated
 code with a ~120-line factory + provider config table.
 """
 
-from typing import Annotated, Callable
+from typing import Callable
 
 from fastapi import APIRouter, Depends, HTTPException
 

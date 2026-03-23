@@ -5,7 +5,7 @@ Aggregated endpoint that returns a project-level overview in a single call:
 project info, node counts, all connections, tools, and active uploads.
 """
 
-from typing import Optional, List, Any
+from typing import Optional, List
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, status
 

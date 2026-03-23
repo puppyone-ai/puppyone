@@ -16,17 +16,14 @@ Design principles:
 from __future__ import annotations
 
 import json
-import os
 import time
-from typing import Optional, Any
 
 from mut.core.object_store import ObjectStore
-from mut.core.tree import write_blob, write_tree, read_tree, tree_to_flat
-from mut.core.merge import three_way_merge, ConflictResolver
+from mut.core.tree import tree_to_flat
+from mut.core.merge import three_way_merge
 from mut.core.diff import diff_trees
-from mut.server.graft import graft_subtree
 
-from src.mut_engine.repo_manager import MutRepoManager, ProjectRepo
+from src.mut_engine.repo_manager import MutRepoManager
 from src.mut_engine.schemas import WriteResult, DeleteResult, MoveResult
 from src.utils.logger import log_info, log_error, log_warning
 
@@ -628,40 +625,74 @@ class MutWriteService:
         project_id: str,
         target_version: int,
         operator: str,
+        scope_path: str = "",
     ) -> int:
-        """Roll back to a specified version."""
+        """Roll back to a specified version.
+
+        Uses scope-level hash when available, falls back to global root_hash.
+        Creates a revert commit (version chain continues forward).
+        """
         repo = self._repos.get_repo(project_id)
 
         entry = repo.history.get_entry(target_version)
         if not entry:
             raise ValueError(f"Version {target_version} not found")
 
+        # Resolve target tree hash: prefer scope_hash, fallback to root_hash
+        target_scope_hash = entry.get("scope_hash", "")
         target_root = entry.get("root_hash", "")
-        current_root = repo.history.get_root_hash()
+
         current_version = repo.history.get_latest_version()
 
-        if target_root == current_root:
-            return current_version
+        # Compute changes
+        if target_scope_hash and repo.store.exists(target_scope_hash):
+            current_scope_hash = repo.history.get_scope_hash(scope_path)
+            if current_scope_hash and repo.store.exists(current_scope_hash):
+                changes_list = diff_trees(repo.store, current_scope_hash, target_scope_hash)
+            else:
+                changes_list = []
+        elif target_root:
+            current_root = repo.history.get_root_hash()
+            if current_root and target_root != current_root:
+                changes_list = diff_trees(repo.store, current_root, target_root)
+            else:
+                return current_version  # already at target
+        else:
+            raise ValueError(f"Version {target_version} has no tree data")
 
-        changes_list = diff_trees(repo.store, current_root, target_root)
+        # Increment versions
+        from mut.server.history import HistoryManager
+        scope_ver = repo.history.get_scope_version(scope_path)
+        new_scope_ver = scope_ver + 1
+        scope_version_id = HistoryManager.make_scope_version_id(
+            scope_path, new_scope_ver,
+        )
+        new_version = repo.next_global_version()
 
-        new_version = current_version + 1
+        # Use target scope_hash if available, otherwise target root_hash
+        new_scope_hash = target_scope_hash or target_root
+
         repo.history.record(
             version=new_version,
             who=operator,
             message=f"Rollback to v{target_version}",
-            scope_path="",
+            scope_path=scope_path,
             changes=changes_list,
             root_hash=target_root,
+            scope_hash=new_scope_hash,
+            scope_version=scope_version_id,
         )
-        repo.history.set_latest_version(new_version)
-        repo.history.set_root_hash(target_root)
+        repo.history.set_scope_version(scope_path, new_scope_ver)
+        repo.history.set_scope_hash(scope_path, new_scope_hash)
 
         repo.audit.record("rollback", operator, {
-            "target_version": target_version, "new_version": new_version
+            "target_version": target_version,
+            "new_version": new_version,
+            "scope_version": scope_version_id,
         })
 
-        log_info(f"[MutWrite] Rolled back to v{target_version} as v{new_version}")
+        log_info(f"[MutWrite] Rolled back to v{target_version} as v{new_version} "
+                 f"({scope_version_id})")
 
         deleted_in_rollback = [
             c["path"] for c in changes_list if c.get("op") == "deleted"

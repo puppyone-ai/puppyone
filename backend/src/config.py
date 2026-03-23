@@ -153,7 +153,7 @@ class Settings(BaseSettings):
     # Method 2: OAuth (suitable for multi-user scenarios)
     # ========== OAuth configuration ==========
     # Unified format: /oauth/{provider}/callback
-    
+
     # Notion OAuth configuration
     NOTION_CLIENT_ID: str = ""
     NOTION_CLIENT_SECRET: str = ""

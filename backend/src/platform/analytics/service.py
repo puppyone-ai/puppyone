@@ -27,10 +27,10 @@ async def log_agent_call(
 ) -> None:
     """
     Record an agent execution event.
-    
+
     This is the unified logging function for all agent activities.
     Fire-and-forget - errors are logged but don't block the main flow.
-    
+
     Args:
         call_type: 'bash', 'tool', or 'llm'
         details: Type-specific data:
@@ -40,7 +40,7 @@ async def log_agent_call(
     """
     try:
         supabase = get_supabase_client()
-        
+
         supabase.table("agent_logs").insert({
             "call_type": call_type,
             "user_id": user_id,
@@ -51,7 +51,7 @@ async def log_agent_call(
             "error_message": error_message,
             "details": details or {},
         }).execute()
-        
+
         # Brief log for debugging
         preview = ""
         if details:
@@ -62,9 +62,9 @@ async def log_agent_call(
                 preview = f"tool={details.get('tool_name', '?')}"
             elif call_type == "llm":
                 preview = f"tokens={details.get('input_tokens', 0)}+{details.get('output_tokens', 0)}"
-        
+
         logger.debug(f"[agent_log] {call_type}: {preview}, session={session_id}")
-        
+
     except Exception as e:
         # Don't fail the main request if logging fails
         logger.warning(f"[agent_log] Failed to log {call_type}: {e}")
@@ -88,7 +88,7 @@ async def log_bash_execution(
     output_preview = None
     if output:
         output_preview = output[:500] + "..." if len(output) > 500 else output
-    
+
     await log_agent_call(
         call_type="bash",
         user_id=user_id,
@@ -120,7 +120,7 @@ async def log_tool_call(
     output_preview = None
     if output:
         output_preview = output[:500] + "..." if len(output) > 500 else output
-    
+
     await log_agent_call(
         call_type="tool",
         user_id=user_id,
@@ -181,7 +181,7 @@ async def log_context_access(
     """
     try:
         supabase = get_supabase_client()
-        
+
         supabase.table("access_logs").insert({
             "path": path,
             "node_type": node_type,
@@ -191,8 +191,8 @@ async def log_context_access(
             "session_id": session_id,
             "project_id": project_id,
         }).execute()
-        
+
         logger.debug(f"[access_log] Logged access: path={path}, agent={agent_id}")
-        
+
     except Exception as e:
         logger.warning(f"[access_log] Failed to log access: {e}")

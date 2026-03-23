@@ -101,10 +101,7 @@ def _mask_project_url(project_url: str) -> str:
     host = parsed.netloc or ""
     if host.endswith(".supabase.co"):
         project_ref = host[: -len(".supabase.co")]
-        if len(project_ref) <= 2:
-            masked_ref = "***"
-        else:
-            masked_ref = f"{project_ref[:2]}***"
+        masked_ref = "***" if len(project_ref) <= 2 else f"{project_ref[:2]}***"
         scheme = parsed.scheme or "https"
         return f"{scheme}://{masked_ref}.supabase.co"
     if parsed.scheme and host:

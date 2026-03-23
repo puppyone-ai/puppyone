@@ -217,7 +217,7 @@ class GoogleCalendarConnector(BaseConnector):
 
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
-    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.connectors.datasource._base import ConnectorSetup
     from src.oauth.google_calendar_service import GoogleCalendarOAuthService
     oauth_svc = GoogleCalendarOAuthService()
     return ConnectorSetup(

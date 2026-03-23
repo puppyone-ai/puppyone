@@ -12,9 +12,7 @@ API docs: https://deepinfra.com/deepseek-ai/DeepSeek-OCR/api
 
 import asyncio
 import base64
-import io
 import logging
-import tempfile
 from pathlib import Path
 from typing import Optional
 

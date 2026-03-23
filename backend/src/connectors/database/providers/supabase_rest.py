@@ -385,7 +385,7 @@ class SupabaseRestProvider(BaseDBProvider):
         """
         project_url = config.get("project_url", "").rstrip("/")
         api_key = config.get("api_key", "").strip()
-        key_type = config.get("key_type", "anon")
+        config.get("key_type", "anon")
 
         if not project_url:
             raise ValueError("Project URL is required (e.g., https://your-project.supabase.co)")

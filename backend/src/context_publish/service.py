@@ -62,7 +62,7 @@ class ContextPublishService:
         if expires_at is None:
             expires_at = _default_expires_at()
 
-        # Generate key (globally unique: only retry on “unique conflict”, other errors should expose the real cause)
+        # Generate key (globally unique: only retry on "unique conflict", other errors should expose the real cause)
         last_dup: Exception | None = None
         for _ in range(10):
             key = _generate_publish_key(length=int(settings.PUBLISH_KEY_LENGTH))
@@ -84,7 +84,7 @@ class ContextPublishService:
                 last_dup = e
                 continue
             except SupabaseException:
-                # E.g.: table not created, RLS/permissions, field/type mismatch, etc. -- raise directly, avoid being masked by “unique retry”
+                # E.g.: table not created, RLS/permissions, field/type mismatch, etc. -- raise directly, avoid being masked by "unique retry"
                 raise
             except Exception:
                 raise

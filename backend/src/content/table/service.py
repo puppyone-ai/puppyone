@@ -247,7 +247,7 @@ class TableService:
             parent = resolve_pointer(actual_data, mounted_json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
-                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
             )
 
         if parent is None:
@@ -269,7 +269,7 @@ class TableService:
                     )
 
             existing_content_strs = {
-                json.dumps(parent[k], sort_keys=True) for k in parent.keys()
+                json.dumps(parent[k], sort_keys=True) for k in parent
             }
             for element in elements:
                 if "content" not in element:
@@ -323,7 +323,7 @@ class TableService:
             if isinstance(e, NotFoundException):
                 raise
             raise BusinessException(
-                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
             )
 
     async def update_context_data(
@@ -342,7 +342,7 @@ class TableService:
             parent = resolve_pointer(actual_data, json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
-                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
             )
 
         if parent is None:
@@ -417,7 +417,7 @@ class TableService:
             parent = resolve_pointer(actual_data, json_pointer_path, None)
         except Exception as e:
             raise BusinessException(
-                f"Invalid path: {str(e)}", code=ErrorCode.BAD_REQUEST
+                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
             )
 
         if parent is None:
@@ -503,13 +503,13 @@ class TableService:
 
         except jmespath.exceptions.ParseError as e:
             raise BusinessException(
-                f"JMESPath syntax error: {str(e)}", code=ErrorCode.BAD_REQUEST
+                f"JMESPath syntax error: {e!s}", code=ErrorCode.BAD_REQUEST
             )
         except Exception as e:
             if isinstance(e, NotFoundException):
                 raise
             raise BusinessException(
-                f"Query failed: {str(e)}", code=ErrorCode.BAD_REQUEST
+                f"Query failed: {e!s}", code=ErrorCode.BAD_REQUEST
             )
 
     def get_context_structure(self, table_id: str, json_pointer_path: str) -> Dict:
@@ -534,7 +534,7 @@ class TableService:
             if isinstance(e, NotFoundException):
                 raise
             raise BusinessException(
-                f"Failed to extract structure: {str(e)}",
+                f"Failed to extract structure: {e!s}",
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
             )
 

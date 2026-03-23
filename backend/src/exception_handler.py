@@ -9,9 +9,9 @@ from src.utils.request_context import request_id_var
 
 
 async def app_exception_handler(request: Request, exc: AppException):
-    “””Handle custom application exceptions”””
+    """Handle custom application exceptions"""
     # Note: AppException (4xx/business errors) should also be logged by default for troubleshooting.
-    # Previously only returning the response without logging created the illusion of “no errors visible”.
+    # Previously only returning the response without logging created the illusion of "no errors visible".
     rid = request_id_var.get()
     log = logger.bind(
         err_code=int(exc.code),

@@ -45,9 +45,9 @@ class E2BSandbox(SandboxBase):
         """Create a sandbox session and preload data into /workspace/data.json"""
         if data is None:
             return {"success": False, "error": "data is required"}
-        
+
         await self.stop(session_id)
-        
+
         # Create a fresh sandbox instance for this session.
         try:
             sandbox = await _call_maybe_async(self._sandbox_factory)
@@ -64,17 +64,17 @@ class E2BSandbox(SandboxBase):
                 )
                 msg = f"{hint}\nOriginal error: {msg}"
             return {"success": False, "error": msg}
-        
+
         # Persist JSON data so bash tools can operate on it.
         payload = json.dumps(data, ensure_ascii=False, indent=2)
         await _call_maybe_async(sandbox.files.write, "/workspace/data.json", payload)
-        
+
         now = time.time()
         with self._lock:
             self._sessions[session_id] = SandboxSession(
                 sandbox=sandbox, readonly=bool(readonly), created_at=now, last_activity=now
             )
-        
+
         # Start cleanup task (if not already running)
         await self._ensure_cleanup_task()
         return {"success": True}
@@ -96,9 +96,9 @@ class E2BSandbox(SandboxBase):
             s3_service: S3 service instance (for downloading S3 files)
         """
         from .file_utils import prepare_files_for_sandbox
-        
+
         await self.stop(session_id)
-        
+
         # Create a fresh sandbox instance
         try:
             sandbox = await _call_maybe_async(self._sandbox_factory)
@@ -113,19 +113,19 @@ class E2BSandbox(SandboxBase):
                 )
                 msg = f"{hint}\nOriginal error: {msg}"
             return {"success": False, "error": msg}
-        
+
         # Download all files in parallel
         prepared_files, failed_files = await prepare_files_for_sandbox(files, s3_service)
-        
+
         # Create directories and write files to the sandbox
         created_dirs: set[str] = set()
         write_failures: list[dict] = []
-        
+
         # First ensure /workspace directory exists
         # E2B sandbox runs as a regular user, needs sudo to create folders in the root directory
         try:
             mkdir_result = await _call_maybe_async(
-                sandbox.commands.run, 
+                sandbox.commands.run,
                 "sudo mkdir -p /workspace && sudo chmod 777 /workspace"
             )
             exit_code = getattr(mkdir_result, "exit_code", None)
@@ -139,18 +139,18 @@ class E2BSandbox(SandboxBase):
                 )
                 fallback_code = getattr(fallback_result, "exit_code", None)
                 if fallback_code == 0:
-                    print(f"[E2BSandbox] Created /workspace via symlink to ~/workspace")
+                    print("[E2BSandbox] Created /workspace via symlink to ~/workspace")
                 else:
-                    print(f"[E2BSandbox] Fallback also failed, continuing anyway...")
+                    print("[E2BSandbox] Fallback also failed, continuing anyway...")
             else:
-                print(f"[E2BSandbox] Created /workspace directory with sudo")
+                print("[E2BSandbox] Created /workspace directory with sudo")
         except Exception as e:
             print(f"[E2BSandbox] Error creating /workspace directory: {e}")
-        
+
         for f in prepared_files:
             path = f["path"]
             content = f["content"]
-            
+
             # Security check: prevent path traversal attacks
             # Normalize path and check if it attempts to escape /workspace
             normalized_path = os.path.normpath(path)
@@ -164,16 +164,16 @@ class E2BSandbox(SandboxBase):
             # Check for .. escape attempts
             if ".." in normalized_path.split("/"):
                 write_failures.append({
-                    "path": path, 
+                    "path": path,
                     "error": "Path traversal detected: path contains .."
                 })
                 print(f"[E2BSandbox] Path traversal attempt blocked: {path}")
                 continue
-            
+
             # Use the normalized path
             path = normalized_path
             print(f"[E2BSandbox] Writing file to: {path}")
-            
+
             # Create parent directories (use shlex.quote to prevent command injection)
             # Since /workspace was already created with sudo and set to 777, subdirectories shouldn't need sudo
             # But as a safety measure, try sudo if regular mkdir fails
@@ -186,7 +186,7 @@ class E2BSandbox(SandboxBase):
                     if exit_code is not None and exit_code != 0:
                         # Try using sudo
                         sudo_result = await _call_maybe_async(
-                            sandbox.commands.run, 
+                            sandbox.commands.run,
                             f"sudo mkdir -p {safe_dir_path} && sudo chmod 777 {safe_dir_path}"
                         )
                         sudo_code = getattr(sudo_result, "exit_code", None)
@@ -203,7 +203,7 @@ class E2BSandbox(SandboxBase):
                     write_failures.append({"path": path, "error": f"Failed to create directory: {e}"})
                     print(f"[E2BSandbox] Exception creating directory {dir_path}: {e}")
                     continue
-            
+
             # Write file content
             try:
                 if isinstance(content, bytes):
@@ -218,16 +218,16 @@ class E2BSandbox(SandboxBase):
             except Exception as e:
                 write_failures.append({"path": path, "error": str(e)})
                 print(f"[E2BSandbox] Failed to write file {path}: {e}")
-        
+
         # Merge all failed files
         all_failures = failed_files + write_failures
-        
+
         now = time.time()
         with self._lock:
             self._sessions[session_id] = SandboxSession(
                 sandbox=sandbox, readonly=bool(readonly), created_at=now, last_activity=now
             )
-        
+
         # Start cleanup task (if not already running)
         await self._ensure_cleanup_task()
 
@@ -240,13 +240,13 @@ class E2BSandbox(SandboxBase):
         """Execute a command in the sandbox and return its output"""
         with self._lock:
             session = self._sessions.get(session_id)
-        
+
         if not session:
             return {
                 "success": False,
                 "error": "Sandbox session not found. Call start first.",
             }
-        
+
         # Update last activity time
         session.last_activity = time.time()
 
@@ -258,7 +258,7 @@ class E2BSandbox(SandboxBase):
             # Check for error output (E2B may return errors in stderr)
             stderr = getattr(result, "stderr", None)
             exit_code = getattr(result, "exit_code", None)
-            
+
             if exit_code is not None and exit_code != 0:
                 # Command execution failed
                 error_output = stderr if stderr else output
@@ -268,7 +268,7 @@ class E2BSandbox(SandboxBase):
                     "output": output,
                     "exit_code": exit_code
                 }
-            
+
             return {"success": True, "output": output}
         except Exception as e:
             error_msg = str(e)
@@ -282,10 +282,10 @@ class E2BSandbox(SandboxBase):
         """Read and parse JSON data from /workspace/data.json"""
         with self._lock:
             session = self._sessions.get(session_id)
-        
+
         if not session:
             return {"success": False, "error": "Sandbox session not found"}
-        
+
         # Update last activity time
         session.last_activity = time.time()
 
@@ -312,10 +312,10 @@ class E2BSandbox(SandboxBase):
         """
         with self._lock:
             session = self._sessions.get(session_id)
-        
+
         if not session:
             return {"success": False, "error": "Sandbox session not found"}
-        
+
         # Update last activity time
         session.last_activity = time.time()
 
@@ -323,7 +323,7 @@ class E2BSandbox(SandboxBase):
             raw = await _call_maybe_async(session.sandbox.files.read, path)
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8")
-            
+
             if parse_json:
                 try:
                     data = json.loads(raw)
@@ -333,16 +333,16 @@ class E2BSandbox(SandboxBase):
             else:
                 return {"success": True, "content": raw}
         except Exception as e:
-            return {"success": False, "error": f"Failed to read {path}: {str(e)}"}
+            return {"success": False, "error": f"Failed to read {path}: {e!s}"}
 
     async def stop(self, session_id: str) -> dict:
         """Close and remove sandbox session"""
         with self._lock:
             session = self._sessions.pop(session_id, None)
-        
+
         if not session:
             return {"success": True}
-        
+
         # Some sandbox implementations expose close(); guard it.
         close = getattr(session.sandbox, "close", None)
         if callable(close):
@@ -350,17 +350,17 @@ class E2BSandbox(SandboxBase):
                 await _call_maybe_async(close)
             except Exception as e:
                 print(f"[E2BSandbox] Error closing sandbox {session_id}: {e}")
-        
+
         return {"success": True}
 
     async def status(self, session_id: str) -> dict:
         """Return session status and basic metadata"""
         with self._lock:
             session = self._sessions.get(session_id)
-        
+
         if not session:
             return {"active": False}
-        
+
         sandbox_id = getattr(session.sandbox, "id", None)
         return {
             "active": True,
@@ -374,10 +374,10 @@ class E2BSandbox(SandboxBase):
         """Stop all sandbox sessions (used during service shutdown)"""
         with self._lock:
             session_ids = list(self._sessions.keys())
-        
+
         for session_id in session_ids:
             await self.stop(session_id)
-        
+
         if self._cleanup_task and not self._cleanup_task.done():
             self._cleanup_task.cancel()
             try:
@@ -397,16 +397,16 @@ class E2BSandbox(SandboxBase):
                 await asyncio.sleep(60)  # Check every minute
                 now = time.time()
                 expired_sessions = []
-                
+
                 with self._lock:
                     for session_id, session in self._sessions.items():
                         if now - session.last_activity > self._session_timeout:
                             expired_sessions.append(session_id)
-                
+
                 for session_id in expired_sessions:
                     print(f"[E2BSandbox] Cleaning up expired session: {session_id}")
                     await self.stop(session_id)
-                
+
                 # If no active sessions, exit the cleanup task
                 with self._lock:
                     if not self._sessions:

@@ -158,7 +158,7 @@ class GithubConnector(BaseConnector):
 
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
-    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.connectors.datasource._base import ConnectorSetup
     oauth_svc = GithubOAuthService()
     return ConnectorSetup(
         connector=GithubConnector(

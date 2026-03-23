@@ -24,7 +24,6 @@ from typing import Optional
 from src.mut_engine.repo_manager import MutRepoManager
 from src.mut_engine.ephemeral_client import MutEphemeralClient
 from src.mut_engine.tree_reader import MutTreeReader, MutEntry
-from src.utils.logger import log_info, log_error
 
 
 @dataclass
@@ -317,6 +316,16 @@ class MutOps:
         from mut.server.handlers import handle_negotiate
         repo = self._repos.get_server_repo(project_id)
         return handle_negotiate(repo, auth, body)
+
+    def handle_rollback(self, project_id: str, auth: dict, body: dict) -> dict:
+        from mut.server.handlers import handle_rollback
+        repo = self._repos.get_server_repo(project_id)
+        return handle_rollback(repo, auth, body)
+
+    def handle_pull_version(self, project_id: str, auth: dict, body: dict) -> dict:
+        from mut.server.handlers import handle_pull_version
+        repo = self._repos.get_server_repo(project_id)
+        return handle_pull_version(repo, auth, body)
 
     # ══════════════════════════════════════════════
     # Internal helpers

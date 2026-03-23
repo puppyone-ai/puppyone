@@ -125,6 +125,60 @@ async def mut_negotiate(
     return JSONResponse(result)
 
 
+@router.post("/{project_id}/rollback")
+async def mut_rollback(
+    project_id: str,
+    request: Request,
+    auth: dict = Depends(get_mut_auth),
+    ops: MutOps = Depends(get_mut_ops),
+):
+    """Rollback to a historical version (creates a revert commit)."""
+    body = await request.json()
+
+    try:
+        result = await asyncio.to_thread(ops.handle_rollback, project_id, auth, body)
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log_error(f"[MUT] rollback failed for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
+
+    log_info(
+        f"[MUT] rollback project={project_id} agent={auth['agent']} "
+        f"target_v={result.get('target_version')} new_v={result.get('new_version')}"
+    )
+    return JSONResponse(result)
+
+
+@router.post("/{project_id}/pull-version")
+async def mut_pull_version(
+    project_id: str,
+    request: Request,
+    auth: dict = Depends(get_mut_auth),
+    ops: MutOps = Depends(get_mut_ops),
+):
+    """Pull files at a specific historical version (not just latest)."""
+    body = await request.json()
+
+    try:
+        result = await asyncio.to_thread(
+            ops.handle_pull_version, project_id, auth, body,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log_error(f"[MUT] pull-version failed for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Pull version failed: {e}")
+
+    log_info(
+        f"[MUT] pull-version project={project_id} agent={auth['agent']} "
+        f"version={result.get('version')}"
+    )
+    return JSONResponse(result)
+
+
 def _run_post_push_hook(
     project_id: str, repo_manager: MutRepoManager, push_result: dict
 ) -> None:

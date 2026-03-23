@@ -6,7 +6,6 @@ Handles user Profile and Onboarding business logic
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional, Tuple
 
 from src.platform.profile.models import Profile, ProfileUpdate

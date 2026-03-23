@@ -38,31 +38,31 @@ async def get_access_timeseries(
 ):
     """
     Time-series of context access events.
-    
+
     Each data point = number of times context was sent to sandbox in that time bucket.
     This is the TRUE measure of data egress.
     """
     supabase = get_supabase_client()
-    
+
     now = datetime.utcnow()
     start_time = now - timedelta(hours=range_hours)
-    
+
     query = supabase.table("access_logs") \
         .select("id, created_at, agent_id, path") \
         .gte("created_at", start_time.isoformat()) \
         .order("created_at", desc=False)
-    
+
     if agent_id:
         query = query.eq("agent_id", agent_id)
     if path:
         query = query.eq("path", path)
-    
+
     result = query.execute()
     logs = result.data or []
-    
+
     bucket_counts: dict[str, int] = {}
     bucket_hours = 24 if interval == "day" else 1
-    
+
     for log in logs:
         created_at = log.get("created_at")
         if created_at:
@@ -72,14 +72,14 @@ async def get_access_timeseries(
             else:
                 bucket_key = dt.strftime("%Y-%m-%dT%H:00:00Z")
             bucket_counts[bucket_key] = bucket_counts.get(bucket_key, 0) + 1
-    
+
     all_buckets: List[TimeSeriesBucket] = []
     current = start_time.replace(minute=0, second=0, microsecond=0)
     if interval == "day":
         current = current.replace(hour=0)
-    
+
     bucket_format = "%Y-%m-%dT00:00:00Z" if interval == "day" else "%Y-%m-%dT%H:00:00Z"
-    
+
     while current <= now:
         bucket_key = current.strftime(bucket_format)
         all_buckets.append(TimeSeriesBucket(
@@ -87,7 +87,7 @@ async def get_access_timeseries(
             count=bucket_counts.get(bucket_key, 0)
         ))
         current += timedelta(hours=bucket_hours)
-    
+
     return TimeSeriesResponse(
         data=all_buckets,
         interval=interval,
@@ -106,17 +106,17 @@ async def get_access_summary(
     """
     supabase = get_supabase_client()
     start_time = datetime.utcnow() - timedelta(hours=range_hours)
-    
+
     result = supabase.table("access_logs") \
         .select("agent_id, path") \
         .gte("created_at", start_time.isoformat()) \
         .execute()
-    
+
     logs = result.data or []
-    
-    unique_agents = len(set(log["agent_id"] for log in logs if log.get("agent_id")))
-    unique_nodes = len(set(log["path"] for log in logs if log.get("path")))
-    
+
+    unique_agents = len({log["agent_id"] for log in logs if log.get("agent_id")})
+    unique_nodes = len({log["path"] for log in logs if log.get("path")})
+
     return {
         "total_accesses": len(logs),
         "unique_agents": unique_agents,

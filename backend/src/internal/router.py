@@ -4,13 +4,12 @@ Called by internal services (e.g., MCP Server), authenticated via SECRET
 """
 
 import hmac
-import json as json_lib
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
-from typing import Optional, Dict, Any, List
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from typing import Optional, Dict, Any
 from src.content.table.dependencies import get_table_service
 from src.config import settings
-from src.exceptions import AppException, NotFoundException, BusinessException
+from src.exceptions import AppException
 from src.infra.supabase.dependencies import get_supabase_repository
 from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.infra.search.dependencies import get_search_service
@@ -18,7 +17,6 @@ from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryRespon
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
-from src.tool.models import Tool
 from src.mut_engine.dependencies import create_mut_ops, get_mut_ops
 from src.mut_engine.ops import MutOps
 
@@ -236,11 +234,11 @@ async def search_tool(
     try:
         from src.infra.search.index_task_repository import SearchIndexTaskRepository
         from src.infra.supabase.client import SupabaseClient
-        
+
         sb_client = SupabaseClient().get_client()
         task_repo = SearchIndexTaskRepository(sb_client)
         task = task_repo.get_by_tool_id(str(tool_id))
-        
+
         is_folder_search = bool(task and task.folder_path)
     except Exception:
         is_folder_search = False
@@ -692,7 +690,7 @@ async def get_agent_by_mcp_key(
     agent = agent_service.get_by_mcp_api_key(mcp_api_key)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
-    
+
     tool_repo = ToolRepositorySupabase(get_supabase_repository())
     tools_data = []
     for agent_tool in agent.tools:
@@ -711,7 +709,7 @@ async def get_agent_by_mcp_key(
                 "enabled": agent_tool.enabled,
                 "mcp_exposed": agent_tool.mcp_exposed,
             })
-    
+
     accesses_data = []
     for bash in agent.bash_accesses:
         access_entry = {

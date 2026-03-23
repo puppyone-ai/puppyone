@@ -225,7 +225,7 @@ class GoogleSheetsConnector(BaseConnector):
 
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
-    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.connectors.datasource._base import ConnectorSetup
     from src.oauth.google_sheets_service import GoogleSheetsOAuthService
     oauth_svc = GoogleSheetsOAuthService()
     return ConnectorSetup(

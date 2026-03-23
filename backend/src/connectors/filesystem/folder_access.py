@@ -8,7 +8,6 @@ This module is retained only for backward compatibility with the connection
 management lifecycle. All actual sync logic lives in the client CLI.
 """
 
-from typing import Optional
 
 from src.utils.logger import log_info
 

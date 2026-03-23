@@ -15,13 +15,14 @@ from typing import List, Optional
 from src.connectors.agent.config.models import Agent, AgentTool
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositoryBase, ToolRepositorySupabase
-from src.tool.models import Tool
 from src.infra.supabase.dependencies import get_supabase_repository
 from src.mcp.cache_invalidator import invalidate_mcp_cache
 from src.exceptions import NotFoundException, ErrorCode, BusinessException
 
 from .models import McpAgentInfo, McpBoundTool
 from .schemas import BindToolRequest
+
+_AGENT_NOT_FOUND = "Agent not found"
 
 
 class McpV3Service:
@@ -47,7 +48,7 @@ class McpV3Service:
         """Get MCP configuration info for an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         return McpAgentInfo(
             id=agent.id,
@@ -62,7 +63,7 @@ class McpV3Service:
         """Regenerate the MCP API Key for an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         # Invalidate cache for the old key
         if agent.mcp_api_key:
@@ -93,7 +94,7 @@ class McpV3Service:
         """Get Tools bound to an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         # Get binding relationships
         if mcp_exposed_only:
@@ -136,7 +137,7 @@ class McpV3Service:
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         tool = self._tool_repo.get_by_id(tool_id)
         if not tool:
@@ -166,7 +167,7 @@ class McpV3Service:
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         result: List[AgentTool] = []
         for b in bindings:
@@ -202,7 +203,7 @@ class McpV3Service:
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         # Find existing binding
         binding = self._agent_repo.get_tool_binding_by_agent_and_tool(agent_id, tool_id)
@@ -232,7 +233,7 @@ class McpV3Service:
         # Verify Agent access (via project)
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         # Find existing binding
         binding = self._agent_repo.get_tool_binding_by_agent_and_tool(agent_id, tool_id)
@@ -257,7 +258,7 @@ class McpV3Service:
         """Get MCP status summary for an Agent."""
         agent = self._agent_repo.get_by_id(agent_id)
         if not agent or not self._agent_repo.verify_access(agent_id, user_id):
-            raise NotFoundException("Agent not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException(_AGENT_NOT_FOUND, code=ErrorCode.NOT_FOUND)
 
         all_tools = self._agent_repo.get_tools_by_agent_id(agent_id)
         mcp_exposed = [t for t in all_tools if t.enabled and t.mcp_exposed]

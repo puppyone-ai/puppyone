@@ -33,7 +33,6 @@ class ETLTaskRepositoryBase(ABC):
         Returns:
             Task with assigned task_id
         """
-        pass
 
     @abstractmethod
     def get_task(self, task_id: str) -> Optional[ETLTask]:
@@ -46,7 +45,6 @@ class ETLTaskRepositoryBase(ABC):
         Returns:
             Task if found, None otherwise
         """
-        pass
 
     @abstractmethod
     def update_task(self, task: ETLTask) -> Optional[ETLTask]:
@@ -59,7 +57,6 @@ class ETLTaskRepositoryBase(ABC):
         Returns:
             Updated task if found, None otherwise
         """
-        pass
 
     @abstractmethod
     def list_tasks(
@@ -81,7 +78,6 @@ class ETLTaskRepositoryBase(ABC):
         Returns:
             List of tasks
         """
-        pass
 
     @abstractmethod
     def count_tasks(
@@ -99,7 +95,6 @@ class ETLTaskRepositoryBase(ABC):
         Returns:
             Number of matching tasks
         """
-        pass
 
     @abstractmethod
     def delete_task(self, task_id: str) -> bool:
@@ -112,7 +107,6 @@ class ETLTaskRepositoryBase(ABC):
         Returns:
             True if deleted, False if not found
         """
-        pass
 
 
 class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):

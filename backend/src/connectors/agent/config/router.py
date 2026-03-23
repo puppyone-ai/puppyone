@@ -5,7 +5,7 @@ REST API for Agent configuration.
 """
 
 import asyncio
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 
 from src.connectors.agent.config.service import AgentConfigService
@@ -51,7 +51,7 @@ def _to_agent_out(agent: Agent) -> AgentOut:
         )
         for a in agent.bash_accesses
     ]
-    
+
     return AgentOut(
         id=agent.id,
         name=agent.name,
@@ -139,7 +139,7 @@ def _sync_scheduler_add(agent_id: str, agent_type: str, trigger_type: str, trigg
         return
     if agent_type != "schedule" or trigger_type != "cron":
         return
-    
+
     try:
         scheduler = get_scheduler_service()
         # Run async method in a new event loop
@@ -160,7 +160,7 @@ def _sync_scheduler_remove(agent_id: str):
     """Background task to remove agent from scheduler."""
     if not scheduler_settings.enabled:
         return
-    
+
     try:
         scheduler = get_scheduler_service()
         scheduler.remove_agent_job(agent_id)
@@ -187,7 +187,7 @@ def create_agent(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="project_id is required",
         )
-    
+
     agent = service.create_agent(
         project_id=payload.project_id,
         name=payload.name,
@@ -202,7 +202,7 @@ def create_agent(
         task_path=payload.task_path,
         external_config=payload.external_config,
     )
-    
+
     # Sync with scheduler if this is a schedule agent
     background_tasks.add_task(
         _sync_scheduler_add,
@@ -212,7 +212,7 @@ def create_agent(
         payload.trigger_config or {},
         payload.name,
     )
-    
+
     return ApiResponse.success(
         data=_to_agent_out(agent),
         message="Agent created successfully",
@@ -252,12 +252,12 @@ def update_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update agent",
         )
-    
+
     # Sync with scheduler
     new_type = payload.type or agent.type
     new_trigger_type = payload.trigger_type or agent.trigger_type or "manual"
     new_trigger_config = payload.trigger_config if payload.trigger_config is not None else (agent.trigger_config or {})
-    
+
     if new_type == "schedule" and new_trigger_type == "cron":
         # Add/update job
         background_tasks.add_task(
@@ -271,7 +271,7 @@ def update_agent(
     else:
         # Remove job if agent is no longer a schedule agent
         background_tasks.add_task(_sync_scheduler_remove, agent.id)
-    
+
     return ApiResponse.success(
         data=_to_agent_out(updated),
         message="Agent updated successfully",
@@ -297,10 +297,10 @@ def delete_agent(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete agent",
         )
-    
+
     # Remove from scheduler
     background_tasks.add_task(_sync_scheduler_remove, agent_id)
-    
+
     return ApiResponse.success(message="Agent deleted successfully")
 
 

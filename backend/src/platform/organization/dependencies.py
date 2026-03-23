@@ -1,6 +1,5 @@
 from typing import List, Optional
 
-from fastapi import Depends
 from src.platform.organization.repository import OrganizationRepository
 from src.platform.organization.service import OrganizationService
 from src.exceptions import PermissionException, ErrorCode

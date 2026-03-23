@@ -214,7 +214,7 @@ class GoogleDocsConnector(BaseConnector):
 
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
-    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.connectors.datasource._base import ConnectorSetup
     from src.oauth.google_docs_service import GoogleDocsOAuthService
     oauth_svc = GoogleDocsOAuthService()
     return ConnectorSetup(

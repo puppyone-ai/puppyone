@@ -254,7 +254,7 @@ class GmailConnector(BaseConnector):
 
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
-    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+    from src.connectors.datasource._base import ConnectorSetup
     oauth_svc = GmailOAuthService()
     return ConnectorSetup(
         connector=GmailConnector(

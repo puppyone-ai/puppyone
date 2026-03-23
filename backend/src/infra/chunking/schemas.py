@@ -51,7 +51,6 @@ class ChunkBase(BaseModel):
 class ChunkCreate(ChunkBase):
     """Create payload for inserting into `public.chunks`."""
 
-    pass
 
 
 class Chunk(ChunkBase):

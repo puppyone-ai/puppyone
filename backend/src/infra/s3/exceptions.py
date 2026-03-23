@@ -21,7 +21,6 @@ class S3FileNotFoundError(S3Error):
 class S3OperationError(S3Error):
     """S3 operation failure exception"""
 
-    pass
 
 
 class S3FileSizeExceededError(S3Error):
@@ -39,7 +38,6 @@ class S3FileSizeExceededError(S3Error):
 class S3MultipartError(S3Error):
     """Multipart upload exception"""
 
-    pass
 
 
 class S3InvalidPartSizeError(S3MultipartError):
