@@ -12,8 +12,8 @@ from pydantic import BaseModel, Field
 class SourceType(str, Enum):
     """Data source type."""
     FILE = "file"      # → File Worker (ETL)
-    SAAS = "saas"      # → SyncEngine (同步执行)
-    URL = "url"        # → SyncEngine (同步执行)
+    SAAS = "saas"      # → SyncEngine (synchronous execution)
+    URL = "url"        # → SyncEngine (synchronous execution)
 
 
 class IngestType(str, Enum):

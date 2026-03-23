@@ -1,4 +1,4 @@
-"""Supabase REST Provider - 通过 PostgREST API 查询 Supabase 数据库"""
+"""Supabase REST Provider - Query Supabase database via PostgREST API"""
 
 import time
 import logging
@@ -17,7 +17,7 @@ from src.connectors.database.providers.base import (
 
 logger = logging.getLogger(__name__)
 
-# httpx 超时配置
+# httpx timeout configuration
 _TIMEOUT = httpx.Timeout(15.0, connect=5.0)
 _SAFE_TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -42,13 +42,13 @@ class SupabaseAuthError(SupabaseConnectionError):
 
 
 class SupabaseRestProvider(BaseDBProvider):
-    """通过 Supabase REST API (PostgREST) 访问数据"""
+    """Access data via Supabase REST API (PostgREST)."""
 
-    # === 公开接口 ===
+    # === Public Interface ===
 
     async def test_connection(self, config: dict) -> dict[str, Any]:
         """
-        测试连接：尝试列出表来验证 URL 和 Key 是否有效。
+        Test connection: attempt to list tables to verify URL and Key are valid.
         """
         base_url, headers = self._build_request(config)
         key_type = config.get("key_type", "anon")
@@ -57,11 +57,11 @@ class SupabaseRestProvider(BaseDBProvider):
 
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             try:
-                # PostgREST 的根路径返回所有表的 OpenAPI spec
+                # PostgREST root path returns the OpenAPI spec for all tables
                 resp = await client.get(f"{base_url}/rest/v1/", headers=headers)
                 resp.raise_for_status()
 
-                # 解析返回的 OpenAPI spec，提取表名
+                # Parse the returned OpenAPI spec and extract table names
                 data = resp.json()
                 tables_count = 0
                 if isinstance(data, dict) and "paths" in data:
@@ -76,8 +76,8 @@ class SupabaseRestProvider(BaseDBProvider):
             except httpx.HTTPStatusError as e:
                 status_code = e.response.status_code
                 if status_code == 401:
-                    # 某些 Supabase 配置下，新格式 key 可能仍要求 Authorization 头。
-                    # 这里做一次回退重试，避免误判为 key 错误。
+                    # Under some Supabase configurations, new-format keys may still require Authorization header.
+                    # Perform a fallback retry here to avoid wrongly diagnosing a key error.
                     if key_format in {"sb_publishable", "sb_secret"} and "Authorization" not in headers:
                         fallback_headers = {**headers, "Authorization": f"Bearer {api_key}"}
                         try:
@@ -228,9 +228,9 @@ class SupabaseRestProvider(BaseDBProvider):
 
     async def list_tables(self, config: dict) -> list[TableInfo]:
         """
-        列出 Supabase 项目中的所有 public 表及其列信息。
+        List all public tables and their column info in a Supabase project.
 
-        利用 PostgREST 根路径返回的 OpenAPI spec。
+        Uses the OpenAPI spec returned by the PostgREST root path.
         """
         base_url, headers = self._build_request(config)
 
@@ -250,7 +250,7 @@ class SupabaseRestProvider(BaseDBProvider):
                     if not table_name or table_name.startswith("rpc/"):
                         continue
 
-                    # 从 definitions 提取列信息
+                    # Extract column info from definitions
                     columns: list[dict[str, str]] = []
                     if table_name in definitions:
                         props = definitions[table_name].get("properties", {})
@@ -258,7 +258,7 @@ class SupabaseRestProvider(BaseDBProvider):
                             col_type = col_info.get("format", col_info.get("type", "unknown"))
                             columns.append({"name": col_name, "type": col_type})
 
-                    # 判断是 table 还是 view（有 POST 方法的通常是 table）
+                    # Determine if it is a table or view (those with POST method are usually tables)
                     is_table = "post" in path_info
                     tables.append(TableInfo(
                         name=table_name,
@@ -295,22 +295,22 @@ class SupabaseRestProvider(BaseDBProvider):
         offset: int = 0,
     ) -> QueryResult:
         """
-        通过 PostgREST 查询单表数据。
+        Query single table data via PostgREST.
 
-        filters 格式: [{"column": "status", "op": "eq", "value": "active"}, ...]
-        支持的 op: eq, neq, gt, gte, lt, lte, like, ilike, in, is
+        filters format: [{"column": "status", "op": "eq", "value": "active"}, ...]
+        Supported ops: eq, neq, gt, gte, lt, lte, like, ilike, in, is
         """
         base_url, headers = self._build_request(config)
 
-        # 安全检查：仅允许安全字符，避免路径/查询注入
-        # 支持常见 Supabase 表名：字母、数字、下划线、连字符
+        # Security check: only allow safe characters to prevent path/query injection
+        # Supports common Supabase table names: letters, numbers, underscores, hyphens
         if not self._is_safe_table_name(table):
             raise ValueError(
                 f"Invalid table name: {table}. "
                 "Only letters, numbers, underscore (_) and hyphen (-) are allowed."
             )
 
-        # 构造查询参数
+        # Build query parameters
         params: dict[str, str] = {
             "select": select,
             "limit": str(limit),
@@ -320,7 +320,7 @@ class SupabaseRestProvider(BaseDBProvider):
         if order:
             params["order"] = order
 
-        # 添加 filter
+        # Add filters
         if filters:
             for f in filters:
                 col = f.get("column", "")
@@ -329,7 +329,7 @@ class SupabaseRestProvider(BaseDBProvider):
                 # PostgREST filter: ?column=op.value
                 params[col] = f"{op}.{val}"
 
-        # 请求时要求返回 count
+        # Request count to be returned
         headers_with_count = {**headers, "Prefer": "count=exact"}
 
         start = time.monotonic()
@@ -371,14 +371,14 @@ class SupabaseRestProvider(BaseDBProvider):
             execution_time_ms=elapsed_ms,
         )
 
-    # === 内部方法 ===
+    # === Internal Methods ===
 
     @staticmethod
     def _build_request(config: dict) -> tuple[str, dict[str, str]]:
         """
-        从配置构造 base_url 和 headers。
+        Build base_url and headers from configuration.
 
-        config 需要：
+        config requires:
         - project_url: Supabase project URL (e.g. https://xxx.supabase.co)
         - api_key: Supabase API key (anon or service_role)
         - key_type: Type of key for security tracking
@@ -393,22 +393,22 @@ class SupabaseRestProvider(BaseDBProvider):
         if not api_key:
             raise ValueError("API Key is required")
 
-        # 验证 URL 格式
+        # Validate URL format
         if not project_url.startswith(("https://", "http://")):
             raise ValueError(
                 f"Invalid Project URL format. It should start with 'https://', got: {project_url}"
             )
 
-        # 验证域名格式
+        # Validate domain format
         parsed = urlparse(project_url)
         if not parsed.netloc.endswith(".supabase.co"):
             raise ValueError(
                 f"Invalid Project URL. It should be a Supabase URL ending with '.supabase.co', got: {parsed.netloc}"
             )
 
-        # 验证 key 格式（支持 Supabase 的新旧格式）：
-        # 1) 旧格式 JWT：包含点号（.）分段
-        # 2) 新格式前缀：sb_publishable_ / sb_secret_
+        # Validate key format (supports both old and new Supabase formats):
+        # 1) Legacy JWT format: contains dot (.) segments
+        # 2) New format prefix: sb_publishable_ / sb_secret_
         is_legacy_jwt = "." in api_key
         is_new_publishable = api_key.startswith("sb_publishable_")
         is_new_secret = api_key.startswith("sb_secret_")
@@ -421,10 +421,10 @@ class SupabaseRestProvider(BaseDBProvider):
                 "'sb_publishable_' (anon) / 'sb_secret_' (service_role)."
             )
 
-        # 兼容 Supabase 新旧 key：
-        # - 旧 JWT key: 需要 Authorization: Bearer <jwt>
-        # - 新 sb_publishable_/sb_secret_ key: 作为 apikey 使用，不作为 Bearer token
-        #   （否则 PostgREST 可能把它当 JWT 解析导致 401）
+        # Compatible with both old and new Supabase keys:
+        # - Legacy JWT key: requires Authorization: Bearer <jwt>
+        # - New sb_publishable_/sb_secret_ key: used as apikey, not as Bearer token
+        #   (otherwise PostgREST may try to parse it as JWT and return 401)
         headers = {
             "apikey": api_key,
             "Content-Type": "application/json",
@@ -454,8 +454,8 @@ class SupabaseRestProvider(BaseDBProvider):
         include_verbose: bool = False,
     ) -> str:
         """
-        构造用于前端展示的安全诊断信息（不泄露完整 key）。
-        通过 DB_CONNECTOR_SUPABASE_DEBUG=1 开启更详细输出。
+        Build safe diagnostic info for frontend display (does not leak the full key).
+        Enable more detailed output via DB_CONNECTOR_SUPABASE_DEBUG=1.
         """
         debug_enabled = os.getenv("DB_CONNECTOR_SUPABASE_DEBUG", "0") == "1"
 
@@ -483,7 +483,7 @@ class SupabaseRestProvider(BaseDBProvider):
     @staticmethod
     def _is_schema_access_forbidden(response: httpx.Response) -> bool:
         """
-        Supabase 返回该错误时，说明当前 key 不能访问 schema introspection。
+        When Supabase returns this error, the current key cannot access schema introspection.
         """
         if response.status_code != 401:
             return False

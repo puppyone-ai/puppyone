@@ -2,7 +2,7 @@
 Audit Logs — API Router
 
 Endpoints:
-  GET  /nodes/{path:path}/audit-logs     节点审计日志
+  GET  /nodes/{path:path}/audit-logs     node audit logs
 """
 
 from typing import Optional, List
@@ -78,7 +78,7 @@ def get_node_audit_logs(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """获取节点的审计日志"""
+    """Get audit logs for a node"""
     _ensure_project_access(project_service, current_user, project_id)
 
     rows = audit_repo.list_by_path(path, limit, offset)

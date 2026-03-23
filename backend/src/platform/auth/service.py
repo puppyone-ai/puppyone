@@ -1,10 +1,10 @@
 """
-认证服务
-负责 JWT token 的验证和用户信息提取
+Authentication Service
+Handles JWT token verification and user information extraction
 
-支持两种验证方式：
-1. Supabase JWKS 验证（首选，通过 supabase.auth.get_claims）
-2. 本地 JWT_SECRET 验证（降级方案，当 JWKS 为空时自动切换）
+Supports two verification methods:
+1. Supabase JWKS verification (preferred, via supabase.auth.get_claims)
+2. Local JWT_SECRET verification (fallback, auto-switches when JWKS is empty)
 """
 
 import time
@@ -18,32 +18,32 @@ from src.utils.logger import log_error, log_debug, log_info
 
 
 class AuthService:
-    """认证服务类"""
+    """Authentication service class"""
 
     def __init__(self, supabase_client: Client):
         """
-        初始化认证服务
+        Initialize the authentication service
 
         Args:
-            supabase_client: Supabase 客户端实例
+            supabase_client: Supabase client instance
         """
         self.supabase = supabase_client
 
     def _verify_token_local(self, token: str) -> dict:
         """
-        使用本地 JWT_SECRET 验证 token（降级方案）
+        Verify token using local JWT_SECRET (fallback method)
 
-        当 Supabase JWKS 端点返回空时使用此方法。
-        适用于 Supabase Branch 实例 JWKS 尚未初始化的场景。
+        Used when the Supabase JWKS endpoint returns empty.
+        Applicable for Supabase Branch instances where JWKS is not yet initialized.
 
         Args:
-            token: JWT token 字符串
+            token: JWT token string
 
         Returns:
-            dict: 解码后的 claims
+            dict: Decoded claims
 
         Raises:
-            AuthException: 验证失败
+            AuthException: Verification failed
         """
         jwt_secret = settings.JWT_SECRET
         if not jwt_secret or jwt_secret == "ContextBase-256-bit-secret":
@@ -77,23 +77,23 @@ class AuthService:
 
     def verify_token(self, token: str) -> TokenClaims:
         """
-        验证 JWT token 并返回 claims
+        Verify JWT token and return claims
 
-        优先使用 Supabase JWKS 验证，当 JWKS 为空时自动降级到本地 JWT_SECRET 验证。
+        Prefers Supabase JWKS verification; automatically falls back to local JWT_SECRET when JWKS is empty.
 
         Args:
-            token: JWT token 字符串
+            token: JWT token string
 
         Returns:
-            TokenClaims: token 中的 claims 信息
+            TokenClaims: Claims information from the token
 
         Raises:
-            AuthException: token 无效或验证失败
+            AuthException: Token is invalid or verification failed
         """
         claims_dict = None
 
         try:
-            # 方式1: 调用 Supabase auth API 验证 token（JWKS）
+            # Method 1: Verify token via Supabase auth API (JWKS)
             response = self.supabase.auth.get_claims(jwt=token)
 
             if response:
@@ -106,12 +106,12 @@ class AuthService:
             else:
                 log_error(f"Unexpected error during JWKS token verification: {e}")
 
-        # 方式2: JWKS 失败或为空时，降级到本地 JWT_SECRET 验证
+        # Method 2: Fall back to local JWT_SECRET verification when JWKS fails or is empty
         if not claims_dict:
             log_debug("JWKS verification returned no claims, trying local JWT_SECRET")
             claims_dict = self._verify_token_local(token)
 
-        # 解析 claims
+        # Parse claims
         try:
             claims = TokenClaims(**claims_dict)
         except Exception as e:
@@ -121,7 +121,7 @@ class AuthService:
                 code=ErrorCode.INVALID_TOKEN,
             )
 
-        # 检查 token 是否过期
+        # Check if token is expired
         if self._is_token_expired(claims):
             log_debug(f"Token expired for user {claims.user_id}")
             raise AuthException(
@@ -141,16 +141,16 @@ class AuthService:
 
     def get_current_user(self, token: str) -> CurrentUser:
         """
-        从 token 获取当前用户信息
+        Get current user information from token
 
         Args:
-            token: JWT token 字符串
+            token: JWT token string
 
         Returns:
-            CurrentUser: 当前用户信息
+            CurrentUser: Current user information
 
         Raises:
-            AuthException: token 无效或验证失败
+            AuthException: Token is invalid or verification failed
         """
         claims = self.verify_token(token)
         return CurrentUser.from_claims(claims)
@@ -158,43 +158,43 @@ class AuthService:
     @staticmethod
     def _is_token_expired(claims: TokenClaims) -> bool:
         """
-        检查 token 是否过期
+        Check if token is expired
 
         Args:
             claims: token claims
 
         Returns:
-            bool: True 表示已过期
+            bool: True means expired
         """
         if not claims.exp:
             return True
-        # 添加 5 秒的时间缓冲，避免网络延迟导致的问题
+        # Add 5-second buffer to avoid issues caused by network latency
         return time.time() > (claims.exp - 5)
 
     def verify_user_permission(
         self, user: CurrentUser, required_role: Optional[str] = None
     ) -> bool:
         """
-        验证用户权限
+        Verify user permissions
 
         Args:
-            user: 当前用户
-            required_role: 需要的角色（可选）
+            user: Current user
+            required_role: Required role (optional)
 
         Returns:
-            bool: True 表示有权限
+            bool: True means authorized
 
         Raises:
-            AuthException: 没有权限
+            AuthException: No permission
         """
-        # 检查是否为匿名用户
+        # Check if user is anonymous
         if user.is_anonymous:
             raise AuthException(
                 message="Anonymous users are not allowed",
                 code=ErrorCode.FORBIDDEN,
             )
 
-        # 检查角色（如果需要）
+        # Check role (if required)
         if required_role and user.role != required_role:
             raise AuthException(
                 message=f"Required role: {required_role}",

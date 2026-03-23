@@ -12,7 +12,7 @@ from src.infra.security.crypto import (
 
 
 class DBConnectionRepository:
-    """数据库连接 CRUD"""
+    """Database connection CRUD."""
 
     TABLE = "db_connections"
 

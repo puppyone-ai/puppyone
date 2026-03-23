@@ -1,7 +1,7 @@
 """
-Supabase 客户端
+Supabase client.
 
-提供单例模式的 Supabase 客户端，避免重复连接。
+Provides a singleton Supabase client to avoid duplicate connections.
 """
 
 import os
@@ -12,7 +12,7 @@ from supabase.client import ClientOptions
 
 
 class SupabaseClient:
-    """Supabase 客户端单例类"""
+    """Supabase client singleton class"""
 
     _instance: Optional["SupabaseClient"] = None
     _client: Optional[Client] = None
@@ -23,18 +23,18 @@ class SupabaseClient:
         return cls._instance
 
     def __init__(self):
-        """初始化 Supabase 客户端（仅在首次调用时创建连接）"""
+        """Initialize Supabase client (only creates connection on first call)"""
         if self._client is None:
             url: str = os.environ.get("SUPABASE_URL", "")
             key: str = os.environ.get("SUPABASE_KEY", "")
 
             if not url or not key:
-                raise ValueError("SUPABASE_URL 和 SUPABASE_KEY 环境变量必须设置")
+                raise ValueError("SUPABASE_URL and SUPABASE_KEY environment variables must be set")
 
-            # 默认不信任环境变量里的代理（HTTP_PROXY/HTTPS_PROXY/ALL_PROXY），避免代理导致
-            # Supabase(PostgREST) TLS 握手异常，例如:
+            # By default, do not trust environment proxy variables (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY)
+            # to avoid proxy-induced Supabase (PostgREST) TLS handshake errors, e.g.:
             #   [SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol
-            # 如确实需要让 Supabase 走环境代理，可设置:
+            # If Supabase should use the environment proxy, set:
             #   SUPABASE_TRUST_ENV_PROXY=true
             trust_env_proxy = os.environ.get(
                 "SUPABASE_TRUST_ENV_PROXY", ""
@@ -59,12 +59,12 @@ class SupabaseClient:
 
     @property
     def client(self) -> Client:
-        """获取 Supabase 客户端实例"""
+        """Get Supabase client instance"""
         if self._client is None:
             self.__init__()
         assert self._client is not None
         return self._client
 
     def get_client(self) -> Client:
-        """获取 Supabase 客户端实例（方法形式）"""
+        """Get Supabase client instance (method form)"""
         return self.client

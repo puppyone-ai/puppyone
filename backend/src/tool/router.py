@@ -1,7 +1,7 @@
 """
-Tool 管理 API
+Tool management API
 
-对 public.tool 提供 CRUD。
+Provides CRUD operations for public.tool.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/tools", tags=["tools"])
 @router.get(
     "/",
     response_model=ApiResponse[List[ToolOut]],
-    summary="获取当前用户的 Tool 列表",
+    summary="Get the current user's Tool list",
     status_code=status.HTTP_200_OK,
 )
 def list_tools(
@@ -49,13 +49,13 @@ def list_tools(
     all_tools: list = []
     for oid in oids:
         all_tools.extend(tool_service.list_org_tools(oid, skip=skip, limit=limit))
-    return ApiResponse.success(data=all_tools, message="获取 Tool 列表成功")
+    return ApiResponse.success(data=all_tools, message="Tool list retrieved successfully")
 
 
 @router.get(
     "/by-path/{path:path}",
     response_model=ApiResponse[List[ToolOut]],
-    summary="获取某个 path 下的 Tool 列表",
+    summary="Get Tool list under a specific path",
     status_code=status.HTTP_200_OK,
 )
 def list_tools_by_path(
@@ -74,13 +74,13 @@ def list_tools_by_path(
         skip=skip,
         limit=limit,
     )
-    return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
+    return ApiResponse.success(data=tools, message="Tool list retrieved successfully")
 
 
 @router.get(
     "/by-project/{project_id}",
     response_model=ApiResponse[List[ToolOut]],
-    summary="获取某个 project_id 下的 Tool 列表（聚合所有节点）",
+    summary="Get Tool list under a specific project_id (aggregated across all nodes)",
     status_code=status.HTTP_200_OK,
 )
 def list_tools_by_project_id(
@@ -93,16 +93,16 @@ def list_tools_by_project_id(
     tools = tool_service.list_org_tools_by_project_id(
         resolved, project_id=project_id
     )
-    return ApiResponse.success(data=tools, message="获取 Tool 列表成功")
+    return ApiResponse.success(data=tools, message="Tool list retrieved successfully")
 
 
 @router.post(
     "/",
     response_model=ApiResponse[ToolOut],
-    summary="创建 Tool",
+    summary="Create Tool",
     description=(
-        "创建一个 Tool。\n\n"
-        "说明：Search Tool 的索引构建已迁移到独立异步接口（见 `/tools/search`）。\n"
+        "Create a Tool.\n\n"
+        "Note: Search Tool index building has been moved to a separate async API (see `/tools/search`).\n"
     ),
     status_code=status.HTTP_201_CREATED,
 )
@@ -133,7 +133,7 @@ def create_tool(
         script_content=payload.script_content,
     )
 
-    return ApiResponse.success(data=tool, message="创建 Tool 成功")
+    return ApiResponse.success(data=tool, message="Tool created successfully")
 
 
 async def _run_search_indexing_background(
@@ -147,7 +147,7 @@ async def _run_search_indexing_background(
     json_path: str,
 ) -> None:
     """
-    后台 indexing 执行器：负责写入索引任务状态，并记录日志（不抛出到请求方）。
+    Background indexing executor: writes index task status and logs (does not throw to the requester).
     """
     now = dt.datetime.now(tz=dt.timezone.utc)
     log_info(
@@ -421,13 +421,13 @@ async def _run_folder_search_indexing_background(
 @router.post(
     "/search",
     response_model=ApiResponse[ToolOut],
-    summary="创建 Search Tool（异步 indexing）",
+    summary="Create Search Tool (async indexing)",
     description=(
-        "创建 `type=search` 的 Tool，并在响应返回后异步触发 indexing（chunking + embedding + upsert）。\n\n"
-        "支持两种模式：\n"
-        "- **JSON Search**: path 指向 json 类型节点，索引该节点的 JSON 内容\n"
-        "- **Folder Search**: path 指向 folder 类型节点，索引 folder 下所有 json/markdown 文件\n\n"
-        "索引状态通过 `/tools/{tool_id}/search-index` 轮询获取。"
+        "Create a `type=search` Tool, and asynchronously trigger indexing (chunking + embedding + upsert) after the response is returned.\n\n"
+        "Supports two modes:\n"
+        "- **JSON Search**: path points to a json-type node, indexes the JSON content of that node\n"
+        "- **Folder Search**: path points to a folder-type node, indexes all json/markdown files under the folder\n\n"
+        "Index status can be polled via `/tools/{tool_id}/search-index`."
     ),
     status_code=status.HTTP_201_CREATED,
 )
@@ -476,7 +476,7 @@ def create_search_tool_async(
             f"[search_index] folder search mode: tool_id={tool.id} folder_path={payload.path}"
         )
         
-        # 先写入一条 pending（便于轮询端立刻拿到状态）
+        # Write a pending record first (so the polling endpoint can get the status immediately)
         try:
             repo.upsert(
                 SearchIndexTaskUpsert(
@@ -515,7 +515,7 @@ def create_search_tool_async(
         )
 
         return ApiResponse.success(
-            data=tool, message="创建 Folder Search Tool 成功（indexing 已异步触发）"
+            data=tool, message="Folder Search Tool created successfully (indexing triggered asynchronously)"
         )
     else:
         # JSON Search: existing behavior
@@ -523,7 +523,7 @@ def create_search_tool_async(
             f"[search_index] json search mode: tool_id={tool.id} path={payload.path}"
         )
         
-        # 先写入一条 pending（便于轮询端立刻拿到状态）
+        # Write a pending record first (so the polling endpoint can get the status immediately)
         try:
             repo.upsert(
                 SearchIndexTaskUpsert(
@@ -556,15 +556,15 @@ def create_search_tool_async(
         )
 
         return ApiResponse.success(
-            data=tool, message="创建 Search Tool 成功（indexing 已异步触发）"
+            data=tool, message="Search Tool created successfully (indexing triggered asynchronously)"
         )
 
 
 @router.get(
     "/{tool_id}/search-index",
     response_model=ApiResponse[SearchIndexTaskOut],
-    summary="查询 Search Tool 索引构建状态",
-    description="返回该 Search Tool 的索引任务状态。",
+    summary="Query Search Tool index build status",
+    description="Returns the index task status of this Search Tool.",
     status_code=status.HTTP_200_OK,
 )
 def get_search_index_status(
@@ -625,13 +625,13 @@ def get_search_index_status(
     log_info(
         f"[search-index-status] done: tool_id={tool_id} status={task.status} total_ms={int((time.perf_counter() - t0) * 1000)}"
     )
-    return ApiResponse.success(data=out, message="获取索引状态成功")
+    return ApiResponse.success(data=out, message="Index status retrieved successfully")
 
 
 @router.get(
     "/{tool_id}",
     response_model=ApiResponse[ToolOut],
-    summary="获取 Tool",
+    summary="Get Tool",
     status_code=status.HTTP_200_OK,
 )
 def get_tool(
@@ -640,13 +640,13 @@ def get_tool(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     tool = tool_service.get_by_id_with_access_check(tool_id, current_user.user_id)
-    return ApiResponse.success(data=tool, message="获取 Tool 成功")
+    return ApiResponse.success(data=tool, message="Tool retrieved successfully")
 
 
 @router.put(
     "/{tool_id}",
     response_model=ApiResponse[ToolOut],
-    summary="更新 Tool",
+    summary="Update Tool",
     status_code=status.HTTP_200_OK,
 )
 def update_tool(
@@ -655,18 +655,18 @@ def update_tool(
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    # 只更新「请求体里实际传入」的字段，没传入的不影响
+    # Only update fields actually passed in the request body; unset fields are not affected
     patch = payload.model_dump(exclude_unset=True)
     tool = tool_service.update(
         tool_id=tool_id, user_id=current_user.user_id, patch=patch
     )
-    return ApiResponse.success(data=tool, message="更新 Tool 成功")
+    return ApiResponse.success(data=tool, message="Tool updated successfully")
 
 
 @router.delete(
     "/{tool_id}",
     response_model=ApiResponse[None],
-    summary="删除 Tool",
+    summary="Delete Tool",
     status_code=status.HTTP_200_OK,
 )
 def delete_tool(
@@ -675,4 +675,4 @@ def delete_tool(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     tool_service.delete(tool_id, current_user.user_id)
-    return ApiResponse.success(data=None, message="删除 Tool 成功")
+    return ApiResponse.success(data=None, message="Tool deleted successfully")

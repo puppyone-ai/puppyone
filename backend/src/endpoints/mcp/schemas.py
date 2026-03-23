@@ -14,8 +14,8 @@ class McpToolItem(BaseModel):
 
 
 class McpEndpointCreate(BaseModel):
-    project_id: str = Field(..., description="所属项目 ID")
-    path: Optional[str] = Field(None, description="关联的 MUT path")
+    project_id: str = Field(..., description="Associated project ID")
+    path: Optional[str] = Field(None, description="Associated MUT path")
     name: str = Field(default="MCP Endpoint", min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=500)
     accesses: List[McpAccessItem] = Field(default_factory=list)

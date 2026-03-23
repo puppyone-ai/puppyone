@@ -18,7 +18,6 @@ Server-side sync:
 """
 
 from typing import Optional, Any
-import os
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from pydantic import BaseModel
 
@@ -31,6 +30,12 @@ from src.connectors.datasource.dependencies import get_sync_service, get_sync_en
 from src.common_schemas import ApiResponse
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
+from src.connectors.datasource.cli_handlers import (
+    _notify_folder_source,
+    _sync_resp as _sync_resp_helper,
+    process_push_file,
+    process_pull_files,
+)
 
 
 router = APIRouter(prefix="/sync", tags=["sync"])
@@ -693,75 +698,22 @@ async def push_file(
     CLI pushes a local file to PuppyOne.
     Creates a new node if no sync binding exists, updates if it does.
     """
-    import os
-
     parent_sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    is_json = body.content_json is not None
-    existing = sync_svc.sync_repo.find_by_config_key(
-        parent_sync.provider, "external_resource_id", body.external_resource_id,
+    from src.mut_engine.dependencies import create_mut_ops
+    ops = create_mut_ops()
+
+    result = await process_push_file(
+        ops,
+        project_id=parent_sync.project_id,
+        body=body,
+        user_id=current_user.user_id,
+        sync_svc=sync_svc,
+        parent_sync=parent_sync,
     )
-
-    if existing:
-        if existing.remote_hash == body.content_hash:
-            return ApiResponse.success(data=PushFileResponse(
-                path=existing.path,
-                external_resource_id=body.external_resource_id,
-                action="skipped",
-                version=existing.last_sync_version,
-            ))
-
-        from src.mut_engine.dependencies import create_mut_ops
-        import json as _json
-
-        ops = create_mut_ops()
-        content_bytes = (_json.dumps(body.content_json, ensure_ascii=False, indent=2) if is_json else (body.content_md or "")).encode("utf-8")
-        write_result = await ops.write_file(
-            parent_sync.project_id, existing.path, content_bytes,
-            who=f"sync:cli:{body.external_resource_id}",
-            message=f"push update {body.external_resource_id}",
-        )
-        version = write_result.version
-        sync_svc.sync_repo.update_sync_point(
-            sync_id=existing.id,
-            last_sync_version=version,
-            remote_hash=body.content_hash,
-        )
-        return ApiResponse.success(data=PushFileResponse(
-            path=existing.path,
-            external_resource_id=body.external_resource_id,
-            action="updated",
-            version=version,
-        ))
-
-    file_name = body.name or os.path.splitext(
-        os.path.basename(body.external_resource_id)
-    )[0]
-    target_folder_path = parent_sync.config.get("target_folder_id", "")
-
-    from src.mut_engine.dependencies import create_mut_ops as _create_mut_ops
-    import json as _json
-
-    ops = _create_mut_ops()
-    ext = ".json" if is_json else ".md"
-    file_path = f"{target_folder_path}/{file_name}{ext}" if target_folder_path else f"{file_name}{ext}"
-    content_bytes = (_json.dumps(body.content_json, ensure_ascii=False, indent=2) if is_json else (body.content_md or "")).encode("utf-8")
-
-    write_result = await ops.write_file(
-        parent_sync.project_id, file_path, content_bytes,
-        who=f"sync:cli:{body.external_resource_id}",
-        message=f"push create {body.external_resource_id}",
-    )
-
-    version = write_result.version
-    return ApiResponse.success(data=PushFileResponse(
-        path=file_path,
-        external_resource_id=body.external_resource_id,
-        action="created",
-        version=version,
-    ))
+    return ApiResponse.success(data=PushFileResponse(**result))
 
 
 @router.get(
@@ -777,62 +729,21 @@ def pull_files(
     Returns files that have changed on the server since last sync.
     CLI writes them to local filesystem, then calls ack-pull.
     """
-    from src.infra.supabase.client import SupabaseClient
-
     parent_sync = sync_svc.sync_repo.get_by_id(sync_id)
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    files: list[PullFileItem] = []
-
-    syncs = sync_svc.sync_repo.list_by_provider(
-        parent_sync.project_id, parent_sync.provider,
-    )
-
     from src.mut_engine.dependencies import create_mut_ops
     ops = create_mut_ops()
-    current_version = ops.get_version(parent_sync.project_id)
 
-    for s in syncs:
-        if not s.path:
-            continue
-
-        if current_version <= s.last_sync_version:
-            continue
-
-        ext_resource_id = s.config.get("external_resource_id", "")
-        path = s.path
-
-        try:
-            content = ops.read_file(parent_sync.project_id, path)
-        except FileNotFoundError:
-            continue
-
-        from src.mut_engine.tree_reader import detect_type
-        node_type = detect_type(path)
-        is_json = node_type == "json"
-
-        import json as _json
-        if is_json:
-            try:
-                json_content = _json.loads(content.decode("utf-8"))
-                text_content = None
-            except (ValueError, UnicodeDecodeError):
-                json_content = None
-                text_content = content.decode("utf-8", errors="replace")
-        else:
-            json_content = None
-            text_content = content.decode("utf-8", errors="replace")
-
-        files.append(PullFileItem(
-            path=path,
-            external_resource_id=ext_resource_id,
-            content_json=json_content if is_json else None,
-            content_md=text_content if not is_json else None,
-            node_type="json" if is_json else "markdown",
-            current_version=current_version,
-        ))
-
+    file_dicts = process_pull_files(
+        ops,
+        project_id=parent_sync.project_id,
+        body=None,
+        sync_svc=sync_svc,
+        parent_sync=parent_sync,
+    )
+    files = [PullFileItem(**d) for d in file_dicts]
     return ApiResponse.success(data=PullFilesResponse(files=files, total=len(files)))
 
 
@@ -873,7 +784,7 @@ async def trigger_pull(
 @router.post("/push/{path:path}", response_model=ApiResponse[PushResponse])
 async def trigger_push(
     path: str,
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -944,7 +855,7 @@ def get_sync_changelog(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """查询项目的同步变更日志（sync_changelog），供前端展示同步事件。"""
+    """Query the sync changelog for a project, for frontend display of sync events."""
     _ensure_project_access(project_service, current_user, project_id)
 
     from src.connectors.filesystem.changelog import SyncChangelogRepository
@@ -984,23 +895,8 @@ def get_sync_changelog(
 
 
 # ============================================================
-# Helpers
+# Helpers (delegated to cli_handlers)
 # ============================================================
 
-def _notify_folder_source(action: str, sync_id: str) -> None:
-    """Filesystem sync is now client-side — no server notification needed."""
-    pass
-
-
 def _sync_resp(s) -> SyncResponse:
-    return SyncResponse(
-        id=s.id,
-        project_id=s.project_id,
-        path=s.path,
-        direction=s.direction,
-        provider=s.provider,
-        config=s.config,
-        status=s.status,
-        last_sync_version=s.last_sync_version,
-        error_message=s.error_message,
-    )
+    return SyncResponse(**_sync_resp_helper(s))

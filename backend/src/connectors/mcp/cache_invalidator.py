@@ -8,10 +8,10 @@ from src.utils.logger import log_error
 
 def invalidate_mcp_cache(api_key: str) -> None:
     """
-    best-effort 通知 MCP Server 使某个 api_key 的配置缓存失效。
+    Best-effort notification to MCP Server to invalidate the config cache for a given api_key.
 
-    - 不抛异常（避免影响主流程）
-    - MCP_SERVER_URL 未配置时直接跳过
+    - Does not raise exceptions (to avoid affecting the main flow)
+    - Skips silently when MCP_SERVER_URL is not configured
     """
 
     base = (settings.MCP_SERVER_URL or "").rstrip("/")

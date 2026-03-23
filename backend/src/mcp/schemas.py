@@ -4,19 +4,19 @@ from typing import List, Dict, Any, Optional, Literal
 
 class McpToolsDefinition(BaseModel):
     """
-    工具定义模型
-    用于自定义工具的名称和描述模板
+    Tool definition model
+    Used to customize tool name and description template
     """
 
-    name: str = Field(..., description="工具名称")
+    name: str = Field(..., description="Tool name")
     description: str = Field(
         ...,
-        description="工具描述",
+        description="Tool description",
     )
 
 
-# 工具类型定义（注意：get已改为query，preview和select为新增工具）
-# NOTE: shell_access 和 shell_access_readonly 已移至 agent_bash 表管理，不再是 Tool 类型
+# Tool type definitions (note: get has been renamed to query, preview and select are new tools)
+# NOTE: shell_access and shell_access_readonly have been moved to the agent_bash table, no longer a Tool type
 ToolTypeKey = Literal[
     "get_data_schema",
     "get_all_data",
@@ -27,32 +27,32 @@ ToolTypeKey = Literal[
     "preview",
     "select",
     "search",
-    "custom_script",  # 用户自定义脚本工具
+    "custom_script",  # User-defined script tool
 ]
 
 
 class McpCreate(BaseModel):
     """
-    创建 MCP 实例请求模型
+    Create MCP instance request model
     """
 
-    name: str = Field(..., description="MCP实例名称（必填）")
-    project_id: str = Field(..., description="项目ID (UUID)")
+    name: str = Field(..., description="MCP instance name (required)")
+    project_id: str = Field(..., description="Project ID (UUID)")
     table_id: str = Field(
-        ..., description="TableID (UUID), 对应前端'Table'的概念, 表示一整个JSON对象."
+        ..., description="Table ID (UUID), corresponds to the frontend 'Table' concept, represents an entire JSON object."
     )
     json_pointer: str = Field(
         default="",
-        description="JSON路径, 对应用户选中的某个JSON节点. 表示该MCP实例的数据可见范围. 默认: 空字符串, 表示根路径, 会展示所有数据.",
+        description="JSON path, corresponds to a JSON node selected by the user. Represents the data visibility scope of this MCP instance. Default: empty string, meaning root path, shows all data.",
     )
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
         ...,
-        description="🔧工具定义配置, 支持用户自定义工具名字,工具描述模板,工具描述参数. 支持的key包括: get_data_schema, get_all_data, query_data, create, update, delete, preview, select. 如果不提供, 将沿用默认的工具配置.",
+        description="Tool definition configuration, supports custom tool names, description templates, and description parameters. Supported keys include: get_data_schema, get_all_data, query_data, create, update, delete, preview, select. If not provided, default tool configuration will be used.",
         examples=[
             {
                 "create": {
                     "name": "create_element",
-                    "description": "创建新元素到知识库",
+                    "description": "Create a new element in the knowledge base",
                 }
             }
         ],
@@ -66,7 +66,7 @@ class McpCreate(BaseModel):
             "get_all_data",
             "query_data",
         ],
-        description="🔧工具注册列表. 默认注册基础工具: ['get_data_schema', 'create', 'update', 'delete','get_all_data','query_data']. 可以只选择部分工具进行注册。如果设置了preview_keys, 会自动注册preview_data和select_data两个工具。",
+        description="Tool registration list. Default registered tools: ['get_data_schema', 'create', 'update', 'delete', 'get_all_data', 'query_data']. You can register only a subset of tools. If preview_keys is set, preview_data and select_data tools will be automatically registered.",
         examples=[
             ["get_data_schema", "create"],
             ["get_data_schema", "update", "delete"],
@@ -74,14 +74,14 @@ class McpCreate(BaseModel):
     )
     preview_keys: Optional[List[str]] = Field(
         default=None,
-        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_data两个工具。preview_data工具会只返回指定字段的轻量级数据，select_tables工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
+        description="Preview field list (optional). When set, preview_data and select_data tools will be additionally registered. The preview_data tool returns only lightweight data for specified fields, the select_tables tool can batch-fetch full data by field values. When empty, preview_data returns all fields.",
         examples=[["id", "name", "title"], ["user_id", "username"]],
     )
 
     @field_validator("tools_definition")
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是有效的 Tool 类型"""
+        """Validate that tools_definition keys are valid Tool types"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -105,7 +105,7 @@ class McpCreate(BaseModel):
     @field_validator("register_tools")
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是有效的 Tool 类型"""
+        """Validate that register_tools values are valid Tool types"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -129,50 +129,50 @@ class McpCreate(BaseModel):
 
 class McpUpdate(BaseModel):
     """
-    更新 MCP 实例请求模型
+    Update MCP instance request model
     """
 
-    name: Optional[str] = Field(None, description="MCP实例名称（可选）")
-    status: Optional[int] = Field(None, description="实例状态，0表示关闭，1表示开启")
+    name: Optional[str] = Field(None, description="MCP instance name (optional)")
+    status: Optional[int] = Field(None, description="Instance status, 0 means disabled, 1 means enabled")
     json_pointer: Optional[str] = Field(
-        None, description="JSON指针路径，表示该MCP实例对应的数据路径"
+        None, description="JSON pointer path, represents the data path for this MCP instance"
     )
     tools_definition: Optional[Dict[ToolTypeKey, McpToolsDefinition]] = Field(
         None,
-        description="🔧工具定义配置, 支持用户自定义工具名字,工具描述模板,工具描述参数. ⚠️重要: 目前仅支持'get', 'create', 'update', 'delete'这四个key. 如果不提供, 将沿用默认的工具配置.",
+        description="Tool definition configuration, supports custom tool names, description templates, and description parameters. Important: currently only supports 'get', 'create', 'update', 'delete' keys. If not provided, default tool configuration will be used.",
         examples=[
             {
                 "get": {
                     "tool_name": "query_table",
-                    "tool_desc_template": "获取知识库内容。项目：{project_name}，知识库：{table_name}",
+                    "tool_desc_template": "Get knowledge base content. Project: {project_name}, Knowledge base: {table_name}",
                     "tool_desc_parameters": [
-                        {"project_name": "测试项目"},
-                        {"table_name": "AI技术知识库"},
+                        {"project_name": "Test Project"},
+                        {"table_name": "AI Tech Knowledge Base"},
                     ],
                 },
                 "create": {
                     "tool_name": "create_element",
-                    "tool_desc_template": "创建新元素到知识库：{table_name}",
-                    "tool_desc_parameters": [{"table_name": "AI技术知识库"}],
+                    "tool_desc_template": "Create new element in knowledge base: {table_name}",
+                    "tool_desc_parameters": [{"table_name": "AI Tech Knowledge Base"}],
                 },
             }
         ],
     )
     register_tools: Optional[List[ToolTypeKey]] = Field(
         None,
-        description="🔧工具注册列表. 默认注册基础工具: ['query', 'create', 'update', 'delete']. 可以只选择部分工具进行注册。注意：'get'已改为'query'（仍兼容'get'）；'preview'和'select'工具只有在设置了preview_keys时才会自动注册。",
+        description="Tool registration list. Default registered tools: ['query', 'create', 'update', 'delete']. You can register only a subset of tools. Note: 'get' has been renamed to 'query' (still compatible with 'get'); 'preview' and 'select' tools are only auto-registered when preview_keys is set.",
         examples=[["query", "create"], ["query", "update", "delete"]],
     )
     preview_keys: Optional[List[str]] = Field(
         None,
-        description="🔍预览字段列表（可选）。当设置了此字段后，会额外注册preview_data和select_tables两个工具。preview_data工具会只返回指定字段的轻量级数据，select_tables工具可以根据字段值批量获取完整数据。为空时preview_data返回所有字段。",
+        description="Preview field list (optional). When set, preview_data and select_tables tools will be additionally registered. The preview_data tool returns only lightweight data for specified fields, the select_tables tool can batch-fetch full data by field values. When empty, preview_data returns all fields.",
         examples=[["id", "name", "title"], ["user_id", "username"]],
     )
 
     @field_validator("tools_definition")
     @classmethod
     def validate_tools_definition_keys(cls, v):
-        """验证 tools_definition 的 key 只能是有效的 Tool 类型"""
+        """Validate that tools_definition keys are valid Tool types"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -196,7 +196,7 @@ class McpUpdate(BaseModel):
     @field_validator("register_tools")
     @classmethod
     def validate_register_tools(cls, v):
-        """验证 register_tools 的值只能是有效的 Tool 类型"""
+        """Validate that register_tools values are valid Tool types"""
         if v is not None:
             valid_keys = {
                 "get_data_schema",
@@ -226,15 +226,15 @@ class McpTokenPayload(BaseModel):
 
 
 class McpStatusResponse(BaseModel):
-    name: Optional[str] = Field(None, description="MCP实例名称")
-    status: int = Field(..., description="实例状态，0表示关闭，1表示开启")
-    port: int = Field(..., description="端口信息")
+    name: Optional[str] = Field(None, description="MCP instance name")
+    status: int = Field(..., description="Instance status, 0 means disabled, 1 means enabled")
+    port: int = Field(..., description="Port information")
     docker_info: Dict[Any, Any] = Field(
-        ..., description="MCP实例运行信息, 目前主要是进程信息"
+        ..., description="MCP instance runtime info, currently mainly process info"
     )
     json_pointer: str = Field(..., description="JSONPath")
     tools_definition: Dict[ToolTypeKey, McpToolsDefinition] = Field(
-        ..., description="工具定义"
+        ..., description="Tool definitions"
     )
-    register_tools: List[ToolTypeKey] = Field(..., description="已注册的工具列表")
-    preview_keys: Optional[List[str]] = Field(None, description="预览字段列表")
+    register_tools: List[ToolTypeKey] = Field(..., description="List of registered tools")
+    preview_keys: Optional[List[str]] = Field(None, description="Preview field list")

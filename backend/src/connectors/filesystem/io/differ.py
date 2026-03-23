@@ -1,11 +1,11 @@
 """
 Folder Sync Engine — Differ
 
-变更检测：对比两个 FolderSnapshot，产生 ChangeSet。
+Change detection: compare two FolderSnapshots and produce a ChangeSet.
 
-纯函数，无副作用。上层包装器根据 ChangeSet 决定写入路径：
-  - collection (folder_source): 直写 ContentNodeService
-  - distribution (folder_access): 经过 CollaborationService 版本管理
+Pure functions, no side effects. Upper-layer wrappers decide the write path based on ChangeSet:
+  - collection (folder_source): direct write to ContentNodeService
+  - distribution (folder_access): through CollaborationService version management
 """
 
 from src.connectors.filesystem.io.schemas import FolderSnapshot, ChangeSet, FileEntry
@@ -16,11 +16,11 @@ def diff_snapshots(
     new: FolderSnapshot,
 ) -> ChangeSet:
     """
-    对比两个快照，返回变更集。
+    Compare two snapshots and return a change set.
 
     Args:
-        old: 上一次已知状态（可以是空快照）
-        new: 当前扫描结果
+        old: Previous known state (can be an empty snapshot)
+        new: Current scan result
 
     Returns:
         ChangeSet(created=..., modified=..., deleted=...)
@@ -50,15 +50,15 @@ def diff_incremental(
     scanned_entries: dict[str, FileEntry | None],
 ) -> ChangeSet:
     """
-    增量 diff：对比现有快照和 scan_paths() 的增量扫描结果。
+    Incremental diff: compare existing snapshot with incremental scan results from scan_paths().
 
-    用于 watcher 触发后的快速变更检测（不需要全量重扫）。
+    Used for fast change detection after a watcher trigger (no full re-scan needed).
 
     Args:
-        snapshot:        上一次已知的完整快照
-        scanned_entries: scan_paths() 的返回值
+        snapshot:        Previous known complete snapshot
+        scanned_entries: Return value of scan_paths()
                          {rel_path: FileEntry | None}
-                         None 表示文件已删除
+                         None means the file has been deleted
 
     Returns:
         ChangeSet

@@ -1,7 +1,7 @@
 """
-Project 数据模型
+Project Data Models
 
-定义 project 表对应的 Pydantic 模型，用于类型检查和数据验证。
+Defines Pydantic models corresponding to the project table, used for type checking and data validation.
 """
 
 from datetime import datetime
@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class ProjectBase(BaseModel):
-    """项目基础模型"""
+    """Project base model"""
 
     name: str
     description: Optional[str] = None
@@ -20,13 +20,13 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    """创建项目模型"""
+    """Create project model"""
 
     id: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
-    """更新项目模型"""
+    """Update project model"""
 
     name: Optional[str] = None
     description: Optional[str] = None
@@ -34,7 +34,7 @@ class ProjectUpdate(BaseModel):
 
 
 class ProjectResponse(ProjectBase):
-    """项目响应模型"""
+    """Project response model"""
 
     id: str
     created_at: datetime

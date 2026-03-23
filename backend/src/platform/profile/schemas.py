@@ -1,7 +1,7 @@
 """
 Profile API Schemas
 
-定义 Profile 相关的 API 请求和响应模型
+Defines API request and response models for Profile
 """
 
 from datetime import datetime
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 
 class ProfileResponse(BaseModel):
-    """Profile 响应模型"""
+    """Profile response model"""
 
     user_id: str
     email: str
@@ -25,26 +25,26 @@ class ProfileResponse(BaseModel):
 
 
 class OnboardingStatusResponse(BaseModel):
-    """Onboarding 状态响应"""
+    """Onboarding status response"""
 
-    has_onboarded: bool = Field(..., description="是否已完成 Onboarding")
+    has_onboarded: bool = Field(..., description="Whether Onboarding has been completed")
     demo_project_id: Optional[int] = Field(None, description="Demo Project ID")
     redirect_to: str = Field(
-        ..., description="前端应该重定向到的路径"
+        ..., description="Path the frontend should redirect to"
     )
-    is_new_user: bool = Field(..., description="是否是新用户（需要显示欢迎弹窗）")
+    is_new_user: bool = Field(..., description="Whether this is a new user (needs welcome dialog)")
 
 
 class OnboardingCompleteRequest(BaseModel):
-    """完成 Onboarding 请求"""
+    """Complete Onboarding request"""
 
     demo_project_id: Optional[int] = Field(
-        None, description="Demo Project ID（如果已创建）"
+        None, description="Demo Project ID (if already created)"
     )
 
 
 class ResetOnboardingResponse(BaseModel):
-    """重置 Onboarding 响应"""
+    """Reset Onboarding response"""
 
     success: bool
     message: str

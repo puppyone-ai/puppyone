@@ -18,8 +18,8 @@ router = APIRouter(
     prefix="/agents",
     tags=["agents"],
     responses={
-        404: {"description": "资源未找到"},
-        500: {"description": "服务器内部错误"},
+        404: {"description": "Resource not found"},
+        500: {"description": "Internal server error"},
     },
 )
 

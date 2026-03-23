@@ -1,4 +1,4 @@
-"""S3 存储模块的 API 路由"""
+"""S3 storage module API routes"""
 
 import json
 import logging
@@ -55,18 +55,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/s3", tags=["S3 Storage"])
 
 
-# ============= 文件上传 =============
+# ============= File Upload =============
 
 
 @router.post("/upload", response_model=FileUploadResponse, status_code=201)
 async def upload_file(
-    file: UploadFile = File(..., description="要上传的文件"),
-    key: str = Form(..., description="S3 对象键"),
-    content_type: str | None = Form(None, description="文件类型"),
+    file: UploadFile = File(..., description="File to upload"),
+    key: str = Form(..., description="S3 object key"),
+    content_type: str | None = Form(None, description="Content type"),
     service: S3Service = Depends(get_s3_service),
 ) -> FileUploadResponse:
     """
-    上传单个文件到 S3
+    Upload a single file to S3.
     """
     try:
         content = await file.read()
@@ -94,12 +94,12 @@ async def upload_file(
 
 @router.post("/upload/batch", response_model=BatchFileUploadResponse)
 async def upload_files_batch(
-    files: list[UploadFile] = File(..., description="要上传的文件列表"),
-    keys: list[str] = Form(..., description="对应的 S3 对象键列表"),
+    files: list[UploadFile] = File(..., description="List of files to upload"),
+    keys: list[str] = Form(..., description="Corresponding S3 object key list"),
     service: S3Service = Depends(get_s3_service),
 ) -> BatchFileUploadResponse:
     """
-    批量上传文件
+    Batch upload files.
     """
     if len(files) != len(keys):
         raise HTTPException(status_code=400, detail="Files and keys count mismatch")
@@ -107,17 +107,17 @@ async def upload_files_batch(
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required")
 
-    # 准备文件数据
+    # Prepare file data
     files_data = []
     for file, key in zip(files, keys):
         content = await file.read()
         content_type = file.content_type
         files_data.append((key, content, content_type))
 
-    # 批量上传
+    # Batch upload
     results_raw = await service.upload_files_batch(files_data)
 
-    # 转换结果
+    # Convert results
     results = []
     for key, success, message, data in results_raw:
         results.append(
@@ -132,7 +132,7 @@ async def upload_files_batch(
     )
 
 
-# ============= 文件下载 =============
+# ============= File Download =============
 
 
 @router.get("/download/{key:path}")
@@ -141,18 +141,18 @@ async def download_file(
     service: S3Service = Depends(get_s3_service),
 ) -> StreamingResponse:
     """
-    下载文件(流式响应)
+    Download file (streaming response).
     """
     try:
-        # 创建流式响应
+        # Create streaming response
         stream = service.download_file_stream(metadata.key)
 
-        # 设置响应头
+        # Set response headers
         headers = {}
         if metadata.content_type:
             headers["Content-Type"] = metadata.content_type
 
-        # 从 key 提取文件名
+        # Extract filename from key
         filename = metadata.key.split("/")[-1]
         headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 
@@ -164,7 +164,7 @@ async def download_file(
         )
 
 
-# ============= 文件存在性检查 =============
+# ============= File Existence Check =============
 
 
 @router.head("/exists/{key:path}")
@@ -173,7 +173,7 @@ async def check_file_exists(
     service: S3Service = Depends(get_s3_service),
 ) -> Response:
     """
-    检查文件是否存在
+    Check if a file exists.
     """
     exists = await service.file_exists(key)
 
@@ -183,7 +183,7 @@ async def check_file_exists(
         return Response(status_code=404)
 
 
-# ============= 文件删除 =============
+# ============= File Deletion =============
 
 
 @router.delete("/{key:path}", status_code=204)
@@ -192,7 +192,7 @@ async def delete_file(
     service: S3Service = Depends(get_s3_service),
 ) -> None:
     """
-    删除单个文件
+    Delete a single file.
     """
     try:
         await service.delete_file(key)
@@ -216,7 +216,7 @@ async def delete_files_batch(
     ),
 ) -> BatchDeleteResponse:
     """
-    批量删除文件
+    Batch delete files.
     """
     results = await service.delete_files_batch(request.keys)
 
@@ -228,19 +228,19 @@ async def delete_files_batch(
     )
 
 
-# ============= 文件列表 =============
+# ============= File Listing =============
 
 
 @router.get("/list", response_model=FileListResponse)
 async def list_files(
-    prefix: str = Query("", description="键前缀"),
-    delimiter: str | None = Query(None, description="分隔符(用于模拟文件夹)"),
-    max_keys: int = Query(1000, ge=1, le=1000, description="最大返回数量"),
-    continuation_token: str | None = Query(None, description="分页 token"),
+    prefix: str = Query("", description="Key prefix"),
+    delimiter: str | None = Query(None, description="Delimiter (for simulating folders)"),
+    max_keys: int = Query(1000, ge=1, le=1000, description="Maximum number of results"),
+    continuation_token: str | None = Query(None, description="Pagination token"),
     service: S3Service = Depends(get_s3_service),
 ) -> FileListResponse:
     """
-    列出文件
+    List files.
     """
     try:
         files, common_prefixes, next_token, is_truncated = await service.list_files(
@@ -263,7 +263,7 @@ async def list_files(
         )
 
 
-# ============= 文件元信息 =============
+# ============= File Metadata =============
 
 
 @router.get("/metadata/{key:path}", response_model=FileMetadata)
@@ -271,12 +271,12 @@ async def get_file_metadata(
     metadata: FileMetadata = Depends(existing_s3_file),
 ) -> FileMetadata:
     """
-    获取文件元信息
+    Get file metadata.
     """
     return metadata
 
 
-# ============= 预签名 URL =============
+# ============= Presigned URLs =============
 
 
 @router.post("/presigned-url/upload", response_model=PresignedUploadUrlResponse)
@@ -288,7 +288,7 @@ async def generate_presigned_upload_url(
     ),
 ) -> PresignedUploadUrlResponse:
     """
-    生成上传预签名 URL
+    Generate a presigned upload URL.
     """
     try:
         url = await service.generate_presigned_upload_url(
@@ -318,7 +318,7 @@ async def generate_presigned_download_url(
     ),
 ) -> PresignedDownloadUrlResponse:
     """
-    生成下载预签名 URL
+    Generate a presigned download URL.
     """
     try:
         url = await service.generate_presigned_download_url(
@@ -337,7 +337,7 @@ async def generate_presigned_download_url(
         )
 
 
-# ============= 分片上传 =============
+# ============= Multipart Upload =============
 
 
 @router.post(
@@ -348,7 +348,7 @@ async def create_multipart_upload(
     service: S3Service = Depends(get_s3_service),
 ) -> MultipartCreateResponse:
     """
-    创建分片上传会话
+    Create a multipart upload session.
     """
     try:
         upload_id = await service.create_multipart_upload(
@@ -367,15 +367,15 @@ async def create_multipart_upload(
 
 @router.put("/multipart/upload-part", response_model=MultipartUploadPartResponse)
 async def upload_part(
-    key: str = Form(..., description="S3 对象键"),
-    upload_id: str = Form(..., description="上传会话 ID"),
-    part_number: int = Form(..., ge=1, le=10000, description="分片编号"),
-    file: UploadFile = File(..., description="分片数据"),
+    key: str = Form(..., description="S3 object key"),
+    upload_id: str = Form(..., description="Upload session ID"),
+    part_number: int = Form(..., ge=1, le=10000, description="Part number"),
+    file: UploadFile = File(..., description="Part data"),
     service: S3Service = Depends(get_s3_service),
     validated_part_number: int = Depends(lambda pn: validate_multipart_part_number(pn)),
 ) -> MultipartUploadPartResponse:
     """
-    上传单个分片
+    Upload a single part.
     """
     try:
         data = await file.read()
@@ -397,16 +397,16 @@ async def upload_part(
 
 @router.post("/multipart/complete", response_model=MultipartCompleteResponse)
 async def complete_multipart_upload(
-    key: str = Form(..., description="S3 对象键"),
-    upload_id: str = Form(..., description="上传会话 ID"),
-    parts_json: str = Form(..., description="分片信息 JSON 字符串"),
+    key: str = Form(..., description="S3 object key"),
+    upload_id: str = Form(..., description="Upload session ID"),
+    parts_json: str = Form(..., description="Parts info JSON string"),
     service: S3Service = Depends(get_s3_service),
 ) -> MultipartCompleteResponse:
     """
-    完成分片上传
+    Complete a multipart upload.
     """
     try:
-        # 解析分片信息
+        # Parse parts info
         parts_data = json.loads(parts_json)
         parts = [(p["part_number"], p["etag"]) for p in parts_data]
 
@@ -430,12 +430,12 @@ async def complete_multipart_upload(
 
 @router.delete("/multipart/abort", status_code=204)
 async def abort_multipart_upload(
-    key: str = Query(..., description="S3 对象键"),
-    upload_id: str = Query(..., description="上传会话 ID"),
+    key: str = Query(..., description="S3 object key"),
+    upload_id: str = Query(..., description="Upload session ID"),
     service: S3Service = Depends(get_s3_service),
 ) -> None:
     """
-    取消分片上传
+    Abort a multipart upload.
     """
     try:
         await service.abort_multipart_upload(key=key, upload_id=upload_id)
@@ -452,12 +452,12 @@ async def abort_multipart_upload(
 
 @router.get("/multipart/list", response_model=MultipartUploadListResponse)
 async def list_multipart_uploads(
-    prefix: str = Query("", description="键前缀"),
-    max_uploads: int = Query(1000, ge=1, le=1000, description="最大返回数量"),
+    prefix: str = Query("", description="Key prefix"),
+    max_uploads: int = Query(1000, ge=1, le=1000, description="Maximum number of results"),
     service: S3Service = Depends(get_s3_service),
 ) -> MultipartUploadListResponse:
     """
-    列出进行中的分片上传
+    List in-progress multipart uploads.
     """
     try:
         uploads, next_token = await service.list_multipart_uploads(
@@ -476,13 +476,13 @@ async def list_multipart_uploads(
 
 @router.get("/multipart/list-parts", response_model=MultipartPartListResponse)
 async def list_parts(
-    key: str = Query(..., description="S3 对象键"),
-    upload_id: str = Query(..., description="上传会话 ID"),
-    max_parts: int = Query(1000, ge=1, le=1000, description="最大返回数量"),
+    key: str = Query(..., description="S3 object key"),
+    upload_id: str = Query(..., description="Upload session ID"),
+    max_parts: int = Query(1000, ge=1, le=1000, description="Maximum number of results"),
     service: S3Service = Depends(get_s3_service),
 ) -> MultipartPartListResponse:
     """
-    列出已上传的分片
+    List uploaded parts.
     """
     try:
         parts, next_marker = await service.list_parts(

@@ -1,12 +1,12 @@
 """
-L2.5 Sync — CacheManager 本地缓存管理
+L2.5 Sync — CacheManager Local Cache Management
 
-负责管理本地 Lower 目录的缓存元数据：
-- 读取/写入 .metadata.json（记录每个节点的同步时间戳）
-- 管理目录结构
-- 清理过期缓存
+Manages cache metadata for local Lower directories:
+- Read/write .metadata.json (records sync timestamps for each node)
+- Manage directory structure
+- Clean up expired cache
 
-从 workspace/sync_worker.py 中提取的纯文件系统操作。
+Pure file system operations extracted from workspace/sync_worker.py.
 """
 
 import json
@@ -17,7 +17,7 @@ from src.utils.logger import log_error, log_debug
 
 
 class CacheManager:
-    """本地缓存目录管理"""
+    """Local cache directory management."""
 
     def __init__(self, base_dir: str = "/tmp/contextbase"):
         self._base_dir = base_dir
@@ -29,17 +29,17 @@ class CacheManager:
         return self._lower_dir
 
     def get_project_dir(self, project_id: str) -> str:
-        """获取项目的 Lower 目录路径（自动创建）"""
+        """Get the Lower directory path for a project (auto-creates)."""
         path = os.path.join(self._lower_dir, project_id)
         os.makedirs(path, exist_ok=True)
         return path
 
     # ============================================================
-    # 元数据管理
+    # Metadata Management
     # ============================================================
 
     def read_metadata(self, project_id: str) -> Dict[str, Any]:
-        """读取项目的同步元数据"""
+        """Read sync metadata for a project."""
         meta_path = os.path.join(self.get_project_dir(project_id), ".metadata.json")
         if os.path.exists(meta_path):
             try:
@@ -50,17 +50,17 @@ class CacheManager:
         return {}
 
     def write_metadata(self, project_id: str, metadata: Dict[str, Any]) -> None:
-        """写入项目的同步元数据"""
+        """Write sync metadata for a project."""
         meta_path = os.path.join(self.get_project_dir(project_id), ".metadata.json")
         with open(meta_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
 
     # ============================================================
-    # 文件写入
+    # File Writing
     # ============================================================
 
     def write_file(self, project_id: str, filename: str, content: str) -> bool:
-        """写入文本文件到 Lower 目录"""
+        """Write a text file to the Lower directory."""
         try:
             file_path = os.path.join(self.get_project_dir(project_id), filename)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -72,7 +72,7 @@ class CacheManager:
             return False
 
     def write_bytes(self, project_id: str, filename: str, data: bytes) -> bool:
-        """写入二进制文件到 Lower 目录"""
+        """Write a binary file to the Lower directory."""
         try:
             file_path = os.path.join(self.get_project_dir(project_id), filename)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -84,11 +84,11 @@ class CacheManager:
             return False
 
     # ============================================================
-    # 清理
+    # Cleanup
     # ============================================================
 
     def clean_project(self, project_id: str) -> None:
-        """清理项目的缓存目录"""
+        """Clean up the cache directory for a project."""
         import shutil
         project_dir = self.get_project_dir(project_id)
         if os.path.exists(project_dir):
@@ -96,7 +96,7 @@ class CacheManager:
             log_debug(f"[CacheManager] Cleaned cache for project {project_id}")
 
     def get_cache_size(self, project_id: str) -> int:
-        """获取项目缓存的总大小（bytes）"""
+        """Get the total size of the project cache (bytes)."""
         total = 0
         project_dir = self.get_project_dir(project_id)
         for root, _, files in os.walk(project_dir):

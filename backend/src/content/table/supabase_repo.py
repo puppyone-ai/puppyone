@@ -1,7 +1,7 @@
 """
-Table 数据访问层
+Table Data Access Layer
 
-提供针对 tables 表的增删改查操作。
+Provides CRUD operations for the tables table.
 """
 
 from typing import List, Optional
@@ -16,7 +16,7 @@ from src.content.table.supabase_schemas import (
 
 
 class TableRepository:
-    """Table 数据访问仓库"""
+    """Table data access repository"""
 
     TABLE_NAME = "tables"
 
@@ -30,7 +30,7 @@ class TableRepository:
             response = self._client.table(self.TABLE_NAME).insert(data).execute()
             return TableResponse(**response.data[0])
         except Exception as e:
-            raise handle_supabase_error(e, "创建表")
+            raise handle_supabase_error(e, "create table")
 
     def get_by_id(self, table_id: str) -> Optional[TableResponse]:
         response = (
@@ -77,7 +77,7 @@ class TableRepository:
                 return TableResponse(**response.data[0])
             return None
         except Exception as e:
-            raise handle_supabase_error(e, "更新表")
+            raise handle_supabase_error(e, "update table")
 
     def delete(self, table_id: str) -> bool:
         response = (

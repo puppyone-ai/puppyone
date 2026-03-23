@@ -17,7 +17,7 @@ from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
 
 
-# 使用全局变量存储单例
+# Use global variables to store singletons
 _etl_task_repository = None
 _etl_service = None
 _etl_arq_client = None
@@ -79,29 +79,29 @@ async def get_etl_service() -> ETLService:
 
 
 async def get_verified_etl_task(
-    task_id: str = Path(..., description="ETL任务ID"),
+    task_id: str = Path(..., description="ETL task ID"),
     etl_service: ETLService = Depends(get_etl_service),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> ETLTask:
     """
-    依赖注入函数：获取并验证用户对 ETL 任务的访问权限
+    Dependency injection function: get and verify user access to an ETL task.
 
-    这个依赖会自动验证：
-    1. 任务是否存在
-    2. 任务是否属于当前用户
+    This dependency automatically verifies:
+    1. Whether the task exists
+    2. Whether the task belongs to the current user
 
-    如果验证失败，会抛出 NotFoundException
+    If verification fails, raises NotFoundException.
 
     Args:
-        task_id: ETL 任务ID（从路径参数获取）
-        etl_service: ETLService 实例（通过依赖注入）
-        current_user: 当前用户（通过依赖注入）
+        task_id: ETL task ID (from path parameter)
+        etl_service: ETLService instance (via dependency injection)
+        current_user: Current user (via dependency injection)
 
     Returns:
-        已验证的 ETLTask 对象
+        Verified ETLTask object
 
     Raises:
-        NotFoundException: 如果任务不存在或用户无权限
+        NotFoundException: If task does not exist or user has no permission
     """
     return await etl_service.get_task_status_with_access_check(
         task_id, current_user.user_id

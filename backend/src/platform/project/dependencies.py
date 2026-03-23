@@ -1,5 +1,5 @@
 """
-Project 依赖注入
+Project Dependency Injection
 """
 
 from fastapi import Depends, Path
@@ -10,18 +10,18 @@ from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
 
 
-# 使用全局变量存储单例，而不是每次都创建新实例
-# 这样可以避免重复初始化和提升性能
+# Use global variables for singletons instead of creating new instances each time
+# This avoids redundant initialization and improves performance
 _project_repository = None
 _project_service = None
 
 
 def get_project_repository() -> ProjectRepositorySupabase:
     """
-    获取 project repository 单例
+    Get project repository singleton
 
     Returns:
-        ProjectRepositorySupabase 实例
+        ProjectRepositorySupabase instance
     """
     global _project_repository
     if _project_repository is None:
@@ -31,10 +31,10 @@ def get_project_repository() -> ProjectRepositorySupabase:
 
 def get_project_service() -> ProjectService:
     """
-    project_service的依赖注入工厂。使用Supabase作为存储后端
+    Dependency injection factory for project_service. Uses Supabase as the storage backend
 
     Returns:
-        ProjectService 单例
+        ProjectService singleton
     """
     global _project_service
     if _project_service is None:
@@ -43,24 +43,24 @@ def get_project_service() -> ProjectService:
 
 
 def get_verified_project(
-    project_id: str = Path(..., description="项目ID (UUID)"),
+    project_id: str = Path(..., description="Project ID (UUID)"),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> Project:
     """
-    依赖注入函数：获取并验证用户对项目的访问权限
+    Dependency injection function: get and verify user access to the project
 
-    通过 org_members 表验证用户是否属于项目所在组织。
+    Verifies whether the user belongs to the project's organization via the org_members table.
 
     Args:
-        project_id: 项目ID（从路径参数获取）
-        project_service: ProjectService 实例（通过依赖注入）
-        current_user: 当前用户（通过依赖注入）
+        project_id: Project ID (from path parameter)
+        project_service: ProjectService instance (via dependency injection)
+        current_user: Current user (via dependency injection)
 
     Returns:
-        已验证的 Project 对象
+        Verified Project object
 
     Raises:
-        NotFoundException: 如果项目不存在或用户无权限
+        NotFoundException: If project does not exist or user has no access
     """
     return project_service.get_by_id_with_access_check(project_id, current_user.user_id)

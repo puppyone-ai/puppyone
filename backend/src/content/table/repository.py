@@ -6,18 +6,18 @@ from src.content.table.schemas import ProjectWithTables
 
 
 class TableRepositoryBase(ABC):
-    """抽象Table仓库接口"""
+    """Abstract Table repository interface"""
 
     @abstractmethod
     def get_by_org_id(self, org_id: str) -> List[Table]:
-        """通过组织ID获取所有Tables（通过project关联）"""
+        """Get all Tables by organization ID (via project association)"""
         pass
 
     @abstractmethod
     def get_projects_with_tables_by_org_id(
         self, org_id: str
     ) -> List[ProjectWithTables]:
-        """获取组织的所有项目及其下的所有表格"""
+        """Get all projects and their tables for an organization"""
         pass
 
     @abstractmethod
@@ -51,68 +51,68 @@ class TableRepositoryBase(ABC):
 
     @abstractmethod
     def update_context_data(self, table_id: str, data: dict) -> Optional[Table]:
-        """更新 data 字段"""
+        """Update the data field"""
         pass
 
     @abstractmethod
     def verify_table_access(self, table_id: str, user_id: str) -> bool:
         """
-        验证用户是否有权限访问指定的表格
+        Verify whether the user has access to the specified table.
 
         Args:
-            table_id: 表格ID
-            user_id: 用户ID
+            table_id: Table ID
+            user_id: User ID
 
         Returns:
-            如果用户有权限返回True，否则返回False
+            True if the user has access, False otherwise
         """
         pass
 
     @abstractmethod
     def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
-        验证用户是否有权限访问指定的项目
+        Verify whether the user has access to the specified project.
 
-        通过 org_members 表检查用户是否属于项目所在组织
+        Checks via org_members table whether the user belongs to the project's organization.
 
         Args:
-            project_id: 项目ID
-            user_id: 用户ID
+            project_id: Project ID
+            user_id: User ID
 
         Returns:
-            如果用户有权限返回True，否则返回False
+            True if the user has access, False otherwise
         """
         pass
 
 
 class TableRepositorySupabase(TableRepositoryBase):
-    """基于Supabase的Table仓库实现"""
+    """Supabase-based Table repository implementation"""
 
     def __init__(self, supabase_repo=None):
         """
-        初始化仓库
+        Initialize repository.
 
         Args:
-            supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则创建新实例
+            supabase_repo: Optional SupabaseRepository instance; creates a new one if not provided
         """
         if supabase_repo is None:
-            # 延迟导入，避免在模块导入时触发
+            # Lazy import to avoid triggering during module import
             from src.infra.supabase.dependencies import get_supabase_repository
 
-            # 使用共享的单例实例，避免重复创建
+            # Use shared singleton instance to avoid duplicate creation
             self._supabase_repo = get_supabase_repository()
         else:
             self._supabase_repo = supabase_repo
 
     def get_by_org_id(self, org_id: str) -> List[Table]:
         """
-        通过组织ID获取所有Tables（通过project关联）
+        Get all Tables by organization ID (via project association).
 
         Args:
-            org_id: 组织ID
+            org_id: Organization ID
 
         Returns:
-            Table列表
+            List of Tables
         """
         projects = self._supabase_repo.get_projects(org_id=org_id)
         project_ids = [project.id for project in projects]
@@ -131,13 +131,13 @@ class TableRepositorySupabase(TableRepositoryBase):
         self, org_id: str
     ) -> List[ProjectWithTables]:
         """
-        获取组织的所有项目及其下的所有表格
+        Get all projects and their tables for an organization.
 
         Args:
-            org_id: 组织ID
+            org_id: Organization ID
 
         Returns:
-            包含项目信息和其下所有表格的列表
+            List containing project info and all their tables
         """
         from src.content.table.schemas import TableOut
 
@@ -174,13 +174,13 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def get_by_id(self, table_id: str) -> Optional[Table]:
         """
-        根据ID获取Table
+        Get Table by ID.
 
         Args:
             table_id: Table ID
 
         Returns:
-            Table对象，如果不存在则返回None
+            Table object, or None if not found
         """
         table_response = self._supabase_repo.get_table(table_id)
         if table_response:
@@ -196,17 +196,17 @@ class TableRepositorySupabase(TableRepositoryBase):
         project_id: str,
     ) -> Table:
         """
-        创建新的Table
+        Create a new Table.
 
         Args:
-            created_by: 创建者用户ID（必须）
-            name: Table名称
-            description: Table描述
-            data: Table数据（JSON对象）
-            project_id: 项目ID（必须）
+            created_by: Creator user ID (required)
+            name: Table name
+            description: Table description
+            data: Table data (JSON object)
+            project_id: Project ID (required)
 
         Returns:
-            创建的Table对象
+            Created Table object
         """
         from src.content.table.supabase_schemas import TableCreate
         from src.utils.id_generator import generate_uuid_v7
@@ -230,16 +230,16 @@ class TableRepositorySupabase(TableRepositoryBase):
         data: Optional[dict],
     ) -> Optional[Table]:
         """
-        更新Table
+        Update a Table.
 
         Args:
             table_id: Table ID
-            name: Table名称（可选，如果为None则不更新）
-            description: Table描述（可选，如果为None则不更新）
-            data: Table数据（可选，如果为None则不更新）
+            name: Table name (optional, not updated if None)
+            description: Table description (optional, not updated if None)
+            data: Table data (optional, not updated if None)
 
         Returns:
-            更新后的Table对象，如果不存在则返回None
+            Updated Table object, or None if not found
         """
         from src.content.table.supabase_schemas import TableUpdate
 
@@ -255,26 +255,26 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def delete(self, table_id: str) -> bool:
         """
-        删除Table
+        Delete a Table.
 
         Args:
             table_id: Table ID
 
         Returns:
-            是否删除成功
+            Whether deletion was successful
         """
         return self._supabase_repo.delete_table(table_id)
 
     def update_context_data(self, table_id: str, data: dict) -> Optional[Table]:
         """
-        更新Table的data字段
+        Update the data field of a Table.
 
         Args:
             table_id: Table ID
-            data: 新的data数据
+            data: New data
 
         Returns:
-            更新后的Table对象，如果不存在则返回None
+            Updated Table object, or None if not found
         """
         from src.content.table.supabase_schemas import TableUpdate
 
@@ -286,14 +286,14 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def verify_table_access(self, table_id: str, user_id: str) -> bool:
         """
-        验证用户是否有权限访问指定的表格
+        Verify whether the user has access to the specified table.
 
         Args:
-            table_id: 表格ID
-            user_id: 用户ID
+            table_id: Table ID
+            user_id: User ID
 
         Returns:
-            如果用户有权限返回True，否则返回False
+            True if the user has access, False otherwise
         """
         table = self.get_by_id(table_id)
         if not table:
@@ -306,16 +306,16 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def verify_project_access(self, project_id: str, user_id: str) -> bool:
         """
-        验证用户是否有权限访问指定的项目
+        Verify whether the user has access to the specified project.
 
-        通过 org_members 表检查用户是否属于项目所在组织
+        Checks via org_members table whether the user belongs to the project's organization.
 
         Args:
-            project_id: 项目ID
-            user_id: 用户ID
+            project_id: Project ID
+            user_id: User ID
 
         Returns:
-            如果用户有权限返回True，否则返回False
+            True if the user has access, False otherwise
         """
         project = self._supabase_repo.get_project(project_id)
         if not project:
@@ -328,13 +328,13 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def _table_response_to_table(self, table_response) -> Table:
         """
-        将TableResponse转换为Table模型
+        Convert TableResponse to Table model.
 
         Args:
-            table_response: TableResponse对象
+            table_response: TableResponse object
 
         Returns:
-            Table对象
+            Table object
         """
         return Table(
             id=table_response.id,

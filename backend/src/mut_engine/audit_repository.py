@@ -1,7 +1,7 @@
 """
 L2 Collaboration — AuditRepository
 
-audit_logs 表的数据访问层。
+Data access layer for the audit_logs table.
 """
 
 from typing import Optional, Any, List
@@ -9,7 +9,7 @@ from src.infra.supabase.client import SupabaseClient
 
 
 class AuditRepository:
-    """audit_logs 表的数据访问"""
+    """Data access for the audit_logs table"""
 
     TABLE_NAME = "audit_logs"
 
@@ -29,7 +29,7 @@ class AuditRepository:
         conflict_details: Optional[str] = None,
         metadata: Optional[dict] = None,
     ) -> None:
-        """插入一条审计日志"""
+        """Insert an audit log entry"""
         data: dict[str, Any] = {
             "action": action,
             "path": path,
@@ -55,7 +55,7 @@ class AuditRepository:
     def list_by_path(
         self, path: str, limit: int = 50, offset: int = 0
     ) -> List[dict]:
-        """查询节点的审计日志"""
+        """Query audit logs for a node"""
         response = (
             self.client.table(self.TABLE_NAME)
             .select("*")
@@ -69,7 +69,7 @@ class AuditRepository:
     def list_by_paths(
         self, paths: List[str], limit: int = 100, offset: int = 0
     ) -> List[dict]:
-        """查询多个节点的审计日志"""
+        """Query audit logs for multiple nodes"""
         if not paths:
             return []
         response = (
@@ -83,7 +83,7 @@ class AuditRepository:
         return response.data
 
     def count_by_path(self, path: str) -> int:
-        """统计节点的审计日志数量"""
+        """Count audit log entries for a node"""
         response = (
             self.client.table(self.TABLE_NAME)
             .select("id", count="exact")

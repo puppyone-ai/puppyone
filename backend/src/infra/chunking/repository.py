@@ -25,11 +25,11 @@ class ChunkRepository:
 
     def get_by_ids(self, ids: list[int]) -> list[Chunk]:
         """
-        批量按 chunks.id 读取记录。
+        Batch-read records by chunks.id.
 
-        说明：
-        - Supabase SDK 的过滤 API 在不同版本里可能略有差异，这里优先使用 `in_`；
-          若不可用则降级为逐条查询（top_k <= 20 时可接受）。
+        Notes:
+        - The Supabase SDK filter API may vary slightly across versions; we prefer `in_` here.
+          If unavailable, we fall back to per-row queries (acceptable when top_k <= 20).
         """
         if not ids:
             return []
@@ -43,7 +43,7 @@ class ChunkRepository:
             resp = q.in_("id", uniq).execute()
             return [Chunk(**row) for row in (resp.data or [])]
 
-        # fallback：逐条读取（避免依赖不存在的批量 API）
+        # fallback: read one by one (avoid depending on a non-existent batch API)
         out: list[Chunk] = []
         for cid in uniq:
             resp = self._client.table("chunks").select("*").eq("id", cid).execute()
@@ -74,7 +74,7 @@ class ChunkRepository:
             resp = self._client.table("chunks").insert(payload).execute()
             return [Chunk(**row) for row in (resp.data or [])]
         except Exception as e:
-            raise handle_supabase_error(e, "创建 chunks")
+            raise handle_supabase_error(e, "create chunks")
 
 
 def ensure_chunks_for_pointer(

@@ -1,7 +1,7 @@
 """
-Supabase 依赖注入
+Supabase dependency injection.
 
-提供 FastAPI 依赖注入函数，用于获取 Supabase 客户端和仓库实例。
+Provides FastAPI dependency injection functions for obtaining Supabase client and repository instances.
 """
 
 from supabase import Client
@@ -9,18 +9,18 @@ from src.infra.supabase.client import SupabaseClient
 from src.infra.supabase.repository import SupabaseRepository
 
 
-# 使用全局变量存储单例，而不是 lru_cache
-# 这样可以避免 reload 时的缓存问题
+# Use global variables to store singletons instead of lru_cache
+# This avoids cache issues during reload
 _supabase_client = None
 _supabase_repository = None
 
 
 def get_supabase_client() -> Client:
     """
-    获取 Supabase 客户端实例（单例）
+    Get Supabase client instance (singleton).
 
     Returns:
-        Supabase Client 实例
+        Supabase Client instance
     """
     global _supabase_client
     if _supabase_client is None:
@@ -30,10 +30,10 @@ def get_supabase_client() -> Client:
 
 def get_supabase_repository() -> SupabaseRepository:
     """
-    获取 Supabase 仓库实例
+    Get Supabase repository instance.
 
     Returns:
-        SupabaseRepository 实例
+        SupabaseRepository instance
     """
     global _supabase_repository
     if _supabase_repository is None:

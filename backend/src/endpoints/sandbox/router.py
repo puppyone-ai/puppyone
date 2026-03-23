@@ -145,10 +145,10 @@ async def _build_sandbox_files(
 @router.get(
     "",
     response_model=ApiResponse[List[SandboxEndpointOut]],
-    summary="列出项目的 Sandbox 端点",
+    summary="List Sandbox endpoints for a project",
 )
 def list_endpoints(
-    project_id: str = Query(..., description="项目 ID"),
+    project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
     service: SandboxEndpointService = Depends(get_sandbox_endpoint_service),
 ):
@@ -161,7 +161,7 @@ def list_endpoints(
 @router.get(
     "/{endpoint_id}",
     response_model=ApiResponse[SandboxEndpointOut],
-    summary="获取 Sandbox 端点详情",
+    summary="Get Sandbox endpoint details",
 )
 def get_endpoint(
     endpoint: dict = Depends(get_verified_sandbox_endpoint),
@@ -172,7 +172,7 @@ def get_endpoint(
 @router.get(
     "/by-path/{path:path}",
     response_model=ApiResponse[SandboxEndpointOut],
-    summary="按路径查 Sandbox 端点",
+    summary="Get Sandbox endpoint by path",
 )
 def get_by_path(
     path: str,
@@ -190,7 +190,7 @@ def get_by_path(
 @router.post(
     "",
     response_model=ApiResponse[SandboxEndpointOut],
-    summary="创建 Sandbox 端点",
+    summary="Create Sandbox endpoint",
 )
 def create_endpoint(
     payload: SandboxEndpointCreate,
@@ -215,7 +215,7 @@ def create_endpoint(
 @router.put(
     "/{endpoint_id}",
     response_model=ApiResponse[SandboxEndpointOut],
-    summary="更新 Sandbox 端点",
+    summary="Update Sandbox endpoint",
 )
 def update_endpoint(
     payload: SandboxEndpointUpdate,
@@ -233,7 +233,7 @@ def update_endpoint(
 @router.delete(
     "/{endpoint_id}",
     response_model=ApiResponse,
-    summary="删除 Sandbox 端点",
+    summary="Delete Sandbox endpoint",
 )
 def delete_endpoint(
     endpoint: dict = Depends(get_verified_sandbox_endpoint),
@@ -247,7 +247,7 @@ def delete_endpoint(
 @router.post(
     "/{endpoint_id}/regenerate-key",
     response_model=ApiResponse[SandboxEndpointOut],
-    summary="重新生成 access key",
+    summary="Regenerate access key",
 )
 def regenerate_key(
     endpoint: dict = Depends(get_verified_sandbox_endpoint),
@@ -263,7 +263,7 @@ def regenerate_key(
 @router.post(
     "/{endpoint_id}/exec",
     response_model=ApiResponse[dict],
-    summary="在 Sandbox 端点执行命令",
+    summary="Execute command in Sandbox endpoint",
 )
 async def exec_command(
     endpoint_id: str,

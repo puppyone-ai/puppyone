@@ -1,4 +1,4 @@
-"""DB Connector 依赖注入"""
+"""DB Connector Dependency Injection"""
 
 from fastapi import Depends
 from src.infra.supabase.client import SupabaseClient

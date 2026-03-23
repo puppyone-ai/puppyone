@@ -3,9 +3,9 @@ Ingest Router - Unified entry point API.
 
 This router provides a unified interface for all data ingestion:
 - FILE: Local file upload → File Worker (ETL)
-- SAAS: SaaS platform sync → SyncEngine (同步执行)
+- SAAS: SaaS platform sync → SyncEngine (synchronous execution)
 
-双层路由架构:
+Dual-layer routing architecture:
 - Layer 1: mode (raw | ocr_parse)
 - Layer 2: file_type (json | text | ocr_needed | binary)
 """

@@ -1,14 +1,14 @@
 """
-PuppyOneServerRepo — MUT ServerRepo 的 S3/PG 适配器
+PuppyOneServerRepo — S3/PG adapter for MUT ServerRepo
 
-实现 MUT handlers.py 需要的 ServerRepo 接口，但底层用
-S3 ObjectStore + Supabase History/Audit/Scope 而不是本地文件系统。
+Implements the ServerRepo interface required by MUT handlers.py, but backed by
+S3 ObjectStore + Supabase History/Audit/Scope instead of a local filesystem.
 
-关键区别：
-  - 没有 current/ 目录
-  - list_scope_files() 通过遍历 S3 中的 Merkle tree 重建
-  - write_scope_files() 暂存到内存（供 build_scope_tree 使用）
-  - delete_scope_file() 是 no-op（merged_files 已反映删除）
+Key differences:
+  - No current/ directory
+  - list_scope_files() reconstructs files by traversing the Merkle tree in S3
+  - write_scope_files() stages to memory (for use by build_scope_tree)
+  - delete_scope_file() is a no-op (merged_files already reflects deletions)
 """
 
 from __future__ import annotations

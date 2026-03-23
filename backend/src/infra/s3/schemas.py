@@ -1,30 +1,30 @@
-"""S3 存储模块的 Pydantic schemas"""
+"""S3 storage module Pydantic schemas"""
 
 from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-# ============= 基础上传/下载 Schemas =============
+# ============= Basic Upload/Download Schemas =============
 
 
 class FileUploadResponse(BaseModel):
-    """文件上传响应"""
+    """File upload response"""
 
-    key: str = Field(..., description="S3 对象键")
-    bucket: str = Field(..., description="存储桶名称")
-    size: int = Field(..., description="文件大小(字节)")
-    etag: str = Field(..., description="ETag 哈希值")
-    content_type: str | None = Field(None, description="文件类型")
+    key: str = Field(..., description="S3 object key")
+    bucket: str = Field(..., description="Bucket name")
+    size: int = Field(..., description="File size (bytes)")
+    etag: str = Field(..., description="ETag hash")
+    content_type: str | None = Field(None, description="Content type")
 
 
 class BatchFileUploadRequest(BaseModel):
-    """批量文件上传请求"""
+    """Batch file upload request"""
 
-    files: list[tuple[str, bytes]] = Field(..., description="文件列表 (key, content)")
+    files: list[tuple[str, bytes]] = Field(..., description="File list (key, content)")
 
 
 class BatchFileUploadResult(BaseModel):
-    """单个文件上传结果"""
+    """Single file upload result"""
 
     key: str
     success: bool
@@ -33,7 +33,7 @@ class BatchFileUploadResult(BaseModel):
 
 
 class BatchFileUploadResponse(BaseModel):
-    """批量文件上传响应"""
+    """Batch file upload response"""
 
     results: list[BatchFileUploadResult]
     total: int
@@ -41,23 +41,23 @@ class BatchFileUploadResponse(BaseModel):
     failed: int
 
 
-# ============= 文件信息 Schemas =============
+# ============= File Info Schemas =============
 
 
 class FileMetadata(BaseModel):
-    """文件元信息"""
+    """File metadata"""
 
-    key: str = Field(..., description="S3 对象键")
-    bucket: str = Field(..., description="存储桶名称")
-    size: int = Field(..., description="文件大小(字节)")
-    etag: str = Field(..., description="ETag 哈希值")
-    last_modified: datetime = Field(..., description="最后修改时间")
-    content_type: str | None = Field(None, description="文件类型")
-    metadata: dict[str, str] = Field(default_factory=dict, description="自定义元数据")
+    key: str = Field(..., description="S3 object key")
+    bucket: str = Field(..., description="Bucket name")
+    size: int = Field(..., description="File size (bytes)")
+    etag: str = Field(..., description="ETag hash")
+    last_modified: datetime = Field(..., description="Last modified time")
+    content_type: str | None = Field(None, description="Content type")
+    metadata: dict[str, str] = Field(default_factory=dict, description="Custom metadata")
 
 
 class FileListItem(BaseModel):
-    """文件列表项"""
+    """File list item"""
 
     key: str
     size: int
@@ -66,29 +66,29 @@ class FileListItem(BaseModel):
 
 
 class FileListResponse(BaseModel):
-    """文件列表响应"""
+    """File list response"""
 
     files: list[FileListItem]
     common_prefixes: list[str] = Field(
-        default_factory=list, description="公共前缀(文件夹)"
+        default_factory=list, description="Common prefixes (folders)"
     )
-    next_continuation_token: str | None = Field(None, description="下一页的 token")
-    is_truncated: bool = Field(False, description="是否有更多结果")
+    next_continuation_token: str | None = Field(None, description="Next page token")
+    is_truncated: bool = Field(False, description="Whether there are more results")
 
 
-# ============= 批量删除 Schemas =============
+# ============= Batch Delete Schemas =============
 
 
 class BatchDeleteRequest(BaseModel):
-    """批量删除请求"""
+    """Batch delete request"""
 
     keys: list[str] = Field(
-        ..., min_length=1, max_length=1000, description="要删除的键列表"
+        ..., min_length=1, max_length=1000, description="List of keys to delete"
     )
 
 
 class BatchDeleteResult(BaseModel):
-    """单个文件删除结果"""
+    """Single file delete result"""
 
     key: str
     success: bool
@@ -96,7 +96,7 @@ class BatchDeleteResult(BaseModel):
 
 
 class BatchDeleteResponse(BaseModel):
-    """批量删除响应"""
+    """Batch delete response"""
 
     results: list[BatchDeleteResult]
     total: int
@@ -104,132 +104,132 @@ class BatchDeleteResponse(BaseModel):
     failed: int
 
 
-# ============= 预签名 URL Schemas =============
+# ============= Presigned URL Schemas =============
 
 
 class PresignedUploadUrlRequest(BaseModel):
-    """生成上传预签名 URL 请求"""
+    """Presigned upload URL request"""
 
-    key: str = Field(..., description="目标对象键")
-    expires_in: int = Field(3600, ge=1, le=86400, description="过期时间(秒)")
-    content_type: str | None = Field(None, description="限制的文件类型")
+    key: str = Field(..., description="Target object key")
+    expires_in: int = Field(3600, ge=1, le=86400, description="Expiration time (seconds)")
+    content_type: str | None = Field(None, description="Restricted content type")
 
 
 class PresignedUploadUrlResponse(BaseModel):
-    """生成上传预签名 URL 响应"""
+    """Presigned upload URL response"""
 
-    url: str = Field(..., description="预签名 URL")
-    key: str = Field(..., description="对象键")
-    expires_in: int = Field(..., description="有效期(秒)")
+    url: str = Field(..., description="Presigned URL")
+    key: str = Field(..., description="Object key")
+    expires_in: int = Field(..., description="Validity period (seconds)")
 
 
 class PresignedDownloadUrlRequest(BaseModel):
-    """生成下载预签名 URL 请求"""
+    """Presigned download URL request"""
 
-    key: str = Field(..., description="对象键")
-    expires_in: int = Field(3600, ge=1, le=86400, description="过期时间(秒)")
+    key: str = Field(..., description="Object key")
+    expires_in: int = Field(3600, ge=1, le=86400, description="Expiration time (seconds)")
     response_content_disposition: str | None = Field(
-        None, description="响应的 Content-Disposition 头"
+        None, description="Response Content-Disposition header"
     )
 
 
 class PresignedDownloadUrlResponse(BaseModel):
-    """生成下载预签名 URL 响应"""
+    """Presigned download URL response"""
 
-    url: str = Field(..., description="预签名 URL")
-    key: str = Field(..., description="对象键")
-    expires_in: int = Field(..., description="有效期(秒)")
+    url: str = Field(..., description="Presigned URL")
+    key: str = Field(..., description="Object key")
+    expires_in: int = Field(..., description="Validity period (seconds)")
 
 
-# ============= 分片上传 Schemas =============
+# ============= Multipart Upload Schemas =============
 
 
 class MultipartCreateRequest(BaseModel):
-    """创建分片上传请求"""
+    """Create multipart upload request"""
 
-    key: str = Field(..., description="目标对象键")
-    content_type: str | None = Field(None, description="文件类型")
-    metadata: dict[str, str] = Field(default_factory=dict, description="自定义元数据")
+    key: str = Field(..., description="Target object key")
+    content_type: str | None = Field(None, description="Content type")
+    metadata: dict[str, str] = Field(default_factory=dict, description="Custom metadata")
 
 
 class MultipartCreateResponse(BaseModel):
-    """创建分片上传响应"""
+    """Create multipart upload response"""
 
-    upload_id: str = Field(..., description="上传会话 ID")
-    key: str = Field(..., description="对象键")
+    upload_id: str = Field(..., description="Upload session ID")
+    key: str = Field(..., description="Object key")
 
 
 class MultipartUploadPartRequest(BaseModel):
-    """上传单个分片请求"""
+    """Upload single part request"""
 
-    upload_id: str = Field(..., description="上传会话 ID")
-    part_number: int = Field(..., ge=1, le=10000, description="分片编号")
+    upload_id: str = Field(..., description="Upload session ID")
+    part_number: int = Field(..., ge=1, le=10000, description="Part number")
 
 
 class MultipartUploadPartResponse(BaseModel):
-    """上传单个分片响应"""
+    """Upload single part response"""
 
-    part_number: int = Field(..., description="分片编号")
-    etag: str = Field(..., description="分片 ETag")
+    part_number: int = Field(..., description="Part number")
+    etag: str = Field(..., description="Part ETag")
 
 
 class MultipartPart(BaseModel):
-    """分片信息"""
+    """Part info"""
 
-    part_number: int = Field(..., ge=1, le=10000, description="分片编号")
-    etag: str = Field(..., description="分片 ETag")
+    part_number: int = Field(..., ge=1, le=10000, description="Part number")
+    etag: str = Field(..., description="Part ETag")
 
 
 class MultipartCompleteRequest(BaseModel):
-    """完成分片上传请求"""
+    """Complete multipart upload request"""
 
-    upload_id: str = Field(..., description="上传会话 ID")
-    parts: list[MultipartPart] = Field(..., description="所有分片信息列表")
+    upload_id: str = Field(..., description="Upload session ID")
+    parts: list[MultipartPart] = Field(..., description="List of all part info")
 
 
 class MultipartCompleteResponse(BaseModel):
-    """完成分片上传响应"""
+    """Complete multipart upload response"""
 
-    key: str = Field(..., description="对象键")
-    bucket: str = Field(..., description="存储桶名称")
-    etag: str = Field(..., description="完整文件的 ETag")
-    size: int | None = Field(None, description="文件大小(字节)")
+    key: str = Field(..., description="Object key")
+    bucket: str = Field(..., description="Bucket name")
+    etag: str = Field(..., description="Complete file ETag")
+    size: int | None = Field(None, description="File size (bytes)")
 
 
 class MultipartAbortRequest(BaseModel):
-    """取消分片上传请求"""
+    """Abort multipart upload request"""
 
-    upload_id: str = Field(..., description="上传会话 ID")
+    upload_id: str = Field(..., description="Upload session ID")
 
 
 class MultipartUploadListItem(BaseModel):
-    """进行中的分片上传项"""
+    """In-progress multipart upload item"""
 
-    key: str = Field(..., description="对象键")
-    upload_id: str = Field(..., description="上传会话 ID")
-    initiated: datetime = Field(..., description="创建时间")
+    key: str = Field(..., description="Object key")
+    upload_id: str = Field(..., description="Upload session ID")
+    initiated: datetime = Field(..., description="Creation time")
 
 
 class MultipartUploadListResponse(BaseModel):
-    """进行中的分片上传列表响应"""
+    """In-progress multipart upload list response"""
 
     uploads: list[MultipartUploadListItem]
-    next_continuation_token: str | None = Field(None, description="下一页的 token")
+    next_continuation_token: str | None = Field(None, description="Next page token")
 
 
 class MultipartPartListItem(BaseModel):
-    """已上传分片项"""
+    """Uploaded part item"""
 
-    part_number: int = Field(..., description="分片编号")
-    size: int = Field(..., description="分片大小(字节)")
-    etag: str = Field(..., description="分片 ETag")
-    last_modified: datetime = Field(..., description="上传时间")
+    part_number: int = Field(..., description="Part number")
+    size: int = Field(..., description="Part size (bytes)")
+    etag: str = Field(..., description="Part ETag")
+    last_modified: datetime = Field(..., description="Upload time")
 
 
 class MultipartPartListResponse(BaseModel):
-    """已上传分片列表响应"""
+    """Uploaded parts list response"""
 
     parts: list[MultipartPartListItem]
     next_part_number_marker: int | None = Field(
-        None, description="下一页的分片编号标记"
+        None, description="Next page part number marker"
     )

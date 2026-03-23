@@ -1,13 +1,13 @@
 """
-沙盒服务 - 统一接口
+Sandbox service - Unified interface
 
-根据配置自动选择 E2B 云沙盒或 Docker 本地沙盒。
+Automatically selects E2B cloud sandbox or Docker local sandbox based on configuration.
 
-配置项（在 backend/src/config.py 中）：
+Configuration (in backend/src/config.py):
 - SANDBOX_TYPE: "e2b" | "docker" | "auto"
-  - "e2b": 使用 E2B 云沙盒（需要 E2B_API_KEY）
-  - "docker": 使用本地 Docker 容器沙盒
-  - "auto": 自动选择（有 E2B_API_KEY 用 E2B，否则用 Docker）
+  - "e2b": Use E2B cloud sandbox (requires E2B_API_KEY)
+  - "docker": Use local Docker container sandbox
+  - "auto": Auto-select (use E2B if E2B_API_KEY exists, otherwise use Docker)
 """
 
 import os
@@ -18,10 +18,10 @@ from .base import SandboxBase
 
 class SandboxService:
     """
-    沙盒服务统一接口
-    
-    作为门面/代理类，委托给具体的沙盒实现（E2B 或 Docker）。
-    支持通过配置或环境变量自动切换后端。
+    Unified sandbox service interface
+
+    Acts as a facade/proxy class, delegating to concrete sandbox implementations (E2B or Docker).
+    Supports automatic backend switching via configuration or environment variables.
     """
     
     def __init__(
@@ -30,24 +30,24 @@ class SandboxService:
         sandbox_factory: Optional[Callable[[], Any]] = None,
     ):
         """
-        初始化沙盒服务
-        
+        Initialize sandbox service
+
         Args:
-            sandbox_impl: 直接提供沙盒实现（用于测试或强制指定）
-            sandbox_factory: E2B 沙盒工厂（向后兼容，用于测试）
+            sandbox_impl: Directly provide a sandbox implementation (for testing or forced selection)
+            sandbox_factory: E2B sandbox factory (backward compatible, for testing)
         """
         if sandbox_impl is not None:
             self._impl = sandbox_impl
         elif sandbox_factory is not None:
-            # 向后兼容：使用自定义工厂创建 E2B 沙盒
+            # Backward compatible: create E2B sandbox using custom factory
             from .e2b_sandbox import E2BSandbox
             self._impl = E2BSandbox(sandbox_factory=sandbox_factory)
         else:
-            # 根据配置自动创建
+            # Auto-create based on configuration
             self._impl = _create_sandbox_impl()
     
     async def start(self, session_id: str, data: Any, readonly: bool) -> dict:
-        """创建沙盒会话并预加载单个 JSON 数据"""
+        """Create a sandbox session and preload a single JSON data"""
         return await self._impl.start(session_id, data, readonly)
     
     async def start_with_files(
@@ -57,36 +57,36 @@ class SandboxService:
         readonly: bool, 
         s3_service: Optional[Any] = None
     ) -> dict:
-        """创建沙盒会话并预加载多个文件"""
+        """Create a sandbox session and preload multiple files"""
         return await self._impl.start_with_files(session_id, files, readonly, s3_service)
     
     async def exec(self, session_id: str, command: str) -> dict:
-        """在沙盒中执行命令"""
+        """Execute a command in the sandbox"""
         return await self._impl.exec(session_id, command)
     
     async def read(self, session_id: str) -> dict:
-        """读取 /workspace/data.json 的内容"""
+        """Read the contents of /workspace/data.json"""
         return await self._impl.read(session_id)
     
     async def read_file(self, session_id: str, path: str, parse_json: bool = False) -> dict:
-        """读取沙盒中指定路径的文件"""
+        """Read a file at the specified path in the sandbox"""
         return await self._impl.read_file(session_id, path, parse_json)
     
     async def stop(self, session_id: str) -> dict:
-        """停止并清理沙盒会话"""
+        """Stop and clean up a sandbox session"""
         return await self._impl.stop(session_id)
     
     async def status(self, session_id: str) -> dict:
-        """获取沙盒会话状态"""
+        """Get sandbox session status"""
         return await self._impl.status(session_id)
     
     async def stop_all(self) -> None:
-        """停止所有沙盒会话"""
+        """Stop all sandbox sessions"""
         await self._impl.stop_all()
     
     @property
     def sandbox_type(self) -> str:
-        """返回当前使用的沙盒类型"""
+        """Return the currently used sandbox type"""
         from .e2b_sandbox import E2BSandbox
         from .docker_sandbox import DockerSandbox
         
@@ -100,17 +100,17 @@ class SandboxService:
 
 def _create_sandbox_impl() -> SandboxBase:
     """
-    根据配置创建沙盒实现
-    
-    优先级：
-    1. 配置中的 SANDBOX_TYPE
-    2. auto 模式下，检测 E2B_API_KEY 是否存在
+    Create sandbox implementation based on configuration
+
+    Priority:
+    1. SANDBOX_TYPE from configuration
+    2. In auto mode, detect whether E2B_API_KEY exists
     """
     from src.config import settings
     
     sandbox_type = settings.SANDBOX_TYPE
     
-    # auto 模式：检测环境
+    # Auto mode: detect environment
     if sandbox_type == "auto":
         if os.getenv("E2B_API_KEY"):
             sandbox_type = "e2b"
@@ -119,7 +119,7 @@ def _create_sandbox_impl() -> SandboxBase:
             sandbox_type = "docker"
             print("[SandboxService] No E2B_API_KEY found, using Docker sandbox")
     
-    # 创建对应的实现
+    # Create the corresponding implementation
     if sandbox_type == "e2b":
         from .e2b_sandbox import E2BSandbox
         print("[SandboxService] Initializing E2B cloud sandbox")
@@ -132,9 +132,9 @@ def _create_sandbox_impl() -> SandboxBase:
 
 def get_sandbox_type() -> str:
     """
-    获取将要使用的沙盒类型（不创建实例）
-    
-    用于前端查询当前配置
+    Get the sandbox type that will be used (without creating an instance)
+
+    Used by the frontend to query the current configuration
     """
     from src.config import settings
     

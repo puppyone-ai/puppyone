@@ -5,41 +5,41 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class Project(BaseModel):
     """
-    Project表示项目，对应Supabase数据库中的project表.
+    Project represents a project, corresponding to the project table in Supabase database.
     """
 
-    id: str = Field(..., description="主键，表示项目的ID (UUID)")
-    org_id: str = Field(..., description="所属组织ID")
-    created_by: Optional[str] = Field(None, description="创建者用户ID")
-    name: Optional[str] = Field(None, description="项目名称")
-    description: Optional[str] = Field(None, description="项目描述")
-    created_at: datetime = Field(..., description="创建时间")
+    id: str = Field(..., description="Primary key, project ID (UUID)")
+    org_id: str = Field(..., description="Organization ID")
+    created_by: Optional[str] = Field(None, description="Creator user ID")
+    name: Optional[str] = Field(None, description="Project name")
+    description: Optional[str] = Field(None, description="Project description")
+    created_at: datetime = Field(..., description="Creation time")
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class Table(BaseModel):
     """
-    Table表示知识库，对应Supabase数据库中的table表.
+    Table represents a knowledge base, corresponding to the table table in Supabase database.
     """
 
-    id: str = Field(..., description="主键，表示知识库的ID (UUID)")
+    id: str = Field(..., description="Primary key, knowledge base ID (UUID)")
     name: Optional[str] = Field(
-        None, description="知识库名称，在MCP服务中可以提供给Agent"
+        None, description="Knowledge base name, can be provided to Agent in MCP service"
     )
     project_id: Optional[str] = Field(
-        None, description="外键，对应项目表，表示知识库所属的项目ID (UUID)。新建时必须提供。"
+        None, description="Foreign key to project table, project ID (UUID) the knowledge base belongs to. Required when creating."
     )
     created_by: Optional[str] = Field(
-        None, description="创建者用户ID"
+        None, description="Creator user ID"
     )
     description: Optional[str] = Field(
-        None, description="知识库的描述，在MCP服务中可以提供给Agent"
+        None, description="Knowledge base description, can be provided to Agent in MCP service"
     )
     data: Optional[Any] = Field(
         None,
-        description="关键存储数据的字段，本质上存储一个JSON对象（jsonb类型），可以是Dict、List或其他JSON类型",
+        description="Key data storage field, essentially stores a JSON object (jsonb type), can be Dict, List, or other JSON types",
     )
-    created_at: datetime = Field(..., description="创建时间")
+    created_at: datetime = Field(..., description="Creation time")
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,1 +1,1 @@
-"""Internal API模块"""
+"""Internal API module"""

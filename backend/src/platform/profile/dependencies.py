@@ -1,7 +1,7 @@
 """
-Profile 依赖注入
+Profile Dependency Injection
 
-提供 FastAPI 的依赖注入函数
+Provides FastAPI dependency injection functions
 """
 
 from functools import lru_cache

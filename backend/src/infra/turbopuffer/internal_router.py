@@ -1,9 +1,9 @@
 """
 Turbopuffer Internal Debug Router
 
-说明：
-- 该路由仅用于开发/调试，建议通过 `src.internal.router` 的 SECRET 鉴权保护
-- 该路由不属于对外（public）API 契约；返回结构尽量稳定，但不承诺长期兼容
+Notes:
+- This router is for development/debug only; should be protected via `src.internal.router` SECRET auth
+- This router is not part of the public API contract; return structure aims to be stable but no long-term compatibility guarantee
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/turbopuffer", tags=["internal"])
 @router.get(
     "/config",
     response_model=ApiResponse[dict[str, Any]],
-    summary="查看 Turbopuffer 配置（不暴露密钥）",
+    summary="View Turbopuffer config (without exposing secrets)",
     status_code=status.HTTP_200_OK,
 )
 def get_config(
@@ -38,14 +38,14 @@ def get_config(
             "region": cfg.region,
             "timeout_seconds": cfg.timeout_seconds,
         },
-        message="获取 turbopuffer 配置成功",
+        message="Successfully retrieved turbopuffer config",
     )
 
 
 @router.get(
     "/namespaces",
     response_model=ApiResponse[dict[str, Any]],
-    summary="列出 namespaces（分页）",
+    summary="List namespaces (paginated)",
     status_code=status.HTTP_200_OK,
 )
 async def list_namespaces(
@@ -55,14 +55,14 @@ async def list_namespaces(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     resp = await svc.list_namespaces(prefix=prefix, cursor=cursor, page_size=page_size)
-    # ApiResponse 泛型对 pydantic v2 的复杂嵌套容易引起 schema 展开问题，这里返回 dict 更稳
-    return ApiResponse.success(data=resp.model_dump(), message="列出 namespaces 成功")
+    # ApiResponse generic with pydantic v2 complex nesting can cause schema expansion issues; returning dict is more stable
+    return ApiResponse.success(data=resp.model_dump(), message="Successfully listed namespaces")
 
 
 @router.get(
     "/namespaces/{namespace}/metadata",
     response_model=ApiResponse[dict[str, Any]],
-    summary="获取 namespace 元信息",
+    summary="Get namespace metadata",
     status_code=status.HTTP_200_OK,
 )
 async def get_metadata(
@@ -70,14 +70,14 @@ async def get_metadata(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     meta = await svc.metadata(namespace)
-    return ApiResponse.success(data=meta, message="获取 namespace metadata 成功")
+    return ApiResponse.success(data=meta, message="Successfully retrieved namespace metadata")
 
 
 @router.post(
     "/namespaces/{namespace}/write",
     response_model=ApiResponse[dict[str, Any]],
-    summary="写入（payload 透传）",
-    description="直接透传 turbopuffer write payload（危险：可能包含 deletes/delete_by_filter 等破坏性操作）",
+    summary="Write (pass-through payload)",
+    description="Directly pass through turbopuffer write payload (dangerous: may contain deletes/delete_by_filter and other destructive operations)",
     status_code=status.HTTP_200_OK,
 )
 async def write_raw(
@@ -86,13 +86,13 @@ async def write_raw(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     resp = await svc.write_raw(namespace, payload)
-    return ApiResponse.success(data=resp.model_dump(), message="write 成功")
+    return ApiResponse.success(data=resp.model_dump(), message="Write successful")
 
 
 @router.post(
     "/namespaces/{namespace}/query",
     response_model=ApiResponse[dict[str, Any]],
-    summary="查询（payload 透传）",
+    summary="Query (pass-through payload)",
     status_code=status.HTTP_200_OK,
 )
 async def query_raw(
@@ -101,13 +101,13 @@ async def query_raw(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     resp = await svc.query_raw(namespace, payload)
-    return ApiResponse.success(data=resp.model_dump(), message="query 成功")
+    return ApiResponse.success(data=resp.model_dump(), message="Query successful")
 
 
 @router.post(
     "/namespaces/{namespace}/multi_query",
     response_model=ApiResponse[dict[str, Any]],
-    summary="multi_query（payload 透传）",
+    summary="multi_query (pass-through payload)",
     status_code=status.HTTP_200_OK,
 )
 async def multi_query_raw(
@@ -116,13 +116,13 @@ async def multi_query_raw(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     resp = await svc.multi_query_raw(namespace, payload)
-    return ApiResponse.success(data=resp.model_dump(), message="multi_query 成功")
+    return ApiResponse.success(data=resp.model_dump(), message="multi_query successful")
 
 
 @router.post(
     "/namespaces/{namespace}/warm_cache",
     response_model=ApiResponse[dict[str, Any]],
-    summary="预热缓存（hint_cache_warm）",
+    summary="Warm cache (hint_cache_warm)",
     status_code=status.HTTP_200_OK,
 )
 async def warm_cache(
@@ -130,13 +130,13 @@ async def warm_cache(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     resp = await svc.hint_cache_warm(namespace)
-    return ApiResponse.success(data=resp, message="warm cache hint 成功")
+    return ApiResponse.success(data=resp, message="Warm cache hint successful")
 
 
 @router.post(
     "/namespaces/{namespace}/recall",
     response_model=ApiResponse[dict[str, Any]],
-    summary="召回测量（recall）",
+    summary="Recall measurement",
     status_code=status.HTTP_200_OK,
 )
 async def recall(
@@ -151,13 +151,13 @@ async def recall(
         filters=payload.get("filters"),
         queries=payload.get("queries"),
     )
-    return ApiResponse.success(data=resp, message="recall 成功")
+    return ApiResponse.success(data=resp, message="Recall successful")
 
 
 @router.delete(
     "/namespaces/{namespace}",
     response_model=ApiResponse[None],
-    summary="删除 namespace（危险）",
+    summary="Delete namespace (dangerous)",
     status_code=status.HTTP_200_OK,
 )
 async def delete_namespace(
@@ -165,13 +165,13 @@ async def delete_namespace(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     await svc.delete_namespace(namespace)
-    return ApiResponse.success(data=None, message="删除 namespace 成功")
+    return ApiResponse.success(data=None, message="Successfully deleted namespace")
 
 
 @router.delete(
     "/namespaces/{namespace}/delete_all",
     response_model=ApiResponse[None],
-    summary="删除 namespace 内所有文档（危险）",
+    summary="Delete all documents in namespace (dangerous)",
     status_code=status.HTTP_200_OK,
 )
 async def delete_all(
@@ -179,4 +179,4 @@ async def delete_all(
     svc: TurbopufferSearchService = Depends(get_turbopuffer_search_service),
 ):
     await svc.delete_all(namespace)
-    return ApiResponse.success(data=None, message="删除所有文档成功")
+    return ApiResponse.success(data=None, message="Successfully deleted all documents")

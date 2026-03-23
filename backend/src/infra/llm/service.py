@@ -3,8 +3,8 @@ LLM Service
 
 Core service for interacting with text models via litellm.
 
-注意：litellm 库的导入非常慢（20秒+），所以我们使用懒加载策略，
-只在实际调用 LLM 时才导入，以提升应用启动和 reload 速度。
+Note: Importing the litellm library is very slow (20s+), so we use a lazy-loading strategy,
+only importing it when an LLM call is actually made, to improve app startup and reload speed.
 """
 
 import asyncio
@@ -12,8 +12,8 @@ import json
 import logging
 from typing import Any, Literal, Optional
 
-# 延迟导入 litellm - 只在实际使用时才导入
-# from litellm import acompletion  # 不在这里导入！
+# Deferred import of litellm - only imported when actually used
+# from litellm import acompletion  # Do NOT import here!
 
 from src.infra.llm.config import llm_config
 from src.infra.llm.exceptions import (
@@ -45,10 +45,10 @@ class LLMService:
 
     def _ensure_litellm(self):
         """
-        确保 litellm 已加载（懒加载）
+        Ensure litellm is loaded (lazy initialization).
 
-        只在第一次调用 LLM 时才导入 litellm，避免在应用启动时加载这个重量级库。
-        这能将启动时间从 ~43秒 降低到 ~20秒。
+        Only imports litellm on the first LLM call, avoiding loading this heavy library at app startup.
+        This reduces startup time from ~43s to ~20s.
         """
         if not self._litellm_loaded:
             logger.info(
@@ -102,10 +102,10 @@ class LLMService:
             RateLimitError: If rate limit is exceeded
             LLMError: For other errors
         """
-        # 懒加载 litellm（只在第一次使用时加载）
+        # Lazy-load litellm (only loaded on first use)
         self._ensure_litellm()
 
-        # 导入异常类型（也需要懒加载）
+        # Import exception types (also need lazy loading)
         from litellm.exceptions import (
             APIError,
             AuthenticationError,
@@ -152,7 +152,7 @@ class LLMService:
                     f"model={model}, response_format={response_format}"
                 )
 
-                # 使用懒加载的 acompletion
+                # Use the lazy-loaded acompletion
                 response = await self._acompletion(**request_params)
 
                 # Extract response content

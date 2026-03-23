@@ -1,7 +1,7 @@
 """
 Project Router
 
-提供项目 CRUD 的 REST API 接口。
+Provides REST API endpoints for project CRUD operations.
 """
 
 from fastapi import APIRouter, Depends, Query, status
@@ -31,14 +31,14 @@ router = APIRouter(
     prefix="/projects",
     tags=["projects"],
     responses={
-        404: {"description": "资源未找到"},
-        500: {"description": "服务器内部错误"},
+        404: {"description": "Resource not found"},
+        500: {"description": "Internal server error"},
     },
 )
 
 
 def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
-    """将 Project 转换为 ProjectOut（使用 MutOps entries）"""
+    """Convert Project to ProjectOut (using MutOps entries)"""
     node_infos = []
     if entries:
         for entry in entries:
@@ -62,13 +62,13 @@ def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
 @router.get(
     "/",
     response_model=ApiResponse[List[ProjectOut]],
-    summary="获取项目列表",
-    description="获取指定组织下的所有项目列表，包含每个项目下的根目录条目。",
-    response_description="返回组织的所有项目列表",
+    summary="List projects",
+    description="Get all projects under the specified organization, including root directory entries for each project.",
+    response_description="Returns all projects of the organization",
     status_code=status.HTTP_200_OK,
 )
 def list_projects(
-    org_id: Optional[str] = Query(None, description="组织ID（不传则返回用户所有组织的项目）"),
+    org_id: Optional[str] = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
     ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
@@ -83,15 +83,15 @@ def list_projects(
     for p in all_projects:
         entries = ops.list_dir(str(p.id), "")
         result.append(_convert_to_project_out(p, entries))
-    return ApiResponse.success(data=result, message="项目列表获取成功")
+    return ApiResponse.success(data=result, message="Project list retrieved successfully")
 
 
 @router.get(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
-    summary="获取项目详情",
-    description="根据项目 ID 获取项目详情，包含根目录条目。",
-    response_description="返回项目详细信息",
+    summary="Get project details",
+    description="Get project details by project ID, including root directory entries.",
+    response_description="Returns detailed project information",
     status_code=status.HTTP_200_OK,
 )
 def get_project(
@@ -101,16 +101,16 @@ def get_project(
 ):
     entries = ops.list_dir(str(project.id), "")
     return ApiResponse.success(
-        data=_convert_to_project_out(project, entries), message="项目获取成功"
+        data=_convert_to_project_out(project, entries), message="Project retrieved successfully"
     )
 
 
 @router.post(
     "/",
     response_model=ApiResponse[ProjectOut],
-    summary="创建项目",
-    description="创建一个新项目。项目将自动关联到当前用户。seed=true 时写入默认内容。",
-    response_description="返回创建成功的项目信息",
+    summary="Create project",
+    description="Create a new project. The project is automatically associated with the current user. When seed=true, default content is written.",
+    response_description="Returns the created project information",
     status_code=status.HTTP_201_CREATED,
 )
 async def create_project(
@@ -142,16 +142,16 @@ async def create_project(
         entries = ops.list_dir(str(project.id), "")
 
     return ApiResponse.success(
-        data=_convert_to_project_out(project, entries), message="项目创建成功"
+        data=_convert_to_project_out(project, entries), message="Project created successfully"
     )
 
 
 @router.put(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
-    summary="更新项目",
-    description="更新项目信息。",
-    response_description="返回更新后的项目信息",
+    summary="Update project",
+    description="Update project information.",
+    response_description="Returns the updated project information",
     status_code=status.HTTP_200_OK,
 )
 def update_project(
@@ -169,16 +169,16 @@ def update_project(
 
     entries = ops.list_dir(str(project.id), "")
     return ApiResponse.success(
-        data=_convert_to_project_out(updated_project, entries), message="项目更新成功"
+        data=_convert_to_project_out(updated_project, entries), message="Project updated successfully"
     )
 
 
 @router.delete(
     "/{project_id}",
     response_model=ApiResponse[None],
-    summary="删除项目",
-    description="删除指定项目。",
-    response_description="删除成功，返回空数据",
+    summary="Delete project",
+    description="Delete the specified project.",
+    response_description="Deletion successful, returns empty data",
     status_code=status.HTTP_200_OK,
 )
 def delete_project(
@@ -186,14 +186,14 @@ def delete_project(
     project_service: ProjectService = Depends(get_project_service),
 ):
     project_service.delete(project.id)
-    return ApiResponse.success(message="项目删除成功")
+    return ApiResponse.success(message="Project deleted successfully")
 
 
 @router.post(
     "/{project_id}/seed",
     response_model=ApiResponse[dict],
-    summary="写入默认种子内容",
-    description="为已有项目写入 Getting Started + Guides 默认内容。",
+    summary="Write default seed content",
+    description="Write Getting Started + Guides default content for an existing project.",
     status_code=status.HTTP_201_CREATED,
 )
 async def seed_project(
@@ -214,7 +214,7 @@ async def seed_project(
 @router.get(
     "/{project_id}/members",
     response_model=ApiResponse[List[ProjectMemberOut]],
-    summary="获取项目成员列表",
+    summary="List project members",
 )
 def list_project_members(
     project: Project = Depends(get_verified_project),
@@ -239,7 +239,7 @@ def list_project_members(
 @router.post(
     "/{project_id}/members",
     response_model=ApiResponse[None],
-    summary="添加项目成员",
+    summary="Add project member",
     status_code=status.HTTP_201_CREATED,
 )
 def add_project_member(
@@ -262,7 +262,7 @@ def add_project_member(
 @router.put(
     "/{project_id}/members/{target_user_id}/role",
     response_model=ApiResponse[None],
-    summary="更新项目成员角色",
+    summary="Update project member role",
 )
 def update_project_member_role(
     target_user_id: str,
@@ -282,7 +282,7 @@ def update_project_member_role(
 @router.delete(
     "/{project_id}/members/{target_user_id}",
     response_model=ApiResponse[None],
-    summary="移除项目成员",
+    summary="Remove project member",
 )
 def remove_project_member(
     target_user_id: str,

@@ -1,12 +1,12 @@
 """
 macOS APFS Clone WorkspaceProvider
 
-使用 APFS 文件系统的 clonefile 能力（cp -c）创建 Agent 工作区：
-- 克隆速度：和文件数量成正比，和文件大小无关
-- 存储消耗：零（CoW，只有改动的文件占额外空间）
-- 权限要求：零
+Uses the APFS filesystem's clonefile capability (cp -c) to create Agent workspaces:
+- Clone speed: proportional to file count, independent of file size
+- Storage cost: zero (CoW, only modified files consume extra space)
+- Permission requirements: none
 
-仅限 macOS（APFS 文件系统）。
+macOS only (APFS filesystem).
 """
 
 import asyncio
@@ -25,15 +25,15 @@ from src.utils.logger import log_info, log_error, log_debug
 
 
 class APFSWorkspaceProvider(WorkspaceProvider):
-    """macOS APFS Clone 实现"""
+    """macOS APFS Clone implementation"""
 
     def __init__(self, base_dir: str = "/tmp/contextbase"):
         self._base_dir = base_dir
         self._lower_dir = os.path.join(base_dir, "lower")
         self._workspaces_dir = os.path.join(base_dir, "workspaces")
-        self._registry: dict[str, WorkspaceInfo] = {}  # agent_id → WorkspaceInfo
+        self._registry: dict[str, WorkspaceInfo] = {}  # agent_id -> WorkspaceInfo
 
-        # 确保基础目录存在
+        # Ensure base directories exist
         os.makedirs(self._lower_dir, exist_ok=True)
         os.makedirs(self._workspaces_dir, exist_ok=True)
 
@@ -44,24 +44,24 @@ class APFSWorkspaceProvider(WorkspaceProvider):
         self, agent_id: str, project_id: str, base_snapshot_id: Optional[int] = None
     ) -> WorkspaceInfo:
         """
-        使用 APFS Clone 创建 Agent 工作区
-        
+        Create Agent workspace using APFS Clone
+
         cp -cR lower/{project_id}/ workspaces/{agent_id}/
-        每个文件用 clonefile 系统调用，瞬间完成，零额外存储。
+        Each file uses the clonefile system call, completing instantly with zero extra storage.
         """
         lower_path = self.get_lower_path(project_id)
         workspace_path = os.path.join(self._workspaces_dir, agent_id)
 
-        # 清理旧工作区（如果存在）
+        # Clean up old workspace (if exists)
         if os.path.exists(workspace_path):
             shutil.rmtree(workspace_path)
 
         if not os.path.exists(lower_path):
-            # Lower 目录不存在，创建空工作区
+            # Lower directory does not exist, create empty workspace
             os.makedirs(workspace_path, exist_ok=True)
             log_info(f"[APFS] Created empty workspace for {agent_id} (lower not synced yet)")
         else:
-            # APFS Clone：cp -cR（每个文件使用 clonefile，零拷贝）
+            # APFS Clone: cp -cR (each file uses clonefile, zero-copy)
             start = time.time()
             proc = await asyncio.create_subprocess_exec(
                 "cp", "-cR", f"{lower_path}/", workspace_path,
@@ -71,7 +71,7 @@ class APFSWorkspaceProvider(WorkspaceProvider):
             _, stderr = await proc.communicate()
 
             if proc.returncode != 0:
-                # APFS clone 失败（可能不在 APFS 卷上），fallback 到普通复制
+                # APFS clone failed (may not be on an APFS volume), fall back to regular copy
                 error_msg = stderr.decode().strip()
                 log_info(f"[APFS] Clone failed ({error_msg}), falling back to regular copy")
                 shutil.copytree(lower_path, workspace_path, dirs_exist_ok=True)
@@ -92,12 +92,12 @@ class APFSWorkspaceProvider(WorkspaceProvider):
 
     async def detect_changes(self, agent_id: str) -> WorkspaceChanges:
         """
-        检测 Agent 改了什么
-        
-        对比 workspace 和 lower 中每个文件的 hash：
-        - hash 不同 → modified
-        - workspace 有但 lower 没有 → modified（新建）
-        - lower 有但 workspace 没有 → deleted
+        Detect what the Agent changed
+
+        Compare hash of each file in workspace and lower:
+        - Different hash -> modified
+        - Exists in workspace but not lower -> modified (new file)
+        - Exists in lower but not workspace -> deleted
         """
         info = self._registry.get(agent_id)
         if not info:
@@ -108,11 +108,11 @@ class APFSWorkspaceProvider(WorkspaceProvider):
         modified = {}
         deleted = []
 
-        # 扫描 workspace 中的所有文件
+        # Scan all files in workspace
         if os.path.exists(workspace_path):
             for root, _, files in os.walk(workspace_path):
                 for fname in files:
-                    if fname.startswith("."):  # 跳过隐藏文件（.metadata.json 等）
+                    if fname.startswith("."):  # Skip hidden files (.metadata.json etc.)
                         continue
 
                     ws_file = os.path.join(root, fname)
@@ -122,15 +122,15 @@ class APFSWorkspaceProvider(WorkspaceProvider):
                     ws_hash = _file_hash(ws_file)
 
                     if not os.path.exists(lower_file):
-                        # workspace 有但 lower 没有 → 新建的文件
+                        # Exists in workspace but not lower -> new file
                         modified[rel_path] = _read_file(ws_file)
                     else:
                         lower_hash = _file_hash(lower_file)
                         if ws_hash != lower_hash:
-                            # hash 不同 → 修改的文件
+                            # Different hash -> modified file
                             modified[rel_path] = _read_file(ws_file)
 
-        # 检查 lower 中有但 workspace 中没有的文件 → 删除
+        # Check for files in lower but not in workspace -> deleted
         if os.path.exists(lower_path):
             for root, _, files in os.walk(lower_path):
                 for fname in files:
@@ -154,7 +154,7 @@ class APFSWorkspaceProvider(WorkspaceProvider):
         )
 
     async def cleanup(self, agent_id: str) -> None:
-        """清理 Agent 的工作区"""
+        """Clean up the Agent's workspace"""
         info = self._registry.pop(agent_id, None)
         if info and os.path.exists(info.path):
             shutil.rmtree(info.path, ignore_errors=True)
@@ -162,20 +162,20 @@ class APFSWorkspaceProvider(WorkspaceProvider):
 
     async def sync_lower(self, project_id: str) -> SyncResult:
         """
-        同步 S3+PG 数据到 Lower 目录
-        
-        注意：这个方法需要外部注入 node_repo 和 s3_service。
-        在实际使用中，SyncWorker 会调用这个方法。
-        这里只负责目录管理，具体同步逻辑在 sync_worker.py 中。
+        Sync S3+PG data to the Lower directory
+
+        Note: This method requires externally injected node_repo and s3_service.
+        In practice, SyncWorker calls this method.
+        This only handles directory management; the actual sync logic is in sync_worker.py.
         """
         lower_path = self.get_lower_path(project_id)
         os.makedirs(lower_path, exist_ok=True)
-        # 实际同步逻辑由 SyncWorker 执行
+        # Actual sync logic is executed by SyncWorker
         return SyncResult()
 
 
 def _file_hash(path: str) -> str:
-    """计算文件的 SHA-256 hash"""
+    """Calculate SHA-256 hash of a file"""
     h = hashlib.sha256()
     try:
         with open(path, "rb") as f:
@@ -187,12 +187,12 @@ def _file_hash(path: str) -> str:
 
 
 def _read_file(path: str) -> str:
-    """读取文件内容为字符串"""
+    """Read file content as string"""
     try:
         with open(path, "r", encoding="utf-8") as f:
             return f.read()
     except UnicodeDecodeError:
-        # 二进制文件，返回空（二进制文件的 diff 需要单独处理）
+        # Binary file, return empty (binary file diff needs separate handling)
         return ""
     except (OSError, IOError):
         return ""

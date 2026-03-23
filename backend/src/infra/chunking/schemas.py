@@ -32,7 +32,7 @@ class ChunkSegment(BaseModel):
 class ChunkBase(BaseModel):
     """Database-facing chunk record base."""
 
-    path: str  # MUT 路径 (path)
+    path: str  # MUT path
     json_pointer: str
 
     chunk_index: int
@@ -67,7 +67,7 @@ class Chunk(ChunkBase):
 class EnsureChunksResult(BaseModel):
     """Result for idempotent ensure operation."""
 
-    path: str  # MUT 路径 (path)
+    path: str  # MUT path
     json_pointer: str
     content_hash: str
 

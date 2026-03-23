@@ -1,14 +1,14 @@
 """
-Agent — 沙盒数据准备
+Agent — Sandbox Data Preparation
 
-从 agent/service.py 提取的沙盒数据准备逻辑：
-- SandboxFile / SandboxData 数据类
-- prepare_sandbox_data() 统一入口
-- extract_data_by_path() / merge_data_by_path() JSON 路径工具
+Sandbox data preparation logic extracted from agent/service.py:
+- SandboxFile / SandboxData data classes
+- prepare_sandbox_data() unified entry point
+- extract_data_by_path() / merge_data_by_path() JSON path utilities
 
-职责：根据 access point 的节点类型，准备要挂载到沙盒的文件列表。
+Responsibility: prepare the list of files to mount in the sandbox based on access point node type.
 
-NOTE: 使用 MutOps 直接从 Mut Merkle tree 读取，不依赖 content_nodes (PG)。
+NOTE: Reads directly from the Mut Merkle tree via MutOps, does not depend on content_nodes (PG).
 """
 
 import json
@@ -20,7 +20,7 @@ from loguru import logger
 
 @dataclass
 class SandboxFile:
-    """沙盒中的文件"""
+    """A file in the sandbox."""
     path: str
     content: str | None = None
     s3_key: str | None = None
@@ -32,7 +32,7 @@ class SandboxFile:
 
 @dataclass
 class SandboxData:
-    """沙盒数据"""
+    """Sandbox data."""
     files: list[SandboxFile] = field(default_factory=list)
     node_type: str = "json"
     root_path: str = ""
@@ -48,12 +48,12 @@ async def prepare_sandbox_data(
     user_id: str,
 ) -> SandboxData:
     """
-    统一的沙盒数据准备函数
+    Unified sandbox data preparation function.
 
-    根据节点类型返回不同的沙盒数据：
-    - json: 导出 content 为 data.json（可选 json_path 提取子数据）
-    - folder: 递归获取子文件列表
-    - file/pdf/image/etc: 单个文件信息
+    Returns different sandbox data depending on the node type:
+    - json: export content as data.json (optionally extract sub-data via json_path)
+    - folder: recursively fetch child file list
+    - file/pdf/image/etc: single file info
 
     Args:
         ops: MutOps instance
@@ -178,7 +178,7 @@ async def prepare_sandbox_data(
 
 
 def extract_data_by_path(data, json_path: str):
-    """从 JSON 数据中提取指定路径的节点"""
+    """Extract the node at the specified path from JSON data."""
     if not json_path or json_path == "/" or json_path == "":
         return data
 
@@ -203,7 +203,7 @@ def extract_data_by_path(data, json_path: str):
 
 
 def merge_data_by_path(original_data, json_path: str, new_node_data):
-    """将新数据合并回原数据的指定路径"""
+    """Merge new data back into the original data at the specified path."""
     if not json_path or json_path == "/" or json_path == "":
         return new_node_data
 

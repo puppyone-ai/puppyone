@@ -1,7 +1,7 @@
 """
-Context Publish 数据模型
+Context Publish Data Models
 
-定义 public.context_publish 表对应的 Pydantic 模型。
+Defines Pydantic models corresponding to the public.context_publish table.
 """
 
 from __future__ import annotations

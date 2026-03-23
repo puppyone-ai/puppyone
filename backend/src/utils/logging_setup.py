@@ -58,9 +58,9 @@ def setup_logging() -> None:
     - LOG_ROTATION: e.g. "100 MB" / "1 day" (default: "100 MB")
     - LOG_RETENTION: e.g. "14 days" (default: "14 days")
     - LOG_JSON_CONSOLE: 1/0
-        - 默认：如果 stderr 是 TTY（本地开发）则为 0（彩色可读文本），否则为 1（JSON，适合日志采集）
+        - Default: 0 (colorized readable text) if stderr is a TTY (local dev), otherwise 1 (JSON, suitable for log collection)
     - LOG_JSON_FILE: 1/0 (default: 1)
-    - DISABLE_UVICORN_ACCESS_LOG: 1/0 (default: 1)  # 避免与自定义 access log 重复
+    - DISABLE_UVICORN_ACCESS_LOG: 1/0 (default: 1)  # Avoid duplicating custom access log
     """
 
     global _CONFIGURED

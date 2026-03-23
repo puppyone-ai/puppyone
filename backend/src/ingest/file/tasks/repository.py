@@ -150,7 +150,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             return created_task
 
         except Exception as e:
-            handle_supabase_error(e, "创建 ETL 任务")
+            handle_supabase_error(e, "create ETL task")
 
     def get_task(self, task_id: str) -> Optional[ETLTask]:
         """Get task by ID from Supabase."""
@@ -206,7 +206,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             return updated_task
 
         except Exception as e:
-            handle_supabase_error(e, "更新 ETL 任务")
+            handle_supabase_error(e, "update ETL task")
 
     def list_tasks(
         self,
@@ -291,4 +291,4 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             return True
 
         except Exception as e:
-            handle_supabase_error(e, "删除 ETL 任务")
+            handle_supabase_error(e, "delete ETL task")

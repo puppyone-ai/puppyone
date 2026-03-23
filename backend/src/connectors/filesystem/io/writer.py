@@ -1,10 +1,10 @@
 """
 Folder Sync Engine — Writer
 
-文件写入 + 删除。
+File writing + deletion.
 
-提取自 sync/adapters/filesystem.py 的 push() 逻辑，
-以及 sync/cache_manager.py 的 write_file() 逻辑。
+Extracted from the push() logic of sync/adapters/filesystem.py,
+and the write_file() logic of sync/cache_manager.py.
 """
 
 import json
@@ -22,16 +22,16 @@ def write_file(
     content_type: str = "auto",
 ) -> FileEntry:
     """
-    将内容写入文件。
+    Write content to a file.
 
     Args:
-        base_path: 目标目录的根路径
-        rel_path:  相对路径（如 "config.json" 或 "docs/readme.md"）
-        content:   写入内容（dict → JSON 序列化, str → 直接写入, bytes → 二进制写入）
-        content_type: "json" | "markdown" | "binary" | "auto"（auto 根据 rel_path 推断）
+        base_path: Root path of the target directory
+        rel_path:  Relative path (e.g. "config.json" or "docs/readme.md")
+        content:   Content to write (dict -> JSON serialization, str -> direct write, bytes -> binary write)
+        content_type: "json" | "markdown" | "binary" | "auto" (auto infers from rel_path)
 
     Returns:
-        写入后的 FileEntry（含 content_hash）
+        FileEntry after writing (including content_hash)
     """
     full_path = os.path.join(base_path, rel_path)
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
@@ -65,9 +65,9 @@ def write_file(
 
 def delete_file(base_path: str, rel_path: str) -> bool:
     """
-    删除文件。成功返回 True。
+    Delete a file. Returns True on success.
 
-    不会删除空目录（避免与 watcher 产生不必要的事件）。
+    Does not delete empty directories (to avoid unnecessary watcher events).
     """
     full_path = os.path.join(base_path, rel_path)
     try:
@@ -80,7 +80,7 @@ def delete_file(base_path: str, rel_path: str) -> bool:
 
 
 def ensure_directory(base_path: str, rel_dir: str = "") -> str:
-    """确保目录存在，返回完整路径。"""
+    """Ensure the directory exists, return the full path."""
     full_path = os.path.join(base_path, rel_dir) if rel_dir else base_path
     os.makedirs(full_path, exist_ok=True)
     return full_path

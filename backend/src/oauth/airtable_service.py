@@ -8,6 +8,7 @@ from typing import Optional, Tuple
 from urllib.parse import urlencode
 
 import httpx
+from loguru import logger
 
 from src.config import settings
 from src.oauth.models import (
@@ -132,7 +133,7 @@ class AirtableOAuthService:
             try:
                 user_info = await self.fetch_user_info(access_token)
             except Exception as e:
-                print(f"Failed to fetch Airtable user info: {e}")
+                logger.warning(f"Failed to fetch Airtable user info: {e}")
 
             expires_at = None
             if "expires_in" in token_data and token_data["expires_in"]:

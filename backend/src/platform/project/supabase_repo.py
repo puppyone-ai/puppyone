@@ -1,7 +1,7 @@
 """
-Project 数据访问层
+Project Data Access Layer
 
-提供针对 project 表的增删改查操作。
+Provides CRUD operations for the project table.
 """
 
 from typing import List, Optional
@@ -16,7 +16,7 @@ from src.platform.project.supabase_schemas import (
 
 
 class ProjectRepository:
-    """Project 数据访问仓库"""
+    """Project data access repository"""
 
     def __init__(self, client: Client):
         self._client = client
@@ -28,7 +28,7 @@ class ProjectRepository:
             response = self._client.table("projects").insert(data).execute()
             return ProjectResponse(**response.data[0])
         except Exception as e:
-            raise handle_supabase_error(e, "创建项目")
+            raise handle_supabase_error(e, "create project")
 
     def get_by_id(self, project_id: str) -> Optional[ProjectResponse]:
         response = (
@@ -80,11 +80,11 @@ class ProjectRepository:
                 return ProjectResponse(**response.data[0])
             return None
         except Exception as e:
-            raise handle_supabase_error(e, "更新项目")
+            raise handle_supabase_error(e, "update project")
 
     def delete(self, project_id: str) -> bool:
         try:
             response = self._client.table("projects").delete().eq("id", project_id).execute()
             return len(response.data) > 0
         except Exception as e:
-            raise handle_supabase_error(e, "删除项目")
+            raise handle_supabase_error(e, "delete project")

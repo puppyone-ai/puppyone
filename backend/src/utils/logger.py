@@ -1,8 +1,8 @@
 """
-兼容层：保留原有 `log_info/log_error/log_warning/log_debug` API，
-底层切换为 Loguru（并由 `src.utils.logging_setup.setup_logging()` 统一配置）。
+Compatibility layer: preserves the original `log_info/log_error/log_warning/log_debug` API,
+with the underlying implementation switched to Loguru (configured uniformly by `src.utils.logging_setup.setup_logging()`).
 
-注意：业务代码无需改动。
+Note: No changes needed in business code.
 """
 
 from __future__ import annotations

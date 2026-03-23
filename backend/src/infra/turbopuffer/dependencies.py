@@ -1,7 +1,7 @@
 """
-Turbopuffer 模块依赖注入入口
+Turbopuffer module dependency injection entry point.
 
-遵循项目现有模式：使用模块级全局变量存储单例，避免 reload 时的 lru_cache 行为不一致。
+Follows existing project pattern: uses module-level global variables to store singletons, avoiding inconsistent lru_cache behavior during reload.
 """
 
 from __future__ import annotations

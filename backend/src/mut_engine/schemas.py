@@ -1,10 +1,10 @@
 """
-Mut Engine — 数据模型
+Mut Engine — Data models
 
-PuppyOne 平台层使用的所有数据类型：
-1. MutWriteService 结果 (WriteResult, DeleteResult, MoveResult)
-2. Tree API 请求/响应 Schema
-3. 版本历史、diff、回滚 Schema
+All data types used by the PuppyOne platform layer:
+1. MutWriteService results (WriteResult, DeleteResult, MoveResult)
+2. Tree API request/response schemas
+3. Version history, diff, and rollback schemas
 """
 
 from __future__ import annotations
@@ -15,11 +15,11 @@ from datetime import datetime
 
 
 # ============================================================
-# MutWriteService 结果
+# MutWriteService results
 # ============================================================
 
 class WriteResult(BaseModel):
-    """写操作的返回结果"""
+    """Return result for a write operation"""
     version: int
     content_hash: str = ""
     root_hash: str = ""
@@ -42,11 +42,11 @@ class MoveResult(BaseModel):
 
 
 # ============================================================
-# Tree API 请求 Schema
+# Tree API request schemas
 # ============================================================
 
 class WriteFileRequest(BaseModel):
-    """写入文件请求"""
+    """Write file request"""
     path: str
     content: Any
     message: str = ""
@@ -55,48 +55,48 @@ class WriteFileRequest(BaseModel):
 
 
 class MkdirRequest(BaseModel):
-    """创建目录请求"""
+    """Create directory request"""
     path: str
 
 
 class MoveRequest(BaseModel):
-    """移动/重命名请求"""
+    """Move/rename request"""
     old_path: str
     new_path: str
     message: str = ""
 
 
 class RemoveRequest(BaseModel):
-    """删除请求"""
+    """Delete request"""
     path: str
-    permanent: bool = False  # True = 真删除, False = 移入 .trash
+    permanent: bool = False  # True = permanent delete, False = move to .trash
 
 
 class RestoreRequest(BaseModel):
-    """从 .trash 恢复请求"""
+    """Restore from .trash request"""
     trash_path: str
     original_path: str
 
 
 class BulkWriteItem(BaseModel):
-    """批量写入中的单个文件"""
+    """A single file in a bulk write operation"""
     path: str
     content: Any
     node_type: str = "json"
 
 
 class BulkWriteRequest(BaseModel):
-    """批量写入请求"""
+    """Bulk write request"""
     files: List[BulkWriteItem]
     message: str = ""
 
 
 # ============================================================
-# Tree API 响应 Schema
+# Tree API response schemas
 # ============================================================
 
 class MutEntryResponse(BaseModel):
-    """Mut tree 中的一个条目"""
+    """A single entry in the Mut tree"""
     name: str
     path: str
     type: str  # "folder" | "json" | "markdown" | "file"
@@ -107,14 +107,14 @@ class MutEntryResponse(BaseModel):
 
 
 class ListDirResponse(BaseModel):
-    """列出目录内容的响应"""
+    """Response for listing directory contents"""
     path: str
     entries: List[MutEntryResponse]
     version: int = 0
 
 
 class ReadFileResponse(BaseModel):
-    """读取文件内容的响应"""
+    """Response for reading file contents"""
     path: str
     type: str
     content: Any = None
@@ -124,7 +124,7 @@ class ReadFileResponse(BaseModel):
 
 
 class StatResponse(BaseModel):
-    """文件/目录信息"""
+    """File/directory information"""
     path: str
     type: str
     name: str
@@ -136,23 +136,23 @@ class StatResponse(BaseModel):
 
 
 class TreeResponse(BaseModel):
-    """完整目录树响应"""
+    """Full directory tree response"""
     path: str
     entries: List[MutEntryResponse]
     version: int = 0
 
 
 class TrashListResponse(BaseModel):
-    """回收站内容"""
+    """Trash bin contents"""
     entries: List[MutEntryResponse]
 
 
 # ============================================================
-# 版本历史 Schema
+# Version history schemas
 # ============================================================
 
 class FileVersionInfo(BaseModel):
-    """版本列表项"""
+    """Version list item"""
     version: int
     who: str = ""
     message: str = ""
@@ -164,7 +164,7 @@ class FileVersionInfo(BaseModel):
 
 
 class VersionHistoryResponse(BaseModel):
-    """版本历史响应"""
+    """Version history response"""
     project_id: str
     path: Optional[str] = None
     current_version: int
@@ -174,14 +174,14 @@ class VersionHistoryResponse(BaseModel):
 
 
 class RollbackResponse(BaseModel):
-    """回滚响应"""
+    """Rollback response"""
     project_id: str
     new_version: int
     rolled_back_to: int
 
 
 class DiffItem(BaseModel):
-    """diff 中的单个变更"""
+    """A single change in a diff"""
     path: str
     old_value: Optional[Any] = None
     new_value: Optional[Any] = None
@@ -189,7 +189,7 @@ class DiffItem(BaseModel):
 
 
 class DiffResponse(BaseModel):
-    """两个版本的 diff 结果"""
+    """Diff result between two versions"""
     project_id: str = ""
     v1: int
     v2: int
@@ -197,7 +197,7 @@ class DiffResponse(BaseModel):
 
 
 class RollbackRequest(BaseModel):
-    """rollback 请求"""
+    """Rollback request"""
     target_version: int
 
 
@@ -206,13 +206,13 @@ class RollbackRequest(BaseModel):
 # ============================================================
 
 class MutCommitChange(BaseModel):
-    """commit 中的单个文件变更"""
+    """A single file change in a commit"""
     path: str
     op: str  # "added" | "modified" | "deleted"
 
 
 class MutCommitConflict(BaseModel):
-    """commit 中的冲突记录"""
+    """Conflict record in a commit"""
     path: str
     strategy: str
     detail: Optional[str] = None
@@ -220,7 +220,7 @@ class MutCommitConflict(BaseModel):
 
 
 class MutCommitInfo(BaseModel):
-    """项目级 commit 记录"""
+    """Project-level commit record"""
     version: int
     root_hash: str = ""
     scope_path: str = ""
@@ -232,7 +232,7 @@ class MutCommitInfo(BaseModel):
 
 
 class MutProjectHistoryResponse(BaseModel):
-    """项目级 Mut commit 历史"""
+    """Project-level Mut commit history"""
     project_id: str
     current_version: int
     root_hash: str = ""

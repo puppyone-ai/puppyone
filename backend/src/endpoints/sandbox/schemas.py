@@ -20,8 +20,8 @@ class SandboxResourceLimits(BaseModel):
 
 
 class SandboxEndpointCreate(BaseModel):
-    project_id: str = Field(..., description="所属项目 ID")
-    path: Optional[str] = Field(None, description="关联的 MUT path")
+    project_id: str = Field(..., description="Associated project ID")
+    path: Optional[str] = Field(None, description="Associated MUT path")
     name: str = Field(default="Sandbox", min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=500)
     mounts: List[SandboxMountItem] = Field(default_factory=list)

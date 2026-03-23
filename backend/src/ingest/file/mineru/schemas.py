@@ -23,10 +23,10 @@ class MineRUTaskState(str, Enum):
 
     PENDING = "pending"
     RUNNING = "running"
-    COMPLETED = "done"  # MineRU API 使用 "done" 表示完成状态
+    COMPLETED = "done"  # MineRU API uses "done" for completed state
     FAILED = "failed"
-    CONVERTING = "converting"  # 格式转换中
-    WAITING_FILE = "waiting-file"  # 等待文件上传
+    CONVERTING = "converting"  # Format conversion in progress
+    WAITING_FILE = "waiting-file"  # Waiting for file upload
 
 
 class CreateTaskRequest(BaseModel):
@@ -66,9 +66,9 @@ class CreateTaskResponse(BaseModel):
 class ExtractProgress(BaseModel):
     """Extract progress information."""
 
-    extracted_pages: Optional[int] = Field(None, description="已解析页数")
-    total_pages: Optional[int] = Field(None, description="总页数")
-    start_time: Optional[str] = Field(None, description="开始时间")
+    extracted_pages: Optional[int] = Field(None, description="Number of extracted pages")
+    total_pages: Optional[int] = Field(None, description="Total number of pages")
+    start_time: Optional[str] = Field(None, description="Start time")
 
 
 class TaskStatusData(BaseModel):

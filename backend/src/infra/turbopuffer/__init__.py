@@ -1,7 +1,7 @@
 """
-Turbopuffer 搜索模块（内部封装）
+Turbopuffer search module (internal wrapper).
 
-本模块仅提供 Python 侧的封装与依赖注入入口，不提供任何 FastAPI 路由。
+This module only provides Python-side wrappers and dependency injection entry points; no FastAPI routes.
 """
 
 from .config import TurbopufferConfig, turbopuffer_config

@@ -56,14 +56,14 @@ class ETLService:
 
     def _get_rule_repository(self, org_id: Optional[str] = None, created_by: Optional[str] = None) -> RuleRepositorySupabase:
         """
-        获取规则仓库实例。
+        Get rule repository instance.
 
         Args:
-            org_id: 组织 ID（用于过滤）
-            created_by: 创建者用户 ID
+            org_id: Organization ID (for filtering)
+            created_by: Creator user ID
 
         Returns:
-            RuleRepositorySupabase 实例
+            RuleRepositorySupabase instance
         """
         supabase_client = get_supabase_client()
         return RuleRepositorySupabase(supabase_client=supabase_client, org_id=org_id, created_by=created_by)
@@ -269,17 +269,17 @@ class ETLService:
         self, task_id: str | int, user_id: str
     ) -> ETLTask:
         """
-        获取任务状态并验证用户权限
+        Get task status and verify user permissions.
 
         Args:
-            task_id: 任务ID
-            user_id: 用户ID（字符串类型）
+            task_id: Task ID
+            user_id: User ID (string type)
 
         Returns:
-            已验证的 ETLTask 对象
+            Verified ETLTask object
 
         Raises:
-            NotFoundException: 如果任务不存在或用户无权限
+            NotFoundException: If task does not exist or user has no permission
         """
         task = await self.get_task_status(task_id)
         if not task:
@@ -287,7 +287,7 @@ class ETLService:
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
 
-        # 检查用户权限 (created_by is audit field; when set, must match)
+        # Check user permissions (created_by is audit field; when set, must match)
         if task.created_by is not None and task.created_by != user_id:
             raise NotFoundException(
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND

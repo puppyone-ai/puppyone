@@ -1,9 +1,9 @@
 """
-L3-Folder: WorkspaceProvider — 抽象接口
+L3-Folder: WorkspaceProvider — Abstract Interface
 
-定义 Agent 工作区管理的统一接口。
-具体实现因平台而异（macOS APFS / Linux OverlayFS / Fallback 全量复制）。
-冲突解决逻辑在 L2 CollaborationService 中，与平台无关。
+Defines the unified interface for Agent workspace management.
+Concrete implementations vary by platform (macOS APFS / Linux OverlayFS / Fallback full copy).
+Conflict resolution logic resides in L2 CollaborationService and is platform-independent.
 """
 
 import platform
@@ -16,7 +16,7 @@ from src.connectors.datasource.schemas import SyncResult  # L2.5
 
 @dataclass
 class WorkspaceInfo:
-    """工作区信息"""
+    """Workspace information"""
     path: str
     agent_id: str
     project_id: str
@@ -26,7 +26,7 @@ class WorkspaceInfo:
 
 @dataclass
 class WorkspaceChanges:
-    """Agent 的改动"""
+    """Agent's changes"""
     agent_id: str
     base_snapshot_id: Optional[int] = None
     modified: Dict[str, str] = field(default_factory=dict)
@@ -35,13 +35,13 @@ class WorkspaceChanges:
 
 class WorkspaceProvider(ABC):
     """
-    Agent 工作区管理的抽象接口
-    
-    每个实现负责：
-    1. create_workspace: 为 Agent 创建隔离的工作区目录
-    2. detect_changes: 检测 Agent 改了什么文件
-    3. cleanup: 清理工作区
-    4. sync_lower: 同步 S3+PG 数据到共享的 Lower 目录
+    Abstract interface for Agent workspace management
+
+    Each implementation is responsible for:
+    1. create_workspace: Create an isolated workspace directory for the Agent
+    2. detect_changes: Detect which files the Agent modified
+    3. cleanup: Clean up the workspace
+    4. sync_lower: Sync S3+PG data to the shared Lower directory
     """
 
     @abstractmethod
@@ -49,8 +49,8 @@ class WorkspaceProvider(ABC):
         self, agent_id: str, project_id: str, base_snapshot_id: Optional[int] = None
     ) -> WorkspaceInfo:
         """
-        为 Agent 创建隔离的工作区
-        
+        Create an isolated workspace for the Agent
+
         Returns:
             WorkspaceInfo(path="/tmp/contextbase/workspaces/{agent_id}", ...)
         """
@@ -59,10 +59,10 @@ class WorkspaceProvider(ABC):
     @abstractmethod
     async def detect_changes(self, agent_id: str) -> WorkspaceChanges:
         """
-        检测 Agent 改了什么
-        
-        对比 Agent 工作区和 Lower 目录，找出修改/新建/删除的文件。
-        
+        Detect what the Agent changed
+
+        Compare Agent workspace and Lower directory to find modified/new/deleted files.
+
         Returns:
             WorkspaceChanges(modified={"node_1.json": "{...}"}, deleted=["old.json"])
         """
@@ -70,21 +70,21 @@ class WorkspaceProvider(ABC):
 
     @abstractmethod
     async def cleanup(self, agent_id: str) -> None:
-        """清理 Agent 的工作区"""
+        """Clean up the Agent's workspace"""
         ...
 
     @abstractmethod
     async def sync_lower(self, project_id: str) -> SyncResult:
         """
-        同步 S3+PG 数据到本地 Lower 目录
-        
-        增量同步：比对 updated_at，只拉取变化的文件。
+        Sync S3+PG data to the local Lower directory
+
+        Incremental sync: compares updated_at, only pulls changed files.
         """
         ...
 
     @abstractmethod
     def get_lower_path(self, project_id: str) -> str:
-        """获取项目的 Lower 目录路径"""
+        """Get the Lower directory path for the project"""
         ...
 
 
@@ -100,18 +100,18 @@ def _resolve_provider_type(provider_type: str) -> str:
     if system == "Darwin":
         return "apfs"
     if system == "Linux":
-        # TODO: 未来检测是否支持 OverlayFS → provider_type = "overlayfs"
+        # TODO: Future detection of OverlayFS support -> provider_type = "overlayfs"
         return "fallback"
     return "fallback"
 
 
 def get_workspace_provider() -> WorkspaceProvider:
     """
-    根据平台自动选择 WorkspaceProvider
-    
+    Automatically select WorkspaceProvider based on platform
+
     - macOS (Darwin): APFS Clone
-    - Linux: Fallback（OverlayFS 实现预留）
-    - Windows / 其他: Fallback（全量复制）
+    - Linux: Fallback (OverlayFS implementation reserved)
+    - Windows / other: Fallback (full copy)
     """
     from src.config import settings
 
@@ -128,7 +128,7 @@ def get_workspace_provider() -> WorkspaceProvider:
         from src.platform.workspace.apfs_provider import APFSWorkspaceProvider
         _workspace_provider = APFSWorkspaceProvider(base_dir=base_dir)
     elif provider_type == "overlayfs":
-        # TODO: Linux OverlayFS 实现
+        # TODO: Linux OverlayFS implementation
         from src.platform.workspace.fallback_provider import FallbackWorkspaceProvider
         _workspace_provider = FallbackWorkspaceProvider(base_dir=base_dir)
     else:

@@ -1,10 +1,10 @@
 """
-Table (知识库) 内容管理
+Table (Knowledge Base) Content Management
 
-所有 Table 必须属于 project。
-写操作走 MUT protocol (MutOps)，
-读操作从 MUT ObjectStore 读取 JSON 内容。
-DB 中的 tables 表仅用于存储元数据索引。
+All Tables must belong to a project.
+Write operations use MUT protocol (MutOps),
+read operations read JSON content from MUT ObjectStore.
+The tables table in DB is only used for storing metadata indexes.
 """
 
 import json
@@ -50,11 +50,11 @@ class TableService:
         return create_mut_ops()
 
     def _table_mut_path(self, project_id: str, table_id: str) -> str:
-        """Table 在 MUT 树中的标准路径"""
+        """Standard path for Table in the MUT tree"""
         return f"tables/{table_id}.json"
 
     def _read_json_from_mut(self, project_id: str, mut_path: str) -> dict:
-        """从 MUT ObjectStore 读取 JSON (source of truth)"""
+        """Read JSON from MUT ObjectStore (source of truth)"""
         repo = self._repos.get_repo(project_id)
         root = repo.history.get_root_hash()
         if not root:
@@ -68,7 +68,7 @@ class TableService:
         return json.loads(raw.decode("utf-8"))
 
     def _read_table_data(self, table: Table) -> dict:
-        """读取 Table 的 JSON data — 从 MUT 读取 (source of truth)"""
+        """Read Table JSON data - from MUT (source of truth)"""
         self._ensure_mut()
         if not table.project_id:
             raise BusinessException(
@@ -85,7 +85,7 @@ class TableService:
         return table.data or {}
 
     # ================================================================
-    # 只读查询 (从 DB index 或 MUT)
+    # Read-only queries (from DB index or MUT)
     # ================================================================
 
     def get_projects_with_tables_by_org_id(
@@ -115,7 +115,7 @@ class TableService:
         return self.repo.verify_project_access(project_id, user_id)
 
     # ================================================================
-    # 写操作 — 全部通过 MUT protocol (MutOps)
+    # Write operations - all through MUT protocol (MutOps)
     # ================================================================
 
     async def create(
@@ -228,7 +228,7 @@ class TableService:
         log_info(f"[Table] Deleted table {table_id} via MUT")
 
     # ================================================================
-    # Context Data 操作 — JSON Pointer + MUT write
+    # Context Data operations — JSON Pointer + MUT write
     # ================================================================
 
     async def create_context_data(
@@ -460,7 +460,7 @@ class TableService:
         return resolve_pointer(actual_data, json_pointer_path)
 
     async def _write_table_data(self, table: Table, full_blob: dict) -> None:
-        """将完整的 table JSON 写入 MUT (唯一写入点)"""
+        """Write the complete table JSON to MUT (single write point)"""
         self._ensure_mut()
         if not table.project_id:
             raise BusinessException(
@@ -477,7 +477,7 @@ class TableService:
         )
 
     # ================================================================
-    # 查询操作 (只读)
+    # Query operations (read-only)
     # ================================================================
 
     def query_context_data_with_jmespath(

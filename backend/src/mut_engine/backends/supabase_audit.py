@@ -1,8 +1,8 @@
 """
-SupabaseAuditManager — Mut Audit 的 PostgreSQL 实现
+SupabaseAuditManager — PostgreSQL implementation of Mut Audit
 
-复用现有 audit_logs 表，扩展支持 Mut 审计事件（clone/push/pull）。
-与 Mut 原生的 AuditLog（文件系统 JSON）接口一致。
+Reuses the existing audit_logs table, extended to support Mut audit events (clone/push/pull).
+Interface-compatible with Mut's native AuditLog (filesystem JSON).
 """
 
 from __future__ import annotations
@@ -15,9 +15,9 @@ from src.utils.logger import log_error
 
 
 class SupabaseAuditManager:
-    """Mut AuditLog 的 Supabase/PostgreSQL 实现。
+    """Supabase/PostgreSQL implementation of Mut AuditLog.
 
-    复用 audit_logs 表。Mut 审计事件映射:
+    Reuses the audit_logs table. Mut audit event field mapping:
       event_type → action
       agent_id   → operator_id
       detail     → metadata (JSONB)

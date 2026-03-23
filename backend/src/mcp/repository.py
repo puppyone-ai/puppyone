@@ -14,7 +14,7 @@ DATA_PATH = Path("./data/mcp_instances.json")
 
 
 class McpInstanceRepositoryBase(ABC):
-    """抽象 MCP 实例仓库接口"""
+    """Abstract MCP instance repository interface"""
 
     @abstractmethod
     def get_by_id(self, mcp_instance_id: str) -> Optional[McpInstance]:
@@ -26,12 +26,12 @@ class McpInstanceRepositoryBase(ABC):
 
     @abstractmethod
     def get_by_project_id(self, project_id: str) -> List[McpInstance]:
-        """根据 project_id 获取该项目的所有 MCP 实例"""
+        """Get all MCP instances for a project by project_id"""
         pass
 
     @abstractmethod
     def get_all(self) -> List[McpInstance]:
-        """获取所有 MCP 实例"""
+        """Get all MCP instances"""
         pass
 
     @abstractmethod
@@ -99,13 +99,13 @@ class McpInstanceRepositoryBase(ABC):
 
 
 class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
-    """负责对 MCP 实例数据进行增删改查"""
+    """Responsible for CRUD operations on MCP instance data"""
 
     def _read_data(self) -> List[McpInstance]:
         try:
             with open(DATA_PATH, "r", encoding="utf-8") as f:
                 instances = json.load(f)
-                # 数据迁移：将旧的 context_id 字段转换为 table_id
+                # Data migration: convert old context_id field to table_id
                 for instance in instances:
                     if "context_id" in instance and "table_id" not in instance:
                         instance["table_id"] = instance.pop("context_id")
@@ -115,7 +115,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
 
     def _write_data(self, instances: List[McpInstance]) -> None:
         try:
-            # 确保目录存在
+            # Ensure directory exists
             DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
             with open(DATA_PATH, "w", encoding="utf-8") as f:
                 json.dump(
@@ -142,12 +142,12 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         return None
 
     def get_by_project_id(self, project_id: str) -> List[McpInstance]:
-        """根据 project_id 获取该项目的所有 MCP 实例"""
+        """Get all MCP instances for a project by project_id"""
         instances = self._read_data()
         return [instance for instance in instances if instance.project_id == project_id]
 
     def get_all(self) -> List[McpInstance]:
-        """获取所有 MCP 实例"""
+        """Get all MCP instances"""
         return self._read_data()
 
     def create(
@@ -166,7 +166,7 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
         preview_keys: Optional[List[str]] = None,
     ) -> McpInstance:
         instances = self._read_data()
-        # 生成新的 ID
+        # Generate new ID
         new_id = generate_uuid_v7()
 
         new_instance = McpInstance(
@@ -274,17 +274,17 @@ class McpInstanceRepositoryJSON(McpInstanceRepositoryBase):
 
 
 class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
-    """基于 Supabase 的 MCP 实例仓库实现"""
+    """Supabase-based MCP instance repository implementation"""
 
     def __init__(self, supabase_repo=None):
         """
-        初始化仓库
+        Initialize repository
 
         Args:
-            supabase_repo: 可选的 SupabaseRepository 实例，如果不提供则使用共享单例
+            supabase_repo: Optional SupabaseRepository instance, uses shared singleton if not provided
         """
         if supabase_repo is None:
-            # 延迟导入，避免在模块导入时触发
+            # Lazy import to avoid triggering during module import
             from src.infra.supabase.dependencies import get_supabase_repository
 
             self._repo = get_supabase_repository()
@@ -292,8 +292,8 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
             self._repo = supabase_repo
 
     def _mcp_response_to_instance(self, mcp_response) -> McpInstance:
-        """将 McpResponse 转换为 McpInstance 模型"""
-        # 字段映射：json_path → json_pointer, status (bool) → status (int), id → mcp_instance_id
+        """Convert McpResponse to McpInstance model"""
+        # Field mapping: json_path -> json_pointer, status (bool) -> status (int), id -> mcp_instance_id
         return McpInstance(
             mcp_instance_id=str(mcp_response.id),
             api_key=mcp_response.api_key or "",
@@ -311,7 +311,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         )
 
     def get_by_id(self, mcp_instance_id: str) -> Optional[McpInstance]:
-        """根据 ID 获取 MCP 实例"""
+        """Get MCP instance by ID"""
         try:
             mcp_id = int(mcp_instance_id)
         except (ValueError, TypeError):
@@ -323,21 +323,21 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         return None
 
     def get_by_api_key(self, api_key: str) -> Optional[McpInstance]:
-        """根据 API Key 获取 MCP 实例"""
+        """Get MCP instance by API Key"""
         mcp_response = self._repo.get_mcp_by_api_key(api_key)
         if mcp_response:
             return self._mcp_response_to_instance(mcp_response)
         return None
 
     def get_by_project_id(self, project_id: str) -> List[McpInstance]:
-        """根据 project_id 获取该项目的所有 MCP 实例"""
+        """Get all MCP instances for a project by project_id"""
         mcp_responses = self._repo.get_mcps(project_id=project_id)
         return [self._mcp_response_to_instance(resp) for resp in mcp_responses]
 
     def get_all(self) -> List[McpInstance]:
-        """获取所有 MCP 实例"""
-        # 获取所有实例，不做任何过滤
-        # limit 设置为一个较大的值，如 10000
+        """Get all MCP instances"""
+        # Get all instances without any filtering
+        # Set limit to a large value, e.g. 10000
         mcp_responses = self._repo.get_mcps(limit=10000)
         return [self._mcp_response_to_instance(resp) for resp in mcp_responses]
 
@@ -356,8 +356,8 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         register_tools: Optional[List[ToolTypeKey]] = None,
         preview_keys: Optional[List[str]] = None,
     ) -> McpInstance:
-        """创建新的 MCP 实例"""
-        # 字段映射：json_pointer → json_path, status (int) → status (bool)
+        """Create a new MCP instance"""
+        # Field mapping: json_pointer -> json_path, status (int) -> status (bool)
         mcp_data = McpCreate(
             api_key=api_key,
             created_by=created_by if created_by else None,
@@ -392,13 +392,13 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         register_tools: Optional[List[ToolTypeKey]] = None,
         preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
-        """根据 ID 更新 MCP 实例"""
+        """Update MCP instance by ID"""
         try:
             mcp_id = int(mcp_instance_id)
         except (ValueError, TypeError):
             return None
 
-        # 字段映射：json_pointer → json_path, status (int) → status (bool)
+        # Field mapping: json_pointer -> json_path, status (int) -> status (bool)
         mcp_data = McpUpdate(
             api_key=api_key,
             created_by=created_by if created_by else None,
@@ -434,8 +434,8 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         register_tools: Optional[List[ToolTypeKey]] = None,
         preview_keys: Optional[List[str]] = None,
     ) -> Optional[McpInstance]:
-        """根据 API Key 更新 MCP 实例"""
-        # 字段映射：json_pointer → json_path, status (int) → status (bool)
+        """Update MCP instance by API Key"""
+        # Field mapping: json_pointer -> json_path, status (int) -> status (bool)
         mcp_data = McpUpdate(
             api_key=api_key,
             created_by=created_by if created_by else None,
@@ -457,7 +457,7 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         return None
 
     def delete_by_id(self, mcp_instance_id: str) -> bool:
-        """根据 ID 删除 MCP 实例"""
+        """Delete MCP instance by ID"""
         try:
             mcp_id = int(mcp_instance_id)
         except (ValueError, TypeError):
@@ -466,5 +466,5 @@ class McpInstanceRepositorySupabase(McpInstanceRepositoryBase):
         return self._repo.delete_mcp(mcp_id)
 
     def delete_by_api_key(self, api_key: str) -> bool:
-        """根据 API Key 删除 MCP 实例"""
+        """Delete MCP instance by API Key"""
         return self._repo.delete_mcp_by_api_key(api_key)

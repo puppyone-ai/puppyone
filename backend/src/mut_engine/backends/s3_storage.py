@@ -1,13 +1,13 @@
 """
-S3StorageBackend — Mut ObjectStore 的 S3 实现
+S3StorageBackend — S3 implementation of Mut ObjectStore
 
-每个 project 的对象存储在 S3 的 mut/{project_id}/objects/ 前缀下。
-对象按 hash 的前 2 字符分片：mut/{project_id}/objects/ab/cdef1234...
+Each project's objects are stored under the S3 prefix mut/{project_id}/objects/.
+Objects are sharded by the first 2 characters of the hash: mut/{project_id}/objects/ab/cdef1234...
 
-Sync/Async 策略:
-  Mut 的 ObjectStore 接口是同步的（get/put/exists）。
-  PuppyOne 的 S3Service 是异步的。
-  同步方法通过 concurrent.futures 线程池桥接，避免 asyncio 嵌套。
+Sync/Async strategy:
+  Mut's ObjectStore interface is synchronous (get/put/exists).
+  PuppyOne's S3Service is asynchronous.
+  Synchronous methods bridge via concurrent.futures thread pool to avoid nested asyncio.
 """
 
 from __future__ import annotations
@@ -21,14 +21,19 @@ from mut.foundation.error import ObjectNotFoundError
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
-_thread_pool = ThreadPoolExecutor(max_workers=4)
+_THREAD_POOL_SIZE = 4
+_ASYNC_BRIDGE_TIMEOUT_SECS = 30
+_HASH_PREFIX_LEN = 2
+_MAX_LIST_KEYS = 10000
+
+_thread_pool = ThreadPoolExecutor(max_workers=_THREAD_POOL_SIZE)
 
 
 def _run_async(coro):
-    """从同步上下文安全地执行异步协程。
+    """Safely execute an async coroutine from a synchronous context.
 
-    策略：始终在独立线程中用新的 event loop 运行，
-    避免与调用方的 event loop 产生死锁。
+    Strategy: always run in a separate thread with a new event loop
+    to avoid deadlocks with the caller's event loop.
     """
     import concurrent.futures
 
@@ -36,18 +41,18 @@ def _run_async(coro):
         return asyncio.run(coro)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(_run_in_thread).result(timeout=30)
+        return pool.submit(_run_in_thread).result(timeout=_ASYNC_BRIDGE_TIMEOUT_SECS)
 
 
 class S3StorageBackend(StorageBackend):
-    """Mut ObjectStore 的 S3 后端，按 project_id 隔离。"""
+    """S3 backend for Mut ObjectStore, isolated by project_id."""
 
     def __init__(self, s3: S3Service, project_id: str):
         self._s3 = s3
         self._prefix = f"mut/{project_id}/objects"
 
     def _key_for(self, h: str) -> str:
-        return f"{self._prefix}/{h[:2]}/{h[2:]}"
+        return f"{self._prefix}/{h[:_HASH_PREFIX_LEN]}/{h[_HASH_PREFIX_LEN:]}"
 
     # ── Sync methods (called by Mut's ObjectStore) ──
 
@@ -74,7 +79,7 @@ class S3StorageBackend(StorageBackend):
     def all_hashes(self) -> list[str]:
         try:
             items, _, _, _ = _run_async(
-                self._s3.list_files(prefix=f"{self._prefix}/", max_keys=10000)
+                self._s3.list_files(prefix=f"{self._prefix}/", max_keys=_MAX_LIST_KEYS)
             )
             hashes = []
             for item in items:

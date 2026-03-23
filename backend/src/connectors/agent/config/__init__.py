@@ -1,6 +1,6 @@
 """
-Agent 配置层（共享 CRUD）
+Agent Configuration Layer (shared CRUD)
 
-所有 agent 类型（chat, schedule, mcp, webhook）
-共用同一套配置管理逻辑。DB 表: agents + agent_bash + agent_tool
+All agent types (chat, schedule, mcp, webhook)
+share the same configuration management logic. DB tables: agents + agent_bash + agent_tool
 """

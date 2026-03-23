@@ -16,13 +16,9 @@ from dotenv import load_dotenv
 # Find .env relative to this file (backend/.env)
 # worker.py -> jobs/ -> file/ -> upload/ -> src/ -> backend/
 _env_path = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env"
-print(f"[DEBUG] Loading .env from: {_env_path}")
-print(f"[DEBUG] .env exists: {_env_path.exists()}")
 load_dotenv(_env_path, override=True)
 
 import os
-print(f"[DEBUG] ETL_REDIS_URL from env: {os.environ.get('ETL_REDIS_URL', 'NOT SET')}")
-print(f"[DEBUG] ETL_ARQ_QUEUE_NAME from env: {os.environ.get('ETL_ARQ_QUEUE_NAME', 'NOT SET')}")
 
 import logging
 
@@ -79,7 +75,3 @@ class WorkerSettings:
     # NOTE: ARQ cancels jobs on timeout via asyncio.CancelledError (BaseException on Py3.12).
     # Keep this in sync with MineRU/LLM latency expectations.
     job_timeout = etl_config.etl_task_timeout
-
-# Debug: Print actual config values
-print(f"[DEBUG] Worker redis_url: {etl_config.etl_redis_url[:50]}...")
-print(f"[DEBUG] Worker queue_name: {etl_config.etl_arq_queue_name}")

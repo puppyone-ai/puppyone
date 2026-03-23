@@ -1,10 +1,11 @@
 """
-MutTreeReader — Mut Merkle tree 的直接读取接口
+MutTreeReader — Direct read interface for the Mut Merkle tree
 
-直接从 S3 ObjectStore 中的 Merkle tree 读取文件树，
-不经过 content_nodes (PG)。
+Reads the file tree directly from the Merkle tree in the S3 ObjectStore,
+bypassing content_nodes (PG).
 
-这是 content_nodes 被删除后，所有树浏览和文件读取的唯一入口。
+This is the sole entry point for all tree browsing and file reading
+after content_nodes was removed.
 """
 
 from __future__ import annotations
@@ -51,7 +52,7 @@ def detect_mime(name: str) -> str:
 
 @dataclass
 class MutEntry:
-    """Mut tree 中的一个条目（文件或目录）。"""
+    """A single entry (file or directory) in the Mut tree."""
     name: str
     path: str
     type: str              # "folder" | "json" | "markdown" | "file"
@@ -62,20 +63,20 @@ class MutEntry:
 
 
 class MutTreeReader:
-    """直接读 Mut Merkle tree，不经过 PG。
+    """Read the Mut Merkle tree directly, bypassing PG.
 
-    所有文件浏览和内容读取的唯一入口。
-    替代 ContentNodeRepository + ContentNodeService 的所有读操作。
+    The sole entry point for all file browsing and content reading.
+    Replaces all read operations of ContentNodeRepository + ContentNodeService.
     """
 
     def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
 
     def list_dir(self, project_id: str, path: str = "") -> list[MutEntry]:
-        """列出目录内容（类似 ls）。
+        """List directory contents (similar to ls).
 
-        直接读 Mut tree object，返回子条目列表。
-        空路径 = 项目根目录。
+        Reads the Mut tree object directly and returns a list of child entries.
+        Empty path = project root directory.
         """
         try:
             repo = self._repos.get_repo(project_id)
@@ -134,7 +135,7 @@ class MutTreeReader:
         return result
 
     def read_file(self, project_id: str, path: str) -> bytes:
-        """读取文件内容。"""
+        """Read file content."""
         try:
             repo = self._repos.get_repo(project_id)
             root_hash = repo.history.get_root_hash()
@@ -150,7 +151,7 @@ class MutTreeReader:
         return repo.store.get(blob_hash)
 
     def stat(self, project_id: str, path: str) -> Optional[MutEntry]:
-        """获取单个条目信息（类似 stat）。"""
+        """Get information for a single entry (similar to stat)."""
         try:
             repo = self._repos.get_repo(project_id)
             root_hash = repo.history.get_root_hash()
@@ -210,9 +211,9 @@ class MutTreeReader:
     def list_tree(
         self, project_id: str, path: str = "", max_depth: int = -1
     ) -> list[MutEntry]:
-        """递归列出目录树（用于完整 tree view）。
+        """Recursively list the directory tree (for a full tree view).
 
-        max_depth = -1 表示无限递归。
+        max_depth = -1 means unlimited recursion.
         """
         try:
             repo = self._repos.get_repo(project_id)
@@ -234,11 +235,11 @@ class MutTreeReader:
         return result
 
     def exists(self, project_id: str, path: str) -> bool:
-        """检查路径是否存在。"""
+        """Check whether a path exists."""
         return self.stat(project_id, path) is not None
 
     def get_root_hash(self, project_id: str) -> str:
-        """获取项目当前的 root hash。"""
+        """Get the current root hash of the project."""
         try:
             repo = self._repos.get_repo(project_id)
             return repo.history.get_root_hash() or ""
@@ -247,7 +248,7 @@ class MutTreeReader:
             return ""
 
     def get_version(self, project_id: str) -> int:
-        """获取项目当前版本号。"""
+        """Get the current version number of the project."""
         try:
             repo = self._repos.get_repo(project_id)
             return repo.history.get_latest_version()

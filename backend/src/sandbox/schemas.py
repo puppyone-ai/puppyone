@@ -5,15 +5,15 @@ from pydantic import BaseModel, Field
 
 class SandboxActionRequest(BaseModel):
     action: Literal["start", "exec", "read", "stop", "status"] = Field(
-        ..., description="沙盒动作类型"
+        ..., description="Sandbox action type"
     )
-    session_id: str = Field(..., min_length=1, description="沙盒会话 ID")
+    session_id: str = Field(..., min_length=1, description="Sandbox session ID")
     data: Optional[Any] = Field(
-        None, description="start 动作写入的数据"
+        None, description="Data to write for the start action"
     )
     readonly: Optional[bool] = Field(
-        False, description="start 动作是否只读"
+        False, description="Whether the start action is read-only"
     )
     command: Optional[str] = Field(
-        None, description="exec 动作执行的命令"
+        None, description="Command to execute for the exec action"
     )

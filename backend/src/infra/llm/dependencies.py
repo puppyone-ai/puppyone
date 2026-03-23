@@ -10,8 +10,8 @@ from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.llm.service import LLMService
 
 
-# 使用全局变量存储单例，而不是 lru_cache
-# 这样可以避免 reload 时的缓存问题
+# Use global variables to store singletons instead of lru_cache
+# This avoids cache issues during reload
 _llm_service = None
 _embedding_service = None
 _embedding_service_lock = threading.Lock()
@@ -34,7 +34,7 @@ def get_embedding_service() -> EmbeddingService:
     """
     Get Embedding service instance (singleton).
 
-    示例（FastAPI）:
+    Example (FastAPI):
         ```python
         from fastapi import Depends
         from src.infra.llm.dependencies import get_embedding_service

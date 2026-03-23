@@ -1,10 +1,10 @@
 """
-SupabaseScopeManager — Mut ScopeBackend 的 PostgreSQL 实现
+SupabaseScopeManager — PostgreSQL implementation of Mut ScopeBackend
 
-Scope 数据存储在 connections.config.scope (JSONB) 中。
-每个 connection (agent/mcp/sandbox) 可以有自己的 scope 定义。
+Scope data is stored in connections.config.scope (JSONB).
+Each connection (agent/mcp/sandbox) can have its own scope definition.
 
-与 Mut 原生 FileSystemScopeBackend 接口一致:
+Interface-compatible with Mut's native FileSystemScopeBackend:
   scope_id = connection.id
   scope = {"id": ..., "path": ..., "exclude": [...]}
 """

@@ -191,7 +191,7 @@ class GmailConnector(BaseConnector):
         # Parse date
         try:
             email_date = parsedate_to_datetime(date_str) if date_str else datetime.now(timezone.utc)
-        except:
+        except (TypeError, ValueError):
             email_date = datetime.now(timezone.utc)
 
         # Extract body
