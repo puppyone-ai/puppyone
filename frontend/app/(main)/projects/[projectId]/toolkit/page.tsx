@@ -23,7 +23,7 @@ import {
   getSearchIndexStatus,
   SearchIndexTask,
 } from '@/lib/mcpApi';
-import { listDir, type NodeInfo } from '@/lib/contentNodesApi';
+import { listDir, type NodeInfo } from '@/lib/contentTreeApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 
 // ================= Types =================
@@ -430,7 +430,7 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
 
   return (
     <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-      {nodes.length === 0 ? <div style={{ padding: 20, textAlign: 'center', color: '#52525b', fontSize: 12 }}>No content nodes found</div> : nodes.map(node => renderNode(node))}
+      {nodes.length === 0 ? <div style={{ padding: 20, textAlign: 'center', color: '#52525b', fontSize: 12 }}>No files found</div> : nodes.map(node => renderNode(node))}
     </div>
   );
 }

@@ -203,6 +203,7 @@ class MutOps:
             deleted=deleted,
             message=message or f"trash {basename}",
         )
+        self._run_post_push_hook(project_id, result)
         return self._to_result(result, [path, trash_path])
 
     async def restore(
@@ -242,6 +243,7 @@ class MutOps:
             deleted=deleted,
             message=message or f"restore {original_path}",
         )
+        self._run_post_push_hook(project_id, result)
         return self._to_result(result, [original_path, trash_path])
 
     async def permanent_delete(
@@ -273,6 +275,7 @@ class MutOps:
             deleted=deleted,
             message=message or f"delete {path}",
         )
+        self._run_post_push_hook(project_id, result)
         return self._to_result(result, deleted)
 
     # ══════════════════════════════════════════════

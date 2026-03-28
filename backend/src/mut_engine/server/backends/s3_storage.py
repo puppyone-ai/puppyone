@@ -13,7 +13,6 @@ Sync/Async strategy:
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
 from mut.core.object_store import StorageBackend
 from mut.foundation.error import ObjectNotFoundError
@@ -21,12 +20,9 @@ from mut.foundation.error import ObjectNotFoundError
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
-_THREAD_POOL_SIZE = 4
 _ASYNC_BRIDGE_TIMEOUT_SECS = 30
 _HASH_PREFIX_LEN = 2
 _MAX_LIST_KEYS = 10000
-
-_thread_pool = ThreadPoolExecutor(max_workers=_THREAD_POOL_SIZE)
 
 
 def _run_async(coro):

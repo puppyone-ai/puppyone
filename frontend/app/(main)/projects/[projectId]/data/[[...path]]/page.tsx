@@ -45,7 +45,7 @@ import {
   type AccessPoint,
 } from '@/lib/mcpApi';
 
-import { writeFile, mkdir } from '@/lib/contentNodesApi';
+import { writeFile, mkdir } from '@/lib/contentTreeApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import {
@@ -517,10 +517,12 @@ export default function DataPage({ params }: DataPageProps) {
         await mkdir(projectId, fullPath);
       }
       await refreshAllContentNodes(projectId);
+      const resourceNodeType: 'folder' | 'json' | 'file' =
+        nodeType === 'markdown' ? 'file' : nodeType;
       openSyncSetting(saasProvider, {
-        nodeId: fullPath, nodeName: name, nodeType: nodeType,
-        readonly: true, jsonPath: '',
-      } as any);
+        path: fullPath, nodeName: name, nodeType: resourceNodeType,
+        readonly: true,
+      });
       openSyncCreatePanel();
     } catch {
       openSyncSetting(saasProvider);
@@ -529,12 +531,12 @@ export default function DataPage({ params }: DataPageProps) {
   }, [projectId, currentFolderId, openSyncSetting, openSyncCreatePanel]);
 
   const agentResources: AgentResource[] = useMemo(() => {
-    const toAgentResource = (r: { nodeId: string; readonly?: boolean }) => ({
-      nodeId: r.nodeId,
+    const toAgentResource = (r: { path: string; readonly?: boolean }) => ({
+      path: r.path,
       readonly: r.readonly ?? true,
     });
 
-    if (hoveredSyncNodeId) return [{ nodeId: hoveredSyncNodeId, readonly: true }];
+    if (hoveredSyncNodeId) return [{ path: hoveredSyncNodeId, readonly: true }];
     if (hoveredAgentId) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
@@ -545,7 +547,7 @@ export default function DataPage({ params }: DataPageProps) {
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
     }
     if (selectedSyncId && selectedSyncNodeId) {
-      return [{ nodeId: selectedSyncNodeId, readonly: true }];
+      return [{ path: selectedSyncNodeId, readonly: true }];
     }
     return [];
   }, [draftResources, editingAgentId, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, panelState.type]);
@@ -637,7 +639,7 @@ export default function DataPage({ params }: DataPageProps) {
     if (syncStatusData?.syncs) {
       for (const s of syncStatusData.syncs) {
         const PROVIDER_LABELS: Record<string, string> = {
-          openclaw: 'Local Sync', filesystem: 'File System', gmail: 'Gmail',
+          filesystem: 'Local Sync', gmail: 'Gmail',
           google_calendar: 'Calendar', google_sheets: 'Sheets', google_drive: 'Drive',
           google_docs: 'Docs', github: 'GitHub', notion: 'Notion', linear: 'Linear',
           airtable: 'Airtable', mcp: 'MCP Server', sandbox: 'Sandbox',
@@ -998,11 +1000,10 @@ export default function DataPage({ params }: DataPageProps) {
                 togglePanel(ps);
               } else {
                 openSyncSetting('_generic', {
-                  nodeId: item.id,
+                  path: item.id,
                   nodeName: item.name,
                   nodeType: 'folder',
                   readonly: true,
-                  jsonPath: '',
                 });
                 openPanel({ type: 'sync_create' });
               }
@@ -1296,7 +1297,7 @@ export default function DataPage({ params }: DataPageProps) {
                     onClick={() => {
                       const nodeId = panelState.nodeId;
                       if (nodeId) {
-                        openSyncSetting('_generic', { nodeId, nodeName: '', nodeType: 'folder', readonly: true, jsonPath: '' });
+                        openSyncSetting('_generic', { path: nodeId, nodeName: '', nodeType: 'folder', readonly: true });
                       }
                       openPanel({ type: 'sync_create' });
                     }}
@@ -1341,11 +1342,11 @@ export default function DataPage({ params }: DataPageProps) {
             if (chatAgent.resources) {
               for (const res of chatAgent.resources) {
                 tools.push({
-                  id: `bash:${res.nodeId}`,
-                  label: `${res.nodeName || res.nodeId} · Bash${res.readonly ? ' (Read-only)' : ''}`,
+                  id: `bash:${res.path}`,
+                  label: `${res.nodeName || res.path} · Bash${res.readonly ? ' (Read-only)' : ''}`,
                   type: 'bash' as const,
-                  tableId: res.nodeId,
-                  tableName: res.nodeName || res.nodeId,
+                  tableId: res.path,
+                  tableName: res.nodeName || res.path,
                 });
               }
             }

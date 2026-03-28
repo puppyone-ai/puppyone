@@ -305,7 +305,7 @@ const CreateIcon = () => (
 
 // Agent resource type for props
 export interface AgentResource {
-  nodeId: string;
+  path: string;
   readonly: boolean;
 }
 
@@ -645,7 +645,7 @@ export function GridView({
     return <div style={{ color: '#666', padding: 16 }}>Loading...</div>;
   }
 
-  const resourceMap = new Map(agentResources?.map(r => [r.nodeId, r]) ?? []);
+  const resourceMap = new Map(agentResources?.map(r => [r.path, r]) ?? []);
 
   return (
     <>

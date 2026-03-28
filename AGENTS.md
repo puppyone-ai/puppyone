@@ -288,7 +288,7 @@ frontend/
 │   ├── hooks/                    # Custom React hooks
 │   ├── apiClient.ts              # Base API client
 │   ├── chatApi.ts                # Chat API
-│   ├── contentNodesApi.ts        # Content nodes API
+│   ├── contentTreeApi.ts         # Content tree API
 │   ├── mcpApi.ts                 # MCP API
 │   ├── mcpEndpointsApi.ts        # MCP endpoints API
 │   ├── sandboxEndpointsApi.ts    # Sandbox endpoints API
@@ -342,24 +342,14 @@ cli/
 ├── bin/puppyone.js             # Entrypoint & command registration
 ├── src/
 │   ├── commands/               # Command implementations
-│   │   ├── auth.js             # Auth (login/logout/whoami)
+│   │   ├── auth.js             # Auth (login/logout/whoami/targets)
 │   │   ├── org.js              # Organization management
 │   │   ├── project.js          # Project management
-│   │   ├── fs.js               # Cloud file system (POSIX-like)
-│   │   ├── connection.js       # Unified connection management (add/ls/info/rm/...)
-│   │   ├── sync.js             # Data source sync
-│   │   ├── access.js           # Local folder sync (daemon)
-│   │   ├── agent-cmd.js        # Agent CRUD & chat
-│   │   ├── mcp.js              # MCP endpoint management
-│   │   ├── sandbox.js          # Sandbox management & exec
-│   │   ├── tool.js             # Tool management
-│   │   ├── table.js            # Data table operations
-│   │   ├── ingest.js           # File/URL ingestion
-│   │   ├── publish.js          # Public publishing
-│   │   ├── db.js               # Database connector
+│   │   ├── access.js           # Unified Access Point management (all connection types)
+│   │   ├── chat.js             # Agent chat (SSE streaming)
 │   │   ├── config-cmd.js       # CLI configuration
-│   │   ├── global.js           # Global commands (status/ps/ls)
-│   │   └── openclaw.js         # Folder sync core logic
+│   │   ├── global.js           # Global commands (status/ps)
+│   │   └── _daemon.js          # Filesystem sync daemon (internal, legacy)
 │   ├── api.js                  # HTTP client
 │   ├── config.js               # Config file read/write
 │   ├── daemon.js               # Background daemon management
@@ -367,26 +357,23 @@ cli/
 │   ├── output.js               # Output formatting (human/JSON)
 │   ├── helpers.js              # Shared utilities
 │   └── state.js                # Sync state management
-├── SPEC.md                     # CLI interface spec
-└── DESIGN.md                   # CLI design doc
 ```
 
 ### Key Commands
 
 ```bash
-puppyone auth login              # Sign in
-puppyone project use "My Project" # Set active project
-puppyone fs ls                   # Browse cloud files
-puppyone conn add notion <url>   # Connect a data source (unified entry)
-puppyone conn add folder ~/path  # Mount a local folder
-puppyone conn add mcp "name"     # Create an MCP endpoint
-puppyone conn add sandbox "name" # Create a sandbox
-puppyone conn ls                 # List all connections
-puppyone status                  # Project dashboard
-puppyone agent chat              # Chat with an agent
+puppyone auth login                    # Sign in
+puppyone project use "My Project"      # Set active project
+puppyone access add notion <url>       # Connect a SaaS data source
+puppyone access add agent "Bot"        # Create an AI agent
+puppyone access add mcp "Data API"     # Create MCP endpoint
+puppyone access add filesystem /docs   # Mount local folder sync
+puppyone access ls                     # List all access points
+puppyone status                        # Project dashboard
+puppyone chat                          # Chat with an agent
 ```
 
-See `cli/SPEC.md` for full reference.
+See `docs/architecture/03-cli.md` for full reference.
 
 ---
 

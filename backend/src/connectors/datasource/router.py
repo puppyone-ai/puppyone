@@ -565,56 +565,6 @@ def get_sync_run(
     ))
 
 
-@router.post("/syncs/openclaw/bootstrap", response_model=ApiResponse, deprecated=True)
-def bootstrap_openclaw(
-    project_id: str = Query(...),
-    path: str = Query(...),
-    sync_svc: SyncService = Depends(get_sync_service),
-    project_service: ProjectService = Depends(get_project_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    """DEPRECATED: Use POST /api/v1/filesystem/bootstrap instead."""
-    _ensure_project_access(project_service, current_user, project_id)
-
-    from src.connectors.filesystem.service import FilesystemService
-    from src.infra.supabase.client import SupabaseClient
-    svc = FilesystemService(
-        supabase=SupabaseClient(),
-        sync_repo=sync_svc.sync_repo,
-    )
-    sync = svc.bootstrap(project_id=project_id, path=path)
-    return ApiResponse.success(data={
-        "sync_id": sync.id,
-        "access_key": sync.access_key,
-        "path": sync.path,
-        "project_id": sync.project_id,
-    })
-
-
-@router.get("/syncs/{sync_id}/openclaw-status", response_model=ApiResponse, deprecated=True)
-def get_openclaw_status_by_sync(
-    sync_id: str,
-    sync_svc: SyncService = Depends(get_sync_service),
-    project_service: ProjectService = Depends(get_project_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    """DEPRECATED: Use GET /api/v1/filesystem/{sync_id}/connection-status instead."""
-    sync = sync_svc.sync_repo.get_by_id(sync_id)
-    if not sync or sync.provider != "filesystem":
-        return ApiResponse.success(data={"connected": False})
-
-    _ensure_project_access(project_service, current_user, sync.project_id)
-
-    from src.connectors.filesystem.service import FilesystemService
-    from src.infra.supabase.client import SupabaseClient
-    svc = FilesystemService(
-        supabase=SupabaseClient(),
-        sync_repo=sync_svc.sync_repo,
-    )
-    data = svc.status(sync)
-    return ApiResponse.success(data=data)
-
-
 @router.post("/bootstrap", response_model=ApiResponse[BootstrapResponse])
 async def bootstrap(
     body: BootstrapRequest,

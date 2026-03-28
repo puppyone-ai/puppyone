@@ -11,7 +11,7 @@ import {
   type FileVersionDetail,
   type DiffResponse,
   type MutCommitChange,
-} from '@/lib/contentNodesApi';
+} from '@/lib/contentTreeApi';
 
 interface VersionHistoryPanelProps {
   nodeId: string;  // File path (Mut path)

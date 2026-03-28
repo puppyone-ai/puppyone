@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { get } from '@/lib/apiClient';
 import type { SavedAgent } from '@/components/AgentRail';
 
-interface OpenClawSetupViewProps {
+interface FilesystemSetupViewProps {
   agent: SavedAgent;
   projectId?: number | string;
   onEdit: () => void;
@@ -254,7 +254,7 @@ export function SetupDialog({
 // Main Sidebar View
 // ============================================================
 
-export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenClawSetupViewProps) {
+export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: FilesystemSetupViewProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
@@ -268,7 +268,7 @@ export function OpenClawSetupView({ agent, projectId, onEdit, onDelete }: OpenCl
 
   const checkStatus = useCallback(async () => {
     try {
-      const resp = await get<{ connected: boolean; workspace_path?: string; last_seen_at?: string }>(`/api/v1/agent-config/${agent.id}/openclaw-status`);
+      const resp = await get<{ connected: boolean; workspace_path?: string; last_seen_at?: string }>(`/api/v1/filesystem/${agent.id}/connection-status`);
       if (resp) {
         setConnectionStatus(resp);
       }

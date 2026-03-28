@@ -13,7 +13,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getDashboardData, getAgentLogs, type DashboardData, type AgentLog } from '@/lib/chatApi';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
-import { getSyncChangelog, type SyncChangelogItem } from '@/lib/contentNodesApi';
+import { getSyncChangelog, type SyncChangelogItem } from '@/lib/contentTreeApi';
 
 // ================= Types =================
 

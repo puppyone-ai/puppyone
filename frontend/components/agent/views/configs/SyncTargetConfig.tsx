@@ -31,7 +31,7 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
   // When switching modes, clear drafts
   useEffect(() => {
     if (prevMode.current !== mode) {
-      draftResources.forEach(r => removeDraftResource(r.nodeId));
+      draftResources.forEach(r => removeDraftResource(r.path));
       prevMode.current = mode;
     }
   }, [mode]);
@@ -39,18 +39,18 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
   // In "new" mode, sync the name to a draft resource
   useEffect(() => {
     if (mode !== 'new') return;
-    const existing = draftResources.find(r => r.nodeId.startsWith('__new:'));
+    const existing = draftResources.find(r => r.path.startsWith('__new:'));
     if (newName.trim()) {
       if (existing) {
         if (existing.nodeName !== newName.trim()) {
-          removeDraftResource(existing.nodeId);
-          addDraftResource({ nodeId: `__new:${Date.now()}`, nodeName: newName.trim(), nodeType: primaryType, readonly: true, jsonPath: '' } as AccessResource);
+          removeDraftResource(existing.path);
+          addDraftResource({ path: `__new:${Date.now()}`, nodeName: newName.trim(), nodeType: primaryType, readonly: true } as AccessResource);
         }
       } else {
-        addDraftResource({ nodeId: `__new:${Date.now()}`, nodeName: newName.trim(), nodeType: primaryType, readonly: true, jsonPath: '' } as AccessResource);
+        addDraftResource({ path: `__new:${Date.now()}`, nodeName: newName.trim(), nodeType: primaryType, readonly: true } as AccessResource);
       }
     } else if (existing) {
-      removeDraftResource(existing.nodeId);
+      removeDraftResource(existing.path);
     }
   }, [newName, mode]);
 
@@ -71,8 +71,8 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
       const node = JSON.parse(data);
       const nodeType: AcceptedNodeType = node.type === 'folder' ? 'folder' : node.type === 'json' ? 'json' : node.type === 'markdown' ? 'markdown' : 'file';
       if (!accept.includes(nodeType)) return;
-      if (draftResources.some(r => r.nodeId === (node.nodeId || node.id))) return;
-      addDraftResource({ nodeId: node.nodeId || node.id, nodeName: node.name, nodeType, readonly: true, jsonPath: node.jsonPath || '' } as AccessResource);
+      if (draftResources.some(r => r.path === (node.nodeId || node.id))) return;
+      addDraftResource({ path: node.nodeId || node.id, nodeName: node.name, nodeType, readonly: true } as AccessResource);
     } catch { /* ignore */ }
   };
 
@@ -165,7 +165,7 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
                 const { icon, color } = getNodeIcon(res.nodeType);
                 return (
                   <div
-                    key={res.nodeId}
+                    key={res.path}
                     style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', borderRadius: 4, background: '#1a1a1a', border: '1px solid #252525', transition: 'all 0.1s' }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
@@ -173,11 +173,11 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1, minWidth: 0 }}>
                       <div style={{ color, flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</div>
                       <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {res.jsonPath ? `${res.nodeName} (${res.jsonPath})` : res.nodeName}
+                        {res.nodeName}
                       </span>
                     </div>
                     <button
-                      onClick={() => removeDraftResource(res.nodeId)}
+                      onClick={() => removeDraftResource(res.path)}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 4, background: 'transparent', border: 'none', color: '#505050', cursor: 'pointer', transition: 'all 0.1s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}

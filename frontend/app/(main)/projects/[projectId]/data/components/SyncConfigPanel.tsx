@@ -2,10 +2,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
-import type { AccessResource } from '@/contexts/AgentContext';
 import { SyncDetailView } from '@/components/agent/views/SyncDetailView';
 import { ChatAgentConfig, type AgentConfigProps } from '@/components/agent/views/configs/ChatAgentConfig';
-import { OpenClawAgentConfig } from '@/components/agent/views/configs/OpenClawAgentConfig';
+import { FilesystemAgentConfig } from '@/components/agent/views/configs/FilesystemAgentConfig';
 import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/configs/SaaSyncConfig';
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
 import { SyncPreview } from '@/components/agent/views/configs/SyncPreview';
@@ -308,13 +307,13 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
           config,
           uiMode: 'inline',
         });
-        createdNodeId = target.nodeId;
+        createdNodeId = target.path;
       } else {
         const result = await createSyncConnection({
           project_id: projectId,
           provider: providerDef.id,
           config,
-          target_folder_path: target.nodeId,
+          target_folder_path: target.path,
           direction: providerDef.direction,
           sync_mode: draftSyncMode as 'import_once' | 'manual' | 'scheduled',
           trigger: draftSyncMode === 'scheduled'
@@ -505,7 +504,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                 isActive={draftResources.length > 0}
               />
               <div style={{ marginTop: 12 }}>
-                <OpenClawAgentConfig />
+                <FilesystemAgentConfig />
               </div>
             </div>
             

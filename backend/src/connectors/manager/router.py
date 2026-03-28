@@ -2,7 +2,7 @@
 Unified Connections API
 
 Single entry-point CRUD over the `connections` table for ALL provider types
-(sync, agent, mcp, sandbox, filesystem). Allows the CLI `puppyone connection`
+(sync, agent, mcp, sandbox, filesystem). Allows the CLI `puppyone access`
 command group to manage every connection from one place.
 """
 

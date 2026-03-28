@@ -130,8 +130,8 @@ Start with something that works immediately in both Cloud and self-hosted:
 
 | Source | Command |
 |--------|---------|
-| Webpage | `puppyone conn add url https://example.com --folder /refs` |
-| Local folder | `puppyone conn add folder ./my-docs --folder /docs` |
+| Webpage | `puppyone access add url https://example.com --scope /refs` |
+| Local folder | `puppyone access add folder ./my-docs --scope /docs` |
 
 You can also upload files directly from the web app. Use `--folder` to organize synced content into any path in your Context Space.
 
@@ -142,7 +142,7 @@ You can also upload files directly from the web app. Use `--folder` to organize 
 - **Distribute via MCP** — Create an MCP endpoint when you want agents in Cursor, Claude Desktop, or other MCP clients to read your Context Space:
 
 ```bash
-puppyone conn add mcp "My Context"
+puppyone access add mcp "My Context"
 # → outputs MCP endpoint URL and API key
 ```
 

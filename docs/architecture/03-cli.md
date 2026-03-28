@@ -1,31 +1,36 @@
-# CLI 规范
+# CLI 架构
 
 PuppyOne 有两个 CLI 工具，职责分明：
 
-- **`puppyone`** — 控制平面操作（登录、项目管理、Access Point 管理、连接管理）
-- **`mut`** — 数据平面操作（clone、commit、push、pull——类 Git）
+- **`puppyone`** — 控制平面（登录、项目管理、Access Point 管理）
+- **`mut`** — 数据平面（clone、commit、push、pull——所有内容操作）
+
+**核心原则：所有对 MUT tree 的读写都必须经过 MUT 协议，不允许绕过。**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    PuppyOne (Server)                        │
 │                                                             │
 │   Project A                                                 │
-│   ├── Access Point 1 → https://api.puppyone.com/mut/ap_xxx  │
-│   ├── Access Point 2 → https://api.puppyone.com/mut/ap_yyy  │
-│   └── Access Point 3 → https://api.puppyone.com/mut/ap_zzz  │
-│       (每个 access point 有不同的权限和范围)                  │
+│   ├── Access Point 1 (direct)     → /mut/ap/ak_abc123       │
+│   ├── Access Point 2 (agent)      → /mut/ap/ak_xyz789       │
+│   ├── Access Point 3 (notion)     → Server Pull → MUT Tree  │
+│   ├── Access Point 4 (mcp)        → /mut/ap/ak_mcp456       │
+│   └── Access Point 5 (filesystem) → /mut/ap/ak_fs901        │
 │                                                             │
-│   puppyone: 创建项目、创建 access point、管理权限             │
+│   所有类型都在 connections 表中，provider 字段区分类型         │
+│                                                             │
+│   puppyone: 创建项目 → 创建 access point → 管理权限          │
 └─────────────────────────────────────────────────────────────┘
                               │
-                              │ access point URL
+                              │ access point URL / access key
                               ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    MUT (Client)                             │
 │                                                             │
 │   - 只认 access point URL                                    │
 │   - 不知道"项目"、"平台"等概念                                │
-│   - clone / commit / push / pull                            │
+│   - clone / commit / push / pull / ls / cat                 │
 │   - 权限由 server 控制，client 只是执行                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -33,6 +38,11 @@ PuppyOne 有两个 CLI 工具，职责分明：
 ---
 
 ## 1. MUT CLI（数据平面）
+
+### 设计理念
+
+MUT 是纯粹的数据操作工具，类似 Git。它只认 Access Point URL，不知道
+PuppyOne 平台、项目、连接等概念。所有内容读写都必须通过 MUT 协议。
 
 ### 用户体验
 
@@ -42,14 +52,14 @@ PuppyOne 有两个 CLI 工具，职责分明：
 # 1. 登录 PuppyOne
 puppyone login
 
-# 2. 创建项目（自动生成 access point）
+# 2. 创建项目（自动生成默认 access point）
 puppyone project create "My Knowledge Base"
 # → Created project: my-knowledge-base
-# → Access point: https://api.puppyone.com/mut/ap_abc123
-# → Clone with: mut clone https://api.puppyone.com/mut/ap_abc123
+# → Access point: https://api.puppyone.com/mut/ap/ak_abc123
+# → Clone with: mut clone https://api.puppyone.com/mut/ap/ak_abc123
 
 # 3. MUT clone（用 access point URL）
-mut clone https://api.puppyone.com/mut/ap_abc123 ./my-kb
+mut clone https://api.puppyone.com/mut/ap/ak_abc123 ./my-kb
 cd my-kb/
 ```
 
@@ -62,12 +72,14 @@ mut push
 mut pull
 mut status
 mut log
+mut ls              # 列出当前目录
+mut cat readme.md   # 查看文件内容
 ```
 
 #### 多人/多 Agent 协作
 
 ```bash
-mut clone https://api.puppyone.com/mut/ap_abc123 ./team-kb
+mut clone https://api.puppyone.com/mut/ap/ak_abc123 ./team-kb
 cd team-kb/
 mut pull          # 拉取别人的更新
 mut commit -m "my changes"
@@ -77,31 +89,18 @@ mut diff 5 8      # 对比版本
 mut rollback 5    # 回滚
 ```
 
-#### 已有本地文件
-
-```bash
-puppyone project create "Existing Data"
-# → Access point: https://api.puppyone.com/mut/ap_xyz789
-
-mut clone https://api.puppyone.com/mut/ap_xyz789 ./temp
-mv ./temp/.mut ~/my-existing-data/
-rm -rf ./temp
-
-cd ~/my-existing-data/
-mut commit -m "import existing files"
-mut push
-```
-
 ### 命令参考
 
 | 命令 | 说明 | 示例 |
 |------|------|------|
-| `mut clone <url> [dir]` | 克隆 access point 到本地 | `mut clone https://api.puppyone.com/mut/ap_abc ./kb` |
+| `mut clone <url> [dir]` | 克隆 access point 到本地 | `mut clone https://.../mut/ap/ak_abc ./kb` |
 | `mut commit -m "msg"` | 创建本地版本快照 | `mut commit -m "update"` |
 | `mut push` | 推送到云端 | |
 | `mut pull` | 拉取云端最新 | |
 | `mut status` | 查看本地与云端差异 | |
 | `mut log` | 查看版本历史 | |
+| `mut ls [path]` | 列出目录内容 | `mut ls docs/` |
+| `mut cat <path>` | 查看文件内容 | `mut cat readme.md` |
 | `mut diff <v1> <v2>` | 对比两个版本 | `mut diff 5 8` |
 | `mut rollback <ver>` | 回滚到指定版本 | `mut rollback 5` → 创建 v9 |
 
@@ -110,7 +109,7 @@ mut push
 #### `mut status`
 
 ```
-Access Point: https://api.puppyone.com/mut/ap_abc123
+Access Point: https://api.puppyone.com/mut/ap/ak_abc123
 Local:  v5
 Remote: v8
 
@@ -135,8 +134,8 @@ clone 后自动生成 `.mut/config.json`：
 
 ```json
 {
-  "server": "https://api.puppyone.com/mut/ap_abc123",
-  "credential": "ak_xxxxxxxx"
+  "server": "https://api.puppyone.com/mut/ap/ak_abc123",
+  "credential": "ak_abc123"
 }
 ```
 
@@ -156,6 +155,33 @@ MUT 只认这个 URL，不知道背后是什么平台或项目。
 
 ## 2. PuppyOne CLI（控制平面）
 
+PuppyOne CLI 只做控制平面操作——管理项目和 Access Point，不直接读写数据。
+
+### 命令总览
+
+```
+puppyone
+├── login / logout / whoami        认证
+├── project                        项目管理
+│   ├── create <name>
+│   ├── list
+│   └── use <name>
+├── access                         Access Point 统一管理
+│   ├── add <provider> [args]      创建 access point
+│   ├── ls                         列出全部
+│   ├── info <id>                  查看详情
+│   ├── rm <id>                    删除
+│   ├── pause <id>                 暂停（仅 server-pull 类型）
+│   ├── resume <id>                恢复
+│   ├── trigger <id> [options]     设置同步触发器
+│   ├── key <id>                   查看/重新生成 access key
+│   ├── refresh <id>               立即触发一次同步
+│   └── logs <id>                  查看同步日志
+├── chat [agent-id]                与 Agent 聊天
+├── status                         项目总览
+└── config                         CLI 配置
+```
+
 ### 认证
 
 ```bash
@@ -174,95 +200,115 @@ puppyone project use "My Project"       # 设置当前活跃项目
 
 ### Access Point 管理
 
-```bash
-puppyone access create <project> [options]
+**一张表，一个命令。** 所有连接类型（SaaS 数据源、数据库、Agent、MCP、
+Sandbox、本地同步）统一通过 `puppyone access` 管理，对应 `connections` 表。
 
+#### 创建 Access Point
+
+```bash
+# ── SaaS 数据源（Server Pull & Overwrite）──
+puppyone access add notion <url>
+puppyone access add gmail
+puppyone access add github
+puppyone access add google_drive
+puppyone access add url <url>
+
+# ── 外部数据库（Server Pull & Overwrite）──
+puppyone access add database --host db.example.com --port 5432 --database mydb
+
+# ── Agent（MUT Native Protocol）──
+puppyone access add agent "Research Bot"
+puppyone access add agent "Coder" --scope /src --permission rw
+
+# ── MCP 端点（被动，MUT Native Protocol）──
+puppyone access add mcp "Data API" --scope /data
+
+# ── Sandbox（MUT Native Protocol）──
+puppyone access add sandbox "Code Runner"
+
+# ── 本地文件夹同步（MUT Native Protocol）──
+puppyone access add filesystem --scope /docs
+# → access_key: ak_fs_xxx
+# → 然后在本地运行：mut clone https://.../mut/ap/ak_fs_xxx ~/my-folder
+
+# ── 直连（MUT Native Protocol）──
+puppyone access add direct "Default Access"
+puppyone access add direct "Read Only" --permission read --scope /public
+```
+
+#### 通用选项
+
+```
 Options:
-  --type <type>        connector 类型 (direct|agent|sandbox|datasource|filesystem|mcp)
-  --scope <path>       路径范围 (default: /)
-  --permission <perm>  权限 (read|write|rw, default: rw)
-  --config <json>      connector 特有配置 (JSON string)
-  --name <name>        access point 名称 (可选)
-
-Examples:
-  puppyone access create my-project
-  puppyone access create my-project --type agent --scope /data
-  puppyone access create my-project --type sandbox --permission read --config '{"runtime":"python"}'
+  --scope <path>       MUT tree 上的路径范围 (default: /)
+  --permission <perm>  权限: read | write | rw (default: rw)
+  --name <name>        显示名称
+  --set key=value      设置 provider 特有配置（可重复）
+  --config <json>      JSON 格式的 provider 特有配置
+  --trigger <spec>     同步触发器（仅 server-pull 类型）
 ```
+
+#### 查看和管理
 
 ```bash
-puppyone access list <project>
-
-Output:
-  ak_abc123  direct  /       rw    default
-  ak_xyz789  agent   /data   rw    research-bot
-  ak_qwe456  sandbox /code   read  readonly-sandbox
+puppyone access ls                    # 列出当前项目的所有 access point
+puppyone access info <id>             # 查看详情
+puppyone access rm <id>               # 删除
+puppyone access key <id>              # 查看 access key
+puppyone access key <id> --regenerate # 重新生成 access key
 ```
+
+#### 同步管理（Server Pull 类型）
 
 ```bash
-puppyone access delete <access-key>
+puppyone access pause <id>            # 暂停同步
+puppyone access resume <id>           # 恢复同步
+puppyone access refresh <id>          # 立即触发一次同步
+puppyone access trigger <id> --cron "0 9 * * *"  # 设置定时触发
+puppyone access trigger <id> --manual             # 改为手动触发
+puppyone access logs <id>             # 查看同步运行日志
 ```
-
-### 文件系统操作
-
-所有 `fs` 命令使用 path-based Content API（`/api/v1/content/{projectId}/...`），路径就是 ID，无需 UUID：
-
-| 命令 | 后端端点 | 说明 |
-|------|---------|------|
-| `fs ls [path]` | `GET /tree/{pid}/ls?path=` | 列目录 |
-| `fs tree [path]` | `GET /tree/{pid}/tree?path=` | 递归目录树 |
-| `fs cat <path>` | `GET /tree/{pid}/cat?path=` | 读文件 |
-| `fs mkdir <path>` | `POST /tree/{pid}/mkdir` | 创建目录 |
-| `fs touch <path>` | `POST /tree/{pid}/write` | 创建空文件（按扩展名推断 type） |
-| `fs write <path>` | `POST /tree/{pid}/write` | 写入文件 |
-| `fs mv <src> <dst>` | `POST /tree/{pid}/move` | 移动/重命名 |
-| `fs rm <path>` | `POST /tree/{pid}/rm` | 删除（移入 .trash） |
-| `fs info <path>` | `GET /tree/{pid}/stat?path=` | 文件/目录元信息 |
-| `fs versions <path>` | `GET /tree/{pid}/versions?path=` | 版本历史 |
-| `fs diff <path> <v1> <v2>` | `GET /tree/{pid}/diff?path=&v1=&v2=` | 版本对比 |
-| `fs rollback <path> <ver>` | `POST /tree/{pid}/rollback` | 回滚到指定版本 |
 
 #### 输出示例
 
 ```bash
-$ puppyone fs ls
-📁 docs/
-📄 readme.md        (1.2 KB, modified 2h ago)
-📄 config.json      (256 B, modified 1d ago)
-📁 src/
+$ puppyone access ls
+ID          Provider    Scope    Perm  Status   Name              Last Sync
+──────────  ──────────  ───────  ────  ───────  ────────────────  ──────────
+ak_abc123   direct      /        rw    active   Default Access    —
+ak_not456   notion      /notes   rw    active   Notion Sync       2m ago
+ak_gm789    gmail       /inbox   read  active   Gmail Import      1h ago
+ak_agt012   agent       /data    rw    active   Research Bot      —
+ak_mcp345   mcp         /api     read  active   Data API          —
+ak_sbx678   sandbox     /code    rw    active   Code Runner       —
+ak_fs901    filesystem  /docs    rw    active   Local Sync        30s ago
 ```
 
 ```bash
-$ puppyone fs versions docs/readme.md
-Path: docs/readme.md
-Current version: v5
-
-v5  ● HEAD   user:abc123   "Updated introduction"     2m ago    +1 ~0 -0
-v4           agent:bot01   "Auto-fix formatting"      1h ago    +0 ~1 -0
-v3           user:abc123   "Added section 3"          3h ago    +1 ~0 -0
-v2           sync:notion   "Synced from Notion"       1d ago    +0 ~1 -0
-v1           user:abc123   "Initial create"           2d ago    +1 ~0 -0
+$ puppyone access info ak_not456
+Access Point: ak_not456
+Provider:     notion
+Name:         Notion Sync
+Scope:        /notes
+Permission:   rw
+Status:       active
+Trigger:      scheduled (every 6h)
+Last Sync:    2026-03-21 14:30:00 (2m ago)
+Access Key:   ak_not...56
+MUT URL:      https://api.puppyone.com/mut/ap/ak_not456
 ```
 
-### 连接管理
+### 与 Agent 聊天
 
 ```bash
-puppyone conn add notion <url>       # 连接数据源
-puppyone conn add folder ~/path      # 挂载本地文件夹
-puppyone conn add mcp "name"         # 创建 MCP 端点
-puppyone conn add sandbox "name"     # 创建沙盒
-puppyone conn ls                     # 列出所有连接
-puppyone conn rm <id>                # 删除连接
+puppyone chat                  # 使用默认 Agent
+puppyone chat <agent-id>       # 指定 Agent
 ```
 
-### 其他命令
+### 项目状态
 
 ```bash
-puppyone agent chat          # 与 Agent 聊天
-puppyone status              # 项目总览
-puppyone tool ls             # 列出工具
-puppyone ingest <file/url>   # 导入文件/URL
-puppyone publish create <path>  # 创建公开链接
+puppyone status                # 项目总览（access point 列表 + 最近同步 + 统计）
 ```
 
 ### 输出格式
@@ -273,46 +319,154 @@ puppyone publish create <path>  # 创建公开链接
 
 ---
 
-## 完整示例
+## 3. Access Point 类型与 MUT 协议的关系
+
+所有 Access Point 都在 `connections` 表中，`provider` 字段区分类型。
+按数据流方向分为两大类：
+
+### Server Pull（服务端主动拉取）
+
+| Provider | 数据流 | Trigger | MUT 写入方式 |
+|----------|--------|---------|-------------|
+| datasource (notion/gmail/github/...) | 外部 API → MUT Tree | Server-driven (scheduler) | MutOps.write_file() |
+| database | 外部 DB → MUT Tree | 手动 / scheduler | MutOps.write_file() |
+
+客户端（人 / agent）通过 `mut clone` 该 access point 来读取同步进来的数据。
+
+### MUT Native Protocol（客户端双向读写）
+
+| Provider | 客户端 | 数据流 | Trigger |
+|----------|--------|--------|---------|
+| direct | mut CLI / 任何 HTTP client | 双向 | 客户端主动 |
+| agent | MutEphemeralClient（服务端进程内） | 双向 | 用户发消息 |
+| mcp | 外部 MCP client | 按需读取 | 外部主动调用 |
+| sandbox | MutEphemeralClient（容器内） | 双向 | 用户调 API |
+| filesystem | mut CLI daemon（本地） | 双向 | chokidar 文件监听 |
+
+所有 MUT Native Protocol 类型的 access point 都暴露为：
+`https://api.puppyone.com/mut/ap/{access_key}`
+
+---
+
+## 4. 完整示例
 
 ### 个人项目
 
 ```bash
 puppyone login
 puppyone project create "Notes"
-# → Access point: https://api.puppyone.com/mut/ap_abc
+# → Access point: https://api.puppyone.com/mut/ap/ak_abc
 
-mut clone https://api.puppyone.com/mut/ap_abc ./notes
+mut clone https://api.puppyone.com/mut/ap/ak_abc ./notes
 cd notes/
 echo "# My Notes" > README.md
 mut commit -m "init"
 mut push
 ```
 
+### 连接 Notion 数据源
+
+```bash
+puppyone access add notion "https://notion.so/my-page"
+# → OAuth 授权流程
+# → Access Point ak_not456 created
+# → Syncing to /notes ...
+
+# 在本地查看同步过来的数据
+mut clone https://api.puppyone.com/mut/ap/ak_abc ./workspace
+cd workspace/
+mut pull       # 拉取最新（包含 Notion 同步的数据）
+mut ls notes/  # 查看同步内容
+```
+
+### 创建 Agent
+
+```bash
+puppyone access add agent "Research Bot" --scope /data --permission rw
+# → Access Point ak_agt012 created
+# → MUT URL: https://api.puppyone.com/mut/ap/ak_agt012
+
+puppyone chat ak_agt012
+# → 开始聊天，Agent 通过 MUT 协议读写 /data 目录
+```
+
+### 本地文件夹双向同步
+
+```bash
+puppyone access add filesystem --scope /docs
+# → Access Point ak_fs901 created
+# → Clone with: mut clone https://api.puppyone.com/mut/ap/ak_fs901 ~/my-docs
+
+# 在本地启动同步 daemon
+mut clone https://api.puppyone.com/mut/ap/ak_fs901 ~/my-docs
+cd ~/my-docs
+mut daemon     # 启动后台 watch + 自动 commit/push/pull
+```
+
+### 暴露 MCP 端点
+
+```bash
+puppyone access add mcp "Data API" --scope /data --permission read
+# → Access Point ak_mcp345 created
+# → MCP URL: https://api.puppyone.com/mut/ap/ak_mcp345
+# → 任何 MCP 客户端都可以连接此 URL
+```
+
 ### 团队协作
 
 ```bash
-# 管理员
-puppyone project create "Team Wiki"
-puppyone access create team-wiki --permission rw
-# → https://api.puppyone.com/mut/ap_team123
+# 管理员：创建只读 access point
+puppyone access add direct "Team Reader" --permission read
+# → ak_team123
 
-# 团队成员
-mut clone https://api.puppyone.com/mut/ap_team123 ./wiki
-cd wiki/
-# ... 工作 ...
-mut commit -m "update"
-mut push
+# 团队成员：clone 并工作
+mut clone https://api.puppyone.com/mut/ap/ak_team123 ./wiki
+# (只能 pull，不能 push——权限由 server 控制)
 ```
 
-### Agent 接入
+---
 
-```bash
-# 为 Agent 创建只读 access point
-puppyone access create my-project --permission read --name "research-bot"
-# → https://api.puppyone.com/mut/ap_bot456
+## 5. CLI 实现文件映射
 
-# Agent 使用
-mut clone https://api.puppyone.com/mut/ap_bot456 ./workspace
-mut pull  # 只能拉取，不能推送
-```
+### `puppyone` CLI（`cli/src/commands/`）
+
+| 文件 | 命令 | 职责 |
+|------|------|------|
+| `auth.js` | `puppyone login/logout/whoami` | 认证 |
+| `project.js` | `puppyone project` | 项目 CRUD |
+| `access.js` | `puppyone access` | Access Point 统一管理 |
+| `chat.js` | `puppyone chat` | Agent 聊天 |
+| `config-cmd.js` | `puppyone config` | CLI 配置 |
+| `global.js` | `puppyone status` | 全局状态 |
+
+### `mut` CLI（`mut/mut/cli.py`）
+
+| 命令 | 协议端点 |
+|------|---------|
+| `mut clone <url>` | `POST /mut/ap/{ak}/clone` |
+| `mut push` | `POST /mut/ap/{ak}/push` |
+| `mut pull` | `POST /mut/ap/{ak}/pull` |
+| `mut commit` | 纯本地操作 |
+| `mut status` | `POST /mut/ap/{ak}/negotiate` + 本地比对 |
+| `mut log` | `POST /mut/ap/{ak}/negotiate` |
+| `mut ls` | 读取本地 .mut 仓库 |
+| `mut cat` | 读取本地 .mut 仓库 |
+| `mut diff` | 本地版本比对 |
+| `mut rollback` | `POST /mut/ap/{ak}/push`（推送回滚后的版本） |
+
+### 已废弃（待删除）
+
+| 文件 | 原因 |
+|------|------|
+| `openclaw.js` | 已废弃的品牌名 + 调用不存在的旧端点 |
+| `fs.js` | 数据平面操作，应使用 `mut` |
+| `table.js` | 数据平面操作，应使用 `mut` |
+| `mcp.js` | 合并到 `access` |
+| `sandbox.js` | 合并到 `access` |
+| `agent-cmd.js` | CRUD 合并到 `access`，chat 拆到 `chat.js` |
+| `connection.js` | 合并到 `access` |
+| `sync.js` | 合并到 `access`（trigger/pause/resume 子命令） |
+| `db.js` | 合并到 `access add database` |
+| `tool.js` | 工具管理随 MCP 端点自动处理 |
+| `ingest.js` | 文件导入改为通过 `mut` 操作 |
+| `publish.js` | 低优先级，后续再定 |

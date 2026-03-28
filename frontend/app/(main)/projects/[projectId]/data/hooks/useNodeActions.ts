@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
-import { moveFile, removeFile, type NodeInfo } from '@/lib/contentNodesApi';
+import { moveFile, removeFile, type NodeInfo } from '@/lib/contentTreeApi';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
 import { ensureExpanded } from '../components/views';
 

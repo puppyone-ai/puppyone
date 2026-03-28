@@ -504,7 +504,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "lxml", specifier = ">=5.0.0" },
     { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
-    { name = "mut", directory = "../../mut" },
+    { name = "mut", git = "https://github.com/puppyone-ai/mut.git?branch=main" },
     { name = "openai", specifier = ">=2.8.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
@@ -1733,7 +1733,7 @@ wheels = [
 [[package]]
 name = "mut"
 version = "0.1.0"
-source = { directory = "../../mut" }
+source = { git = "https://github.com/puppyone-ai/mut.git?branch=main#6b6fc21a9aa7bd3e8dc885237ac6a6626a6a95bb" }
 
 [[package]]
 name = "nest-asyncio"

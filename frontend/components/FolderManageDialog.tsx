@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { createFolder } from '../lib/contentNodesApi';
+import { createFolder } from '../lib/contentTreeApi';
 
 type FolderManageDialogProps = {
   projectId: string; // 所属项目 ID

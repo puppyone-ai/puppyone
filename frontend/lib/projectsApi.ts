@@ -80,7 +80,7 @@ export async function getTable(
   projectId: string,
   nodePath: string
 ): Promise<TableData> {
-  const { stat, readFile } = await import('@/lib/contentNodesApi');
+  const { stat, readFile } = await import('@/lib/contentTreeApi');
   const s = await stat(projectId, nodePath);
 
   const nonJsonTypes = ['markdown', 'image', 'pdf', 'video', 'file'];
@@ -128,7 +128,7 @@ export async function createTable(
     throw new Error('projectId is required for creating JSON node');
   }
 
-  const { writeFile } = await import('@/lib/contentNodesApi');
+  const { writeFile } = await import('@/lib/contentTreeApi');
   const fullPath = parentPath ? `${parentPath}/${name}` : name;
   await writeFile(projectId, fullPath, data ?? {}, 'json');
 
@@ -155,7 +155,7 @@ export async function updateTable(
   nodePath: string,
   name?: string
 ): Promise<TableData> {
-  const { moveFile, readFile } = await import('@/lib/contentNodesApi');
+  const { moveFile, readFile } = await import('@/lib/contentTreeApi');
 
   let currentPath = nodePath;
   if (name) {
@@ -188,7 +188,7 @@ export async function deleteTable(
   projectId: string,
   nodePath: string
 ): Promise<void> {
-  const { removeFile } = await import('@/lib/contentNodesApi');
+  const { removeFile } = await import('@/lib/contentTreeApi');
   await removeFile(projectId, nodePath);
 }
 
@@ -197,7 +197,7 @@ export async function updateTableData(
   nodePath: string,
   data: any
 ): Promise<TableData> {
-  const { writeFile } = await import('@/lib/contentNodesApi');
+  const { writeFile } = await import('@/lib/contentTreeApi');
   await writeFile(projectId, nodePath, data, 'json');
 
   let rows = 0;

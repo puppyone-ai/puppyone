@@ -220,7 +220,7 @@ export function ChatRuntimeView({
     if (draftResources.length !== currentAgent.resources.length) return true;
     return draftResources.some((draft, i) => {
       const original = currentAgent.resources![i];
-      return draft.nodeId !== original.nodeId || 
+      return draft.path !== original.path || 
              (draft.readonly ?? true) !== (original.readonly ?? true);
     });
   }, [draftResources, currentAgent?.resources]);
@@ -966,7 +966,7 @@ export function ChatRuntimeView({
                   const isFolder = node.type === 'folder';
                   const isJson = node.type === 'json';
                   addDraftResource({
-                    nodeId: node.id,
+                    path: node.nodeId || node.id,
                     nodeName: node.name,
                     nodeType: isFolder ? 'folder' : (isJson ? 'json' : 'file'),
                     readonly: false, // 默认 Write 模式
@@ -983,7 +983,7 @@ export function ChatRuntimeView({
                 const isReadonly = resource.readonly ?? true;
                 return (
                   <div 
-                    key={resource.nodeId}
+                    key={resource.path}
                     style={{ 
                       height: 32,
                       display: 'flex', 
@@ -1015,7 +1015,7 @@ export function ChatRuntimeView({
                         gap: 1,
                       }}>
                         <button 
-                          onClick={() => updateDraftResource(resource.nodeId, { readonly: true })}
+                          onClick={() => updateDraftResource(resource.path, { readonly: true })}
                           style={{
                             background: isReadonly ? '#333' : 'transparent',
                             border: 'none',
@@ -1031,7 +1031,7 @@ export function ChatRuntimeView({
                           Read
                         </button>
                         <button 
-                          onClick={() => updateDraftResource(resource.nodeId, { readonly: false })}
+                          onClick={() => updateDraftResource(resource.path, { readonly: false })}
                           style={{
                             background: !isReadonly ? 'rgba(251, 191, 36, 0.15)' : 'transparent',
                             border: 'none',
@@ -1049,7 +1049,7 @@ export function ChatRuntimeView({
                       </div>
                       
                       <button
-                        onClick={() => removeDraftResource(resource.nodeId)}
+                        onClick={() => removeDraftResource(resource.path)}
                         style={{ 
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           width: 20, height: 20, borderRadius: 4,

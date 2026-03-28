@@ -21,30 +21,30 @@ Your context space is ready. Here's how to start using it.
 Bring in data from Gmail, GitHub, Notion, local folders, or any URL.
 
 **Web:** Click "+ Add Connection" in the sidebar
-**CLI:** `puppyone conn add <provider>`
+**CLI:** `puppyone access add <provider>`
 
 Examples:
 
-    puppyone conn add gmail
-    puppyone conn add github https://github.com/org/repo
-    puppyone conn add folder ~/my-notes
-    puppyone conn add url https://example.com
+    puppyone access add gmail
+    puppyone access add github https://github.com/org/repo
+    puppyone access add folder ~/my-notes
+    puppyone access add url https://example.com
 
 ## 2. Give an AI agent access
 
 Create an MCP endpoint so Claude, Cursor, or any MCP-compatible agent can read and write your context space.
 
 **Web:** Go to Connections → Add → MCP Endpoint
-**CLI:** `puppyone conn add mcp --name my-endpoint`
+**CLI:** `puppyone access add mcp "my-endpoint"`
 
 ## 3. Explore your data
 
 **Web:** Browse files in the data explorer
 **CLI:**
 
-    puppyone node ls
-    puppyone node tree
-    puppyone conn ls
+    mut ls
+    mut tree
+    puppyone access ls
     puppyone status
 
 ## Learn more

@@ -1,18 +1,11 @@
 /**
- * puppyone openclaw <subcommand>
+ * Filesystem sync daemon — local folder ↔ PuppyOne cloud.
  *
- * Subcommands:
- *   up          Connect (if needed) + reconcile + start daemon
- *   down        Stop daemon
- *   status      Show connection & daemon status
- *   logs        View daemon log
- *   connect     First-time connection + merge (no daemon)
- *   disconnect  Remove connection + stop daemon
+ * Internal module. Subcommands (up/down/logs/connect/disconnect) are
+ * registered onto the `access` parent command by registerDaemonSubcommands().
  *
- * Implements the "Stateless Mirror" architecture:
- * - CLI only knows filenames, versions, and hashes
- * - No UUID anywhere in client code (uses path instead)
- * - All ID resolution happens on the backend
+ * This module will be replaced by `mut daemon` once the MUT CLI
+ * supports background file-watching natively.
  */
 
 import { resolve, dirname } from "node:path";
@@ -25,7 +18,7 @@ import {
   readFileSync, readdirSync, openSync, unlinkSync,
 } from "node:fs";
 import { join, relative, extname } from "node:path";
-import { createOpenClawClient, ApiError } from "../api.js";
+import { createAccessKeyClient, ApiError } from "../api.js";
 import { createOutput } from "../output.js";
 import { loadConfig, saveConfig, resolveAuth } from "../config.js";
 import { loadState, saveState, backupFile, ensurePuppyOneDir } from "../state.js";
@@ -240,12 +233,11 @@ function displaySyncPlan(plan, out) {
 
 // ============================================================
 // Register subcommands onto a given parent command.
-// Used by both `access` and `openclaw` (alias).
 // ============================================================
 
 export function registerAgentSubcommands(oc) {
 
-  // --- puppyone openclaw up ---
+  // --- access up ---
   oc
     .command("up")
     .description("Connect (if needed), sync, and start background daemon")
@@ -336,7 +328,7 @@ export function registerAgentSubcommands(oc) {
         accessKey = state.connection.access_key;
       }
 
-      const baseApi = createOpenClawClient(accessKey, cmd, state.connection?.api_url);
+      const baseApi = createAccessKeyClient(accessKey, cmd, state.connection?.api_url);
       const syncApi = makeSyncApi(baseApi, state.connection.folder_id);
 
       out.step("Reconciling...");
@@ -357,7 +349,7 @@ export function registerAgentSubcommands(oc) {
       out.info("");
     });
 
-  // --- puppyone openclaw down ---
+  // --- access down ---
   oc
     .command("down")
     .description("Stop the background daemon")
@@ -388,9 +380,9 @@ export function registerAgentSubcommands(oc) {
       out.info("");
     });
 
-  // --- puppyone openclaw logs ---
+  // --- access daemon-logs ---
   oc
-    .command("logs")
+    .command("daemon-logs")
     .description("View daemon sync log")
     .argument("[folder]", "workspace folder path (or use --path)")
     .option("-p, --path <path>", "workspace folder path")
@@ -418,7 +410,7 @@ export function registerAgentSubcommands(oc) {
       }
     });
 
-  // --- puppyone openclaw connect ---
+  // --- access connect ---
   oc
     .command("connect")
     .description("First-time connection + merge (no daemon)")
@@ -458,7 +450,7 @@ export function registerAgentSubcommands(oc) {
       out.info("");
     });
 
-  // --- puppyone openclaw disconnect ---
+  // --- access disconnect ---
   oc
     .command("disconnect")
     .description("Remove connection and stop daemon (alias for remove)")
@@ -471,7 +463,7 @@ export function registerAgentSubcommands(oc) {
       await doRemove(rawPath, opts, cmd);
     });
 
-  // --- puppyone openclaw remove ---
+  // --- access remove ---
   oc
     .command("remove")
     .description("Stop daemon, disconnect from cloud, and unregister workspace")
@@ -484,9 +476,9 @@ export function registerAgentSubcommands(oc) {
       await doRemove(rawPath, opts, cmd);
     });
 
-  // --- puppyone openclaw trigger ---
+  // --- access force-sync ---
   oc
-    .command("trigger")
+    .command("force-sync")
     .description("Force an immediate sync cycle")
     .argument("[folder]", "workspace folder path (or use --path)")
     .option("-p, --path <path>", "workspace folder path")
@@ -508,16 +500,10 @@ export function registerAgentSubcommands(oc) {
 }
 
 // ============================================================
-// Register: puppyone openclaw <subcommand>  (backward-compat alias)
+// Renamed export (registerAgentSubcommands kept for compat)
 // ============================================================
 
-export function registerOpenClaw(program) {
-  const oc = program
-    .command("openclaw")
-    .alias("oc")
-    .description("Manage agent workspace sync (alias for `access`)");
-  registerAgentSubcommands(oc);
-}
+export { registerAgentSubcommands as registerDaemonSubcommands };
 
 async function doRemove(folder, opts, cmd) {
   const out = createOutput(cmd);
@@ -541,7 +527,7 @@ async function doRemove(folder, opts, cmd) {
 
   let api;
   try {
-    api = createOpenClawClient(accessKey, cmd, state.connection?.api_url);
+    api = createAccessKeyClient(accessKey, cmd, state.connection?.api_url);
   } catch (e) {
     if (e instanceof ApiError) out.error(e.code, e.message, e.hint);
     else out.error("UNKNOWN", e.message);
@@ -574,7 +560,7 @@ async function doConnect(absPath, accessKey, cmd, state, out, opts = {}) {
   try {
     const { apiUrl: resolvedUrl } = resolveAuth(cmd);
     const effectiveApiUrl = resolvedUrl ?? "http://localhost:9090";
-    api = createOpenClawClient(accessKey, cmd);
+    api = createAccessKeyClient(accessKey, cmd);
 
     out.step("Authenticating...");
     const data = await api.post("/filesystem/connect", { workspace_path: absPath });

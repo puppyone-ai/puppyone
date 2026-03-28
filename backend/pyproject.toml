@@ -56,4 +56,4 @@ markers = [
 ]
 
 [tool.uv.sources]
-mut = { path = "../../mut" }
+mut = { git = "https://github.com/puppyone-ai/mut.git", branch = "main" }

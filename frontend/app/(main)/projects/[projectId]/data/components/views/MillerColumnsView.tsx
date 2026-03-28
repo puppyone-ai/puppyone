@@ -395,7 +395,7 @@ export function MillerColumnsView({
   const pathKey = currentPath.map(p => p.id).join('/');
 
   // Create a map for quick lookup
-  const resourceMap = new Map(agentResources?.map(r => [r.nodeId, r]) ?? []);
+  const resourceMap = new Map(agentResources?.map(r => [r.path, r]) ?? []);
 
   // 加载并缓存列数据
   const loadColumn = useCallback(async (parentId: string | null) => {

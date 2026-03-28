@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { writeFile } from '@/lib/contentNodesApi';
+import { writeFile } from '@/lib/contentTreeApi';
 
 export function useMarkdownAutoSave(
   activeNodePath: string,

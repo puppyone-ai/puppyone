@@ -19,7 +19,7 @@ import {
   getToolsByPath,
   type Tool,
 } from '../mcpApi';
-import { listDir, type NodeInfo } from '../contentNodesApi';
+import { listDir, type NodeInfo } from '../contentTreeApi';
 import { getConnectorSpecs, type ConnectorSpec } from '../syncApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新

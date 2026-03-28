@@ -6,10 +6,10 @@ import type { AccessResource } from '@/contexts/AgentContext';
 import { FolderIcon, CloseIcon, getNodeIcon } from '../_icons';
 import type { AgentConfigProps } from './ChatAgentConfig';
 
-// OpenClaw syncs data to an external agent workspace.
-// Only folders can be dragged in — individual files or JSON paths are not supported.
+// Filesystem connector syncs a local folder with the cloud workspace.
+// Only folders can be dragged in — individual files are not supported.
 
-export function OpenClawAgentConfig({}: AgentConfigProps) {
+export function FilesystemAgentConfig({}: AgentConfigProps) {
   const { draftResources, addDraftResource, updateDraftResource, removeDraftResource } = useAgent();
   const [isDragging, setIsDragging] = useState(false);
 
@@ -33,11 +33,10 @@ export function OpenClawAgentConfig({}: AgentConfigProps) {
       if (node.type !== 'folder') return; // only folders allowed
       if (draftResources.length > 0) return; // only one folder allowed
       addDraftResource({
-        nodeId: node.nodeId || node.id,
+        path: node.nodeId || node.id,
         nodeName: node.name,
         nodeType: 'folder',
-        readonly: true, // sync is always read-only from PuppyOne's perspective
-        jsonPath: '',
+        readonly: true,
       } as AccessResource);
     } catch { /* ignore */ }
   };
@@ -106,7 +105,7 @@ export function OpenClawAgentConfig({}: AgentConfigProps) {
               const { icon, color } = getNodeIcon(resource.nodeType);
               return (
                 <div
-                  key={resource.nodeId}
+                  key={resource.path}
                   style={{
                     height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '0 10px', borderRadius: 4, background: '#1a1a1a', border: '1px solid #252525', transition: 'all 0.1s',
@@ -121,7 +120,7 @@ export function OpenClawAgentConfig({}: AgentConfigProps) {
                     </span>
                   </div>
                   <button
-                    onClick={() => removeDraftResource(resource.nodeId)}
+                    onClick={() => removeDraftResource(resource.path)}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 4, background: 'transparent', border: 'none', color: '#505050', cursor: 'pointer', transition: 'all 0.1s' }}
                     onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
                     onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
