@@ -82,7 +82,7 @@ class PuppyOneAuthenticator:
 
     def _resolve_scope(self, conn: dict, project_id: str) -> dict:
         """Read scope through ScopeManager (SupabaseScopeBackend)."""
-        from src.mut_engine.backends.supabase_scope import SupabaseScopeBackend
+        from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
         from mut.server.scope_manager import ScopeManager
 
         backend = SupabaseScopeBackend(SupabaseClient(), project_id)

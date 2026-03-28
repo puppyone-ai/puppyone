@@ -15,7 +15,7 @@ from src.common_schemas import ApiResponse
 from src.platform.project.dependencies import get_verified_project
 from src.platform.project.models import Project
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.ops import MutOps
+from src.mut_engine.services.ops import MutOps
 from src.infra.supabase.client import SupabaseClient
 
 router = APIRouter(prefix="/projects", tags=["projects"])

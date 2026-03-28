@@ -52,7 +52,7 @@ export function registerIngest(program) {
 
       if (ext === ".json" && mode === "raw") {
         const content = readFileSync(absPath, "utf-8");
-        const result = await client.post(`/tree/${projectId}/write`, {
+        const result = await client.post(`/content/${projectId}/write`, {
           path: destPath,
           content,
           type: "json",
@@ -66,7 +66,7 @@ export function registerIngest(program) {
       if (TEXT_EXTS.has(ext) && mode === "raw") {
         const content = readFileSync(absPath, "utf-8");
         const mdPath = destPath.endsWith(".md") ? destPath : `${destPath}.md`;
-        const result = await client.post(`/tree/${projectId}/write`, {
+        const result = await client.post(`/content/${projectId}/write`, {
           path: mdPath,
           content,
           type: "markdown",
@@ -79,7 +79,7 @@ export function registerIngest(program) {
 
       const fileContent = readFileSync(absPath);
       const base64 = fileContent.toString("base64");
-      const result = await client.post(`/tree/${projectId}/write`, {
+      const result = await client.post(`/content/${projectId}/write`, {
         path: destPath,
         content: base64,
         encoding: "base64",

@@ -301,7 +301,7 @@ export function registerAgentSubcommands(oc) {
 
           const folderName = absPath.split("/").pop() || "workspace";
           out.step(`Creating folder "${folderName}"...`);
-          await jwtClient.post(`/tree/${projectId}/mkdir`, { path: folderName });
+          await jwtClient.post(`/content/${projectId}/mkdir`, { path: folderName });
           out.done(`${folderName}`);
 
           out.step("Bootstrapping filesystem connection...");

@@ -24,8 +24,8 @@ from mut.server.handlers import (
     handle_pull,
     handle_negotiate,
 )
-from src.mut_engine.repo_manager import MutRepoManager
-from src.mut_engine.server_repo import PuppyOneServerRepo
+from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
 
 class MutEphemeralClient:

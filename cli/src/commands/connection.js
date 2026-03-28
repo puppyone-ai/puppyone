@@ -257,7 +257,7 @@ export function registerConnection(program) {
           return;
         }
         const normalizedPath = folderPath.replace(/^\/+/, "").replace(/\/+$/, "");
-        await client.post(`/tree/${projectId}/mkdir`, { path: normalizedPath });
+        await client.post(`/content/${projectId}/mkdir`, { path: normalizedPath });
         const created = await client.post("/filesystem/bootstrap", null, {
           project_id: projectId,
           path: normalizedPath,
@@ -346,7 +346,7 @@ export function registerConnection(program) {
       };
       if (opts.folder) {
         const folderPath = opts.folder.replace(/^\/+/, "").replace(/\/+$/, "");
-        await client.post(`/tree/${projectId}/mkdir`, { path: folderPath });
+        await client.post(`/content/${projectId}/mkdir`, { path: folderPath });
         body.target_folder_path = folderPath;
       }
 

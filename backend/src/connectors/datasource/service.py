@@ -355,8 +355,8 @@ class SyncService:
         if sync.last_sync_version <= 0:
             return None
         try:
-            from src.mut_engine.dependencies import create_mut_write_service
-            admin = create_mut_write_service()
+            from src.mut_engine.dependencies import create_mut_admin_service
+            admin = create_mut_admin_service()
             content_bytes = await admin.get_version_content(
                 sync.project_id, sync.path, sync.last_sync_version,
             )

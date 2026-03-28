@@ -11,8 +11,8 @@ from src.infra.chunking.config import ChunkingConfig
 from src.infra.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.infra.chunking.schemas import Chunk
 from src.infra.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
-from src.mut_engine.ops import MutOps
-from src.mut_engine.tree_reader import MutEntry
+from src.mut_engine.services.ops import MutOps
+from src.mut_engine.services.tree_reader import MutEntry
 from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.s3.service import S3Service
 from src.infra.turbopuffer.schemas import TurbopufferRow

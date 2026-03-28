@@ -2,9 +2,8 @@
 Mut Engine — Data models
 
 All data types used by the PuppyOne platform layer:
-1. MutWriteService results (WriteResult, DeleteResult, MoveResult)
-2. Tree API request/response schemas
-3. Version history, diff, and rollback schemas
+1. Tree API request/response schemas
+2. Version history, diff, and rollback schemas
 """
 
 from __future__ import annotations
@@ -12,33 +11,6 @@ from __future__ import annotations
 from pydantic import BaseModel
 from typing import Optional, Any, List
 from datetime import datetime
-
-
-# ============================================================
-# MutWriteService results
-# ============================================================
-
-class WriteResult(BaseModel):
-    """Return result for a write operation"""
-    version: int
-    content_hash: str = ""
-    root_hash: str = ""
-    path: str
-    op: str = ""  # "added" | "modified" | "unchanged"
-    conflicts: list[dict] = []
-
-
-class DeleteResult(BaseModel):
-    version: int
-    root_hash: str = ""
-    path: str
-
-
-class MoveResult(BaseModel):
-    version: int
-    root_hash: str = ""
-    old_path: str
-    new_path: str
 
 
 # ============================================================

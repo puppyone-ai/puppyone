@@ -205,7 +205,7 @@ puppyone access delete <access-key>
 
 ### 文件系统操作
 
-所有 `fs` 命令使用 path-based Tree API（`/api/v1/tree/{projectId}/...`），路径就是 ID，无需 UUID：
+所有 `fs` 命令使用 path-based Content API（`/api/v1/content/{projectId}/...`），路径就是 ID，无需 UUID：
 
 | 命令 | 后端端点 | 说明 |
 |------|---------|------|

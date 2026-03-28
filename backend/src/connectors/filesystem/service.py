@@ -15,7 +15,7 @@ import re
 from typing import Any
 
 from src.infra.s3.service import get_s3_service_instance
-from src.mut_engine.ops import MutOps
+from src.mut_engine.services.ops import MutOps
 from src.utils.logger import log_info, log_error
 
 INLINE_TYPES = {"json", "markdown"}

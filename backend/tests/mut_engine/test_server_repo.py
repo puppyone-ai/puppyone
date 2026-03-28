@@ -81,7 +81,7 @@ def memory_store(tmp_path):
 
 @pytest.fixture
 def server_repo(memory_store):
-    from src.mut_engine.server_repo import PuppyOneServerRepo
+    from src.mut_engine.server.server_repo import PuppyOneServerRepo
     from mut.server.scope_manager import ScopeManager
 
     history = FakeHistoryManager()

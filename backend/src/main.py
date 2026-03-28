@@ -101,9 +101,9 @@ from src.internal.router import router as internal_router
 
 internal_router_duration = time.time() - internal_router_start
 
-tree_router_start = time.time()
+content_router_start = time.time()
 
-tree_router_duration = time.time() - tree_router_start
+content_router_duration = time.time() - content_router_start
 
 analytics_router_start = time.time()
 from src.platform.analytics.router import router as analytics_router
@@ -157,7 +157,7 @@ routers_duration = (
     + project_router_duration
     + oauth_router_duration
     + internal_router_duration
-    + tree_router_duration
+    + content_router_duration
     + analytics_router_duration
     + profile_router_duration
     + db_connector_router_duration
@@ -194,7 +194,7 @@ async def app_lifespan(app: FastAPI):
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
-    log_info(f"  │  └─ tree_router: {tree_router_duration * 1000:.2f}ms")
+    log_info(f"  │  └─ content_router: {content_router_duration * 1000:.2f}ms")
     log_info(f"  └─ Total router time: {routers_duration * 1000:.2f}ms")
     log_info(f"📊 Total import time: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
@@ -278,7 +278,7 @@ async def app_lifespan(app: FastAPI):
     try:
         log_info("🌳 Checking and initializing Mut tree...")
         from src.infra.supabase.client import SupabaseClient as _SC
-        from src.mut_engine.dependencies import create_mut_write_service as _cms
+        from src.mut_engine.dependencies import create_mut_admin_service as _cms
 
         _sb = _SC()
         resp = (
@@ -398,13 +398,13 @@ def create_app() -> FastAPI:
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API does not use /api/v1 prefix
-    from src.mut_engine.tree_router import router as tree_router
-    app.include_router(tree_router, prefix="/api/v1", tags=["tree"])
-    from src.mut_engine.audit_router import router as audit_router
+    from src.mut_engine.routers.content_router import router as content_router
+    app.include_router(content_router, prefix="/api/v1", tags=["content"])
+    from src.mut_engine.routers.audit_router import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
-    from src.mut_engine.protocol_router import router as mut_protocol_router
+    from src.mut_engine.routers.protocol_router import router as mut_protocol_router
     app.include_router(mut_protocol_router, tags=["mut-protocol"])
-    from src.mut_engine.access_point import ap_router
+    from src.mut_engine.routers.access_point import ap_router
     app.include_router(ap_router, tags=["access-point"])
     from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])

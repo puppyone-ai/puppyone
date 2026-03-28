@@ -41,7 +41,7 @@ class RepoFactory:
 
     def create(self, project_id: str, project_name: str = ""):
         from mut.core.object_store import ObjectStore
-        from src.mut_engine.server_repo import PuppyOneServerRepo
+        from src.mut_engine.server.server_repo import PuppyOneServerRepo
         from mut.server.scope_manager import ScopeManager
 
         obj_dir = self._tmp / project_id / "objects"

@@ -369,7 +369,7 @@ handle_push(files, base_version, who, scope)
 │  读: read_file / list_dir / list_tree / stat                 │
 │                                                              │
 │  内部: clone → modify → push (MutEphemeralClient)            │
-│  HTTP: tree_router (REST) + protocol_router (MUT wire)       │
+│  HTTP: content_router (REST) + protocol_router (MUT wire)    │
 └──────────────────────────┬───────────────────────────────────┘
                            │
                            ▼
@@ -445,13 +445,13 @@ SaaS 数据同步:                                                              
 MutOps 通过两个 router 对外暴露：
 
 ```
-tree_router — 高层 REST API（面向前端和内部服务）：
-  POST /api/v1/tree/{project_id}/write    → MutOps.write_file()
-  POST /api/v1/tree/{project_id}/mkdir    → MutOps.mkdir()
-  POST /api/v1/tree/{project_id}/mv       → MutOps.move()
-  POST /api/v1/tree/{project_id}/rm       → MutOps.trash()
-  GET  /api/v1/tree/{project_id}/ls       → MutOps.list_dir()
-  GET  /api/v1/tree/{project_id}/cat      → MutOps.read_file()
+content_router — Content API（面向前端和内部服务）：
+  POST /api/v1/content/{project_id}/write    → MutOps.write_file()
+  POST /api/v1/content/{project_id}/mkdir    → MutOps.mkdir()
+  POST /api/v1/content/{project_id}/mv       → MutOps.move()
+  POST /api/v1/content/{project_id}/rm       → MutOps.trash()
+  GET  /api/v1/content/{project_id}/ls       → MutOps.list_dir()
+  GET  /api/v1/content/{project_id}/cat      → MutOps.read_file()
 
 protocol_router — MUT 线协议（面向 CLI daemon / 远程 client）：
   POST /api/v1/mut/{project_id}/clone

@@ -5,7 +5,7 @@ In-process notification hub for content changes.
 Enables Long Poll: HTTP request hangs until a change occurs or timeout.
 
 Architecture:
-    Producers:  MutWriteService commit hooks → notify()
+    Producers:  MutAdminService commit hooks → notify()
     Consumers:  Long Poll endpoint → wait_for_changes()
 
     This is the "trigger" layer. Different access points have different

@@ -17,7 +17,7 @@ from typing import Optional
 from mut.core.object_store import ObjectStore
 from mut.core.tree import read_tree, tree_to_flat
 
-from src.mut_engine.repo_manager import MutRepoManager
+from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_error
 
 

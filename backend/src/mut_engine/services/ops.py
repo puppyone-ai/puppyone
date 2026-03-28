@@ -21,9 +21,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Optional
 
-from src.mut_engine.repo_manager import MutRepoManager
-from src.mut_engine.ephemeral_client import MutEphemeralClient
-from src.mut_engine.tree_reader import MutTreeReader, MutEntry
+from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+from src.mut_engine.services.tree_reader import MutTreeReader, MutEntry
 
 
 @dataclass
@@ -292,40 +292,6 @@ class MutOps:
 
     def get_root_hash(self, project_id: str) -> str:
         return self._reader.get_root_hash(project_id)
-
-    # ══════════════════════════════════════════════
-    # MUT protocol pass-through (for protocol_router)
-    # ══════════════════════════════════════════════
-
-    def handle_clone(self, project_id: str, auth: dict, body: dict) -> dict:
-        from mut.server.handlers import handle_clone
-        repo = self._repos.get_server_repo(project_id)
-        return handle_clone(repo, auth, body)
-
-    def handle_push(self, project_id: str, auth: dict, body: dict) -> dict:
-        from mut.server.handlers import handle_push
-        repo = self._repos.get_server_repo(project_id)
-        return handle_push(repo, auth, body)
-
-    def handle_pull(self, project_id: str, auth: dict, body: dict) -> dict:
-        from mut.server.handlers import handle_pull
-        repo = self._repos.get_server_repo(project_id)
-        return handle_pull(repo, auth, body)
-
-    def handle_negotiate(self, project_id: str, auth: dict, body: dict) -> dict:
-        from mut.server.handlers import handle_negotiate
-        repo = self._repos.get_server_repo(project_id)
-        return handle_negotiate(repo, auth, body)
-
-    def handle_rollback(self, project_id: str, auth: dict, body: dict) -> dict:
-        from mut.server.handlers import handle_rollback
-        repo = self._repos.get_server_repo(project_id)
-        return handle_rollback(repo, auth, body)
-
-    def handle_pull_version(self, project_id: str, auth: dict, body: dict) -> dict:
-        from mut.server.handlers import handle_pull_version
-        repo = self._repos.get_server_repo(project_id)
-        return handle_pull_version(repo, auth, body)
 
     # ══════════════════════════════════════════════
     # Internal helpers

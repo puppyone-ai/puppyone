@@ -25,7 +25,7 @@ export function registerFs(program) {
       const projectId = requireProject(cmd);
 
       const path = normalizePath(pathArg);
-      const data = await client.get(`/tree/${projectId}/ls`, { path });
+      const data = await client.get(`/content/${projectId}/ls`, { path });
       const entries = data?.entries ?? data?.items ?? (Array.isArray(data) ? data : []);
 
       if (opts.long) {
@@ -67,7 +67,7 @@ export function registerFs(program) {
 
       async function walk(dirPath, prefix, depth) {
         if (depth > maxDepth) return;
-        const data = await client.get(`/tree/${projectId}/ls`, { path: dirPath });
+        const data = await client.get(`/content/${projectId}/ls`, { path: dirPath });
         const entries = data?.entries ?? data?.items ?? (Array.isArray(data) ? data : []);
         for (let i = 0; i < entries.length; i++) {
           const n = entries[i];
@@ -98,7 +98,7 @@ export function registerFs(program) {
       const projectId = requireProject(cmd);
 
       const path = normalizePath(pathArg);
-      const data = await client.get(`/tree/${projectId}/cat`, { path });
+      const data = await client.get(`/content/${projectId}/cat`, { path });
 
       if (data.content != null) {
         if (typeof data.content === "string") {
@@ -126,7 +126,7 @@ export function registerFs(program) {
       const projectId = requireProject(cmd);
 
       const path = normalizePath(pathArg);
-      const result = await client.post(`/tree/${projectId}/mkdir`, { path });
+      const result = await client.post(`/content/${projectId}/mkdir`, { path });
 
       out.info(`Created folder: ${pathArg}`);
       out.success({ path, result });
@@ -152,7 +152,7 @@ export function registerFs(program) {
 
       const content = fileType === "markdown" ? "" : "{}";
 
-      const result = await client.post(`/tree/${projectId}/write`, {
+      const result = await client.post(`/content/${projectId}/write`, {
         path,
         content,
         type: fileType,
@@ -190,7 +190,7 @@ export function registerFs(program) {
       const path = normalizePath(pathArg);
       const contentStr = typeof content === "string" ? content : JSON.stringify(content, null, 2);
 
-      const result = await client.post(`/tree/${projectId}/write`, {
+      const result = await client.post(`/content/${projectId}/write`, {
         path,
         content: contentStr,
       });
@@ -213,7 +213,7 @@ export function registerFs(program) {
       const srcPath = normalizePath(src);
       const dstPath = normalizePath(dst);
 
-      await client.post(`/tree/${projectId}/move`, { src: srcPath, dst: dstPath });
+      await client.post(`/content/${projectId}/move`, { src: srcPath, dst: dstPath });
 
       out.info(`Moved: ${src} → ${dst}`);
       out.success({ from: src, to: dst });
@@ -230,7 +230,7 @@ export function registerFs(program) {
       const projectId = requireProject(cmd);
 
       const path = normalizePath(pathArg);
-      await client.post(`/tree/${projectId}/rm`, { path });
+      await client.post(`/content/${projectId}/rm`, { path });
 
       out.info(`Deleted: ${pathArg}`);
       out.success({ deleted: pathArg });
@@ -247,7 +247,7 @@ export function registerFs(program) {
       const projectId = requireProject(cmd);
 
       const path = normalizePath(pathArg);
-      const data = await client.get(`/tree/${projectId}/stat`, { path });
+      const data = await client.get(`/content/${projectId}/stat`, { path });
 
       out.kv([
         ["Name:", data.name],
@@ -287,7 +287,7 @@ export function registerFs(program) {
       if (ext === ".json" || ext === ".md" || ext === ".markdown" || ext === ".txt") {
         const text = fileContent.toString("utf-8");
         const type = ext === ".json" ? "json" : "markdown";
-        await client.post(`/tree/${projectId}/write`, {
+        await client.post(`/content/${projectId}/write`, {
           path: destPath,
           content: text,
           type,
@@ -296,7 +296,7 @@ export function registerFs(program) {
         out.info(`  Uploaded: ${fileName} → ${destPath}`);
       } else {
         const base64 = fileContent.toString("base64");
-        await client.post(`/tree/${projectId}/write`, {
+        await client.post(`/content/${projectId}/write`, {
           path: destPath,
           content: base64,
           encoding: "base64",
@@ -321,7 +321,7 @@ export function registerFs(program) {
       const projectId = requireProject(cmd);
 
       const path = normalizePath(remotePath);
-      const data = await client.get(`/tree/${projectId}/cat`, { path });
+      const data = await client.get(`/content/${projectId}/cat`, { path });
 
       const fileName = path.includes("/") ? path.split("/").pop() : path;
       const destFile = localPath ? pathResolve(localPath) : pathResolve(fileName);
@@ -366,7 +366,7 @@ export function registerFs(program) {
       const params = { limit: "50" };
       if (pathArg) params.path = normalizePath(pathArg);
 
-      const data = await client.get(`/tree/${projectId}/versions`, params);
+      const data = await client.get(`/content/${projectId}/versions`, params);
       const commits = data?.commits ?? [];
 
       for (const c of commits) {
@@ -404,7 +404,7 @@ export function registerFs(program) {
       const params = { v1, v2 };
       if (opts.path) params.path = normalizePath(opts.path);
 
-      const data = await client.get(`/tree/${projectId}/diff`, params);
+      const data = await client.get(`/content/${projectId}/diff`, params);
       if (data?.changes) {
         for (const c of data.changes) {
           const color = c.change_type === "added" ? "+" : c.change_type === "removed" ? "-" : "~";
@@ -430,7 +430,7 @@ export function registerFs(program) {
       const body = { target_version: parseInt(version, 10) };
       if (opts.path) body.path = normalizePath(opts.path);
 
-      const result = await client.post(`/tree/${projectId}/rollback`, body);
+      const result = await client.post(`/content/${projectId}/rollback`, body);
       out.info(`Rolled back to version ${version}`);
       out.success({ result });
     }));

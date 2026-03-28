@@ -26,7 +26,7 @@ from tests.mut_engine.test_server_repo import (
 @pytest.fixture
 def repo(memory_store):
     """PuppyOneServerRepo wired with real Mut handlers."""
-    from src.mut_engine.server_repo import PuppyOneServerRepo
+    from src.mut_engine.server.server_repo import PuppyOneServerRepo
     from mut.server.scope_manager import ScopeManager
 
     history = FakeHistoryManager()
