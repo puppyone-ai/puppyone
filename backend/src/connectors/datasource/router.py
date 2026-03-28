@@ -583,9 +583,9 @@ def bootstrap_openclaw(
     """DEPRECATED: Use POST /api/v1/filesystem/bootstrap instead."""
     _ensure_project_access(project_service, current_user, project_id)
 
-    from src.connectors.filesystem.lifecycle import OpenClawService
+    from src.connectors.filesystem.service import FilesystemService
     from src.infra.supabase.client import SupabaseClient
-    svc = OpenClawService(
+    svc = FilesystemService(
         supabase=SupabaseClient(),
         sync_repo=sync_svc.sync_repo,
     )
@@ -612,9 +612,9 @@ def get_openclaw_status_by_sync(
 
     _ensure_project_access(project_service, current_user, sync.project_id)
 
-    from src.connectors.filesystem.lifecycle import OpenClawService
+    from src.connectors.filesystem.service import FilesystemService
     from src.infra.supabase.client import SupabaseClient
-    svc = OpenClawService(
+    svc = FilesystemService(
         supabase=SupabaseClient(),
         sync_repo=sync_svc.sync_repo,
     )
@@ -858,7 +858,7 @@ def get_sync_changelog(
     """Query the sync changelog for a project, for frontend display of sync events."""
     _ensure_project_access(project_service, current_user, project_id)
 
-    from src.connectors.filesystem.changelog import SyncChangelogRepository
+    from src.connectors.datasource.changelog import SyncChangelogRepository
     from src.infra.supabase.client import SupabaseClient
 
     changelog_repo = SyncChangelogRepository(SupabaseClient())

@@ -41,14 +41,6 @@ from src.connectors.agent.request_builder import (
 )
 import time as time_module  # For latency tracking
 
-def _get_changelog_repo(supabase_client):
-    """Lazy import to avoid circular dependency."""
-    try:
-        from src.connectors.filesystem.changelog import SyncChangelogRepository
-        return SyncChangelogRepository(supabase_client)
-    except Exception:
-        return None
-
 
 @dataclass
 class SearchToolConfig:

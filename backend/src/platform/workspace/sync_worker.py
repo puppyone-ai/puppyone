@@ -15,7 +15,7 @@ import json as _json
 import os
 import time
 
-from src.connectors.filesystem.cache import CacheManager
+from src.platform.workspace.cache import CacheManager
 from src.infra.s3.service import get_s3_service_instance
 from src.mut_engine.services.ops import MutOps
 from src.utils.logger import log_error, log_info

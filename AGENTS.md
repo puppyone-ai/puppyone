@@ -9,7 +9,7 @@ It aggregates information scattered across various sources into a unified Contex
 ### Connect
 
 - **Multi-source data connectors** — OAuth connectors for 15+ platforms including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, and more; also supports URL scraping, database connections, and custom scripts
-- **Bidirectional local folder sync** — Real-time sync between local directories and the cloud Context Space (OpenClaw protocol), powered by a background daemon
+- **Bidirectional local folder sync** — Real-time sync between local directories and the cloud Context Space via MUT protocol, powered by a background daemon
 - **MCP protocol exposure** — Generates standard MCP interfaces for each agent or endpoint; any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect directly
 - **Code sandbox** — Securely execute code in isolated Docker/E2B containers; agents can invoke sandbox endpoints remotely
 
@@ -94,8 +94,7 @@ backend/
 │   │   │   ├── google_search_console/ # GSC connector
 │   │   │   ├── url/           #     URL/web page connector
 │   │   │   └── _base.py       #     BaseConnector & ConnectorSpec
-│   │   ├── filesystem/        #   Bidirectional local folder sync (OpenClaw)
-│   │   │   └── io/            #     Pure file I/O engine (scan/diff/write/watch)
+│   │   ├── filesystem/        #   Bidirectional local folder sync via MUT protocol
 │   │   ├── database/          #   External database connector
 │   │   ├── agent/             #   AI agents (config, chat, MCP tool binding)
 │   │   │   ├── config/        #     Agent CRUD & access permissions
@@ -195,7 +194,8 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `/api/v1/mcp-endpoints` | connectors/mcp_endpoint | MCP endpoint CRUD & API key |
 | `/api/v1/sandbox-endpoints` | connectors/sandbox_endpoint | Sandbox endpoint CRUD & exec |
 | `/api/v1/connections` | connectors/manager | Unified connection management (all types) |
-| `/api/v1/sync` | connectors/datasource | Data source sync & OpenClaw & folder push/pull |
+| `/api/v1/sync` | connectors/datasource | Data source sync |
+| `/api/v1/filesystem` | connectors/filesystem | Filesystem connection lifecycle |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
 | `/api/v1/collab` | collaboration | Collaborative editing & versions & audit |
 | `/api/v1/mut/{project_id}` | mut_core | MUT protocol (clone/push/pull/negotiate) |

@@ -139,6 +139,12 @@ class MutOps:
             deleted=deleted,
             message=message or f"move {old_path} → {new_path}",
         )
+        self._run_post_push_hook(project_id, result)
+        try:
+            from src.mut_engine.services.hooks import post_commit_move
+            post_commit_move(project_id, old_path, new_path)
+        except Exception:
+            pass
         return self._to_result(result, list(modified.keys()) + deleted)
 
     async def bulk_write(
@@ -329,8 +335,17 @@ class MutOps:
             message=message,
             who=who,
         )
+        self._run_post_push_hook(project_id, result)
         all_paths = list((modified or {}).keys()) + (deleted or [])
         return self._to_result(result, all_paths)
+
+    def _run_post_push_hook(self, project_id: str, push_result: dict) -> None:
+        """Best-effort post-push hook to maintain connections table consistency."""
+        try:
+            from src.mut_engine.services.hooks import run_post_push_hook
+            run_post_push_hook(project_id, self._repos, push_result)
+        except Exception:
+            pass
 
     @staticmethod
     def _to_result(raw: dict, paths: list[str] | None = None) -> WriteResult:

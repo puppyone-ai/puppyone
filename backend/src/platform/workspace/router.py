@@ -67,7 +67,7 @@ async def create_workspace(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     from src.platform.workspace.provider import get_workspace_provider
-    from src.connectors.filesystem.worker import SyncWorker
+    from src.platform.workspace.sync_worker import SyncWorker
     from src.mut_engine.dependencies import create_mut_ops
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"

@@ -496,14 +496,14 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 async def _create_filesystem(
     payload: UnifiedConnectionCreate, _user_id: str,
 ) -> UnifiedConnectionOut:
-    """Create a filesystem sync connection (OpenClaw)."""
-    from src.connectors.filesystem.lifecycle import OpenClawService
+    """Create a filesystem sync connection."""
+    from src.connectors.filesystem.service import FilesystemService
     from src.connectors.datasource.repository import SyncRepository
     from src.infra.supabase.client import SupabaseClient
 
     supabase = SupabaseClient()
     sync_repo = SyncRepository(supabase)
-    service = OpenClawService(supabase=supabase, sync_repo=sync_repo)
+    service = FilesystemService(supabase=supabase, sync_repo=sync_repo)
 
     cfg = payload.config
     scope_path = cfg.get("scope", payload.path or "/")
