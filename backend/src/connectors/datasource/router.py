@@ -313,11 +313,10 @@ async def create_sync(
     if body.sync_mode == "scheduled" and body.trigger:
         try:
             from src.infra.scheduler.service import get_scheduler_service
-            scheduler = get_scheduler_service()
-            await scheduler.add_sync_job(
-                sync_id=sync.id,
-                trigger_config=body.trigger,
+            await get_scheduler_service().sync_trigger(
+                connection_id=sync.id,
                 provider=body.provider,
+                trigger_config=body.trigger,
             )
         except Exception:
             pass
@@ -361,7 +360,7 @@ def list_syncs(
 
 
 @router.delete("/syncs/{sync_id}", response_model=ApiResponse)
-def delete_sync(
+async def delete_sync(
     sync_id: str,
     sync_svc: SyncService = Depends(get_sync_service),
     project_service: ProjectService = Depends(get_project_service),
@@ -377,7 +376,7 @@ def delete_sync(
 
     try:
         from src.infra.scheduler.service import get_scheduler_service
-        get_scheduler_service().remove_sync_job(sync_id)
+        await get_scheduler_service().sync_trigger(sync_id)
     except Exception:
         pass
 
@@ -412,20 +411,14 @@ async def update_sync_trigger(
 
     sync_svc.sync_repo.update(sync_id, trigger=trigger_data)
 
-    # Manage scheduler job
     try:
         from src.infra.scheduler.service import get_scheduler_service
-        scheduler = get_scheduler_service()
-
-        if body.sync_mode == "scheduled" and body.trigger:
-            sync = sync_svc.sync_repo.get_by_id(sync_id)
-            await scheduler.add_sync_job(
-                sync_id=sync_id,
-                trigger_config=body.trigger,
-                provider=sync.provider if sync else "",
-            )
-        else:
-            scheduler.remove_sync_job(sync_id)
+        sync = sync_svc.sync_repo.get_by_id(sync_id)
+        await get_scheduler_service().sync_trigger(
+            connection_id=sync_id,
+            provider=sync.provider if sync else "",
+            trigger_config=body.trigger if body.sync_mode == "scheduled" else None,
+        )
     except Exception:
         pass
 
@@ -663,10 +656,10 @@ async def bootstrap(
             from src.infra.scheduler.service import get_scheduler_service
             scheduler = get_scheduler_service()
             for s in syncs:
-                await scheduler.add_sync_job(
-                    sync_id=s.id,
-                    trigger_config=body.trigger,
+                await scheduler.sync_trigger(
+                    connection_id=s.id,
                     provider=body.provider,
+                    trigger_config=body.trigger,
                 )
         except Exception:
             pass

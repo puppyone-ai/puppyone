@@ -1,4 +1,6 @@
 from typing import List, Dict, Any
+import asyncio
+import json
 import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Header
@@ -18,7 +20,7 @@ from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.infra.sandbox.dependencies import get_sandbox_service
 from src.infra.sandbox.service import SandboxService
-from src.connectors.agent.sandbox_data import prepare_sandbox_data, SandboxFile
+from src.connectors.agent.sandbox_session import SandboxFile
 
 
 router = APIRouter(
@@ -103,43 +105,76 @@ def _validate_command(command: str, mounts: List[Dict[str, Any]]) -> None:
                 raise HTTPException(status_code=403, detail=f"Write denied for readonly mount: {readonly_path}")
 
 
-async def _build_sandbox_files(
-    endpoint: Dict[str, Any],
+def _clone_mut_files(project_id: str, scope_path: str) -> tuple:
+    """Clone MUT tree files for a scope path. Returns (client, files_dict)."""
+    from src.mut_engine.dependencies import get_repo_manager_standalone
+    from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+
+    repo_manager = get_repo_manager_standalone()
+    auth = {
+        "agent": f"sandbox_endpoint",
+        "_scope": {
+            "id": f"sbx-{scope_path.replace('/', '-').strip('-') or 'root'}",
+            "path": scope_path,
+            "exclude": [],
+            "mode": "rw",
+        },
+    }
+    client = MutEphemeralClient(repo_manager, project_id, auth)
+    files = client.clone()
+    return client, files
+
+
+def _build_sandbox_files_from_clone(
+    cloned_files: dict[str, bytes],
+    mount_path: str,
+    scope_path: str,
 ) -> List[SandboxFile]:
-    files: List[SandboxFile] = []
-    mounts = endpoint.get("mounts", [])
+    """Convert MUT clone result to SandboxFile list for container mounting."""
+    sandbox_files: List[SandboxFile] = []
+    for file_path, content in cloned_files.items():
+        relative = file_path
+        if scope_path and relative.startswith(scope_path + "/"):
+            relative = relative[len(scope_path) + 1:]
 
-    for mount in mounts:
-        path = mount.get("path")
-        if not path:
-            continue
-        mount_path = _normalize_mount_path(mount.get("mount_path", "/workspace"))
-        prepared = await prepare_sandbox_data(
-            node_service=None,
-            path=path,
-            json_path="",
-            user_id="sandbox_endpoint",
-        )
+        target = f"{mount_path}/{relative}"
 
-        for f in prepared.files:
-            source_path = f.path or "/workspace/data.json"
-            relative = source_path[len("/workspace"):] if source_path.startswith("/workspace") else source_path
-            if not relative.startswith("/"):
-                relative = f"/{relative}"
-            target_path = f"{mount_path}{relative}"
-            files.append(
-                SandboxFile(
-                    path=target_path,
-                    content=f.content,
-                    s3_key=f.s3_key,
-                    content_type=f.content_type,
-                    mut_path=f.mut_path,
-                    node_type=f.node_type,
-                    base_version=f.base_version,
-                )
-            )
+        ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+        if ext == "json":
+            try:
+                text = content.decode("utf-8")
+                json.loads(text)
+                content_type = "application/json"
+            except Exception:
+                text = content.decode("utf-8", errors="replace")
+                content_type = "text/plain"
+        elif ext in ("md", "markdown"):
+            text = content.decode("utf-8", errors="replace")
+            content_type = "text/markdown"
+        else:
+            text = content.decode("utf-8", errors="replace")
+            content_type = "text/plain"
 
-    return files
+        sandbox_files.append(SandboxFile(
+            path=target,
+            content=text,
+            content_type=content_type,
+            mut_path=file_path,
+            node_type="json" if ext == "json" else "markdown" if ext in ("md", "markdown") else "file",
+        ))
+    return sandbox_files
+
+
+async def _read_modified_files(
+    sandbox_service: SandboxService,
+    session_id: str,
+    original_files: dict[str, bytes],
+    mount_path: str,
+    scope_path: str,
+) -> dict[str, bytes]:
+    """Read files from sandbox container, return only changed ones as {mut_path: bytes}."""
+    from src.connectors.agent.sandbox_session import _read_modified_files as _read_mod
+    return await _read_mod(sandbox_service, session_id, original_files, mount_path, scope_path)
 
 
 @router.get(
@@ -286,15 +321,40 @@ async def exec_command(
 
     mounts = endpoint.get("mounts", [])
     _validate_command(command, mounts)
-    files = await _build_sandbox_files(endpoint)
-    if not files:
+
+    project_id = endpoint.get("project_id", "")
+    if not project_id:
+        raise HTTPException(status_code=400, detail="Sandbox endpoint has no project_id")
+
+    # Clone MUT tree for each mount, collect files + clients
+    all_sandbox_files: List[SandboxFile] = []
+    mut_clients = []
+    for mount in mounts:
+        mount_source = mount.get("path")
+        if not mount_source:
+            continue
+        mount_target = _normalize_mount_path(mount.get("mount_path", "/workspace"))
+        permissions = mount.get("permissions") or {}
+        has_write = permissions.get("write", False)
+
+        client, cloned_files = await asyncio.to_thread(
+            _clone_mut_files, project_id, mount_source,
+        )
+
+        sandbox_files = _build_sandbox_files_from_clone(cloned_files, mount_target, mount_source)
+        all_sandbox_files.extend(sandbox_files)
+
+        if has_write:
+            mut_clients.append((client, cloned_files, mount_target, mount_source))
+
+    if not all_sandbox_files:
         raise HTTPException(status_code=400, detail="No mount files resolved for this sandbox endpoint")
 
     session_id = f"sbxep-{endpoint_id}-{uuid.uuid4().hex[:10]}"
     start_res = await sandbox_service.start_with_files(
         session_id=session_id,
-        files=files,
-        readonly=False,
+        files=all_sandbox_files,
+        readonly=not mut_clients,
         s3_service=None,
     )
     if not start_res.get("success"):
@@ -302,6 +362,28 @@ async def exec_command(
 
     try:
         exec_res = await sandbox_service.exec(session_id=session_id, command=command)
+
+        # Write back changed files for writable mounts via MUT protocol
+        writeback_results = []
+        for client, original_files, mount_target, scope_path in mut_clients:
+            modified = await _read_modified_files(
+                sandbox_service, session_id, original_files, mount_target, scope_path,
+            )
+            if modified:
+                push_result = await asyncio.to_thread(
+                    client.push,
+                    modified=modified,
+                    message=f"Sandbox exec: {command[:80]}",
+                )
+                writeback_results.append({
+                    "scope": scope_path,
+                    "files_written": len(modified),
+                    "version": push_result.get("version"),
+                })
+
+        if writeback_results:
+            exec_res["writeback"] = writeback_results
+
         return ApiResponse.success(data=exec_res)
     finally:
         await sandbox_service.stop(session_id=session_id)

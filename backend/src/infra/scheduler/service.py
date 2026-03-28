@@ -183,7 +183,59 @@ class SchedulerService:
 
         return job
 
-    # ── Sync Jobs ─────────────────────────────────────────────
+    # ── Sync Trigger (unified API) ───────────────────────────
+
+    async def sync_trigger(
+        self,
+        connection_id: str,
+        provider: str = "",
+        trigger_config: dict | None = None,
+    ) -> Optional[Job]:
+        """Unified trigger registration for server-driven connectors.
+
+        All connector routers should call this single method instead of
+        directly manipulating scheduler jobs.
+
+        Args:
+            connection_id: The connection / sync row ID.
+            provider: Connector provider name (e.g. "gmail", "github").
+            trigger_config: Scheduling config dict, or *None* to remove.
+
+        Returns:
+            The registered ``Job``, or ``None`` if removed / skipped.
+        """
+        if not self.scheduler or not self._started:
+            return None
+
+        job_id = f"sync:{connection_id}"
+
+        try:
+            self.scheduler.remove_job(job_id)
+        except Exception:
+            pass
+
+        if not trigger_config:
+            return None
+
+        trigger = self._parse_trigger(trigger_config)
+        if not trigger:
+            log_warning(f"Invalid trigger config for {connection_id}: {trigger_config}")
+            return None
+
+        job = self.scheduler.add_job(
+            execute_sync_pull,
+            trigger=trigger,
+            id=job_id,
+            name=f"Sync: {provider} ({connection_id[:8]})",
+            args=[connection_id],
+            replace_existing=True,
+        )
+
+        next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") if job.next_run_time else "N/A"
+        log_info(f"📅 Registered trigger for {provider} ({connection_id[:8]}), next: {next_run}")
+        return job
+
+    # ── Internal: startup loaders ─────────────────────────────
 
     async def _load_scheduled_syncs(self):
         """Load all syncs with trigger type 'scheduled' and register jobs."""
@@ -210,11 +262,10 @@ class SchedulerService:
             log_info(f"Found {len(scheduled)} scheduled syncs to load")
 
             for sync_row in scheduled:
-                trigger_config = sync_row.get("trigger") or {}
-                await self.add_sync_job(
-                    sync_id=sync_row["id"],
-                    trigger_config=trigger_config,
+                await self.sync_trigger(
+                    connection_id=sync_row["id"],
                     provider=sync_row.get("provider", ""),
+                    trigger_config=sync_row.get("trigger") or {},
                 )
 
             if scheduled:
@@ -222,48 +273,6 @@ class SchedulerService:
 
         except Exception as e:
             log_error(f"Failed to load scheduled syncs: {e}")
-
-    async def add_sync_job(
-        self,
-        sync_id: str,
-        trigger_config: dict,
-        provider: str = "",
-    ) -> Optional[Job]:
-        """Add a sync polling job to the scheduler."""
-        if not self.scheduler or not self._started:
-            log_warning(f"Scheduler not running, skipping sync job for {sync_id}")
-            return None
-
-        job_id = f"sync:{sync_id}"
-        self.remove_sync_job(sync_id)
-
-        trigger = self._parse_trigger(trigger_config)
-        if not trigger:
-            log_warning(f"Invalid trigger config for sync {sync_id}: {trigger_config}")
-            return None
-
-        job = self.scheduler.add_job(
-            execute_sync_pull,
-            trigger=trigger,
-            id=job_id,
-            name=f"Sync: {provider} ({sync_id[:8]})",
-            args=[sync_id],
-            replace_existing=True,
-        )
-
-        next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") if job.next_run_time else "N/A"
-        log_info(f"Added sync job for {provider} ({sync_id[:8]}), next run: {next_run}")
-        return job
-
-    def remove_sync_job(self, sync_id: str) -> bool:
-        """Remove a sync job from the scheduler."""
-        if not self.scheduler:
-            return False
-        try:
-            self.scheduler.remove_job(f"sync:{sync_id}")
-            return True
-        except Exception:
-            return False
 
     def remove_agent_job(self, agent_id: str) -> bool:
         """Remove an agent job from the scheduler."""
@@ -348,37 +357,6 @@ class SchedulerService:
             log_warning(f"Unknown repeat_type: {repeat_type}")
             return None
 
-    def get_job_info(self, agent_id: str) -> Optional[dict]:
-        """Get information about a scheduled job."""
-        if not self.scheduler:
-            return None
-
-        job = self.scheduler.get_job(agent_id)
-        if not job:
-            return None
-
-        return {
-            "job_id": job.id,
-            "name": job.name,
-            "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
-            "trigger": str(job.trigger),
-        }
-
-    def list_jobs(self) -> list[dict]:
-        """List all scheduled jobs."""
-        if not self.scheduler:
-            return []
-
-        jobs = self.scheduler.get_jobs()
-        return [
-            {
-                "job_id": job.id,
-                "name": job.name,
-                "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
-                "trigger": str(job.trigger),
-            }
-            for job in jobs
-        ]
 
 
 # Global instance getter

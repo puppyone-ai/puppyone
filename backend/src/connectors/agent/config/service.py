@@ -81,7 +81,6 @@ class AgentConfigService:
                 self._repo.create_bash(
                     agent_id=agent.id,
                     path=ba.path,
-                    json_path=ba.json_path,
                     readonly=ba.readonly,
                 )
             agent.bash_accesses = self._repo.get_bash_by_agent_id(agent.id)
@@ -152,18 +151,15 @@ class AgentConfigService:
         agent_id: str,
         user_id: str,
         path: str,
-        json_path: str = "",
         readonly: bool = True,
     ) -> Optional[AgentBash]:
         """Add Bash access permission."""
-        # Verify access
         if not self._repo.verify_access(agent_id, user_id):
             return None
 
         return self._repo.create_bash(
             agent_id=agent_id,
             path=path,
-            json_path=json_path,
             readonly=readonly,
         )
 
@@ -171,11 +167,9 @@ class AgentConfigService:
         self,
         bash_id: str,
         user_id: str,
-        json_path: Optional[str] = None,
         readonly: Optional[bool] = None,
     ) -> Optional[AgentBash]:
         """Update Bash access permission."""
-        # Get bash and verify access
         bash = self._repo.get_bash_by_id(bash_id)
         if not bash:
             return None
@@ -184,7 +178,6 @@ class AgentConfigService:
 
         return self._repo.update_bash(
             bash_id=bash_id,
-            json_path=json_path,
             readonly=readonly,
         )
 
@@ -223,7 +216,6 @@ class AgentConfigService:
             new_bash = self._repo.create_bash(
                 agent_id=agent_id,
                 path=bash.path,
-                json_path=bash.json_path,
                 readonly=bash.readonly,
             )
             result.append(new_bash)

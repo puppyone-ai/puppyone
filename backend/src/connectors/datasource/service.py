@@ -10,7 +10,6 @@ Responsibilities:
 All writes go through MutOps (clone → push under the hood).
 """
 
-import json
 from typing import Optional, List, Any
 
 from src.connectors.datasource._base import BaseConnector

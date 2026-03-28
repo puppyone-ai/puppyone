@@ -10,7 +10,7 @@ The frontend only needs to pass active_tool_ids; the backend handles everything 
 
 Supported node types:
 - folder: recursively fetch child files and rebuild directory structure in the sandbox
-- json: export content as data.json (optionally extract sub-data via json_path)
+- json: export content as data.json
 - file/pdf/image/etc: download a single file
 
 Supported tool types:
@@ -28,10 +28,7 @@ from src.connectors.agent.schemas import AgentRequest
 from src.config import settings
 from src.connectors.agent.chat.service import ChatService
 from src.connectors.agent.config.service import AgentConfigService
-from src.connectors.agent.sandbox_data import (
-    SandboxFile, SandboxData,
-    prepare_sandbox_data, merge_data_by_path,
-)
+from src.connectors.agent.sandbox_session import SandboxFile, SandboxData, prepare_sandbox_data
 from src.mut_engine.services.ops import MutOps
 from src.platform.analytics.service import log_context_access, log_bash_execution
 from src.connectors.agent.request_builder import (
@@ -45,11 +42,10 @@ import time as time_module  # For latency tracking
 @dataclass
 class SearchToolConfig:
     """Search Tool configuration associated with an Agent."""
-    tool_id: str           # ID from the tool table
-    path: str              # Bound content_node path
-    json_path: str         # JSON path
-    project_id: str        # Project ID
-    node_type: str         # Node type (folder / json / markdown etc.)
+    tool_id: str
+    path: str
+    project_id: str
+    node_type: str
     name: str              # Original tool name
     description: str       # Tool description
     claude_tool_name: str  # Tool name registered with Claude
@@ -81,7 +77,7 @@ class AgentService:
             agent_id: Agent ID
             task_content: Task content (from agent.task_content)
             user_id: User ID (agent owner)
-            ops: MutOps for reading/writing Mut tree
+            ops: MutOps for reading Mut tree (writes go through MutEphemeralClient)
             sandbox_service: SandboxService
             s3_service: S3Service (optional)
             agent_config_service: AgentConfigService
@@ -120,7 +116,6 @@ class AgentService:
             for ba in agent.bash_accesses:
                 bash_tools.append({
                     "path": ba.path,
-                    "json_path": (ba.json_path or "").strip(),
                     "readonly": ba.readonly,
                 })
                 logger.info(f"[ScheduleAgent] Found bash access: path={ba.path}")
@@ -145,8 +140,6 @@ class AgentService:
                             ops=ops,
                             project_id=agent.project_id,
                             path=tool["path"],
-                            json_path=tool["json_path"],
-                            user_id=user_id,
                         )
                         logger.info(f"[ScheduleAgent] Prepared sandbox data: path={tool['path']}, files={len(data.files)}")
                         all_files.extend(data.files)
@@ -156,7 +149,6 @@ class AgentService:
                             node_path_map[tool["path"]] = {
                                 "path": main_path,
                                 "node_type": data.node_type,
-                                "json_path": tool["json_path"],
                                 "readonly": tool["readonly"],
                             }
 
@@ -359,69 +351,46 @@ class AgentService:
             # ========== 7. Write data back to database (Mut Protocol) ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
                 if sandbox_data and sandbox_data.node_path_map:
-                    from src.mut_engine.dependencies import create_mut_ops
                     agent_identity = f"agent:{agent.id}" if agent else "agent:unknown"
-                    ops = create_mut_ops()
 
-                    modified_files: dict[str, bytes] = {}
-                    for node_path, info in sandbox_data.node_path_map.items():
-                        if info.get("readonly"):
-                            continue
+                    from src.connectors.agent.sandbox_session import _read_modified_files
+                    from src.mut_engine.dependencies import get_repo_manager_standalone
+                    from src.mut_engine.services.ephemeral_client import MutEphemeralClient
 
-                        node_type = info.get("node_type", "")
-                        sandbox_path = info.get("path", "")
-                        json_path_config = info.get("json_path", "")
-
-                        if node_type not in ("json", "markdown"):
-                            continue
-
-                        try:
-                            parse_json = (node_type == "json")
-                            read_result = await sandbox_service.read_file(
-                                sandbox_session_id, sandbox_path, parse_json=parse_json
-                            )
-
-                            if not read_result.get("success"):
-                                continue
-
-                            sandbox_content = read_result.get("content")
-
-                            if node_type == "json" and json_path_config:
-                                try:
-                                    import json as _json_mod
-                                    existing = ops.read_file(agent.project_id, node_path)
-                                    existing_json = _json_mod.loads(existing.decode("utf-8")) if existing else {}
-                                except Exception:
-                                    existing_json = {}
-                                sandbox_content = merge_data_by_path(
-                                    existing_json or {}, json_path_config, sandbox_content
-                                )
-
-                            if isinstance(sandbox_content, (dict, list)):
-                                content_bytes = json.dumps(sandbox_content, ensure_ascii=False, indent=2).encode("utf-8")
-                            elif isinstance(sandbox_content, str):
-                                content_bytes = sandbox_content.encode("utf-8")
-                            else:
-                                content_bytes = str(sandbox_content).encode("utf-8")
-
-                            modified_files[node_path] = content_bytes
-                            result["updated_nodes"].append({
-                                "nodeId": node_path,
-                                "nodeName": node_path.rsplit("/", 1)[-1] if "/" in node_path else node_path,
-                            })
-
-                        except Exception as e:
-                            logger.warning(f"[ScheduleAgent] Failed to read sandbox file: {e}")
-
+                    modified_files = await _read_modified_files(
+                        sandbox_service,
+                        sandbox_session_id,
+                        {},
+                        "/workspace",
+                        "",
+                    )
                     if modified_files:
                         try:
-                            await ops.bulk_write(
-                                agent.project_id,
-                                modified_files,
-                                who=agent_identity,
+                            repo_manager = get_repo_manager_standalone()
+                            scope_path = sandbox_data.root_path or ""
+                            mut_auth = {
+                                "agent": agent_identity,
+                                "_scope": {
+                                    "id": agent_identity,
+                                    "path": scope_path,
+                                    "exclude": [],
+                                    "mode": "rw",
+                                },
+                            }
+                            client = MutEphemeralClient(repo_manager, agent.project_id, mut_auth)
+                            await asyncio.to_thread(client.clone)
+                            push_result = await asyncio.to_thread(
+                                client.push,
+                                modified=modified_files,
                                 message="Schedule Agent write-back",
+                                who=agent_identity,
                             )
-                            logger.info(f"[ScheduleAgent] Pushed {len(modified_files)} files via MUT protocol")
+                            logger.info(f"[ScheduleAgent] MUT push: v={push_result.get('version')} files={len(modified_files)}")
+                            for path in modified_files:
+                                result["updated_nodes"].append({
+                                    "nodeId": path,
+                                    "nodeName": path.rsplit("/", 1)[-1] if "/" in path else path,
+                                })
                         except Exception as e:
                             logger.warning(f"[ScheduleAgent] MUT push failed: {e}")
 
@@ -462,7 +431,7 @@ class AgentService:
         """
 
         # ========== 1. Parse configuration, prefer new agent_access ==========
-        bash_tools: list[dict] = []  # [{path, json_path, readonly}, ...]
+        bash_tools: list[dict] = []  # [{path, readonly}, ...]
 
         logger.info(f"[Agent DEBUG] agent_id={request.agent_id}, active_tool_ids={request.active_tool_ids}, user_id={current_user.user_id if current_user else None}")
 
@@ -485,7 +454,6 @@ class AgentService:
                     for bash in agent.bash_accesses:
                         bash_tools.append({
                             "path": bash.path,
-                            "json_path": (bash.json_path or "").strip(),
                             "readonly": bash.readonly,
                         })
                         logger.info(f"[Agent] Found bash access from agent_bash: path={bash.path}")
@@ -535,7 +503,6 @@ class AgentService:
                         search_tools_map[claude_name] = SearchToolConfig(
                             tool_id=tool_info.id,
                             path=tool_info.path,
-                            json_path=tool_info.json_path or "",
                             project_id=tool_info.project_id or agent_for_tools.project_id,
                             node_type=node.type or "json",
                             name=tool_info.name,
@@ -622,7 +589,7 @@ class AgentService:
             primary_path = ""
             primary_node_name = ""
             # Track each node's sandbox path and type for write-back
-            node_path_map: dict = {}  # {path: {path, node_type, json_path}}
+            node_path_map: dict = {}  # {path: {path, node_type, readonly}}
 
             # Determine project_id from agent config
             _agent_project_id = ""
@@ -637,8 +604,6 @@ class AgentService:
                         ops=ops,
                         project_id=_agent_project_id,
                         path=tool["path"],
-                        json_path=tool["json_path"],
-                        user_id=current_user.user_id,
                     )
                     logger.info(f"[Agent] Prepared sandbox data for access {i+1}/{len(bash_tools)}: "
                                f"path={tool['path']}, type={data.node_type}, files={len(data.files)}")
@@ -662,7 +627,6 @@ class AgentService:
                                 node_path_map[f.path] = {
                                     "path": f.path,
                                     "node_type": f.node_type,
-                                    "json_path": "",  # child files have no json_path
                                     "readonly": tool["readonly"],
                                     "base_version": f.base_version,
                                     "base_content": f.content,  # record original content at the time Agent reads it
@@ -671,7 +635,6 @@ class AgentService:
                         node_path_map[tool["path"]] = {
                             "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace",
                             "node_type": "folder",
-                            "json_path": tool["json_path"],
                             "readonly": tool["readonly"],
                             "is_folder_parent": True,
                         }
@@ -681,7 +644,6 @@ class AgentService:
                         node_path_map[tool["path"]] = {
                             "path": main_file.path,
                             "node_type": data.node_type,
-                            "json_path": tool["json_path"],
                             "readonly": tool["readonly"],
                             "base_version": main_file.base_version,
                             "base_content": main_file.content,
@@ -691,7 +653,6 @@ class AgentService:
                         node_path_map[tool["path"]] = {
                             "path": f"/workspace/{data.root_node_name}" if data.root_node_name else "/workspace/(empty folder)",
                             "node_type": data.node_type,
-                            "json_path": tool["json_path"],
                             "readonly": tool["readonly"],
                             "is_empty": True,
                         }
@@ -714,23 +675,23 @@ class AgentService:
             logger.info(f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}")
 
         if use_bash and sandbox_service:
-            from src.infra.sandbox.registry import get_sandbox_registry, build_manifest
-            sandbox_registry = get_sandbox_registry()
+            from src.connectors.agent.sandbox_session import get_agent_sandbox_registry
+            agent_sandbox_registry = get_agent_sandbox_registry()
             sandbox_parent_path = ""
 
             chat_key = persisted_session_id or f"agent-{request.agent_id}-{int(time.time() * 1000)}"
-            existing_session = sandbox_registry.get(chat_key)
+            existing_session = agent_sandbox_registry.get(chat_key)
 
             if existing_session:
                 sandbox_session_id = existing_session.sandbox_session_id
-                sandbox_registry.touch(chat_key)
+                agent_sandbox_registry.touch(chat_key)
 
                 status = await sandbox_service.status(sandbox_session_id)
                 if status.get("success") and status.get("status") != "stopped":
                     start_result = {"success": True}
                     logger.info(f"[Agent] Reusing sandbox {sandbox_session_id} for session {chat_key}")
                 else:
-                    sandbox_registry.remove(chat_key)
+                    agent_sandbox_registry.remove(chat_key)
                     existing_session = None
                     logger.info(f"[Agent] Sandbox {sandbox_session_id} expired, creating new one")
 
@@ -758,24 +719,43 @@ class AgentService:
                     )
 
                 if start_result.get("success"):
+                    scope_path = ""
                     if sandbox_data and _agent_project_id and ops:
                         root_path = sandbox_data.root_path
                         root_entry = ops.stat(_agent_project_id, root_path) if root_path else None
                         if root_entry:
                             if root_entry.type == "folder":
                                 sandbox_parent_path = root_path
+                                scope_path = root_path
                             else:
                                 sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
+                                scope_path = sandbox_parent_path
 
-                    manifest = build_manifest(
-                        sandbox_data.files if sandbox_data else [],
-                        sandbox_data.node_path_map if sandbox_data else {},
-                    )
-                    sandbox_registry.register(
+                    mut_client = None
+                    cloned_files = {}
+                    if _agent_project_id and not sandbox_readonly:
+                        from src.mut_engine.dependencies import get_repo_manager_standalone
+                        from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+                        repo_manager = get_repo_manager_standalone()
+                        mut_auth = {
+                            "agent": f"agent:{request.agent_id}",
+                            "_scope": {
+                                "id": f"agent-{request.agent_id}",
+                                "path": scope_path,
+                                "exclude": [],
+                                "mode": "rw",
+                            },
+                        }
+                        mut_client = MutEphemeralClient(repo_manager, _agent_project_id, mut_auth)
+                        cloned_files = await asyncio.to_thread(mut_client.clone)
+
+                    agent_sandbox_registry.register(
                         chat_session_id=chat_key,
                         sandbox_session_id=sandbox_session_id,
                         agent_id=request.agent_id,
-                        manifest=manifest,
+                        mut_client=mut_client,
+                        cloned_files=cloned_files,
+                        scope_path=scope_path,
                         readonly=sandbox_readonly,
                         project_id=_agent_project_id,
                         parent_path=sandbox_parent_path,
@@ -873,13 +853,11 @@ class AgentService:
                 return "\n".join(lines) if lines else "  - /workspace/ (unknown)"
 
             if node_type == "json" and len(bash_tools) == 1:
-                json_path = bash_tools[0]["json_path"] or "/"
                 mode_str = "⚠️ Read-only mode - changes will not be saved" if sandbox_readonly else "✏️ Read-write mode"
                 context_prefix = (
                     f"[Data Context]\n"
                     f"Node type: JSON\n"
                     f"Data file: /workspace/data.json\n"
-                    f"JSON path: {json_path}\n"
                     f"Permissions: {mode_str}\n"
                     f"[User Message]\n"
                 )
@@ -1126,7 +1104,7 @@ class AgentService:
                             results = await search_service.search_scope(
                                 project_id=stc.project_id,
                                 path=stc.path,
-                                tool_json_path=stc.json_path,
+                                tool_json_path="",
                                 query=query,
                                 top_k=top_k,
                             )
@@ -1196,45 +1174,46 @@ class AgentService:
             logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
 
         if use_bash and sandbox_service and sandbox_session_id:
-            from src.infra.sandbox.registry import get_sandbox_registry, diff_and_writeback
-            sandbox_registry = get_sandbox_registry()
+            from src.connectors.agent.sandbox_session import (
+                get_agent_sandbox_registry,
+                _read_modified_files,
+            )
+            agent_sandbox_registry = get_agent_sandbox_registry()
 
             chat_key = persisted_session_id or f"agent-{request.agent_id}-ephemeral"
-            live_session = sandbox_registry.get(chat_key)
+            live_session = agent_sandbox_registry.get(chat_key)
 
             updated_nodes = []
-            if live_session and live_session.manifest.files and current_user:
-                _project_id = ""
-                _parent_path = ""
-                if sandbox_data:
-                    _project_id = _agent_project_id
-                    root_path = sandbox_data.root_path
-                    root_entry = ops.stat(_project_id, root_path) if _project_id and ops else None
-                    if root_entry:
-                        if root_entry.type == "folder":
-                            _parent_path = root_path
-                        else:
-                            _parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
-
-                writeback_ops = None
-                if _project_id:
-                    from src.mut_engine.dependencies import create_mut_ops
-                    writeback_ops = create_mut_ops()
-
-                operator_info = {
-                    "type": "agent",
-                    "id": request.agent_id,
-                    "session_id": request.session_id,
-                    "project_id": _project_id,
-                    "parent_path": _parent_path,
-                }
-                updated_nodes = await diff_and_writeback(
-                    sandbox_service=sandbox_service,
-                    sandbox_session_id=sandbox_session_id,
-                    manifest=live_session.manifest,
-                    ops=writeback_ops,
-                    operator_info=operator_info,
-                )
+            if live_session and live_session.mut_client and not live_session.readonly:
+                try:
+                    modified = await _read_modified_files(
+                        sandbox_service,
+                        live_session.sandbox_session_id,
+                        live_session.cloned_files,
+                        "/workspace",
+                        live_session.scope_path,
+                    )
+                    if modified:
+                        push_result = await asyncio.to_thread(
+                            live_session.mut_client.push,
+                            modified=modified,
+                            message=f"Agent chat write-back ({len(modified)} files)",
+                            who=f"agent:{request.agent_id}",
+                        )
+                        live_session.cloned_files.update(modified)
+                        logger.info(
+                            f"[Agent] MUT push: v={push_result.get('version')} "
+                            f"merged={push_result.get('merged', False)} files={len(modified)}"
+                        )
+                        for path in modified:
+                            node_name = path.rsplit("/", 1)[-1] if "/" in path else path
+                            updated_nodes.append({
+                                "nodeId": path,
+                                "nodeName": node_name,
+                                "mergeStrategy": "mut_push",
+                            })
+                except Exception as e:
+                    logger.warning(f"[Agent] Write-back failed: {e}")
 
             if updated_nodes:
                 yield {
@@ -1245,15 +1224,11 @@ class AgentService:
             else:
                 yield {"type": "result", "success": True}
 
-            # Touch the session — sandbox stays alive for future messages
-            sandbox_registry.touch(chat_key)
+            agent_sandbox_registry.touch(chat_key)
 
         else:
             yield {"type": "result", "success": True}
 
 
-# ========== Utility functions ==========
-# prepare_sandbox_data, extract_data_by_path, merge_data_by_path
-# Migrated to src.connectors.agent.sandbox_data module, imported at the top
 
 
