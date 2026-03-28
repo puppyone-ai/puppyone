@@ -404,6 +404,8 @@ def create_app() -> FastAPI:
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
     from src.mut_engine.protocol_router import router as mut_protocol_router
     app.include_router(mut_protocol_router, tags=["mut-protocol"])
+    from src.mut_engine.access_point import ap_router
+    app.include_router(ap_router, tags=["access-point"])
     from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.connectors.datasource.router import router as sync_router

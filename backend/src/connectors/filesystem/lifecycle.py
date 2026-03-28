@@ -68,7 +68,14 @@ class OpenClawService:
             direction="bidirectional",
             provider="filesystem",
             access_key=_generate_cli_key(),
-            config={},
+            config={
+                "scope": {
+                    "id": f"fs-{path.replace('/', '-').strip('-') or 'root'}",
+                    "path": path,
+                    "exclude": [".git", "node_modules", ".DS_Store", "__pycache__"],
+                    "mode": "rw",
+                },
+            },
             trigger={"type": "cli_push"},
             conflict_strategy="three_way_merge",
         )

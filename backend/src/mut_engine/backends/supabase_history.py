@@ -111,9 +111,20 @@ class SupabaseHistoryManager:
         if scope_hash is not None:
             data["scope_hash"] = scope_hash
 
-        self._client.table(self.SCOPE_STATE_TABLE).upsert(
-            data, on_conflict="project_id,scope_path"
-        ).execute()
+        try:
+            self._client.table(self.SCOPE_STATE_TABLE).upsert(
+                data, on_conflict="project_id,scope_path"
+            ).execute()
+        except Exception:
+            # Fallback: try insert, then update on conflict
+            try:
+                self._client.table(self.SCOPE_STATE_TABLE).insert(data).execute()
+            except Exception:
+                self._client.table(self.SCOPE_STATE_TABLE).update(
+                    {k: v for k, v in data.items() if k not in ("project_id", "scope_path")}
+                ).eq("project_id", self._project_id).eq(
+                    "scope_path", scope_path
+                ).execute()
 
     # ── Version Index (derived from history entries) ──
 
