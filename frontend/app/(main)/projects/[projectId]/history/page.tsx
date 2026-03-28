@@ -7,7 +7,7 @@ import {
   getProjectHistory,
   type MutCommitInfo,
   type MutCommitChange,
-} from '@/lib/contentNodesApi';
+} from '@/lib/contentTreeApi';
 
 interface HistoryPageProps {
   params: Promise<{ projectId: string }>;

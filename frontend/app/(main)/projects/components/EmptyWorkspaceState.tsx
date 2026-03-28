@@ -53,8 +53,8 @@ export function EmptyWorkspaceState({
               Govern & version-control contexts for Agents
             </div>
             <div className="flex items-center gap-1.5 text-[#52525b] group-hover:text-[#a1a1aa] transition-colors min-w-0">
-              <span className="text-[12px] shrink-0">🦞</span>
-              <span className="text-[11px] font-medium text-[#71717a] group-hover:text-[#a1a1aa] transition-colors shrink-0">OpenClaw</span>
+              <span className="text-[12px] shrink-0">📁</span>
+              <span className="text-[11px] font-medium text-[#71717a] group-hover:text-[#a1a1aa] transition-colors shrink-0">Local Sync</span>
               <span className="text-[11px] opacity-30 mx-0.5 shrink-0 hidden sm:inline">|</span>
               <span className="text-[11px] truncate hidden sm:inline">Add auth, version control, and audit logs to your context</span>
             </div>

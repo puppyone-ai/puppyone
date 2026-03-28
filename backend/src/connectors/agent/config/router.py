@@ -46,7 +46,6 @@ def _to_agent_out(agent: Agent) -> AgentOut:
             id=a.id,
             agent_id=a.agent_id,
             path=a.path,
-            json_path=a.json_path,
             readonly=a.readonly,
         )
         for a in agent.bash_accesses
@@ -325,7 +324,6 @@ def add_bash(
         agent_id=agent.id,
         user_id=current_user.user_id,
         path=payload.path,
-        json_path=payload.json_path,
         readonly=payload.readonly,
     )
     if not bash:
@@ -338,7 +336,6 @@ def add_bash(
             id=bash.id,
             agent_id=bash.agent_id,
             path=bash.path,
-            json_path=bash.json_path,
             readonly=bash.readonly,
         ),
         message="Bash access permission added successfully",
@@ -361,7 +358,6 @@ def update_bash(
     bash = service.update_bash(
         bash_id=bash_id,
         user_id=current_user.user_id,
-        json_path=payload.json_path,
         readonly=payload.readonly,
     )
     if not bash:
@@ -374,7 +370,6 @@ def update_bash(
             id=bash.id,
             agent_id=bash.agent_id,
             path=bash.path,
-            json_path=bash.json_path,
             readonly=bash.readonly,
         ),
         message="Bash access permission updated successfully",
@@ -448,7 +443,6 @@ def sync_bash(
                 id=a.id,
                 agent_id=a.agent_id,
                 path=a.path,
-                json_path=a.json_path,
                 readonly=a.readonly,
             )
             for a in result

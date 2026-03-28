@@ -1,7 +1,7 @@
-"""DB Connector Repository - Supabase CRUD"""
+"""DB Connector Repository — uses unified connections table (provider='database')"""
 
-from datetime import datetime
-from typing import Optional, List, Any
+from datetime import datetime, timezone
+from typing import Optional, List
 
 from src.infra.supabase.client import SupabaseClient
 from src.connectors.database.models import DBConnection
@@ -9,33 +9,35 @@ from src.infra.security.crypto import (
     decrypt_db_connection_config,
     encrypt_db_connection_config,
 )
+from src.utils.id_generator import generate_uuid_v7
+
+DB_PROVIDER = "database"
 
 
 class DBConnectionRepository:
-    """Database connection CRUD."""
+    """Database connection CRUD over the unified connections table."""
 
-    TABLE = "db_connections"
+    TABLE = "connections"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
 
-    @staticmethod
-    def _normalize_plain_config(config: Any) -> dict[str, Any]:
-        if not isinstance(config, dict):
-            return {}
-        return decrypt_db_connection_config(config)
+    def _query(self):
+        return self.client.table(self.TABLE).select("*").eq("provider", DB_PROVIDER)
 
     def _row_to_model(self, row: dict) -> DBConnection:
-        created_by = row.get("created_by")
+        config = row.get("config") or {}
+        db_config = config.get("db_config") or {}
+        plain_config = decrypt_db_connection_config(db_config) if db_config else {}
         return DBConnection(
             id=str(row["id"]),
-            created_by=str(created_by) if created_by is not None else None,
+            created_by=config.get("created_by"),
             project_id=str(row["project_id"]),
-            name=row["name"],
-            provider=row["provider"],
-            config=self._normalize_plain_config(row.get("config", {})),
-            is_active=row.get("is_active", True),
-            last_used_at=row.get("last_used_at"),
+            name=config.get("name", ""),
+            provider=config.get("db_provider", "supabase"),
+            config=plain_config,
+            is_active=(row.get("status", "active") == "active"),
+            last_used_at=row.get("last_synced_at"),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )
@@ -50,11 +52,17 @@ class DBConnectionRepository:
     ) -> DBConnection:
         encrypted_config = encrypt_db_connection_config(config)
         data = {
-            "created_by": created_by,
+            "id": generate_uuid_v7(),
             "project_id": project_id,
-            "name": name,
-            "provider": provider,
-            "config": encrypted_config,
+            "provider": DB_PROVIDER,
+            "direction": "inbound",
+            "status": "active",
+            "config": {
+                "name": name,
+                "db_provider": provider,
+                "db_config": encrypted_config,
+                "created_by": created_by,
+            },
         }
         response = self.client.table(self.TABLE).insert(data).execute()
         if not response.data:
@@ -63,8 +71,7 @@ class DBConnectionRepository:
 
     def get_by_id(self, connection_id: str) -> Optional[DBConnection]:
         response = (
-            self.client.table(self.TABLE)
-            .select("*")
+            self._query()
             .eq("id", connection_id)
             .execute()
         )
@@ -74,10 +81,9 @@ class DBConnectionRepository:
 
     def list_by_project(self, project_id: str) -> List[DBConnection]:
         response = (
-            self.client.table(self.TABLE)
-            .select("*")
+            self._query()
             .eq("project_id", project_id)
-            .eq("is_active", True)
+            .eq("status", "active")
             .order("created_at", desc=True)
             .execute()
         )
@@ -85,7 +91,7 @@ class DBConnectionRepository:
 
     def update_last_used(self, connection_id: str) -> None:
         self.client.table(self.TABLE).update(
-            {"last_used_at": datetime.utcnow().isoformat()}
+            {"last_synced_at": datetime.now(timezone.utc).isoformat()}
         ).eq("id", connection_id).execute()
 
     def delete(self, connection_id: str) -> bool:
@@ -93,6 +99,7 @@ class DBConnectionRepository:
             self.client.table(self.TABLE)
             .delete()
             .eq("id", connection_id)
+            .eq("provider", DB_PROVIDER)
             .execute()
         )
         return bool(response.data)

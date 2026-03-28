@@ -13,16 +13,16 @@ from src.tool.supabase_schemas import (
     ToolUpdate as SbToolUpdate,
 )
 from src.infra.supabase.dependencies import get_supabase_repository
-from src.mcp.cache_invalidator import invalidate_mcp_cache
+from src.infra.mcp_server.cache_invalidator import invalidate_mcp_cache
 from src.platform.project.service import ProjectService
 
 
 @lru_cache(maxsize=64)
 def _get_default_tool_description(tool_type: str) -> Optional[str]:
     """
-    Read default tool description from `src/mcp/description/{tool_type}.txt` (used as default for Tool.description).
+    Read default tool description from `src/infra/mcp_server/description/{tool_type}.txt` (used as default for Tool.description).
     """
-    desc_dir = Path(__file__).resolve().parents[1] / "mcp" / "description"
+    desc_dir = Path(__file__).resolve().parents[1] / "infra" / "mcp_server" / "description"
     p = desc_dir / f"{tool_type}.txt"
     if not p.exists():
         return None

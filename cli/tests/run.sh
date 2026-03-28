@@ -9,7 +9,7 @@
 #
 # Usage:
 #   bash cli/tests/run.sh            # run all tests
-#   bash cli/tests/run.sh sync       # run only sync tests
+#   bash cli/tests/run.sh access     # run only access tests
 #   bash cli/tests/run.sh --verbose  # show command output
 # ──────────────────────────────────────────────────────────────
 set -euo pipefail
@@ -158,15 +158,11 @@ if section "basic"; then
   assert_output_contains "Usage" "help output contains Usage" $CLI --help
 
   assert_exit 0 "puppyone auth --help" $CLI auth --help
-  assert_exit 0 "puppyone sync --help" $CLI sync --help
-  assert_exit 0 "puppyone fs --help" $CLI fs --help
   assert_exit 0 "puppyone project --help" $CLI project --help
   assert_exit 0 "puppyone org --help" $CLI org --help
-  assert_exit 0 "puppyone conn --help" $CLI conn --help
-  assert_exit 0 "puppyone agent --help" $CLI agent --help
-  assert_exit 0 "puppyone table --help" $CLI table --help
-  assert_exit 0 "puppyone tool --help" $CLI tool --help
-  assert_exit 0 "puppyone ingest --help" $CLI ingest --help
+  assert_exit 0 "puppyone access --help" $CLI access --help
+  assert_exit 0 "puppyone chat --help" $CLI chat --help
+  assert_exit 0 "puppyone config --help" $CLI config --help
 fi
 
 # ── 2. Auth ──────────────────────────────────────────────────
@@ -180,23 +176,21 @@ if section "auth"; then
   fi
 fi
 
-# ── 3. Sync ──────────────────────────────────────────────────
-if section "sync"; then
-  assert_exit 0 "sync providers --help" $CLI sync providers --help
+# ── 3. Access ─────────────────────────────────────────────────
+if section "access"; then
+  assert_exit 0 "access providers --help" $CLI access providers --help
 
   if $LOGGED_IN; then
-    assert_exit 0 "sync providers lists providers" $CLI sync providers
-    assert_output_contains "gmail\|notion\|github" "providers output contains known providers" $CLI sync providers
+    assert_exit 0 "access providers lists providers" $CLI access providers
+    assert_output_contains "gmail\|notion\|github" "providers output contains known providers" $CLI access providers
 
-    # Check auth-status for a provider (should not crash)
-    assert_exit 0 "sync auth-status gmail does not crash" $CLI sync auth-status gmail
+    assert_exit 0 "access auth-status gmail does not crash" $CLI access auth-status gmail
 
-    # List syncs (may be empty, but should not crash)
-    assert_exit 0 "sync ls does not crash" $CLI sync ls
+    assert_exit 0 "access ls does not crash" $CLI access ls
   else
-    skip "sync providers (not logged in)"
-    skip "sync auth-status (not logged in)"
-    skip "sync ls (not logged in)"
+    skip "access providers (not logged in)"
+    skip "access auth-status (not logged in)"
+    skip "access ls (not logged in)"
   fi
 fi
 
@@ -211,35 +205,17 @@ if section "project"; then
   fi
 fi
 
-# ── 5. Filesystem ────────────────────────────────────────────
-if section "fs"; then
-  if $LOGGED_IN; then
-    assert_exit 0 "fs ls does not crash" $CLI fs ls
-  else
-    skip "fs ls (not logged in)"
-  fi
-fi
-
-# ── 6. Connection ────────────────────────────────────────────
-if section "conn"; then
-  if $LOGGED_IN; then
-    assert_exit 0 "conn ls does not crash" $CLI conn ls
-  else
-    skip "conn ls (not logged in)"
-  fi
-fi
-
-# ── 7. Error handling ────────────────────────────────────────
+# ── 5. Error handling ────────────────────────────────────────
 if section "errors"; then
   assert_exit 1 "unknown command exits non-zero" $CLI this-does-not-exist
-  assert_exit 1 "sync add without args exits non-zero" $CLI sync add
+  assert_exit 1 "access add without args exits non-zero" $CLI access add
 
   if $LOGGED_IN; then
-    assert_exit 1 "sync info with bad ID exits non-zero" $CLI sync info nonexistent-id-12345
-    assert_exit 1 "sync rm with bad ID exits non-zero" $CLI sync rm nonexistent-id-12345
+    assert_exit 1 "access info with bad ID exits non-zero" $CLI access info nonexistent-id-12345
+    assert_exit 1 "access rm with bad ID exits non-zero" $CLI access rm nonexistent-id-12345
   else
-    skip "sync info error handling (not logged in)"
-    skip "sync rm error handling (not logged in)"
+    skip "access info error handling (not logged in)"
+    skip "access rm error handling (not logged in)"
   fi
 fi
 

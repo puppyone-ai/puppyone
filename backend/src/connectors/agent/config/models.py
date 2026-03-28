@@ -17,7 +17,6 @@ class AgentBash(BaseModel):
     id: str = Field(..., description="Bash permission ID")
     agent_id: str = Field(..., description="Owning Agent ID")
     path: str = Field(..., description="MUT path")
-    json_path: str = Field(default="", description="JSON sub-path")
     readonly: bool = Field(default=True)
     created_at: datetime = Field(...)
 

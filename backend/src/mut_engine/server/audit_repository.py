@@ -20,6 +20,7 @@ class AuditRepository:
         self,
         action: str,
         path: str,
+        project_id: Optional[str] = None,
         operator_type: str = "user",
         operator_id: Optional[str] = None,
         old_version: Optional[int] = None,
@@ -35,6 +36,8 @@ class AuditRepository:
             "path": path,
             "operator_type": operator_type,
         }
+        if project_id is not None:
+            data["project_id"] = project_id
         if operator_id is not None:
             data["operator_id"] = operator_id
         if old_version is not None:
@@ -53,13 +56,18 @@ class AuditRepository:
         self.client.table(self.TABLE_NAME).insert(data).execute()
 
     def list_by_path(
-        self, path: str, limit: int = 50, offset: int = 0
+        self, path: str, limit: int = 50, offset: int = 0, project_id: Optional[str] = None,
     ) -> List[dict]:
-        """Query audit logs for a node"""
-        response = (
+        """Query audit logs for a path, scoped by project_id."""
+        query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
             .eq("path", path)
+        )
+        if project_id:
+            query = query.eq("project_id", project_id)
+        response = (
+            query
             .order("created_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
@@ -67,27 +75,34 @@ class AuditRepository:
         return response.data
 
     def list_by_paths(
-        self, paths: List[str], limit: int = 100, offset: int = 0
+        self, paths: List[str], limit: int = 100, offset: int = 0, project_id: Optional[str] = None,
     ) -> List[dict]:
-        """Query audit logs for multiple nodes"""
+        """Query audit logs for multiple paths, scoped by project_id."""
         if not paths:
             return []
-        response = (
+        query = (
             self.client.table(self.TABLE_NAME)
             .select("*")
             .in_("path", paths)
+        )
+        if project_id:
+            query = query.eq("project_id", project_id)
+        response = (
+            query
             .order("created_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
         )
         return response.data
 
-    def count_by_path(self, path: str) -> int:
-        """Count audit log entries for a node"""
-        response = (
+    def count_by_path(self, path: str, project_id: Optional[str] = None) -> int:
+        """Count audit log entries for a path, scoped by project_id."""
+        query = (
             self.client.table(self.TABLE_NAME)
             .select("id", count="exact")
             .eq("path", path)
-            .execute()
         )
+        if project_id:
+            query = query.eq("project_id", project_id)
+        response = query.execute()
         return response.count or 0

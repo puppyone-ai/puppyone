@@ -2,9 +2,9 @@
 BaseConnector — Unified base class for all sync connectors.
 
 Three-layer architecture:
-  Trigger Layer  (when)  →  manual / scheduler / webhook
+  Trigger Layer  (when)  →  manual / scheduler / webhook / realtime (client-side)
   Connector Layer (what) →  connector.fetch(config, credentials) → FetchResult
-  Write Layer    (how)   →  CollaborationService.commit(mutation)
+  Write Layer    (how)   →  MutOps.write_file() / MutOps.bulk_write()
 
 Connector only has ONE core method: fetch().
 It does NOT know who triggered it or how data is stored.

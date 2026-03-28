@@ -52,23 +52,22 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
     if (!data) return;
     try {
       const node = JSON.parse(data);
-      if (draftResources.some(r => r.nodeId === node.id)) return;
+      if (draftResources.some(r => r.path === (node.nodeId || node.id))) return;
       const newResource: AccessResource = {
-        nodeId: node.nodeId || node.id,
+        path: node.nodeId || node.id,
         nodeName: node.name,
         nodeType: node.type === 'folder' ? 'folder' : node.type === 'json' ? 'json' : 'file',
         readonly: false,
-        jsonPath: node.jsonPath || '',
       };
       addDraftResource(newResource);
     } catch { /* ignore */ }
   };
 
-  const toggleReadonly = (nodeId: string) => {
-    const resource = draftResources.find(r => r.nodeId === nodeId);
+  const toggleReadonly = (path: string) => {
+    const resource = draftResources.find(r => r.path === path);
     if (!resource) return;
     const current = resource.readonly ?? true;
-    updateDraftResource(nodeId, { readonly: !current });
+    updateDraftResource(path, { readonly: !current });
   };
 
   // ── Tools ────────────────────────────────────────────────────
@@ -139,13 +138,11 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
           <div style={{ padding: draftResources.length > 0 ? 6 : 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
             {draftResources.map((resource) => {
               const { icon, color } = getNodeIcon(resource.nodeType);
-              const pathDisplay = resource.jsonPath
-                ? `${resource.nodeName} (${resource.jsonPath})`
-                : resource.nodeName;
+              const pathDisplay = resource.nodeName;
               const isReadonly = resource.readonly ?? true;
               return (
                 <div
-                  key={resource.nodeId}
+                  key={resource.path}
                   style={{
                     height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '0 10px', borderRadius: 4, background: '#1a1a1a', border: '1px solid #252525', transition: 'all 0.1s',
@@ -162,16 +159,16 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <div style={{ display: 'flex', background: '#0f0f0f', border: '1px solid #2a2a2a', borderRadius: 4, padding: 2, gap: 1 }}>
                       <button
-                        onClick={() => { if (!isReadonly) toggleReadonly(resource.nodeId); }}
+                        onClick={() => { if (!isReadonly) toggleReadonly(resource.path); }}
                         style={{ background: isReadonly ? '#333' : 'transparent', border: 'none', borderRadius: 3, color: isReadonly ? '#e5e5e5' : '#505050', cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontWeight: 500, transition: 'all 0.1s' }}
                       >View</button>
                       <button
-                        onClick={() => { if (isReadonly) toggleReadonly(resource.nodeId); }}
+                        onClick={() => { if (isReadonly) toggleReadonly(resource.path); }}
                         style={{ background: !isReadonly ? 'rgba(249,115,22,0.15)' : 'transparent', border: 'none', borderRadius: 3, color: !isReadonly ? '#fb923c' : '#505050', cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontWeight: 500, transition: 'all 0.1s' }}
                       >Edit</button>
                     </div>
                     <button
-                      onClick={() => removeDraftResource(resource.nodeId)}
+                      onClick={() => removeDraftResource(resource.path)}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 4, background: 'transparent', border: 'none', color: '#505050', cursor: 'pointer', transition: 'all 0.1s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}

@@ -377,7 +377,7 @@ export function ListView({
   }
 
   // Create a map for quick lookup
-  const resourceMap = new Map(agentResources?.map(r => [r.nodeId, r]) ?? []);
+  const resourceMap = new Map(agentResources?.map(r => [r.path, r]) ?? []);
 
   return (
     <div

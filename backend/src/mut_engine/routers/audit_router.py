@@ -81,8 +81,8 @@ def get_node_audit_logs(
     """Get audit logs for a node"""
     _ensure_project_access(project_service, current_user, project_id)
 
-    rows = audit_repo.list_by_path(path, limit, offset)
-    total = audit_repo.count_by_path(path)
+    rows = audit_repo.list_by_path(path, limit, offset, project_id=project_id)
+    total = audit_repo.count_by_path(path, project_id=project_id)
 
     logs = [AuditLogItem(**row) for row in rows]
 

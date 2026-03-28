@@ -1,16 +1,16 @@
 """
-OpenClaw ↔ PuppyOne E2E Sync Tests
+OpenClaw ↔ PuppyOne E2E Sync Tests (LEGACY — needs rewrite for MUT protocol)
 
-Tests the full sync lifecycle between OpenClaw CLI and PuppyOne cloud:
-  1. Local push → cloud node created, sync_changelog recorded, file_version created
-  2. Cloud update → pull returns changes, changelog cursor advances
-  3. Version history completeness
-  4. Rollback via API → content restored, audit_log recorded
-  5. Conflict scenario → concurrent push handled gracefully
-
-These tests use the FolderSyncService + folder_router at the API level,
-stubbing only the Supabase/S3 layer.
+These tests were written for the old per-file FolderSyncService API.
+The filesystem connector has been rewritten to use MUT protocol directly.
+New E2E tests should test via /mut/ap/{access_key}/clone|push|pull.
 """
+
+import pytest
+
+pytestmark = pytest.mark.skip(
+    reason="Legacy tests for removed FolderSyncService. Rewrite for MUT protocol."
+)
 
 from types import SimpleNamespace
 from datetime import datetime, timezone

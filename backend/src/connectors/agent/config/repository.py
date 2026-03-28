@@ -37,7 +37,6 @@ def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
         id=f"{agent_id}:scope",
         agent_id=agent_id,
         path=path,
-        json_path="",
         readonly=(mode == "r"),
         created_at=datetime.now(timezone.utc),
     )]
@@ -429,7 +428,6 @@ class AgentRepository:
         self,
         agent_id: str,
         path: str,
-        json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
         scope = {
@@ -442,7 +440,6 @@ class AgentRepository:
             id=f"{agent_id}:scope",
             agent_id=agent_id,
             path=path,
-            json_path=json_path,
             readonly=readonly,
             created_at=datetime.now(timezone.utc),
         )
@@ -450,7 +447,6 @@ class AgentRepository:
     def update_bash(
         self,
         bash_id: str,
-        json_path: Optional[str] = None,
         readonly: Optional[bool] = None,
     ) -> Optional[AgentBash]:
         agent_id = bash_id.split(":")[0] if ":" in bash_id else bash_id
@@ -484,10 +480,9 @@ class AgentRepository:
         self,
         agent_id: str,
         path: str,
-        json_path: str = "",
         readonly: bool = True,
     ) -> AgentBash:
-        return self.create_bash(agent_id, path, json_path, readonly)
+        return self.create_bash(agent_id, path, readonly)
 
     # ============================================
     # AgentTool CRUD

@@ -1,9 +1,9 @@
 """
-OpenClaw Connector — Bidirectional CLI file sync.
+Filesystem Connector — Bidirectional CLI file sync via MUT protocol.
 
-Unlike SaaS connectors, OpenClaw doesn't use the standard fetch() pipeline.
-Sync is driven by the CLI pushing/pulling files via FolderSyncService.
-The connector exposes spec() and delegates to OpenClawService for lifecycle.
+Data sync is driven by the CLI daemon using MUT access_point
+(clone/push/pull/negotiate). The connector exposes spec() for the
+registry; fetch()/push() are not used.
 """
 
 from typing import Any, List
@@ -15,8 +15,8 @@ from src.connectors.datasource._base import (
 from src.connectors.datasource.schemas import Sync, PushResult, ResourceInfo
 
 
-class OpenClawConnector(BaseConnector):
-    """Bidirectional file-folder sync via CLI daemon."""
+class FilesystemConnector(BaseConnector):
+    """Bidirectional file-folder sync via CLI daemon + MUT protocol."""
 
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
@@ -31,19 +31,21 @@ class OpenClawConnector(BaseConnector):
             default_node_type="folder",
             auth=AuthRequirement.ACCESS_KEY,
             creation_mode="bootstrap",
-            description="Folder-to-PuppyOne sync via desktop CLI",
+            description="Sync a local folder with PuppyOne via CLI daemon",
             accept_types=("folder",),
             icon="🦞",
         )
 
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         raise NotImplementedError(
-            "OpenClaw does not use fetch(). "
-            "Use POST /api/v1/filesystem/bootstrap instead."
+            "Filesystem uses MUT protocol directly via access_point. "
+            "Use POST /api/v1/filesystem/bootstrap to create a connection."
         )
 
     async def push(self, sync: Sync, content: Any, node_type: str) -> PushResult:
-        return PushResult(success=False, error="Use CLI push-file endpoint")
+        raise NotImplementedError(
+            "Filesystem push is handled by CLI daemon via MUT protocol."
+        )
 
     async def list_resources(self, sync: Sync) -> List[ResourceInfo]:
         return []
@@ -51,4 +53,4 @@ class OpenClawConnector(BaseConnector):
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     from src.connectors.datasource._base import ConnectorSetup
-    return ConnectorSetup(connector=OpenClawConnector())
+    return ConnectorSetup(connector=FilesystemConnector())

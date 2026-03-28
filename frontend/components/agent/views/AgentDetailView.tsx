@@ -558,7 +558,7 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                 const isReadonly = resource.readonly ?? true;
                 return (
                   <div
-                    key={resource.nodeId}
+                    key={resource.path}
                     style={{
                       display: 'flex',
                       alignItems: 'center',

@@ -26,7 +26,7 @@ from src.connectors.datasource._base import (
     Credentials,
     ConfigField,
 )
-from src.oauth.google_calendar_service import GoogleCalendarOAuthService
+from src.connectors.datasource.oauth.google_calendar_service import GoogleCalendarOAuthService
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
@@ -218,7 +218,7 @@ class GoogleCalendarConnector(BaseConnector):
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     from src.connectors.datasource._base import ConnectorSetup
-    from src.oauth.google_calendar_service import GoogleCalendarOAuthService
+    from src.connectors.datasource.oauth.google_calendar_service import GoogleCalendarOAuthService
     oauth_svc = GoogleCalendarOAuthService()
     return ConnectorSetup(
         connector=GoogleCalendarConnector(

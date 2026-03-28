@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { stat, readFile } from '@/lib/contentNodesApi';
+import { stat, readFile } from '@/lib/contentTreeApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import { setPendingActiveId } from '../components/views';
 import type { MarkdownViewMode } from '@/components/editors/markdown';

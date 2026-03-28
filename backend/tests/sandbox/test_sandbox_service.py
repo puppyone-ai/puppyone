@@ -4,9 +4,9 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 import os
 
-from src.sandbox.service import SandboxService, get_sandbox_type
-from src.sandbox.e2b_sandbox import E2BSandbox
-from src.sandbox.docker_sandbox import DockerSandbox
+from src.infra.sandbox.service import SandboxService, get_sandbox_type
+from src.infra.sandbox.e2b_sandbox import E2BSandbox
+from src.infra.sandbox.docker_sandbox import DockerSandbox
 
 
 # ==================== Fake E2B 实现 ====================
@@ -247,7 +247,7 @@ async def test_docker_sandbox_status_inactive():
 @pytest.mark.anyio
 async def test_parallel_download():
     """测试并行下载功能"""
-    from src.sandbox.file_utils import download_files_parallel
+    from src.infra.sandbox.file_utils import download_files_parallel
     
     # 创建模拟 S3 服务
     mock_s3 = AsyncMock()
@@ -277,7 +277,7 @@ async def test_parallel_download():
 @pytest.mark.anyio
 async def test_prepare_files_for_sandbox():
     """测试准备沙盒文件"""
-    from src.sandbox.file_utils import prepare_files_for_sandbox
+    from src.infra.sandbox.file_utils import prepare_files_for_sandbox
     
     # 创建模拟 S3 服务
     mock_s3 = AsyncMock()
@@ -305,7 +305,7 @@ async def test_prepare_files_for_sandbox():
 @pytest.mark.anyio
 async def test_parallel_download_with_failures():
     """测试并行下载时部分失败"""
-    from src.sandbox.file_utils import prepare_files_for_sandbox
+    from src.infra.sandbox.file_utils import prepare_files_for_sandbox
     
     # 创建模拟 S3 服务，第二个文件下载失败
     mock_s3 = AsyncMock()

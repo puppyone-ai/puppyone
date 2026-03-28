@@ -1,24 +1,19 @@
 """
-Folder-level file sync service.
+Filesystem connection lifecycle service.
 
-Implements server-side of the Filesystem Sync architecture:
-- Client daemon does all watch/diff/sync logic locally
-- Client uses MUT HTTP protocol (clone/push/pull) for data transfer
-- Server provides supplementary APIs: list, pull files, push, delete
-
-All write operations go through MutOps.
-Read operations use MutOps for lightweight access.
+Manages CLI daemon connect / status / disconnect lifecycle.
+Data sync is handled entirely by MUT protocol via access_point.py.
 """
 
-import json as _json
 import re
-from typing import Any
+import secrets
+from typing import Optional
+from datetime import datetime
 
-from src.infra.s3.service import get_s3_service_instance
-from src.mut_engine.services.ops import MutOps
-from src.utils.logger import log_info, log_error
-
-INLINE_TYPES = {"json", "markdown"}
+from src.connectors.datasource.repository import SyncRepository
+from src.connectors.datasource.schemas import Sync
+from src.infra.supabase.client import SupabaseClient
+from src.utils.logger import log_info
 
 _FORBIDDEN_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
 _FORBIDDEN_NAMES = frozenset([".", "..", "CON", "PRN", "AUX", "NUL"] +
@@ -27,7 +22,7 @@ _FORBIDDEN_NAMES = frozenset([".", "..", "CON", "PRN", "AUX", "NUL"] +
 
 
 def _validate_filename(filename: str) -> str | None:
-    """Return error message if filename is invalid, else None."""
+    """Return error message if filename is invalid for the MUT tree, else None."""
     if not filename or not filename.strip():
         return "Filename must not be empty"
     if filename.startswith("/"):
@@ -52,293 +47,125 @@ def _validate_filename(filename: str) -> str | None:
     return None
 
 
-def _extract_file_ref(content_bytes: bytes) -> str | None:
-    """Return S3 key from a MUT file_ref blob, if present."""
-    try:
-        payload = _json.loads(content_bytes.decode("utf-8"))
-    except Exception:
-        return None
-
-    if not isinstance(payload, dict):
-        return None
-    if payload.get("_type") != "file_ref":
-        return None
-
-    s3_key = payload.get("_s3_key")
-    return s3_key if isinstance(s3_key, str) and s3_key else None
+def _generate_cli_key() -> str:
+    return f"cli_{secrets.token_urlsafe(32)}"
 
 
-def _build_download_url(s3_key: str) -> str | None:
-    """Build a presigned download URL synchronously for legacy pull APIs."""
-    s3 = get_s3_service_instance()
-    if not s3 or not getattr(s3, "client", None):
-        return None
+class FilesystemService:
+    """Filesystem connection lifecycle — bootstrap, connect, heartbeat, status, disconnect.
 
-    try:
-        return s3.client.generate_presigned_url(
-            ClientMethod="get_object",
-            Params={"Bucket": s3.bucket_name, "Key": s3_key},
-            ExpiresIn=3600,
-        )
-    except Exception as e:
-        log_error(f"[FolderSync] Download URL failed for {s3_key}: {e}")
-        return None
-
-
-class FolderSyncService:
-    """
-    Folder-level sync service.
-
-    The client daemon handles all watch/diff/sync logic via MUT protocol.
-    This service provides supplementary operations for the backend API
-    and legacy CLI push/pull endpoints.
+    Data sync is handled entirely by MUT protocol via access_point.py
+    (POST /mut/ap/{access_key}/clone|push|pull|negotiate).
+    This service only manages the connections table row.
     """
 
-    def __init__(self, supabase=None):
+    def __init__(
+        self,
+        supabase: SupabaseClient,
+        sync_repo: SyncRepository,
+    ):
         self._supabase = supabase
+        self._sync_repo = sync_repo
 
-    def _get_ops(self) -> MutOps:
-        from src.mut_engine.dependencies import create_mut_ops
-        return create_mut_ops()
+    # ----------------------------------------------------------
+    # Auth: access key → Sync
+    # ----------------------------------------------------------
 
-    # ================================================================
-    # PULL — read files from MUT tree
-    # ================================================================
+    def authenticate(self, access_key: str) -> Optional[Sync]:
+        sync = self._sync_repo.get_by_access_key(access_key)
+        if not sync:
+            return None
+        if sync.provider != "filesystem":
+            return None
+        return sync
 
-    def pull(
+    def touch_heartbeat(self, sync: Sync) -> None:
+        self._sync_repo.touch_heartbeat(sync.id)
+
+    # ----------------------------------------------------------
+    # Bootstrap — create a new filesystem connection for a folder
+    # ----------------------------------------------------------
+
+    def bootstrap(
         self,
         project_id: str,
-        folder_path: str,
-        cursor: int = 0,
-        source_id: str = "",
-        **kwargs,
-    ) -> dict:
-        """Pull files from the MUT tree for a folder sync."""
-        ops = self._get_ops()
-        current_version = 0
+        path: str,
+    ) -> Sync:
+        """Create a filesystem connection bound to a folder path.
 
-        try:
-            current_version = ops.get_version(project_id)
-        except Exception:
-            current_version = 0
+        Returns the sync with a fresh access_key for CLI auth.
+        The CLI uses this key to access the MUT protocol at
+        /mut/ap/{access_key}/clone|push|pull|negotiate.
+        """
+        existing = self._sync_repo.get_by_node(path)
+        if existing and existing.provider == "filesystem":
+            return existing
 
-        try:
-            entries = ops.list_tree(project_id, folder_path)
-        except Exception:
-            entries = []
+        sync = self._sync_repo.create(
+            project_id=project_id,
+            path=path,
+            direction="bidirectional",
+            provider="filesystem",
+            access_key=_generate_cli_key(),
+            config={
+                "scope": {
+                    "id": f"fs-{path.replace('/', '-').strip('-') or 'root'}",
+                    "path": path,
+                    "exclude": [".git", "node_modules", ".DS_Store", "__pycache__"],
+                    "mode": "rw",
+                },
+            },
+            trigger={"type": "realtime"},
+        )
+        log_info(f"[Filesystem] Bootstrapped connection #{sync.id} for path {path}")
+        return sync
 
-        files = []
-        for e in entries:
-            if e.type == "folder":
-                continue
-            rel = e.path
-            if rel.startswith(folder_path):
-                rel = rel[len(folder_path):].lstrip("/")
+    # ----------------------------------------------------------
+    # Connect — CLI daemon calls this on startup
+    # ----------------------------------------------------------
 
-            file_info = {
-                "name": rel,
-                "path": e.path,
-                "type": e.type,
-                "size": e.size_bytes or 0,
-                "version": current_version,
-            }
+    def connect(self, sync: Sync, workspace_path: str) -> Sync:
+        if sync.config.get("path") != workspace_path:
+            self._sync_repo.update_config(
+                sync.id,
+                {**sync.config, "path": workspace_path},
+            )
+        self._sync_repo.touch_heartbeat(sync.id)
+        log_info(f"[Filesystem] CLI connected: sync #{sync.id} @ {workspace_path}")
+        return sync
 
+    # ----------------------------------------------------------
+    # Status
+    # ----------------------------------------------------------
+
+    def status(self, sync: Sync) -> dict:
+        daemon_active = False
+        if sync.updated_at:
             try:
-                content_bytes = ops.read_file(project_id, e.path)
-                if e.type == "json":
-                    try:
-                        file_info["content"] = _json.loads(content_bytes.decode("utf-8"))
-                    except Exception:
-                        file_info["content"] = content_bytes.decode("utf-8", errors="replace")
-                elif e.type == "markdown":
-                    file_info["content"] = content_bytes.decode("utf-8", errors="replace")
-                else:
-                    s3_key = _extract_file_ref(content_bytes)
-                    if s3_key:
-                        file_info["s3_key"] = s3_key
-                        download_url = _build_download_url(s3_key)
-                        if download_url:
-                            file_info["download_url"] = download_url
+                last_seen = datetime.fromisoformat(
+                    sync.updated_at.replace("Z", "+00:00")
+                    if isinstance(sync.updated_at, str)
+                    else sync.updated_at.isoformat()
+                )
+                age = (datetime.now(last_seen.tzinfo) - last_seen).total_seconds()
+                daemon_active = age < 90
             except Exception:
-                if e.type in INLINE_TYPES:
-                    file_info["content"] = ""
-
-            files.append(file_info)
+                pass
 
         return {
-            "cursor": 0,
-            "version": current_version,
-            "files": files,
-            "is_full_sync": True,
-            "has_more": False,
+            "connected": daemon_active,
+            "sync_id": sync.id,
+            "folder_path": sync.path,
+            "workspace_path": sync.config.get("path"),
+            "connected_at": sync.created_at,
+            "last_seen_at": sync.updated_at,
         }
 
-    # ================================================================
-    # PUSH — write a single file via MutOps
-    # ================================================================
+    # ----------------------------------------------------------
+    # Disconnect
+    # ----------------------------------------------------------
 
-    async def push(
-        self,
-        project_id: str,
-        folder_path: str,
-        filename: str,
-        content: Any,
-        base_version: int = 0,
-        node_type: str = "json",
-        operator_id: str = "sync:filesystem",
-        operator_name: str = "OpenClaw CLI",
-        source_id: str = "",
-        **kwargs,
-    ) -> dict:
-        """Push a single file to the MUT tree."""
-        err = _validate_filename(filename)
-        if err:
-            return {"ok": False, "error": "invalid_path", "message": err}
-
-        file_path = f"{folder_path}/{filename}" if folder_path else filename
-
-        if isinstance(content, (dict, list)):
-            content_bytes = _json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
-        elif isinstance(content, str):
-            content_bytes = content.encode("utf-8")
-        elif isinstance(content, bytes):
-            content_bytes = content
-        else:
-            content_bytes = str(content).encode("utf-8")
-
-        try:
-            ops = self._get_ops()
-
-            result = await ops.write_file(
-                project_id, file_path, content_bytes,
-                who=operator_id, message=f"Push {filename}",
-            )
-
-            log_info(f"[FolderSync] Pushed {file_path} v{result.version}")
-            return {"ok": True, "path": file_path, "version": result.version}
-        except Exception as e:
-            log_error(f"[FolderSync] Push failed for {file_path}: {e}")
-            return {"ok": False, "error": "push_failed", "message": str(e)}
-
-    # ================================================================
-    # DELETE — remove a file via MutOps
-    # ================================================================
-
-    async def delete_file(
-        self,
-        project_id: str,
-        folder_path: str,
-        filename: str,
-        source_id: str = "",
-        **kwargs,
-    ) -> dict:
-        """Delete a file from the MUT tree."""
-        err = _validate_filename(filename)
-        if err:
-            return {"ok": False, "error": "invalid_path", "message": err}
-
-        file_path = f"{folder_path}/{filename}" if folder_path else filename
-
-        try:
-            ops = self._get_ops()
-            await ops.delete(
-                project_id, [file_path],
-                who=f"sync:{source_id}", message=f"Delete {filename}",
-            )
-            log_info(f"[FolderSync] Deleted {file_path}")
-            return {"ok": True, "path": file_path}
-        except Exception as e:
-            log_error(f"[FolderSync] Delete failed for {file_path}: {e}")
-            return {"ok": False, "error": "delete_failed", "message": str(e)}
-
-    # ================================================================
-    # UPLOAD URL — S3 presigned URL for binary files
-    # ================================================================
-
-    async def request_upload_url(
-        self,
-        project_id: str,
-        folder_path: str,
-        filename: str,
-        content_type: str = "application/octet-stream",
-        size_bytes: int = 0,
-        operator_id: str = "sync:filesystem",
-        **kwargs,
-    ) -> dict:
-        """Get S3 presigned upload URL for large/binary files."""
-        err = _validate_filename(filename)
-        if err:
-            return {"ok": False, "error": "invalid_path", "message": err}
-
-        import uuid
-        import os
-
-        _, ext = os.path.splitext(filename)
-        safe_name = f"{uuid.uuid4()}{ext}"
-        s3_key = f"projects/{project_id}/filesystem/{folder_path}/{safe_name}"
-
-        try:
-            s3 = get_s3_service_instance()
-            if not s3:
-                return {"ok": False, "error": "s3_unavailable", "message": "S3 service not available"}
-
-            upload_url = await s3.generate_presigned_upload_url(
-                key=s3_key,
-                content_type=content_type,
-                expires_in=3600,
-            )
-
-            return {
-                "ok": True,
-                "upload_url": upload_url,
-                "s3_key": s3_key,
-                "filename": filename,
-            }
-        except Exception as e:
-            log_error(f"[FolderSync] Upload URL failed: {e}")
-            return {"ok": False, "error": "upload_url_failed", "message": str(e)}
-
-    # ================================================================
-    # CONFIRM UPLOAD — create MUT tree reference after S3 upload
-    # ================================================================
-
-    async def confirm_upload(
-        self,
-        project_id: str,
-        folder_path: str,
-        filename: str,
-        s3_key: str,
-        operator_id: str = "sync:filesystem",
-        source_id: str = "",
-        **kwargs,
-    ) -> dict:
-        """Confirm that a binary file has been uploaded to S3."""
-        err = _validate_filename(filename)
-        if err:
-            return {"ok": False, "error": "invalid_path", "message": err}
-
-        file_path = f"{folder_path}/{filename}" if folder_path else filename
-
-        ref_content = _json.dumps({
-            "_type": "file_ref",
-            "_s3_key": s3_key,
-            "filename": filename,
-        }, ensure_ascii=False, indent=2).encode("utf-8")
-
-        try:
-            ops = self._get_ops()
-            result = await ops.write_file(
-                project_id, file_path, ref_content,
-                who=operator_id, message=f"Upload binary: {filename}",
-            )
-
-            log_info(f"[FolderSync] Confirmed upload: {file_path} → {s3_key}")
-            return {
-                "ok": True,
-                "path": file_path,
-                "s3_key": s3_key,
-                "version": result.version,
-            }
-        except Exception as e:
-            log_error(f"[FolderSync] Confirm upload failed: {e}")
-            return {"ok": False, "error": "confirm_failed", "message": str(e)}
+    def disconnect(self, sync: Sync) -> bool:
+        self._sync_repo.delete(sync.id)
+        log_info(f"[Filesystem] Disconnected: sync #{sync.id}")
+        return True

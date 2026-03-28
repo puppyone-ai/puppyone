@@ -313,11 +313,10 @@ async def create_sync(
     if body.sync_mode == "scheduled" and body.trigger:
         try:
             from src.infra.scheduler.service import get_scheduler_service
-            scheduler = get_scheduler_service()
-            await scheduler.add_sync_job(
-                sync_id=sync.id,
-                trigger_config=body.trigger,
+            await get_scheduler_service().sync_trigger(
+                connection_id=sync.id,
                 provider=body.provider,
+                trigger_config=body.trigger,
             )
         except Exception:
             pass
@@ -361,7 +360,7 @@ def list_syncs(
 
 
 @router.delete("/syncs/{sync_id}", response_model=ApiResponse)
-def delete_sync(
+async def delete_sync(
     sync_id: str,
     sync_svc: SyncService = Depends(get_sync_service),
     project_service: ProjectService = Depends(get_project_service),
@@ -377,7 +376,7 @@ def delete_sync(
 
     try:
         from src.infra.scheduler.service import get_scheduler_service
-        get_scheduler_service().remove_sync_job(sync_id)
+        await get_scheduler_service().sync_trigger(sync_id)
     except Exception:
         pass
 
@@ -412,20 +411,14 @@ async def update_sync_trigger(
 
     sync_svc.sync_repo.update(sync_id, trigger=trigger_data)
 
-    # Manage scheduler job
     try:
         from src.infra.scheduler.service import get_scheduler_service
-        scheduler = get_scheduler_service()
-
-        if body.sync_mode == "scheduled" and body.trigger:
-            sync = sync_svc.sync_repo.get_by_id(sync_id)
-            await scheduler.add_sync_job(
-                sync_id=sync_id,
-                trigger_config=body.trigger,
-                provider=sync.provider if sync else "",
-            )
-        else:
-            scheduler.remove_sync_job(sync_id)
+        sync = sync_svc.sync_repo.get_by_id(sync_id)
+        await get_scheduler_service().sync_trigger(
+            connection_id=sync_id,
+            provider=sync.provider if sync else "",
+            trigger_config=body.trigger if body.sync_mode == "scheduled" else None,
+        )
     except Exception:
         pass
 
@@ -572,56 +565,6 @@ def get_sync_run(
     ))
 
 
-@router.post("/syncs/openclaw/bootstrap", response_model=ApiResponse, deprecated=True)
-def bootstrap_openclaw(
-    project_id: str = Query(...),
-    path: str = Query(...),
-    sync_svc: SyncService = Depends(get_sync_service),
-    project_service: ProjectService = Depends(get_project_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    """DEPRECATED: Use POST /api/v1/filesystem/bootstrap instead."""
-    _ensure_project_access(project_service, current_user, project_id)
-
-    from src.connectors.filesystem.lifecycle import OpenClawService
-    from src.infra.supabase.client import SupabaseClient
-    svc = OpenClawService(
-        supabase=SupabaseClient(),
-        sync_repo=sync_svc.sync_repo,
-    )
-    sync = svc.bootstrap(project_id=project_id, path=path)
-    return ApiResponse.success(data={
-        "sync_id": sync.id,
-        "access_key": sync.access_key,
-        "path": sync.path,
-        "project_id": sync.project_id,
-    })
-
-
-@router.get("/syncs/{sync_id}/openclaw-status", response_model=ApiResponse, deprecated=True)
-def get_openclaw_status_by_sync(
-    sync_id: str,
-    sync_svc: SyncService = Depends(get_sync_service),
-    project_service: ProjectService = Depends(get_project_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    """DEPRECATED: Use GET /api/v1/filesystem/{sync_id}/connection-status instead."""
-    sync = sync_svc.sync_repo.get_by_id(sync_id)
-    if not sync or sync.provider != "filesystem":
-        return ApiResponse.success(data={"connected": False})
-
-    _ensure_project_access(project_service, current_user, sync.project_id)
-
-    from src.connectors.filesystem.lifecycle import OpenClawService
-    from src.infra.supabase.client import SupabaseClient
-    svc = OpenClawService(
-        supabase=SupabaseClient(),
-        sync_repo=sync_svc.sync_repo,
-    )
-    data = svc.status(sync)
-    return ApiResponse.success(data=data)
-
-
 @router.post("/bootstrap", response_model=ApiResponse[BootstrapResponse])
 async def bootstrap(
     body: BootstrapRequest,
@@ -663,10 +606,10 @@ async def bootstrap(
             from src.infra.scheduler.service import get_scheduler_service
             scheduler = get_scheduler_service()
             for s in syncs:
-                await scheduler.add_sync_job(
-                    sync_id=s.id,
-                    trigger_config=body.trigger,
+                await scheduler.sync_trigger(
+                    connection_id=s.id,
                     provider=body.provider,
+                    trigger_config=body.trigger,
                 )
         except Exception:
             pass
@@ -858,7 +801,7 @@ def get_sync_changelog(
     """Query the sync changelog for a project, for frontend display of sync events."""
     _ensure_project_access(project_service, current_user, project_id)
 
-    from src.connectors.filesystem.changelog import SyncChangelogRepository
+    from src.connectors.datasource.changelog import SyncChangelogRepository
     from src.infra.supabase.client import SupabaseClient
 
     changelog_repo = SyncChangelogRepository(SupabaseClient())

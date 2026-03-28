@@ -40,7 +40,6 @@ class DashboardConnection(BaseModel):
     provider: str
     name: Optional[str] = None
     path: Optional[str] = None
-    node_name: Optional[str] = None
     direction: Optional[str] = None
     status: str = "active"
     access_key: Optional[str] = None
@@ -120,7 +119,6 @@ def get_project_dashboard(
             provider=r["provider"],
             name=name,
             path=r.get("path"),
-            node_name=None,
             direction=r.get("direction"),
             status=r.get("status", "active"),
             access_key=_mask_key(r.get("access_key")),
@@ -143,12 +141,21 @@ def get_project_dashboard(
     index_map: dict[str, dict] = {}
     if search_tool_ids:
         idx_rows = (
-            sb.table("search_index_tasks")
-            .select("tool_id, status, chunks_count, total_files, indexed_files")
-            .in_("tool_id", search_tool_ids)
+            sb.table("uploads")
+            .select("id, status, result")
+            .eq("type", "search_index")
+            .in_("id", search_tool_ids)
             .execute()
         ).data
-        index_map = {r["tool_id"]: r for r in idx_rows}
+        _STATUS_MAP = {"running": "indexing", "completed": "ready", "failed": "error", "pending": "pending"}
+        for r in idx_rows:
+            res = r.get("result") or {}
+            index_map[r["id"]] = {
+                "status": _STATUS_MAP.get(r.get("status", ""), r.get("status", "")),
+                "chunks_count": res.get("chunks_count"),
+                "total_files": res.get("total_files"),
+                "indexed_files": res.get("indexed_files"),
+            }
 
     for t in tool_rows:
         idx = index_map.get(t["id"])
@@ -166,10 +173,10 @@ def get_project_dashboard(
     uploads: list[DashboardUpload] = []
     try:
         upload_rows = (
-            sb.table("ingest_tasks")
-            .select("id, status, type, task_type, progress, message")
+            sb.table("uploads")
+            .select("id, status, type, progress, message")
             .eq("project_id", project_id)
-            .in_("status", ["pending", "processing"])
+            .in_("status", ["pending", "running"])
             .limit(20)
             .execute()
         ).data
@@ -177,7 +184,7 @@ def get_project_dashboard(
             uploads.append(DashboardUpload(
                 id=u["id"],
                 status=u["status"],
-                type=u.get("task_type") or u.get("type", "file"),
+                type=u.get("type", "file"),
                 progress=u.get("progress", 0),
                 message=u.get("message"),
             ))

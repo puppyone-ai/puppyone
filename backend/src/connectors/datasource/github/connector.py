@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import httpx
 
 from typing import Any
-from src.oauth.github_service import GithubOAuthService
+from src.connectors.datasource.oauth.github_service import GithubOAuthService
 from src.infra.s3.service import S3Service
 from src.connectors.datasource._base import (
     BaseConnector,

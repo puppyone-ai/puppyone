@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { type SavedAgent, type AgentType, type TriggerType, type TriggerConfig, type ExternalConfig } from '@/components/AgentRail';
 import { post, get, put, del } from '@/lib/apiClient';
-import { stat } from '@/lib/contentNodesApi';
+import { stat } from '@/lib/contentTreeApi';
 
 /**
  * Sidebar state machine:
@@ -77,10 +77,9 @@ function mapNodeType(backendType: string): 'folder' | 'json' | 'file' {
 
 // Bash 访问资源模型（新版简化结构）
 export interface AccessResource {
-  nodeId: string;
+  path: string;
   nodeName: string;
   nodeType: 'folder' | 'json' | 'file';
-  jsonPath?: string;
   readonly: boolean;
 }
 
@@ -138,8 +137,8 @@ interface AgentContextValue {
   
   // 资源管理
   addDraftResource: (resource: AccessResource) => void;
-  updateDraftResource: (nodeId: string, updates: Partial<AccessResource>) => void;
-  removeDraftResource: (nodeId: string) => void;
+  updateDraftResource: (path: string, updates: Partial<AccessResource>) => void;
+  removeDraftResource: (path: string) => void;
   setDraftResources: (resources: AccessResource[]) => void;
   
   // Schedule Agent 新增 setters
@@ -228,7 +227,6 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           bash_accesses?: Array<{
             id: string;
             path: string;
-            json_path: string;
             readonly: boolean;
           }>;
         }>>(`/api/v1/agent-config/?project_id=${projectId}`);
@@ -247,10 +245,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           const resources: AccessResource[] = bashAccesses.map(bash => {
             const nodeInfo = nodeInfoMap.get(bash.path);
             return {
-              nodeId: bash.path,
+              path: bash.path,
               nodeName: nodeInfo?.name || bash.path.substring(0, 8) + '...',
               nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
-              jsonPath: bash.json_path,
               readonly: bash.readonly,
             };
           });
@@ -260,7 +257,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
             name: a.name,
             icon: a.icon,
             type: (a.type as AgentType) || 'chat',
-            capabilities: resources.map(r => `resource:${r.nodeId}`),
+            capabilities: resources.map(r => `resource:${r.path}`),
             mcp_api_key: a.mcp_api_key,
             // Schedule Agent 新字段
             trigger_type: (a.trigger_type as TriggerType) || 'manual',
@@ -376,7 +373,6 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
             bash_accesses?: Array<{
               id: string;
               path: string;
-              json_path: string;
               readonly: boolean;
             }>;
           }>(`/api/v1/agent-config/${agentId}`);
@@ -389,10 +385,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           const resources: AccessResource[] = bashAccesses.map(bash => {
             const nodeInfo = nodeInfoMap.get(bash.path);
             return {
-              nodeId: bash.path,
+              path: bash.path,
               nodeName: nodeInfo?.name || bash.path.substring(0, 8) + '...',
               nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
-              jsonPath: bash.json_path,
               readonly: bash.readonly,
             };
           });
@@ -409,8 +404,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   const deployAgent = useCallback(async (name: string, icon: string) => {
     try {
       const bashAccesses = draftResources.map(r => ({
-        path: r.nodeId,
-        json_path: r.jsonPath || '',
+        path: r.path,
         readonly: r.readonly ?? true,
       }));
 
@@ -480,7 +474,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         agentId = response.id;
 
         // 将 draftResources 转换为 capabilities（用于兼容旧的数据结构）
-        const capabilitiesFromResources = draftResources.map(r => `resource:${r.nodeId}`);
+        const capabilitiesFromResources = draftResources.map(r => `resource:${r.path}`);
         
         const newAgent: SavedAgent = {
           id: response.id,
@@ -502,7 +496,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
       
       // Switch to this agent
       setCurrentAgentId(agentId);
-      setSelectedCapabilities(new Set(draftResources.map(r => `resource:${r.nodeId}`)));
+      setSelectedCapabilities(new Set(draftResources.map(r => `resource:${r.path}`)));
       setSidebarMode('deployed');
       setEditingAgentId(null);
     } catch (error) {
@@ -531,7 +525,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
 
     try {
       let syncId: string | null = null;
-      let nodeId: string = targetNode.nodeId;
+      let nodePath: string = targetNode.path;
 
       if (params.provider === 'filesystem') {
         const result = await post<{
@@ -539,25 +533,25 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           access_key: string;
           path: string;
           project_id: string;
-        }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&path=${nodeId}`);
+        }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&path=${nodePath}`);
         syncId = result.sync_id;
-        nodeId = result.path;
+        nodePath = result.path;
       } else if (params.provider === 'mcp') {
         const result = await post<{ id: string }>('/api/v1/mcp-endpoints', {
           project_id: projectId,
-          path: nodeId,
+          path: nodePath,
           name: (params.config?.name as string) || 'MCP Endpoint',
           description: (params.config?.description as string) || null,
-          accesses: [{ path: nodeId, json_path: '', readonly: false }],
+          accesses: [{ path: nodePath, json_path: '', readonly: false }],
         });
         syncId = result.id || null;
       } else if (params.provider === 'sandbox') {
         const result = await post<{ id: string }>('/api/v1/sandbox-endpoints', {
           project_id: projectId,
-          path: nodeId,
+          path: nodePath,
           name: (params.config?.name as string) || 'Sandbox',
           description: (params.config?.description as string) || null,
-          mounts: [{ path: nodeId, mount_path: '/workspace', permissions: { read: true, write: true, exec: false } }],
+          mounts: [{ path: nodePath, mount_path: '/workspace', permissions: { read: true, write: true, exec: false } }],
         });
         syncId = result.id || null;
       } else {
@@ -571,7 +565,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           project_id: projectId,
           provider: params.provider,
           config: params.config || {},
-          target_folder_path: nodeId,
+          target_folder_path: nodePath,
           credentials_ref: params.credentialsRef,
           direction: params.direction,
           conflict_strategy: 'three_way_merge',
@@ -582,7 +576,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
 
       if (params.uiMode !== 'inline') {
         if (syncId) {
-          selectSync(syncId, nodeId);
+          selectSync(syncId, nodePath);
         }
         setSidebarMode('deployed');
       }
@@ -658,8 +652,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
     try {
       // 构建后端需要的 bash 数据
       const bashAccesses = resources.map(r => ({
-        path: r.nodeId,
-        json_path: r.jsonPath || '',
+        path: r.path,
         readonly: r.readonly ?? true,
       }));
       
@@ -714,24 +707,21 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   // 新：添加资源
   const addDraftResource = useCallback((resource: AccessResource) => {
     setDraftResources(prev => {
-      // 检查是否已存在
-      if (prev.some(r => r.nodeId === resource.nodeId)) {
+      if (prev.some(r => r.path === resource.path)) {
         return prev;
       }
       return [...prev, resource];
     });
   }, []);
 
-  // 新：更新资源
-  const updateDraftResource = useCallback((nodeId: string, updates: Partial<AccessResource>) => {
+  const updateDraftResource = useCallback((path: string, updates: Partial<AccessResource>) => {
     setDraftResources(prev => 
-      prev.map(r => r.nodeId === nodeId ? { ...r, ...updates } : r)
+      prev.map(r => r.path === path ? { ...r, ...updates } : r)
     );
   }, []);
 
-  // 新：移除资源
-  const removeDraftResource = useCallback((nodeId: string) => {
-    setDraftResources(prev => prev.filter(r => r.nodeId !== nodeId));
+  const removeDraftResource = useCallback((path: string) => {
+    setDraftResources(prev => prev.filter(r => r.path !== path));
   }, []);
 
   // Toggle Runtime Capability

@@ -59,12 +59,11 @@ backend/
 │   │   ├── manager/           # 统一连接 CRUD (connections 表)
 │   │   ├── agent/             # AI Agent (config/chat/MCP 绑定)
 │   │   ├── datasource/        # SaaS 数据源 (Gmail/GitHub/Notion/...)
+│   │   │   └── oauth/         # OAuth 授权流程 & token 存储
 │   │   ├── database/          # 外部数据库连接器
-│   │   └── filesystem/        # 本地文件夹同步 (OpenClaw)
-│   │
-│   ├── endpoints/             # 端点管理
-│   │   ├── mcp/               # MCP 端点 CRUD
-│   │   └── sandbox/           # Sandbox 端点 CRUD
+│   │   ├── filesystem/        # 本地文件夹同步 (OpenClaw)
+│   │   ├── mcp_endpoint/      # MCP 端点 CRUD & API key
+│   │   └── sandbox_endpoint/  # Sandbox 端点 CRUD & exec
 │   │
 │   ├── platform/              # 平台服务
 │   │   ├── auth/              # JWT 认证
@@ -81,6 +80,7 @@ backend/
 │   │   ├── search/            # 向量搜索 (Turbopuffer)
 │   │   ├── chunking/          # 文本分块
 │   │   ├── scheduler/         # 定时任务 (APScheduler)
+│   │   ├── sandbox/           # Sandbox 运行时 (Docker/E2B)
 │   │   ├── security/          # AES-256-GCM 加密
 │   │   └── turbopuffer/       # 向量 DB 客户端
 │   │
@@ -181,8 +181,8 @@ uv run arq src.upload.file.jobs.worker.WorkerSettings
 | `/api/v1/agents` | connectors/agent | Agent SSE 流式对话 |
 | `/api/v1/agent-config` | connectors/agent/config | Agent CRUD & 权限 |
 | `/api/v1/mcp` | connectors/agent/mcp | MCP 工具绑定 & 代理 |
-| `/api/v1/mcp-endpoints` | endpoints/mcp | MCP 端点 CRUD |
-| `/api/v1/sandbox-endpoints` | endpoints/sandbox | Sandbox 端点 CRUD |
+| `/api/v1/mcp-endpoints` | connectors/mcp_endpoint | MCP 端点 CRUD |
+| `/api/v1/sandbox-endpoints` | connectors/sandbox_endpoint | Sandbox 端点 CRUD |
 | `/api/v1/connections` | connectors/manager | 统一连接管理 |
 | `/api/v1/sync` | connectors/datasource | SaaS 数据源同步 |
 | `/api/v1/collab` | mut_engine | 协作 (checkout/commit/versions/rollback/diff) |

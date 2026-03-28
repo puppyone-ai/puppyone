@@ -10,13 +10,12 @@ Responsibilities:
 All writes go through MutOps (clone → push under the hood).
 """
 
-import json
 from typing import Optional, List, Any
 
 from src.connectors.datasource._base import BaseConnector
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.schemas import Sync, ResourceInfo
-from src.utils.logger import log_info, log_error, log_debug
+from src.utils.logger import log_info, log_error
 
 
 class SyncService:
@@ -275,8 +274,8 @@ class SyncService:
         credential resolution → connector.fetch() → hash compare → MutOps.write()
         """
         try:
-            from src.connectors.datasource.engine import SyncEngine
-            engine = SyncEngine(self.sync_repo)
+            from src.connectors.datasource.dependencies import create_sync_engine
+            engine = create_sync_engine()
             result = await engine.execute(sync.id)
             if not result:
                 return None
@@ -346,21 +345,3 @@ class SyncService:
             self.sync_repo.update_error(sync.id, str(e))
             return []
 
-    # ============================================================
-    # Internal helpers
-    # ============================================================
-
-    async def _get_base_content(self, sync: Sync) -> Optional[str]:
-        """Get base content for three-way merge (content at last sync version)."""
-        if sync.last_sync_version <= 0:
-            return None
-        try:
-            from src.mut_engine.dependencies import create_mut_admin_service
-            admin = create_mut_admin_service()
-            content_bytes = await admin.get_version_content(
-                sync.project_id, sync.path, sync.last_sync_version,
-            )
-            return content_bytes.decode("utf-8", errors="replace")
-        except Exception:
-            log_debug(f"[L2.5] Could not load base content for v{sync.last_sync_version}")
-        return None

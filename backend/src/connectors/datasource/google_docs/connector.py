@@ -18,7 +18,7 @@ from src.connectors.datasource._base import (
     Credentials,
     ConfigField,
 )
-from src.oauth.google_docs_service import GoogleDocsOAuthService
+from src.connectors.datasource.oauth.google_docs_service import GoogleDocsOAuthService
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
@@ -215,7 +215,7 @@ class GoogleDocsConnector(BaseConnector):
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     from src.connectors.datasource._base import ConnectorSetup
-    from src.oauth.google_docs_service import GoogleDocsOAuthService
+    from src.connectors.datasource.oauth.google_docs_service import GoogleDocsOAuthService
     oauth_svc = GoogleDocsOAuthService()
     return ConnectorSetup(
         connector=GoogleDocsConnector(

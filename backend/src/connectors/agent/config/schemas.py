@@ -12,12 +12,10 @@ from pydantic import BaseModel, Field
 
 class AgentBashCreate(BaseModel):
     path: str = Field(..., description="MUT path")
-    json_path: str = Field(default="", description="JSON sub-path")
     readonly: bool = Field(default=True)
 
 
 class AgentBashUpdate(BaseModel):
-    json_path: Optional[str] = None
     readonly: Optional[bool] = None
 
 
@@ -25,7 +23,6 @@ class AgentBashOut(BaseModel):
     id: str
     agent_id: str
     path: str
-    json_path: str
     readonly: bool
 
     node_name: Optional[str] = None

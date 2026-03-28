@@ -380,7 +380,7 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
             <ActionButton label={disconnecting ? 'Removing...' : 'Disconnect'} icon="disconnect" variant="danger" onClick={handleDisconnect} />
           </div>
 
-          {/* OpenClaw: Access Key */}
+          {/* Filesystem: Access Key */}
           {sync.provider === 'filesystem' && sync.access_key && (
             <AccessKeyRow accessKey={sync.access_key} />
           )}

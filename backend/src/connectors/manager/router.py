@@ -2,7 +2,7 @@
 Unified Connections API
 
 Single entry-point CRUD over the `connections` table for ALL provider types
-(sync, agent, mcp, sandbox, filesystem). Allows the CLI `puppyone connection`
+(sync, agent, mcp, sandbox, filesystem). Allows the CLI `puppyone access`
 command group to manage every connection from one place.
 """
 
@@ -171,20 +171,26 @@ def get_connection(
     summary="Update connection (status, trigger, config)",
     status_code=status.HTTP_200_OK,
 )
-def update_connection(
+async def update_connection(
     payload: ConnectionUpdate,
     connection_id: str = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     sb = _get_client()
 
-    resp = sb.table("connections").select("project_id").eq("id", connection_id).execute()
+    resp = (
+        sb.table("connections")
+        .select("project_id, provider, trigger")
+        .eq("id", connection_id)
+        .execute()
+    )
     if not resp.data:
         raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
 
+    row = resp.data[0]
     org_ids = resolve_org_ids(None, current_user.user_id)
     pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
-    if resp.data[0]["project_id"] not in pids:
+    if row["project_id"] not in pids:
         raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
 
     fields: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
@@ -197,6 +203,18 @@ def update_connection(
 
     sb.table("connections").update(fields).eq("id", connection_id).execute()
 
+    if payload.trigger is not None:
+        try:
+            from src.infra.scheduler.service import get_scheduler_service
+            trigger_type = (payload.trigger or {}).get("type", "")
+            await get_scheduler_service().sync_trigger(
+                connection_id=connection_id,
+                provider=row.get("provider", ""),
+                trigger_config=payload.trigger if trigger_type == "scheduled" else None,
+            )
+        except Exception:
+            pass
+
     updated = sb.table("connections").select("*").eq("id", connection_id).execute()
     return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Connection updated")
 
@@ -207,7 +225,7 @@ def update_connection(
     summary="Delete connection",
     status_code=status.HTTP_200_OK,
 )
-def delete_connection(
+async def delete_connection(
     connection_id: str = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -221,6 +239,12 @@ def delete_connection(
     pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
     if resp.data[0]["project_id"] not in pids:
         raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+
+    try:
+        from src.infra.scheduler.service import get_scheduler_service
+        await get_scheduler_service().sync_trigger(connection_id)
+    except Exception:
+        pass
 
     sb.table("connections").delete().eq("id", connection_id).execute()
     return ApiResponse.success(message="Connection deleted")
@@ -374,6 +398,7 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
     registry = get_connector_registry()
     sync_svc = _build_sync_service(registry)
 
+    sync_mode = payload.sync_mode or "import_once"
     sync = await sync_svc.create_sync(
         project_id=payload.project_id,
         provider=payload.provider,
@@ -382,10 +407,22 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
         credentials_ref=payload.credentials_ref,
         direction=payload.direction or "inbound",
         conflict_strategy=payload.conflict_strategy or "three_way_merge",
-        sync_mode=payload.sync_mode or "import_once",
+        sync_mode=sync_mode,
         trigger=payload.trigger,
         user_id=user_id,
     )
+
+    if sync_mode == "scheduled" and payload.trigger:
+        try:
+            from src.infra.scheduler.service import get_scheduler_service
+            await get_scheduler_service().sync_trigger(
+                connection_id=sync.id,
+                provider=payload.provider,
+                trigger_config=payload.trigger,
+            )
+        except Exception:
+            pass
+
     return UnifiedConnectionOut(
         id=sync.id,
         project_id=sync.project_id,
@@ -407,7 +444,6 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         bash_accesses = [
             AgentBashCreate(
                 path=a["path"],
-                json_path=a.get("json_path", ""),
                 readonly=a.get("readonly", a.get("terminal_readonly", True)),
             )
             for a in payload.accesses
@@ -437,9 +473,9 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 
 def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    from src.endpoints.mcp.repository import McpEndpointRepository
-    from src.endpoints.mcp.service import McpEndpointService
-    from src.endpoints.mcp.schemas import McpAccessItem, McpToolItem
+    from src.connectors.mcp_endpoint.repository import McpEndpointRepository
+    from src.connectors.mcp_endpoint.service import McpEndpointService
+    from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
 
     service = McpEndpointService(repository=McpEndpointRepository())
 
@@ -464,9 +500,9 @@ def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 
 def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    from src.endpoints.sandbox.repository import SandboxEndpointRepository
-    from src.endpoints.sandbox.service import SandboxEndpointService
-    from src.endpoints.sandbox.schemas import SandboxMountItem, SandboxResourceLimits
+    from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
+    from src.connectors.sandbox_endpoint.service import SandboxEndpointService
+    from src.connectors.sandbox_endpoint.schemas import SandboxMountItem, SandboxResourceLimits
 
     service = SandboxEndpointService(repository=SandboxEndpointRepository())
 
@@ -496,14 +532,14 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 async def _create_filesystem(
     payload: UnifiedConnectionCreate, _user_id: str,
 ) -> UnifiedConnectionOut:
-    """Create a filesystem sync connection (OpenClaw)."""
-    from src.connectors.filesystem.lifecycle import OpenClawService
+    """Create a filesystem sync connection."""
+    from src.connectors.filesystem.service import FilesystemService
     from src.connectors.datasource.repository import SyncRepository
     from src.infra.supabase.client import SupabaseClient
 
     supabase = SupabaseClient()
     sync_repo = SyncRepository(supabase)
-    service = OpenClawService(supabase=supabase, sync_repo=sync_repo)
+    service = FilesystemService(supabase=supabase, sync_repo=sync_repo)
 
     cfg = payload.config
     scope_path = cfg.get("scope", payload.path or "/")

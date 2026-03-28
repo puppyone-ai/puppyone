@@ -5,7 +5,7 @@ import { useAgent, AgentType } from '@/contexts/AgentContext';
 import type { Tool as DbTool } from '@/lib/mcpApi';
 import { ChatAgentConfig } from './configs/ChatAgentConfig';
 import { ScheduleAgentConfig } from './configs/ScheduleAgentConfig';
-import { OpenClawAgentConfig } from './configs/OpenClawAgentConfig';
+import { FilesystemAgentConfig } from './configs/FilesystemAgentConfig';
 import type { AgentConfigProps } from './configs/ChatAgentConfig';
 
 /**
@@ -24,7 +24,7 @@ interface AgentEditViewProps {
 const AGENT_CONFIG_MAP: Record<AgentType, React.ComponentType<AgentConfigProps>> = {
   chat:     ChatAgentConfig,
   schedule: ScheduleAgentConfig,
-  devbox:   OpenClawAgentConfig,
+  devbox:   FilesystemAgentConfig,
   webhook:  ChatAgentConfig,
 };
 

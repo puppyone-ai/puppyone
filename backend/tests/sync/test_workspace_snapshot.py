@@ -7,7 +7,7 @@ import pytest
 
 import src.platform.workspace.provider as provider_module
 from src.config import settings
-from src.connectors.filesystem.worker import SyncWorker, _extract_file_ref
+from src.platform.workspace.sync_worker import SyncWorker, _extract_file_ref
 from src.platform.workspace.provider import get_workspace_provider
 
 
@@ -77,7 +77,7 @@ async def test_sync_worker_downloads_binary_from_s3(tmp_path: Path, monkeypatch)
     fake_s3.download_file = AsyncMock(return_value=b"\x89PNG_FAKE_DATA")
 
     monkeypatch.setattr(
-        "src.connectors.filesystem.worker.get_s3_service_instance",
+        "src.platform.workspace.sync_worker.get_s3_service_instance",
         lambda: fake_s3,
     )
 
@@ -98,7 +98,7 @@ async def test_sync_worker_downloads_binary_from_s3(tmp_path: Path, monkeypatch)
 async def test_sync_worker_fallback_when_s3_unavailable(tmp_path: Path, monkeypatch):
     """When S3 is unavailable, file_ref JSON blob is written as-is."""
     monkeypatch.setattr(
-        "src.connectors.filesystem.worker.get_s3_service_instance",
+        "src.platform.workspace.sync_worker.get_s3_service_instance",
         lambda: None,
     )
 

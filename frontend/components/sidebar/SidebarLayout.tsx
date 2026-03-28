@@ -3,7 +3,7 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import UserMenuPanel from '../UserMenuPanel';
-import { type NodeInfo } from '../../lib/contentNodesApi';
+import { type NodeInfo } from '../../lib/contentTreeApi';
 import { ProjectSwitcher, type ProjectOption } from './ProjectSwitcher';
 import { getEnvironmentLabel } from '../../lib/env';
 

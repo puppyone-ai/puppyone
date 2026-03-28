@@ -31,7 +31,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
     from src.infra.supabase.client import SupabaseClient
     from src.connectors.agent.service import AgentService
     from src.connectors.agent.config.service import AgentConfigService
-    from src.sandbox.service import SandboxService
+    from src.infra.sandbox.service import SandboxService
 
     started_at = datetime.now(timezone.utc)
     execution_id: Optional[str] = None

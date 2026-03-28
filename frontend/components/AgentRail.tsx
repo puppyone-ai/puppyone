@@ -25,10 +25,9 @@ export interface ExternalConfig {
 
 // Bash 访问资源配置（新版简化结构）
 export interface AccessResource {
-  nodeId: string;
+  path: string;
   nodeName: string;
   nodeType: 'folder' | 'json' | 'file';
-  jsonPath?: string;
   readonly: boolean;
 }
 

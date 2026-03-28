@@ -330,7 +330,7 @@ export async function dashboardAction(path, opts, cmd) {
       }
     } else {
       out.info("  Connections: (none)");
-      out.info("    Run `puppyone sync add <provider> ...` to connect a data source.");
+      out.info("    Run `puppyone access add <provider> ...` to connect a data source.");
     }
     out.info("");
 

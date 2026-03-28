@@ -112,7 +112,7 @@ export function SaaSyncConfig({
       const node = JSON.parse(data);
       const nodeType: AcceptedNodeType = node.type === 'folder' ? 'folder' : node.type === 'json' ? 'json' : node.type === 'markdown' ? 'markdown' : 'file';
       if (!accept.includes(nodeType)) return;
-      addDraftResource({ nodeId: node.nodeId || node.id, nodeName: node.name, nodeType, readonly: true, jsonPath: node.jsonPath || '' } as AccessResource);
+      addDraftResource({ path: node.nodeId || node.id, nodeName: node.name, nodeType, readonly: true } as AccessResource);
     } catch { /* ignore */ }
   };
 
@@ -192,7 +192,7 @@ export function SaaSyncConfig({
                       </span>
                     </div>
                     <button
-                      onClick={() => removeDraftResource(targetRes.nodeId)}
+                      onClick={() => removeDraftResource(targetRes.path)}
                       style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         width: 20, height: 20, borderRadius: 4, background: 'transparent',

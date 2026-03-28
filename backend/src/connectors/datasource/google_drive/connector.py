@@ -19,7 +19,7 @@ from src.connectors.datasource._base import (
     Credentials,
     ConfigField,
 )
-from src.oauth.google_drive_service import GoogleDriveOAuthService
+from src.connectors.datasource.oauth.google_drive_service import GoogleDriveOAuthService
 from src.infra.s3.service import S3Service
 
 
@@ -214,7 +214,7 @@ class GoogleDriveConnector(BaseConnector):
 
 def setup(deps: "ConnectorDeps") -> "ConnectorSetup":
     from src.connectors.datasource._base import ConnectorSetup
-    from src.oauth.google_drive_service import GoogleDriveOAuthService
+    from src.connectors.datasource.oauth.google_drive_service import GoogleDriveOAuthService
     oauth_svc = GoogleDriveOAuthService()
     return ConnectorSetup(
         connector=GoogleDriveConnector(
