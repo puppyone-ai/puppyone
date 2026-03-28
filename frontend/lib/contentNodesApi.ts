@@ -2,7 +2,7 @@
  * Tree API Client
  *
  * Path-based file system API — all nodes identified by path (e.g. "docs/readme.md").
- * Backend: /api/v1/tree/{projectId}/...
+ * Backend: /api/v1/content/{projectId}/...
  * All responses wrapped in { code: 0, message: "success", data: {...} }
  */
 
@@ -172,7 +172,7 @@ export function hasContent(node: { content_hash?: string | null }): boolean {
 
 /**
  * List directory entries at the given path.
- * GET /api/v1/tree/{projectId}/ls?path=...
+ * GET /api/v1/content/{projectId}/ls?path=...
  */
 export async function listDir(
   projectId: string,
@@ -181,7 +181,7 @@ export async function listDir(
   const params = new URLSearchParams();
   if (path) params.set('path', path);
   const data = await treeRequest<{ entries: TreeEntry[] }>(
-    `/api/v1/tree/${projectId}/ls?${params.toString()}`
+    `/api/v1/content/${projectId}/ls?${params.toString()}`
   );
   const nodes = (data.entries || []).map(e => entryToNodeInfo(e, projectId));
   return { nodes, total: nodes.length };
@@ -199,7 +199,7 @@ export async function listNodes(
 
 /**
  * Get file content.
- * GET /api/v1/tree/{projectId}/cat?path=...
+ * GET /api/v1/content/{projectId}/cat?path=...
  */
 export async function readFile(
   projectId: string,
@@ -207,13 +207,13 @@ export async function readFile(
 ): Promise<TreeCatResponse> {
   const params = new URLSearchParams({ path });
   return treeRequest<TreeCatResponse>(
-    `/api/v1/tree/${projectId}/cat?${params.toString()}`
+    `/api/v1/content/${projectId}/cat?${params.toString()}`
   );
 }
 
 /**
  * Stat a path (check existence and type).
- * GET /api/v1/tree/{projectId}/stat?path=...
+ * GET /api/v1/content/{projectId}/stat?path=...
  */
 export async function stat(
   projectId: string,
@@ -221,13 +221,13 @@ export async function stat(
 ): Promise<TreeStatResponse> {
   const params = new URLSearchParams({ path });
   return treeRequest<TreeStatResponse>(
-    `/api/v1/tree/${projectId}/stat?${params.toString()}`
+    `/api/v1/content/${projectId}/stat?${params.toString()}`
   );
 }
 
 /**
  * Recursive tree listing.
- * GET /api/v1/tree/{projectId}/tree?path=...
+ * GET /api/v1/content/{projectId}/tree?path=...
  */
 export async function treeList(
   projectId: string,
@@ -236,14 +236,14 @@ export async function treeList(
   const params = new URLSearchParams();
   if (path) params.set('path', path);
   const data = await treeRequest<{ entries: TreeEntry[] }>(
-    `/api/v1/tree/${projectId}/tree?${params.toString()}`
+    `/api/v1/content/${projectId}/tree?${params.toString()}`
   );
   return data.entries || [];
 }
 
 /**
  * Write file content.
- * POST /api/v1/tree/{projectId}/write
+ * POST /api/v1/content/{projectId}/write
  */
 export async function writeFile(
   projectId: string,
@@ -256,7 +256,7 @@ export async function writeFile(
   const body: Record<string, any> = { path, content, node_type: nodeType };
   if (message) body.message = message;
   if (baseVersion !== undefined) body.base_version = baseVersion;
-  return treeRequest<TreeWriteResponse>(`/api/v1/tree/${projectId}/write`, {
+  return treeRequest<TreeWriteResponse>(`/api/v1/content/${projectId}/write`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -264,13 +264,13 @@ export async function writeFile(
 
 /**
  * Create directory.
- * POST /api/v1/tree/{projectId}/mkdir
+ * POST /api/v1/content/{projectId}/mkdir
  */
 export async function mkdir(
   projectId: string,
   path: string
 ): Promise<TreeMkdirResponse> {
-  return treeRequest<TreeMkdirResponse>(`/api/v1/tree/${projectId}/mkdir`, {
+  return treeRequest<TreeMkdirResponse>(`/api/v1/content/${projectId}/mkdir`, {
     method: 'POST',
     body: JSON.stringify({ path }),
   });
@@ -278,7 +278,7 @@ export async function mkdir(
 
 /**
  * Move/rename a file or folder.
- * POST /api/v1/tree/{projectId}/mv
+ * POST /api/v1/content/{projectId}/mv
  */
 export async function moveFile(
   projectId: string,
@@ -288,7 +288,7 @@ export async function moveFile(
 ): Promise<TreeMvResponse> {
   const body: Record<string, any> = { old_path: oldPath, new_path: newPath };
   if (message) body.message = message;
-  return treeRequest<TreeMvResponse>(`/api/v1/tree/${projectId}/mv`, {
+  return treeRequest<TreeMvResponse>(`/api/v1/content/${projectId}/mv`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
@@ -296,14 +296,14 @@ export async function moveFile(
 
 /**
  * Remove file or folder.
- * POST /api/v1/tree/{projectId}/rm
+ * POST /api/v1/content/{projectId}/rm
  */
 export async function removeFile(
   projectId: string,
   path: string,
   permanent: boolean = false
 ): Promise<TreeRmResponse> {
-  return treeRequest<TreeRmResponse>(`/api/v1/tree/${projectId}/rm`, {
+  return treeRequest<TreeRmResponse>(`/api/v1/content/${projectId}/rm`, {
     method: 'POST',
     body: JSON.stringify({ path, permanent }),
   });
@@ -311,7 +311,7 @@ export async function removeFile(
 
 /**
  * Restore from trash.
- * POST /api/v1/tree/{projectId}/restore
+ * POST /api/v1/content/{projectId}/restore
  */
 export async function restoreFile(
   projectId: string,
@@ -319,7 +319,7 @@ export async function restoreFile(
   originalPath: string
 ): Promise<TreeRestoreResponse> {
   return treeRequest<TreeRestoreResponse>(
-    `/api/v1/tree/${projectId}/restore`,
+    `/api/v1/content/${projectId}/restore`,
     {
       method: 'POST',
       body: JSON.stringify({ trash_path: trashPath, original_path: originalPath }),
@@ -329,13 +329,13 @@ export async function restoreFile(
 
 /**
  * List trash entries.
- * GET /api/v1/tree/{projectId}/trash
+ * GET /api/v1/content/{projectId}/trash
  */
 export async function listTrash(
   projectId: string
 ): Promise<TreeEntry[]> {
   const data = await treeRequest<{ entries: TreeEntry[] }>(
-    `/api/v1/tree/${projectId}/trash`
+    `/api/v1/content/${projectId}/trash`
   );
   return data.entries || [];
 }
@@ -557,7 +557,7 @@ export async function getVersionHistory(
     since_version: String(sinceVersion),
   });
   return treeRequest<VersionHistoryResponse>(
-    `/api/v1/tree/${projectId}/versions?${params}`
+    `/api/v1/content/${projectId}/versions?${params}`
   );
 }
 
@@ -571,7 +571,7 @@ export async function getVersionContent(
     version: String(version),
   });
   return treeRequest<FileVersionDetail>(
-    `/api/v1/tree/${projectId}/version-content?${params}`
+    `/api/v1/content/${projectId}/version-content?${params}`
   );
 }
 
@@ -581,7 +581,7 @@ export async function rollbackToVersion(
   projectId: string
 ): Promise<RollbackResponse> {
   return treeRequest<RollbackResponse>(
-    `/api/v1/tree/${projectId}/rollback`,
+    `/api/v1/content/${projectId}/rollback`,
     {
       method: 'POST',
       body: JSON.stringify({ path: filePath, target_version: version }),
@@ -601,7 +601,7 @@ export async function diffVersions(
     v2: String(v2),
   });
   return treeRequest<DiffResponse>(
-    `/api/v1/tree/${projectId}/diff?${params}`
+    `/api/v1/content/${projectId}/diff?${params}`
   );
 }
 
@@ -648,7 +648,7 @@ export async function getProjectHistory(
     since_version: String(sinceVersion),
   });
   return treeRequest<MutProjectHistoryResponse>(
-    `/api/v1/tree/${projectId}/versions?${params}`
+    `/api/v1/content/${projectId}/versions?${params}`
   );
 }
 
@@ -688,7 +688,7 @@ export async function getNodeAuditLogs(
     offset: String(offset),
   });
   return treeRequest<AuditLogListResponse>(
-    `/api/v1/tree/${projectId}/audit-logs?${params}`
+    `/api/v1/content/${projectId}/audit-logs?${params}`
   );
 }
 

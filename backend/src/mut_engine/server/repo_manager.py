@@ -7,7 +7,7 @@ Each PuppyOne project corresponds to one Mut "repo", composed of:
   - AuditLog (Supabase)             -> audit logs
 
 Provides two repo views:
-  - ProjectRepo  -> used by MutWriteService (internal writes)
+  - ProjectRepo  -> used by MutAdminService (admin/history operations)
   - PuppyOneServerRepo -> used by MUT protocol handlers (clone/push/pull)
 """
 
@@ -21,11 +21,11 @@ from mut.core.merge import ConflictResolver
 
 from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
-from src.mut_engine.backends.s3_storage import S3StorageBackend
-from src.mut_engine.backends.supabase_history import SupabaseHistoryManager
-from src.mut_engine.backends.supabase_audit import SupabaseAuditManager
-from src.mut_engine.backends.supabase_scope import SupabaseScopeBackend
-from src.mut_engine.server_repo import PuppyOneServerRepo
+from src.mut_engine.server.backends.s3_storage import S3StorageBackend
+from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
+from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
+from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
+from src.mut_engine.server.server_repo import PuppyOneServerRepo
 from src.utils.logger import log_error
 
 

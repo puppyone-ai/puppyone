@@ -14,7 +14,7 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.service import ProjectService
 from src.platform.project.dependencies import get_project_service
-from src.mut_engine.audit_repository import AuditRepository
+from src.mut_engine.server.audit_repository import AuditRepository
 from src.infra.supabase.client import SupabaseClient
 from src.common_schemas import ApiResponse
 

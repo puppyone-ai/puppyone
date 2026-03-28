@@ -1,5 +1,8 @@
 """
-Tree API — REST HTTP shell for MutOps
+Content API — REST HTTP shell for MutOps.
+
+Provides POSIX-like file system operations (ls, cat, write, mkdir, mv, rm)
+on the MUT content tree. Used by the frontend Web UI and internal services.
 
 MutOps is the sole entry point for operations; this file only handles:
   HTTP parameter parsing + authentication + calling MutOps + formatting responses
@@ -23,17 +26,20 @@ Endpoints:
 
 from __future__ import annotations
 
+import asyncio
 import json as _json
 
 from fastapi import APIRouter, Depends, Query, HTTPException
 
-from src.mut_engine.tree_reader import MutEntry
-from src.mut_engine.ops import MutOps
+from src.mut_engine.services.tree_reader import MutEntry
+from src.mut_engine.services.ops import MutOps
 from src.mut_engine.dependencies import (
     get_mut_ops,
-    get_mut_write_service,
+    get_mut_admin_service,
+    get_repo_manager,
 )
-from src.mut_engine.write_service import MutWriteService
+from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.server.admin import MutAdminService
 from src.mut_engine.schemas import (
     WriteFileRequest,
     MkdirRequest,
@@ -60,8 +66,8 @@ from src.platform.project.service import ProjectService
 from src.exceptions import NotFoundException, ErrorCode
 
 router = APIRouter(
-    prefix="/tree",
-    tags=["tree"],
+    prefix="/content",
+    tags=["content"],
 )
 
 
@@ -441,7 +447,7 @@ async def bulk_write(
 
 
 # ═══════════════════════════════════════════════
-# Version history API (uses MutWriteService for admin/history queries)
+# Version history API (uses MutAdminService for admin/history queries)
 # ═══════════════════════════════════════════════
 
 @router.get(
@@ -454,14 +460,14 @@ async def get_versions(
     path: str = Query(None, description="File path (omit for project-level history)"),
     limit: int = Query(50, description="Maximum number of results"),
     since_version: int = Query(0, description="Start from after this version"),
-    mut_write: MutWriteService = Depends(get_mut_write_service),
+    mut_admin: MutAdminService = Depends(get_mut_admin_service),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
 
-    entries = await mut_write.get_version_history(
+    entries = await mut_admin.get_version_history(
         project_id=project_id,
         path=path.strip("/") if path else None,
         limit=limit,
@@ -502,7 +508,7 @@ async def get_version_content(
     project_id: str,
     path: str = Query(..., description="File path"),
     version: int = Query(..., description="Version number"),
-    mut_write: MutWriteService = Depends(get_mut_write_service),
+    mut_admin: MutAdminService = Depends(get_mut_admin_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -510,11 +516,11 @@ async def get_version_content(
 
     clean_path = path.strip("/")
     try:
-        content = await mut_write.get_version_content(project_id, clean_path, version)
+        content = await mut_admin.get_version_content(project_id, clean_path, version)
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    from src.mut_engine.tree_reader import detect_type
+    from src.mut_engine.services.tree_reader import detect_type
     node_type = detect_type(clean_path)
 
     if node_type == "json":
@@ -544,14 +550,14 @@ async def diff_versions(
     project_id: str,
     v1: int = Query(..., description="Version 1"),
     v2: int = Query(..., description="Version 2"),
-    mut_write: MutWriteService = Depends(get_mut_write_service),
+    mut_admin: MutAdminService = Depends(get_mut_admin_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
 
     try:
-        changes = await mut_write.compute_diff(project_id, v1, v2)
+        changes = await mut_admin.compute_diff(project_id, v1, v2)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -571,23 +577,31 @@ async def diff_versions(
 async def rollback(
     project_id: str,
     body: RollbackRequest,
-    mut_write: MutWriteService = Depends(get_mut_write_service),
+    repo_manager: MutRepoManager = Depends(get_repo_manager),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_project_access(project_service, current_user, project_id)
 
+    from mut.server.handlers import handle_rollback
+
+    who = f"user:{current_user.user_id}"
+    auth = {
+        "agent": who,
+        "_scope": {"id": who, "path": "", "exclude": [], "mode": "rw"},
+    }
+    mut_body = {"target_version": body.target_version}
+
     try:
-        new_version = await mut_write.rollback(
-            project_id=project_id,
-            target_version=body.target_version,
-            operator=f"user:{current_user.user_id}",
+        repo = repo_manager.get_server_repo(project_id)
+        result = await asyncio.to_thread(
+            handle_rollback, repo, auth, mut_body,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
     return ApiResponse.success(data=RollbackResponse(
         project_id=project_id,
-        new_version=new_version,
+        new_version=result.get("new_version", 0),
         rolled_back_to=body.target_version,
     ))

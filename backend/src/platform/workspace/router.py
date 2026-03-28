@@ -99,7 +99,7 @@ async def create_workspace(
 
 
 # ============================================================
-# Trigger merge after Agent completes (via MutWriteService)
+# Trigger merge after Agent completes (via MutAdminService)
 # ============================================================
 
 @router.post("/{agent_id}/complete", response_model=ApiResponse[CompleteWorkspaceResponse])

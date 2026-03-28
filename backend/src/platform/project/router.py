@@ -20,7 +20,7 @@ from src.platform.project.schemas import (
     UpdateProjectMemberRole,
 )
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.ops import MutOps
+from src.mut_engine.services.ops import MutOps
 from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
@@ -128,8 +128,8 @@ async def create_project(
         created_by=current_user.user_id,
     )
 
-    from src.mut_engine.dependencies import create_mut_write_service
-    writer = create_mut_write_service()
+    from src.mut_engine.dependencies import create_mut_admin_service
+    writer = create_mut_admin_service()
     await writer.init_tree(str(project.id))
 
     entries = []

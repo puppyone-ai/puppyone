@@ -796,7 +796,7 @@ async def trigger_push(
     except FileNotFoundError:
         return ApiResponse.error(code=1004, message=f"File not found: {path}")
 
-    from src.mut_engine.tree_reader import detect_type
+    from src.mut_engine.services.tree_reader import detect_type
     import json as _json
 
     node_type = detect_type(path)

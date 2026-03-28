@@ -23,8 +23,8 @@ from mut.core.tree import read_tree, tree_to_flat
 from mut.core.protocol import normalize_path
 from mut.server.scope_manager import ScopeManager
 
-from src.mut_engine.backends.supabase_history import SupabaseHistoryManager
-from src.mut_engine.backends.supabase_audit import SupabaseAuditManager
+from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
+from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
 from src.utils.logger import log_error
 
 

@@ -50,11 +50,22 @@ backend/
 │   ├── config.py              # 全局配置 (Pydantic Settings)
 │   │
 │   ├── mut_engine/            # MUT 版本引擎 (核心读写通道)
-│   │   ├── write_service.py   # 唯一写入入口 (MutWriteService)
-│   │   ├── tree_reader.py     # 唯一读取入口 (MutTreeReader)
-│   │   ├── tree_router.py     # Tree API (/api/v1/tree/*)
-│   │   ├── repo_manager.py    # per-project Mut 仓库管理
-│   │   ├── server_repo.py     # PuppyOneServerRepo (S3/PG 适配)
+│   │   ├── routers/           # HTTP 路由层
+│   │   │   ├── content_router.py  # Content API (/api/v1/content/*)
+│   │   │   ├── protocol_router.py # MUT 线协议 (/api/v1/mut/*)
+│   │   │   ├── access_point.py    # Access Point (/mut/ap/*)
+│   │   │   └── audit_router.py    # 审计日志
+│   │   ├── services/          # 业务服务层
+│   │   │   ├── ops.py         # MutOps — 统一操作入口
+│   │   │   ├── ephemeral_client.py # 进程内 clone→push
+│   │   │   ├── tree_reader.py # MutTreeReader — 轻量读取
+│   │   │   └── hooks.py       # Post-commit hooks
+│   │   ├── server/            # 服务端基础设施层
+│   │   │   ├── server_repo.py # PuppyOneServerRepo (S3/PG 适配)
+│   │   │   ├── repo_manager.py# per-project Mut 仓库管理
+│   │   │   ├── admin.py       # MutAdminService (init/历史/diff)
+│   │   │   ├── auth.py        # 认证适配器
+│   │   │   └── backends/      # 存储后端 (S3/Supabase)
 │   │   ├── schemas.py         # 所有数据模型
 │   │   ├── dependencies.py    # FastAPI DI 工厂
 │   │   ├── audit_router.py    # 审计日志 API
@@ -152,7 +163,7 @@ from src.mut_engine.dependencies import (
 
 | 路由前缀 | 模块 | 说明 |
 |----------|------|------|
-| `/api/v1/tree/{project_id}` | mut_engine/tree_router | Tree API (ls/cat/stat/tree/write/mkdir/mv/rm) |
+| `/api/v1/content/{project_id}` | mut_engine/routers/content_router | Content API (ls/cat/stat/tree/write/mkdir/mv/rm) |
 | `/api/v1/mut/{project_id}` | mut_engine/protocol_router | MUT 线路协议 |
 | `/api/v1/tables` | content/table | 数据表 JSON Pointer 操作 |
 | `/api/v1/projects` | platform/project | 项目管理 |

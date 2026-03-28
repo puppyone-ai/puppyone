@@ -18,7 +18,7 @@ from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
 from src.mut_engine.dependencies import create_mut_ops, get_mut_ops
-from src.mut_engine.ops import MutOps
+from src.mut_engine.services.ops import MutOps
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
