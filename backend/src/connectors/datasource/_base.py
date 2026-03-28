@@ -74,6 +74,19 @@ class FetchResult:
 
 
 # ============================================================
+# PushResult (returned by push)
+# ============================================================
+
+@dataclass
+class PushResult:
+    """Returned by connector.push() — result of pushing data to external source."""
+    success: bool = True
+    remote_hash: str = ""
+    summary: str = ""
+    error: str = ""
+
+
+# ============================================================
 # Config field descriptor (for dynamic UI generation)
 # ============================================================
 
@@ -170,9 +183,23 @@ class BaseConnector(ABC):
           - Manage OAuth token refresh (SyncEngine handles that)
         """
 
+    async def pull(self, sync: "Sync") -> "FetchResult":
+        """Pull latest data from external source.
+
+        Called by SyncService for pull-mode syncs. Default raises
+        NotImplementedError — connectors that support pull should
+        override this, or SyncEngine.execute() should be used instead
+        (which calls fetch() with proper credentials).
+        """
+        raise NotImplementedError(
+            f"{self.spec().provider} does not implement pull(); "
+            f"use SyncEngine.execute() instead"
+        )
+
     async def push(
         self, sync: "Sync", content: Any, node_type: str,
-    ) -> "PushResult":
+    ) -> PushResult:
+        """Push data to external source. Override for bidirectional connectors."""
         raise NotImplementedError(
             f"{self.spec().provider} does not support push"
         )

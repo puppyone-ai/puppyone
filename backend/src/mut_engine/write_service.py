@@ -28,8 +28,12 @@ from src.mut_engine.schemas import WriteResult, DeleteResult, MoveResult
 from src.utils.logger import log_info, log_error, log_warning
 
 
-class MutWriteService:
-    """The sole write entry point for PuppyOne. All content changes go through Mut operations."""
+class MutAdminService:
+    """Admin operations for MUT tree: init, rollback, version history, diff.
+
+    Not for regular file writes — those go through MutOps.
+    Handles tree initialization, rollback, history queries, and admin tasks.
+    """
 
     def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
@@ -776,3 +780,6 @@ def _write_nested_tree(store: ObjectStore, node: dict) -> str:
             sub_hash = _write_nested_tree(store, val)
             entries[name] = ["T", sub_hash]
     return store.put(json.dumps(entries, sort_keys=True).encode())
+
+# Backwards compatibility alias
+MutWriteService = MutAdminService

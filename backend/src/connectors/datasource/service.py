@@ -267,54 +267,22 @@ class SyncService:
         return results
 
     async def _pull_one(
-        self, sync: Sync, connector: BaseConnector,
+        self, sync: Sync, _connector: BaseConnector,
     ) -> Optional[dict]:
-        """Pull changes for a single sync binding."""
+        """Pull changes for a single sync binding.
+
+        Delegates to SyncEngine.execute() which handles the full cycle:
+        credential resolution → connector.fetch() → hash compare → MutOps.write()
+        """
         try:
-            pull_result = await connector.pull(sync)
-            if not pull_result:
+            from src.connectors.datasource.engine import SyncEngine
+            engine = SyncEngine(self.sync_repo)
+            result = await engine.execute(sync.id)
+            if not result:
                 return None
 
-            external_resource_id = sync.config.get("external_resource_id", "")
-            file_path = sync.path
-
-            content = pull_result.content
-            if isinstance(content, (dict, list)):
-                content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
-            elif isinstance(content, str):
-                content_bytes = content.encode("utf-8")
-            elif isinstance(content, bytes):
-                content_bytes = content
-            else:
-                content_bytes = str(content).encode("utf-8")
-
-            operator = f"sync:{sync.provider}:{external_resource_id}"
-
-            from src.mut_engine.dependencies import create_mut_ops
-            ops = create_mut_ops()
-            write_result = await ops.write_file(
-                sync.project_id, file_path, content_bytes,
-                who=operator,
-                message=pull_result.summary or f"Sync from {sync.provider}",
-            )
-
-            new_version = write_result.version
-            self.sync_repo.update_sync_point(
-                sync_id=sync.id,
-                last_sync_version=new_version,
-                remote_hash=pull_result.remote_hash,
-            )
-
-            log_info(
-                f"[L2.5] PULL {sync.provider}:{external_resource_id} → "
-                f"{file_path} v{new_version}"
-            )
-
-            return {
-                "sync_id": sync.id,
-                "path": file_path,
-                "version": new_version,
-            }
+            log_info(f"[L2.5] PULL {sync.provider} → {sync.path}")
+            return result
 
         except Exception as e:
             log_error(f"[L2.5] PULL failed for {sync.path}: {e}")

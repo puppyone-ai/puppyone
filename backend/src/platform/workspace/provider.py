@@ -100,8 +100,7 @@ def _resolve_provider_type(provider_type: str) -> str:
     if system == "Darwin":
         return "apfs"
     if system == "Linux":
-        # TODO: Future detection of OverlayFS support -> provider_type = "overlayfs"
-        return "fallback"
+        return "overlayfs"
     return "fallback"
 
 
@@ -128,9 +127,8 @@ def get_workspace_provider() -> WorkspaceProvider:
         from src.platform.workspace.apfs_provider import APFSWorkspaceProvider
         _workspace_provider = APFSWorkspaceProvider(base_dir=base_dir)
     elif provider_type == "overlayfs":
-        # TODO: Linux OverlayFS implementation
-        from src.platform.workspace.fallback_provider import FallbackWorkspaceProvider
-        _workspace_provider = FallbackWorkspaceProvider(base_dir=base_dir)
+        from src.platform.workspace.overlayfs_provider import OverlayFSWorkspaceProvider
+        _workspace_provider = OverlayFSWorkspaceProvider(base_dir=base_dir)
     else:
         from src.platform.workspace.fallback_provider import FallbackWorkspaceProvider
         _workspace_provider = FallbackWorkspaceProvider(base_dir=base_dir)

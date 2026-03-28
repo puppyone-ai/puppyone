@@ -493,6 +493,35 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     )
 
 
+async def _create_filesystem(
+    payload: UnifiedConnectionCreate, _user_id: str,
+) -> UnifiedConnectionOut:
+    """Create a filesystem sync connection (OpenClaw)."""
+    from src.connectors.filesystem.lifecycle import OpenClawService
+    from src.connectors.datasource.repository import SyncRepository
+    from src.infra.supabase.client import SupabaseClient
+
+    supabase = SupabaseClient()
+    sync_repo = SyncRepository(supabase)
+    service = OpenClawService(supabase=supabase, sync_repo=sync_repo)
+
+    cfg = payload.config
+    scope_path = cfg.get("scope", payload.path or "/")
+
+    sync = service.bootstrap(
+        project_id=payload.project_id,
+        path=scope_path,
+    )
+
+    return UnifiedConnectionOut(
+        id=sync.id,
+        project_id=payload.project_id,
+        provider="filesystem",
+        name=payload.name or "Filesystem Sync",
+        status=sync.status or "active",
+    )
+
+
 @router.post(
     "/",
     response_model=ApiResponse[UnifiedConnectionOut],
@@ -525,6 +554,8 @@ async def create_connection(
         result = _create_mcp(payload)
     elif provider == "sandbox":
         result = _create_sandbox(payload)
+    elif provider == "filesystem":
+        result = await _create_filesystem(payload, current_user.user_id)
     elif provider in _get_datasource_providers():
         result = await _create_datasource(payload, current_user.user_id)
     else:
