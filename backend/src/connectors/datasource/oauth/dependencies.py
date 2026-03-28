@@ -6,16 +6,16 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 
 from src.platform.auth.dependencies import get_current_user
-from src.oauth.notion_service import NotionOAuthService
-from src.oauth.github_service import GithubOAuthService
-from src.oauth.google_sheets_service import GoogleSheetsOAuthService
-from src.oauth.gmail_service import GmailOAuthService
-from src.oauth.google_drive_service import GoogleDriveOAuthService
-from src.oauth.google_calendar_service import GoogleCalendarOAuthService
-from src.oauth.google_docs_service import GoogleDocsOAuthService
-from src.oauth.linear_service import LinearOAuthService
-from src.oauth.airtable_service import AirtableOAuthService
-from src.oauth.repository import OAuthRepository
+from src.connectors.datasource.oauth.notion_service import NotionOAuthService
+from src.connectors.datasource.oauth.github_service import GithubOAuthService
+from src.connectors.datasource.oauth.google_sheets_service import GoogleSheetsOAuthService
+from src.connectors.datasource.oauth.gmail_service import GmailOAuthService
+from src.connectors.datasource.oauth.google_drive_service import GoogleDriveOAuthService
+from src.connectors.datasource.oauth.google_calendar_service import GoogleCalendarOAuthService
+from src.connectors.datasource.oauth.google_docs_service import GoogleDocsOAuthService
+from src.connectors.datasource.oauth.linear_service import LinearOAuthService
+from src.connectors.datasource.oauth.airtable_service import AirtableOAuthService
+from src.connectors.datasource.oauth.repository import OAuthRepository
 
 
 # Security scheme for OAuth endpoints

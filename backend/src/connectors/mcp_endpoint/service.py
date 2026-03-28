@@ -1,7 +1,7 @@
 from typing import List, Optional
 
-from src.endpoints.mcp.repository import McpEndpointRepository
-from src.endpoints.mcp.schemas import McpAccessItem, McpToolItem
+from src.connectors.mcp_endpoint.repository import McpEndpointRepository
+from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
 
 
 class McpEndpointService:

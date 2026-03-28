@@ -11,12 +11,12 @@ import httpx
 from loguru import logger
 
 from src.config import settings
-from src.oauth.models import (
+from src.connectors.datasource.oauth.models import (
     OAuthConnection,
     OAuthConnectionCreate,
     OAuthConnectionUpdate,
 )
-from src.oauth.repository import OAuthRepository
+from src.connectors.datasource.oauth.repository import OAuthRepository
 
 # Global storage for code_verifiers (in production, use Redis or database)
 _CODE_VERIFIERS = {}

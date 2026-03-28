@@ -1,13 +1,13 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.endpoints.mcp.service import McpEndpointService
-from src.endpoints.mcp.schemas import (
+from src.connectors.mcp_endpoint.service import McpEndpointService
+from src.connectors.mcp_endpoint.schemas import (
     McpEndpointCreate,
     McpEndpointUpdate,
     McpEndpointOut,
 )
-from src.endpoints.mcp.dependencies import (
+from src.connectors.mcp_endpoint.dependencies import (
     get_mcp_endpoint_service,
     get_verified_mcp_endpoint,
 )

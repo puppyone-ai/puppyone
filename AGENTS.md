@@ -97,13 +97,11 @@ backend/
 │   │   ├── filesystem/        #   Bidirectional local folder sync (OpenClaw)
 │   │   │   └── io/            #     Pure file I/O engine (scan/diff/write/watch)
 │   │   ├── database/          #   External database connector
-│   │   └── agent/             #   AI agents (config, chat, MCP tool binding)
-│   │       ├── config/        #     Agent CRUD & access permissions
-│   │       └── mcp/           #     MCP v3 tool binding & proxy
-│   │
-│   ├── endpoints/             # Endpoint management (CRUD for connections table)
-│   │   ├── mcp/               #   MCP endpoint CRUD & API key
-│   │   └── sandbox/           #   Sandbox endpoint CRUD & exec
+│   │   ├── agent/             #   AI agents (config, chat, MCP tool binding)
+│   │   │   ├── config/        #     Agent CRUD & access permissions
+│   │   │   └── mcp/           #     MCP v3 tool binding & proxy
+│   │   ├── mcp_endpoint/      #   MCP endpoint CRUD & API key
+│   │   └── sandbox_endpoint/  #   Sandbox endpoint CRUD & exec
 │   │
 │   ├── platform/              # Platform services
 │   │   ├── auth/              #   JWT auth (Supabase Auth)
@@ -121,12 +119,10 @@ backend/
 │   │   ├── chunking/          #   Text chunking
 │   │   ├── security/          #   Security module (AES-256-GCM)
 │   │   ├── scheduler/         #   Scheduled tasks (APScheduler)
-│   │   └── turbopuffer/       #   Turbopuffer vector DB client
-│   │
-│   ├── mcp/                   # Legacy MCP instance management (health checks only)
-│   ├── sandbox/               # Sandbox runtime (Docker/E2B execution engine)
+│   │   ├── sandbox/           #   Sandbox runtime (Docker/E2B execution engine)
+│   │   ├── turbopuffer/       #   Turbopuffer vector DB client
+│   │   └── mcp_server/        #   MCP Server management (health checks, cache, legacy mcps table)
 │   ├── ingest/                # File ingestion ETL (MineRU + LLM)
-│   ├── oauth/                 # OAuth integration (9+ platforms)
 │   ├── context_publish/       # Public JSON publishing (short links)
 │   ├── internal/              # Internal API (X-Internal-Secret)
 │   └── utils/                 # Utilities (logging/middleware)
@@ -171,7 +167,7 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `uploads` | `upload/file/tasks/repository.py` | File upload/ingest tasks |
 | `etl_rules` | `upload/file/rules/repository_supabase.py` | ETL transformation rules |
 | `context_publishes` | `supabase/context_publish/repository.py` | Public JSON short links |
-| `oauth_connections` | `oauth/repository.py` | OAuth integrations |
+| `oauth_connections` | `connectors/datasource/oauth/repository.py` | OAuth integrations |
 | `chat_sessions` | `agent/chat/repository.py` | Agent chat sessions |
 | `chat_messages` | `agent/chat/repository.py` | Agent chat messages |
 | `agent_execution_logs` | `agent/config/repository.py`, `scheduler/jobs/agent_job.py` | Scheduled agent execution logs |
@@ -196,8 +192,8 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `/api/v1/agents` | connectors/agent | Agent SSE streaming chat |
 | `/api/v1/agent-config` | connectors/agent/config | Agent CRUD & access permissions |
 | `/api/v1/mcp` | connectors/agent/mcp | MCP v3 tool binding & proxy |
-| `/api/v1/mcp-endpoints` | endpoints/mcp | MCP endpoint CRUD & API key |
-| `/api/v1/sandbox-endpoints` | endpoints/sandbox | Sandbox endpoint CRUD & exec |
+| `/api/v1/mcp-endpoints` | connectors/mcp_endpoint | MCP endpoint CRUD & API key |
+| `/api/v1/sandbox-endpoints` | connectors/sandbox_endpoint | Sandbox endpoint CRUD & exec |
 | `/api/v1/connections` | connectors/manager | Unified connection management (all types) |
 | `/api/v1/sync` | connectors/datasource | Data source sync & OpenClaw & folder push/pull |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
@@ -206,7 +202,7 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `/api/v1/workspace` | workspace | Workspace management |
 | `/api/v1/db-connector` | db_connector | External database connections |
 | `/api/v1/publishes` | context_publish | Public JSON short links |
-| `/api/v1/oauth` | oauth | OAuth authorization (9+ platforms) |
+| `/api/v1/oauth` | connectors/datasource/oauth | OAuth authorization (9+ platforms) |
 | `/api/v1/auth` | auth | Authentication (login/refresh) |
 | `/api/v1/analytics` | analytics | Usage statistics |
 | `/api/v1/profile` | profile | User profile & onboarding |
@@ -405,7 +401,7 @@ sandbox/
 └── test-data.json     # Sample test data
 ```
 
-Both the frontend (`app/api/sandbox/route.ts`) and backend (`src/sandbox/`) integrate with sandboxes; the backend also supports E2B cloud sandboxes.
+Both the frontend (`app/api/sandbox/route.ts`) and backend (`src/infra/sandbox/`) integrate with sandboxes; the backend also supports E2B cloud sandboxes.
 
 ---
 

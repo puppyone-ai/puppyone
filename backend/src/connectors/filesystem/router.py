@@ -204,7 +204,7 @@ async def connect(
     folder_svc = FolderSyncService(SupabaseClient())
     pull_data = folder_svc.pull(
         project_id=sync.project_id,
-        folder_id=folder_id,
+        folder_path=folder_id,
         cursor=0,
         source_id=sync.id,
     )
@@ -254,7 +254,7 @@ async def pull(
     sync, svc = _auth_folder(x_access_key, folder_id)
     data = svc.pull(
         project_id=sync.project_id,
-        folder_id=folder_id,
+        folder_path=folder_id,
         cursor=cursor,
         source_id=sync.id,
     )
@@ -281,7 +281,7 @@ async def long_poll_changes(
     if changed:
         data = svc.pull(
             project_id=sync.project_id,
-            folder_id=folder_id,
+            folder_path=folder_id,
             cursor=cursor,
             source_id=sync.id,
         )
@@ -306,7 +306,7 @@ async def push(
     sync, svc = _auth_folder(x_access_key, folder_id)
     result = await svc.push(
         project_id=sync.project_id,
-        folder_id=folder_id,
+        folder_path=folder_id,
         filename=request.filename,
         content=request.content,
         base_version=request.base_version,
@@ -344,7 +344,7 @@ async def delete_file(
     sync, svc = _auth_folder(x_access_key, folder_id)
     result = await svc.delete_file(
         project_id=sync.project_id,
-        folder_id=folder_id,
+        folder_path=folder_id,
         filename=filename,
         source_id=sync.id,
     )
@@ -371,7 +371,7 @@ async def request_upload_url(
     sync, svc = _auth_folder(x_access_key, folder_id)
     result = await svc.request_upload_url(
         project_id=sync.project_id,
-        folder_id=folder_id,
+        folder_path=folder_id,
         filename=request.filename,
         content_type=request.content_type,
         size_bytes=request.size_bytes,
@@ -401,7 +401,7 @@ async def confirm_upload(
     sync, svc = _auth_folder(x_access_key, folder_id)
     result = await svc.confirm_upload(
         project_id=sync.project_id,
-        folder_id=folder_id,
+        folder_path=folder_id,
         filename=request.filename,
         s3_key=request.s3_key,
         operator_id=f"sync:{sync.id}",

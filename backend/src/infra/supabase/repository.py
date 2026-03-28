@@ -13,7 +13,7 @@ from src.infra.supabase.client import SupabaseClient
 # Import each sub-module's Repository
 from src.platform.project.supabase_repo import ProjectRepository
 from src.content.table.supabase_repo import TableRepository
-from src.mcp.supabase_repo import McpRepository
+from src.infra.mcp_server.supabase_repo import McpRepository
 from src.tool.supabase_repo import ToolRepository
 from src.context_publish.supabase_repo import ContextPublishRepository
 
@@ -27,7 +27,7 @@ from src.content.table.supabase_schemas import (
     TableUpdate,
     TableResponse,
 )
-from src.mcp.supabase_schemas import (
+from src.infra.mcp_server.supabase_schemas import (
     McpCreate,
     McpUpdate,
     McpResponse,

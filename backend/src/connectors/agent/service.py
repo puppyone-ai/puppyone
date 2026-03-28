@@ -722,7 +722,7 @@ class AgentService:
             logger.info(f"[Agent] Total sandbox files: {len(all_files)} from {len(bash_tools)} accesses, path_map={list(node_path_map.keys())}")
 
         if use_bash and sandbox_service:
-            from src.sandbox.registry import get_sandbox_registry, build_manifest
+            from src.infra.sandbox.registry import get_sandbox_registry, build_manifest
             sandbox_registry = get_sandbox_registry()
             sandbox_parent_path = ""
 
@@ -1204,7 +1204,7 @@ class AgentService:
             logger.warning(f"[Chat Persist] Skipping assistant message save: should_persist={should_persist}, session_id={persisted_session_id}")
 
         if use_bash and sandbox_service and sandbox_session_id:
-            from src.sandbox.registry import get_sandbox_registry, diff_and_writeback
+            from src.infra.sandbox.registry import get_sandbox_registry, diff_and_writeback
             sandbox_registry = get_sandbox_registry()
 
             chat_key = persisted_session_id or f"agent-{request.agent_id}-ephemeral"

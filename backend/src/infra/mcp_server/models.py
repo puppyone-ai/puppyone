@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Dict, Any, Optional, List
-from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
+from src.infra.mcp_server.schemas import McpToolsDefinition, ToolTypeKey
 
 
 class McpInstance(BaseModel):

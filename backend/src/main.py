@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.mcp.dependencies import get_mcp_instance_service
+from src.infra.mcp_server.dependencies import get_mcp_instance_service
 
 # Record application start time
 APP_START_TIME = time.time()
@@ -92,7 +92,7 @@ project_router_duration = time.time() - project_router_start
 from src.platform.organization.router import router as organization_router
 
 oauth_router_start = time.time()
-from src.oauth.router import router as oauth_router
+from src.connectors.datasource.oauth.router import router as oauth_router
 
 oauth_router_duration = time.time() - oauth_router_start
 
@@ -203,7 +203,7 @@ async def app_lifespan(app: FastAPI):
     mcp_init_start = time.time()
     try:
         log_info("🔌 Checking MCP Server health status...")
-        from src.mcp.dependencies import get_mcp_instance_service
+        from src.infra.mcp_server.dependencies import get_mcp_instance_service
 
         mcp_service = get_mcp_instance_service()
         health_result = await mcp_service.check_mcp_server_health()
@@ -418,9 +418,9 @@ def create_app() -> FastAPI:
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
-    from src.endpoints.mcp.router import router as mcp_endpoint_router
+    from src.connectors.mcp_endpoint.router import router as mcp_endpoint_router
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
-    from src.endpoints.sandbox.router import router as sandbox_endpoint_router
+    from src.connectors.sandbox_endpoint.router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
     from src.platform.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])

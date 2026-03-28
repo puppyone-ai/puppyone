@@ -14,9 +14,9 @@ from src.exceptions import (
     NotFoundException,
     ErrorCode,
 )
-from src.mcp.schemas import McpTokenPayload
-from src.mcp.repository import McpInstanceRepositoryBase
-from src.mcp.models import McpInstance
+from src.infra.mcp_server.schemas import McpTokenPayload
+from src.infra.mcp_server.repository import McpInstanceRepositoryBase
+from src.infra.mcp_server.models import McpInstance
 from src.utils.logger import log_info, log_error
 
 # MCP Server URL

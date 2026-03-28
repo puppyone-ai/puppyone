@@ -745,7 +745,7 @@ async def get_agent_by_mcp_key(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_mcp_endpoint_by_key(api_key: str):
-    from src.endpoints.mcp.repository import McpEndpointRepository
+    from src.connectors.mcp_endpoint.repository import McpEndpointRepository
 
     repo = McpEndpointRepository()
     endpoint = repo.get_by_api_key(api_key)
@@ -807,7 +807,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_sandbox_endpoint_by_key(access_key: str):
-    from src.endpoints.sandbox.repository import SandboxEndpointRepository
+    from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
 
     repo = SandboxEndpointRepository()
     endpoint = repo.get_by_access_key(access_key)

@@ -6,8 +6,8 @@ from typing import Optional
 import httpx
 
 from src.config import settings
-from src.oauth.models import OAuthConnection, OAuthConnectionCreate
-from src.oauth.repository import OAuthRepository
+from src.connectors.datasource.oauth.models import OAuthConnection, OAuthConnectionCreate
+from src.connectors.datasource.oauth.repository import OAuthRepository
 
 
 class NotionOAuthService:

@@ -3,10 +3,10 @@ from typing import Optional, Dict, Any, List
 import json
 from pathlib import Path
 
-from src.mcp.models import McpInstance
-from src.mcp.schemas import McpToolsDefinition, ToolTypeKey
+from src.infra.mcp_server.models import McpInstance
+from src.infra.mcp_server.schemas import McpToolsDefinition, ToolTypeKey
 from src.utils.logger import log_error
-from src.mcp.supabase_schemas import McpCreate, McpUpdate
+from src.infra.mcp_server.supabase_schemas import McpCreate, McpUpdate
 from src.utils.id_generator import generate_uuid_v7
 
 

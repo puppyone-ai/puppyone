@@ -1,8 +1,8 @@
 from fastapi import Depends, Path
 from src.config import settings
-from src.mcp.repository import McpInstanceRepositoryJSON, McpInstanceRepositorySupabase
-from src.mcp.service import McpService
-from src.mcp.models import McpInstance
+from src.infra.mcp_server.repository import McpInstanceRepositoryJSON, McpInstanceRepositorySupabase
+from src.infra.mcp_server.service import McpService
+from src.infra.mcp_server.models import McpInstance
 from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
 from src.platform.project.dependencies import get_project_service

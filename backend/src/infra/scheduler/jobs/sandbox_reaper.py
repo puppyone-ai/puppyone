@@ -13,8 +13,8 @@ async def reap_idle_sandboxes():
     Find all sandbox sessions that have been idle for longer than the
     threshold, perform diff-based write-back via MUT protocol, then destroy the sandbox.
     """
-    from src.sandbox.registry import get_sandbox_registry, diff_and_writeback
-    from src.sandbox.dependencies import get_sandbox_service
+    from src.infra.sandbox.registry import get_sandbox_registry, diff_and_writeback
+    from src.infra.sandbox.dependencies import get_sandbox_service
 
     registry = get_sandbox_registry()
     idle_sessions = registry.get_idle_sessions()

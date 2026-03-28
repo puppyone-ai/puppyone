@@ -1,13 +1,13 @@
 ## E2E 测试报告：folder-search-e2e
 
-- **run_id**: `2026-03-28T16:33:38Z`
-- **generated_at**: `2026-03-28T16:33:38Z`
+- **run_id**: `2026-03-28T18:48:22Z`
+- **generated_at**: `2026-03-28T18:48:22Z`
 
 ### 结果明细
 
 #### ✅ PASS `dotenv.load`
 
-- **time**: `2026-03-28T16:33:38Z`
+- **time**: `2026-03-28T18:48:22Z`
 
 **details**
 
@@ -20,7 +20,7 @@
 
 #### ✅ PASS `skip.missing_turbopuffer_api_key`
 
-- **time**: `2026-03-28T16:33:38Z`
+- **time**: `2026-03-28T18:48:22Z`
 
 **details**
 

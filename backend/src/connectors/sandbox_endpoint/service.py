@@ -1,7 +1,7 @@
 from typing import List, Optional
 
-from src.endpoints.sandbox.repository import SandboxEndpointRepository
-from src.endpoints.sandbox.schemas import SandboxMountItem, SandboxResourceLimits
+from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
+from src.connectors.sandbox_endpoint.schemas import SandboxMountItem, SandboxResourceLimits
 
 
 class SandboxEndpointService:

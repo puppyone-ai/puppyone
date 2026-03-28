@@ -80,12 +80,11 @@ backend/
 │   │   ├── manager/           # 统一连接 CRUD (connections 表)
 │   │   ├── agent/             # AI Agent (config/chat/MCP 绑定)
 │   │   ├── datasource/        # SaaS 数据源 (Gmail/GitHub/Notion/...)
+│   │   │   └── oauth/         # OAuth 授权流程 & token 存储
 │   │   ├── filesystem/        # 双向本地文件夹同步 (OpenClaw)
-│   │   └── database/          # 外部数据库连接
-│   │
-│   ├── endpoints/             # 端点管理
-│   │   ├── mcp/               # MCP 端点
-│   │   └── sandbox/           # Sandbox 端点
+│   │   ├── database/          # 外部数据库连接
+│   │   ├── mcp_endpoint/      # MCP 端点 CRUD & API key
+│   │   └── sandbox_endpoint/  # Sandbox 端点 CRUD & exec
 │   │
 │   ├── platform/              # 平台服务
 │   │   ├── auth/              # JWT 认证

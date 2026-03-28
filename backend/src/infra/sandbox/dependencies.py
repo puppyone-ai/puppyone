@@ -1,4 +1,4 @@
-from src.sandbox.service import SandboxService
+from src.infra.sandbox.service import SandboxService
 
 _sandbox_service = None
 

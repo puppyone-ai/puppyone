@@ -3,7 +3,7 @@
 from typing import Optional
 
 from src.infra.supabase.client import SupabaseClient
-from src.oauth.models import (
+from src.connectors.datasource.oauth.models import (
     OAuthConnection,
     OAuthConnectionCreate,
     OAuthConnectionUpdate,

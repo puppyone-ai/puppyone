@@ -8,7 +8,7 @@ from typing import List, Optional
 from supabase import Client
 
 from src.infra.supabase.exceptions import handle_supabase_error
-from src.mcp.supabase_schemas import (
+from src.infra.mcp_server.supabase_schemas import (
     McpCreate,
     McpUpdate,
     McpResponse,

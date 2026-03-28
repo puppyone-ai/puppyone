@@ -437,9 +437,9 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 
 def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    from src.endpoints.mcp.repository import McpEndpointRepository
-    from src.endpoints.mcp.service import McpEndpointService
-    from src.endpoints.mcp.schemas import McpAccessItem, McpToolItem
+    from src.connectors.mcp_endpoint.repository import McpEndpointRepository
+    from src.connectors.mcp_endpoint.service import McpEndpointService
+    from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
 
     service = McpEndpointService(repository=McpEndpointRepository())
 
@@ -464,9 +464,9 @@ def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 
 def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    from src.endpoints.sandbox.repository import SandboxEndpointRepository
-    from src.endpoints.sandbox.service import SandboxEndpointService
-    from src.endpoints.sandbox.schemas import SandboxMountItem, SandboxResourceLimits
+    from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
+    from src.connectors.sandbox_endpoint.service import SandboxEndpointService
+    from src.connectors.sandbox_endpoint.schemas import SandboxMountItem, SandboxResourceLimits
 
     service = SandboxEndpointService(repository=SandboxEndpointRepository())
 

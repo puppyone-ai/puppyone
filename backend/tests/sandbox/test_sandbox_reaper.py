@@ -33,9 +33,9 @@ async def test_reaper_passes_parent_path_to_writeback(monkeypatch):
 
     sandbox_service = SimpleNamespace(stop=AsyncMock())
 
-    monkeypatch.setattr("src.sandbox.registry.get_sandbox_registry", lambda: _Registry())
-    monkeypatch.setattr("src.sandbox.registry.diff_and_writeback", _diff_and_writeback)
-    monkeypatch.setattr("src.sandbox.dependencies.get_sandbox_service", lambda: sandbox_service)
+    monkeypatch.setattr("src.infra.sandbox.registry.get_sandbox_registry", lambda: _Registry())
+    monkeypatch.setattr("src.infra.sandbox.registry.diff_and_writeback", _diff_and_writeback)
+    monkeypatch.setattr("src.infra.sandbox.dependencies.get_sandbox_service", lambda: sandbox_service)
     monkeypatch.setattr("src.mut_engine.dependencies.create_mut_ops", lambda: object())
 
     await reap_idle_sandboxes()

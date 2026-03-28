@@ -31,7 +31,7 @@ from src.infra.supabase.exceptions import (
 # Re-exports from domain modules (backward compat)
 from src.platform.project.supabase_repo import ProjectRepository
 from src.content.table.supabase_repo import TableRepository
-from src.mcp.supabase_repo import McpRepository
+from src.infra.mcp_server.supabase_repo import McpRepository
 
 from src.platform.project.supabase_schemas import (
     ProjectCreate,
@@ -43,7 +43,7 @@ from src.content.table.supabase_schemas import (
     TableUpdate,
     TableResponse,
 )
-from src.mcp.supabase_schemas import (
+from src.infra.mcp_server.supabase_schemas import (
     McpCreate,
     McpUpdate,
     McpResponse,

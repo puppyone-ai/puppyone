@@ -275,8 +275,8 @@ class SyncService:
         credential resolution → connector.fetch() → hash compare → MutOps.write()
         """
         try:
-            from src.connectors.datasource.engine import SyncEngine
-            engine = SyncEngine(self.sync_repo)
+            from src.connectors.datasource.dependencies import create_sync_engine
+            engine = create_sync_engine()
             result = await engine.execute(sync.id)
             if not result:
                 return None

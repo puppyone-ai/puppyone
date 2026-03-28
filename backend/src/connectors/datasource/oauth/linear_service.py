@@ -7,12 +7,12 @@ from typing import Optional, Tuple
 import httpx
 
 from src.config import settings
-from src.oauth.models import (
+from src.connectors.datasource.oauth.models import (
     OAuthConnection,
     OAuthConnectionCreate,
     OAuthConnectionUpdate,
 )
-from src.oauth.repository import OAuthRepository
+from src.connectors.datasource.oauth.repository import OAuthRepository
 
 
 class LinearOAuthService:

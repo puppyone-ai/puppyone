@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, Depends
 from src.connectors.agent.schemas import AgentRequest
 from src.connectors.agent.dependencies import get_agent_service
-from src.sandbox.dependencies import get_sandbox_service
+from src.infra.sandbox.dependencies import get_sandbox_service
 from src.connectors.agent.chat.dependencies import get_chat_service
 from src.platform.auth.dependencies import get_current_user_optional
 from src.tool.dependencies import get_tool_service

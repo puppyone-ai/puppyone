@@ -4,8 +4,8 @@ import pytest
 from unittest.mock import Mock
 from datetime import datetime
 
-from src.mcp.repository import McpInstanceRepositorySupabase
-from src.mcp.supabase_schemas import McpResponse
+from src.infra.mcp_server.repository import McpInstanceRepositorySupabase
+from src.infra.mcp_server.supabase_schemas import McpResponse
 
 
 @pytest.fixture

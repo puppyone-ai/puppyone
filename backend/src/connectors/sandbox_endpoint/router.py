@@ -3,21 +3,21 @@ import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, Header
 
-from src.endpoints.sandbox.service import SandboxEndpointService
-from src.endpoints.sandbox.schemas import (
+from src.connectors.sandbox_endpoint.service import SandboxEndpointService
+from src.connectors.sandbox_endpoint.schemas import (
     SandboxEndpointCreate,
     SandboxEndpointUpdate,
     SandboxEndpointOut,
 )
-from src.endpoints.sandbox.dependencies import (
+from src.connectors.sandbox_endpoint.dependencies import (
     get_sandbox_endpoint_service,
     get_verified_sandbox_endpoint,
 )
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
-from src.sandbox.dependencies import get_sandbox_service
-from src.sandbox.service import SandboxService
+from src.infra.sandbox.dependencies import get_sandbox_service
+from src.infra.sandbox.service import SandboxService
 from src.connectors.agent.sandbox_data import prepare_sandbox_data, SandboxFile
 
 

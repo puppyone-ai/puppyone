@@ -25,7 +25,7 @@ from src.connectors.datasource._base import (
     Credentials,
     ConfigField,
 )
-from src.oauth.gmail_service import GmailOAuthService
+from src.connectors.datasource.oauth.gmail_service import GmailOAuthService
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
