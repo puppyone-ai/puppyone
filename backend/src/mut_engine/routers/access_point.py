@@ -54,10 +54,11 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     """
     client = SupabaseClient().client
 
+    # Try access_key first, fall back to id lookup
     resp = (
         client.table("connections")
         .select("id, project_id, provider, config, revoked_at")
-        .eq("access_key", access_key)
+        .eq("id", access_key)
         .maybe_single()
         .execute()
     )
@@ -132,41 +133,37 @@ async def ap_diagnose(access_key: str, request: Request):
     """Diagnostic endpoint — returns detailed error info for debugging."""
     steps = {}
     try:
-        steps["1_supabase_init"] = "starting"
         client = SupabaseClient().client
         steps["1_supabase_init"] = "ok"
 
-        steps["2_query_connection"] = "starting"
-        resp = (
-            client.table("connections")
-            .select("id, project_id, provider, config, revoked_at")
-            .eq("access_key", access_key)
-            .maybe_single()
-            .execute()
-        )
-        steps["2_query_connection"] = f"resp_type={type(resp).__name__}, has_data={resp is not None and hasattr(resp, 'data')}"
-        if resp and hasattr(resp, 'data') and resp.data:
-            conn = resp.data
-            steps["2_query_connection"] += f", project_id={conn.get('project_id')}"
-            steps["3_project_lookup"] = "starting"
-            proj_resp = (
-                client.table("projects")
-                .select("id, name")
-                .eq("id", conn["project_id"])
-                .maybe_single()
-                .execute()
-            )
-            steps["3_project_lookup"] = f"resp_type={type(proj_resp).__name__}, data={proj_resp.data if proj_resp and hasattr(proj_resp, 'data') else None}"
+        # Test A: query by id (should always work)
+        try:
+            r1 = client.table("connections").select("id,access_key").eq("id", "mut-test-f2dcf7aa").maybe_single().execute()
+            steps["2a_query_by_id"] = f"data={r1.data}" if r1 and hasattr(r1, 'data') else "no_resp"
+        except Exception as e1:
+            steps["2a_query_by_id"] = f"ERROR: {type(e1).__name__}: {e1}"
 
-            steps["4_repo_manager"] = "starting"
-            repo_manager = _get_repo_manager()
-            steps["4_repo_manager"] = "ok"
+        # Test B: select access_key column (is column visible?)
+        try:
+            r2 = client.table("connections").select("id,access_key").limit(1).execute()
+            steps["2b_select_access_key"] = f"data={r2.data}" if r2 and hasattr(r2, 'data') else "no_resp"
+        except Exception as e2:
+            steps["2b_select_access_key"] = f"ERROR: {type(e2).__name__}: {e2}"
 
-            steps["5_server_repo"] = "starting"
-            repo = repo_manager.get_server_repo(conn["project_id"])
-            steps["5_server_repo"] = f"ok, version={repo.get_latest_version()}"
-        else:
-            steps["2_query_connection"] += ", NO_DATA"
+        # Test C: filter by access_key (the actual failing query)
+        try:
+            r3 = client.table("connections").select("id").eq("access_key", access_key).maybe_single().execute()
+            steps["2c_filter_by_access_key"] = f"data={r3.data}" if r3 and hasattr(r3, 'data') else "no_resp"
+        except Exception as e3:
+            steps["2c_filter_by_access_key"] = f"ERROR: {type(e3).__name__}: {e3}"
+
+        # Test D: rpc call (bypasses PostgREST table cache)
+        try:
+            r4 = client.rpc("resolve_access_key", {"p_access_key": access_key}).execute()
+            steps["2d_rpc_call"] = f"has_data={r4.data is not None}" if r4 and hasattr(r4, 'data') else "no_resp"
+        except Exception as e4:
+            steps["2d_rpc_call"] = f"ERROR: {type(e4).__name__}: {e4}"
+
     except Exception as e:
         steps["error"] = f"{type(e).__name__}: {e}"
 
