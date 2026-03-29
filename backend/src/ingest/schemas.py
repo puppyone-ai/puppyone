@@ -4,7 +4,7 @@ Unified Ingest Schemas - Gateway layer unified interface definitions.
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -63,15 +63,15 @@ class IngestSubmitRequest(BaseModel):
     source_type: SourceType = Field(..., description="Source type")
 
     # SaaS/URL source (source_type = saas | url)
-    url: Optional[str] = Field(None, description="SaaS or Web URL")
+    url: str | None = Field(None, description="SaaS or Web URL")
 
     # Optional configuration
-    name: Optional[str] = Field(None, description="Custom name")
+    name: str | None = Field(None, description="Custom name")
     mode: IngestMode = Field(IngestMode.SMART, description="Processing mode")
-    rule_id: Optional[int] = Field(None, description="ETL rule ID")
-    path: Optional[str] = Field(None, description="Target MUT path")
-    crawl_options: Optional[dict] = Field(None, description="URL crawl options")
-    sync_config: Optional[dict] = Field(None, description="Sync configuration")
+    rule_id: int | None = Field(None, description="ETL rule ID")
+    path: str | None = Field(None, description="Target MUT path")
+    crawl_options: dict | None = Field(None, description="URL crawl options")
+    sync_config: dict | None = Field(None, description="Sync configuration")
 
 
 class BatchTaskQuery(BaseModel):
@@ -93,10 +93,10 @@ class IngestSubmitItem(BaseModel):
     source_type: SourceType
     ingest_type: IngestType
     status: IngestStatus
-    filename: Optional[str] = None
-    s3_key: Optional[str] = None
-    path: Optional[str] = None
-    error: Optional[str] = None
+    filename: str | None = None
+    s3_key: str | None = None
+    path: str | None = None
+    error: str | None = None
 
 
 class IngestSubmitResponse(BaseModel):
@@ -112,22 +112,22 @@ class IngestTaskResponse(BaseModel):
     ingest_type: IngestType
     status: IngestStatus
     progress: int = Field(0, ge=0, le=100)
-    message: Optional[str] = None
+    message: str | None = None
 
     # Result
-    content_path: Optional[str] = None
-    items_count: Optional[int] = None
+    content_path: str | None = None
+    items_count: int | None = None
 
     # Error
-    error: Optional[str] = None
+    error: str | None = None
 
     # Timestamps
     created_at: datetime
     updated_at: datetime
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
     # Original filename (FILE type)
-    filename: Optional[str] = None
+    filename: str | None = None
 
     # Metadata
     metadata: dict[str, Any] = Field(default_factory=dict)

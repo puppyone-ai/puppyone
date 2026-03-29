@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Any, Optional
 
 
 class TableCreate(BaseModel):
@@ -17,9 +18,9 @@ class TableCreate(BaseModel):
 class TableUpdate(BaseModel):
     """Request to update a Table"""
 
-    name: Optional[str] = Field(None, description="Table name")
-    description: Optional[str] = Field(None, description="Table description")
-    data: Optional[Any] = Field(
+    name: str | None = Field(None, description="Table name")
+    description: str | None = Field(None, description="Table description")
+    data: Any | None = Field(
         None, description="Table data (optional, can be Dict, List, or other JSON types)"
     )
 
@@ -28,11 +29,11 @@ class TableOut(BaseModel):
     """Table response model"""
 
     id: str = Field(..., description="Table ID (UUID)")
-    name: Optional[str] = Field(None, description="Table name")
-    project_id: Optional[str] = Field(None, description="Project ID (UUID)")
-    created_by: Optional[str] = Field(None, description="Creator user ID")
-    description: Optional[str] = Field(None, description="Table description")
-    data: Optional[Any] = Field(
+    name: str | None = Field(None, description="Table name")
+    project_id: str | None = Field(None, description="Project ID (UUID)")
+    created_by: str | None = Field(None, description="Creator user ID")
+    description: str | None = Field(None, description="Table description")
+    data: Any | None = Field(
         None, description="Table data (JSON data, can be Dict, List, or other JSON types)"
     )
     created_at: datetime = Field(..., description="Creation time")
@@ -58,7 +59,7 @@ class ContextDataCreate(BaseModel):
         ...,
         description='JSON pointer path where data will be mounted. Uses RFC 6901 format (e.g., "/users", "/users/123"). Use empty string "" to add keys at the root of data',
     )
-    elements: List[ContextDataElement] = Field(..., description="Array of elements to create")
+    elements: list[ContextDataElement] = Field(..., description="Array of elements to create")
 
 
 class ContextDataUpdate(BaseModel):
@@ -68,7 +69,7 @@ class ContextDataUpdate(BaseModel):
         ...,
         description='JSON pointer path. Uses RFC 6901 format (e.g., "/users", "/users/123"). Use empty string "" to update keys at the root of data',
     )
-    elements: List[ContextDataElement] = Field(..., description="Array of elements to update")
+    elements: list[ContextDataElement] = Field(..., description="Array of elements to update")
 
 
 class ContextDataDelete(BaseModel):
@@ -78,7 +79,7 @@ class ContextDataDelete(BaseModel):
         ...,
         description='JSON pointer path. Uses RFC 6901 format (e.g., "/users", "/users/123"). Use empty string "" to delete keys at the root of data',
     )
-    keys: List[str] = Field(..., description="List of keys to delete")
+    keys: list[str] = Field(..., description="List of keys to delete")
 
 
 class ContextDataGet(BaseModel):
@@ -94,12 +95,12 @@ class ProjectWithTables(BaseModel):
     """Response model containing project info and all its tables"""
 
     id: str = Field(..., description="Project ID (UUID)")
-    name: Optional[str] = Field(None, description="Project name")
-    description: Optional[str] = Field(None, description="Project description")
-    org_id: Optional[str] = Field(None, description="Organization ID")
-    created_by: Optional[str] = Field(None, description="Creator user ID")
+    name: str | None = Field(None, description="Project name")
+    description: str | None = Field(None, description="Project description")
+    org_id: str | None = Field(None, description="Organization ID")
+    created_by: str | None = Field(None, description="Creator user ID")
     created_at: datetime = Field(..., description="Creation time")
-    tables: List[TableOut] = Field(
+    tables: list[TableOut] = Field(
         default_factory=list, description="List of all tables under this project"
     )
 

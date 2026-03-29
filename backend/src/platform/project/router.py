@@ -4,28 +4,28 @@ Project Router
 Provides REST API endpoints for project CRUD operations.
 """
 
-from fastapi import APIRouter, Depends, Query, status
-from typing import List, Optional
 
-from src.platform.project.service import ProjectService
+from fastapi import APIRouter, Depends, Query, status
+
+from src.common_schemas import ApiResponse
+from src.exceptions import ErrorCode, PermissionException
+from src.mut_engine.dependencies import get_mut_ops
+from src.mut_engine.services.ops import MutOps
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
 from src.platform.project.dependencies import get_project_service, get_verified_project
 from src.platform.project.models import Project
 from src.platform.project.schemas import (
-    ProjectOut,
-    ProjectCreate,
-    ProjectUpdate,
-    NodeInfo,
-    ProjectMemberOut,
     AddProjectMember,
+    NodeInfo,
+    ProjectCreate,
+    ProjectMemberOut,
+    ProjectOut,
+    ProjectUpdate,
     UpdateProjectMemberRole,
 )
-from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
-from src.platform.auth.models import CurrentUser
-from src.platform.auth.dependencies import get_current_user
-from src.common_schemas import ApiResponse
-from src.exceptions import PermissionException, ErrorCode
-from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
+from src.platform.project.service import ProjectService
 
 router = APIRouter(
     prefix="/projects",
@@ -61,14 +61,14 @@ def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
 
 @router.get(
     "/",
-    response_model=ApiResponse[List[ProjectOut]],
+    response_model=ApiResponse[list[ProjectOut]],
     summary="List projects",
     description="Get all projects under the specified organization, including root directory entries for each project.",
     response_description="Returns all projects of the organization",
     status_code=status.HTTP_200_OK,
 )
 def list_projects(
-    org_id: Optional[str] = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
+    org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
     ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
@@ -213,7 +213,7 @@ async def seed_project(
 
 @router.get(
     "/{project_id}/members",
-    response_model=ApiResponse[List[ProjectMemberOut]],
+    response_model=ApiResponse[list[ProjectMemberOut]],
     summary="List project members",
 )
 def list_project_members(

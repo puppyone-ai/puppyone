@@ -4,7 +4,6 @@ MineRU Client Configuration
 Configuration for MineRU API client.
 """
 
-from typing import Optional
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -21,7 +20,7 @@ class MineRUConfig(BaseSettings):
     )
 
     # API Key from environment
-    mineru_api_key: Optional[str] = Field(default=None, description="MineRU API Key")
+    mineru_api_key: str | None = Field(default=None, description="MineRU API Key")
 
     # API endpoint
     mineru_api_base_url: str = Field(

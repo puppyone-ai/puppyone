@@ -11,9 +11,9 @@ Pure file system operations extracted from workspace/sync_worker.py.
 
 import json
 import os
-from typing import Dict, Any
+from typing import Any
 
-from src.utils.logger import log_error, log_debug
+from src.utils.logger import log_debug, log_error
 
 
 class CacheManager:
@@ -38,7 +38,7 @@ class CacheManager:
     # Metadata Management
     # ============================================================
 
-    def read_metadata(self, project_id: str) -> Dict[str, Any]:
+    def read_metadata(self, project_id: str) -> dict[str, Any]:
         """Read sync metadata for a project."""
         meta_path = os.path.join(self.get_project_dir(project_id), ".metadata.json")
         if os.path.exists(meta_path):
@@ -49,7 +49,7 @@ class CacheManager:
                 pass
         return {}
 
-    def write_metadata(self, project_id: str, metadata: Dict[str, Any]) -> None:
+    def write_metadata(self, project_id: str, metadata: dict[str, Any]) -> None:
         """Write sync metadata for a project."""
         meta_path = os.path.join(self.get_project_dir(project_id), ".metadata.json")
         with open(meta_path, "w", encoding="utf-8") as f:

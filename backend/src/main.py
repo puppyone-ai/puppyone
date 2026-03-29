@@ -6,9 +6,10 @@ ContextBase Backend Server Entrypoint.
 
 import time
 from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Response
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.infra.mcp_server.dependencies import get_mcp_instance_service
@@ -35,18 +36,18 @@ from src.config import settings
 config_duration = time.time() - config_start
 
 exceptions_start = time.time()
-from src.exceptions import AppException
 from src.exception_handler import (
     app_exception_handler,
+    generic_exception_handler,
     http_exception_handler,
     validation_exception_handler,
-    generic_exception_handler,
 )
+from src.exceptions import AppException
 
 exceptions_duration = time.time() - exceptions_start
 
 logger_start = time.time()
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error, log_info
 
 logger_duration = time.time() - logger_start
 
@@ -67,14 +68,14 @@ from src.connectors.agent.mcp.router import router as mcp_v3_router
 mcp_v3_router_duration = time.time() - mcp_v3_router_start
 
 agent_router_start = time.time()
-from src.connectors.agent.router import router as agent_router
 from src.connectors.agent.config.router import router as agent_config_router
+from src.connectors.agent.router import router as agent_router
 
 agent_router_duration = time.time() - agent_router_start
 
 context_publish_router_start = time.time()
-from src.context_publish.router import router as context_publish_router
 from src.context_publish.router import public_router as context_publish_public_router
+from src.context_publish.router import router as context_publish_router
 
 context_publish_router_duration = time.time() - context_publish_router_start
 
@@ -122,8 +123,8 @@ db_connector_router_duration = time.time() - db_connector_router_start
 
 # Scheduler service import
 scheduler_start = time.time()
-from src.infra.scheduler.service import get_scheduler_service
 from src.infra.scheduler.config import scheduler_settings
+from src.infra.scheduler.service import get_scheduler_service
 
 scheduler_import_duration = time.time() - scheduler_start
 
@@ -164,19 +165,8 @@ routers_duration = (
 )
 
 
-@asynccontextmanager
-async def app_lifespan(app: FastAPI):
-    """
-    FastAPI application lifecycle management.
-
-    Database connections, caches, and other resources can be initialized here.
-    """
-    # Startup initialization logic
-    log_info("=" * 80)
-    log_info("🚀 ContextBase API starting...")
-    log_info("=" * 80)
-
-    # Output module import times
+def _log_import_times() -> None:
+    """Output module import time breakdown."""
     log_info("📦 Module import time breakdown:")
     log_info(f"  ├─ .env loading: {dotenv_duration * 1000:.2f}ms")
     log_info(f"  ├─ Config module (config): {config_duration * 1000:.2f}ms")
@@ -199,7 +189,9 @@ async def app_lifespan(app: FastAPI):
     log_info(f"📊 Total import time: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
 
-    # 1. MCP module: Check MCP Server health status
+
+async def _init_mcp_health_check() -> None:
+    """Check MCP Server health status."""
     mcp_init_start = time.time()
     try:
         log_info("🔌 Checking MCP Server health status...")
@@ -220,7 +212,9 @@ async def app_lifespan(app: FastAPI):
             f"❌ MCP Server health check failed (took: {mcp_duration * 1000:.2f}ms): {e}"
         )
 
-    # 2. Initialize Scheduler service
+
+async def _init_scheduler() -> None:
+    """Initialize Scheduler service."""
     scheduler_init_start = time.time()
     try:
         if scheduler_settings.enabled:
@@ -235,33 +229,34 @@ async def app_lifespan(app: FastAPI):
         scheduler_duration = time.time() - scheduler_init_start
         log_error(f"❌ Scheduler service failed to start (took: {scheduler_duration * 1000:.2f}ms): {e}")
 
-    # 3. Initialize File Ingest service (must be enabled)
-    if settings.etl_enabled:
-        file_ingest_init_start = time.time()
-        try:
-            log_info("📄 Initializing File Ingest service...")
-            from src.ingest.file.dependencies import get_etl_service
-            from pathlib import Path
 
-            file_ingest_service = await get_etl_service()
-
-            # Create necessary directories
-            Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
-            Path(".etl_rules").mkdir(parents=True, exist_ok=True)
-
-            # Start File Ingest control plane (workers are started by separate processes)
-            await file_ingest_service.start()
-            file_ingest_duration = time.time() - file_ingest_init_start
-            log_info(f"✅ File Ingest service started successfully (took: {file_ingest_duration * 1000:.2f}ms)")
-            if settings.DEBUG:
-                log_info("   ℹ️  File workers started in DEBUG mode (for development testing)")
-        except Exception as e:
-            file_ingest_duration = time.time() - file_ingest_init_start
-            log_error(f"❌ File Ingest service failed to start (took: {file_ingest_duration * 1000:.2f}ms): {e}")
-    else:
+async def _init_file_ingest() -> None:
+    """Initialize File Ingest service if ETL is enabled."""
+    if not settings.etl_enabled:
         log_info("⏭️  File Ingest service skipped (ENABLE_ETL is off)")
+        return
+    file_ingest_init_start = time.time()
+    try:
+        log_info("📄 Initializing File Ingest service...")
+        from pathlib import Path
 
-    # 4. Initialize ConnectorRegistry singleton
+        from src.ingest.file.dependencies import get_etl_service
+
+        file_ingest_service = await get_etl_service()
+        Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
+        Path(".etl_rules").mkdir(parents=True, exist_ok=True)
+        await file_ingest_service.start()
+        file_ingest_duration = time.time() - file_ingest_init_start
+        log_info(f"✅ File Ingest service started successfully (took: {file_ingest_duration * 1000:.2f}ms)")
+        if settings.DEBUG:
+            log_info("   ℹ️  File workers started in DEBUG mode (for development testing)")
+    except Exception as e:
+        file_ingest_duration = time.time() - file_ingest_init_start
+        log_error(f"❌ File Ingest service failed to start (took: {file_ingest_duration * 1000:.2f}ms): {e}")
+
+
+def _init_connector_registry() -> None:
+    """Initialize ConnectorRegistry singleton."""
     registry_init_start = time.time()
     try:
         log_info("🔌 Initializing ConnectorRegistry...")
@@ -273,7 +268,9 @@ async def app_lifespan(app: FastAPI):
         registry_duration = time.time() - registry_init_start
         log_error(f"❌ ConnectorRegistry initialization failed (took: {registry_duration * 1000:.2f}ms): {e}")
 
-    # 5. Mut tree initialization: auto-initialize empty Mut tree for all projects with empty mut_root_hash
+
+async def _init_mut_trees() -> None:
+    """Auto-initialize empty Mut tree for all projects with empty mut_root_hash."""
     mut_init_start = time.time()
     try:
         log_info("🌳 Checking and initializing Mut tree...")
@@ -304,10 +301,53 @@ async def app_lifespan(app: FastAPI):
         mut_init_duration = time.time() - mut_init_start
         log_error(f"❌ Mut tree initialization failed (took: {mut_init_duration * 1000:.2f}ms): {e}")
 
-    # 6. Filesystem sync is now client-side via MUT protocol — no server-side init needed
+
+async def _shutdown_services() -> None:
+    """Shutdown cleanup logic."""
+    log_info("ContextBase API shutting down...")
+
+    if scheduler_settings.enabled:
+        try:
+            scheduler_service = get_scheduler_service()
+            await scheduler_service.shutdown()
+            log_info("Scheduler service stopped successfully")
+        except Exception as e:
+            log_error(f"Failed to stop Scheduler service: {e}")
+
+    log_info("Filesystem sync: client-side, no cleanup needed")
+
+    if settings.etl_enabled:
+        try:
+            from src.ingest.file.dependencies import get_etl_service
+
+            file_ingest_service = await get_etl_service()
+            await file_ingest_service.stop()
+            log_info("File Ingest service stopped successfully")
+        except Exception as e:
+            log_error(f"Failed to stop File Ingest service: {e}")
+
+
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    """
+    FastAPI application lifecycle management.
+
+    Database connections, caches, and other resources can be initialized here.
+    """
+    log_info("=" * 80)
+    log_info("🚀 ContextBase API starting...")
+    log_info("=" * 80)
+
+    _log_import_times()
+
+    await _init_mcp_health_check()
+    await _init_scheduler()
+    await _init_file_ingest()
+    _init_connector_registry()
+    await _init_mut_trees()
+
     log_info("📁 Filesystem sync: client-side via MUT protocol (no server init needed)")
 
-    # Output total startup time
     total_startup_time = time.time() - APP_START_TIME
     log_info("")
     log_info("=" * 80)
@@ -318,31 +358,7 @@ async def app_lifespan(app: FastAPI):
     log_info("")
 
     yield
-    # Shutdown cleanup logic
-    log_info("ContextBase API shutting down...")
-
-    # Stop Scheduler service
-    if scheduler_settings.enabled:
-        try:
-            scheduler_service = get_scheduler_service()
-            await scheduler_service.shutdown()
-            log_info("Scheduler service stopped successfully")
-        except Exception as e:
-            log_error(f"Failed to stop Scheduler service: {e}")
-
-    # Filesystem sync is client-side — no server cleanup needed
-    log_info("Filesystem sync: client-side, no cleanup needed")
-
-    # Stop File Ingest service
-    if settings.etl_enabled:
-        try:
-            from src.ingest.file.dependencies import get_etl_service
-
-            file_ingest_service = await get_etl_service()
-            await file_ingest_service.stop()
-            log_info("File Ingest service stopped successfully")
-        except Exception as e:
-            log_error(f"Failed to stop File Ingest service: {e}")
+    await _shutdown_services()
 
 
 def create_app() -> FastAPI:

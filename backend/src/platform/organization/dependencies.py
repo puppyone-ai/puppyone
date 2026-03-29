@@ -1,8 +1,7 @@
-from typing import List, Optional
 
+from src.exceptions import ErrorCode, PermissionException
 from src.platform.organization.repository import OrganizationRepository
 from src.platform.organization.service import OrganizationService
-from src.exceptions import PermissionException, ErrorCode
 from src.utils.logger import log_info
 
 _org_repository = None
@@ -32,7 +31,7 @@ def _auto_init_org(user_id: str) -> str:
     return result["org_id"]
 
 
-def resolve_org_id(org_id: Optional[str], user_id: str) -> str:
+def resolve_org_id(org_id: str | None, user_id: str) -> str:
     """Resolve org_id: if provided, verify membership; otherwise fall back to user's first org."""
     repo = get_org_repository()
     if org_id:
@@ -47,7 +46,7 @@ def resolve_org_id(org_id: Optional[str], user_id: str) -> str:
     return user_orgs[0].id
 
 
-def resolve_org_ids(org_id: Optional[str], user_id: str) -> List[str]:
+def resolve_org_ids(org_id: str | None, user_id: str) -> list[str]:
     """Resolve to a list of org_ids: if provided, verify and return [org_id]; otherwise return all user's org ids."""
     repo = get_org_repository()
     if org_id:

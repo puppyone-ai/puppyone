@@ -1,20 +1,20 @@
-from fastapi import APIRouter, Depends, status
-from typing import List
 
-from src.platform.organization.service import OrganizationService
+from fastapi import APIRouter, Depends, status
+
+from src.common_schemas import ApiResponse
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import get_org_service
 from src.platform.organization.schemas import (
     CreateOrganization,
-    UpdateOrganization,
     InviteMember,
-    UpdateMemberRole,
     OrganizationOut,
-    OrgMemberOut,
     OrgInvitationOut,
+    OrgMemberOut,
+    UpdateMemberRole,
+    UpdateOrganization,
 )
-from src.platform.auth.models import CurrentUser
-from src.platform.auth.dependencies import get_current_user
-from src.common_schemas import ApiResponse
+from src.platform.organization.service import OrganizationService
 
 router = APIRouter(
     prefix="/organizations",
@@ -34,7 +34,7 @@ def _org_to_out(org) -> OrganizationOut:
     )
 
 
-@router.get("/", response_model=ApiResponse[List[OrganizationOut]])
+@router.get("/", response_model=ApiResponse[list[OrganizationOut]])
 def list_organizations(
     org_service: OrganizationService = Depends(get_org_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -91,7 +91,7 @@ def delete_organization(
 # ── Members ──
 
 
-@router.get("/{org_id}/members", response_model=ApiResponse[List[OrgMemberOut]])
+@router.get("/{org_id}/members", response_model=ApiResponse[list[OrgMemberOut]])
 def list_members(
     org_id: str,
     org_service: OrganizationService = Depends(get_org_service),
@@ -170,7 +170,7 @@ def invite_member(
     )
 
 
-@router.get("/{org_id}/invitations", response_model=ApiResponse[List[OrgInvitationOut]])
+@router.get("/{org_id}/invitations", response_model=ApiResponse[list[OrgInvitationOut]])
 def list_invitations(
     org_id: str,
     org_service: OrganizationService = Depends(get_org_service),

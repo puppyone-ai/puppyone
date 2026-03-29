@@ -10,10 +10,7 @@ import asyncio
 import datetime as dt
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
-from typing import List, Optional
 
-from src.platform.auth.dependencies import get_current_user
-from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.infra.s3.service import S3Service
@@ -22,24 +19,25 @@ from src.infra.search.index_task import SearchIndexTaskOut, SearchIndexTaskUpser
 from src.infra.search.index_task_repository import SearchIndexTaskRepository
 from src.infra.search.service import SearchService
 from src.infra.supabase.client import SupabaseClient
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
 from src.tool.dependencies import get_tool_service
 from src.tool.schemas import ToolCreate, ToolOut, ToolUpdate
-from src.tool.service import ToolService
+from src.tool.service import ToolCreateParams, ToolService
 from src.utils.logger import log_error, log_info
-from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
-
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 
 @router.get(
     "/",
-    response_model=ApiResponse[List[ToolOut]],
+    response_model=ApiResponse[list[ToolOut]],
     summary="Get the current user's Tool list",
     status_code=status.HTTP_200_OK,
 )
 def list_tools(
-    org_id: Optional[str] = Query(None, description="Organization ID (optional, falls back to user's orgs)"),
+    org_id: str | None = Query(None, description="Organization ID (optional, falls back to user's orgs)"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
     tool_service: ToolService = Depends(get_tool_service),
@@ -54,13 +52,13 @@ def list_tools(
 
 @router.get(
     "/by-path/{path:path}",
-    response_model=ApiResponse[List[ToolOut]],
+    response_model=ApiResponse[list[ToolOut]],
     summary="Get Tool list under a specific path",
     status_code=status.HTTP_200_OK,
 )
 def list_tools_by_path(
     path: str,
-    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
+    org_id: str | None = Query(None, description="Organization ID (optional)"),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=1000, ge=1, le=1000),
     tool_service: ToolService = Depends(get_tool_service),
@@ -79,13 +77,13 @@ def list_tools_by_path(
 
 @router.get(
     "/by-project/{project_id}",
-    response_model=ApiResponse[List[ToolOut]],
+    response_model=ApiResponse[list[ToolOut]],
     summary="Get Tool list under a specific project_id (aggregated across all nodes)",
     status_code=status.HTTP_200_OK,
 )
 def list_tools_by_project_id(
     project_id: str,
-    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
+    org_id: str | None = Query(None, description="Organization ID (optional)"),
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -108,7 +106,7 @@ def list_tools_by_project_id(
 )
 def create_tool(
     payload: ToolCreate,
-    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
+    org_id: str | None = Query(None, description="Organization ID (optional)"),
     tool_service: ToolService = Depends(get_tool_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -117,20 +115,22 @@ def create_tool(
         payload.metadata if isinstance(payload.metadata, dict) else payload.metadata
     )
     tool = tool_service.create(
-        org_id=resolved,
-        created_by=current_user.user_id,
-        path=payload.path,
-        json_path=payload.json_path,
-        type=payload.type,
-        name=payload.name,
-        alias=payload.alias,
-        description=payload.description,
-        input_schema=payload.input_schema,
-        output_schema=payload.output_schema,
-        metadata=metadata,
-        category=payload.category,
-        script_type=payload.script_type,
-        script_content=payload.script_content,
+        params=ToolCreateParams(
+            org_id=resolved,
+            created_by=current_user.user_id,
+            path=payload.path,
+            json_path=payload.json_path,
+            type=payload.type,
+            name=payload.name,
+            alias=payload.alias,
+            description=payload.description,
+            input_schema=payload.input_schema,
+            output_schema=payload.output_schema,
+            metadata=metadata,
+            category=payload.category,
+            script_type=payload.script_type,
+            script_content=payload.script_content,
+        )
     )
 
     return ApiResponse.success(data=tool, message="Tool created successfully")
@@ -149,7 +149,7 @@ async def _run_search_indexing_background(
     """
     Background indexing executor: writes index task status and logs (does not throw to the requester).
     """
-    now = dt.datetime.now(tz=dt.timezone.utc)
+    now = dt.datetime.now(tz=dt.UTC)
     log_info(
         f"[search_index] background task accepted: tool_id={tool_id} project_id={project_id} path={path} json_path='{json_path}'"
     )
@@ -189,7 +189,7 @@ async def _run_search_indexing_background(
             ),
             timeout=float(settings.SEARCH_INDEX_TIMEOUT_SECONDS),
         )
-        finished = dt.datetime.now(tz=dt.timezone.utc)
+        finished = dt.datetime.now(tz=dt.UTC)
         await asyncio.to_thread(
             repo.upsert,
             SearchIndexTaskUpsert(
@@ -210,8 +210,8 @@ async def _run_search_indexing_background(
         log_info(
             f"[search_index] done: tool_id={tool_id} nodes={stats.nodes_count} chunks={stats.chunks_count}"
         )
-    except asyncio.TimeoutError:
-        finished = dt.datetime.now(tz=dt.timezone.utc)
+    except TimeoutError:
+        finished = dt.datetime.now(tz=dt.UTC)
         msg = f"index_scope timeout after {settings.SEARCH_INDEX_TIMEOUT_SECONDS}s"
         try:
             await asyncio.to_thread(
@@ -236,7 +236,7 @@ async def _run_search_indexing_background(
             f"[search_index] timeout: tool_id={tool_id} project_id={project_id} path={path} json_path='{json_path}'"
         )
     except Exception as e:
-        finished = dt.datetime.now(tz=dt.timezone.utc)
+        finished = dt.datetime.now(tz=dt.UTC)
         err = str(e)[:500]
         try:
             await asyncio.to_thread(
@@ -275,7 +275,7 @@ async def _run_folder_search_indexing_background(
     """
     Background indexing executor for folder search.
     """
-    now = dt.datetime.now(tz=dt.timezone.utc)
+    now = dt.datetime.now(tz=dt.UTC)
     log_info(
         f"[folder_search_index] background task accepted: tool_id={tool_id} "
         f"project_id={project_id} folder_path={folder_path}"
@@ -339,7 +339,7 @@ async def _run_folder_search_indexing_background(
             ),
             timeout=float(settings.SEARCH_INDEX_TIMEOUT_SECONDS),
         )
-        finished = dt.datetime.now(tz=dt.timezone.utc)
+        finished = dt.datetime.now(tz=dt.UTC)
         await asyncio.to_thread(
             repo.upsert,
             SearchIndexTaskUpsert(
@@ -364,8 +364,8 @@ async def _run_folder_search_indexing_background(
             f"[folder_search_index] done: tool_id={tool_id} files={stats.indexed_files}/{stats.total_files} "
             f"chunks={stats.chunks_count}"
         )
-    except asyncio.TimeoutError:
-        finished = dt.datetime.now(tz=dt.timezone.utc)
+    except TimeoutError:
+        finished = dt.datetime.now(tz=dt.UTC)
         msg = f"index_folder timeout after {settings.SEARCH_INDEX_TIMEOUT_SECONDS}s"
         try:
             await asyncio.to_thread(
@@ -391,7 +391,7 @@ async def _run_folder_search_indexing_background(
             f"[folder_search_index] timeout: tool_id={tool_id} folder_path={folder_path}"
         )
     except Exception as e:
-        finished = dt.datetime.now(tz=dt.timezone.utc)
+        finished = dt.datetime.now(tz=dt.UTC)
         err = str(e)[:500]
         try:
             await asyncio.to_thread(
@@ -434,7 +434,7 @@ async def _run_folder_search_indexing_background(
 def create_search_tool_async(
     payload: ToolCreate,
     background_tasks: BackgroundTasks,
-    org_id: Optional[str] = Query(None, description="Organization ID (optional)"),
+    org_id: str | None = Query(None, description="Organization ID (optional)"),
     tool_service: ToolService = Depends(get_tool_service),
     search_service: SearchService = Depends(get_search_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -451,20 +451,22 @@ def create_search_tool_async(
     is_folder_search = node.type == "folder"
 
     tool = tool_service.create(
-        org_id=resolved,
-        created_by=current_user.user_id,
-        path=payload.path,
-        json_path=payload.json_path,
-        type=payload.type,
-        name=payload.name,
-        alias=payload.alias,
-        description=payload.description,
-        input_schema=payload.input_schema,
-        output_schema=payload.output_schema,
-        metadata=payload.metadata,
-        category=payload.category,
-        script_type=payload.script_type,
-        script_content=payload.script_content,
+        params=ToolCreateParams(
+            org_id=resolved,
+            created_by=current_user.user_id,
+            path=payload.path,
+            json_path=payload.json_path,
+            type=payload.type,
+            name=payload.name,
+            alias=payload.alias,
+            description=payload.description,
+            input_schema=payload.input_schema,
+            output_schema=payload.output_schema,
+            metadata=payload.metadata,
+            category=payload.category,
+            script_type=payload.script_type,
+            script_content=payload.script_content,
+        )
     )
 
     sb_client = SupabaseClient().get_client()

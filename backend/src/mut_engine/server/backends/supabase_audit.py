@@ -39,9 +39,6 @@ class SupabaseAuditManager:
         except Exception as e:
             log_error(f"[MutAudit] Failed to record {event_type}: {e}")
 
-    async def async_record(self, event_type: str, agent_id: str, detail: dict) -> None:
-        import asyncio
-        await asyncio.to_thread(self.record, event_type, agent_id, detail)
 
 
 def _infer_operator_type(who: str) -> str:

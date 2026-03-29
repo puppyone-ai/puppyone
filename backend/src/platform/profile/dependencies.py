@@ -6,9 +6,9 @@ Provides FastAPI dependency injection functions
 
 from functools import lru_cache
 
+from src.platform.auth.dependencies import get_initialization_service
 from src.platform.profile.repository import ProfileRepositorySupabase
 from src.platform.profile.service import ProfileService
-from src.platform.auth.dependencies import get_initialization_service
 from src.platform.project.dependencies import get_project_service
 
 

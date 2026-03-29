@@ -5,33 +5,34 @@ Defines Pydantic models corresponding to the table table, used for type checking
 """
 
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict
 
 
 class TableBase(BaseModel):
     """Table base model"""
 
-    name: Optional[str] = None
-    project_id: Optional[str] = None
-    created_by: Optional[str] = None  # Creator user ID, supports standalone Table
-    description: Optional[str] = None
-    data: Optional[Any] = None  # Supports any JSON type (Dict, List, str, int, etc.)
+    name: str | None = None
+    project_id: str | None = None
+    created_by: str | None = None  # Creator user ID, supports standalone Table
+    description: str | None = None
+    data: Any | None = None  # Supports any JSON type (Dict, List, str, int, etc.)
 
 
 class TableCreate(TableBase):
     """Table creation model"""
 
-    id: Optional[str] = None
+    id: str | None = None
 
 
 class TableUpdate(BaseModel):
     """Table update model"""
 
-    name: Optional[str] = None
-    project_id: Optional[str] = None
-    description: Optional[str] = None
-    data: Optional[Any] = None  # Supports any JSON type (Dict, List, str, int, etc.)
+    name: str | None = None
+    project_id: str | None = None
+    description: str | None = None
+    data: Any | None = None  # Supports any JSON type (Dict, List, str, int, etc.)
 
 
 class TableResponse(TableBase):

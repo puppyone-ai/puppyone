@@ -6,12 +6,10 @@ Provides CRUD operations for the public.tool table.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from supabase import Client
 
 from src.infra.supabase.exceptions import handle_supabase_error
-from src.tool.supabase_schemas import ToolCreate, ToolUpdate, ToolResponse
+from src.tool.supabase_schemas import ToolCreate, ToolResponse, ToolUpdate
 from src.utils.id_generator import generate_uuid_v7
 
 
@@ -33,7 +31,7 @@ class ToolRepository:
         except Exception as e:
             raise handle_supabase_error(e, "create Tool")
 
-    def get_by_id(self, tool_id: str) -> Optional[ToolResponse]:
+    def get_by_id(self, tool_id: str) -> ToolResponse | None:
         response = self._client.table("tools").select("*").eq("id", tool_id).execute()
         if response.data:
             return ToolResponse(**response.data[0])
@@ -44,10 +42,10 @@ class ToolRepository:
         *,
         skip: int = 0,
         limit: int = 100,
-        org_id: Optional[str] = None,
-        path: Optional[str] = None,
-        project_id: Optional[str] = None,
-    ) -> List[ToolResponse]:
+        org_id: str | None = None,
+        path: str | None = None,
+        project_id: str | None = None,
+    ) -> list[ToolResponse]:
         query = self._client.table("tools").select("*")
         if org_id is not None:
             query = query.eq("org_id", org_id)
@@ -58,7 +56,7 @@ class ToolRepository:
         response = query.range(skip, skip + limit - 1).execute()
         return [ToolResponse(**item) for item in response.data]
 
-    def update(self, tool_id: str, tool_data: ToolUpdate) -> Optional[ToolResponse]:
+    def update(self, tool_id: str, tool_data: ToolUpdate) -> ToolResponse | None:
         try:
             data = tool_data.model_dump(exclude_none=True)
             if not data:

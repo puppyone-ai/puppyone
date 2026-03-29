@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from src.content.table.models import Table
 from src.content.table.schemas import ProjectWithTables
@@ -9,27 +8,27 @@ class TableRepositoryBase(ABC):
     """Abstract Table repository interface"""
 
     @abstractmethod
-    def get_by_org_id(self, org_id: str) -> List[Table]:
+    def get_by_org_id(self, org_id: str) -> list[Table]:
         """Get all Tables by organization ID (via project association)"""
 
     @abstractmethod
     def get_projects_with_tables_by_org_id(
         self, org_id: str
-    ) -> List[ProjectWithTables]:
+    ) -> list[ProjectWithTables]:
         """Get all projects and their tables for an organization"""
 
     @abstractmethod
-    def get_by_id(self, table_id: str) -> Optional[Table]:
+    def get_by_id(self, table_id: str) -> Table | None:
         pass
 
     @abstractmethod
     def update(
         self,
         table_id: str,
-        name: Optional[str],
-        description: Optional[str],
-        data: Optional[dict],
-    ) -> Optional[Table]:
+        name: str | None,
+        description: str | None,
+        data: dict | None,
+    ) -> Table | None:
         pass
 
     @abstractmethod
@@ -48,7 +47,7 @@ class TableRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def update_context_data(self, table_id: str, data: dict) -> Optional[Table]:
+    def update_context_data(self, table_id: str, data: dict) -> Table | None:
         """Update the data field"""
 
     @abstractmethod
@@ -99,7 +98,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         else:
             self._supabase_repo = supabase_repo
 
-    def get_by_org_id(self, org_id: str) -> List[Table]:
+    def get_by_org_id(self, org_id: str) -> list[Table]:
         """
         Get all Tables by organization ID (via project association).
 
@@ -124,7 +123,7 @@ class TableRepositorySupabase(TableRepositoryBase):
 
     def get_projects_with_tables_by_org_id(
         self, org_id: str
-    ) -> List[ProjectWithTables]:
+    ) -> list[ProjectWithTables]:
         """
         Get all projects and their tables for an organization.
 
@@ -167,7 +166,7 @@ class TableRepositorySupabase(TableRepositoryBase):
 
         return result
 
-    def get_by_id(self, table_id: str) -> Optional[Table]:
+    def get_by_id(self, table_id: str) -> Table | None:
         """
         Get Table by ID.
 
@@ -220,10 +219,10 @@ class TableRepositorySupabase(TableRepositoryBase):
     def update(
         self,
         table_id: str,
-        name: Optional[str],
-        description: Optional[str],
-        data: Optional[dict],
-    ) -> Optional[Table]:
+        name: str | None,
+        description: str | None,
+        data: dict | None,
+    ) -> Table | None:
         """
         Update a Table.
 
@@ -260,7 +259,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         """
         return self._supabase_repo.delete_table(table_id)
 
-    def update_context_data(self, table_id: str, data: dict) -> Optional[Table]:
+    def update_context_data(self, table_id: str, data: dict) -> Table | None:
         """
         Update the data field of a Table.
 

@@ -103,31 +103,34 @@ def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
             .execute()
         )
         for row in resp.data or []:
-            node_path = row.get("path") or ""
-            conn_id = row["id"]
-            updates: dict = {}
-
-            if node_path:
-                new_node_path = _rewrite_path(node_path, old_prefix, new_prefix)
-                if new_node_path != node_path:
-                    updates["path"] = new_node_path
-
-            config = row.get("config") or {}
-            scope = config.get("scope") or {}
-            scope_path = scope.get("path", "")
-            if scope_path:
-                new_scope_path = _rewrite_path(scope_path, old_prefix, new_prefix)
-                if new_scope_path != scope_path:
-                    config = dict(config)
-                    config["scope"] = {**scope, "path": new_scope_path}
-                    updates["config"] = config
-
+            updates = _build_move_updates(row, old_prefix, new_prefix)
             if updates:
-                client.table("connections").update(updates).eq("id", conn_id).execute()
-                log_info(f"[PostCommit] Updated connection {conn_id} after move")
+                client.table("connections").update(updates).eq("id", row["id"]).execute()
+                log_info(f"[PostCommit] Updated connection {row['id']} after move")
 
     except Exception as e:
         log_error(f"[PostCommit] move hook failed: {e}")
+
+
+def _build_move_updates(row: dict, old_prefix: str, new_prefix: str) -> dict:
+    """Build update dict for a single connection row after a path move."""
+    updates: dict = {}
+
+    node_path = row.get("path") or ""
+    if node_path:
+        new_node_path = _rewrite_path(node_path, old_prefix, new_prefix)
+        if new_node_path != node_path:
+            updates["path"] = new_node_path
+
+    config = row.get("config") or {}
+    scope = config.get("scope") or {}
+    scope_path = scope.get("path", "")
+    if scope_path:
+        new_scope_path = _rewrite_path(scope_path, old_prefix, new_prefix)
+        if new_scope_path != scope_path:
+            updates["config"] = {**config, "scope": {**scope, "path": new_scope_path}}
+
+    return updates
 
 
 def _path_matches_any(path: str, deleted_paths: list[str]) -> bool:

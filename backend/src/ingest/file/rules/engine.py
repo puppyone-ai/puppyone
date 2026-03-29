@@ -6,14 +6,13 @@ Applies transformation rules to Markdown content using LLM.
 
 import json
 import logging
-from typing import Optional
 
 import jsonschema
 from jsonschema import ValidationError
 
-from src.ingest.file.rules.schemas import ETLRule, TransformationResult
 from src.infra.llm.exceptions import LLMError
 from src.infra.llm.service import LLMService
+from src.ingest.file.rules.schemas import ETLRule, TransformationResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +29,29 @@ class RuleEngine:
         """
         self.llm_service = llm_service
         logger.info("RuleEngine initialized")
+
+    def _parse_and_validate(
+        self, llm_response, rule: ETLRule
+    ) -> tuple[TransformationResult | None, str | None]:
+        """Parse LLM JSON and validate against schema. Returns (result, error)."""
+        try:
+            output_json = json.loads(llm_response.content)
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON from LLM: {e}")
+            return None, f"Invalid JSON: {e!s}"
+
+        try:
+            jsonschema.validate(output_json, rule.json_schema)
+            logger.info("JSON validation successful")
+            return TransformationResult(
+                success=True,
+                output=output_json,
+                error=None,
+                llm_usage=llm_response.usage,
+            ), None
+        except ValidationError as e:
+            logger.error(f"JSON Schema validation failed: {e}")
+            return None, f"Schema validation failed: {e.message}"
 
     async def apply_rule(
         self,
@@ -54,52 +76,26 @@ class RuleEngine:
         user_prompt = self._build_prompt(markdown_content, rule.json_schema)
 
         # Try transformation with retries
-        last_error: Optional[str] = None
+        last_error: str | None = None
         for attempt in range(max_retries + 1):
             try:
                 logger.info(f"Transformation attempt {attempt + 1}/{max_retries + 1}")
 
-                # Call LLM
                 llm_response = await self.llm_service.call_text_model(
                     prompt=user_prompt,
                     system_prompt=rule.system_prompt,
                     response_format="json_object",
                 )
 
-                # Parse JSON
-                try:
-                    output_json = json.loads(llm_response.content)
-                except json.JSONDecodeError as e:
-                    logger.error(f"Invalid JSON from LLM: {e}")
-                    last_error = f"Invalid JSON: {e!s}"
-                    if attempt < max_retries:
-                        # Add error feedback to prompt and retry
-                        user_prompt += f"\n\nPrevious attempt failed with error: {last_error}. Please fix and return valid JSON."
-                        continue
-                    else:
-                        break
+                result, error = self._parse_and_validate(llm_response, rule)
+                if result is not None:
+                    return result
 
-                # Validate against JSON Schema
-                try:
-                    jsonschema.validate(output_json, rule.json_schema)
-                    logger.info("JSON validation successful")
-
-                    return TransformationResult(
-                        success=True,
-                        output=output_json,
-                        error=None,
-                        llm_usage=llm_response.usage,
-                    )
-
-                except ValidationError as e:
-                    logger.error(f"JSON Schema validation failed: {e}")
-                    last_error = f"Schema validation failed: {e.message}"
-                    if attempt < max_retries:
-                        # Add validation error to prompt and retry
-                        user_prompt += f"\n\nPrevious attempt failed validation: {last_error}. Please ensure the JSON matches the schema exactly."
-                        continue
-                    else:
-                        break
+                last_error = error
+                if attempt < max_retries:
+                    user_prompt += f"\n\nPrevious attempt failed: {last_error}. Please fix and return valid JSON matching the schema exactly."
+                    continue
+                break
 
             except LLMError as e:
                 logger.error(f"LLM error during transformation: {e}")
@@ -150,7 +146,7 @@ Return a valid JSON object that strictly matches the schema. Do not include any 
 
     def validate_output(
         self, output: dict | list, json_schema: dict
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Validate output against JSON Schema.
 

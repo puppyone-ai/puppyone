@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -22,7 +22,7 @@ ToolCategory = Literal["builtin", "custom"]
 
 
 class ToolCreate(BaseModel):
-    path: Optional[str] = Field(
+    path: str | None = Field(
         default=None,
         description="MUT path (required for built-in tools, optional for custom multi-node tools)"
     )
@@ -38,16 +38,16 @@ class ToolCreate(BaseModel):
     )
 
     name: str = Field(..., description="Unique tool invocation name (should be unique within the same MCP)")
-    alias: Optional[str] = Field(default=None, description="Display name for frontend (can be duplicated)")
-    description: Optional[str] = Field(default=None, description="Tool description")
+    alias: str | None = Field(default=None, description="Display name for frontend (can be duplicated)")
+    description: str | None = Field(default=None, description="Tool description")
 
-    input_schema: Optional[Any] = Field(
+    input_schema: Any | None = Field(
         default=None, description="JSON Schema (input), empty for non-custom Tools"
     )
-    output_schema: Optional[Any] = Field(
+    output_schema: Any | None = Field(
         default=None, description="JSON Schema (output), empty for non-custom Tools"
     )
-    metadata: Optional[Any] = Field(
+    metadata: Any | None = Field(
         default=None,
         description=(
             "Extension config (by tool.type convention).\n\n"
@@ -62,55 +62,55 @@ class ToolCreate(BaseModel):
         default="builtin",
         description="Tool category: builtin or custom (custom script)"
     )
-    script_type: Optional[str] = Field(
+    script_type: str | None = Field(
         default=None,
         description="Script type (only for custom category): python, javascript, shell"
     )
-    script_content: Optional[str] = Field(
+    script_content: str | None = Field(
         default=None,
         description="Script code content (only for custom category)"
     )
 
 
 class ToolUpdate(BaseModel):
-    path: Optional[str] = None
-    json_path: Optional[str] = None
-    type: Optional[ToolTypeKey] = None
+    path: str | None = None
+    json_path: str | None = None
+    type: ToolTypeKey | None = None
 
-    name: Optional[str] = None
-    alias: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    alias: str | None = None
+    description: str | None = None
 
-    input_schema: Optional[Any] = None
-    output_schema: Optional[Any] = None
-    metadata: Optional[Any] = None
+    input_schema: Any | None = None
+    output_schema: Any | None = None
+    metadata: Any | None = None
 
     # Additional fields
-    category: Optional[ToolCategory] = None
-    script_type: Optional[str] = None
-    script_content: Optional[str] = None
+    category: ToolCategory | None = None
+    script_type: str | None = None
+    script_content: str | None = None
 
 
 class ToolOut(BaseModel):
     id: str
     created_at: datetime
 
-    created_by: Optional[str] = None
+    created_by: str | None = None
     org_id: str
-    project_id: Optional[str] = None  # Associated project ID
-    path: Optional[str] = None
+    project_id: str | None = None  # Associated project ID
+    path: str | None = None
     json_path: str = ""
 
     type: ToolTypeKey
     name: str
-    alias: Optional[str] = None
-    description: Optional[str] = None
+    alias: str | None = None
+    description: str | None = None
 
-    input_schema: Optional[Any] = None
-    output_schema: Optional[Any] = None
-    metadata: Optional[Any] = None
+    input_schema: Any | None = None
+    output_schema: Any | None = None
+    metadata: Any | None = None
 
     # Additional fields
     category: ToolCategory = "builtin"
-    script_type: Optional[str] = None
-    script_content: Optional[str] = None
+    script_type: str | None = None
+    script_content: str | None = None

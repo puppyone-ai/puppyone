@@ -7,12 +7,10 @@ This service only handles file-related task queries.
 
 import asyncio
 import logging
-from typing import Optional
-
 
 from src.ingest.schemas import (
-    SourceType,
     IngestTaskResponse,
+    SourceType,
 )
 from src.ingest.shared.task.normalizers import (
     normalize_file_task,
@@ -32,7 +30,7 @@ class IngestService:
         task_id: str,
         source_type: SourceType,
         user_id: str,
-    ) -> Optional[IngestTaskResponse]:
+    ) -> IngestTaskResponse | None:
         """Get file task status."""
         if source_type != SourceType.FILE:
             return None

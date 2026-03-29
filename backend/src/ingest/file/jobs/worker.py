@@ -11,6 +11,7 @@ from __future__ import annotations
 
 # Load .env file before any other imports that need env vars
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Find .env relative to this file (backend/.env)
@@ -23,13 +24,13 @@ import logging
 
 from arq.connections import RedisSettings
 
+from src.infra.llm.service import LLMService
+from src.infra.s3.service import S3Service
 from src.ingest.file.config import etl_config
 from src.ingest.file.jobs.jobs import etl_ocr_job, etl_postprocess_job
 from src.ingest.file.ocr import get_ocr_provider
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
-from src.infra.llm.service import LLMService
-from src.infra.s3.service import S3Service
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ async def shutdown(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    functions = [etl_ocr_job, etl_postprocess_job]
+    functions = [etl_ocr_job, etl_postprocess_job]  # noqa: RUF012
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(etl_config.etl_redis_url)

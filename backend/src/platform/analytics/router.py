@@ -5,13 +5,13 @@ Provides time-series data for monitoring data egress (context → sandbox).
 Data source: access_logs table (records each time a node is sent to sandbox).
 """
 
-from fastapi import APIRouter, Depends, Query
-from typing import Optional, List
 from datetime import datetime, timedelta
+
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
-from src.platform.auth.dependencies import get_current_user_optional
 from src.infra.supabase import get_supabase_client
+from src.platform.auth.dependencies import get_current_user_optional
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
 
@@ -22,7 +22,7 @@ class TimeSeriesBucket(BaseModel):
 
 
 class TimeSeriesResponse(BaseModel):
-    data: List[TimeSeriesBucket]
+    data: list[TimeSeriesBucket]
     interval: str
     range_hours: int
     total: int
@@ -32,8 +32,8 @@ class TimeSeriesResponse(BaseModel):
 async def get_access_timeseries(
     interval: str = Query("hour", description="'hour' or 'day'"),
     range_hours: int = Query(168, description="Hours back (default 7 days)"),
-    agent_id: Optional[str] = Query(None),
-    path: Optional[str] = Query(None),
+    agent_id: str | None = Query(None),
+    path: str | None = Query(None),
     current_user=Depends(get_current_user_optional),
 ):
     """
@@ -73,7 +73,7 @@ async def get_access_timeseries(
                 bucket_key = dt.strftime("%Y-%m-%dT%H:00:00Z")
             bucket_counts[bucket_key] = bucket_counts.get(bucket_key, 0) + 1
 
-    all_buckets: List[TimeSeriesBucket] = []
+    all_buckets: list[TimeSeriesBucket] = []
     current = start_time.replace(minute=0, second=0, microsecond=0)
     if interval == "day":
         current = current.replace(hour=0)

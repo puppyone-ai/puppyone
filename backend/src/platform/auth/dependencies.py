@@ -2,15 +2,16 @@
 Authentication dependency injection
 """
 
-from typing import Optional
+
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from src.platform.auth.service import AuthService
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from src.config import settings
+from src.exceptions import AuthException
+from src.infra.supabase.dependencies import get_supabase_client
 from src.platform.auth.initialization import UserInitializationService
 from src.platform.auth.models import CurrentUser
-from src.infra.supabase.dependencies import get_supabase_client
-from src.exceptions import AuthException
-from src.config import settings
+from src.platform.auth.service import AuthService
 from src.utils.logger import log_warning
 
 # Define HTTPBearer security scheme
@@ -26,8 +27,8 @@ _initialization_service = None
 def get_initialization_service() -> UserInitializationService:
     global _initialization_service
     if _initialization_service is None:
-        from src.platform.profile.repository import ProfileRepositorySupabase
         from src.platform.organization.repository import OrganizationRepository
+        from src.platform.profile.repository import ProfileRepositorySupabase
         _initialization_service = UserInitializationService(
             profile_repo=ProfileRepositorySupabase(),
             org_repo=OrganizationRepository(),
@@ -50,7 +51,7 @@ def get_auth_service() -> AuthService:
 
 
 def get_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> CurrentUser:
     """
     Extract and verify JWT token from request headers, return current user info
@@ -112,8 +113,8 @@ def get_current_user(
 
 
 def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-) -> Optional[CurrentUser]:
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+) -> CurrentUser | None:
     """
     Optional user authentication dependency; returns None if no token is provided
 

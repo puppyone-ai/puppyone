@@ -7,7 +7,6 @@ API-side helper to enqueue ETL jobs and access the underlying ArqRedis pool.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from arq.connections import ArqRedis, RedisSettings, create_pool
 
@@ -25,7 +24,7 @@ class ETLArqClient:
     ):
         self.redis_url = redis_url or etl_config.etl_redis_url
         self.queue_name = queue_name or etl_config.etl_arq_queue_name
-        self._pool: Optional[ArqRedis] = None
+        self._pool: ArqRedis | None = None
 
     async def get_pool(self) -> ArqRedis:
         if self._pool is None:

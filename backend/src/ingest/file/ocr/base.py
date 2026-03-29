@@ -7,7 +7,6 @@ All OCR providers (MineRU, Reducto, etc.) must implement this interface.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -26,13 +25,13 @@ class ParsedDocument:
     markdown_content: str
 
     # Optional: Local cache directory (if provider downloads files locally)
-    cache_dir: Optional[str] = None
+    cache_dir: str | None = None
 
     # Optional: Path to the markdown file (if saved locally)
-    markdown_path: Optional[str] = None
+    markdown_path: str | None = None
 
     # Optional: Provider-specific metadata
-    metadata: Optional[dict] = None
+    metadata: dict | None = None
 
 
 class OCRProvider(ABC):
@@ -58,7 +57,7 @@ class OCRProvider(ABC):
     async def parse_document(
         self,
         file_url: str,
-        data_id: Optional[str] = None,
+        data_id: str | None = None,
     ) -> ParsedDocument:
         """
         Parse a document and extract text as markdown.
@@ -91,8 +90,8 @@ class OCRProviderError(Exception):
         self,
         provider: str,
         message: str,
-        status_code: Optional[int] = None,
-        raw_response: Optional[str] = None,
+        status_code: int | None = None,
+        raw_response: str | None = None,
     ):
         self.provider = provider
         self.message = message

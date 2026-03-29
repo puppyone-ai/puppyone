@@ -8,7 +8,7 @@ The tables table in DB is only used for storing metadata indexes.
 """
 
 import json
-from typing import List, Optional, Dict, Any
+from typing import Any
 
 import jmespath
 from jsonpointer import resolve_pointer
@@ -16,7 +16,7 @@ from jsonpointer import resolve_pointer
 from src.content.table.models import Table
 from src.content.table.repository import TableRepositoryBase
 from src.content.table.schemas import ProjectWithTables
-from src.exceptions import NotFoundException, BusinessException, ErrorCode
+from src.exceptions import BusinessException, ErrorCode, NotFoundException
 from src.utils.logger import log_info
 
 
@@ -49,7 +49,7 @@ class TableService:
         from src.mut_engine.dependencies import create_mut_ops
         return create_mut_ops()
 
-    def _table_mut_path(self, project_id: str, table_id: str) -> str:
+    def _table_mut_path(self, _project_id: str, table_id: str) -> str:
         """Standard path for Table in the MUT tree"""
         return f"tables/{table_id}.json"
 
@@ -90,10 +90,10 @@ class TableService:
 
     def get_projects_with_tables_by_org_id(
         self, org_id: str
-    ) -> List[ProjectWithTables]:
+    ) -> list[ProjectWithTables]:
         return self.repo.get_projects_with_tables_by_org_id(org_id)
 
-    def get_by_id(self, table_id: str) -> Optional[Table]:
+    def get_by_id(self, table_id: str) -> Table | None:
         return self.repo.get_by_id(table_id)
 
     def get_by_id_with_access_check(self, table_id: str, user_id: str) -> Table:
@@ -164,9 +164,9 @@ class TableService:
     async def update(
         self,
         table_id: str,
-        name: Optional[str],
-        description: Optional[str],
-        data: Optional[dict],
+        name: str | None,
+        description: str | None,
+        data: dict | None,
     ) -> Table:
         self._ensure_mut()
 
@@ -231,69 +231,140 @@ class TableService:
     # Context Data operations — JSON Pointer + MUT write
     # ================================================================
 
-    async def create_context_data(
-        self, table_id: str, mounted_json_pointer_path: str, elements: List[Dict]
-    ) -> Any:
+    @staticmethod
+    def _resolve_parent(actual_data: Any, pointer_path: str, *, not_found_exc: type = BusinessException) -> Any:
+        """Resolve a JSON pointer path and return the parent node, raising on failure."""
+        try:
+            parent = resolve_pointer(actual_data, pointer_path, None)
+        except Exception as e:
+            raise BusinessException(
+                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
+            )
+        if parent is None:
+            raise not_found_exc(
+                f"Path not found: {pointer_path}",
+                code=ErrorCode.BAD_REQUEST if not_found_exc is BusinessException else ErrorCode.NOT_FOUND,
+            )
+        return parent
+
+    @staticmethod
+    def _require_element_field(element: dict, field: str) -> None:
+        if field not in element:
+            raise BusinessException(
+                f"Element missing '{field}' field", code=ErrorCode.VALIDATION_ERROR
+            )
+
+    def _insert_into_dict(self, parent: dict, elements: list[dict]) -> None:
+        """Validate and insert elements into a dict parent node."""
+        for element in elements:
+            self._require_element_field(element, "key")
+            if element["key"] in parent:
+                raise BusinessException(
+                    f"Key '{element['key']}' already exists", code=ErrorCode.VALIDATION_ERROR
+                )
+
+        existing_content_strs = {
+            json.dumps(parent[k], sort_keys=True) for k in parent
+        }
+        for element in elements:
+            self._require_element_field(element, "content")
+            content_str = json.dumps(element["content"], sort_keys=True)
+            if content_str in existing_content_strs:
+                raise BusinessException(
+                    f"Content already exists for key: {element['key']}",
+                    code=ErrorCode.VALIDATION_ERROR,
+                )
+
+        for element in elements:
+            parent[element["key"]] = element["content"]
+
+    def _insert_into_list(self, parent: list, elements: list[dict]) -> None:
+        """Validate and append elements into a list parent node."""
+        for element in elements:
+            self._require_element_field(element, "content")
+            parent.append(element["content"])
+
+    def _update_dict_elements(self, parent: dict, elements: list[dict]) -> None:
+        """Validate and update elements in a dict parent node."""
+        for element in elements:
+            self._require_element_field(element, "key")
+            if element["key"] not in parent:
+                raise NotFoundException(
+                    f"Key '{element['key']}' not found", code=ErrorCode.NOT_FOUND
+                )
+        for element in elements:
+            self._require_element_field(element, "content")
+            parent[element["key"]] = element["content"]
+
+    def _update_list_elements(self, parent: list, elements: list[dict]) -> None:
+        """Validate and update elements in a list parent node."""
+        for element in elements:
+            self._require_element_field(element, "key")
+            self._require_element_field(element, "content")
+            try:
+                idx = int(element["key"])
+            except (TypeError, ValueError):
+                raise BusinessException(
+                    f"Invalid list index: {element['key']}",
+                    code=ErrorCode.BAD_REQUEST,
+                )
+            if idx < 0 or idx >= len(parent):
+                raise NotFoundException(
+                    f"Index '{idx}' not found", code=ErrorCode.NOT_FOUND
+                )
+            parent[idx] = element["content"]
+
+    @staticmethod
+    def _delete_dict_keys(parent: dict, keys: list[str]) -> None:
+        """Validate and delete keys from a dict parent node."""
+        for key in keys:
+            if key not in parent:
+                raise NotFoundException(
+                    f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
+                )
+        for key in keys:
+            del parent[key]
+
+    @staticmethod
+    def _delete_list_indices(parent: list, keys: list[str]) -> None:
+        """Validate and delete indices from a list parent node."""
+        indices: list[int] = []
+        for key in keys:
+            try:
+                idx = int(key)
+            except (TypeError, ValueError):
+                raise BusinessException(
+                    f"Invalid list index: {key}", code=ErrorCode.BAD_REQUEST
+                )
+            if idx < 0 or idx >= len(parent):
+                raise NotFoundException(
+                    f"Index '{idx}' not found", code=ErrorCode.NOT_FOUND
+                )
+            indices.append(idx)
+        for idx in sorted(set(indices), reverse=True):
+            del parent[idx]
+
+    def _get_table_and_data(self, table_id: str) -> tuple:
+        """Fetch table, read its data, and return (table, data_copy, actual_data)."""
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
                 f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
             )
-
         data = self._read_table_data(table).copy()
         actual_data = data.get("data", data) if "data" in data else data
+        return table, data, actual_data
 
-        try:
-            parent = resolve_pointer(actual_data, mounted_json_pointer_path, None)
-        except Exception as e:
-            raise BusinessException(
-                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
-            )
-
-        if parent is None:
-            raise BusinessException(
-                f"Path not found: {mounted_json_pointer_path}",
-                code=ErrorCode.BAD_REQUEST,
-            )
+    async def create_context_data(
+        self, table_id: str, mounted_json_pointer_path: str, elements: list[dict]
+    ) -> Any:
+        table, data, actual_data = self._get_table_and_data(table_id)
+        parent = self._resolve_parent(actual_data, mounted_json_pointer_path)
 
         if isinstance(parent, dict):
-            for element in elements:
-                if "key" not in element:
-                    raise BusinessException(
-                        "Element missing 'key' field", code=ErrorCode.VALIDATION_ERROR
-                    )
-                key = element["key"]
-                if key in parent:
-                    raise BusinessException(
-                        f"Key '{key}' already exists", code=ErrorCode.VALIDATION_ERROR
-                    )
-
-            existing_content_strs = {
-                json.dumps(parent[k], sort_keys=True) for k in parent
-            }
-            for element in elements:
-                if "content" not in element:
-                    raise BusinessException(
-                        "Element missing 'content' field",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
-                content_str = json.dumps(element["content"], sort_keys=True)
-                if content_str in existing_content_strs:
-                    raise BusinessException(
-                        f"Content already exists for key: {element['key']}",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
-
-            for element in elements:
-                parent[element["key"]] = element["content"]
+            self._insert_into_dict(parent, elements)
         elif isinstance(parent, list):
-            for element in elements:
-                if "content" not in element:
-                    raise BusinessException(
-                        "Element missing 'content' field",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
-                parent.append(element["content"])
+            self._insert_into_list(parent, elements)
         else:
             raise BusinessException(
                 "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
@@ -327,72 +398,15 @@ class TableService:
             )
 
     async def update_context_data(
-        self, table_id: str, json_pointer_path: str, elements: List[Dict]
+        self, table_id: str, json_pointer_path: str, elements: list[dict]
     ) -> Any:
-        table = self.repo.get_by_id(table_id)
-        if not table:
-            raise NotFoundException(
-                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
-            )
-
-        data = self._read_table_data(table).copy()
-        actual_data = data.get("data", data) if "data" in data else data
-
-        try:
-            parent = resolve_pointer(actual_data, json_pointer_path, None)
-        except Exception as e:
-            raise BusinessException(
-                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
-            )
-
-        if parent is None:
-            raise NotFoundException(
-                f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
-            )
+        table, data, actual_data = self._get_table_and_data(table_id)
+        parent = self._resolve_parent(actual_data, json_pointer_path, not_found_exc=NotFoundException)
 
         if isinstance(parent, dict):
-            for element in elements:
-                if "key" not in element:
-                    raise BusinessException(
-                        "Element missing 'key' field",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
-                if element["key"] not in parent:
-                    raise NotFoundException(
-                        f"Key '{element['key']}' not found", code=ErrorCode.NOT_FOUND
-                    )
-
-            for element in elements:
-                if "content" not in element:
-                    raise BusinessException(
-                        "Element missing 'content' field",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
-                parent[element["key"]] = element["content"]
+            self._update_dict_elements(parent, elements)
         elif isinstance(parent, list):
-            for element in elements:
-                if "key" not in element:
-                    raise BusinessException(
-                        "Element missing 'key' field",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
-                if "content" not in element:
-                    raise BusinessException(
-                        "Element missing 'content' field",
-                        code=ErrorCode.VALIDATION_ERROR,
-                    )
-                try:
-                    idx = int(element["key"])
-                except (TypeError, ValueError):
-                    raise BusinessException(
-                        f"Invalid list index: {element['key']}",
-                        code=ErrorCode.BAD_REQUEST,
-                    )
-                if idx < 0 or idx >= len(parent):
-                    raise NotFoundException(
-                        f"Index '{idx}' not found", code=ErrorCode.NOT_FOUND
-                    )
-                parent[idx] = element["content"]
+            self._update_list_elements(parent, elements)
         else:
             raise BusinessException(
                 "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
@@ -402,55 +416,15 @@ class TableService:
         return resolve_pointer(actual_data, json_pointer_path)
 
     async def delete_context_data(
-        self, table_id: str, json_pointer_path: str, keys: List[str]
+        self, table_id: str, json_pointer_path: str, keys: list[str]
     ) -> Any:
-        table = self.repo.get_by_id(table_id)
-        if not table:
-            raise NotFoundException(
-                f"Table not found: {table_id}", code=ErrorCode.NOT_FOUND
-            )
-
-        data = self._read_table_data(table).copy()
-        actual_data = data.get("data", data) if "data" in data else data
-
-        try:
-            parent = resolve_pointer(actual_data, json_pointer_path, None)
-        except Exception as e:
-            raise BusinessException(
-                f"Invalid path: {e!s}", code=ErrorCode.BAD_REQUEST
-            )
-
-        if parent is None:
-            raise NotFoundException(
-                f"Path not found: {json_pointer_path}", code=ErrorCode.NOT_FOUND
-            )
+        table, data, actual_data = self._get_table_and_data(table_id)
+        parent = self._resolve_parent(actual_data, json_pointer_path, not_found_exc=NotFoundException)
 
         if isinstance(parent, dict):
-            for key in keys:
-                if key not in parent:
-                    raise NotFoundException(
-                        f"Key '{key}' not found", code=ErrorCode.NOT_FOUND
-                    )
-
-            for key in keys:
-                del parent[key]
+            self._delete_dict_keys(parent, keys)
         elif isinstance(parent, list):
-            indices: list[int] = []
-            for key in keys:
-                try:
-                    idx = int(key)
-                except (TypeError, ValueError):
-                    raise BusinessException(
-                        f"Invalid list index: {key}", code=ErrorCode.BAD_REQUEST
-                    )
-                if idx < 0 or idx >= len(parent):
-                    raise NotFoundException(
-                        f"Index '{idx}' not found", code=ErrorCode.NOT_FOUND
-                    )
-                indices.append(idx)
-
-            for idx in sorted(set(indices), reverse=True):
-                del parent[idx]
+            self._delete_list_indices(parent, keys)
         else:
             raise BusinessException(
                 "Path points to non-dict/list node", code=ErrorCode.BAD_REQUEST
@@ -482,7 +456,7 @@ class TableService:
 
     def query_context_data_with_jmespath(
         self, table_id: str, json_pointer_path: str, query: str
-    ) -> Optional[Any]:
+    ) -> Any | None:
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(
@@ -512,7 +486,7 @@ class TableService:
                 f"Query failed: {e!s}", code=ErrorCode.BAD_REQUEST
             )
 
-    def get_context_structure(self, table_id: str, json_pointer_path: str) -> Dict:
+    def get_context_structure(self, table_id: str, json_pointer_path: str) -> dict:
         table = self.repo.get_by_id(table_id)
         if not table:
             raise NotFoundException(

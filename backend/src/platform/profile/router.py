@@ -6,16 +6,16 @@ Provides API endpoints for user Profile and Onboarding
 
 from fastapi import APIRouter, Depends, status
 
-from src.platform.auth.dependencies import get_current_user, CurrentUser
 from src.common_schemas import ApiResponse
+from src.platform.auth.dependencies import CurrentUser, get_current_user
 from src.platform.profile.dependencies import get_profile_service
-from src.platform.profile.service import ProfileService
 from src.platform.profile.schemas import (
-    ProfileResponse,
-    OnboardingStatusResponse,
     OnboardingCompleteRequest,
+    OnboardingStatusResponse,
+    ProfileResponse,
     ResetOnboardingResponse,
 )
+from src.platform.profile.service import ProfileService
 
 router = APIRouter(
     prefix="/api/v1/profile",

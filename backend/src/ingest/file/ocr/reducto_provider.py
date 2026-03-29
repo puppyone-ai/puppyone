@@ -12,7 +12,6 @@ Key features:
 
 import asyncio
 import logging
-from typing import Optional
 
 import httpx
 from pydantic import Field
@@ -39,7 +38,7 @@ class ReductoConfig(BaseSettings):
         env_ignore_empty=True,
     )
 
-    reducto_api_key: Optional[str] = Field(
+    reducto_api_key: str | None = Field(
         default=None,
         description="Reducto API Key",
     )
@@ -76,7 +75,7 @@ class ReductoProvider(OCRProvider):
     3. Get markdown result
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """
         Initialize Reducto provider.
 
@@ -110,7 +109,7 @@ class ReductoProvider(OCRProvider):
     async def parse_document(
         self,
         file_url: str,
-        data_id: Optional[str] = None,
+        data_id: str | None = None,
     ) -> ParsedDocument:
         """
         Parse document using Reducto API.
@@ -259,6 +258,18 @@ class ReductoProvider(OCRProvider):
             message=f"Job {job_id} timed out after {self._max_wait_time}s",
         )
 
+    @staticmethod
+    def _format_element(elem: dict) -> str:
+        """Format a single Reducto element into markdown."""
+        elem_type = elem.get("type", "")
+        content = elem.get("content", "") or elem.get("text", "")
+        if elem_type == "heading":
+            level = elem.get("level", 1)
+            return f"{'#' * level} {content}"
+        if elem_type == "table":
+            return elem.get("markdown", content)
+        return content
+
     def _extract_markdown(self, result: dict) -> str:
         """
         Extract markdown content from Reducto result.
@@ -266,49 +277,29 @@ class ReductoProvider(OCRProvider):
         Reducto returns structured result with different sections.
         We combine them into a single markdown string.
         """
-        # Reducto result structure varies by API version
-        # Try different possible fields
-
         # Direct markdown field
         if "markdown" in result:
             return result["markdown"]
 
         # Chunks/pages structure
-        if "chunks" in result:
-            chunks = result["chunks"]
-            if isinstance(chunks, list):
-                return "\n\n".join(
-                    chunk.get("text", "") or chunk.get("markdown", "")
-                    for chunk in chunks
-                )
+        if "chunks" in result and isinstance(result["chunks"], list):
+            return "\n\n".join(
+                chunk.get("text", "") or chunk.get("markdown", "")
+                for chunk in result["chunks"]
+            )
 
         # Pages structure
-        if "pages" in result:
-            pages = result["pages"]
-            if isinstance(pages, list):
-                return "\n\n---\n\n".join(
-                    page.get("markdown", "") or page.get("text", "")
-                    for page in pages
-                )
+        if "pages" in result and isinstance(result["pages"], list):
+            return "\n\n---\n\n".join(
+                page.get("markdown", "") or page.get("text", "")
+                for page in result["pages"]
+            )
 
         # Elements structure
-        if "elements" in result:
-            elements = result["elements"]
-            if isinstance(elements, list):
-                parts = []
-                for elem in elements:
-                    elem_type = elem.get("type", "")
-                    content = elem.get("content", "") or elem.get("text", "")
-
-                    if elem_type == "heading":
-                        level = elem.get("level", 1)
-                        parts.append(f"{'#' * level} {content}")
-                    elif elem_type == "table":
-                        parts.append(elem.get("markdown", content))
-                    else:
-                        parts.append(content)
-
-                return "\n\n".join(parts)
+        if "elements" in result and isinstance(result["elements"], list):
+            return "\n\n".join(
+                self._format_element(elem) for elem in result["elements"]
+            )
 
         # Text field as fallback
         if "text" in result:

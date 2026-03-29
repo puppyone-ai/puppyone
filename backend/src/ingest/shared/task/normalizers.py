@@ -5,13 +5,13 @@ SaaS normalizers removed — SaaS imports now go through Bootstrap + SyncEngine.
 """
 
 
+from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
 from src.ingest.schemas import (
-    SourceType,
-    IngestType,
     IngestStatus,
     IngestTaskResponse,
+    IngestType,
+    SourceType,
 )
-from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
 
 
 def normalize_file_status(status: ETLTaskStatus) -> IngestStatus:

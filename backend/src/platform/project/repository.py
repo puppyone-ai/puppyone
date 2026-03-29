@@ -5,7 +5,6 @@ Defines the data access interface and implementation for Project
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from src.platform.project.models import Project
 
@@ -14,18 +13,18 @@ class ProjectRepositoryBase(ABC):
     """Abstract Project repository interface"""
 
     @abstractmethod
-    def get_by_id(self, project_id: str) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Project | None:
         """Get project by ID"""
 
     @abstractmethod
-    def get_by_org_id(self, org_id: str) -> List[Project]:
+    def get_by_org_id(self, org_id: str) -> list[Project]:
         """Get project list by organization ID"""
 
     @abstractmethod
     def create(
         self,
         name: str,
-        description: Optional[str],
+        description: str | None,
         org_id: str,
         created_by: str,
     ) -> Project:
@@ -35,9 +34,9 @@ class ProjectRepositoryBase(ABC):
     def update(
         self,
         project_id: str,
-        name: Optional[str],
-        description: Optional[str],
-    ) -> Optional[Project]:
+        name: str | None,
+        description: str | None,
+    ) -> Project | None:
         """Update a project"""
 
     @abstractmethod
@@ -45,7 +44,7 @@ class ProjectRepositoryBase(ABC):
         """Delete a project"""
 
     @abstractmethod
-    def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
+    def verify_project_access(self, project_id: str, user_id: str) -> str | None:
         """Verify whether user has access to the specified project; returns role string or None"""
 
 
@@ -66,7 +65,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         else:
             self._supabase_repo = supabase_repo
 
-    def get_by_id(self, project_id: str) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Project | None:
         """
         Get project by ID
 
@@ -81,7 +80,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             return self._project_response_to_project(project_response)
         return None
 
-    def get_by_org_id(self, org_id: str) -> List[Project]:
+    def get_by_org_id(self, org_id: str) -> list[Project]:
         """
         Get project list by organization ID
 
@@ -97,7 +96,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
     def create(
         self,
         name: str,
-        description: Optional[str],
+        description: str | None,
         org_id: str,
         created_by: str,
     ) -> Project:
@@ -129,10 +128,10 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
     def update(
         self,
         project_id: str,
-        name: Optional[str],
-        description: Optional[str],
-        visibility: Optional[str] = None,
-    ) -> Optional[Project]:
+        name: str | None,
+        description: str | None,
+        visibility: str | None = None,
+    ) -> Project | None:
         """
         Update a project
 
@@ -170,7 +169,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         """
         return self._supabase_repo.delete_project(project_id)
 
-    def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
+    def verify_project_access(self, project_id: str, user_id: str) -> str | None:
         """
         Verify whether user has access to the specified project
 
@@ -198,7 +197,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
 
         return result
 
-    def _verify_project_access_uncached(self, project_id: str, user_id: str) -> Optional[str]:
+    def _verify_project_access_uncached(self, project_id: str, user_id: str) -> str | None:
         project = self.get_by_id(project_id)
         if not project:
             return None

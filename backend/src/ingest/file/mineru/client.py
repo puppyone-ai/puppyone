@@ -8,7 +8,6 @@ import asyncio
 import logging
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -34,7 +33,7 @@ logger = logging.getLogger(__name__)
 class MineRUClient:
     """Client for MineRU API."""
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """
         Initialize MineRU client.
 
@@ -62,7 +61,7 @@ class MineRUClient:
         self,
         file_url: str,
         model_version: MineRUModelVersion = MineRUModelVersion.VLM,
-        data_id: Optional[str] = None,
+        data_id: str | None = None,
     ) -> CreateTaskResponse:
         """
         Create a MineRU parsing task.
@@ -363,7 +362,7 @@ class MineRUClient:
         self,
         file_url: str,
         model_version: MineRUModelVersion = MineRUModelVersion.VLM,
-        data_id: Optional[str] = None,
+        data_id: str | None = None,
     ) -> ParsedResult:
         """
         Complete pipeline: create task, wait, download, extract Markdown.

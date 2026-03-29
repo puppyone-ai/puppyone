@@ -4,15 +4,15 @@ Table Data Access Layer
 Provides CRUD operations for the tables table.
 """
 
-from typing import List, Optional
+
 from supabase import Client
 
-from src.infra.supabase.exceptions import handle_supabase_error
 from src.content.table.supabase_schemas import (
     TableCreate,
-    TableUpdate,
     TableResponse,
+    TableUpdate,
 )
+from src.infra.supabase.exceptions import handle_supabase_error
 
 
 class TableRepository:
@@ -32,7 +32,7 @@ class TableRepository:
         except Exception as e:
             raise handle_supabase_error(e, "create table")
 
-    def get_by_id(self, table_id: str) -> Optional[TableResponse]:
+    def get_by_id(self, table_id: str) -> TableResponse | None:
         response = (
             self._client.table(self.TABLE_NAME).select("*").eq("id", table_id).execute()
         )
@@ -44,9 +44,9 @@ class TableRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        project_id: Optional[str] = None,
-        name: Optional[str] = None,
-    ) -> List[TableResponse]:
+        project_id: str | None = None,
+        name: str | None = None,
+    ) -> list[TableResponse]:
         query = self._client.table(self.TABLE_NAME).select("*")
 
         if project_id is not None:
@@ -58,7 +58,7 @@ class TableRepository:
         response = query.range(skip, skip + limit - 1).execute()
         return [TableResponse(**item) for item in response.data]
 
-    def update(self, table_id: str, table_data: TableUpdate) -> Optional[TableResponse]:
+    def update(self, table_id: str, table_data: TableUpdate) -> TableResponse | None:
         try:
             data = table_data.model_dump(exclude_none=True)
             if not data:

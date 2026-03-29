@@ -10,7 +10,7 @@ from src.ingest.file.dependencies import get_etl_service
 from src.ingest.service import IngestService
 
 
-async def get_ingest_service(
+def get_ingest_service(
     file_service=Depends(get_etl_service),
 ) -> IngestService:
     """Get IngestService instance (file-only)."""

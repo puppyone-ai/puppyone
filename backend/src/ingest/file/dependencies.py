@@ -4,18 +4,16 @@ ETL Service Dependencies
 FastAPI dependency injection for ETL service.
 """
 
+from arq.connections import RedisSettings, create_pool
 from fastapi import Depends, Path
-
-from arq.connections import create_pool, RedisSettings
 
 from src.ingest.file.arq_client import ETLArqClient
 from src.ingest.file.service import ETLService
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTask
 from src.ingest.file.tasks.repository import ETLTaskRepositoryBase, ETLTaskRepositorySupabase
-from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
-
+from src.platform.auth.models import CurrentUser
 
 # Use global variables to store singletons
 _etl_task_repository = None

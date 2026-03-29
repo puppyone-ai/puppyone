@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from src.infra.supabase.dependencies import get_supabase_repository
-from src.tool.repository import ToolRepositorySupabase
-from src.tool.service import ToolService
 from src.mut_engine.dependencies import create_mut_ops
 from src.platform.project.dependencies import get_project_service
-
+from src.tool.repository import ToolRepositorySupabase
+from src.tool.service import ToolService
 
 _tool_service: ToolService | None = None
 

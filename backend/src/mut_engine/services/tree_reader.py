@@ -94,40 +94,30 @@ class MutTreeReader:
             log_error(f"[MutTreeReader] Failed to read tree at {path}: {e}")
             return []
 
-        result = []
-        for name, (typ, hash_val) in entries.items():
-            if name == ".keep":
-                continue
-
-            entry_path = f"{path}/{name}" if path else name
-
-            if typ == "T":
-                child_count = self._count_children(repo.store, hash_val)
-                result.append(MutEntry(
-                    name=name,
-                    path=entry_path,
-                    type="folder",
-                    children_count=child_count,
-                ))
-            else:
-                size = None
-                try:
-                    blob = repo.store.get(hash_val)
-                    size = len(blob)
-                except Exception:
-                    pass
-
-                result.append(MutEntry(
-                    name=name,
-                    path=entry_path,
-                    type=detect_type(name),
-                    content_hash=hash_val,
-                    size_bytes=size,
-                    mime_type=detect_mime(name),
-                ))
-
+        result = [
+            self._build_entry(repo.store, name, typ, hash_val, path)
+            for name, (typ, hash_val) in entries.items()
+            if name != ".keep"
+        ]
         result.sort(key=lambda e: (e.type != "folder", e.name.lower()))
         return result
+
+    def _build_entry(self, store, name: str, typ: str,
+                     hash_val: str, parent_path: str) -> MutEntry:
+        entry_path = f"{parent_path}/{name}" if parent_path else name
+        if typ == "T":
+            return MutEntry(
+                name=name, path=entry_path, type="folder",
+                children_count=self._count_children(store, hash_val),
+            )
+        import contextlib
+        size = None
+        with contextlib.suppress(Exception):
+            size = len(store.get(hash_val))
+        return MutEntry(
+            name=name, path=entry_path, type=detect_type(name),
+            content_hash=hash_val, size_bytes=size, mime_type=detect_mime(name),
+        )
 
     def read_file(self, project_id: str, path: str) -> bytes:
         """Read file content."""

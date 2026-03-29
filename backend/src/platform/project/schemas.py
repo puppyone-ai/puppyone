@@ -4,7 +4,7 @@ Project API Schemas
 Defines frontend API request/response models, matching the frontend ProjectInfo type.
 """
 
-from typing import Optional, List
+
 from pydantic import BaseModel
 
 
@@ -14,7 +14,7 @@ class NodeInfo(BaseModel):
     id: str
     name: str
     type: str  # folder | json | markdown | image | pdf | video | file
-    rows: Optional[int] = None
+    rows: int | None = None
 
 
 class ProjectOut(BaseModel):
@@ -22,25 +22,25 @@ class ProjectOut(BaseModel):
 
     id: str
     name: str
-    description: Optional[str] = None
-    nodes: List[NodeInfo] = []  # Renamed from tables to nodes
+    description: str | None = None
+    nodes: list[NodeInfo] = []  # Renamed from tables to nodes
 
 
 class ProjectCreate(BaseModel):
     """Create project request"""
 
     name: str
-    description: Optional[str] = None
-    org_id: Optional[str] = None
+    description: str | None = None
+    org_id: str | None = None
     seed: bool = False
 
 
 class ProjectUpdate(BaseModel):
     """Update project request"""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    visibility: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    visibility: str | None = None
 
 
 class ProjectMemberOut(BaseModel):
@@ -48,9 +48,9 @@ class ProjectMemberOut(BaseModel):
 
     id: str
     user_id: str
-    email: Optional[str] = None
-    display_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    email: str | None = None
+    display_name: str | None = None
+    avatar_url: str | None = None
     role: str
     created_at: str
 

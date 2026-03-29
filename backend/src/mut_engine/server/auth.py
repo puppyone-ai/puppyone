@@ -19,6 +19,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
+from src.mut_engine.server.backends import safe_data
 from src.platform.auth.dependencies import security
 from src.utils.logger import log_error, log_warning
 
@@ -117,7 +118,7 @@ class PuppyOneAuthenticator:
                 .limit(1)
                 .execute()
             )
-            rows = resp.data if resp and hasattr(resp, 'data') else None
+            rows = safe_data(resp)
             if not rows:
                 return None
             conn = rows[0]
@@ -172,7 +173,7 @@ class PuppyOneAuthenticator:
             return 0
 
 
-async def get_mut_auth(
+def get_mut_auth(
     request: Request,
     project_id: str,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),

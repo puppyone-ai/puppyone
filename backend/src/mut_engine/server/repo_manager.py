@@ -21,6 +21,7 @@ from mut.core.object_store import ObjectStore
 
 from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
+from src.mut_engine.server.backends import safe_data
 from src.mut_engine.server.backends.s3_storage import S3StorageBackend
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
 from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
@@ -98,8 +99,9 @@ class MutRepoManager:
                 .maybe_single()
                 .execute()
             )
-            if resp and hasattr(resp, 'data') and resp.data:
-                return resp.data.get("name", "project")
+            data = safe_data(resp)
+            if data:
+                return data.get("name", "project")
             return "project"
         except Exception as e:
             log_error(f"[RepoManager] Failed to lookup project name: {e}")

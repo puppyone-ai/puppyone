@@ -21,6 +21,7 @@ import time
 from dataclasses import dataclass, field
 
 from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.server.validation import validate_path
 from src.mut_engine.services.ephemeral_client import MutEphemeralClient
 from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
 
@@ -55,7 +56,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Write a single file."""
-        path = path.strip("/")
+        path = validate_path(path)
         return await self._do_push(
             project_id, who, scope,
             modified={path: content},
@@ -87,7 +88,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Create a directory (writes a .keep placeholder)."""
-        path = path.strip("/")
+        path = validate_path(path)
         keep = f"{path}/.keep"
         return await self._do_push(
             project_id, who, scope,
@@ -174,7 +175,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Soft-delete: move to .trash/{basename}_{timestamp}."""
-        path = path.strip("/")
+        path = validate_path(path)
         basename = path.rsplit("/", 1)[-1] if "/" in path else path
         trash_path = f".trash/{basename}_{int(time.time())}"
 
@@ -254,7 +255,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Hard-delete a file or folder (no trash)."""
-        path = path.strip("/")
+        path = validate_path(path)
 
         client = self._make_client(project_id, who, scope)
         files = await asyncio.to_thread(client.clone)

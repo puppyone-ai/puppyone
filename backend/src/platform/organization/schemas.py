@@ -1,15 +1,15 @@
-from typing import Optional
+
 from pydantic import BaseModel
 
 
 class CreateOrganization(BaseModel):
     name: str
-    slug: Optional[str] = None
+    slug: str | None = None
 
 
 class UpdateOrganization(BaseModel):
-    name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    name: str | None = None
+    avatar_url: str | None = None
 
 
 class InviteMember(BaseModel):
@@ -25,19 +25,19 @@ class OrganizationOut(BaseModel):
     id: str
     name: str
     slug: str
-    avatar_url: Optional[str] = None
+    avatar_url: str | None = None
     plan: str
     seat_limit: int
     created_at: str
-    member_count: Optional[int] = None
+    member_count: int | None = None
 
 
 class OrgMemberOut(BaseModel):
     id: str
     user_id: str
-    email: Optional[str] = None
-    display_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    email: str | None = None
+    display_name: str | None = None
+    avatar_url: str | None = None
     role: str
     joined_at: str
 

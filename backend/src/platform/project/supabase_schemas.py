@@ -5,7 +5,7 @@ Defines Pydantic models corresponding to the project table, used for type checki
 """
 
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -13,24 +13,24 @@ class ProjectBase(BaseModel):
     """Project base model"""
 
     name: str
-    description: Optional[str] = None
-    org_id: Optional[str] = None
+    description: str | None = None
+    org_id: str | None = None
     visibility: str = "org"
-    created_by: Optional[str] = None
+    created_by: str | None = None
 
 
 class ProjectCreate(ProjectBase):
     """Create project model"""
 
-    id: Optional[str] = None
+    id: str | None = None
 
 
 class ProjectUpdate(BaseModel):
     """Update project model"""
 
-    name: Optional[str] = None
-    description: Optional[str] = None
-    visibility: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    visibility: str | None = None
 
 
 class ProjectResponse(ProjectBase):

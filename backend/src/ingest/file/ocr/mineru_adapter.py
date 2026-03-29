@@ -5,7 +5,6 @@ Wraps the existing MineRU client to implement the OCRProvider interface.
 """
 
 import logging
-from typing import Optional
 
 from src.ingest.file.mineru.client import MineRUClient
 from src.ingest.file.mineru.config import mineru_config
@@ -33,7 +32,7 @@ class MineRUProvider(OCRProvider):
     Wraps the existing MineRUClient to provide a unified OCRProvider interface.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         """
         Initialize MineRU provider.
 
@@ -41,7 +40,7 @@ class MineRUProvider(OCRProvider):
             api_key: MineRU API key (defaults to env var MINERU_API_KEY)
         """
         self._api_key = api_key or mineru_config.mineru_api_key
-        self._client: Optional[MineRUClient] = None
+        self._client: MineRUClient | None = None
 
     @property
     def name(self) -> str:
@@ -62,7 +61,7 @@ class MineRUProvider(OCRProvider):
     async def parse_document(
         self,
         file_url: str,
-        data_id: Optional[str] = None,
+        data_id: str | None = None,
     ) -> ParsedDocument:
         """
         Parse document using MineRU OCR.

@@ -6,12 +6,12 @@ Handles user Profile and Onboarding business logic
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from src.platform.profile.models import Profile, ProfileUpdate
 from src.platform.profile.repository import ProfileRepositorySupabase
 from src.platform.project.service import ProjectService
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error, log_info
 
 if TYPE_CHECKING:
     from src.platform.auth.initialization import UserInitializationService
@@ -30,97 +30,90 @@ class ProfileService:
     def __init__(
         self,
         profile_repository: ProfileRepositorySupabase,
-        initialization_service: Optional[UserInitializationService] = None,
-        project_service: Optional[ProjectService] = None,
+        initialization_service: UserInitializationService | None = None,
+        project_service: ProjectService | None = None,
     ):
         self._profile_repo = profile_repository
         self._init_service = initialization_service
         self._project_service = project_service
 
-    def get_profile(self, user_id: str) -> Optional[Profile]:
+    def get_profile(self, user_id: str) -> Profile | None:
         return self._profile_repo.get_by_user_id(user_id)
 
-    def update_profile(self, user_id: str, data: ProfileUpdate) -> Optional[Profile]:
+    def update_profile(self, user_id: str, data: ProfileUpdate) -> Profile | None:
         return self._profile_repo.update(user_id, data)
 
     def check_onboarding_status(
-        self, user_id: str, email: Optional[str] = None
-    ) -> Tuple[bool, Optional[int], str]:
-        if email:
-            profile = self._profile_repo.get_or_create(user_id, email)
-        else:
-            profile = self._profile_repo.get_by_user_id(user_id)
+        self, user_id: str, email: str | None = None
+    ) -> tuple[bool, int | None, str]:
+        profile = self._resolve_profile(user_id, email)
 
         if profile is None:
             log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, None, "/home"
 
-        if self._init_service:
-            try:
-                self._init_service.ensure_initialized(
-                    user_id=user_id,
-                    email=email or profile.email,
-                    display_name=profile.display_name,
-                )
-            except Exception as e:
-                log_error(f"User initialization failed for {user_id}: {e}")
+        self._try_ensure_initialized(user_id, email or profile.email, profile.display_name)
 
         if profile.has_onboarded:
             return True, profile.demo_project_id, "/home"
-        else:
-            return False, None, "/home"
+        return False, None, "/home"
 
     async def complete_onboarding(
-        self, user_id: str, email: Optional[str] = None, demo_project_id: Optional[int] = None
-    ) -> Tuple[bool, str, Optional[int]]:
-        if email:
-            profile = self._profile_repo.get_or_create(user_id, email)
-        else:
-            profile = self._profile_repo.get_by_user_id(user_id)
-
+        self, user_id: str, email: str | None = None, demo_project_id: int | None = None
+    ) -> tuple[bool, str, int | None]:
+        profile = self._resolve_profile(user_id, email)
         if profile is None:
             log_error(f"Profile not found for user {user_id}, and unable to create")
             return False, "/home", None
 
-        if self._init_service:
-            try:
-                self._init_service.ensure_initialized(
-                    user_id=user_id,
-                    email=email or profile.email,
-                    display_name=profile.display_name,
-                )
-            except Exception as e:
-                log_error(f"User initialization failed for {user_id}: {e}")
+        self._try_ensure_initialized(user_id, email or profile.email, profile.display_name)
 
         if profile.has_onboarded:
             log_info(f"User {user_id} already onboarded")
             return True, "/home", profile.demo_project_id
 
-        actual_demo_project_id = demo_project_id
-        if actual_demo_project_id is None and self._project_service:
-            try:
-                demo_project = await self._create_demo_project(user_id)
-                if demo_project:
-                    actual_demo_project_id = int(demo_project.id)
-                    log_info(
-                        f"Created demo project {actual_demo_project_id} for user {user_id}"
-                    )
-            except Exception as e:
-                log_error(f"Failed to create demo project for user {user_id}: {e}")
+        actual_demo_project_id = await self._resolve_demo_project_id(user_id, demo_project_id)
 
         updated_profile = self._profile_repo.mark_onboarded(
             user_id, actual_demo_project_id
         )
 
-        if updated_profile:
-            if actual_demo_project_id:
-                redirect_to = f"/projects/{actual_demo_project_id}/data?welcome=true"
-            else:
-                redirect_to = "/home"
-
-            return True, redirect_to, actual_demo_project_id
-        else:
+        if not updated_profile:
             return False, "/home", None
+
+        redirect_to = (
+            f"/projects/{actual_demo_project_id}/data?welcome=true"
+            if actual_demo_project_id
+            else "/home"
+        )
+        return True, redirect_to, actual_demo_project_id
+
+    def _resolve_profile(self, user_id: str, email: str | None = None) -> Profile | None:
+        if email:
+            return self._profile_repo.get_or_create(user_id, email)
+        return self._profile_repo.get_by_user_id(user_id)
+
+    def _try_ensure_initialized(self, user_id: str, email: str, display_name: str | None) -> None:
+        if not self._init_service:
+            return
+        try:
+            self._init_service.ensure_initialized(
+                user_id=user_id, email=email, display_name=display_name,
+            )
+        except Exception as e:
+            log_error(f"User initialization failed for {user_id}: {e}")
+
+    async def _resolve_demo_project_id(self, user_id: str, demo_project_id: int | None) -> int | None:
+        if demo_project_id is not None or not self._project_service:
+            return demo_project_id
+        try:
+            demo_project = await self._create_demo_project(user_id)
+            if demo_project:
+                log_info(f"Created demo project {demo_project.id} for user {user_id}")
+                return int(demo_project.id)
+        except Exception as e:
+            log_error(f"Failed to create demo project for user {user_id}: {e}")
+        return None
 
     async def _create_demo_project(self, user_id: str):
         if not self._project_service:
@@ -167,8 +160,9 @@ class ProfileService:
 
         All writes go through MUT protocol (MutOps).
         """
-        from src.mut_engine.dependencies import create_mut_ops
         import json as json_mod
+
+        from src.mut_engine.dependencies import create_mut_ops
 
         ops = create_mut_ops()
 
@@ -298,7 +292,7 @@ Output format: Markdown
         except Exception as e:
             log_error(f"Error creating demo content: {e}")
 
-    def reset_onboarding(self, user_id: str) -> Tuple[bool, str]:
+    def reset_onboarding(self, user_id: str) -> tuple[bool, str]:
         profile = self._profile_repo.reset_onboarding(user_id)
 
         if profile:

@@ -9,7 +9,6 @@ Conflict resolution logic resides in L2 CollaborationService and is platform-ind
 import platform
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List
 
 from src.connectors.datasource.schemas import SyncResult  # L2.5
 
@@ -20,7 +19,7 @@ class WorkspaceInfo:
     path: str
     agent_id: str
     project_id: str
-    base_snapshot_id: Optional[int] = None
+    base_snapshot_id: int | None = None
     lower_path: str = ""
 
 
@@ -28,9 +27,9 @@ class WorkspaceInfo:
 class WorkspaceChanges:
     """Agent's changes"""
     agent_id: str
-    base_snapshot_id: Optional[int] = None
-    modified: Dict[str, str] = field(default_factory=dict)
-    deleted: List[str] = field(default_factory=list)
+    base_snapshot_id: int | None = None
+    modified: dict[str, str] = field(default_factory=dict)
+    deleted: list[str] = field(default_factory=list)
 
 
 class WorkspaceProvider(ABC):
@@ -46,7 +45,7 @@ class WorkspaceProvider(ABC):
 
     @abstractmethod
     async def create_workspace(
-        self, agent_id: str, project_id: str, base_snapshot_id: Optional[int] = None
+        self, agent_id: str, project_id: str, base_snapshot_id: int | None = None
     ) -> WorkspaceInfo:
         """
         Create an isolated workspace for the Agent
