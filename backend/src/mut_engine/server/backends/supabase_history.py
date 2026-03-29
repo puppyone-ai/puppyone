@@ -230,10 +230,11 @@ class SupabaseHistoryManager:
             .select("*")
             .eq("project_id", self._project_id)
             .eq("version", version)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
-        entry = _safe_data(resp)
+        rows = resp.data if resp and hasattr(resp, 'data') else None
+        entry = rows[0] if rows else None
         if entry:
             _parse_json_fields(entry)
         return entry
