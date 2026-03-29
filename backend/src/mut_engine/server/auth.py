@@ -12,14 +12,14 @@ Supports:
 
 from __future__ import annotations
 
-from typing import Optional
+from datetime import UTC
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 
-from src.platform.auth.dependencies import security
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
+from src.platform.auth.dependencies import security
 from src.utils.logger import log_warning
 
 
@@ -82,8 +82,9 @@ class PuppyOneAuthenticator:
 
     def _resolve_scope(self, conn: dict, project_id: str) -> dict:
         """Read scope through ScopeManager (SupabaseScopeBackend)."""
-        from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
         from mut.server.scope_manager import ScopeManager
+
+        from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
 
         backend = SupabaseScopeBackend(SupabaseClient(), project_id)
         manager = ScopeManager(backend)
@@ -95,7 +96,7 @@ class PuppyOneAuthenticator:
 
         return {"id": conn["id"], "path": "", "exclude": [], "mode": "rw"}
 
-    def _try_jwt(self, token: str) -> Optional[dict]:
+    def _try_jwt(self, token: str) -> dict | None:
         try:
             from src.platform.auth.service import AuthService
             auth_svc = AuthService(SupabaseClient())
@@ -104,7 +105,7 @@ class PuppyOneAuthenticator:
         except Exception:
             return None
 
-    def _try_access_key(self, key: str, project_id: str) -> Optional[dict]:
+    def _try_access_key(self, key: str, project_id: str) -> dict | None:
         try:
             resp = (
                 self._client.table("connections")
@@ -126,9 +127,9 @@ class PuppyOneAuthenticator:
     def revoke(self, access_key: str) -> bool:
         """Revoke an access key by setting revoked_at timestamp."""
         try:
-            from datetime import datetime, timezone
+            from datetime import datetime
             self._client.table("connections").update(
-                {"revoked_at": datetime.now(timezone.utc).isoformat()}
+                {"revoked_at": datetime.now(UTC).isoformat()}
             ).eq("access_key", access_key).execute()
             return True
         except Exception:
@@ -140,8 +141,8 @@ class PuppyOneAuthenticator:
         Matches connections whose config->scope->id equals scope_id.
         """
         try:
-            from datetime import datetime, timezone
-            now = datetime.now(timezone.utc).isoformat()
+            from datetime import datetime
+            now = datetime.now(UTC).isoformat()
             resp = (
                 self._client.table("connections")
                 .select("id, config")
@@ -166,7 +167,7 @@ class PuppyOneAuthenticator:
 async def get_mut_auth(
     request: Request,
     project_id: str,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> dict:
     """FastAPI dependency: extract and verify MUT auth context."""
     if not credentials:

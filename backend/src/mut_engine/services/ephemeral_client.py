@@ -16,14 +16,16 @@ from __future__ import annotations
 
 import base64
 import json
+from datetime import UTC
 
 from mut.foundation.hash import hash_bytes as mut_hash
 from mut.server.handlers import (
     handle_clone,
-    handle_push,
-    handle_pull,
     handle_negotiate,
+    handle_pull,
+    handle_push,
 )
+
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
@@ -254,5 +256,5 @@ def _content_hash(data: bytes) -> str:
 
 
 def _now_iso() -> str:
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    from datetime import datetime
+    return datetime.now(UTC).isoformat(timespec="seconds")

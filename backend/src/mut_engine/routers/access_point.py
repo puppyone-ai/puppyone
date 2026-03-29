@@ -24,20 +24,18 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-
-from mut.foundation.error import PermissionDenied, LockError
-
+from mut.foundation.error import LockError, PermissionDenied
 from mut.server.handlers import (
     handle_clone,
-    handle_push,
-    handle_pull,
     handle_negotiate,
+    handle_pull,
+    handle_push,
 )
 
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.services.hooks import run_post_push_hook
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error, log_info
 
 
 def resolve_access_point(access_key: str) -> tuple[str, dict]:

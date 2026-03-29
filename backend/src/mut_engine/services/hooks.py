@@ -9,7 +9,7 @@ Best-effort: failures are logged, not propagated to the caller.
 
 from __future__ import annotations
 
-from src.utils.logger import log_info, log_error, log_warning
+from src.utils.logger import log_error, log_info, log_warning
 
 
 def run_post_push_hook(

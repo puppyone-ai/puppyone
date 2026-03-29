@@ -19,11 +19,10 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.services.ephemeral_client import MutEphemeralClient
-from src.mut_engine.services.tree_reader import MutTreeReader, MutEntry
+from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
 
 
 @dataclass
@@ -293,7 +292,7 @@ class MutOps:
     ) -> list[MutEntry]:
         return self._reader.list_tree(project_id, path.strip("/"), max_depth=max_depth)
 
-    def stat(self, project_id: str, path: str) -> Optional[MutEntry]:
+    def stat(self, project_id: str, path: str) -> MutEntry | None:
         return self._reader.stat(project_id, path.strip("/"))
 
     def get_version(self, project_id: str) -> int:

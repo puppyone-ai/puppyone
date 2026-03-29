@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import json
 
+from mut.core.diff import diff_trees
 from mut.core.object_store import ObjectStore
 from mut.core.tree import tree_to_flat
-from mut.core.diff import diff_trees
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_info, log_warning

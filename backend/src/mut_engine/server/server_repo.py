@@ -16,15 +16,14 @@ from __future__ import annotations
 
 import json
 import threading
-from typing import Optional
 
 from mut.core.object_store import ObjectStore
-from mut.core.tree import read_tree, tree_to_flat
 from mut.core.protocol import normalize_path
+from mut.core.tree import read_tree, tree_to_flat
 from mut.server.scope_manager import ScopeManager
 
-from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
+from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
 from src.utils.logger import log_error
 
 
@@ -56,7 +55,7 @@ class PuppyOneServerRepo:
         self._scope_locks_guard = threading.Lock()
 
         self._pending_scope: dict[str, tuple[str, dict[str, bytes]]] = {}
-        self._last_scope_build: Optional[tuple[str, str]] = None
+        self._last_scope_build: tuple[str, str] | None = None
 
         # In-memory global version counter for atomic increment
         self._version_counter: int | None = None
