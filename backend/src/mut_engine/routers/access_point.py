@@ -62,7 +62,7 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
         .execute()
     )
 
-    if not resp.data:
+    if not resp or not hasattr(resp, 'data') or not resp.data:
         raise HTTPException(status_code=401, detail="Invalid access point key")
 
     conn = resp.data

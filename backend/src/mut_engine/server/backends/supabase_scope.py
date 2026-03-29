@@ -34,7 +34,7 @@ class SupabaseScopeBackend(ScopeBackend):
                 .maybe_single()
                 .execute()
             )
-            if not resp.data:
+            if not resp or not hasattr(resp, 'data') or not resp.data:
                 return None
             config = resp.data.get("config") or {}
             scope = config.get("scope")
@@ -56,7 +56,7 @@ class SupabaseScopeBackend(ScopeBackend):
                 .maybe_single()
                 .execute()
             )
-            if not resp.data:
+            if not resp or not hasattr(resp, 'data') or not resp.data:
                 return
             config = dict(resp.data.get("config") or {})
             config["scope"] = {
@@ -83,7 +83,7 @@ class SupabaseScopeBackend(ScopeBackend):
                 .maybe_single()
                 .execute()
             )
-            if not resp.data:
+            if not resp or not hasattr(resp, 'data') or not resp.data:
                 return False
             config = dict(resp.data.get("config") or {})
             if "scope" not in config:

@@ -98,7 +98,9 @@ class MutRepoManager:
                 .maybe_single()
                 .execute()
             )
-            return resp.data.get("name", "project") if resp.data else "project"
+            if resp and hasattr(resp, 'data') and resp.data:
+                return resp.data.get("name", "project")
+            return "project"
         except Exception as e:
             log_error(f"[RepoManager] Failed to lookup project name: {e}")
             return "project"

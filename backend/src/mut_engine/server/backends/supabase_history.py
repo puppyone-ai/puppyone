@@ -16,6 +16,17 @@ from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_info
 
 
+def _safe_data(resp) -> dict | None:
+    """Safely extract .data from a Supabase response.
+
+    Some supabase-py versions return None instead of ApiResponse(data=None)
+    when maybe_single() finds no row.
+    """
+    if resp is None or not hasattr(resp, "data"):
+        return None
+    return resp.data
+
+
 class SupabaseHistoryManager:
     """Supabase/PostgreSQL implementation of Mut HistoryManager.
 
@@ -37,10 +48,11 @@ class SupabaseHistoryManager:
             self._client.table("projects")
             .select("mut_version")
             .eq("id", self._project_id)
-            .single()
+            .maybe_single()
             .execute()
         )
-        return resp.data.get("mut_version", 0) if resp.data else 0
+        data = _safe_data(resp)
+        return data.get("mut_version", 0) if data else 0
 
     def set_latest_version(self, version: int) -> None:
         self._client.table("projects").update(
@@ -54,10 +66,11 @@ class SupabaseHistoryManager:
             self._client.table("projects")
             .select("mut_root_hash")
             .eq("id", self._project_id)
-            .single()
+            .maybe_single()
             .execute()
         )
-        return resp.data.get("mut_root_hash", "") if resp.data else ""
+        data = _safe_data(resp)
+        return data.get("mut_root_hash", "") if data else ""
 
     def set_root_hash(self, h: str) -> None:
         self._client.table("projects").update(
@@ -76,7 +89,8 @@ class SupabaseHistoryManager:
             .maybe_single()
             .execute()
         )
-        return resp.data.get("version", 0) if resp.data else 0
+        data = _safe_data(resp)
+        return data.get("version", 0) if data else 0
 
     def set_scope_version(self, scope_path: str, version: int) -> None:
         norm = _normalize(scope_path)
@@ -92,7 +106,8 @@ class SupabaseHistoryManager:
             .maybe_single()
             .execute()
         )
-        return resp.data.get("scope_hash", "") if resp.data else ""
+        data = _safe_data(resp)
+        return data.get("scope_hash", "") if data else ""
 
     def set_scope_hash(self, scope_path: str, h: str) -> None:
         norm = _normalize(scope_path)
@@ -204,7 +219,7 @@ class SupabaseHistoryManager:
             query = query.limit(limit)
 
         resp = query.execute()
-        entries = resp.data or []
+        entries = (resp.data if resp and hasattr(resp, 'data') else None) or []
         for entry in entries:
             _parse_json_fields(entry)
         return entries
@@ -218,7 +233,7 @@ class SupabaseHistoryManager:
             .maybe_single()
             .execute()
         )
-        entry = resp.data
+        entry = _safe_data(resp)
         if entry:
             _parse_json_fields(entry)
         return entry
