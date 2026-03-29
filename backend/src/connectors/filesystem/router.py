@@ -75,7 +75,7 @@ def _auth_access_key(access_key: str):
 
 
 def _ensure_project_access(project_service, current_user, project_id):
-    project = project_service.get_project(project_id)
+    project = project_service.get_by_id_with_access_check(project_id, current_user.user_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
