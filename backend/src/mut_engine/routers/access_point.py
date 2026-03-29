@@ -127,20 +127,67 @@ async def _resolve_and_validate(access_key: str, request: Request) -> tuple[str,
     return project_id, auth, repo_manager
 
 
+@ap_router.post("/{access_key}/diagnose")
+async def ap_diagnose(access_key: str, request: Request):
+    """Diagnostic endpoint — returns detailed error info for debugging."""
+    steps = {}
+    try:
+        steps["1_supabase_init"] = "starting"
+        client = SupabaseClient().client
+        steps["1_supabase_init"] = "ok"
+
+        steps["2_query_connection"] = "starting"
+        resp = (
+            client.table("connections")
+            .select("id, project_id, provider, config, revoked_at")
+            .eq("access_key", access_key)
+            .maybe_single()
+            .execute()
+        )
+        steps["2_query_connection"] = f"resp_type={type(resp).__name__}, has_data={resp is not None and hasattr(resp, 'data')}"
+        if resp and hasattr(resp, 'data') and resp.data:
+            conn = resp.data
+            steps["2_query_connection"] += f", project_id={conn.get('project_id')}"
+            steps["3_project_lookup"] = "starting"
+            proj_resp = (
+                client.table("projects")
+                .select("id, name")
+                .eq("id", conn["project_id"])
+                .maybe_single()
+                .execute()
+            )
+            steps["3_project_lookup"] = f"resp_type={type(proj_resp).__name__}, data={proj_resp.data if proj_resp and hasattr(proj_resp, 'data') else None}"
+
+            steps["4_repo_manager"] = "starting"
+            repo_manager = _get_repo_manager()
+            steps["4_repo_manager"] = "ok"
+
+            steps["5_server_repo"] = "starting"
+            repo = repo_manager.get_server_repo(conn["project_id"])
+            steps["5_server_repo"] = f"ok, version={repo.get_latest_version()}"
+        else:
+            steps["2_query_connection"] += ", NO_DATA"
+    except Exception as e:
+        steps["error"] = f"{type(e).__name__}: {e}"
+
+    return JSONResponse(steps)
+
+
 @ap_router.post("/{access_key}/clone")
 async def ap_clone(access_key: str, request: Request):
     """Clone via Access Point URL."""
-    project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
-    body = await request.json()
-
     try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
         result = await asyncio.to_thread(
             _invoke, handle_clone, repo_manager, project_id, auth, body,
         )
+    except HTTPException:
+        raise
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] clone failed: {e}")
+        log_error(f"[AP] clone failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Clone failed: {e}")
 
     log_info(f"[AP] clone ap={access_key[:8]}... project={project_id}")
@@ -150,19 +197,20 @@ async def ap_clone(access_key: str, request: Request):
 @ap_router.post("/{access_key}/push")
 async def ap_push(access_key: str, request: Request):
     """Push via Access Point URL."""
-    project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
-    body = await request.json()
-
     try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
         result = await asyncio.to_thread(
             _invoke, handle_push, repo_manager, project_id, auth, body,
         )
+    except HTTPException:
+        raise
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] push failed: {e}")
+        log_error(f"[AP] push failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
     run_post_push_hook(project_id, repo_manager, result)
@@ -177,17 +225,18 @@ async def ap_push(access_key: str, request: Request):
 @ap_router.post("/{access_key}/pull")
 async def ap_pull(access_key: str, request: Request):
     """Pull via Access Point URL."""
-    project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
-    body = await request.json()
-
     try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
         result = await asyncio.to_thread(
             _invoke, handle_pull, repo_manager, project_id, auth, body,
         )
+    except HTTPException:
+        raise
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] pull failed: {e}")
+        log_error(f"[AP] pull failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Pull failed: {e}")
 
     log_info(f"[AP] pull ap={access_key[:8]}... status={result.get('status')}")
@@ -197,15 +246,16 @@ async def ap_pull(access_key: str, request: Request):
 @ap_router.post("/{access_key}/negotiate")
 async def ap_negotiate(access_key: str, request: Request):
     """Hash negotiation via Access Point URL."""
-    project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
-    body = await request.json()
-
     try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
         result = await asyncio.to_thread(
             _invoke, handle_negotiate, repo_manager, project_id, auth, body,
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        log_error(f"[AP] negotiate failed: {e}")
+        log_error(f"[AP] negotiate failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
 
     return JSONResponse(result)
@@ -216,19 +266,20 @@ async def ap_rollback(access_key: str, request: Request):
     """Rollback via Access Point URL."""
     from mut.server.handlers import handle_rollback
 
-    project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
-    body = await request.json()
-
     try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
         result = await asyncio.to_thread(
             _invoke, handle_rollback, repo_manager, project_id, auth, body,
         )
+    except HTTPException:
+        raise
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] rollback failed: {e}")
+        log_error(f"[AP] rollback failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
 
     log_info(f"[AP] rollback ap={access_key[:8]}... target_v={result.get('target_version')}")
@@ -240,17 +291,18 @@ async def ap_pull_version(access_key: str, request: Request):
     """Pull historical version via Access Point URL."""
     from mut.server.handlers import handle_pull_version
 
-    project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
-    body = await request.json()
-
     try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
         result = await asyncio.to_thread(
             _invoke, handle_pull_version, repo_manager, project_id, auth, body,
         )
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] pull-version failed: {e}")
+        log_error(f"[AP] pull-version failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Pull version failed: {e}")
 
     log_info(f"[AP] pull-version ap={access_key[:8]}... version={result.get('version')}")
