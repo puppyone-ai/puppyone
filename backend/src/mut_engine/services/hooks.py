@@ -20,7 +20,8 @@ def run_post_push_hook(
     """Inspect a push result and trigger relevant post-commit hooks.
 
     Called by protocol_router and access_point after a successful MUT push.
-    Extracts deleted paths from the commit entry and runs post_commit_delete.
+    1. Grafts scope tree into the global root hash so tree_reader can see it
+    2. Extracts deleted paths from the commit entry and runs post_commit_delete
     """
     version = push_result.get("version")
     if not version or push_result.get("status") != "ok":
@@ -28,6 +29,9 @@ def run_post_push_hook(
 
     try:
         repo = repo_manager.get_repo(project_id)
+
+        _update_global_root(repo, push_result)
+
         entry = repo.history.get_entry(version)
         if not entry:
             return
@@ -47,6 +51,39 @@ def run_post_push_hook(
 
     except Exception as e:
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
+
+
+def _update_global_root(repo, push_result: dict) -> None:
+    """Graft the pushed scope tree into the global root hash.
+
+    This keeps the global root hash in sync so that tree_reader (which reads
+    from root_hash) can see files pushed via scoped access points.
+    repo is a ProjectRepo (dataclass with .store, .history).
+    """
+    scope_hash = push_result.get("root", "")
+    if not scope_hash:
+        return
+
+    try:
+        from mut.server.graft import graft_subtree
+
+        entry = repo.history.get_entry(push_result["version"])
+        if not entry:
+            log_error(f"[PostCommit] No history entry for version {push_result['version']}")
+            return
+
+        scope_path = (entry.get("scope_path") or "").strip("/")
+
+        old_root = repo.history.get_root_hash() or ""
+        if not old_root:
+            import json
+            old_root = repo.store.put(json.dumps({}, sort_keys=True).encode())
+
+        new_root = graft_subtree(repo.store, old_root, scope_path, scope_hash)
+        repo.history.set_root_hash(new_root)
+        log_info(f"[PostCommit] Updated global root: scope='{scope_path}' hash={new_root[:16]}")
+    except Exception as e:
+        log_error(f"[PostCommit] Failed to update global root hash: {e}")
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:

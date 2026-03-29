@@ -116,6 +116,7 @@ class FilesystemService:
                 },
             },
             trigger={"type": "realtime"},
+            conflict_strategy="three_way_merge",
         )
         log_info(f"[Filesystem] Bootstrapped connection #{sync.id} for path {path}")
         return sync

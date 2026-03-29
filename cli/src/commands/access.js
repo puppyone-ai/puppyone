@@ -16,8 +16,6 @@
 import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
 import { requireProject, withErrors, formatDate } from "../helpers.js";
-import { registerDaemonSubcommands } from "./_daemon.js";
-import { lsAction as daemonLsAction, psAction, accessStatusAction } from "./global.js";
 
 // ── Provider alias map ──────────────────────────────────────
 
@@ -147,27 +145,6 @@ export function registerAccess(program) {
   const access = program
     .command("access")
     .description("Manage Access Points — unified entry for all connection types");
-
-  // ── Filesystem daemon subcommands (up/down/connect/disconnect) ──
-  // Legacy sync daemon — will be replaced by `mut daemon`.
-  registerDaemonSubcommands(access);
-
-  // ── Daemon monitoring (from global.js) ─────────────────────
-  access
-    .command("daemon-ls")
-    .description("List local sync daemon connections")
-    .action(daemonLsAction);
-
-  access
-    .command("daemon-ps")
-    .description("List running sync daemon processes")
-    .action(psAction);
-
-  access
-    .command("daemon-status")
-    .description("Show detailed daemon status for a connection (or all)")
-    .argument("[path]", "workspace path (omit for all)")
-    .action(accessStatusAction);
 
   // ── schema ────────────────────────────────────────────────
 
@@ -415,8 +392,29 @@ export function registerAccess(program) {
       }
       Object.assign(config, parseSetValues(opts.set));
 
+      if (provider === "filesystem") {
+        const mutPath = scope || source || "";
+        if (!mutPath) {
+          out.error("MISSING_PATH", "Filesystem scope path is required.",
+            "Usage: puppyone access add filesystem <path>\n  Example: puppyone access add filesystem docs");
+          return;
+        }
+        out.step(`Creating filesystem access point for scope "${mutPath}"...`);
+        const data = await client.post(
+          "/filesystem/bootstrap", null,
+          { project_id: projectId, path: mutPath }
+        );
+        out.done("done");
+        out.info("");
+        _showProviderGuidance(out, {
+          id: data.sync_id, provider, access_key: data.access_key,
+          path: data.path, ap_base: data.ap_base,
+        }, client.baseUrl);
+        out.success?.({ connection: data });
+        return;
+      }
+
       if (isPlatformType(provider) || provider === "database") {
-        // Platform types + database: build body for unified endpoint
         const body = {
           project_id: projectId,
           provider,
@@ -843,15 +841,6 @@ function _showSandboxGuidance(out, endpoint) {
   out.info(`    (use via Agent or API)`);
 }
 
-function _showFilesystemGuidance(out, sync, sourcePath) {
-  const key = sync.mcp_api_key || sync.access_key;
-  if (!key) return;
-  const folder = sourcePath || "~/workspace";
-  out.info(`\n  Access Key: ${key}\n`);
-  out.info("  Start syncing:");
-  out.info(`    puppyone access up ${folder} --key ${key}\n`);
-}
-
 function _showProviderGuidance(out, connection, baseUrl) {
   const { provider, access_key: key, id } = connection;
   if (provider === "agent" && key) {
@@ -864,8 +853,15 @@ function _showProviderGuidance(out, connection, baseUrl) {
   } else if (provider === "sandbox") {
     out.info("  \u2500 Execute via Agent or API.\n");
   } else if (provider === "filesystem" && key) {
-    out.info("  \u2500 How to sync:");
-    out.info(`    puppyone access up ~/folder --key ${key}\n`);
+    const apBase = connection.ap_base || `/mut/ap/${key}`;
+    out.info("  \u2500 Sync with MUT:");
+    out.info(`    mut clone ${baseUrl}${apBase} --credential ${key} --dir <folder>`);
+    out.info("");
+    out.info("  \u2500 Then commit and push:");
+    out.info("    cd <folder> && mut commit -m \"message\" && mut push");
+    out.info("");
+    out.info("  \u2500 Retrieve key later:");
+    out.info(`    puppyone access key ${connection.id}\n`);
   } else {
     out.info("  \u2500 Management:");
     out.info(`    Refresh: puppyone access refresh ${id}`);

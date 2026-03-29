@@ -1,6 +1,6 @@
 {
   "name": "puppyone",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "PuppyOne CLI — cloud file system for AI Agents",
   "type": "module",
   "bin": {
@@ -42,7 +42,6 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.97.0",
-    "chokidar": "^5.0.0",
     "commander": "^13.1.0"
   }
 }
