@@ -40,7 +40,7 @@ class UrlConnector(BaseConnector):
             capabilities=Capability.PULL,
             supported_directions=["inbound"],
             default_trigger=TriggerMode.MANUAL,
-            default_node_type="json",
+            default_node_type="markdown",
             auth=AuthRequirement.NONE,
             supported_sync_modes=("import_once", "manual", "scheduled"),
             default_sync_mode="import_once",
