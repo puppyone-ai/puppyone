@@ -50,8 +50,8 @@ def normalize_file_task(task: ETLTask) -> IngestTaskResponse:
         content_path = task.result.content_path
     elif task.metadata.get("content_path"):
         content_path = task.metadata.get("content_path")
-    elif task.metadata.get("mount_path") or task.metadata.get("mount_node_id"):
-        content_path = task.metadata.get("mount_path") or task.metadata.get("mount_node_id")
+    elif task.metadata.get("mount_path"):
+        content_path = task.metadata.get("mount_path")
 
     return IngestTaskResponse(
         task_id=str(task.task_id),

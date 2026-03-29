@@ -18,8 +18,8 @@ import { getMcpEndpoint, type McpEndpoint } from '@/lib/mcpEndpointsApi';
 import { getSandboxEndpoint, type SandboxEndpoint } from '@/lib/sandboxEndpointsApi';
 import {
   useProjects,
-  useTableTools,
-  refreshTableTools,
+  useToolsByPath,
+  refreshToolsByPath,
   refreshProjectTools,
   useTable,
   useContentNodes,
@@ -461,7 +461,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── Table & Tools ─────
 
-  const { tools: tableTools, isLoading: toolsLoading } = useTableTools(activeNodeId);
+  const { tools: tableTools, isLoading: toolsLoading } = useToolsByPath(activeNodeId);
   const { tableData: currentTableData, refresh: refreshTable } = useTable(projectId, activeNodeId);
 
   // Access points state
@@ -662,12 +662,12 @@ export default function DataPage({ params }: DataPageProps) {
 
   function normalizeJsonPath(p: string) { if (!p || p === '/') return ''; return p; }
 
-  async function syncToolsForPath(params: { nodeId: string; path: string; permissions: McpToolPermissions; existingTools: Tool[] }) {
-    const { nodeId, path: toolPath, permissions, existingTools } = params;
+  async function syncToolsForPath(params: { mutPath: string; path: string; permissions: McpToolPermissions; existingTools: Tool[] }) {
+    const { mutPath, path: toolPath, permissions, existingTools } = params;
     const jsonPath = normalizeJsonPath(toolPath);
     const byType = new Map<string, Tool>();
     for (const t of existingTools) {
-      if (t.path !== nodeId) continue;
+      if (t.path !== mutPath) continue;
       if ((t.json_path || '') !== jsonPath) continue;
       const toolType = t.type as string;
       if (toolType === 'shell_access' || toolType === 'shell_access_readonly') continue;
@@ -685,17 +685,17 @@ export default function DataPage({ params }: DataPageProps) {
     for (const id of toDelete) await deleteTool(id);
     for (const type of toCreate) {
       await createTool({
-        path: nodeId, json_path: jsonPath, type,
-        name: `${type}_${nodeId}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
+        path: mutPath, json_path: jsonPath, type,
+        name: `${type}_${mutPath}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
         description: undefined,
       });
     }
   }
 
-  async function deleteAllToolsForPath(params: { nodeId: string; path: string; existingTools: Tool[] }) {
-    const { nodeId, path: toolPath, existingTools } = params;
+  async function deleteAllToolsForPath(params: { mutPath: string; path: string; existingTools: Tool[] }) {
+    const { mutPath, path: toolPath, existingTools } = params;
     const jsonPath = normalizeJsonPath(toolPath);
-    const toDelete = existingTools.filter(t => t.path === nodeId && (t.json_path || '') === jsonPath);
+    const toDelete = existingTools.filter(t => t.path === mutPath && (t.json_path || '') === jsonPath);
     for (const t of toDelete) await deleteTool(t.id);
   }
 
@@ -944,7 +944,7 @@ export default function DataPage({ params }: DataPageProps) {
         projectTools={projectTools}
         onToolsChange={() => {
           if (nodeActions.toolPanelTarget) {
-            refreshTableTools(nodeActions.toolPanelTarget.id);
+            refreshToolsByPath(nodeActions.toolPanelTarget.id);
             refreshProjectTools(projectId);
           }
         }}
@@ -1145,8 +1145,8 @@ export default function DataPage({ params }: DataPageProps) {
                       return prev;
                     });
                     if (activeNodeId) {
-                      syncToolsForPath({ nodeId: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
-                        refreshTableTools(activeNodeId);
+                      syncToolsForPath({ mutPath: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
+                        refreshToolsByPath(activeNodeId);
                         refreshProjectTools(projectId);
                       });
                     }
@@ -1154,8 +1154,8 @@ export default function DataPage({ params }: DataPageProps) {
                   onAccessPointRemove={(apPath: string) => {
                     setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
                     if (activeNodeId) {
-                      deleteAllToolsForPath({ nodeId: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
-                        refreshTableTools(activeNodeId);
+                      deleteAllToolsForPath({ mutPath: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
+                        refreshToolsByPath(activeNodeId);
                         refreshProjectTools(projectId);
                       });
                     }

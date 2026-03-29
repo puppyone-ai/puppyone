@@ -104,7 +104,7 @@ class SyncService:
             if existing:
                 continue
 
-            file_path = await self._ensure_node_exists(
+            conn_folder, data_file = await self._ensure_folder_exists(
                 project_id=project_id,
                 resource=res,
                 folder_path=target_folder_path,
@@ -114,13 +114,14 @@ class SyncService:
             sync_config = {
                 **config,
                 "external_resource_id": res.external_resource_id,
+                "data_file": data_file,
             }
             if user_id:
                 sync_config["user_id"] = user_id
 
             sync = self.sync_repo.create(
                 project_id=project_id,
-                path=file_path,
+                path=conn_folder,
                 direction=direction,
                 provider=provider,
                 config=sync_config,
@@ -129,7 +130,7 @@ class SyncService:
                 trigger=trigger_data,
             )
             created_syncs.append(sync)
-            log_info(f"[L2.5] Bound {res.external_resource_id} → {file_path} (mode={sync_mode})")
+            log_info(f"[L2.5] Bound {res.external_resource_id} → {conn_folder}/ (mode={sync_mode})")
 
         log_info(f"[L2.5] Bootstrap complete: {len(created_syncs)} syncs created (mode={sync_mode})")
         return created_syncs
@@ -174,7 +175,7 @@ class SyncService:
             name=config.get("name") or spec.display_name,
             node_type=spec.default_node_type,
         )
-        file_path = await self._ensure_node_exists(
+        conn_folder, data_file = await self._ensure_folder_exists(
             project_id=project_id,
             resource=placeholder,
             folder_path=target_folder_path,
@@ -183,14 +184,15 @@ class SyncService:
 
         sync_config = {
             **config,
-            "external_resource_id": f"direct:{provider}:{file_path}",
+            "external_resource_id": f"direct:{provider}:{conn_folder}",
+            "data_file": data_file,
         }
         if user_id:
             sync_config["user_id"] = user_id
 
         sync = self.sync_repo.create(
             project_id=project_id,
-            path=file_path,
+            path=conn_folder,
             direction=direction,
             provider=provider,
             config=sync_config,
@@ -199,35 +201,39 @@ class SyncService:
             trigger=trigger_data,
         )
         log_info(
-            f"[L2.5] Direct sync created: {provider} → {file_path} "
+            f"[L2.5] Direct sync created: {provider} → {conn_folder}/ "
             f"(mode={sync_mode})"
         )
         return sync
 
-    async def _ensure_node_exists(
+    async def _ensure_folder_exists(
         self, project_id: str, resource: ResourceInfo, folder_path: Optional[str],
         user_id: Optional[str] = None,
-    ) -> str:
-        """Ensure a corresponding file exists in the Mut tree. Create if missing.
+    ) -> tuple[str, str]:
+        """Create a connection folder with an empty data file in the MUT tree.
 
-        Returns the mut path of the file (stored in sync.path).
+        Returns (folder_path, data_file) where:
+          - folder_path is stored in connections.path (the mount point)
+          - data_file is stored in connections.config.data_file (relative name)
         """
         base_folder = folder_path or ""
         name = resource.name
         node_type = resource.node_type if resource.node_type in ("json", "markdown") else "markdown"
-        ext = ".json" if node_type == "json" else ".md" if node_type == "markdown" else ""
-        file_path = f"{base_folder}/{name}{ext}" if base_folder else f"{name}{ext}"
+        ext = ".json" if node_type == "json" else ".md"
+        data_file = f"data{ext}"
 
-        initial_content = b"{}" if node_type == "json" else b""
+        conn_folder = f"{base_folder}/{name}" if base_folder else name
         operator = f"sync:{user_id}" if user_id else "sync"
 
         from src.mut_engine.dependencies import create_mut_ops
         ops = create_mut_ops()
+
+        initial_content = b"{}" if node_type == "json" else b""
         await ops.write_file(
-            project_id, file_path, initial_content,
+            project_id, f"{conn_folder}/{data_file}", initial_content,
             who=operator, message=f"Create sync target: {name}",
         )
-        return file_path
+        return conn_folder, data_file
 
     # ============================================================
     # PULL: External → PuppyOne
@@ -303,7 +309,7 @@ class SyncService:
         Called after a write completes.
         Push changes to the external system bound to this path.
         """
-        sync = self.sync_repo.get_by_node(path)
+        sync = self.sync_repo.find_owner_by_path(path)
         if not sync:
             return []
 

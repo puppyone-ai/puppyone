@@ -5,7 +5,7 @@ SyncRepository — CRUD for sync bindings in the `connections` table.
 
 The `connections` table is the unified store for all external connections
 (syncs + agents). SyncRepository operates on rows where provider != 'agent'.
-Each sync row represents one sync binding between a content_node and an
+Each sync row represents one sync binding between a MUT path and an
 external resource.
 """
 
@@ -98,12 +98,34 @@ class SyncRepository:
         return self._to_model(response.data[0]) if response.data else None
 
     def get_by_path(self, path: str) -> Optional[Sync]:
-        """Get the first sync binding for a path (convenience for single-sync nodes)."""
+        """Get the first sync binding for a path (exact match)."""
         response = (
             self.client.table(self.TABLE)
             .select("*").eq("path", path).limit(1).execute()
         )
         return self._to_model(response.data[0]) if response.data else None
+
+    def find_owner_by_path(self, file_path: str) -> Optional[Sync]:
+        """Find the connection that owns this file path.
+
+        Walks up the path tree to find the nearest ancestor folder
+        that is a connection mount point. Returns the most specific
+        (longest path) match.
+        """
+        parts = file_path.split("/")
+        candidates = ["/".join(parts[:i]) for i in range(len(parts), 0, -1)]
+        response = (
+            self.client.table(self.TABLE)
+            .select("*")
+            .in_("path", candidates)
+            .neq("provider", "agent")
+            .eq("status", "active")
+            .execute()
+        )
+        if not response.data:
+            return None
+        best = max(response.data, key=lambda r: len(r.get("path") or ""))
+        return self._to_model(best)
 
     def get_by_access_key(self, access_key: str) -> Optional[Sync]:
         """Lookup sync by CLI/MCP access key (unique index)."""

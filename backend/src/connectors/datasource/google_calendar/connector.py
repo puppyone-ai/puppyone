@@ -2,8 +2,7 @@
 Google Calendar Connector - Process Google Calendar event imports.
 
 Architecture:
-- All events are stored in a SINGLE content_node as JSONB
-- No S3, no separate markdown files
+- All events are stored in a single JSON file in the MUT tree
 - Agent can query with jq: jq '.events[] | select(.start > "2026-02-01")'
 - Uses parallel requests for speed
 """

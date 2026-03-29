@@ -2,8 +2,7 @@
 Google Sheets Connector - Process Google Sheets imports.
 
 Architecture:
-- All sheets are stored in a SINGLE content_node as JSONB
-- No S3, no separate markdown files
+- All sheets are stored in a single JSON file in the MUT tree
 - Agent can query with jq: jq '.sheets[0].rows[] | select(.Column1 == "value")'
 """
 

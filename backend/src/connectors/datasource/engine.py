@@ -97,7 +97,8 @@ class SyncEngine:
                     )
                 return None
 
-            file_path = sync.path
+            data_file = (sync.config or {}).get("data_file")
+            file_path = f"{sync.path}/{data_file}" if data_file else sync.path
             external_resource_id = (sync.config or {}).get("external_resource_id", "")
 
             content = result.content
@@ -190,7 +191,7 @@ class SyncEngine:
         Push content from PuppyOne to the external system bound to this path.
         Called after a successful write for bidirectional/outbound syncs.
         """
-        sync = self.sync_repo.get_by_node(path)
+        sync = self.sync_repo.find_owner_by_path(path)
         if not sync:
             return None
 
