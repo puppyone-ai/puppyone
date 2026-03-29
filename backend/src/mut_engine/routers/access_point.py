@@ -54,11 +54,10 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     """
     client = SupabaseClient().client
 
-    # Try access_key first, fall back to id lookup
     resp = (
         client.table("connections")
         .select("id, project_id, provider, config, revoked_at")
-        .eq("id", access_key)
+        .eq("access_key", access_key)
         .maybe_single()
         .execute()
     )
@@ -128,48 +127,6 @@ async def _resolve_and_validate(access_key: str, request: Request) -> tuple[str,
     return project_id, auth, repo_manager
 
 
-@ap_router.post("/{access_key}/diagnose")
-async def ap_diagnose(access_key: str, request: Request):
-    """Diagnostic endpoint — returns detailed error info for debugging."""
-    steps = {}
-    try:
-        client = SupabaseClient().client
-        steps["1_supabase_init"] = "ok"
-
-        # Test A: query by id (should always work)
-        try:
-            r1 = client.table("connections").select("id,access_key").eq("id", "mut-test-f2dcf7aa").maybe_single().execute()
-            steps["2a_query_by_id"] = f"data={r1.data}" if r1 and hasattr(r1, 'data') else "no_resp"
-        except Exception as e1:
-            steps["2a_query_by_id"] = f"ERROR: {type(e1).__name__}: {e1}"
-
-        # Test B: select access_key column (is column visible?)
-        try:
-            r2 = client.table("connections").select("id,access_key").limit(1).execute()
-            steps["2b_select_access_key"] = f"data={r2.data}" if r2 and hasattr(r2, 'data') else "no_resp"
-        except Exception as e2:
-            steps["2b_select_access_key"] = f"ERROR: {type(e2).__name__}: {e2}"
-
-        # Test C: filter by access_key (the actual failing query)
-        try:
-            r3 = client.table("connections").select("id").eq("access_key", access_key).maybe_single().execute()
-            steps["2c_filter_by_access_key"] = f"data={r3.data}" if r3 and hasattr(r3, 'data') else "no_resp"
-        except Exception as e3:
-            steps["2c_filter_by_access_key"] = f"ERROR: {type(e3).__name__}: {e3}"
-
-        # Test D: rpc call (bypasses PostgREST table cache)
-        try:
-            r4 = client.rpc("resolve_access_key", {"p_access_key": access_key}).execute()
-            steps["2d_rpc_call"] = f"has_data={r4.data is not None}" if r4 and hasattr(r4, 'data') else "no_resp"
-        except Exception as e4:
-            steps["2d_rpc_call"] = f"ERROR: {type(e4).__name__}: {e4}"
-
-    except Exception as e:
-        steps["error"] = f"{type(e).__name__}: {e}"
-
-    return JSONResponse(steps)
-
-
 @ap_router.post("/{access_key}/clone")
 async def ap_clone(access_key: str, request: Request):
     """Clone via Access Point URL."""
@@ -184,7 +141,7 @@ async def ap_clone(access_key: str, request: Request):
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] clone failed: {e}", exc_info=True)
+        log_error(f"[AP] clone failed: {e}")
         raise HTTPException(status_code=500, detail=f"Clone failed: {e}")
 
     log_info(f"[AP] clone ap={access_key[:8]}... project={project_id}")
@@ -207,7 +164,7 @@ async def ap_push(access_key: str, request: Request):
     except LockError as e:
         raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] push failed: {e}", exc_info=True)
+        log_error(f"[AP] push failed: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
     run_post_push_hook(project_id, repo_manager, result)
@@ -233,7 +190,7 @@ async def ap_pull(access_key: str, request: Request):
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] pull failed: {e}", exc_info=True)
+        log_error(f"[AP] pull failed: {e}")
         raise HTTPException(status_code=500, detail=f"Pull failed: {e}")
 
     log_info(f"[AP] pull ap={access_key[:8]}... status={result.get('status')}")
@@ -252,7 +209,7 @@ async def ap_negotiate(access_key: str, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        log_error(f"[AP] negotiate failed: {e}", exc_info=True)
+        log_error(f"[AP] negotiate failed: {e}")
         raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
 
     return JSONResponse(result)
@@ -276,7 +233,7 @@ async def ap_rollback(access_key: str, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] rollback failed: {e}", exc_info=True)
+        log_error(f"[AP] rollback failed: {e}")
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
 
     log_info(f"[AP] rollback ap={access_key[:8]}... target_v={result.get('target_version')}")
@@ -299,7 +256,7 @@ async def ap_pull_version(access_key: str, request: Request):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] pull-version failed: {e}", exc_info=True)
+        log_error(f"[AP] pull-version failed: {e}")
         raise HTTPException(status_code=500, detail=f"Pull version failed: {e}")
 
     log_info(f"[AP] pull-version ap={access_key[:8]}... version={result.get('version')}")
