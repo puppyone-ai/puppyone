@@ -383,15 +383,15 @@ export async function getTools(skip = 0, limit = 100): Promise<Tool[]> {
 }
 
 /**
- * 获取指定节点的所有 Tool
+ * 获取指定路径的所有 Tool
  */
 export async function getToolsByPath(
-  nodeId: string,
+  path: string,
   skip = 0,
   limit = 1000
 ): Promise<Tool[]> {
   return get<Tool[]>(
-    `/api/v1/tools/by-path/${nodeId}?skip=${skip}&limit=${limit}`
+    `/api/v1/tools/by-path/${path}?skip=${skip}&limit=${limit}`
   );
 }
 
@@ -710,7 +710,7 @@ export const TOOL_INFO: Record<
  * 这是一个高层封装，简化创建流程
  */
 export async function createToolsAndMcp(params: {
-  nodeId: string;  // 改为 nodeId
+  path: string;
   jsonPath?: string;
   permissions: McpToolPermissions;
   toolNamePrefix?: string;
@@ -718,7 +718,7 @@ export async function createToolsAndMcp(params: {
   customDefinitions?: Record<McpToolType, McpToolDefinition>;
 }): Promise<McpV2CreateWithBindingsResponse> {
   const {
-    nodeId,
+    path,
     jsonPath = '',
     permissions,
     toolNamePrefix = '',
@@ -726,19 +726,17 @@ export async function createToolsAndMcp(params: {
     customDefinitions,
   } = params;
 
-  // 1. 根据权限获取需要创建的工具类型
   const toolTypes = permissionsToRegisterTools(permissions);
 
   if (toolTypes.length === 0) {
     throw new Error('至少需要选择一个工具权限');
   }
 
-  // 2. 批量创建 Tool
   const createdTools = await Promise.all(
     toolTypes.map(type => {
       const customDef = customDefinitions?.[type];
       return createTool({
-        path: nodeId,
+        path: path,
         json_path: jsonPath,
         type: type,
         name: customDef?.name || `${toolNamePrefix}${type}`,

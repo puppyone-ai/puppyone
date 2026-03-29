@@ -2,8 +2,7 @@
 Gmail Connector - Process Gmail imports via Google Gmail API.
 
 Architecture:
-- All emails are stored in a SINGLE content_node with type "gmail_inbox"
-- Emails are stored as JSONB in the content field (not as separate files)
+- All emails are stored as a single JSON file in the MUT tree
 - Agent can use jq to query the JSON structure
 """
 

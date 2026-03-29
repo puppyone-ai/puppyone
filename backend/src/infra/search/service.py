@@ -802,7 +802,7 @@ class SearchService:
             attrs = r.attributes or {}
 
             # Extract file information
-            file_path_val = str(attrs.get("file_path") or attrs.get("file_node_id") or "")
+            file_path_val = str(attrs.get("file_path") or "")
             file_mut_path = str(attrs.get("file_mut_path") or attrs.get("file_id_path") or "")
             file_name = str(attrs.get("file_name") or "")
             file_type = str(attrs.get("file_type") or "")

@@ -200,24 +200,23 @@ export function refreshAllContentNodes(projectId: string) {
 }
 
 /**
- * 获取指定节点的 Tools（使用后端直接过滤）
+ * 获取指定路径的 Tools（使用后端直接过滤）
  *
- * @param nodeId 节点 ID (可选，为空时不请求)
+ * @param path MUT 路径 (可选，为空时不请求)
  *
- * - 按需加载：只有 nodeId 存在时才请求
+ * - 按需加载：只有 path 存在时才请求
  * - 后端过滤：直接调用 /api/v1/tools/by-path/{path}
- * - 自动缓存：相同 nodeId 共享数据
+ * - 自动缓存：相同 path 共享数据
  */
-export function useTableTools(nodeId: string | undefined) {
-  // 获取指定节点的 tools
+export function useToolsByPath(path: string | undefined) {
   const {
     data: tableTools,
     error,
     isLoading,
     mutate: revalidate,
   } = useSWR<Tool[]>(
-    nodeId ? ['tools-by-path', nodeId] : null,
-    () => getToolsByPath(nodeId!),
+    path ? ['tools-by-path', path] : null,
+    () => getToolsByPath(path!),
     {
       ...defaultConfig,
       dedupingInterval: 10000,
@@ -276,13 +275,12 @@ export function refreshProjectTools(projectId?: string | null) {
 }
 
 /**
- * 手动刷新指定节点的 Tools
+ * 手动刷新指定路径的 Tools
  */
-export function refreshTableTools(nodeId?: string) {
-  if (nodeId) {
-    mutate(['tools-by-path', nodeId]);
+export function refreshToolsByPath(path?: string) {
+  if (path) {
+    mutate(['tools-by-path', path]);
   }
-  // 同时刷新 all-tools 缓存
   return mutate('all-tools');
 }
 

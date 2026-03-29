@@ -23,9 +23,9 @@ export async function getMcpEndpoint(id: string): Promise<McpEndpoint> {
   return get<McpEndpoint>(`/api/v1/mcp-endpoints/${id}`);
 }
 
-export async function getMcpEndpointByNode(nodeId: string): Promise<McpEndpoint | null> {
+export async function getMcpEndpointByPath(path: string): Promise<McpEndpoint | null> {
   try {
-    return await get<McpEndpoint>(`/api/v1/mcp-endpoints/by-path/${nodeId}`);
+    return await get<McpEndpoint>(`/api/v1/mcp-endpoints/by-path/${path}`);
   } catch {
     return null;
   }

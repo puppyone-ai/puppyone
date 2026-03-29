@@ -1,11 +1,8 @@
 """
 MutTreeReader — Direct read interface for the Mut Merkle tree
 
-Reads the file tree directly from the Merkle tree in the S3 ObjectStore,
-bypassing content_nodes (PG).
-
-This is the sole entry point for all tree browsing and file reading
-after content_nodes was removed.
+Reads the file tree directly from the Merkle tree in the S3 ObjectStore.
+This is the sole entry point for all tree browsing and file reading.
 """
 
 from __future__ import annotations

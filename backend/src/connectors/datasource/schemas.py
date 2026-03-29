@@ -1,10 +1,8 @@
 """
 Unified Sync — Data Models
 
-Sync — A single sync binding between a content_node and an external resource.
-       Stored in the `connections` table (provider != 'agent'). Replaces the
-       old `sync_sources` + content_nodes sync fields with one unified row
-       per sync relationship.
+Sync — A single sync binding between a MUT path and an external resource.
+       Stored in the `connections` table (provider != 'agent').
 """
 
 from dataclasses import dataclass, field
@@ -21,9 +19,9 @@ class Sync:
     """
     Unified sync binding. Maps to the `connections` table (provider != 'agent').
 
-    Each row represents one sync relationship between a content_node
+    Each row represents one sync relationship between a MUT path
     and an external resource, carrying both connection config and
-    per-node sync state.
+    sync state.
     """
     id: str
     project_id: str

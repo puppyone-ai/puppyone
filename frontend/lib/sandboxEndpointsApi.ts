@@ -41,9 +41,9 @@ export async function getSandboxEndpoint(id: string): Promise<SandboxEndpoint> {
   return get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/${id}`);
 }
 
-export async function getSandboxEndpointByNode(nodeId: string): Promise<SandboxEndpoint | null> {
+export async function getSandboxEndpointByPath(path: string): Promise<SandboxEndpoint | null> {
   try {
-    return await get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/by-path/${nodeId}`);
+    return await get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/by-path/${path}`);
   } catch {
     return null;
   }
