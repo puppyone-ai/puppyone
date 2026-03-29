@@ -37,7 +37,7 @@ export interface MillerColumnsViewProps {
   /** Load children for a folder (null = root) */
   onLoadChildren: (folderId: string | null) => Promise<MillerColumnItem[]>;
   /** Navigate to item - updates URL */
-  onNavigate?: (item: MillerColumnItem, pathToItem: string[]) => void;
+  onNavigate?: (item: MillerColumnItem) => void;
   /** Create new item in folder */
   onCreateClick?: (e: React.MouseEvent, parentId: string | null) => void;
   /** Rename item */
@@ -465,12 +465,9 @@ export function MillerColumnsView({
   })();
 
   // 点击处理：计算新路径并通知父组件
-  const handleItemClick = useCallback((columnIndex: number, item: MillerColumnItem) => {
-    // columnIndex 0 = root, 1 = first path folder's children, etc.
-    const pathToItem = currentPath.slice(0, columnIndex).map(p => p.id);
-    pathToItem.push(item.id);
-    onNavigate?.(item, pathToItem);
-  }, [currentPath, onNavigate]);
+  const handleItemClick = useCallback((_columnIndex: number, item: MillerColumnItem) => {
+    onNavigate?.(item);
+  }, [onNavigate]);
 
   const isLoading = externalLoading || loadingColumns.has('__root__');
 

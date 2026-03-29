@@ -79,13 +79,13 @@ export interface ExplorerSidebarProps {
   projectId: string;
   currentPath: { id: string; name: string }[];
   activeNodeId?: string;
-  onNavigate: (item: MillerColumnItem, pathToItem: string[]) => void;
+  onNavigate: (item: MillerColumnItem) => void;
   onCreate?: (e: React.MouseEvent, parentId: string | null) => void;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
-  onSyncClick?: (item: MillerColumnItem, pathToItem: string[]) => void;
-  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void;
+  onSyncClick?: (item: MillerColumnItem) => void;
+  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo) => void;
   activeSyncNodeId?: string | null;
   syncEndpoints?: Map<string, SyncEndpointInfo>;
   nodeEndpointMap?: Map<string, SyncEndpointInfo[]>;
@@ -294,13 +294,11 @@ function EndpointHoverMenu({
   endpoints, 
   onEndpointClick, 
   item, 
-  ancestors,
   defaultClick 
 }: { 
   endpoints: SyncEndpointInfo[], 
-  onEndpointClick: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void, 
+  onEndpointClick: (item: MillerColumnItem, endpoint: SyncEndpointInfo) => void, 
   item: MillerColumnItem, 
-  ancestors: string[],
   defaultClick: () => void 
 }) {
   const [open, setOpen] = useState(false);
@@ -404,7 +402,7 @@ function EndpointHoverMenu({
                 onClick={(e) => {
                   e.stopPropagation();
                   setOpen(false);
-                  onEndpointClick(item, ep, [...ancestors, item.id]);
+                  onEndpointClick(item, ep);
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -546,21 +544,20 @@ interface TreeItemProps {
   depth: number;
   projectId: string;
   activeId: string | null;
-  onNavigate: (item: MillerColumnItem, ancestors: string[]) => void;
+  onNavigate: (item: MillerColumnItem) => void;
   onCreate?: (e: React.MouseEvent, parentId: string | null) => void;
   onRename?: (id: string, name: string) => void;
   onDelete?: (id: string, name: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
-  onSyncClick?: (item: MillerColumnItem, pathToItem: string[]) => void;
-  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo, pathToItem: string[]) => void;
+  onSyncClick?: (item: MillerColumnItem) => void;
+  onEndpointClick?: (item: MillerColumnItem, endpoint: SyncEndpointInfo) => void;
   activeSyncNodeId?: string | null;
-  ancestors: string[];
   syncEndpoints?: Map<string, SyncEndpointInfo>;
   nodeEndpointMap?: Map<string, SyncEndpointInfo[]>;
   highlightNodeId?: string | null;
 }
 
-function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, ancestors, syncEndpoints, nodeEndpointMap, highlightNodeId }: TreeItemProps) {
+function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, syncEndpoints, nodeEndpointMap, highlightNodeId }: TreeItemProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
   const syncEndpoint = syncEndpoints?.get(item.id);
@@ -593,9 +590,9 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
     if (isFolder) {
       toggleExpanded(item.id);
     } else {
-      onNavigate(item, [...ancestors, item.id]);
+      onNavigate(item);
     }
-  }, [isFolder, item, ancestors, onNavigate]);
+  }, [isFolder, item, onNavigate]);
 
   const isActive = activeId === item.id;
   const rowPaddingLeft = 8 + (depth * 16);
@@ -636,7 +633,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             id: item.id,
             name: item.name,
             type: item.type,
-            parentId: ancestors.length > 0 ? ancestors[ancestors.length - 1] : null,
+            parentId: item.id.includes('/') ? item.id.split('/').slice(0, -1).join('/') : null,
           }));
           e.dataTransfer.effectAllowed = 'copyMove';
         }}
@@ -739,7 +736,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             childItems.map(child => (
               <TreeItem key={child.id} item={child} depth={depth + 1} projectId={projectId}
                 activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} onEndpointClick={onEndpointClick} activeSyncNodeId={activeSyncNodeId}
-                ancestors={[...ancestors, item.id]} syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
+                syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
             ))
           ) : !loading ? (
             <div style={{ paddingLeft: childTextPadding, paddingTop: 4, paddingBottom: 4, color: '#666', fontSize: 12, fontStyle: 'italic' }}>Empty</div>
@@ -851,7 +848,7 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
             rootItems.map(item => (
               <TreeItem key={item.id} item={item} depth={1} projectId={projectId}
                 activeId={activeId} onNavigate={onNavigate} onCreate={onCreate} onRename={onRename} onDelete={onDelete} onMoveNode={onMoveNode} onSyncClick={onSyncClick} onEndpointClick={onEndpointClick} activeSyncNodeId={activeSyncNodeId}
-                ancestors={[]} syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
+                syncEndpoints={syncEndpoints} nodeEndpointMap={nodeEndpointMap} highlightNodeId={highlightNodeId} />
             ))
           )}
         </div>

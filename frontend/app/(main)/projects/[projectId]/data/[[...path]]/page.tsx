@@ -739,9 +739,9 @@ export default function DataPage({ params }: DataPageProps) {
     setCreateMenuOpen(true);
   };
 
-  const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
+  const handleMillerNavigate = (item: MillerColumnItem) => {
     setPendingActiveId(item.id);
-    navigateTo(pathToItem.flatMap(p => p.split('/').filter(Boolean)));
+    navigateTo(item.id.split('/').filter(Boolean));
   };
 
   const handleRefresh = async (path: string) => {
