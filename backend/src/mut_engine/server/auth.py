@@ -113,7 +113,7 @@ class PuppyOneAuthenticator:
                 .maybe_single()
                 .execute()
             )
-            if not resp.data:
+            if not resp or not hasattr(resp, 'data') or not resp.data:
                 return None
             if resp.data.get("project_id") != project_id:
                 return None
