@@ -39,7 +39,7 @@
 | `agent` | AI agent | `conn add agent "name"` |
 | `mcp` | MCP endpoint | `conn add mcp "name"` |
 | `sandbox` | Code sandbox | `conn add sandbox "name"` |
-| `folder` | Local folder sync | `conn add folder <path>` |
+| `filesystem` | Local folder sync | `access add filesystem <scope>` |
 
 ### Common options
 
@@ -110,11 +110,17 @@ puppyone conn add sandbox "Runner" --type e2b
 
 ### Local folder sync
 
-Set up two-way sync between a local directory and the cloud Content Node tree:
+Sync a local directory to the cloud via the MUT protocol:
 
 ```bash
-puppyone conn add folder ~/workspace --name "Dev Sync"
+# Create a filesystem connection (specify scope path)
+puppyone access add filesystem docs
+
+# Follow the output's mut clone command to clone locally
+mut clone <url> --credential <key> --dir ~/my-docs
 ```
+
+See the [Local Folder Sync](/en/cli/access) docs for the full workflow.
 
 ---
 

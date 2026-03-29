@@ -1,143 +1,124 @@
 # 本地文件夹同步
 
-将本地文件夹与 PuppyOne 云端 Context File System 双向实时同步。
+将本地文件夹与 PuppyOne 云端 Context File System 同步，使用 MUT 协议进行版本控制。
 
 ---
 
 ## 什么是本地文件夹同步
 
-本地文件夹同步基于 OpenClaw 协议，在你的本地目录和 PuppyOne 云端之间建立双向实时同步通道。
+本地文件夹同步基于 MUT 协议（类似 Git 的版本控制协议），在你的本地目录和 PuppyOne 云端之间建立版本化的同步通道。
 
-- 本地文件变更自动推送到云端
-- 云端变更（包括 Agent 的写入）自动拉取到本地
-- 后台守护进程持续运行，无需手动操作
+- 本地编辑文件后，`mut commit` + `mut push` 推送到云端
+- 云端有变更时，`mut pull` 拉取到本地
+- 每次推送都生成版本记录，可回溯、可回滚
 
 ```
-┌──────────────┐         双向同步         ┌──────────────────┐
-│              │  ───── 推送本地变更 ────→ │                  │
-│  本地文件夹   │                          │  PuppyOne Cloud  │
-│  ~/workspace │  ←── 拉取云端变更 ──────  │  Context FS      │
-│              │                          │                  │
-└──────────────┘         守护进程         └──────────────────┘
+┌──────────────┐                            ┌──────────────────┐
+│              │  ── mut push ────────────→  │                  │
+│  本地文件夹   │                             │  PuppyOne Cloud  │
+│  ~/my-docs   │  ←── mut pull ───────────   │  Context FS      │
+│              │                             │                  │
+└──────────────┘      版本控制 (MUT)          └──────────────────┘
 ```
 
 同步完成后，Agent、MCP 客户端（Cursor / Claude Desktop）和 REST API 都可以访问这些内容。
 
 ---
 
-## 设置方法
+## 快速开始
 
-### 方法一：CLI 一步设置（推荐）
-
-最简单的方式，一条命令完成连接创建和同步启动：
+### 前置条件
 
 ```bash
-# 添加本地文件夹连接
-puppyone conn add folder ~/workspace --name "My Workspace"
-
-# 启动同步守护进程
-puppyone access up ~/workspace
+npm install -g puppyone    # PuppyOne CLI
+pip install mut            # MUT CLI
 ```
 
-执行后，CLI 会自动：
-1. 在当前项目中创建一个 Filesystem 类型的连接
-2. 将本地文件夹内容推送到云端
-3. 启动后台守护进程，持续监听双向变更
-
-### 方法二：Dashboard + CLI
-
-适合需要精细控制或已有 Agent 配置的场景：
-
-1. 在 Dashboard 中进入项目 → **Connections** → **Add Connection**
-2. 选择 **Local Folder (OpenClaw)** 类型
-3. 创建后获取 Access Key（格式：`cli_xxx`）
-4. 在终端中使用 Access Key 启动同步：
+### 第一步：创建同步连接
 
 ```bash
-puppyone access up --key cli_xxx ~/workspace
+puppyone auth login
+puppyone project use "My Project"
+puppyone access add filesystem docs
+```
+
+命令会输出 `mut clone` 命令和 Access Key。
+
+### 第二步：Clone 到本地
+
+```bash
+mut clone <输出的URL> --credential <access-key> --dir ~/my-docs
+```
+
+### 第三步：编辑、提交、推送
+
+```bash
+cd ~/my-docs
+echo "# Welcome" > readme.md
+mut commit -m "init docs"
+mut push
 ```
 
 ---
 
-## 守护进程管理
+## Scope（路径范围）
 
-### 启动同步
-
-```bash
-puppyone access up ~/workspace
-```
-
-启动后台守护进程，开始双向同步。首次启动会执行全量同步。
-
-### 停止同步
+每个同步连接绑定一个 scope——云端项目树中的路径。不同的本地文件夹可以同步到不同的 scope：
 
 ```bash
-puppyone access down ~/workspace
+puppyone access add filesystem docs      # scope = /docs
+puppyone access add filesystem code      # scope = /code
+puppyone access add filesystem config    # scope = /config
 ```
 
-停止守护进程，断开同步连接。本地和云端的文件不会被删除。
+在云端形成统一的项目树：
 
-### 查看运行状态
-
-```bash
-# 列出所有正在运行的同步进程
-puppyone access ps
-
-# 查看特定文件夹的同步状态
-puppyone access status ~/workspace
+```
+Root/
+├── docs/       ← 来自 ~/my-docs
+├── code/       ← 来自 ~/my-code
+└── config/     ← 来自 ~/my-config
 ```
 
-### 查看日志
-
-```bash
-puppyone access logs ~/workspace
-```
-
-查看守护进程的运行日志，排查同步问题。
+这允许不同的团队成员或 Agent 各自管理自己负责的部分，最终汇合到同一个项目中。
 
 ---
 
 ## 同步行为
 
+### MUT vs 老版 "Real-time" 同步
+
+| 特性 | MUT（当前） | Real-time（已废弃） |
+|------|:---:|:---:|
+| 同步方式 | 手动 commit + push | 后台守护进程自动同步 |
+| 版本历史 | 每次 push 产生版本 | 无版本概念 |
+| 冲突处理 | 三路合并 | last-write-wins |
+| 离线支持 | 支持（本地 commit） | 不支持 |
+| 适用场景 | 所有场景 | 仅实时编辑 |
+
 ### 文件类型支持
 
-| 文件类型 | 推送（本地→云端） | 拉取（云端→本地） |
+| 文件类型 | Push（本地→云端） | Pull（云端→本地） |
 |----------|:-:|:-:|
-| 文本文件（.json / .md / .txt 等） | 支持 | 支持 |
-| 二进制文件（.png / .pdf 等） | 支持 | 仅拉取 |
-
-### 同步规则
-
-- **实时同步**：文件变更后自动触发同步，通常在秒级完成
-- **增量同步**：只传输变更的文件，不重复同步未修改的内容
-- **双向冲突处理**：采用 last-write-wins 策略（最后写入者优先）
-- **版本安全网**：所有被覆盖的内容都保留在版本历史中，可随时回滚
-
-### 忽略规则
-
-同步会自动忽略以下内容：
-- `.git` 目录
-- `node_modules` 目录
-- `.env` 文件
-- 其他常见的临时文件和构建产物
+| 文本文件（.json / .md / .txt 等） | ✓ | ✓ |
+| 二进制文件（.png / .pdf 等） | ✓ | ✓ |
 
 ---
 
-## 冲突处理
+## 版本管理
 
-当本地和云端同时修改了同一个文件时，PuppyOne 采用 **last-write-wins** 策略：
+MUT 协议为每次 push 自动创建版本记录。
 
-1. 最后提交的变更会覆盖之前的版本
-2. 被覆盖的内容不会丢失，保留在版本历史中
-3. 你可以通过版本对比（diff）和回滚（rollback）找回之前的内容
+### 查看提交历史
 
 ```bash
-# 查看文件版本历史
-puppyone fs versions <node_id>
-
-# 回滚到指定版本
-puppyone fs rollback <node_id> <version>
+cd ~/my-docs
+mut log
 ```
+
+### 回滚
+
+在 PuppyOne Dashboard 中查看版本历史并一键回滚，或通过 API 操作。
 
 ---
 
@@ -145,60 +126,74 @@ puppyone fs rollback <node_id> <version>
 
 本地文件夹同步是将 PuppyOne 数据交给 AI 编程工具处理的最佳方式：
 
-1. **设置同步**：
+1. **创建连接并 Clone**：
 
 ```bash
-puppyone conn add folder ~/ai-workspace --name "AI Workspace"
-puppyone access up ~/ai-workspace
+puppyone access add filesystem workspace
+mut clone <url> --credential <key> --dir ~/ai-workspace
 ```
 
-2. **启动 Claude Code**：让 Claude Code 直接操作 `~/ai-workspace` 中的文件
+2. **用 Claude Code 编辑** `~/ai-workspace` 中的文件
 
-3. **双向协作**：
-   - Claude Code 在本地修改的文件会自动同步到云端
-   - 在 Dashboard 或其他 Agent 修改的内容也会自动同步到本地
-   - 所有变更都有版本历史保障
+3. **提交推送**：
 
-这种方式让你既能使用本地 AI 工具的强大编辑能力，又能保留 PuppyOne 的版本管理、审计日志和多方协作特性。
+```bash
+cd ~/ai-workspace
+mut commit -m "AI updates"
+mut push
+```
+
+所有变更都有版本历史保障，可以对比 AI 的修改、按需回滚。
+
+---
+
+## 管理连接
+
+```bash
+# 列出所有连接
+puppyone access ls
+
+# 查看 Access Key（随时可查）
+puppyone access key <id>
+
+# 重新生成 Access Key
+puppyone access key <id> --regenerate
+
+# 删除连接
+puppyone access rm <id>
+```
 
 ---
 
 ## 常见问题
 
-### 同步延迟怎么办？
+### 如何同步多个文件夹？
 
-检查守护进程状态和日志：
-
-```bash
-puppyone access status ~/workspace
-puppyone access logs ~/workspace
-```
-
-如果守护进程未运行，重新启动即可：
+每个文件夹创建独立的 scope 连接：
 
 ```bash
-puppyone access up ~/workspace
+puppyone access add filesystem project-a
+puppyone access add filesystem project-b
+
+mut clone <url-a> --credential <key-a> --dir ~/project-a
+mut clone <url-b> --credential <key-b> --dir ~/project-b
 ```
 
-### 如何重新全量同步？
+### 推送时提示冲突怎么办？
 
-停止同步后重新启动，会自动执行全量同步：
+先拉取最新版本，解决冲突后重新推送：
 
 ```bash
-puppyone access down ~/workspace
-puppyone access up ~/workspace
+mut pull
+# 解决冲突...
+mut commit -m "resolve conflicts"
+mut push
 ```
 
-### 可以同步多个文件夹吗？
-
-可以。每个文件夹独立创建连接和守护进程：
+### Access Key 丢失了？
 
 ```bash
-puppyone conn add folder ~/project-a --name "Project A"
-puppyone access up ~/project-a
-
-puppyone conn add folder ~/project-b --name "Project B"
-puppyone access up ~/project-b
+puppyone access key <connection-id>
 ```
 
-使用 `puppyone access ps` 查看所有运行中的同步进程。
+Key 存储在数据库中，不是一次性的，随时可以再查。

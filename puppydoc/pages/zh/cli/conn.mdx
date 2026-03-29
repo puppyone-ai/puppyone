@@ -39,7 +39,7 @@
 | `agent` | AI Agent | `conn add agent "name"` |
 | `mcp` | MCP 端点 | `conn add mcp "name"` |
 | `sandbox` | 代码沙盒 | `conn add sandbox "name"` |
-| `folder` | 本地文件夹同步 | `conn add folder <path>` |
+| `filesystem` | 本地文件夹同步 | `access add filesystem <scope>` |
 
 ### 通用选项
 
@@ -110,11 +110,17 @@ puppyone conn add sandbox "Runner" --type e2b
 
 ### 本地文件夹同步
 
-将本地目录与云端 Content Node 树双向同步：
+将本地目录通过 MUT 协议同步到云端：
 
 ```bash
-puppyone conn add folder ~/workspace --name "Dev Sync"
+# 创建 filesystem 连接（指定 scope 路径）
+puppyone access add filesystem docs
+
+# 按照输出的 mut clone 命令克隆到本地
+mut clone <url> --credential <key> --dir ~/my-docs
 ```
+
+详见 [本地文件夹同步](/zh/cli/access) 文档。
 
 ---
 
