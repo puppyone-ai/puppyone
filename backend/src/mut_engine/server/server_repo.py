@@ -176,8 +176,8 @@ class PuppyOneServerRepo:
         if scope_hash and self.store.exists(scope_hash):
             return self._files_from_tree(scope_hash, scope_path, scope)
 
-        # Fallback: global root_hash + tree navigation
-        root_hash = self.get_root_hash()
+        # Fallback: navigate from root scope hash into sub-scope
+        root_hash = self.get_scope_hash("") or self.get_root_hash()
         if not root_hash:
             return {}
 
@@ -231,7 +231,7 @@ class PuppyOneServerRepo:
         if scope_hash and self.store.exists(scope_hash):
             return scope_hash
 
-        root_hash = self.get_root_hash()
+        root_hash = self.get_scope_hash("") or self.get_root_hash()
         if not root_hash:
             return self.store.put(json.dumps({}, sort_keys=True).encode())
 
