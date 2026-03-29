@@ -190,9 +190,12 @@ class SupabaseHistoryManager:
             "changes": json.dumps(changes) if isinstance(changes, list) else changes,
         }
         if conflicts:
-            data["conflicts"] = (
-                json.dumps(conflicts) if isinstance(conflicts, list) else conflicts
-            )
+            from dataclasses import asdict
+            serializable = [
+                asdict(c) if hasattr(c, '__dataclass_fields__') else c
+                for c in conflicts
+            ]
+            data["conflicts"] = json.dumps(serializable)
 
         self._client.table(self.TABLE).insert(data).execute()
         log_info(f"[MutHistory] Recorded v{version} ({scope_version}) "
