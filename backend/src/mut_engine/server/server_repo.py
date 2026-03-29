@@ -155,10 +155,9 @@ class PuppyOneServerRepo:
         with self._scope_locks_guard:
             lock = self._scope_locks.get(scope_id)
         if lock:
-            try:
+            import contextlib
+            with contextlib.suppress(RuntimeError):
                 lock.release()
-            except RuntimeError:
-                pass
 
     # ── File operations (Merkle tree based, no filesystem) ──
 

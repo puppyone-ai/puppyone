@@ -57,6 +57,7 @@ ignore = [
     "E501",     # line too long — handled by formatter
     "B008",     # Depends() in defaults — standard FastAPI pattern
     "BLE001",   # blind exception — addressed per-file, not globally
+    "B904",     # raise from — low priority for HTTP routers
 ]
 
 [tool.ruff.lint.per-file-ignores]

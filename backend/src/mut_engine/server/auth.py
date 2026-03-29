@@ -20,7 +20,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import security
-from src.utils.logger import log_warning
+from src.utils.logger import log_error, log_warning
 
 
 class PuppyOneAuthenticator:
@@ -65,12 +65,11 @@ class PuppyOneAuthenticator:
 
             # Check user identity binding
             bound_identity = conn.get("config", {}).get("user_identity", "")
-            if bound_identity and user_identity:
-                if user_identity != bound_identity:
-                    raise HTTPException(
-                        status_code=401,
-                        detail="User identity mismatch: key is bound to a different user",
-                    )
+            if bound_identity and user_identity and user_identity != bound_identity:
+                raise HTTPException(
+                    status_code=401,
+                    detail="User identity mismatch: key is bound to a different user",
+                )
 
             scope = self._resolve_scope(conn, project_id)
             return {
@@ -102,7 +101,11 @@ class PuppyOneAuthenticator:
             auth_svc = AuthService(SupabaseClient())
             user = auth_svc.get_current_user(token)
             return {"user_id": user.user_id}
-        except Exception:
+        except HTTPException:
+            # Expected: invalid/expired JWT → not a JWT, try next method
+            return None
+        except Exception as e:
+            log_error(f"[Auth] Unexpected JWT auth error: {e}")
             return None
 
     def _try_access_key(self, key: str, project_id: str) -> dict | None:
@@ -111,28 +114,32 @@ class PuppyOneAuthenticator:
                 self._client.table("connections")
                 .select("id, project_id, provider, config, revoked_at")
                 .eq("access_key", key)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            if not resp or not hasattr(resp, 'data') or not resp.data:
+            rows = resp.data if resp and hasattr(resp, 'data') else None
+            if not rows:
                 return None
-            if resp.data.get("project_id") != project_id:
+            conn = rows[0]
+            if conn.get("project_id") != project_id:
                 return None
-            return resp.data
-        except Exception:
+            return conn
+        except Exception as e:
+            log_error(f"[Auth] Access key lookup failed: {e}")
             return None
 
     # ── Key management ──
 
     def revoke(self, access_key: str) -> bool:
         """Revoke an access key by setting revoked_at timestamp."""
+        from datetime import datetime
         try:
-            from datetime import datetime
             self._client.table("connections").update(
                 {"revoked_at": datetime.now(UTC).isoformat()}
             ).eq("access_key", access_key).execute()
             return True
-        except Exception:
+        except Exception as e:
+            log_error(f"[Auth] Failed to revoke key: {e}")
             return False
 
     def revoke_by_scope(self, scope_id: str, project_id: str) -> int:
@@ -140,8 +147,8 @@ class PuppyOneAuthenticator:
 
         Matches connections whose config->scope->id equals scope_id.
         """
+        from datetime import datetime
         try:
-            from datetime import datetime
             now = datetime.now(UTC).isoformat()
             resp = (
                 self._client.table("connections")
@@ -160,7 +167,8 @@ class PuppyOneAuthenticator:
                     ).eq("id", row["id"]).execute()
                     count += 1
             return count
-        except Exception:
+        except Exception as e:
+            log_error(f"[Auth] Failed to revoke by scope {scope_id}: {e}")
             return 0
 
 

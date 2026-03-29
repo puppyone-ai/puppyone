@@ -13,6 +13,7 @@ Sync/Async strategy:
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 
 from mut.core.object_store import StorageBackend
 from mut.foundation.error import ObjectNotFoundError
@@ -24,20 +25,23 @@ _ASYNC_BRIDGE_TIMEOUT_SECS = 30
 _HASH_PREFIX_LEN = 2
 _MAX_LIST_KEYS = 10000
 
+# Module-level executor — reused across all S3 operations to avoid
+# creating/destroying a thread pool per call (which causes thread
+# exhaustion under concurrent pushes).
+_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
 
 def _run_async(coro):
     """Safely execute an async coroutine from a synchronous context.
 
-    Strategy: always run in a separate thread with a new event loop
+    Strategy: run in a shared thread pool with a new event loop
     to avoid deadlocks with the caller's event loop.
     """
-    import concurrent.futures
 
     def _run_in_thread():
         return asyncio.run(coro)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(_run_in_thread).result(timeout=_ASYNC_BRIDGE_TIMEOUT_SECS)
+    return _EXECUTOR.submit(_run_in_thread).result(timeout=_ASYNC_BRIDGE_TIMEOUT_SECS)
 
 
 class S3StorageBackend(StorageBackend):
