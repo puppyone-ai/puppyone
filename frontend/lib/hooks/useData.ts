@@ -4,6 +4,7 @@
  * 提供缓存、去重、自动重新验证的数据请求能力
  */
 
+import { useEffect } from 'react';
 import useSWR, { mutate } from 'swr';
 import {
   getProjects,
@@ -19,7 +20,7 @@ import {
   getToolsByPath,
   type Tool,
 } from '../mcpApi';
-import { listDir, type NodeInfo } from '../contentTreeApi';
+import { listDir, treeList, entryToNodeInfo, type NodeInfo, type TreeEntry } from '../contentTreeApi';
 import { getConnectorSpecs, type ConnectorSpec } from '../syncApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
@@ -197,6 +198,58 @@ export function refreshAllContentNodes(projectId: string) {
     undefined,
     { revalidate: true }
   );
+}
+
+/**
+ * Shallow tree: fetch the entire tree up to `maxDepth` in a single request.
+ *
+ * One request replaces N per-folder requests. The flat response is split by
+ * parent path and pre-populated into the per-folder SWR cache so that
+ * `useContentNodes(projectId, folderPath)` gets instant cache hits.
+ *
+ * Returns root-level nodes directly for the sidebar's initial render.
+ */
+export function useShallowTree(projectId: string, maxDepth: number = 1) {
+  const key = projectId ? ['tree', projectId, `__shallow_${maxDepth}`] : null;
+  const {
+    data,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<TreeEntry[]>(
+    key,
+    () => treeList(projectId, '', maxDepth),
+    {
+      ...defaultConfig,
+      dedupingInterval: 30000,
+      keepPreviousData: true,
+    }
+  );
+
+  const entries = data ?? [];
+
+  // Pre-populate per-folder SWR caches from the flat response.
+  // This way useContentNodes(projectId, "docs") gets an instant cache hit.
+  useEffect(() => {
+    if (entries.length === 0 || !projectId) return;
+    const byParent = new Map<string, NodeInfo[]>();
+    for (const entry of entries) {
+      const parentPath = entry.path.includes('/')
+        ? entry.path.substring(0, entry.path.lastIndexOf('/'))
+        : '';
+      if (!byParent.has(parentPath)) byParent.set(parentPath, []);
+      byParent.get(parentPath)!.push(entryToNodeInfo(entry, projectId));
+    }
+    for (const [parentPath, nodes] of byParent) {
+      mutate(['tree', projectId, parentPath], nodes, { revalidate: false });
+    }
+  }, [entries, projectId]);
+
+  // Root nodes = entries whose path has no "/" (top-level items).
+  const rootNodes: NodeInfo[] = entries
+    .filter(e => !e.path.includes('/'))
+    .map(e => entryToNodeInfo(e, projectId));
+
+  return { rootNodes, isLoading, refresh: revalidate };
 }
 
 /**

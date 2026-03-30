@@ -3,7 +3,7 @@
 import { useCallback, useState, useRef, useEffect } from 'react';
 import type { ContentType } from './GridView';
 import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource, isSyncedType } from '@/lib/nodeTypeConfig';
-import { useContentNodes } from '@/lib/hooks/useData';
+import { useContentNodes, useShallowTree } from '@/lib/hooks/useData';
 import { useSyncExternalStore } from 'react';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 
@@ -749,7 +749,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 
 // === Main Component ===
 export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, syncEndpoints, nodeEndpointMap, highlightNodeId, className, style }: ExplorerSidebarProps) {
-  const { nodes: rootNodes, isLoading: loading } = useContentNodes(projectId, null);
+  const { rootNodes, isLoading: loading } = useShallowTree(projectId);
 
   const { isDropTarget: isRootDropTarget, dropHandlers: rootDropHandlers } = useNodeDrop({
     targetFolderId: null,

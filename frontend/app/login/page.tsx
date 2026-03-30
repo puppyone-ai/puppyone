@@ -85,7 +85,7 @@ export default function LoginPage() {
 
   const getTitle = () => {
     switch (mode) {
-      case 'signin': return 'Sign in to PuppyBase';
+      case 'signin': return 'Sign in to PuppyOne';
       case 'signup': return 'Create your account';
       case 'forgot': return 'Reset your password';
     }
@@ -99,7 +99,7 @@ export default function LoginPage() {
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <img
               src='/puppyone-logo.svg'
-              alt='PuppyBase'
+              alt='PuppyOne'
               width={64}
               height={64}
               style={{ opacity: 0.95, display: 'block', margin: '0 auto' }}

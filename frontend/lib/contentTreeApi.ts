@@ -120,7 +120,7 @@ async function treeRequest<T>(url: string, options?: RequestInit): Promise<T> {
 
 // === TreeEntry → NodeInfo adapter ===
 
-function entryToNodeInfo(entry: TreeEntry, projectId: string): NodeInfo {
+export function entryToNodeInfo(entry: TreeEntry, projectId: string): NodeInfo {
   const parentPath = entry.path.includes('/')
     ? entry.path.substring(0, entry.path.lastIndexOf('/'))
     : null;
@@ -227,14 +227,16 @@ export async function stat(
 
 /**
  * Recursive tree listing.
- * GET /api/v1/content/{projectId}/tree?path=...
+ * GET /api/v1/content/{projectId}/tree?path=...&max_depth=...
  */
 export async function treeList(
   projectId: string,
-  path: string = ''
+  path: string = '',
+  maxDepth: number = -1,
 ): Promise<TreeEntry[]> {
   const params = new URLSearchParams();
   if (path) params.set('path', path);
+  if (maxDepth >= 0) params.set('max_depth', String(maxDepth));
   const data = await treeRequest<{ entries: TreeEntry[] }>(
     `/api/v1/content/${projectId}/tree?${params.toString()}`
   );
