@@ -117,6 +117,16 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-[#ddd] p-6 font-sans">
       <div className="w-[380px] p-6">
         <div className="flex flex-col gap-2.5">
+          {/* Back navigation — above logo, only on sub-views */}
+          {view !== 'main' && (
+            <div className="mb-2">
+              <BackButton
+                onClick={view === 'forgot' ? () => { clearFeedback(); setView('signin'); } : goBack}
+                label={view === 'forgot' ? 'Back' : 'All sign in options'}
+              />
+            </div>
+          )}
+
           {/* Global Logo */}
           <div className="flex justify-center mb-4">
             <img
@@ -178,9 +188,7 @@ export default function LoginPage() {
           {/* ── Sign In View ── */}
           {view === 'signin' && (
             <div className="animate-fade-in">
-              <BackButton onClick={goBack} />
-
-              <div className="mb-6 mt-2 text-center">
+              <div className="mb-6 text-center">
                 <h2 className="text-xl font-semibold text-[#ededed]">Welcome back</h2>
                 <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
               </div>
@@ -217,9 +225,7 @@ export default function LoginPage() {
           {/* ── Sign Up View ── */}
           {view === 'signup' && (
             <div className="animate-fade-in">
-              <BackButton onClick={goBack} />
-
-              <div className="mb-6 mt-2 text-center">
+              <div className="mb-6 text-center">
                 <h2 className="text-xl font-semibold text-[#ededed]">Create your account</h2>
                 <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
               </div>
@@ -247,9 +253,7 @@ export default function LoginPage() {
           {/* ── Forgot Password View ── */}
           {view === 'forgot' && (
             <div className="animate-fade-in">
-              <BackButton onClick={() => { clearFeedback(); setView('signin'); }} label="Back" />
-
-              <div className="mb-6 mt-2 text-center">
+              <div className="mb-6 text-center">
                 <h2 className="text-xl font-semibold text-[#ededed]">Reset your password</h2>
                 <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
               </div>

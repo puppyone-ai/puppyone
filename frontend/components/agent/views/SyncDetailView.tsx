@@ -235,7 +235,7 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
 
   if (!sync) {
     return (
-      <PanelShell title="Connection" onClose={onClose || (() => {})}>
+      <PanelShell title="Access" onClose={onClose || (() => {})}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 12, height: '100%' }}>
           Sync endpoint not found
         </div>

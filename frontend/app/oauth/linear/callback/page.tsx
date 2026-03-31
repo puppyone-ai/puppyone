@@ -88,7 +88,7 @@ function LinearCallbackContent() {
           <>
             <div style={{ fontSize: 40, marginBottom: 16, color: '#ef4444' }}>✗</div>
             <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: '#ef4444' }}>
-              Connection Failed
+              Access Setup Failed
             </div>
             <div style={{ fontSize: 13, color: '#8B8B8B' }}>{message}</div>
             <div style={{ fontSize: 12, color: '#666', marginTop: 16 }}>

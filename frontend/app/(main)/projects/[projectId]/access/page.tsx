@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Connections Page
+ * Access Page
  *
- * Lists all connections (data syncs, agents, MCP, sandbox) for a project.
- * Clicking a connection opens its detail view.
+ * Lists all access points (data syncs, agents, MCP, sandbox) for a project.
+ * Clicking an access point opens its detail view.
  */
 
 import React, { use, useState, useMemo, useCallback } from 'react';
@@ -184,10 +184,10 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; is
 }
 
 /* ================================================================
-   ConnectionsPage
+   AccessPage
    ================================================================ */
 
-export default function ConnectionsPage({ params }: { params: Promise<{ projectId: string }> }) {
+export default function AccessPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -219,7 +219,7 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
         display: 'flex', alignItems: 'center', padding: '0 16px',
         background: '#0e0e0e', fontSize: 13, fontWeight: 500, color: '#e4e4e7',
       }}>
-        Connections
+        Access
       </div>
 
       {/* Centered Form-like List */}
@@ -228,7 +228,7 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
           
           <div style={{ marginBottom: 24 }}>
             <h1 style={{ fontSize: 20, fontWeight: 600, color: '#e4e4e7', letterSpacing: '-0.01em' }}>
-              Connections
+              Access
             </h1>
             <p style={{ fontSize: 13, color: '#71717a', marginTop: 4 }}>
               Manage your active data integrations, MCP servers, and sandbox environments.
@@ -241,7 +241,7 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
           }}>
             {connections.length === 0 ? (
               <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '60px 0' }}>
-                No connections yet
+                No access points yet
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -383,7 +383,7 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
         onMouseEnter={e => e.currentTarget.style.color = '#e4e4e7'}
         onMouseLeave={e => e.currentTarget.style.color = '#a1a1aa'}
         >
-          <span>←</span> <span style={{ fontWeight: 500 }}>Back to connections</span>
+          <span>←</span> <span style={{ fontWeight: 500 }}>Back to access</span>
         </button>
       </div>
 
@@ -405,7 +405,7 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
                   {name}
                 </h1>
                 <div style={{ fontSize: 13, color: '#71717a', marginTop: 4 }}>
-                  {label} connection
+                  {label} access point
                 </div>
               </div>
             </div>
@@ -474,7 +474,7 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
               <OverviewTab connection={c} projectId={projectId} />
             )}
             {activeTab === 'history' && (
-              <HistoryTab connectionId={c.id} projectId={projectId} />
+              <HistoryTab connectionPath={c.path} projectId={projectId} />
             )}
             {activeTab === 'settings' && (
               <SettingsTab connection={c} onRefresh={onRefresh} />
@@ -690,9 +690,9 @@ function SandboxOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
    HistoryTab
    ================================================================ */
 
-function HistoryTab({ connectionId, projectId }: { connectionId: string; projectId: string }) {
+function HistoryTab({ connectionPath, projectId }: { connectionPath: string | null; projectId: string }) {
   const { data: logs } = useSWR(
-    connectionId ? `/api/v1/nodes/${connectionId}/audit-logs?project_id=${projectId}&limit=50` : null,
+    connectionPath ? `/api/v1/nodes/${connectionPath}/audit-logs?project_id=${projectId}&limit=50` : null,
     (url: string) => get<{ logs: AuditLog[] }>(url),
   );
 
@@ -813,7 +813,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
             } />
           )}
 
-          <InfoRow label="Connection ID" value={c.id} mono isLast />
+          <InfoRow label="Access Point ID" value={c.id} mono isLast />
         </div>
       </div>
 
@@ -825,7 +825,7 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
           borderRadius: 8, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
         }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Delete Connection</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Delete Access Point</div>
             <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>This action cannot be undone. Data already imported will remain.</div>
           </div>
           

@@ -245,4 +245,5 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             visibility=getattr(project_response, 'visibility', 'org'),
             created_by=project_response.created_by,
             created_at=project_response.created_at,
+            updated_at=getattr(project_response, 'updated_at', None),
         )

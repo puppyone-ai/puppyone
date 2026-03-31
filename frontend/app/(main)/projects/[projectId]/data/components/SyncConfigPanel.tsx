@@ -328,7 +328,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
         });
         createdNodeId = result.sync.path;
         if (!createdNodeId) {
-          throw new Error('Connection was created without a destination node.');
+          throw new Error('Access was created without a destination node.');
         }
         if (result.sync.status === 'error' && result.sync.error_message) {
           throw new Error(result.sync.error_message);
@@ -342,7 +342,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       }
     } catch (err) {
       console.error('Failed to create sync:', err);
-      setDeployError(err instanceof Error ? err.message : 'Failed to create connection.');
+      setDeployError(err instanceof Error ? err.message : 'Failed to create access.');
     } finally {
       setDeploying(false);
     }
@@ -526,7 +526,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                   transition: 'all 0.2s',
                 }}
               >
-                {deploying ? 'Creating...' : 'Create connection'}
+                {deploying ? 'Creating...' : 'Create access'}
               </button>
             </div>
           </div>
@@ -576,7 +576,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
               transition: 'all 0.2s',
             }}
           >
-            {deploying ? 'Creating...' : 'Create connection'}
+            {deploying ? 'Creating...' : 'Create access'}
           </button>
         </div>
       </div>
@@ -589,7 +589,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
   // Default: show provider picker
   return (
-    <PanelShell title="New connection" onClose={onClose}>
+    <PanelShell title="New access" onClose={onClose}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           

@@ -56,8 +56,8 @@ export function AppSidebar({
         ),
       },
       {
-        id: 'connections',
-        label: 'Connections',
+        id: 'access',
+        label: 'Access',
         icon: (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22v-5" />
@@ -121,8 +121,8 @@ export function AppSidebar({
         onNavigate={(viewId) => {
           if (viewId === 'projects' || viewId === 'data') {
             router.push(`/projects/${activeProject.id}/data`);
-          } else if (viewId === 'connections') {
-            router.push(`/projects/${activeProject.id}/connections`);
+          } else if (viewId === 'access') {
+            router.push(`/projects/${activeProject.id}/access`);
           } else if (viewId === 'history') {
             router.push(`/projects/${activeProject.id}/history`);
           } else if (viewId === 'monitor') {

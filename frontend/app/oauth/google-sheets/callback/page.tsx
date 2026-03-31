@@ -165,7 +165,7 @@ function GoogleSheetsCallbackContent() {
                 color: '#ef4444',
               }}
             >
-              Connection Failed
+              Access Setup Failed
             </div>
             <div
               style={{

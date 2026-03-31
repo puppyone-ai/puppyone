@@ -19,5 +19,6 @@ class Project(BaseModel):
     visibility: str = Field(default="org", description="Visibility: org (visible within organization) / private (authorized members only)")
     created_by: Optional[str] = Field(None, description="Creator user ID")
     created_at: datetime = Field(..., description="Creation time")
+    updated_at: Optional[datetime] = Field(None, description="Last update time")
 
     model_config = ConfigDict(from_attributes=True)

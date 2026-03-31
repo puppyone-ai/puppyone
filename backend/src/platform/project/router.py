@@ -26,6 +26,7 @@ from src.platform.auth.dependencies import get_current_user
 from src.common_schemas import ApiResponse
 from src.exceptions import PermissionException, ErrorCode
 from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
+from src.infra.supabase.dependencies import get_supabase_client
 
 router = APIRouter(
     prefix="/projects",
@@ -37,7 +38,9 @@ router = APIRouter(
 )
 
 
-def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
+def _convert_to_project_out(
+    project: Project, entries=None, connection_count: int = 0
+) -> ProjectOut:
     """Convert Project to ProjectOut (using MutOps entries)"""
     node_infos = []
     if entries:
@@ -56,6 +59,8 @@ def _convert_to_project_out(project: Project, entries=None) -> ProjectOut:
         name=project.name,
         description=project.description,
         nodes=node_infos,
+        updated_at=project.updated_at.isoformat() if project.updated_at else None,
+        connection_count=connection_count,
     )
 
 
@@ -79,10 +84,27 @@ def list_projects(
     for oid in oids:
         all_projects.extend(project_service.get_by_org_id(oid))
 
+    # Batch-fetch connection counts for all projects
+    conn_counts: dict[str, int] = {}
+    project_ids = [str(p.id) for p in all_projects]
+    if project_ids:
+        sb = get_supabase_client()
+        rows = (
+            sb.table("connections")
+            .select("project_id")
+            .in_("project_id", project_ids)
+            .execute()
+        ).data
+        for row in rows:
+            pid = row["project_id"]
+            conn_counts[pid] = conn_counts.get(pid, 0) + 1
+
     result = []
     for p in all_projects:
         entries = ops.list_dir(str(p.id), "")
-        result.append(_convert_to_project_out(p, entries))
+        result.append(_convert_to_project_out(
+            p, entries, connection_count=conn_counts.get(str(p.id), 0)
+        ))
     return ApiResponse.success(data=result, message="Project list retrieved successfully")
 
 
@@ -100,8 +122,17 @@ def get_project(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     entries = ops.list_dir(str(project.id), "")
+    sb = get_supabase_client()
+    conn_count = len(
+        sb.table("connections")
+        .select("id")
+        .eq("project_id", str(project.id))
+        .execute()
+        .data
+    )
     return ApiResponse.success(
-        data=_convert_to_project_out(project, entries), message="Project retrieved successfully"
+        data=_convert_to_project_out(project, entries, connection_count=conn_count),
+        message="Project retrieved successfully",
     )
 
 
