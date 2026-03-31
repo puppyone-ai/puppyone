@@ -1,16 +1,18 @@
 """
 Auth router — for CLI / external clients
 
-POST   /auth/login       Sign in with email + password, returns access_token
-POST   /auth/refresh     Refresh access_token
-POST   /auth/initialize  Idempotent user initialization (profile + org)
-GET    /auth/config      Public Supabase config (URL + anon key) for Realtime
+POST   /auth/login           Sign in with email + password, returns access_token
+POST   /auth/refresh         Refresh access_token
+POST   /auth/initialize      Idempotent user initialization (profile + org)
+POST   /auth/check-email     Check if email is already registered
+GET    /auth/config           Public Supabase config (URL + anon key) for Realtime
 """
 
 import os
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from supabase import create_client
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user, get_initialization_service, CurrentUser
@@ -33,6 +35,14 @@ class LoginResponse(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class CheckEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class CheckEmailResponse(BaseModel):
+    exists: bool
 
 
 def _make_auth_client():
@@ -65,6 +75,38 @@ def get_public_config():
     return ApiResponse.success(data=RealtimeConfig(
         supabase_url=url, supabase_anon_key=anon_key,
     ))
+
+
+@router.post("/check-email", response_model=ApiResponse[CheckEmailResponse])
+async def check_email(body: CheckEmailRequest):
+    """Check whether an email is already registered (for email-first login flow).
+
+    Uses the GoTrue admin API filter parameter for efficient lookup.
+    """
+    url = os.environ.get("SUPABASE_URL", "")
+    key = os.environ.get("SUPABASE_KEY", "")
+    if not url or not key:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{url}/auth/v1/admin/users",
+                headers={"apikey": key, "Authorization": f"Bearer {key}"},
+                params={"filter": body.email, "page": 1, "per_page": 10},
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail="Auth service unavailable")
+
+            users = resp.json().get("users", [])
+            target = body.email.lower()
+            exists = any(u.get("email", "").lower() == target for u in users)
+
+        return ApiResponse.success(data=CheckEmailResponse(exists=exists))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Check email failed: {e!s}")
 
 
 @router.post("/login", response_model=ApiResponse[LoginResponse])
