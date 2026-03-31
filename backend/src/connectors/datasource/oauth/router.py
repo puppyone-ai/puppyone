@@ -144,7 +144,7 @@ def _register_oauth_provider(
         current_user=Depends(get_current_user),
         service=Depends(dep),
     ):
-        f"""Check {name} connection status."""
+        f"""Check {name} access status."""
         try:
             connection = await service.get_connection(current_user.user_id)
             if connection:
@@ -159,13 +159,13 @@ def _register_oauth_provider(
                         workspace_name=connection.workspace_name if connection else None,
                         connected_at=connection.created_at if connection else None,
                     ),
-                    message=f"{name} connection status retrieved",
+                    message=f"{name} access status retrieved",
                 )
             return ApiResponse.success(
                 data=OAuthStatusResponse(
                     connected=False, workspace_name=None, connected_at=None,
                 ),
-                message=f"{name} connection status retrieved",
+                message=f"{name} access status retrieved",
             )
         except Exception as e:
             raise HTTPException(
@@ -196,9 +196,9 @@ def _register_oauth_provider(
             return ApiResponse.success(
                 data=OAuthDisconnectResponse(
                     success=False,
-                    message=f"No active {name} connection found",
+                    message=f"No active {name} access found",
                 ),
-                message=f"No active {name} connection",
+                message=f"No active {name} access",
             )
         except Exception as e:
             raise HTTPException(

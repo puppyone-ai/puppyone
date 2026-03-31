@@ -67,9 +67,10 @@ export async function dashboardAction(path, opts, cmd) {
     out.info(`    ${d.nodes.total} nodes (${d.nodes.folders} folders, ${d.nodes.files} files)`);
     out.info("");
 
-    // Connections
-    if (d.connections.length > 0) {
-      out.info(`  Connections (${d.connections.length})`);
+    // Access Points
+    const aps = d.access_points || d.connections || [];
+    if (aps.length > 0) {
+      out.info(`  Access Points (${aps.length})`);
 
       const connCols = [
         { key: "provider", label: "PROVIDER" },
@@ -77,7 +78,7 @@ export async function dashboardAction(path, opts, cmd) {
         { key: "status", label: "STATUS" },
         { key: "lastSync", label: "LAST SYNC" },
       ];
-      const connRows = d.connections.map(c => ({
+      const connRows = aps.map(c => ({
         provider: c.provider,
         name: (c.name || "").slice(0, 30),
         status: statusLabel(c.status),
@@ -85,17 +86,17 @@ export async function dashboardAction(path, opts, cmd) {
       }));
       out.table(connRows, connCols);
 
-      const errConns = d.connections.filter(c => c.status === "error");
+      const errConns = aps.filter(c => c.status === "error");
       if (errConns.length > 0) {
         out.info("");
-        out.warn(`  ${errConns.length} connection(s) in error:`);
+        out.warn(`  ${errConns.length} access point(s) in error:`);
         for (const c of errConns) {
           out.info(`    - ${c.provider}/${c.name}: ${c.error_message || "unknown"}`);
         }
       }
     } else {
-      out.info("  Connections: (none)");
-      out.info("    Run `puppyone access add <provider> ...` to connect a data source.");
+      out.info("  Access Points: (none)");
+      out.info("    Run `puppyone access add <provider> ...` to add a data source.");
     }
     out.info("");
 

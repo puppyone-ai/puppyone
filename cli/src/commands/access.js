@@ -1,11 +1,11 @@
 /**
  * puppyone access <subcommand>
  *
- * THE unified entry point for managing ALL Access Points (connections):
+ * THE unified entry point for managing ALL Access Points:
  * SaaS datasources, agents, MCP endpoints, sandbox endpoints, filesystem sync,
  * direct access, and database connectors.
  *
- * Everything lives in the `connections` table, discriminated by `provider`.
+ * Everything lives in the `access_points` table (DB), discriminated by `provider`.
  *
  * Config is passed via generic mechanisms — no per-provider code:
  *   --set key=value   (repeatable, auto type-coerced)
@@ -144,7 +144,7 @@ async function fetchProviderMeta(client) {
 export function registerAccess(program) {
   const access = program
     .command("access")
-    .description("Manage Access Points — unified entry for all connection types");
+    .description("Manage Access Points — unified entry for all access types");
 
   // ── schema ────────────────────────────────────────────────
 
@@ -206,7 +206,7 @@ export function registerAccess(program) {
       out.info("");
       out.info("  General options (all sync providers):");
       out.info("    --set source_url=<url>    source URL (if applicable)");
-      out.info("    --name <name>             connection name");
+      out.info("    --name <name>             access point name");
       out.info("    --folder <path>           target folder in project");
       out.info("    --mode <mode>             import_once | manual | scheduled");
       out.info("    --config <json>           raw JSON config (merged, lower priority)");
@@ -275,7 +275,7 @@ export function registerAccess(program) {
         { provider: "mcp", name: "MCP Endpoint", description: "Model Context Protocol server" },
         { provider: "sandbox", name: "Sandbox", description: "Isolated code execution" },
         { provider: "filesystem", name: "Local Folder Sync", description: "Bidirectional local ↔ cloud" },
-        { provider: "database", name: "Database", description: "External DB connection" },
+        { provider: "database", name: "Database", description: "External DB access" },
       ], [
         { key: "provider", label: "PROVIDER" },
         { key: "name", label: "NAME" },
@@ -364,7 +364,7 @@ export function registerAccess(program) {
     .description("Add a new Access Point (any provider type)")
     .argument("<type>", "provider: github | gmail | notion | agent | mcp | sandbox | filesystem | database | direct | ...")
     .argument("[source]", "source URL, path, or name (depends on type)")
-    .option("--name <name>", "connection name")
+    .option("--name <name>", "access point name")
     .option("--folder <folder>", "target folder path in project (for syncs)")
     .option("--scope <scope>", "MUT tree path scope (default: /)")
     .option("--permission <perm>", "permission: read | write | rw", "rw")
@@ -381,7 +381,7 @@ export function registerAccess(program) {
       const provider = resolveProvider(type);
       const scope = opts.scope || opts.folder || null;
 
-      // ── All types go through POST /connections (unified backend) ──
+      // ── All types go through POST /access (unified backend) ──
 
       const config = {};
       if (opts.config) {
@@ -407,10 +407,10 @@ export function registerAccess(program) {
         out.done("done");
         out.info("");
         _showProviderGuidance(out, {
-          id: data.sync_id, provider, access_key: data.access_key,
+          id: data.access_point_id || data.sync_id, provider, access_key: data.access_key,
           path: data.path, ap_base: data.ap_base,
         }, client.baseUrl);
-        out.success?.({ connection: data });
+        out.success?.({ access: data });
         return;
       }
 
@@ -431,12 +431,12 @@ export function registerAccess(program) {
         }
 
         out.step(`Creating ${provider} access point...`);
-        const created = await client.post("/connections", body);
+        const created = await client.post("/access", body);
         out.done("done");
 
         out.info(`  ${provider} created: ${created.name || created.id}`);
         _showProviderGuidance(out, { ...created, provider }, client.baseUrl);
-        out.success?.({ connection: created });
+        out.success?.({ access: created });
         return;
       }
 
@@ -520,7 +520,7 @@ export function registerAccess(program) {
       };
 
       out.step(`Adding ${spec.display_name} sync...`);
-      const created = await client.post("/connections", body);
+      const created = await client.post("/access", body);
       out.done("done");
 
       out.info(`  Created: ${created.name || created.id}`);
@@ -528,7 +528,7 @@ export function registerAccess(program) {
       out.info(`  View:    puppyone access ls --provider ${provider}`);
       out.info(`  Refresh: puppyone access refresh ${created.id}`);
       out.info(`  Schema:  puppyone access schema ${type}`);
-      out.success?.({ connection: created });
+      out.success?.({ access: created });
     }));
 
   // ── ls ────────────────────────────────────────────────────
@@ -547,7 +547,7 @@ export function registerAccess(program) {
       if (opts.provider) query.provider = resolveProvider(opts.provider);
       if (opts.status) query.status = opts.status;
 
-      const connections = await client.get("/connections", query);
+      const connections = await client.get("/access", query);
       out.success?.({ connections });
 
       if (!connections || connections.length === 0) {
@@ -587,12 +587,12 @@ export function registerAccess(program) {
   access
     .command("info")
     .description("Show detailed info for an Access Point")
-    .argument("<id>", "connection ID")
+    .argument("<id>", "access point ID")
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
-      const c = await client.get(`/connections/${id}`);
-      out.success?.({ connection: c });
+      const c = await client.get(`/access/${id}`);
+      out.success?.({ access: c });
 
       out.info("");
       out.kv([
@@ -630,21 +630,21 @@ export function registerAccess(program) {
   access.command("pause").description("Pause an Access Point").argument("<id>")
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd); const client = createClient(cmd);
-      await client.patch(`/connections/${id}`, { status: "paused" });
+      await client.patch(`/access/${id}`, { status: "paused" });
       out.success?.({ id, status: "paused" }); out.done(`Access point ${id} paused.`);
     }));
 
   access.command("resume").description("Resume a paused Access Point").argument("<id>")
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd); const client = createClient(cmd);
-      await client.patch(`/connections/${id}`, { status: "active" });
+      await client.patch(`/access/${id}`, { status: "active" });
       out.success?.({ id, status: "active" }); out.done(`Access point ${id} resumed.`);
     }));
 
   access.command("rm").description("Delete an Access Point").argument("<id>")
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd); const client = createClient(cmd);
-      await client.del(`/connections/${id}`);
+      await client.del(`/access/${id}`);
       out.success?.({ id, deleted: true }); out.done(`Access point ${id} deleted.`);
     }));
 
@@ -652,10 +652,10 @@ export function registerAccess(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd); const client = createClient(cmd);
       if (opts.regenerate) {
-        const result = await client.post(`/connections/${id}/regenerate-key`);
+        const result = await client.post(`/access/${id}/regenerate-key`);
         out.success?.({ id, access_key: result.access_key }); out.done(`New key: ${result.access_key}`);
       } else {
-        const c = await client.get(`/connections/${id}`);
+        const c = await client.get(`/access/${id}`);
         out.success?.({ id, access_key: c.access_key });
         c.access_key ? out.raw(c.access_key) : out.info("  No access key set.");
       }
@@ -671,7 +671,7 @@ export function registerAccess(program) {
   access.command("trigger").description("Update trigger mode").argument("<id>").argument("<mode>", "manual | import_once | scheduled")
     .action(withErrors(async (id, mode, opts, cmd) => {
       const out = createOutput(cmd); const client = createClient(cmd);
-      await client.patch(`/connections/${id}`, { trigger: { type: mode } });
+      await client.patch(`/access/${id}`, { trigger: { type: mode } });
       out.success?.({ id, trigger: { type: mode } }); out.done(`Trigger mode set to "${mode}" for ${id}.`);
     }));
 
@@ -680,14 +680,14 @@ export function registerAccess(program) {
   access
     .command("update")
     .description("Update config of an existing Access Point")
-    .argument("<id>", "connection ID")
+    .argument("<id>", "access point ID")
     .option("--set <kv...>", "config key=value (repeatable)")
     .option("--config <json>", "full config JSON (merged)")
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
 
-      const c = await client.get(`/connections/${id}`);
+      const c = await client.get(`/access/${id}`);
       const existingConfig = c.config || {};
 
       const updates = {};
@@ -705,7 +705,7 @@ export function registerAccess(program) {
       }
 
       const newConfig = { ...existingConfig, ...updates };
-      await client.patch(`/connections/${id}`, { config: newConfig });
+      await client.patch(`/access/${id}`, { config: newConfig });
       out.done(`Access point ${id} config updated.`);
 
       const changedKeys = Object.keys(updates).join(", ");
@@ -718,7 +718,7 @@ export function registerAccess(program) {
   access
     .command("logs")
     .description("Show execution history for an Access Point")
-    .argument("<id>", "connection ID")
+    .argument("<id>", "access point ID")
     .option("--limit <n>", "max runs to show", "10")
     .option("--run <runId>", "show full details for a specific run")
     .action(withErrors(async (id, opts, cmd) => {
@@ -730,7 +730,7 @@ export function registerAccess(program) {
         out.info("");
         out.kv([
           ["Run ID", run.id],
-          ["Sync ID", run.sync_id],
+          ["Access Point ID", run.access_point_id || run.sync_id],
           ["Status", run.status],
           ["Trigger", run.trigger_type || "\u2014"],
           ["Started", run.started_at || "\u2014"],
@@ -784,7 +784,7 @@ export function registerAccess(program) {
   access
     .command("run")
     .description("Trigger execution and show result")
-    .argument("<id>", "connection ID")
+    .argument("<id>", "access point ID")
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);

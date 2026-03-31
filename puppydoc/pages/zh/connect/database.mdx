@@ -80,7 +80,7 @@ puppyone db rm <connection_id>
 
 ```bash
 # 创建连接
-curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connections" \
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/access" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -90,15 +90,15 @@ curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connections" \
   }'
 
 # 列出数据库表
-curl "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/tables" \
+curl "https://api.puppyone.ai/api/v1/db-connector/access/{id}/tables" \
   -H "Authorization: Bearer <token>"
 
 # 预览表数据
-curl "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/tables/users/preview" \
+curl "https://api.puppyone.ai/api/v1/db-connector/access/{id}/tables/users/preview" \
   -H "Authorization: Bearer <token>"
 
 # 保存为内容节点
-curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connections/{id}/save" \
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/access/{id}/save" \
   -H "Authorization: Bearer <token>"
 ```
 

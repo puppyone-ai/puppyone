@@ -1059,7 +1059,7 @@ export default function DataPage({ params }: DataPageProps) {
               )}
               <button
                 onClick={openSyncCreatePanel}
-                title="New connection"
+                title="New access"
                 style={{
                   display: 'flex', alignItems: 'center',
                   height: 28, paddingRight: 10, borderRadius: 6,
@@ -1090,9 +1090,8 @@ export default function DataPage({ params }: DataPageProps) {
                     <path d="M5 12h14" />
                   </svg>
                 </div>
-                <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
-                <span style={{ paddingLeft: 8 }}>
-                  Connect
+                <span style={{ paddingLeft: 6 }}>
+                  Access
                 </span>
               </button>
             </div>
@@ -1292,7 +1291,7 @@ export default function DataPage({ params }: DataPageProps) {
                 <span style={{ color: '#71717a', fontSize: 13 }}>Loading...</span>
               ) : (
                 <>
-                  <span style={{ color: '#525252', fontSize: 13 }}>No connection configured</span>
+                  <span style={{ color: '#525252', fontSize: 13 }}>No access configured</span>
                   <button
                     onClick={() => {
                       const nodeId = panelState.nodeId;
@@ -1307,7 +1306,7 @@ export default function DataPage({ params }: DataPageProps) {
                       borderRadius: 6, color: '#e4e4e7', cursor: 'pointer',
                     }}
                   >
-                    + New Connection
+                    + New Access
                   </button>
                 </>
               )}

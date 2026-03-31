@@ -343,7 +343,7 @@ class MutOps:
         return self._to_result(result, all_paths)
 
     def _run_post_push_hook(self, project_id: str, push_result: dict) -> None:
-        """Best-effort post-push hook to maintain connections table consistency."""
+        """Best-effort post-push hook to maintain access_points table consistency."""
         try:
             from src.mut_engine.services.hooks import run_post_push_hook
             run_post_push_hook(project_id, self._repos, push_result)

@@ -16,6 +16,7 @@ type AuthContextValue = {
   userId: string | null;
   isAuthReady: boolean;
   signInWithProvider: (provider: 'google' | 'github') => Promise<void>;
+  signInWithOtp: (email: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
   resetPassword: (email: string) => Promise<void>;
@@ -94,6 +95,21 @@ export function SupabaseAuthProvider({
     }
   };
 
+  const signInWithOtp = async (email: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      throw error;
+    }
+  };
+
   const signInWithEmail = async (email: string, password: string) => {
     if (!supabase) {
       throw new Error('Supabase is not configured');
@@ -168,6 +184,7 @@ export function SupabaseAuthProvider({
       userId: session?.user?.id ?? null,
       isAuthReady,
       signInWithProvider,
+      signInWithOtp,
       signInWithEmail,
       signUpWithEmail,
       resetPassword,

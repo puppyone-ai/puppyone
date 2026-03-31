@@ -1,8 +1,8 @@
 """
-Post-commit hooks — maintain PuppyOne connections table consistency after MUT writes.
+Post-commit hooks — maintain PuppyOne access_points table consistency after MUT writes.
 
-These hooks update the connections table when files are deleted or moved
-in the MUT tree, ensuring connection paths and scope paths stay consistent.
+These hooks update the access_points table when files are deleted or moved
+in the MUT tree, ensuring access point paths and scope paths stay consistent.
 
 Best-effort: failures are logged, not propagated to the caller.
 """
@@ -87,9 +87,9 @@ def _update_global_root(repo, push_result: dict) -> None:
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
-    """After deleting paths from MUT tree, clean up dangling connections.
+    """After deleting paths from MUT tree, clean up dangling access points.
 
-    Nullifies path on connections that referenced deleted paths.
+    Nullifies path on access points that referenced deleted paths.
     Also updates scope.path if it falls under a deleted subtree.
     """
     if not deleted_paths:
@@ -98,7 +98,7 @@ def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
         from src.infra.supabase.client import SupabaseClient
         client = SupabaseClient().client
         resp = (
-            client.table("connections")
+            client.table("access_points")
             .select("id, path, config")
             .eq("project_id", project_id)
             .execute()
@@ -108,10 +108,10 @@ def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
             conn_id = row["id"]
 
             if node_path and _path_matches_any(node_path, deleted_paths):
-                client.table("connections").update(
+                client.table("access_points").update(
                     {"path": None}
                 ).eq("id", conn_id).execute()
-                log_info(f"[PostCommit] Cleared dangling path on connection {conn_id}")
+                log_info(f"[PostCommit] Cleared dangling path on access point {conn_id}")
 
             config = row.get("config") or {}
             scope = config.get("scope") or {}
@@ -119,22 +119,22 @@ def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
             if scope_path and _path_matches_any(scope_path, deleted_paths):
                 config = dict(config)
                 config["scope"] = {**scope, "path": "", "_orphaned_from": scope_path}
-                client.table("connections").update(
+                client.table("access_points").update(
                     {"config": config}
                 ).eq("id", conn_id).execute()
-                log_warning(f"[PostCommit] Orphaned scope path on connection {conn_id}")
+                log_warning(f"[PostCommit] Orphaned scope path on access point {conn_id}")
 
     except Exception as e:
         log_error(f"[PostCommit] delete hook failed: {e}")
 
 
 def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
-    """After moving/renaming paths in MUT tree, update connections references."""
+    """After moving/renaming paths in MUT tree, update access point references."""
     try:
         from src.infra.supabase.client import SupabaseClient
         client = SupabaseClient().client
         resp = (
-            client.table("connections")
+            client.table("access_points")
             .select("id, path, config")
             .eq("project_id", project_id)
             .execute()
@@ -160,8 +160,8 @@ def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
                     updates["config"] = config
 
             if updates:
-                client.table("connections").update(updates).eq("id", conn_id).execute()
-                log_info(f"[PostCommit] Updated connection {conn_id} after move")
+                client.table("access_points").update(updates).eq("id", conn_id).execute()
+                log_info(f"[PostCommit] Updated access point {conn_id} after move")
 
     except Exception as e:
         log_error(f"[PostCommit] move hook failed: {e}")

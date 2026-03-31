@@ -529,12 +529,12 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
 
       if (params.provider === 'filesystem') {
         const result = await post<{
-          sync_id: string;
+          access_point_id: string;
           access_key: string;
           path: string;
           project_id: string;
         }>(`/api/v1/filesystem/bootstrap?project_id=${projectId}&path=${nodePath}`);
-        syncId = result.sync_id;
+        syncId = result.access_point_id;
         nodePath = result.path;
       } else if (params.provider === 'mcp') {
         const result = await post<{ id: string }>('/api/v1/mcp-endpoints', {

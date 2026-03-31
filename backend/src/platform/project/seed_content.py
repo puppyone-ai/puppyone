@@ -20,7 +20,7 @@ Your context space is ready. Here's how to start using it.
 
 Bring in data from Gmail, GitHub, Notion, local folders, or any URL.
 
-**Web:** Click "+ Add Connection" in the sidebar
+**Web:** Click "+ New Access" in the sidebar
 **CLI:** `puppyone access add <provider>`
 
 Examples:
@@ -34,7 +34,7 @@ Examples:
 
 Create an MCP endpoint so Claude, Cursor, or any MCP-compatible agent can read and write your context space.
 
-**Web:** Go to Connections → Add → MCP Endpoint
+**Web:** Go to Access → Add → MCP Endpoint
 **CLI:** `puppyone access add mcp "my-endpoint"`
 
 ## 3. Explore your data
@@ -82,7 +82,7 @@ just "all or nothing."
 ### Every agent connects differently; maintenance is expensive
 Cursor needs MCP, backend scripts use REST APIs, real-time scenarios \
 require SSE, and complex tasks need agents running code in a sandbox. You \
-need unified logging and monitoring for every connection.
+need unified logging and monitoring for every access point.
 
 ## Two Core Pillars
 
@@ -184,7 +184,7 @@ PuppyOne gives you fine-grained control over what each agent can do:
 - **Read-write** — agent can also create and modify files
 - **Scoped access** — limit an agent to specific folders or nodes
 
-Permissions are managed per-connection, so each agent or integration \
+Permissions are managed per access point, so each agent or integration \
 gets exactly the access it needs.
 
 ## Monitoring

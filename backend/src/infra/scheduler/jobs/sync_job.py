@@ -29,10 +29,10 @@ async def _execute_sync_pull_async(sync_id: str) -> dict:
 
         if result:
             log_info(f"[sync-scheduler] Pull completed for sync {sync_id} in {elapsed_ms}ms")
-            return {"status": "success", "sync_id": sync_id, "elapsed_ms": elapsed_ms, **result}
+            return {"status": "success", "access_point_id": sync_id, "elapsed_ms": elapsed_ms, **result}
         else:
             log_info(f"[sync-scheduler] No changes for sync {sync_id} ({elapsed_ms}ms)")
-            return {"status": "no_change", "sync_id": sync_id, "elapsed_ms": elapsed_ms}
+            return {"status": "no_change", "access_point_id": sync_id, "elapsed_ms": elapsed_ms}
 
     except Exception as e:
         log_error(f"[sync-scheduler] Pull failed for sync {sync_id}: {e}")
@@ -46,7 +46,7 @@ async def _execute_sync_pull_async(sync_id: str) -> dict:
         except Exception:
             pass
 
-        return {"status": "failed", "sync_id": sync_id, "error": str(e)}
+        return {"status": "failed", "access_point_id": sync_id, "error": str(e)}
 
 
 def execute_sync_pull(sync_id: str):

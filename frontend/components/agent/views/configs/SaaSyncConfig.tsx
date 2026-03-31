@@ -158,7 +158,7 @@ export function SaaSyncConfig({
             <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
           </div>
           <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
-            Drag and drop a folder or database here to set it as the destination for this connection.
+            Drag and drop a folder or database here to set it as the destination for this access point.
           </div>
 
           <div

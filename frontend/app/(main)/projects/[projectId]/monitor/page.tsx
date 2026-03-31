@@ -47,22 +47,6 @@ interface ProjectSyncStatus {
   uploads: { id: string; status: string }[];
 }
 
-type AccessPointKind = 'agent' | 'sync';
-
-interface AccessPoint {
-  id: string;
-  kind: AccessPointKind;
-  name: string;
-  icon: React.ReactNode;
-  typeLabel: string;
-  status: string;
-  lastActive: string | null;
-  sessionCount: number;
-  maxSessionCount: number;
-  direction?: string;
-  provider?: string;
-  errorMessage?: string | null;
-}
 
 // ================= Helpers =================
 
@@ -406,80 +390,6 @@ function BarChart({ title, data, total, color = '#34d399', loading, showDate = f
   );
 }
 
-function AccessPointsTable({ points, onDrillDown }: { points: AccessPoint[], onDrillDown: (kind: string, id: string) => void }) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const gridTemplate = '40px 1.5fr 140px 100px 140px 100px';
-
-  if (points.length === 0) return <div style={{ padding: 40, textAlign: 'center', color: '#52525b' }}>No access points configured yet.</div>;
-
-  return (
-    <div>
-      <div style={{
-        display: 'grid', gridTemplateColumns: gridTemplate, padding: '10px 24px',
-        borderBottom: '1px solid #27272a', fontSize: 11, fontWeight: 600, color: '#52525b',
-        textTransform: 'uppercase', letterSpacing: '0.05em',
-      }}>
-        <div style={{ textAlign: 'center' }}>#</div>
-        <div>Endpoint</div>
-        <div>Type</div>
-        <div>Status</div>
-        <div>Activity</div>
-        <div>Last Active</div>
-      </div>
-
-      {points.map((point, index) => {
-        const isHovered = hoveredId === point.id;
-        const statusColor = point.kind === 'sync' ? (STATUS_COLORS[point.status] || '#52525b') : (point.sessionCount > 0 ? '#22c55e' : '#52525b');
-        return (
-          <div key={point.id} onClick={() => onDrillDown(point.kind, point.id)} onMouseEnter={() => setHoveredId(point.id)} onMouseLeave={() => setHoveredId(null)}
-            style={{
-              display: 'grid', gridTemplateColumns: gridTemplate, padding: '12px 24px', alignItems: 'center', cursor: 'pointer',
-              background: isHovered ? '#18181b' : 'transparent', borderBottom: '1px solid #1f1f22', transition: 'background 0.1s',
-            }}
-          >
-            <div style={{ textAlign: 'center', color: '#52525b', fontSize: 12 }}>{index + 1}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 6, background: point.kind === 'sync' ? '#18181b' : '#27272a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, border: point.kind === 'sync' ? '1px solid #27272a' : 'none' }}>
-                {point.icon}
-              </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{point.name}</div>
-                {point.direction && <div style={{ fontSize: 11, color: '#52525b', marginTop: 1 }}>{DIRECTION_LABELS[point.direction] || point.direction}</div>}
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: point.kind === 'sync' ? 'rgba(59,130,246,0.1)' : 'rgba(113,113,122,0.1)', color: point.kind === 'sync' ? '#60a5fa' : '#a1a1aa', fontWeight: 500 }}>
-                {point.typeLabel}
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
-              <span style={{ fontSize: 12, color: '#a1a1aa', textTransform: 'capitalize' }}>{point.status}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {point.kind === 'agent' ? (
-                <>
-                  <span style={{ fontSize: 12, color: '#e4e4e7', minWidth: 20 }}>{point.sessionCount}</span>
-                  {point.sessionCount > 0 && point.maxSessionCount > 0 && (
-                    <div style={{ flex: 1, height: 4, background: '#27272a', borderRadius: 2, maxWidth: 80 }}>
-                      <div style={{ width: `${(point.sessionCount / point.maxSessionCount) * 100}%`, height: '100%', background: '#10b981', borderRadius: 2 }} />
-                    </div>
-                  )}
-                  <span style={{ fontSize: 11, color: '#52525b' }}>sessions</span>
-                </>
-              ) : (
-                <span style={{ fontSize: 12, color: point.errorMessage ? '#ef4444' : '#71717a' }}>{point.errorMessage || (point.status === 'syncing' ? 'Syncing…' : '—')}</span>
-              )}
-            </div>
-            <div style={{ fontSize: 12, color: point.lastActive ? '#a1a1aa' : '#52525b' }}>
-              {formatRelativeTime(point.lastActive || undefined)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function LogRow({ log, agent, onClick, active }: { log: AgentLog; agent?: Agent; onClick: () => void; active: boolean; }) {
   const isSuccess = log.success;
@@ -627,25 +537,6 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
     return counts.length > 0 ? Math.max(...counts) : 0;
   }, [dashboardData]);
 
-  const accessPoints = useMemo<AccessPoint[]>(() => {
-    const points: AccessPoint[] = [];
-    (dashboardData?.agents || []).forEach(agent => {
-      points.push({
-        id: agent.id, kind: 'agent', name: agent.name, icon: <span style={{ fontSize: 16 }}>{parseAgentIcon(agent.icon || '')}</span>,
-        typeLabel: AGENT_TYPE_LABELS[agent.agent_type] || agent.agent_type, status: agent.chat_count > 0 ? 'active' : 'idle',
-        lastActive: agent.last_active, sessionCount: agent.chat_count, maxSessionCount: maxChatCount,
-      });
-    });
-    (syncData?.syncs || []).forEach(sync => {
-      points.push({
-        id: sync.id, kind: 'sync', name: sync.node_name || PROVIDER_LABELS[sync.provider] || sync.provider,
-        icon: <ProviderIcon provider={sync.provider} size={16} />, typeLabel: PROVIDER_LABELS[sync.provider] || sync.provider,
-        status: sync.status, lastActive: sync.last_synced_at, sessionCount: 0, maxSessionCount: 0,
-        direction: sync.direction, provider: sync.provider, errorMessage: sync.error_message,
-      });
-    });
-    return points;
-  }, [dashboardData, syncData, maxChatCount]);
 
   // Derived Logs Data
   const agentMap = useMemo(() => {
@@ -680,11 +571,11 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
       
       {/* Header */}
       <div style={{ 
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.06)', 
+        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)', 
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#0e0e0e', flexShrink: 0 
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h1 style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif', fontSize: 13, fontWeight: 500, color: '#e4e4e7', margin: 0 }}>System Monitor</h1>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>System Monitor</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={fetchAllData} disabled={loading} style={{ background: 'transparent', border: 'none', borderRadius: 4, color: loading ? '#52525b' : '#a1a1aa', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', padding: 6, transition: 'color 0.2s, background 0.2s' }} title="Refresh" onMouseEnter={e => !loading && (e.currentTarget.style.background = 'rgba(255,255,255,0.05)', e.currentTarget.style.color = '#e4e4e7')} onMouseLeave={e => !loading && (e.currentTarget.style.background = 'transparent', e.currentTarget.style.color = '#a1a1aa')}>

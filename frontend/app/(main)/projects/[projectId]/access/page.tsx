@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Connections Page
+ * Access Page
  *
- * Lists all connections (data syncs, agents, MCP, sandbox) for a project.
- * Clicking a connection opens its detail view.
+ * Lists all access points (data syncs, agents, MCP, sandbox) for a project.
+ * Clicking an access point opens its detail view.
  */
 
 import React, { use, useState, useMemo, useCallback } from 'react';
@@ -184,12 +184,30 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; is
 }
 
 /* ================================================================
-   ConnectionsPage
+   AccessPage
    ================================================================ */
 
-export default function ConnectionsPage({ params }: { params: Promise<{ projectId: string }> }) {
+const PROVIDER_GROUPS: { key: string; label: string; providers: string[] }[] = [
+  { key: 'filesystem', label: 'FILESYSTEM', providers: ['filesystem'] },
+  { key: 'datasources', label: 'DATA SOURCES', providers: ['gmail', 'google_sheets', 'google_calendar', 'google_docs', 'github', 'supabase', 'notion', 'linear', 'hackernews', 'posthog', 'google_search_console', 'url', 'rss', 'rest_api', 'script'] },
+  { key: 'agents', label: 'AGENTS', providers: ['agent'] },
+  { key: 'mcp', label: 'MCP', providers: ['mcp'] },
+  { key: 'sandbox', label: 'SANDBOX', providers: ['sandbox'] },
+];
+
+function groupConnections(connections: SyncStatusItem[]) {
+  return PROVIDER_GROUPS
+    .map(g => ({
+      ...g,
+      items: connections.filter(c => g.providers.includes(c.provider)),
+    }))
+    .filter(g => g.items.length > 0);
+}
+
+export default function AccessPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const { data: syncData, mutate: mutateSyncs } = useSWR<ProjectSyncStatus>(
     projectId ? `/api/v1/sync/status?project_id=${projectId}` : null,
@@ -198,65 +216,123 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
   );
 
   const connections = useMemo(() => syncData?.syncs || [], [syncData]);
-  const selected = useMemo(() => connections.find(c => c.id === selectedId) || null, [connections, selectedId]);
+  const allGroups = useMemo(() => groupConnections(connections), [connections]);
+  const filteredConnections = useMemo(() => {
+    if (!activeFilter) return connections;
+    return connections.filter(c => {
+      const group = PROVIDER_GROUPS.find(g => g.providers.includes(c.provider));
+      return group?.key === activeFilter;
+    });
+  }, [connections, activeFilter]);
+  const groups = useMemo(() => groupConnections(filteredConnections), [filteredConnections]);
 
-  if (selectedId && selected) {
-    return (
-      <ConnectionDetailView
-        connection={selected}
-        projectId={projectId}
-        onBack={() => setSelectedId(null)}
-        onRefresh={() => mutateSyncs()}
-      />
-    );
-  }
+  const effectiveSelectedId = selectedId && filteredConnections.find(c => c.id === selectedId)
+    ? selectedId
+    : filteredConnections.length > 0 ? filteredConnections[0].id : null;
+
+  const selected = connections.find(c => c.id === effectiveSelectedId) || null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0a0a' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#09090b' }}>
       {/* Header */}
       <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'center', padding: '0 16px',
-        background: '#0e0e0e', fontSize: 13, fontWeight: 500, color: '#e4e4e7',
+        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
+        background: '#0e0e0e', fontSize: 13, fontWeight: 500, color: '#e4e4e7', flexShrink: 0,
       }}>
-        Connections
+        <span>Access</span>
+        <button
+          onClick={() => {/* TODO: open create modal */}}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5,
+            padding: '3px 10px', color: '#a1a1aa', fontSize: 12, fontWeight: 500,
+            cursor: 'pointer', transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#e4e4e7'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#a1a1aa'; }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
+          Access
+        </button>
       </div>
 
-      {/* Centered Form-like List */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '32px 16px', display: 'flex', justifyContent: 'center' }}>
-        <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column' }}>
-          
-          <div style={{ marginBottom: 24 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 600, color: '#e4e4e7', letterSpacing: '-0.01em' }}>
-              Connections
-            </h1>
-            <p style={{ fontSize: 13, color: '#71717a', marginTop: 4 }}>
-              Manage your active data integrations, MCP servers, and sandbox environments.
-            </p>
-          </div>
+      {/* Left-right split */}
+      <div className="flex flex-1 min-h-0">
 
-          <div style={{
-            background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 8, overflow: 'hidden'
-          }}>
-            {connections.length === 0 ? (
-              <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '60px 0' }}>
-                No connections yet
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {connections.map((conn, idx) => (
-                  <ConnectionRow 
-                    key={conn.id} 
-                    connection={conn} 
-                    onClick={() => setSelectedId(conn.id)} 
-                    isLast={idx === connections.length - 1}
-                  />
+        {/* Left sidebar — matches History page sidebar exactly */}
+        <div className="w-[340px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#09090b] z-10 shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
+
+          {/* Filter tabs — matches History filter style */}
+          {allGroups.length > 0 && (
+            <div className="flex flex-col border-b border-white/[0.04] bg-[#09090b]">
+              <div className="px-3 py-3 flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                <button
+                  onClick={() => setActiveFilter(null)}
+                  className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    activeFilter === null
+                      ? 'bg-white/[0.1] text-zinc-100'
+                      : 'bg-transparent text-zinc-400 hover:bg-white/[0.06]'
+                  }`}
+                >
+                  All
+                </button>
+                {allGroups.map(g => (
+                  <button
+                    key={g.key}
+                    onClick={() => setActiveFilter(g.key)}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+                      activeFilter === g.key
+                        ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]'
+                        : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    <span style={{ fontSize: 8 }}>●</span>
+                    {g.label} <span className="opacity-70 font-mono font-normal">{g.items.length}</span>
+                  </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar">
+            {connections.length === 0 ? (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: '#3f3f46', fontSize: 13 }}>
+                No access points yet
+              </div>
+            ) : (
+              filteredConnections.map(conn => (
+                <AccessSidebarRow
+                  key={conn.id}
+                  connection={conn}
+                  isSelected={conn.id === effectiveSelectedId}
+                  onClick={() => setSelectedId(conn.id)}
+                />
+              ))
             )}
           </div>
+        </div>
 
+        {/* Right detail panel */}
+        <div className="flex-1 overflow-auto bg-[#09090b]">
+          {selected ? (
+            <AccessDetailPanel
+              connection={selected}
+              projectId={projectId}
+              onRefresh={() => mutateSyncs()}
+            />
+          ) : (
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              height: '100%', gap: 8, color: '#3f3f46',
+            }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                <path d="M12 22v-5" /><path d="M9 8V2" /><path d="M15 8V2" />
+                <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+              </svg>
+              <span style={{ fontSize: 13 }}>Select an access point</span>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -264,66 +340,62 @@ export default function ConnectionsPage({ params }: { params: Promise<{ projectI
 }
 
 /* ================================================================
-   ConnectionRow
+   AccessSidebarRow — matches VerticalCommitNode row style from History
    ================================================================ */
 
-function ConnectionRow({ connection: c, onClick, isLast }: { connection: SyncStatusItem; onClick: () => void; isLast: boolean }) {
+function AccessSidebarRow({ connection: c, isSelected, onClick }: {
+  connection: SyncStatusItem;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
   const [hovered, setHovered] = useState(false);
-  const { specs } = useConnectorSpecs();
-  const label = getProviderDisplayLabel(c.provider, specs) || PROVIDER_LABELS[c.provider] || c.provider;
-  const name = c.name || c.node_name || label;
+  const name = c.name || c.node_name || PROVIDER_LABELS[c.provider] || c.provider;
   const statusColor = STATUS_COLORS[c.status] || '#71717a';
 
   return (
-    <button
+    <div
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 16, padding: '14px 16px',
-        background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
-        border: 'none', 
-        borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)',
-        cursor: 'pointer', width: '100%',
-        textAlign: 'left', transition: 'background 0.15s',
+        display: 'flex', alignItems: 'center',
+        margin: '1px 6px',
+        height: 30, boxSizing: 'border-box',
+        borderRadius: 6,
+        background: isSelected ? '#2a2a2a' : hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: isSelected ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
+        fontSize: 13, userSelect: 'none',
+        transition: 'background 0.1s, color 0.1s',
+        cursor: 'pointer',
+        paddingLeft: 10, paddingRight: 10,
+        gap: 8,
       }}
     >
-      <div style={{
-        width: 32, height: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0,
+      <div style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <ProviderIcon provider={c.provider} size={14} />
+      </div>
+      <span style={{
+        flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        minWidth: 0,
       }}>
-        <ProviderIcon provider={c.provider} size={16} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {name}
-        </div>
-        <div style={{ fontSize: 12, color: '#71717a' }}>
-          {label} · {DIRECTION_LABELS[c.direction] || c.direction}
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <span style={{ fontSize: 12, color: '#525252', width: 60, textAlign: 'right' }}>{timeAgo(c.last_synced_at)}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 70, justifyContent: 'flex-end' }}>
-          <span style={{ fontSize: 12, color: '#71717a', textTransform: 'capitalize' }}>{c.status}</span>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: statusColor }} />
-        </div>
-      </div>
-    </button>
+        {name}
+      </span>
+      <div style={{
+        width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0,
+      }} />
+    </div>
   );
 }
 
 /* ================================================================
-   ConnectionDetailView
+   AccessDetailPanel (right panel in split layout)
    ================================================================ */
 
-function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
+function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
   connection: SyncStatusItem;
   projectId: string;
-  onBack: () => void;
   onRefresh: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'history' | 'settings'>('overview');
   const [syncing, setSyncing] = useState(false);
   const [pausing, setPausing] = useState(false);
   const { specs } = useConnectorSpecs();
@@ -361,126 +433,113 @@ function ConnectionDetailView({ connection: c, projectId, onBack, onRefresh }: {
   const isSandbox = c.provider === 'sandbox';
   const showSyncActions = !isAgent && !isMcp && !isSandbox;
 
-  const tabs: { key: typeof activeTab; label: string }[] = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'history', label: 'History' },
-    { key: 'settings', label: 'Settings' },
-  ];
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0a0a' }}>
-      
-      {/* Top action bar: Back button on left */}
-      <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
-        background: '#0e0e0e',
-      }}>
-        <button onClick={onBack} style={{
-          background: 'none', border: 'none', color: '#a1a1aa', cursor: 'pointer',
-          fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, transition: 'color 0.15s'
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = '#e4e4e7'}
-        onMouseLeave={e => e.currentTarget.style.color = '#a1a1aa'}
-        >
-          <span>←</span> <span style={{ fontWeight: 500 }}>Back to connections</span>
-        </button>
-      </div>
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 24px' }}>
+      <div style={{ width: '100%', maxWidth: 720, display: 'flex', flexDirection: 'column' }}>
 
-      {/* Main detail content area (Centered) */}
-      <div style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: '32px 16px' }}>
-        <div style={{ width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column' }}>
-          
-          {/* Title Area */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)'
-              }}>
-                <ProviderIcon provider={c.provider} size={20} />
-              </div>
-              <div>
-                <h1 style={{ fontSize: 20, fontWeight: 600, color: '#e4e4e7', margin: 0, letterSpacing: '-0.01em' }}>
-                  {name}
-                </h1>
-                <div style={{ fontSize: 13, color: '#71717a', marginTop: 4 }}>
-                  {label} connection
-                </div>
-              </div>
+        {/* Title */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+            }}>
+              <ProviderIcon provider={c.provider} size={16} />
             </div>
-
-            {showSyncActions && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={handlePause}
-                  disabled={pausing}
-                  style={{
-                    height: 32, padding: '0 12px', fontSize: 13, background: 'transparent',
-                    border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, color: '#a1a1aa',
-                    cursor: pausing ? 'not-allowed' : 'pointer', fontWeight: 500,
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseEnter={e => { if(!pausing) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={e => { if(!pausing) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  {c.status === 'paused' ? 'Resume' : 'Pause'}
-                </button>
-                <button
-                  onClick={handleSync}
-                  disabled={syncing}
-                  style={{
-                    height: 32, padding: '0 14px', fontSize: 13, background: '#e4e4e7',
-                    border: 'none', borderRadius: 6, color: '#000',
-                    cursor: syncing ? 'not-allowed' : 'pointer', fontWeight: 500,
-                    transition: 'all 0.15s'
-                  }}
-                  onMouseEnter={e => { if(!syncing) e.currentTarget.style.background = '#fff'; }}
-                  onMouseLeave={e => { if(!syncing) e.currentTarget.style.background = '#e4e4e7'; }}
-                >
-                  {syncing ? 'Syncing...' : 'Sync now'}
-                </button>
-              </div>
-            )}
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: '#e4e4e7', lineHeight: 1.2 }}>{name}</div>
+              <div style={{ fontSize: 12, color: '#52525b', marginTop: 2 }}>{label}</div>
+            </div>
           </div>
 
-          {/* Tabs */}
-          <div style={{
-            display: 'flex', gap: 24, borderBottom: '1px solid rgba(255,255,255,0.06)',
-            marginBottom: 24
-          }}>
-            {tabs.map(t => (
+          {showSyncActions && (
+            <div style={{ display: 'flex', gap: 6 }}>
               <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
+                onClick={handlePause}
+                disabled={pausing}
                 style={{
-                  padding: '0 0 10px 0', fontSize: 13, fontWeight: 500,
-                  color: activeTab === t.key ? '#e4e4e7' : '#71717a',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  borderBottom: activeTab === t.key ? '2px solid #e4e4e7' : '2px solid transparent',
-                  marginBottom: -1, transition: 'all 0.15s'
+                  height: 28, padding: '0 10px', fontSize: 12, background: 'transparent',
+                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#a1a1aa',
+                  cursor: pausing ? 'not-allowed' : 'pointer', fontWeight: 500,
+                  transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if(activeTab !== t.key) e.currentTarget.style.color = '#a1a1aa'; }}
-                onMouseLeave={e => { if(activeTab !== t.key) e.currentTarget.style.color = '#71717a'; }}
+                onMouseEnter={e => { if(!pausing) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                onMouseLeave={e => { if(!pausing) e.currentTarget.style.background = 'transparent'; }}
               >
-                {t.label}
+                {c.status === 'paused' ? 'Resume' : 'Pause'}
               </button>
-            ))}
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                style={{
+                  height: 28, padding: '0 12px', fontSize: 12, background: '#22c55e',
+                  border: 'none', borderRadius: 5, color: '#fff',
+                  cursor: syncing ? 'not-allowed' : 'pointer', fontWeight: 500,
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if(!syncing) e.currentTarget.style.background = '#16a34a'; }}
+                onMouseLeave={e => { if(!syncing) e.currentTarget.style.background = '#22c55e'; }}
+              >
+                {syncing ? 'Syncing...' : 'Sync now'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* All-in-one detail — no tabs, everything visible */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Connection visualization */}
+          <OverviewTab connection={c} projectId={projectId} />
+
+          {/* Configuration (from Settings) */}
+          <div style={{
+            background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: 8, display: 'flex', flexDirection: 'column',
+          }}>
+            <InfoRow label="Status" value={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS[c.status] || '#71717a' }} />
+                <span style={{ textTransform: 'capitalize' }}>{c.status}</span>
+                {c.last_synced_at && <span style={{ color: '#52525b' }}>· Last synced {timeAgo(c.last_synced_at)}</span>}
+              </div>
+            } />
+            <InfoRow label="Provider" value={label} />
+            <InfoRow label="Direction" value={DIRECTION_LABELS[c.direction] || c.direction} />
+            {showSyncActions && (
+              <InfoRow label="Sync Mode" value={
+                <span style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 4, color: '#d4d4d8' }}>
+                  {SYNC_MODE_META[normalizeMode(c.trigger?.type)]?.label || c.trigger?.type || 'Realtime'}
+                </span>
+              } />
+            )}
+            {c.access_key && (
+              <InfoRow label="Access Key" value={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <code style={{ fontSize: 12, color: '#a1a1aa', fontFamily: "'JetBrains Mono', monospace" }}>
+                    {c.access_key.length > 16 ? c.access_key.slice(0, 8) + '...' + c.access_key.slice(-4) : c.access_key}
+                  </code>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(c.access_key!)}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, color: '#a1a1aa', padding: '2px 8px', cursor: 'pointer', fontSize: 11 }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              } />
+            )}
+            <InfoRow label="Path" value={c.path || '/'} mono />
+            <InfoRow label="ID" value={c.id} mono isLast />
           </div>
 
-          {/* Tab content */}
+          {/* Recent Activity (from History) */}
           <div>
-            {activeTab === 'overview' && (
-              <OverviewTab connection={c} projectId={projectId} />
-            )}
-            {activeTab === 'history' && (
-              <HistoryTab connectionId={c.id} projectId={projectId} />
-            )}
-            {activeTab === 'settings' && (
-              <SettingsTab connection={c} onRefresh={onRefresh} />
-            )}
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 8 }}>Recent Activity</div>
+            <HistoryTab connectionPath={c.path} projectId={projectId} />
           </div>
 
+          {/* Danger Zone (from Settings) */}
+          <SettingsTab connection={c} onRefresh={onRefresh} />
         </div>
       </div>
     </div>
@@ -690,9 +749,9 @@ function SandboxOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
    HistoryTab
    ================================================================ */
 
-function HistoryTab({ connectionId, projectId }: { connectionId: string; projectId: string }) {
+function HistoryTab({ connectionPath, projectId }: { connectionPath: string | null; projectId: string }) {
   const { data: logs } = useSWR(
-    connectionId ? `/api/v1/nodes/${connectionId}/audit-logs?project_id=${projectId}&limit=50` : null,
+    connectionPath ? `/api/v1/nodes/${connectionPath}/audit-logs?project_id=${projectId}&limit=50` : null,
     (url: string) => get<{ logs: AuditLog[] }>(url),
   );
 
@@ -740,8 +799,8 @@ interface AuditLog {
    ================================================================ */
 
 function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem; onRefresh: () => void }) {
+  const [expanded, setExpanded] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const { specs } = useConnectorSpecs();
 
   const handleDisconnect = async () => {
     try {
@@ -752,90 +811,38 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
     }
   };
 
-  const syncMode = normalizeMode(c.trigger?.type);
-  const syncModeLabel = SYNC_MODE_META[syncMode]?.label || syncMode;
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-      
-      {/* General Settings Box */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 12 }}>Configuration</div>
+    <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 12 }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
+          cursor: 'pointer', fontSize: 12, color: '#52525b', padding: 0, transition: 'color 0.15s',
+        }}
+        onMouseEnter={e => e.currentTarget.style.color = '#a1a1aa'}
+        onMouseLeave={e => e.currentTarget.style.color = '#52525b'}
+      >
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>
+          <path d="M6 4l4 4-4 4" />
+        </svg>
+        Danger Zone
+      </button>
+      {expanded && (
         <div style={{
-          background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-          borderRadius: 8, display: 'flex', flexDirection: 'column'
-        }}>
-          <InfoRow label="Provider" value={getProviderDisplayLabel(c.provider, specs) || c.provider} />
-          <InfoRow label="Direction" value={DIRECTION_LABELS[c.direction] || c.direction} />
-          
-          {c.provider !== 'mcp' && c.provider !== 'sandbox' && c.provider !== 'agent' && (
-            <InfoRow label="Sync Mode" value={
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 4, color: '#d4d4d8' }}>
-                  {syncModeLabel}
-                </span>
-                {c.provider === 'filesystem' && (
-                  <span style={{ fontSize: 11, color: '#71717a' }}>Fixed for Desktop Folder</span>
-                )}
-              </div>
-            } />
-          )}
-
-          {/* Render Mount Paths for Sandbox */}
-          {c.provider === 'sandbox' && !!c.config?.mounts && Array.isArray(c.config.mounts) && (
-            <InfoRow label="Mount Paths" value={
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {c.config.mounts.map((m: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                    <code style={{ background: '#0a0a0a', padding: '2px 6px', borderRadius: 4, color: '#a1a1aa', border: '1px solid rgba(255,255,255,0.04)' }}>
-                      {m.mount_path}
-                    </code>
-                    <span style={{ color: '#525252' }}>→</span>
-                    <span style={{ color: '#d4d4d8' }}>{m.path}</span>
-                    <span style={{ color: '#71717a' }}>({m.permissions?.write ? 'read-write' : 'read-only'})</span>
-                  </div>
-                ))}
-              </div>
-            } />
-          )}
-
-          {/* Render Accesses for MCP */}
-          {c.provider === 'mcp' && !!c.config?.accesses && Array.isArray(c.config.accesses) && (
-            <InfoRow label="Access Points" value={
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {c.config.accesses.map((a: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                    <span style={{ color: '#d4d4d8' }}>{a.path}</span>
-                    <span style={{ color: '#71717a' }}>({a.readonly ? 'read-only' : 'read-write'})</span>
-                  </div>
-                ))}
-              </div>
-            } />
-          )}
-
-          <InfoRow label="Connection ID" value={c.id} mono isLast />
-        </div>
-      </div>
-
-      {/* Danger Zone */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 500, color: '#ef4444', marginBottom: 12 }}>Danger Zone</div>
-        <div style={{
-          background: 'rgba(239,68,68,0.02)', border: '1px solid rgba(239,68,68,0.1)',
-          borderRadius: 8, padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          marginTop: 12, background: 'rgba(239,68,68,0.02)', border: '1px solid rgba(239,68,68,0.1)',
+          borderRadius: 8, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Delete Connection</div>
-            <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>This action cannot be undone. Data already imported will remain.</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Delete Access Point</div>
+            <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>This action cannot be undone.</div>
           </div>
-          
           {!confirming ? (
             <button
               onClick={() => setConfirming(true)}
               style={{
-                height: 32, padding: '0 16px', fontSize: 13, fontWeight: 500, background: 'transparent',
-                border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, color: '#ef4444',
-                cursor: 'pointer', transition: 'all 0.15s'
+                height: 28, padding: '0 12px', fontSize: 12, fontWeight: 500, background: 'transparent',
+                border: '1px solid rgba(239,68,68,0.3)', borderRadius: 5, color: '#ef4444',
+                cursor: 'pointer', transition: 'all 0.15s',
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.05)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -843,37 +850,24 @@ function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem;
               Disconnect
             </button>
           ) : (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 12, color: '#a1a1aa', marginRight: 8 }}>Are you sure?</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#71717a', marginRight: 4 }}>Sure?</span>
               <button
                 onClick={() => setConfirming(false)}
-                style={{
-                  height: 32, padding: '0 14px', fontSize: 13, fontWeight: 500, background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, color: '#a1a1aa',
-                  cursor: 'pointer', transition: 'all 0.15s'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#e4e4e7'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#a1a1aa'; }}
+                style={{ height: 28, padding: '0 10px', fontSize: 12, fontWeight: 500, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#a1a1aa', cursor: 'pointer' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleDisconnect}
-                style={{
-                  height: 32, padding: '0 16px', fontSize: 13, fontWeight: 500, background: '#ef4444',
-                  border: 'none', borderRadius: 6, color: '#fff',
-                  cursor: 'pointer', transition: 'all 0.15s'
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = '#dc2626'}
-                onMouseLeave={e => e.currentTarget.style.background = '#ef4444'}
+                style={{ height: 28, padding: '0 12px', fontSize: 12, fontWeight: 500, background: '#ef4444', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer' }}
               >
-                Confirm Delete
+                Confirm
               </button>
             </div>
           )}
         </div>
-      </div>
-
+      )}
     </div>
   );
 }

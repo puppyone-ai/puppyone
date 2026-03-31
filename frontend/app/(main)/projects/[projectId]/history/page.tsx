@@ -463,17 +463,14 @@ export default function HistoryPage({ params }: HistoryPageProps) {
 
       {/* ── Header ── */}
       <div style={{
+        height: 40, minHeight: 40, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '10px 24px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        flexShrink: 0,
+        padding: '0 16px',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        background: '#0e0e0e',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span style={{ fontSize: 14, fontWeight: 600, color: '#e4e4e7' }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>
             Commit History
           </span>
           {history && (
@@ -532,13 +529,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             {/* Filter Header */}
             {accessPoints.length > 1 && (
               <div className="flex flex-col border-b border-white/[0.04] bg-[#09090b]">
-                <div className="px-4 py-3 flex items-center justify-between">
-                  <span className="text-xs font-medium text-zinc-400">Timeline Filter</span>
-                  <span className="text-[10px] text-zinc-600">{filteredCommits.length} / {commits.length} commits</span>
-                </div>
-                
                 {/* Access Point Tabs */}
-                <div className="px-3 pb-3 flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                <div className="px-3 py-3 flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
                   <button
                     onClick={() => setActiveFilter(null)}
                     className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${

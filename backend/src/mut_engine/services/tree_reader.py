@@ -111,19 +111,11 @@ class MutTreeReader:
                     children_count=child_count,
                 ))
             else:
-                size = None
-                try:
-                    blob = repo.store.get(hash_val)
-                    size = len(blob)
-                except Exception:
-                    pass
-
                 result.append(MutEntry(
                     name=name,
                     path=entry_path,
                     type=detect_type(name),
                     content_hash=hash_val,
-                    size_bytes=size,
                     mime_type=detect_mime(name),
                 ))
 
@@ -188,19 +180,11 @@ class MutTreeReader:
                 children_count=child_count,
             )
 
-        size = None
-        try:
-            blob = repo.store.get(hash_val)
-            size = len(blob)
-        except Exception:
-            pass
-
         return MutEntry(
             name=name,
             path=path,
             type=detect_type(name),
             content_hash=hash_val,
-            size_bytes=size,
             mime_type=detect_mime(name),
         )
 

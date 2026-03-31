@@ -55,7 +55,7 @@ class InternalApiClient:
     # ============================================================
     
     async def get_mcp_endpoint_by_key(self, api_key: str) -> Optional[Dict[str, Any]]:
-        """Query MCP endpoint from connections table (provider='mcp')."""
+        """Query MCP endpoint from access_points table (provider='mcp')."""
         try:
             url = f"{self.base_url}/internal/mcp-endpoint-by-key/{api_key}"
             response = await self._client.get(url)
@@ -69,7 +69,7 @@ class InternalApiClient:
             return None
 
     async def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Dict[str, Any]]:
-        """Query agent-based MCP config from connections table (provider='agent')."""
+        """Query agent-based MCP config from access_points table (provider='agent')."""
         try:
             url = f"{self.base_url}/internal/agent-by-mcp-key/{mcp_api_key}"
             response = await self._client.get(url)

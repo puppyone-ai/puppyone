@@ -547,31 +547,31 @@ Connections are PuppyOne's unified integration abstraction, covering agents, MCP
 ### List connections
 
 ```
-GET /connections/?project_id={project_id}
+GET /access/?project_id={project_id}
 ```
 
 ### Get connection
 
 ```
-GET /connections/{connection_id}
+GET /access/{connection_id}
 ```
 
 ### Update connection
 
 ```
-PATCH /connections/{connection_id}
+PATCH /access/{connection_id}
 ```
 
 ### Delete connection
 
 ```
-DELETE /connections/{connection_id}
+DELETE /access/{connection_id}
 ```
 
 ### Regenerate access key
 
 ```
-POST /connections/{connection_id}/regenerate-key
+POST /access/{connection_id}/regenerate-key
 ```
 
 ---
@@ -1110,12 +1110,12 @@ GET /oauth/callback
 ### Database connections
 
 ```
-POST   /db-connector/connections                               # Create DB connection
-GET    /db-connector/connections                               # List connections
-DELETE /db-connector/connections/{connection_id}               # Delete connection
-GET    /db-connector/connections/{id}/tables                   # List database tables
-GET    /db-connector/connections/{id}/tables/{table}/preview   # Preview table data
-POST   /db-connector/connections/{id}/save                     # Save as content node
+POST   /db-connector/access                                    # Create DB access
+GET    /db-connector/access                                    # List access points
+DELETE /db-connector/access/{connection_id}                    # Delete access point
+GET    /db-connector/access/{id}/tables                        # List database tables
+GET    /db-connector/access/{id}/tables/{table}/preview        # Preview table data
+POST   /db-connector/access/{id}/save                          # Save as content node
 ```
 
 ### Public publishing

@@ -466,7 +466,7 @@ protocol_router — MUT 线协议（面向 CLI daemon / 远程 client）：
 
 ## 4. 权限模型 — P5
 
-Agent 权限完全由 **MUT scope**（`connections.config.scope`）定义，path-based：
+Agent 权限完全由 **MUT scope**（`access_points.config.scope`）定义，path-based：
 
 ```json
 {
@@ -496,7 +496,7 @@ Agent 权限完全由 **MUT scope**（`connections.config.scope`）定义，path
 | P2 并发访问 | MUT 乐观并发 | 各 Agent 各自 clone 独立工作区，push 时 MUT handler 自动 3-way merge |
 | P3 版本管理 | MUT Merkle tree + mut_commits | 每次 push 产生新 commit（root_hash 变化），`mut_commits` 记录完整历史；回滚 = 恢复到某 commit 的 root_hash |
 | P4 冲突解决 | MUT handle_push 内置 3-way merge | push 时 base_version < current_version → 自动三方合并；真冲突返回 conflicts 数组 |
-| P5 权限隔离 | MUT scope (connections.config.scope) | path-based 权限，clone 时只给 scope 内文件，push 时拒绝越权写入 |
+| P5 权限隔离 | MUT scope (access_points.config.scope) | path-based 权限，clone 时只给 scope 内文件，push 时拒绝越权写入 |
 | P6 资源效率 | Content-addressable S3 | 相同内容只存一份 blob（Merkle tree 天然去重）；Agent workspace 用 APFS Clone (macOS) / cp -r (Linux) |
 | P7 可上云 | PuppyOneServerRepo 解构 | MUT server 解构到 S3 + PG，API 服务完全无状态（锁用内存 threading.Lock），可水平扩展 |
 
@@ -514,7 +514,7 @@ MUT = Git for AI Agents
 
 PuppyOne = GitHub for MUT
   ├── 项目/组织/用户管理
-  ├── Agent/Connector/MCP/Sandbox 统一注册（connections 表）
+  ├── Agent/Connector/MCP/Sandbox 统一注册（access_points 表）
   ├── Access Point（URL + credential）
   ├── Web UI + Tree API + MUT Protocol
   └── Datasource connectors (Gmail/Notion/GitHub/...)

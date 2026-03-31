@@ -36,12 +36,12 @@ def _conn_to_response(conn) -> ConnectionResponse:
     )
 
 
-# === Connection Management ===
+# === Access Management ===
 
 @router.post(
-    "/connections",
+    "/access",
     response_model=ApiResponse[ConnectionCreatedResponse],
-    summary="Create database connection (auto-test)",
+    summary="Create database access (auto-test)",
 )
 async def create_connection(
     req: CreateConnectionRequest,
@@ -66,13 +66,13 @@ async def create_connection(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
-        raise HTTPException(status_code=400, detail="Connection failed")
+        raise HTTPException(status_code=400, detail="Access setup failed")
 
 
 @router.get(
-    "/connections",
+    "/access",
     response_model=ApiResponse[List[ConnectionResponse]],
-    summary="List database connections for a project",
+    summary="List database access points for a project",
 )
 async def list_connections(
     project_id: str = Query(..., description="Project ID"),
@@ -84,9 +84,9 @@ async def list_connections(
 
 
 @router.delete(
-    "/connections/{connection_id}",
+    "/access/{connection_id}",
     response_model=ApiResponse,
-    summary="Delete database connection",
+    summary="Delete database access",
 )
 async def delete_connection(
     connection_id: str = Path(...),
@@ -94,13 +94,13 @@ async def delete_connection(
     service: DBConnectorService = Depends(get_db_connector_service),
 ):
     service.delete_connection(connection_id, user.user_id)
-    return ApiResponse.success(message="Connection deleted")
+    return ApiResponse.success(message="Access point deleted")
 
 
 # === Table Data ===
 
 @router.get(
-    "/connections/{connection_id}/tables",
+    "/access/{connection_id}/tables",
     response_model=ApiResponse[List[TableInfoResponse]],
     summary="List all tables in the database",
 )
@@ -119,7 +119,7 @@ async def list_tables(
 
 
 @router.get(
-    "/connections/{connection_id}/tables/{table_name}/preview",
+    "/access/{connection_id}/tables/{table_name}/preview",
     response_model=ApiResponse[TablePreviewResponse],
     summary="Preview table data (first 50 rows)",
 )
@@ -154,7 +154,7 @@ async def preview_table(
 # === Save ===
 
 @router.post(
-    "/connections/{connection_id}/save",
+    "/access/{connection_id}/save",
     response_model=ApiResponse[SaveResultResponse],
     summary="Save entire table as JSON file in MUT tree",
 )

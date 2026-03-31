@@ -12,6 +12,7 @@ export type NavItem = {
   label: string;
   icon: React.ReactNode;
   badge?: number;
+  groupEnd?: boolean;
 };
 
 export type SidebarLayoutProps = {
@@ -258,26 +259,30 @@ export function SidebarLayout({
         <div className='flex-1 overflow-y-auto overflow-x-hidden'>
           <div className='flex flex-col gap-[2px] px-2 pb-2 pt-3'>
             {navItems.map(item => (
-              <button
-                key={item.id}
-                type='button'
-                className={navButtonClass(activeView === item.id)}
-                onClick={() => onNavigate(item.id)}
-              >
-                <span className={navIconClass(activeView === item.id)}>
-                  {item.icon}
-                </span>
-
-                <span className={navLabelClass(activeView === item.id)}>
-                  {item.label}
-                </span>
-
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className='ml-auto rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] text-[#6d7177]'>
-                    {item.badge}
+              <React.Fragment key={item.id}>
+                <button
+                  type='button'
+                  className={navButtonClass(activeView === item.id)}
+                  onClick={() => onNavigate(item.id)}
+                >
+                  <span className={navIconClass(activeView === item.id)}>
+                    {item.icon}
                   </span>
+
+                  <span className={navLabelClass(activeView === item.id)}>
+                    {item.label}
+                  </span>
+
+                  {item.badge !== undefined && item.badge > 0 && (
+                    <span className='ml-auto rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] text-[#6d7177]'>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+                {item.groupEnd && (
+                  <div className='my-1.5 mx-1 border-t border-white/[0.06]' />
                 )}
-              </button>
+              </React.Fragment>
             ))}
           </div>
         </div>
@@ -285,22 +290,25 @@ export function SidebarLayout({
         <div className='flex-1 pt-1 pb-3'>
           <div className='flex flex-col items-center gap-2'>
             {navItems.map(item => (
-              <button
-                key={item.id}
-                type='button'
-                className={collapsedBtnClass(activeView === item.id)}
-                onClick={() => onNavigate(item.id)}
-                title={item.label}
-                aria-label={item.label}
-              >
-                {/* Clone icon to adjust size for collapsed view if needed, or just use as is */}
-                {React.isValidElement(item.icon)
-                  ? React.cloneElement(item.icon, {
-                      width: 18,
-                      height: 18,
-                    } as any)
-                  : item.icon}
-              </button>
+              <React.Fragment key={item.id}>
+                <button
+                  type='button'
+                  className={collapsedBtnClass(activeView === item.id)}
+                  onClick={() => onNavigate(item.id)}
+                  title={item.label}
+                  aria-label={item.label}
+                >
+                  {React.isValidElement(item.icon)
+                    ? React.cloneElement(item.icon, {
+                        width: 18,
+                        height: 18,
+                      } as any)
+                    : item.icon}
+                </button>
+                {item.groupEnd && (
+                  <div className='w-5 border-t border-white/[0.06]' />
+                )}
+              </React.Fragment>
             ))}
           </div>
         </div>

@@ -61,10 +61,9 @@ class DBConnectorService:
     def get_connection(self, connection_id: str, user_id: str) -> DBConnection:
         conn = self.repo.get_by_id(connection_id)
         if not conn:
-            raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
-        # Access check: verify user has access to the connection's project
+            raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
         if not self.project_service.verify_project_access(conn.project_id, user_id):
-            raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
         return conn
 
     def list_connections(self, project_id: str, user_id: str) -> List[DBConnection]:

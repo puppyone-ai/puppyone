@@ -45,7 +45,7 @@ class ChatMessageCreate(BaseModel):
 # ── API Request / Response schemas ──
 
 class CreateSessionRequest(BaseModel):
-    agent_id: str = Field(..., description="Agent ID (connections.id)")
+    agent_id: str = Field(..., description="Agent ID (access point ID)")
     title: Optional[str] = Field(None, description="Optional initial title")
     mode: str = Field("agent", description="Session mode")
 
