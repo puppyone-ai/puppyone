@@ -181,7 +181,7 @@ mut push
 2. 解析 access_key ──────┘
    │
    ▼
-3. 从 connections 表加载配置:
+3. 从 access_points 表加载配置:
    {
      project_id: "proj_xyz",
      connector_type: "agent",
@@ -208,10 +208,10 @@ mut push
 
 ## 数据模型
 
-复用现有 `connections` 表：
+复用现有 `access_points` 表：
 
 ```sql
--- connections 表 (已存在)
+-- access_points 表
 id              text PRIMARY KEY
 project_id      text NOT NULL
 provider        text NOT NULL      -- 'mut' for MUT access points

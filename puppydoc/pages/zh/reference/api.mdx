@@ -547,31 +547,31 @@ DELETE /tables/{table_id}/data?path=/products/0
 ### 列出连接
 
 ```
-GET /connections/?project_id={project_id}
+GET /access/?project_id={project_id}
 ```
 
 ### 获取连接
 
 ```
-GET /connections/{connection_id}
+GET /access/{connection_id}
 ```
 
 ### 更新连接
 
 ```
-PATCH /connections/{connection_id}
+PATCH /access/{connection_id}
 ```
 
 ### 删除连接
 
 ```
-DELETE /connections/{connection_id}
+DELETE /access/{connection_id}
 ```
 
 ### 重新生成访问密钥
 
 ```
-POST /connections/{connection_id}/regenerate-key
+POST /access/{connection_id}/regenerate-key
 ```
 
 ---
@@ -1110,12 +1110,12 @@ GET /oauth/callback
 ### 数据库连接
 
 ```
-POST   /db-connector/connections                               # 创建数据库连接
-GET    /db-connector/connections                               # 列出连接
-DELETE /db-connector/connections/{connection_id}                # 删除连接
-GET    /db-connector/connections/{id}/tables                   # 列出数据库表
-GET    /db-connector/connections/{id}/tables/{table}/preview   # 预览表数据
-POST   /db-connector/connections/{id}/save                     # 保存为内容节点
+POST   /db-connector/access                                    # 创建数据库 Access
+GET    /db-connector/access                                    # 列出 Access
+DELETE /db-connector/access/{connection_id}                    # 删除 Access
+GET    /db-connector/access/{id}/tables                        # 列出数据库表
+GET    /db-connector/access/{id}/tables/{table}/preview        # 预览表数据
+POST   /db-connector/access/{id}/save                          # 保存为内容节点
 ```
 
 ### 公开发布

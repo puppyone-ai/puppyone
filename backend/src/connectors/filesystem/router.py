@@ -98,7 +98,7 @@ def bootstrap(
     svc, _ = _get_service()
     sync = svc.bootstrap(project_id=project_id, path=path)
     return ApiResponse.success(data={
-        "sync_id": sync.id,
+        "access_point_id": sync.id,
         "access_key": sync.access_key,
         "path": sync.path,
         "project_id": sync.project_id,
@@ -140,7 +140,7 @@ async def connect(
     svc.connect(sync, request.workspace_path)
 
     return ApiResponse.success(data={
-        "sync_id": sync.id,
+        "access_point_id": sync.id,
         "project_id": sync.project_id,
         "path": sync.path,
         "ap_base": f"/mut/ap/{sync.access_key}",
@@ -175,4 +175,4 @@ async def disconnect(
     ok = svc.disconnect(sync)
     if not ok:
         return ApiResponse.success(data={"message": "No active access found"})
-    return ApiResponse.success(data={"message": "Disconnected", "sync_id": sync.id})
+    return ApiResponse.success(data={"message": "Disconnected", "access_point_id": sync.id})

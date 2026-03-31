@@ -1,5 +1,5 @@
 """
-Sandbox Endpoint Repository — reads/writes `connections` table (provider='sandbox').
+Sandbox Endpoint Repository — reads/writes `access_points` table (provider='sandbox').
 
 Type-specific fields (name, description, mounts, runtime, etc.) live in
 the `config` JSONB column, following the same pattern as Agent and MCP.
@@ -19,7 +19,7 @@ def generate_sandbox_access_key() -> str:
 
 
 def _row_to_endpoint(row: dict) -> dict:
-    """Flatten connections row into the shape the Sandbox router/service expects."""
+    """Flatten access_points row into the shape the Sandbox router/service expects."""
     config = row.get("config") or {}
     return {
         "id": row["id"],
@@ -40,7 +40,7 @@ def _row_to_endpoint(row: dict) -> dict:
 
 class SandboxEndpointRepository:
 
-    TABLE = "connections"
+    TABLE = "access_points"
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:

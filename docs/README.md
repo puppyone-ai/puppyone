@@ -16,7 +16,7 @@
 │                               │                                 │
 │  ┌────────────────────────────┴──────────────────────────────┐  │
 │  │  Connectors: Datasource / Filesystem / Agent / MCP /      │  │  ← 04
-│  │              Sandbox / Database → 统一 connections 表      │  │
+│  │              Sandbox / Database → 统一 access_points 表    │  │
 │  └────────────────────────────┬──────────────────────────────┘  │
 │                               │                                 │
 │  ┌────────────────────────────┴──────────────────────────────┐  │
@@ -48,7 +48,7 @@
 | 01 | [MUT 引擎核心架构](architecture/01-mut-engine.md) | MUT 引擎如何工作：SOT 设计、S3/PG 解构、MutOps 通道模型、权限 | 后端开发、架构理解 |
 | 02 | [Access Point 接入模型](architecture/02-access-points.md) | 外部客户端如何连接：URL + credential、connector 类型、权限模型 | 后端/CLI 开发 |
 | 03 | [CLI 规范](architecture/03-cli.md) | MUT CLI + PuppyOne CLI 命令规范 | CLI 开发、用户文档 |
-| 04 | [Connector 架构](architecture/04-connectors.md) | 统一 connections 表、6 种 connector 类型、数据流、插件接口 | 后端/集成开发 |
+| 04 | [Connector 架构](architecture/04-connectors.md) | 统一 access_points 表、6 种 connector 类型、数据流、插件接口 | 后端/集成开发 |
 
 ---
 
@@ -58,6 +58,6 @@
 |------|------------|
 | 00-vision | 产品愿景，不直接对应代码 |
 | 01-mut-engine | `backend/src/mut_engine/` |
-| 02-access-points | `backend/src/mut_engine/auth.py` + `connections` 表 |
+| 02-access-points | `backend/src/mut_engine/auth.py` + `access_points` 表 |
 | 03-cli | `cli/` |
-| 04-connectors | `backend/src/connectors/` + `connections` 表 |
+| 04-connectors | `backend/src/connectors/` + `access_points` 表 |

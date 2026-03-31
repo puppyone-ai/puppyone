@@ -1,7 +1,7 @@
 """
 Unified Access API
 
-Single entry-point CRUD over the `connections` table for ALL provider types
+Single entry-point CRUD over the `access_points` table for ALL provider types
 (sync, agent, mcp, sandbox, filesystem). Allows the CLI `puppyone access`
 command group to manage every access point from one place.
 """
@@ -124,7 +124,7 @@ def list_connections(
     if not project_ids:
         return ApiResponse.success(data=[], message="No access points")
 
-    query = sb.table("connections").select("*")
+    query = sb.table("access_points").select("*")
 
     if len(project_ids) == 1:
         query = query.eq("project_id", project_ids[0])
@@ -151,7 +151,7 @@ def get_connection(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     sb = _get_client()
-    resp = sb.table("connections").select("*").eq("id", connection_id).execute()
+    resp = sb.table("access_points").select("*").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
@@ -179,7 +179,7 @@ async def update_connection(
     sb = _get_client()
 
     resp = (
-        sb.table("connections")
+        sb.table("access_points")
         .select("project_id, provider, trigger")
         .eq("id", connection_id)
         .execute()
@@ -201,7 +201,7 @@ async def update_connection(
     if payload.config is not None:
         fields["config"] = payload.config
 
-    sb.table("connections").update(fields).eq("id", connection_id).execute()
+    sb.table("access_points").update(fields).eq("id", connection_id).execute()
 
     if payload.trigger is not None:
         try:
@@ -215,7 +215,7 @@ async def update_connection(
         except Exception:
             pass
 
-    updated = sb.table("connections").select("*").eq("id", connection_id).execute()
+    updated = sb.table("access_points").select("*").eq("id", connection_id).execute()
     return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Access point updated")
 
 
@@ -231,7 +231,7 @@ async def delete_connection(
 ):
     sb = _get_client()
 
-    resp = sb.table("connections").select("project_id").eq("id", connection_id).execute()
+    resp = sb.table("access_points").select("project_id").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
@@ -246,7 +246,7 @@ async def delete_connection(
     except Exception:
         pass
 
-    sb.table("connections").delete().eq("id", connection_id).execute()
+    sb.table("access_points").delete().eq("id", connection_id).execute()
     return ApiResponse.success(message="Access point deleted")
 
 
@@ -262,7 +262,7 @@ def regenerate_key(
 ):
     sb = _get_client()
 
-    resp = sb.table("connections").select("project_id, provider").eq("id", connection_id).execute()
+    resp = sb.table("access_points").select("project_id, provider").eq("id", connection_id).execute()
     if not resp.data:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
@@ -281,7 +281,7 @@ def regenerate_key(
         prefix = "mcp"
 
     new_key = f"{prefix}_{secrets.token_urlsafe(32)}"
-    sb.table("connections").update({
+    sb.table("access_points").update({
         "access_key": new_key,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", connection_id).execute()

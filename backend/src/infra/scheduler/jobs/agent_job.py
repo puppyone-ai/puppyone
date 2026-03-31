@@ -42,7 +42,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         db_client = SupabaseClient().client
 
         agent_result = (
-            db_client.table("connections")
+            db_client.table("access_points")
             .select("*, project:project_id(created_by)")
             .eq("id", agent_id)
             .eq("provider", "agent")

@@ -1,11 +1,11 @@
 """
 Agent Config Repository
 
-Unified architecture: Agent data is stored in the connections table (provider='agent').
-AgentRepository is a domain view on the connections table, specifically handling agent-type records.
+Unified architecture: Agent data is stored in the access_points table (provider='agent').
+AgentRepository is a domain view on the access_points table, specifically handling agent-type records.
 
-Mut-Native architecture: Agent access permissions are stored in connections.config.scope (JSONB).
-The connection_accesses table has been removed. Scope format:
+Mut-Native architecture: Agent access permissions are stored in access_points.config.scope (JSONB).
+The access_permissions table is no longer used for scope. Scope format:
   { "path": "docs/", "exclude": [], "mode": "rw" }
 Frontend bash_accesses are derived from scope.
 """
@@ -23,7 +23,7 @@ _NOW = "now()"
 
 
 def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
-    """Derive AgentBash list from connections.config.scope (Mut-Native)."""
+    """Derive AgentBash list from access_points.config.scope (Mut-Native)."""
     scope = config.get("scope")
     if not scope:
         return []
@@ -43,10 +43,10 @@ def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
 
 
 def _row_to_tool(row: dict) -> AgentTool:
-    """Map connection_tool DB row to AgentTool model."""
+    """Map access_tools DB row to AgentTool model."""
     return AgentTool(
         id=row["id"],
-        agent_id=row.get("connection_id", row.get("agent_id", "")),
+        agent_id=row.get("access_point_id", row.get("access_point_id", row.get("agent_id", ""))),
         tool_id=row["tool_id"],
         enabled=row.get("enabled", True),
         mcp_exposed=row.get("mcp_exposed", False),
@@ -118,9 +118,9 @@ def _merge_agent_updates(
 
 
 class AgentRepository:
-    """Agent repository -- reads/writes the connections table (provider='agent')."""
+    """Agent repository -- reads/writes the access_points table (provider='agent')."""
 
-    TABLE = "connections"
+    TABLE = "access_points"
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
@@ -190,15 +190,15 @@ class AgentRepository:
             bash_by_agent[aid] = _scope_to_bash(aid, cfg)
 
         all_tools = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .select("*")
-            .in_("connection_id", agent_ids)
+            .in_("access_point_id", agent_ids)
             .order("created_at")
             .execute()
         ).data
         tools_by_agent: dict[str, list[AgentTool]] = {}
         for row in all_tools:
-            cid = row.get("connection_id", "")
+            cid = row.get("access_point_id", row.get("access_point_id", ""))
             tools_by_agent.setdefault(cid, []).append(_row_to_tool(row))
 
         for agent in agents:
@@ -385,7 +385,7 @@ class AgentRepository:
         return member is not None
 
     # ============================================
-    # AgentBash CRUD — operates on connections.config.scope (JSONB)
+    # AgentBash CRUD — operates on access_points.config.scope (JSONB)
     # ============================================
 
     def _get_agent_config(self, agent_id: str) -> Optional[dict]:
@@ -401,7 +401,7 @@ class AgentRepository:
         return None
 
     def _update_scope(self, agent_id: str, scope: dict) -> None:
-        """Write scope back into connections.config.scope."""
+        """Write scope back into access_points.config.scope."""
         config = self._get_agent_config(agent_id)
         if config is None:
             return
@@ -490,9 +490,9 @@ class AgentRepository:
 
     def get_tools_by_agent_id(self, agent_id: str) -> List[AgentTool]:
         response = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .select("*")
-            .eq("connection_id", agent_id)
+            .eq("access_point_id", agent_id)
             .order("created_at")
             .execute()
         )
@@ -500,9 +500,9 @@ class AgentRepository:
 
     def get_tools_by_agent_id_for_mcp(self, agent_id: str) -> List[AgentTool]:
         response = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .select("*")
-            .eq("connection_id", agent_id)
+            .eq("access_point_id", agent_id)
             .eq("enabled", True)
             .eq("mcp_exposed", True)
             .order("created_at")
@@ -512,7 +512,7 @@ class AgentRepository:
 
     def get_tool_binding_by_id(self, binding_id: str) -> Optional[AgentTool]:
         response = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .select("*")
             .eq("id", binding_id)
             .execute()
@@ -531,12 +531,12 @@ class AgentRepository:
         binding_id = generate_uuid_v7()
         data = {
             "id": binding_id,
-            "connection_id": agent_id,
+            "access_point_id": agent_id,
             "tool_id": tool_id,
             "enabled": enabled,
             "mcp_exposed": mcp_exposed,
         }
-        response = self._client.table("connection_tools").insert(data).execute()
+        response = self._client.table("access_tools").insert(data).execute()
         return _row_to_tool(response.data[0])
 
     def update_tool_binding(
@@ -554,7 +554,7 @@ class AgentRepository:
             return self.get_tool_binding_by_id(binding_id)
 
         response = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .update(data)
             .eq("id", binding_id)
             .execute()
@@ -565,7 +565,7 @@ class AgentRepository:
 
     def delete_tool_binding(self, binding_id: str) -> bool:
         response = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .delete()
             .eq("id", binding_id)
             .execute()
@@ -574,9 +574,9 @@ class AgentRepository:
 
     def delete_tools_by_agent_id(self, agent_id: str) -> int:
         response = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .delete()
-            .eq("connection_id", agent_id)
+            .eq("access_point_id", agent_id)
             .execute()
         )
         return len(response.data)
@@ -585,9 +585,9 @@ class AgentRepository:
         self, agent_id: str, tool_id: str
     ) -> Optional[AgentTool]:
         response = (
-            self._client.table("connection_tools")
+            self._client.table("access_tools")
             .select("*")
-            .eq("connection_id", agent_id)
+            .eq("access_point_id", agent_id)
             .eq("tool_id", tool_id)
             .execute()
         )
@@ -605,14 +605,14 @@ class AgentRepository:
         binding_id = generate_uuid_v7()
         data = {
             "id": binding_id,
-            "connection_id": agent_id,
+            "access_point_id": agent_id,
             "tool_id": tool_id,
             "enabled": enabled,
             "mcp_exposed": mcp_exposed,
         }
         response = (
-            self._client.table("connection_tools")
-            .upsert(data, on_conflict="connection_id,tool_id")
+            self._client.table("access_tools")
+            .upsert(data, on_conflict="access_point_id,tool_id")
             .execute()
         )
         return _row_to_tool(response.data[0])

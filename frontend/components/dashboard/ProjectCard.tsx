@@ -34,7 +34,7 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
   const lastUpdated = project.updated_at
     ? formatRelativeTime(project.updated_at)
     : '—';
-  const connectionCount = project.connection_count ?? 0;
+  const connectionCount = project.access_point_count ?? 0;
 
   return (
     <div

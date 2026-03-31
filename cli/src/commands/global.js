@@ -68,8 +68,9 @@ export async function dashboardAction(path, opts, cmd) {
     out.info("");
 
     // Access Points
-    if (d.connections.length > 0) {
-      out.info(`  Access Points (${d.connections.length})`);
+    const aps = d.access_points || d.connections || [];
+    if (aps.length > 0) {
+      out.info(`  Access Points (${aps.length})`);
 
       const connCols = [
         { key: "provider", label: "PROVIDER" },
@@ -77,7 +78,7 @@ export async function dashboardAction(path, opts, cmd) {
         { key: "status", label: "STATUS" },
         { key: "lastSync", label: "LAST SYNC" },
       ];
-      const connRows = d.connections.map(c => ({
+      const connRows = aps.map(c => ({
         provider: c.provider,
         name: (c.name || "").slice(0, 30),
         status: statusLabel(c.status),
@@ -85,7 +86,7 @@ export async function dashboardAction(path, opts, cmd) {
       }));
       out.table(connRows, connCols);
 
-      const errConns = d.connections.filter(c => c.status === "error");
+      const errConns = aps.filter(c => c.status === "error");
       if (errConns.length > 0) {
         out.info("");
         out.warn(`  ${errConns.length} access point(s) in error:`);

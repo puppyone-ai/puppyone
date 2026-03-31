@@ -70,7 +70,7 @@ class DashboardUpload(BaseModel):
 class ProjectDashboard(BaseModel):
     project: DashboardProject
     nodes: DashboardNodeCounts
-    connections: List[DashboardConnection] = []
+    access_points: List[DashboardConnection] = []
     tools: List[DashboardTool] = []
     uploads: List[DashboardUpload] = []
 
@@ -101,9 +101,9 @@ def get_project_dashboard(
         files=file_count,
     )
 
-    # 2. All connections (one query to the unified table)
+    # 2. All access points (one query to the unified table)
     conn_rows = (
-        sb.table("connections")
+        sb.table("access_points")
         .select("id, provider, config, path, direction, status, access_key, trigger, last_synced_at, error_message, created_at")
         .eq("project_id", project_id)
         .order("created_at")
@@ -198,7 +198,7 @@ def get_project_dashboard(
             description=project.description,
         ),
         nodes=node_counts,
-        connections=connections,
+        access_points=connections,
         tools=tools,
         uploads=uploads,
     )

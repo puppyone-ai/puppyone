@@ -51,7 +51,7 @@ Each Content Node automatically tracks version history and supports diffing and 
 
 ### Connection
 
-A connection is PuppyOne's unified abstraction for external integrations. All integration types are managed through the `connections` table, with `provider` and `direction` fields used to distinguish them.
+An access point is PuppyOne's unified abstraction for external integrations. All integration types are managed through the `access_points` table, with `provider` and `direction` fields used to distinguish them.
 
 | Connection type | Description | Examples |
 |----------|------|------|
@@ -73,7 +73,7 @@ MCP is an open protocol introduced by Anthropic that defines how AI models inter
 
 File-level permissions that precisely control which Content Nodes each agent can access.
 
-- Managed through the `connection_accesses` table, which binds agents to Content Nodes
+- Managed through the `access_permissions` table, which binds agents to Content Nodes
 - Supports permission levels such as read-only and read/write
 - Follows the principle of least privilege
 

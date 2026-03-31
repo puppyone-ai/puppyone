@@ -39,7 +39,7 @@ router = APIRouter(
 
 
 def _convert_to_project_out(
-    project: Project, entries=None, connection_count: int = 0
+    project: Project, entries=None, access_point_count: int = 0
 ) -> ProjectOut:
     """Convert Project to ProjectOut (using MutOps entries)"""
     node_infos = []
@@ -60,7 +60,7 @@ def _convert_to_project_out(
         description=project.description,
         nodes=node_infos,
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
-        connection_count=connection_count,
+        access_point_count=access_point_count,
     )
 
 
@@ -90,7 +90,7 @@ def list_projects(
     if project_ids:
         sb = get_supabase_client()
         rows = (
-            sb.table("connections")
+            sb.table("access_points")
             .select("project_id")
             .in_("project_id", project_ids)
             .execute()
@@ -103,7 +103,7 @@ def list_projects(
     for p in all_projects:
         entries = ops.list_dir(str(p.id), "")
         result.append(_convert_to_project_out(
-            p, entries, connection_count=conn_counts.get(str(p.id), 0)
+            p, entries, access_point_count=conn_counts.get(str(p.id), 0)
         ))
     return ApiResponse.success(data=result, message="Project list retrieved successfully")
 
@@ -124,14 +124,14 @@ def get_project(
     entries = ops.list_dir(str(project.id), "")
     sb = get_supabase_client()
     conn_count = len(
-        sb.table("connections")
+        sb.table("access_points")
         .select("id")
         .eq("project_id", str(project.id))
         .execute()
         .data
     )
     return ApiResponse.success(
-        data=_convert_to_project_out(project, entries, connection_count=conn_count),
+        data=_convert_to_project_out(project, entries, access_point_count=conn_count),
         message="Project retrieved successfully",
     )
 

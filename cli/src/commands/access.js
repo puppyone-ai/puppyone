@@ -5,7 +5,7 @@
  * SaaS datasources, agents, MCP endpoints, sandbox endpoints, filesystem sync,
  * direct access, and database connectors.
  *
- * Everything lives in the `connections` table (DB), discriminated by `provider`.
+ * Everything lives in the `access_points` table (DB), discriminated by `provider`.
  *
  * Config is passed via generic mechanisms — no per-provider code:
  *   --set key=value   (repeatable, auto type-coerced)
@@ -407,7 +407,7 @@ export function registerAccess(program) {
         out.done("done");
         out.info("");
         _showProviderGuidance(out, {
-          id: data.sync_id, provider, access_key: data.access_key,
+          id: data.access_point_id || data.sync_id, provider, access_key: data.access_key,
           path: data.path, ap_base: data.ap_base,
         }, client.baseUrl);
         out.success?.({ access: data });
@@ -730,7 +730,7 @@ export function registerAccess(program) {
         out.info("");
         out.kv([
           ["Run ID", run.id],
-          ["Sync ID", run.sync_id],
+          ["Access Point ID", run.access_point_id || run.sync_id],
           ["Status", run.status],
           ["Trigger", run.trigger_type || "\u2014"],
           ["Started", run.started_at || "\u2014"],

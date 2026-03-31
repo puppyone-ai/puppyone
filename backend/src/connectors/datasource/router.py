@@ -498,7 +498,7 @@ def resume_sync(
 
 class SyncRunResponse(BaseModel):
     id: str
-    sync_id: str
+    access_point_id: str
     status: str
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
@@ -536,7 +536,7 @@ def list_sync_runs(
     runs = run_repo.list_by_sync(sync_id, limit=limit, offset=offset)
     return ApiResponse.success(data=[
         SyncRunResponse(
-            id=r.id, sync_id=r.sync_id, status=r.status,
+            id=r.id, access_point_id=r.access_point_id, status=r.status,
             started_at=r.started_at, finished_at=r.finished_at,
             duration_ms=r.duration_ms, exit_code=r.exit_code,
             error=r.error, trigger_type=r.trigger_type,
@@ -557,7 +557,7 @@ def get_sync_run(
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return ApiResponse.success(data=SyncRunResponse(
-        id=run.id, sync_id=run.sync_id, status=run.status,
+        id=run.id, access_point_id=run.access_point_id, status=run.status,
         started_at=run.started_at, finished_at=run.finished_at,
         duration_ms=run.duration_ms, exit_code=run.exit_code,
         stdout=run.stdout, error=run.error,

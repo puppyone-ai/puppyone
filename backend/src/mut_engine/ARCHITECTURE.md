@@ -24,7 +24,7 @@ mut_engine/
 │   ├── ops.py             #   MutOps — 所有 channel 的统一操作入口
 │   ├── ephemeral_client.py#   MutEphemeralClient — 进程内 clone→push
 │   ├── tree_reader.py     #   MutTreeReader — 轻量 Merkle tree 直读
-│   └── hooks.py           #   Post-commit hook（connections 表一致性）
+│   └── hooks.py           #   Post-commit hook（access_points 表一致性）
 │
 └── server/                # 服务端基础设施层（存储适配、认证、管理）
     ├── server_repo.py     #   PuppyOneServerRepo（mut 核心的 ServerRepo 实现）
@@ -118,7 +118,7 @@ POST /pull-version   → handle_pull_version(repo, auth, body)
 
 ### Access Point Router — `/mut/ap/{access_key}`
 
-认证：access_key 路径参数 → 解析 connections 表获取 project_id + scope
+认证：access_key 路径参数 → 解析 access_points 表获取 project_id + scope
 
 ```
 POST /clone | /push | /pull | /negotiate | /rollback | /pull-version
@@ -176,7 +176,7 @@ CLI daemon (本地文件变更)
   ▼
 protocol_router.py
   │  1. get_mut_auth() → PuppyOneAuthenticator
-  │     → Access Key 查 connections 表
+  │     → Access Key 查 access_points 表
   │     → scope = connections.config.scope
   │  2. _invoke(handle_push, repo_manager, project_id, auth, body)
   │     → 在 worker thread 中执行
@@ -188,7 +188,7 @@ PuppyOneServerRepo → S3 + PG
   ▼
 protocol_router.py
   │  run_post_push_hook(project_id, repo_manager, result)
-  │  → 检查是否有文件删除，更新 connections 表一致性
+  │  → 检查是否有文件删除，更新 access_points 表一致性
   ▼
 返回 push result JSON
 ```
@@ -202,7 +202,7 @@ protocol_router.py
   ▼
 access_point.py
   │  1. resolve_access_point(access_key)
-  │     → 查 connections 表 → (project_id, auth_context)
+  │     → 查 access_points 表 → (project_id, auth_context)
   │  2. X-Mut-User identity binding 校验
   │  3. _invoke(handle_push, repo_manager, project_id, auth, body)
   ▼
@@ -245,8 +245,8 @@ admin = create_mut_admin_service()
 
 | Hook | 触发条件 | 动作 |
 |------|---------|------|
-| `post_commit_delete` | push 中包含文件删除 | 清理 `connections` 表中引用已删除路径的记录 |
-| `post_commit_move` | 文件/目录移动/重命名 | 重写 `connections` 表中受影响的路径 |
+| `post_commit_delete` | push 中包含文件删除 | 清理 `access_points` 表中引用已删除路径的记录 |
+| `post_commit_move` | 文件/目录移动/重命名 | 重写 `access_points` 表中受影响的路径 |
 
 ---
 
@@ -264,7 +264,7 @@ admin = create_mut_admin_service()
 | `content_router` | Content API — MutOps 的 REST HTTP 外壳 | 不含业务逻辑 |
 | `protocol_router` | MUT 线协议的 HTTP 外壳（直调 handlers） | 不含业务逻辑，不经过 MutOps |
 | `access_point` | URL+Key 的 MUT 协议入口 | 不含业务逻辑 |
-| `hooks.py` | push 后的 connections 表一致性维护 | 不做核心写入 |
+| `hooks.py` | push 后的 access_points 表一致性维护 | 不做核心写入 |
 
 ---
 

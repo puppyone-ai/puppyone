@@ -1,7 +1,7 @@
 """
 SyncRunRepository — CRUD for sync execution history in the `sync_runs` table.
 
-Each row records one invocation of SyncEngine.execute() for a connection,
+Each row records one invocation of SyncEngine.execute() for an access point,
 capturing status, duration, stdout, errors, and result summary.
 """
 
@@ -14,7 +14,7 @@ from src.infra.supabase.client import SupabaseClient
 @dataclass
 class SyncRun:
     id: str
-    sync_id: str
+    access_point_id: str
     status: str = "running"
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
@@ -43,7 +43,7 @@ class SyncRunRepository:
     def _to_model(self, row: dict) -> SyncRun:
         return SyncRun(
             id=row["id"],
-            sync_id=row["sync_id"],
+            access_point_id=row.get("access_point_id", row.get("sync_id", "")),
             status=row.get("status", "running"),
             started_at=row.get("started_at"),
             finished_at=row.get("finished_at"),
@@ -58,7 +58,7 @@ class SyncRunRepository:
 
     def create(self, sync_id: str, trigger_type: str = "manual") -> SyncRun:
         data = {
-            "sync_id": sync_id,
+            "access_point_id": sync_id,
             "status": "running",
             "trigger_type": trigger_type,
             "started_at": self._now(),
@@ -114,7 +114,7 @@ class SyncRunRepository:
         response = (
             self.client.table(self.TABLE)
             .select("*")
-            .eq("sync_id", sync_id)
+            .eq("access_point_id", sync_id)
             .order("started_at", desc=True)
             .range(offset, offset + limit - 1)
             .execute()
@@ -125,10 +125,10 @@ class SyncRunRepository:
         response = (
             self.client.table(self.TABLE)
             .select("id", count="exact")
-            .eq("sync_id", sync_id)
+            .eq("access_point_id", sync_id)
             .execute()
         )
         return response.count or 0
 
     def delete_by_sync(self, sync_id: str) -> None:
-        self.client.table(self.TABLE).delete().eq("sync_id", sync_id).execute()
+        self.client.table(self.TABLE).delete().eq("access_point_id", sync_id).execute()

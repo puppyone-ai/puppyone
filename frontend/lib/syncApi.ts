@@ -54,7 +54,7 @@ export interface CreateSyncResult {
     error_message?: string | null;
   };
   execution_result?: {
-    sync_id: string;
+    access_point_id: string;
     path: string;
     provider: string;
     version: number;

@@ -36,9 +36,9 @@ ContextBase 后端是一个基于 **FastAPI** 的 Python 服务，为 LLM Agent 
 **Mut tree (S3) 是唯一的内容 SOT。PG 是控制平面，不持有内容节点。**
 
 - 没有 `content_nodes` 表
-- 没有 `connection_accesses` 表
+- 没有独立的权限绑定表（scope 存储在 `access_points.config.scope`）
 - 文件操作全部通过 MutWriteService / MutTreeReader
-- 权限通过 Mut scope (connections.config.scope) 管理
+- 权限通过 Mut scope (access_points.config.scope) 管理
 - 前端使用 path-based 路由和 Tree API
 
 ## 项目结构
@@ -77,7 +77,7 @@ backend/
 │   ├── tool/                  # 工具注册 & 搜索索引
 │   │
 │   ├── connectors/            # 连接器
-│   │   ├── manager/           # 统一连接 CRUD (connections 表)
+│   │   ├── manager/           # 统一 Access CRUD (access_points 表)
 │   │   ├── agent/             # AI Agent (config/chat/MCP 绑定)
 │   │   ├── datasource/        # SaaS 数据源 (Gmail/GitHub/Notion/...)
 │   │   │   └── oauth/         # OAuth 授权流程 & token 存储
@@ -172,7 +172,7 @@ from src.mut_engine.dependencies import (
 | `/api/v1/agent-config` | connectors/agent/config | Agent CRUD |
 | `/api/v1/mcp` | connectors/agent/mcp | MCP v3 工具绑定 |
 | `/api/v1/sync` | connectors/datasource | 数据源同步 |
-| `/api/v1/connections` | connectors/manager | 统一连接管理 |
+| `/api/v1/access` | connectors/manager | 统一 Access 管理 |
 | `/api/v1/ingest` | ingest | 文件/URL 导入 |
 | `/api/v1/oauth` | oauth | OAuth 授权 |
 | `/internal` | internal | 内部 API |

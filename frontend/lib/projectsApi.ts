@@ -18,7 +18,7 @@ export type ProjectInfo = {
   visibility?: 'org' | 'private';
   nodes: NodeInfo[];
   updated_at?: string;
-  connection_count?: number;
+  access_point_count?: number;
 };
 
 // 保留 TableInfo 用于兼容性

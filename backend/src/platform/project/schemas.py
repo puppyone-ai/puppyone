@@ -25,7 +25,7 @@ class ProjectOut(BaseModel):
     description: Optional[str] = None
     nodes: List[NodeInfo] = []
     updated_at: Optional[str] = None
-    connection_count: int = 0
+    access_point_count: int = 0
 
 
 class ProjectCreate(BaseModel):

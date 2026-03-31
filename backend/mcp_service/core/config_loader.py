@@ -2,8 +2,8 @@
 配置加载：从 api_key / internal API 拉取 MCP 配置，并写入缓存
 
 支持双源认证：
-1. 独立 MCP 端点 (connections 表, provider='mcp') — 优先
-2. Agent 模式 (connections 表, provider='agent') — 回退
+1. 独立 MCP 端点 (access_points 表, provider='mcp') — 优先
+2. Agent 模式 (access_points 表, provider='agent') — 回退
 
 所有 MCP API key 均以 "mcp_" 开头。
 """
