@@ -525,7 +525,7 @@ def list_sync_runs(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """List execution history for a sync connection."""
+    """List execution history for a sync access point."""
     _get_sync_with_access(
         sync_id=sync_id,
         sync_svc=sync_svc,

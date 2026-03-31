@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 # === Request ===
 
 class CreateConnectionRequest(BaseModel):
-    """Create connection request."""
-    name: str = Field(..., description="Connection name", examples=["My Supabase"])
+    """Create access request."""
+    name: str = Field(..., description="Access point name", examples=["My Supabase"])
     provider: str = Field("supabase", description="Database type", examples=["supabase"])
     project_url: str = Field(..., description="Supabase Project URL", examples=["https://abcdefg.supabase.co"])
     api_key: str = Field(..., description="Supabase API Key (anon or service_role)")

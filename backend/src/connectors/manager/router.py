@@ -1,9 +1,9 @@
 """
-Unified Connections API
+Unified Access API
 
 Single entry-point CRUD over the `connections` table for ALL provider types
 (sync, agent, mcp, sandbox, filesystem). Allows the CLI `puppyone access`
-command group to manage every connection from one place.
+command group to manage every access point from one place.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from src.infra.supabase.client import SupabaseClient
 from src.platform.organization.dependencies import resolve_org_ids
 
 
-router = APIRouter(prefix="/connections", tags=["connections"])
+router = APIRouter(prefix="/access", tags=["access"])
 
 
 # ── Schemas ─────────────────────────────────────────────────
@@ -104,7 +104,7 @@ def _get_user_project_ids(sb_client, user_id: str, org_ids: list[str]) -> list[s
 @router.get(
     "/",
     response_model=ApiResponse[List[ConnectionOut]],
-    summary="List all connections",
+    summary="List all access points",
     status_code=status.HTTP_200_OK,
 )
 def list_connections(
@@ -122,7 +122,7 @@ def list_connections(
         project_ids = _get_user_project_ids(sb, current_user.user_id, org_ids)
 
     if not project_ids:
-        return ApiResponse.success(data=[], message="No connections")
+        return ApiResponse.success(data=[], message="No access points")
 
     query = sb.table("connections").select("*")
 
@@ -137,13 +137,13 @@ def list_connections(
         query = query.eq("status", connection_status)
 
     rows = query.order("created_at").execute().data
-    return ApiResponse.success(data=_enrich(rows, sb), message="Connections listed")
+    return ApiResponse.success(data=_enrich(rows, sb), message="Access points listed")
 
 
 @router.get(
     "/{connection_id}",
     response_model=ApiResponse[ConnectionOut],
-    summary="Get connection details",
+    summary="Get access point details",
     status_code=status.HTTP_200_OK,
 )
 def get_connection(
@@ -153,22 +153,22 @@ def get_connection(
     sb = _get_client()
     resp = sb.table("connections").select("*").eq("id", connection_id).execute()
     if not resp.data:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     row = resp.data[0]
     # Verify user has access via org membership
     org_ids = resolve_org_ids(None, current_user.user_id)
     pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
     if row["project_id"] not in pids:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
-    return ApiResponse.success(data=_enrich([row], sb)[0], message="Connection found")
+    return ApiResponse.success(data=_enrich([row], sb)[0], message="Access point found")
 
 
 @router.patch(
     "/{connection_id}",
     response_model=ApiResponse[ConnectionOut],
-    summary="Update connection (status, trigger, config)",
+    summary="Update access point (status, trigger, config)",
     status_code=status.HTTP_200_OK,
 )
 async def update_connection(
@@ -185,13 +185,13 @@ async def update_connection(
         .execute()
     )
     if not resp.data:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     row = resp.data[0]
     org_ids = resolve_org_ids(None, current_user.user_id)
     pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
     if row["project_id"] not in pids:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     fields: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
     if payload.status is not None:
@@ -216,13 +216,13 @@ async def update_connection(
             pass
 
     updated = sb.table("connections").select("*").eq("id", connection_id).execute()
-    return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Connection updated")
+    return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Access point updated")
 
 
 @router.delete(
     "/{connection_id}",
     response_model=ApiResponse[None],
-    summary="Delete connection",
+    summary="Delete access point",
     status_code=status.HTTP_200_OK,
 )
 async def delete_connection(
@@ -233,12 +233,12 @@ async def delete_connection(
 
     resp = sb.table("connections").select("project_id").eq("id", connection_id).execute()
     if not resp.data:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     org_ids = resolve_org_ids(None, current_user.user_id)
     pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
     if resp.data[0]["project_id"] not in pids:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     try:
         from src.infra.scheduler.service import get_scheduler_service
@@ -247,13 +247,13 @@ async def delete_connection(
         pass
 
     sb.table("connections").delete().eq("id", connection_id).execute()
-    return ApiResponse.success(message="Connection deleted")
+    return ApiResponse.success(message="Access point deleted")
 
 
 @router.post(
     "/{connection_id}/regenerate-key",
     response_model=ApiResponse[dict],
-    summary="Regenerate access key for a connection",
+    summary="Regenerate access key for an access point",
     status_code=status.HTTP_200_OK,
 )
 def regenerate_key(
@@ -264,13 +264,13 @@ def regenerate_key(
 
     resp = sb.table("connections").select("project_id, provider").eq("id", connection_id).execute()
     if not resp.data:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     row = resp.data[0]
     org_ids = resolve_org_ids(None, current_user.user_id)
     pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
     if row["project_id"] not in pids:
-        raise NotFoundException("Connection not found", code=ErrorCode.NOT_FOUND)
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     provider = row.get("provider", "")
     if provider == "sandbox":
@@ -294,12 +294,12 @@ def regenerate_key(
 @router.get(
     "/types",
     response_model=ApiResponse,
-    summary="List all available connection types",
+    summary="List all available access types",
     status_code=status.HTTP_200_OK,
 )
 def list_connection_types():
     """
-    Returns ALL available connection types across the platform:
+    Returns ALL available access types across the platform:
     datasource connectors, agent, MCP endpoint, sandbox endpoint.
 
     Frontend uses this single endpoint to render the unified creation panel.
@@ -349,11 +349,11 @@ def list_connection_types():
 
 class UnifiedConnectionCreate(BaseModel):
     """
-    Single request schema for creating ANY connection type.
+    Single request schema for creating ANY access type.
     The `provider` field determines which service handles creation.
     """
     project_id: str = Field(..., description="Project ID")
-    provider: str = Field(..., description="Connection type: gmail, github, agent, mcp, sandbox, ...")
+    provider: str = Field(..., description="Access type: gmail, github, agent, mcp, sandbox, ...")
     name: Optional[str] = Field(None, description="Display name")
     path: Optional[str] = Field(None, description="Target MUT path")
     config: dict = Field(default_factory=dict, description="Provider-specific configuration")
@@ -393,7 +393,7 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
     )
 
     if not payload.path:
-        raise HTTPException(status_code=400, detail="path (target_folder_path) is required for datasource connections")
+        raise HTTPException(status_code=400, detail="path (target_folder_path) is required for datasource access points")
 
     registry = get_connector_registry()
     sync_svc = _build_sync_service(registry)
@@ -532,7 +532,7 @@ def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 async def _create_filesystem(
     payload: UnifiedConnectionCreate, _user_id: str,
 ) -> UnifiedConnectionOut:
-    """Create a filesystem sync connection."""
+    """Create a filesystem sync access point."""
     from src.connectors.filesystem.service import FilesystemService
     from src.connectors.datasource.repository import SyncRepository
     from src.infra.supabase.client import SupabaseClient
@@ -561,7 +561,7 @@ async def _create_filesystem(
 @router.post(
     "/",
     response_model=ApiResponse[UnifiedConnectionOut],
-    summary="Create any connection type",
+    summary="Create any access type",
     status_code=status.HTTP_201_CREATED,
 )
 async def create_connection(
@@ -569,7 +569,7 @@ async def create_connection(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Unified entry point for creating connections of any type.
+    Unified entry point for creating access points of any type.
     Routes to the appropriate service based on `provider`.
 
     - Datasource providers (gmail, github, url, ...): creates a sync binding
@@ -597,7 +597,7 @@ async def create_connection(
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown provider: {provider}. Use GET /api/v1/connections/types to see available types.",
+            detail=f"Unknown provider: {provider}. Use GET /api/v1/access/types to see available types.",
         )
 
-    return ApiResponse.success(data=result, message=f"{provider} connection created")
+    return ApiResponse.success(data=result, message=f"{provider} access point created")

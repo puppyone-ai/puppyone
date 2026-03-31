@@ -25,7 +25,7 @@ It aggregates information scattered across various sources into a unified Contex
 
 - **Agent management** — Create agents, bind tools, control access scope, SSE streaming chat
 - **Full CLI coverage** — Every operation available via command line, enabling AI coding tools like Claude Code to drive the platform directly
-- **Unified connection management** — All connection types (sync/agent/MCP/sandbox/filesystem) consolidated into a single `connections` table with a single entry point
+- **Unified access management** — All access types (sync/agent/MCP/sandbox/filesystem) consolidated into a single `connections` table with a single entry point
 
 ## Active Development Directories
 
@@ -82,8 +82,8 @@ backend/
 │   │   └── table/             #     Structured data tables (JSON Pointer)
 │   ├── tool/                  # Tool registration & search index
 │   │
-│   ├── connectors/            # Connection types
-│   │   ├── manager/           #   Unified connection CRUD (connections table)
+│   ├── connectors/            # Access types
+│   │   ├── manager/           #   Unified access CRUD (connections table)
 │   │   ├── datasource/        #   SaaS data source providers (Gmail/GitHub/Notion/...)
 │   │   │   ├── gmail/         #     Gmail connector
 │   │   │   ├── github/        #     GitHub connector
@@ -145,7 +145,7 @@ backend/
 
 ### Database Tables
 
-All tables use plural snake_case names. The "unified connections" architecture stores agents, MCP endpoints, sandbox endpoints, and sync connections in a single `connections` table differentiated by `provider`/`direction`.
+All tables use plural snake_case names. The "unified access" architecture stores agents, MCP endpoints, sandbox endpoints, and sync access points in a single `connections` table differentiated by `provider`/`direction`.
 
 | Table | Repository | Description |
 |-------|-----------|-------------|
@@ -155,7 +155,7 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `org_members` | `organization/repository.py` | Organization membership |
 | `org_invitations` | `organization/repository.py` | Organization invitations |
 | `profiles` | `profile/repository.py` | User profiles |
-| `connections` | `connectors/manager/router.py`, `connectors/agent/config/repository.py` | Unified connections (agents/MCP/sandbox/sync) |
+| `connections` | `connectors/manager/router.py`, `connectors/agent/config/repository.py` | Unified access points (agents/MCP/sandbox/sync) |
 | `connection_accesses` | `connectors/agent/config/repository.py` | Agent ↔ content node access bindings |
 | `connection_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Agent ↔ tool bindings |
 | `content_nodes` | _(dropped — replaced by MUT tree in S3)_ | Legacy content tree |
@@ -193,14 +193,14 @@ All tables use plural snake_case names. The "unified connections" architecture s
 | `/api/v1/mcp` | connectors/agent/mcp | MCP v3 tool binding & proxy |
 | `/api/v1/mcp-endpoints` | connectors/mcp_endpoint | MCP endpoint CRUD & API key |
 | `/api/v1/sandbox-endpoints` | connectors/sandbox_endpoint | Sandbox endpoint CRUD & exec |
-| `/api/v1/connections` | connectors/manager | Unified connection management (all types) |
+| `/api/v1/access` | connectors/manager | Unified access management (all types) |
 | `/api/v1/sync` | connectors/datasource | Data source sync |
-| `/api/v1/filesystem` | connectors/filesystem | Filesystem connection lifecycle |
+| `/api/v1/filesystem` | connectors/filesystem | Filesystem access lifecycle |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
 | `/api/v1/collab` | collaboration | Collaborative editing & versions & audit |
 | `/api/v1/mut/{project_id}` | mut_core | MUT protocol (clone/push/pull/negotiate) |
 | `/api/v1/workspace` | workspace | Workspace management |
-| `/api/v1/db-connector` | db_connector | External database connections |
+| `/api/v1/db-connector` | db_connector | External database access |
 | `/api/v1/publishes` | context_publish | Public JSON short links |
 | `/api/v1/oauth` | connectors/datasource/oauth | OAuth authorization (9+ platforms) |
 | `/api/v1/auth` | auth | Authentication (login/refresh) |
@@ -256,7 +256,7 @@ frontend/
 │   │   ├── projects/             # Projects module
 │   │   │   └── [projectId]/      # Project detail pages
 │   │   │       ├── data/         # Data explorer
-│   │   │       ├── connections/  # Connection management
+│   │   │       ├── access/       # Access management
 │   │   │       ├── toolkit/      # Agent toolkit
 │   │   │       ├── monitor/      # Monitoring
 │   │   │       └── settings/     # Project settings
@@ -345,7 +345,7 @@ cli/
 │   │   ├── auth.js             # Auth (login/logout/whoami/targets)
 │   │   ├── org.js              # Organization management
 │   │   ├── project.js          # Project management
-│   │   ├── access.js           # Unified Access Point management (all connection types)
+│   │   ├── access.js           # Unified Access Point management (all access types)
 │   │   ├── chat.js             # Agent chat (SSE streaming)
 │   │   ├── config-cmd.js       # CLI configuration
 │   │   ├── global.js           # Global commands (status/ps)
@@ -353,7 +353,7 @@ cli/
 │   ├── api.js                  # HTTP client
 │   ├── config.js               # Config file read/write
 │   ├── daemon.js               # Background daemon management
-│   ├── registry.js             # Local connection registry
+│   ├── registry.js             # Local access registry
 │   ├── output.js               # Output formatting (human/JSON)
 │   ├── helpers.js              # Shared utilities
 │   └── state.js                # Sync state management

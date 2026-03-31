@@ -2,7 +2,7 @@
 Project Dashboard API
 
 Aggregated endpoint that returns a project-level overview in a single call:
-project info, node counts, all connections, tools, and active uploads.
+project info, node counts, all access points, tools, and active uploads.
 """
 
 from typing import Optional, List

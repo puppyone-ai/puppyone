@@ -200,7 +200,7 @@ puppyone project use "My Project"       # 设置当前活跃项目
 
 ### Access Point 管理
 
-**一张表，一个命令。** 所有连接类型（SaaS 数据源、数据库、Agent、MCP、
+**一张表，一个命令。** 所有 access point 类型（SaaS 数据源、数据库、Agent、MCP、
 Sandbox、本地同步）统一通过 `puppyone access` 管理，对应 `connections` 表。
 
 #### 创建 Access Point

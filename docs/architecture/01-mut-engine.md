@@ -283,7 +283,7 @@ Access Point 是 Protocol Router 的简化入口：
 
 **Filesystem Sync 完全 client 驱动**：
 - Client 负责：watch 文件变化、diff、clone/push/pull
-- Server 负责：暴露 Protocol Router、创建 connection + 发放 Access Key
+- Server 负责：暴露 Protocol Router、创建 access point + 发放 Access Key
 - Server 不做：watch、diff、sync 状态管理、任何 daemon 逻辑
 - 和 Git 模式完全一致：server 不管 client 怎么 watch，client 决定什么时候 push
 
@@ -301,7 +301,7 @@ Access Point 是 Protocol Router 的简化入口：
 | Agent / Sandbox | `agent:{id}` | agent 配置的 scope path |
 | MCP | `mcp:{endpoint_id}` | endpoint 配置的 scope path |
 | Datasource | `sync:{provider}:{id}` | 挂载路径 |
-| Filesystem | `fs:{connection_id}` | connection 配置的 scope path |
+| Filesystem | `fs:{connection_id}` | access point 配置的 scope path |
 | Ingest / ETL | `ingest:{task_id}` | target_folder |
 | Table CRUD | `table:{user_id}` | table_path |
 | DB Connector | `db_connector:{id}` | target_path |

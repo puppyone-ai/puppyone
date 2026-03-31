@@ -67,9 +67,9 @@ export async function dashboardAction(path, opts, cmd) {
     out.info(`    ${d.nodes.total} nodes (${d.nodes.folders} folders, ${d.nodes.files} files)`);
     out.info("");
 
-    // Connections
+    // Access Points
     if (d.connections.length > 0) {
-      out.info(`  Connections (${d.connections.length})`);
+      out.info(`  Access Points (${d.connections.length})`);
 
       const connCols = [
         { key: "provider", label: "PROVIDER" },
@@ -88,14 +88,14 @@ export async function dashboardAction(path, opts, cmd) {
       const errConns = d.connections.filter(c => c.status === "error");
       if (errConns.length > 0) {
         out.info("");
-        out.warn(`  ${errConns.length} connection(s) in error:`);
+        out.warn(`  ${errConns.length} access point(s) in error:`);
         for (const c of errConns) {
           out.info(`    - ${c.provider}/${c.name}: ${c.error_message || "unknown"}`);
         }
       }
     } else {
-      out.info("  Connections: (none)");
-      out.info("    Run `puppyone access add <provider> ...` to connect a data source.");
+      out.info("  Access Points: (none)");
+      out.info("    Run `puppyone access add <provider> ...` to add a data source.");
     }
     out.info("");
 

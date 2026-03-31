@@ -66,7 +66,7 @@ class DBConnectionRepository:
         }
         response = self.client.table(self.TABLE).insert(data).execute()
         if not response.data:
-            raise Exception("Failed to create db connection")
+            raise Exception("Failed to create db access")
         return self._row_to_model(response.data[0])
 
     def get_by_id(self, connection_id: str) -> Optional[DBConnection]:

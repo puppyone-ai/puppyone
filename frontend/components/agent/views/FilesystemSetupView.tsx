@@ -268,7 +268,7 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
 
   const checkStatus = useCallback(async () => {
     try {
-      const resp = await get<{ connected: boolean; workspace_path?: string; last_seen_at?: string }>(`/api/v1/filesystem/${agent.id}/connection-status`);
+      const resp = await get<{ connected: boolean; workspace_path?: string; last_seen_at?: string }>(`/api/v1/filesystem/${agent.id}/access-status`);
       if (resp) {
         setConnectionStatus(resp);
       }

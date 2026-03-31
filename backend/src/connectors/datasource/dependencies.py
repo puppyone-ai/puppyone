@@ -163,7 +163,7 @@ def get_sync_service(
 def _build_sync_service(registry: Optional[ConnectorRegistry] = None) -> SyncService:
     """
     Build a SyncService outside of FastAPI request context.
-    Used by the unified POST /api/v1/connections endpoint and other non-DI callers.
+    Used by the unified POST /api/v1/access endpoint and other non-DI callers.
     """
     if registry is None:
         registry = get_connector_registry()
