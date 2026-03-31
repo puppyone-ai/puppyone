@@ -4,14 +4,18 @@ Auth router — for CLI / external clients
 POST   /auth/login           Sign in with email + password, returns access_token
 POST   /auth/refresh         Refresh access_token
 POST   /auth/initialize      Idempotent user initialization (profile + org)
-POST   /auth/check-email     Check if email is already registered
+POST   /auth/check-email     Check if email is already registered (rate-limited)
 GET    /auth/config           Public Supabase config (URL + anon key) for Realtime
 """
 
+import asyncio
 import os
+import time
+from collections import defaultdict
+
 import httpx
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from supabase import create_client
 from src.common_schemas import ApiResponse
@@ -19,6 +23,24 @@ from src.platform.auth.dependencies import get_current_user, get_initialization_
 from src.platform.auth.initialization import UserInitializationService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+# ── Rate limiter for check-email (sliding window, per IP) ────────────────
+_CHECK_EMAIL_WINDOW = 60        # seconds
+_CHECK_EMAIL_MAX_HITS = 5       # max requests per window per IP
+_CHECK_EMAIL_MIN_LATENCY = 0.4  # seconds — flatten timing side-channel
+_check_email_hits: dict[str, list[float]] = defaultdict(list)
+
+
+def _rate_limit_check_email(ip: str) -> None:
+    """Raise 429 if the IP has exceeded the allowed check-email rate."""
+    now = time.monotonic()
+    window = _check_email_hits[ip]
+    # Trim entries outside the window
+    _check_email_hits[ip] = window = [t for t in window if now - t < _CHECK_EMAIL_WINDOW]
+    if len(window) >= _CHECK_EMAIL_MAX_HITS:
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+    window.append(now)
 
 
 class LoginRequest(BaseModel):
@@ -78,11 +100,17 @@ def get_public_config():
 
 
 @router.post("/check-email", response_model=ApiResponse[CheckEmailResponse])
-async def check_email(body: CheckEmailRequest):
+async def check_email(body: CheckEmailRequest, request: Request):
     """Check whether an email is already registered (for email-first login flow).
 
-    Uses the GoTrue admin API filter parameter for efficient lookup.
+    Protected by per-IP rate limiting and constant-time response delay
+    to mitigate email enumeration attacks.
     """
+    client_ip = request.client.host if request.client else "unknown"
+    _rate_limit_check_email(client_ip)
+
+    start = time.monotonic()
+
     url = os.environ.get("SUPABASE_URL", "")
     key = os.environ.get("SUPABASE_KEY", "")
     if not url or not key:
@@ -101,6 +129,12 @@ async def check_email(body: CheckEmailRequest):
             users = resp.json().get("users", [])
             target = body.email.lower()
             exists = any(u.get("email", "").lower() == target for u in users)
+
+        # Pad response time to a constant floor so attackers can't infer
+        # existence from faster/slower responses (timing side-channel).
+        elapsed = time.monotonic() - start
+        if elapsed < _CHECK_EMAIL_MIN_LATENCY:
+            await asyncio.sleep(_CHECK_EMAIL_MIN_LATENCY - elapsed)
 
         return ApiResponse.success(data=CheckEmailResponse(exists=exists))
     except HTTPException:

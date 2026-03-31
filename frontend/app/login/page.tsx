@@ -53,6 +53,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email }),
       });
       const json = await resp.json();
+      if (resp.status === 429) throw new Error('Too many attempts. Please wait a moment and try again.');
       if (!resp.ok) throw new Error(json.detail || 'Failed to check email');
       const exists = json.data?.exists;
       setView(exists ? 'signin' : 'signup');
@@ -116,13 +117,23 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-[#ddd] p-6 font-sans">
       <div className="w-[380px] p-6">
         <div className="flex flex-col gap-2.5">
+          {/* Global Logo */}
+          <div className="flex justify-center mb-4">
+            <img
+              src="/puppyone-logo.svg"
+              alt="PuppyOne"
+              width={48}
+              height={48}
+              className="opacity-95"
+            />
+          </div>
 
           {/* ── Main View ── */}
           {view === 'main' && (
             <div className="animate-fade-in">
-              <div className="mb-8">
-                <h1 className="text-[28px] font-semibold text-[#ededed]">Welcome to PuppyOne</h1>
-                <p className="mt-2 text-[15px] text-[#a1a1aa]">The context hub for your agents.</p>
+              <div className="mb-8 text-center">
+                <h1 className="text-2xl font-semibold text-[#ededed]">Welcome to PuppyOne</h1>
+                <p className="mt-2 text-sm text-[#a1a1aa]">The context hub for your agents.</p>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -169,7 +180,7 @@ export default function LoginPage() {
             <div className="animate-fade-in">
               <BackButton onClick={goBack} />
 
-              <div className="mb-6 mt-2">
+              <div className="mb-6 mt-2 text-center">
                 <h2 className="text-xl font-semibold text-[#ededed]">Welcome back</h2>
                 <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
               </div>
@@ -208,7 +219,7 @@ export default function LoginPage() {
             <div className="animate-fade-in">
               <BackButton onClick={goBack} />
 
-              <div className="mb-6 mt-2">
+              <div className="mb-6 mt-2 text-center">
                 <h2 className="text-xl font-semibold text-[#ededed]">Create your account</h2>
                 <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
               </div>
@@ -238,7 +249,7 @@ export default function LoginPage() {
             <div className="animate-fade-in">
               <BackButton onClick={() => { clearFeedback(); setView('signin'); }} label="Back" />
 
-              <div className="mb-6 mt-2">
+              <div className="mb-6 mt-2 text-center">
                 <h2 className="text-xl font-semibold text-[#ededed]">Reset your password</h2>
                 <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
               </div>
@@ -279,7 +290,7 @@ function ProviderButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full h-11 px-4 rounded-lg border border-[#222] bg-[#111] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1a1a1a] hover:border-[#333] disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full h-10 px-4 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1f1f1f] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <span className="flex items-center justify-center gap-2.5">
         {icon}
@@ -313,7 +324,7 @@ function InputField({
         disabled={disabled}
         minLength={minLength}
         autoFocus={autoFocus}
-        className="w-full h-11 px-3 rounded-lg border border-[#333] bg-transparent text-[#e6e6e6] text-sm outline-none box-border transition-colors focus:border-[#666] placeholder:text-[#444]"
+        className="w-full h-10 px-3 rounded-md border border-[#333] bg-[#0a0a0a] text-[#e6e6e6] text-sm outline-none box-border transition-colors focus:border-[#666] placeholder:text-[#444]"
       />
     </div>
   );
@@ -324,7 +335,7 @@ function SubmitButton({ disabled, children }: { disabled?: boolean; children: Re
     <button
       type="submit"
       disabled={disabled}
-      className="w-full h-11 px-4 rounded-lg border border-[#222] bg-[#111] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1a1a1a] hover:border-[#333] disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full h-10 px-4 rounded-md border-none bg-[#ededed] text-[#0a0a0a] cursor-pointer text-sm font-semibold transition-all hover:bg-white hover:shadow-[0_0_12px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {children}
     </button>
