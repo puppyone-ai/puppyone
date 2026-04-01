@@ -5,9 +5,10 @@ Pydantic models for MineRU API requests and responses.
 """
 
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
+
+_NO_DATA_FIELD_MSG = "No data field in response"
 
 
 class MineRUModelVersion(str, Enum):
@@ -36,7 +37,7 @@ class CreateTaskRequest(BaseModel):
     model_version: MineRUModelVersion = Field(
         default=MineRUModelVersion.VLM, description="Model version to use for parsing"
     )
-    data_id: Optional[str] = Field(
+    data_id: str | None = Field(
         None, description="Optional data identifier for tracking"
     )
 
@@ -52,23 +53,23 @@ class CreateTaskResponse(BaseModel):
 
     code: int = Field(..., description="API status code, 0 for success")
     msg: str = Field(..., description="API message")
-    trace_id: Optional[str] = Field(None, description="Trace ID for debugging")
-    data: Optional[CreateTaskData] = Field(None, description="Task data")
+    trace_id: str | None = Field(None, description="Trace ID for debugging")
+    data: CreateTaskData | None = Field(None, description="Task data")
 
     @property
     def task_id(self) -> str:
         """Get task_id from data field for backward compatibility."""
         if not self.data:
-            raise ValueError("No data field in response")
+            raise ValueError(_NO_DATA_FIELD_MSG)
         return self.data.task_id
 
 
 class ExtractProgress(BaseModel):
     """Extract progress information."""
 
-    extracted_pages: Optional[int] = Field(None, description="Number of extracted pages")
-    total_pages: Optional[int] = Field(None, description="Total number of pages")
-    start_time: Optional[str] = Field(None, description="Start time")
+    extracted_pages: int | None = Field(None, description="Number of extracted pages")
+    total_pages: int | None = Field(None, description="Total number of pages")
+    start_time: str | None = Field(None, description="Start time")
 
 
 class TaskStatusData(BaseModel):
@@ -76,14 +77,14 @@ class TaskStatusData(BaseModel):
 
     task_id: str = Field(..., description="Task ID")
     state: MineRUTaskState = Field(..., description="Current task state")
-    data_id: Optional[str] = Field(None, description="Data ID")
-    extract_progress: Optional[ExtractProgress] = Field(
+    data_id: str | None = Field(None, description="Data ID")
+    extract_progress: ExtractProgress | None = Field(
         None, description="Extraction progress (when state=running)"
     )
-    full_zip_url: Optional[str] = Field(
+    full_zip_url: str | None = Field(
         None, description="URL to download the result ZIP file"
     )
-    err_msg: Optional[str] = Field(None, description="Error message if task failed")
+    err_msg: str | None = Field(None, description="Error message if task failed")
 
 
 class TaskStatusResponse(BaseModel):
@@ -91,39 +92,39 @@ class TaskStatusResponse(BaseModel):
 
     code: int = Field(..., description="API status code, 0 for success")
     msg: str = Field(..., description="API message")
-    trace_id: Optional[str] = Field(None, description="Trace ID for debugging")
-    data: Optional[TaskStatusData] = Field(None, description="Task status data")
+    trace_id: str | None = Field(None, description="Trace ID for debugging")
+    data: TaskStatusData | None = Field(None, description="Task status data")
 
     @property
     def task_id(self) -> str:
         """Get task_id from data field for backward compatibility."""
         if not self.data:
-            raise ValueError("No data field in response")
+            raise ValueError(_NO_DATA_FIELD_MSG)
         return self.data.task_id
 
     @property
     def state(self) -> MineRUTaskState:
         """Get state from data field for backward compatibility."""
         if not self.data:
-            raise ValueError("No data field in response")
+            raise ValueError(_NO_DATA_FIELD_MSG)
         return self.data.state
 
     @property
-    def full_zip_url(self) -> Optional[str]:
+    def full_zip_url(self) -> str | None:
         """Get full_zip_url from data field for backward compatibility."""
         if not self.data:
             return None
         return self.data.full_zip_url
 
     @property
-    def err_msg(self) -> Optional[str]:
+    def err_msg(self) -> str | None:
         """Get err_msg from data field for backward compatibility."""
         if not self.data:
             return None
         return self.data.err_msg
 
     @property
-    def extract_progress(self) -> Optional[int]:
+    def extract_progress(self) -> int | None:
         """Get extract progress as percentage for backward compatibility."""
         if (
             not self.data

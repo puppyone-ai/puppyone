@@ -5,8 +5,9 @@ Provides system default ETL transformation rules.
 """
 
 import logging
-from src.ingest.file.rules.schemas import ETLRule, RuleCreateRequest
+
 from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
+from src.ingest.file.rules.schemas import ETLRule, RuleCreateRequest
 
 logger = logging.getLogger(__name__)
 

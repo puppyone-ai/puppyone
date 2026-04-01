@@ -8,13 +8,14 @@ Supports two verification methods:
 """
 
 import time
-from typing import Optional
+
 import jwt as pyjwt
 from supabase import Client
-from src.platform.auth.models import TokenClaims, CurrentUser
+
 from src.config import settings
 from src.exceptions import AuthException, ErrorCode
-from src.utils.logger import log_error, log_debug, log_info
+from src.platform.auth.models import CurrentUser, TokenClaims
+from src.utils.logger import log_debug, log_error, log_info
 
 
 class AuthService:
@@ -172,7 +173,7 @@ class AuthService:
         return time.time() > (claims.exp - 5)
 
     def verify_user_permission(
-        self, user: CurrentUser, required_role: Optional[str] = None
+        self, user: CurrentUser, required_role: str | None = None
     ) -> bool:
         """
         Verify user permissions

@@ -13,18 +13,8 @@ from __future__ import annotations
 import json
 
 from src.infra.supabase.client import SupabaseClient
+from src.mut_engine.server.backends import safe_data as _safe_data
 from src.utils.logger import log_info
-
-
-def _safe_data(resp) -> dict | None:
-    """Safely extract .data from a Supabase response.
-
-    Some supabase-py versions return None instead of ApiResponse(data=None)
-    when maybe_single() finds no row.
-    """
-    if resp is None or not hasattr(resp, "data"):
-        return None
-    return resp.data
 
 
 class SupabaseHistoryManager:
@@ -222,7 +212,7 @@ class SupabaseHistoryManager:
             query = query.limit(limit)
 
         resp = query.execute()
-        entries = (resp.data if resp and hasattr(resp, 'data') else None) or []
+        entries = _safe_data(resp) or []
         for entry in entries:
             _parse_json_fields(entry)
         return entries
@@ -236,63 +226,12 @@ class SupabaseHistoryManager:
             .limit(1)
             .execute()
         )
-        rows = resp.data if resp and hasattr(resp, 'data') else None
+        rows = _safe_data(resp)
         entry = rows[0] if rows else None
         if entry:
             _parse_json_fields(entry)
         return entry
 
-    # ── Async variants ──
-
-    async def async_get_latest_version(self) -> int:
-        import asyncio
-        return await asyncio.to_thread(self.get_latest_version)
-
-    async def async_set_latest_version(self, version: int) -> None:
-        import asyncio
-        await asyncio.to_thread(self.set_latest_version, version)
-
-    async def async_get_root_hash(self) -> str:
-        import asyncio
-        return await asyncio.to_thread(self.get_root_hash)
-
-    async def async_set_root_hash(self, h: str) -> None:
-        import asyncio
-        await asyncio.to_thread(self.set_root_hash, h)
-
-    async def async_get_scope_version(self, scope_path: str) -> int:
-        import asyncio
-        return await asyncio.to_thread(self.get_scope_version, scope_path)
-
-    async def async_set_scope_version(self, scope_path: str, version: int) -> None:
-        import asyncio
-        await asyncio.to_thread(self.set_scope_version, scope_path, version)
-
-    async def async_get_scope_hash(self, scope_path: str) -> str:
-        import asyncio
-        return await asyncio.to_thread(self.get_scope_hash, scope_path)
-
-    async def async_set_scope_hash(self, scope_path: str, h: str) -> None:
-        import asyncio
-        await asyncio.to_thread(self.set_scope_hash, scope_path, h)
-
-    async def async_record(self, version, who, message, scope_path,
-                           changes, conflicts=None,
-                           scope_hash="", scope_version="",
-                           root_hash=""):
-        import asyncio
-        await asyncio.to_thread(
-            self.record, version, who, message, scope_path,
-            changes, conflicts, root_hash, scope_hash, scope_version,
-        )
-
-    async def async_get_since(self, since_version, scope_path=None, limit=0):
-        import asyncio
-        return await asyncio.to_thread(self.get_since, since_version, scope_path, limit)
-
-    async def async_get_entry(self, version):
-        import asyncio
-        return await asyncio.to_thread(self.get_entry, version)
 
 
 def _normalize(scope_path: str) -> str:

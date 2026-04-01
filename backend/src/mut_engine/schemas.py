@@ -8,10 +8,10 @@ All data types used by the PuppyOne platform layer:
 
 from __future__ import annotations
 
-from pydantic import BaseModel
-from typing import Optional, Any, List
 from datetime import datetime
+from typing import Any
 
+from pydantic import BaseModel
 
 # ============================================================
 # Tree API request schemas
@@ -59,7 +59,7 @@ class BulkWriteItem(BaseModel):
 
 class BulkWriteRequest(BaseModel):
     """Bulk write request"""
-    files: List[BulkWriteItem]
+    files: list[BulkWriteItem]
     message: str = ""
 
 
@@ -72,16 +72,16 @@ class MutEntryResponse(BaseModel):
     name: str
     path: str
     type: str  # "folder" | "json" | "markdown" | "file"
-    content_hash: Optional[str] = None
-    size_bytes: Optional[int] = None
-    mime_type: Optional[str] = None
-    children_count: Optional[int] = None
+    content_hash: str | None = None
+    size_bytes: int | None = None
+    mime_type: str | None = None
+    children_count: int | None = None
 
 
 class ListDirResponse(BaseModel):
     """Response for listing directory contents"""
     path: str
-    entries: List[MutEntryResponse]
+    entries: list[MutEntryResponse]
     version: int = 0
 
 
@@ -90,8 +90,8 @@ class ReadFileResponse(BaseModel):
     path: str
     type: str
     content: Any = None
-    content_text: Optional[str] = None
-    content_hash: Optional[str] = None
+    content_text: str | None = None
+    content_hash: str | None = None
     version: int = 0
 
 
@@ -100,23 +100,23 @@ class StatResponse(BaseModel):
     path: str
     type: str
     name: str
-    content_hash: Optional[str] = None
-    size_bytes: Optional[int] = None
-    mime_type: Optional[str] = None
-    children_count: Optional[int] = None
+    content_hash: str | None = None
+    size_bytes: int | None = None
+    mime_type: str | None = None
+    children_count: int | None = None
     exists: bool = True
 
 
 class TreeResponse(BaseModel):
     """Full directory tree response"""
     path: str
-    entries: List[MutEntryResponse]
+    entries: list[MutEntryResponse]
     version: int = 0
 
 
 class TrashListResponse(BaseModel):
     """Trash bin contents"""
-    entries: List[MutEntryResponse]
+    entries: list[MutEntryResponse]
 
 
 # ============================================================
@@ -128,20 +128,20 @@ class FileVersionInfo(BaseModel):
     version: int
     who: str = ""
     message: str = ""
-    changes: List[dict] = []
-    conflicts: List[dict] = []
+    changes: list[dict] = []
+    conflicts: list[dict] = []
     root_hash: str = ""
     scope_path: str = ""
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
 
 class VersionHistoryResponse(BaseModel):
     """Version history response"""
     project_id: str
-    path: Optional[str] = None
+    path: str | None = None
     current_version: int
     root_hash: str = ""
-    commits: List[FileVersionInfo]
+    commits: list[FileVersionInfo]
     total: int
 
 
@@ -155,8 +155,8 @@ class RollbackResponse(BaseModel):
 class DiffItem(BaseModel):
     """A single change in a diff"""
     path: str
-    old_value: Optional[Any] = None
-    new_value: Optional[Any] = None
+    old_value: Any | None = None
+    new_value: Any | None = None
     change_type: str
 
 
@@ -165,7 +165,7 @@ class DiffResponse(BaseModel):
     project_id: str = ""
     v1: int
     v2: int
-    changes: List[DiffItem]
+    changes: list[DiffItem]
 
 
 class RollbackRequest(BaseModel):
@@ -187,8 +187,8 @@ class MutCommitConflict(BaseModel):
     """Conflict record in a commit"""
     path: str
     strategy: str
-    detail: Optional[str] = None
-    kept: Optional[str] = None
+    detail: str | None = None
+    kept: str | None = None
 
 
 class MutCommitInfo(BaseModel):
@@ -198,9 +198,9 @@ class MutCommitInfo(BaseModel):
     scope_path: str = ""
     who: str
     message: str = ""
-    changes: List[MutCommitChange] = []
-    conflicts: List[MutCommitConflict] = []
-    created_at: Optional[datetime] = None
+    changes: list[MutCommitChange] = []
+    conflicts: list[MutCommitConflict] = []
+    created_at: datetime | None = None
 
 
 class MutProjectHistoryResponse(BaseModel):
@@ -208,5 +208,5 @@ class MutProjectHistoryResponse(BaseModel):
     project_id: str
     current_version: int
     root_hash: str = ""
-    commits: List[MutCommitInfo]
+    commits: list[MutCommitInfo]
     total: int

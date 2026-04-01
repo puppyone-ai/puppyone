@@ -1,24 +1,47 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import Any
 
-from src.exceptions import NotFoundException, ErrorCode, BusinessException
+from src.exceptions import BusinessException, ErrorCode, NotFoundException
+from src.infra.mcp_server.cache_invalidator import invalidate_mcp_cache
+from src.infra.supabase.dependencies import get_supabase_repository
 from src.mut_engine.services.ops import MutOps
+from src.platform.project.service import ProjectService
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase
 from src.tool.supabase_schemas import (
     ToolCreate as SbToolCreate,
+)
+from src.tool.supabase_schemas import (
     ToolUpdate as SbToolUpdate,
 )
-from src.infra.supabase.dependencies import get_supabase_repository
-from src.infra.mcp_server.cache_invalidator import invalidate_mcp_cache
-from src.platform.project.service import ProjectService
+
+
+@dataclass
+class ToolCreateParams:
+    """Groups the parameters for creating a Tool."""
+    org_id: str
+    path: str | None
+    json_path: str
+    type: str
+    name: str
+    alias: str | None
+    description: str | None
+    input_schema: Any | None
+    output_schema: Any | None
+    metadata: Any | None
+    created_by: str | None = None
+    category: str = "builtin"
+    script_type: str | None = None
+    script_content: str | None = None
+    project_id: str | None = None
 
 
 @lru_cache(maxsize=64)
-def _get_default_tool_description(tool_type: str) -> Optional[str]:
+def _get_default_tool_description(tool_type: str) -> str | None:
     """
     Read default tool description from `src/infra/mcp_server/description/{tool_type}.txt` (used as default for Tool.description).
     """
@@ -39,7 +62,7 @@ class ToolService:
         repo: ToolRepositoryBase,
         ops: MutOps,
         project_service: ProjectService,
-        supabase_repository: Optional[Any] = None,
+        supabase_repository: Any | None = None,
     ):
         self.repo = repo
         self._ops = ops
@@ -116,6 +139,22 @@ class ToolService:
         except Exception:
             pass
 
+    def _check_sibling_name_conflict(
+        self, tool_id: str, user_id: str, new_name: str, conn_id: str, agent_tools: list
+    ) -> None:
+        """Check whether any sibling tool in a connection already uses *new_name*."""
+        for at in agent_tools:
+            if at.tool_id == tool_id:
+                continue
+            sib = self.repo.get_by_id(at.tool_id)
+            if not sib or sib.created_by != user_id:
+                continue
+            if sib.name == new_name:
+                raise BusinessException(
+                    f"Tool name conflict within connection (connection_id={conn_id}): name='{new_name}'",
+                    code=ErrorCode.VALIDATION_ERROR,
+                )
+
     def _assert_name_update_no_conflict(
         self, tool_id: str, user_id: str, new_name: str
     ) -> None:
@@ -136,21 +175,8 @@ class ToolService:
                 conn_id = row.get("access_point_id")
                 if not conn_id:
                     continue
-
                 agent_tools = agent_repo.get_tools_by_agent_id(conn_id)
-                for at in agent_tools:
-                    if at.tool_id == tool_id:
-                        continue
-                    sib = self.repo.get_by_id(at.tool_id)
-                    if not sib:
-                        continue
-                    if sib.created_by != user_id:
-                        continue
-                    if sib.name == new_name:
-                        raise BusinessException(
-                            f"Tool name conflict within connection (connection_id={conn_id}): name='{new_name}'",
-                            code=ErrorCode.VALIDATION_ERROR,
-                        )
+                self._check_sibling_name_conflict(tool_id, user_id, new_name, conn_id, agent_tools)
         except BusinessException:
             raise
         except Exception:
@@ -159,7 +185,7 @@ class ToolService:
 
     def list_org_tools(
         self, org_id: str, *, skip: int = 0, limit: int = 100
-    ) -> List[Tool]:
+    ) -> list[Tool]:
         return self.repo.get_by_org_id(org_id, skip=skip, limit=limit)
 
     def list_org_tools_by_path(
@@ -170,13 +196,13 @@ class ToolService:
         path: str,
         skip: int = 0,
         limit: int = 1000,
-    ) -> List[Tool]:
+    ) -> list[Tool]:
         self.get_path_with_access_check(user_id, path)
         return self.repo.get_by_org_id(
             org_id, skip=skip, limit=limit, path=path
         )
 
-    def get_by_id(self, tool_id: str) -> Optional[Tool]:
+    def get_by_id(self, tool_id: str) -> Tool | None:
         return self.repo.get_by_id(tool_id)
 
     def get_by_id_with_access_check(self, tool_id: str, user_id: str) -> Tool:
@@ -185,32 +211,18 @@ class ToolService:
             raise NotFoundException(
                 f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND
             )
-        if tool.project_id:
-            if not self.project_service.verify_project_access(tool.project_id, user_id):
-                raise NotFoundException(
-                    f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND
-                )
+        if tool.project_id and not self.project_service.verify_project_access(tool.project_id, user_id):
+            raise NotFoundException(
+                f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND
+            )
         return tool
 
-    def create(
-        self,
-        *,
-        org_id: str,
-        created_by: Optional[str] = None,
-        path: Optional[str],
-        json_path: str,
-        type: str,
-        name: str,
-        alias: Optional[str],
-        description: Optional[str],
-        input_schema: Optional[Any],
-        output_schema: Optional[Any],
-        metadata: Optional[Any],
-        category: str = "builtin",
-        script_type: Optional[str] = None,
-        script_content: Optional[str] = None,
-        project_id: Optional[str] = None,
-    ) -> Tool:
+    def create(self, *, params: ToolCreateParams) -> Tool:
+        path = params.path
+        created_by = params.created_by
+        project_id = params.project_id
+        description = params.description
+
         if path and created_by:
             node = self.get_path_with_access_check(created_by, path)
             if project_id and project_id != node.project_id:
@@ -222,25 +234,25 @@ class ToolService:
                 project_id = node.project_id
 
         if description is None or not str(description).strip():
-            description = _get_default_tool_description(str(type))
+            description = _get_default_tool_description(str(params.type))
 
         created = self.repo.create(
             SbToolCreate(
                 created_by=created_by,
-                org_id=org_id,
+                org_id=params.org_id,
                 project_id=project_id,
                 path=path,
-                json_path=json_path,
-                type=type,
-                name=name,
-                alias=alias,
+                json_path=params.json_path,
+                type=params.type,
+                name=params.name,
+                alias=params.alias,
                 description=description,
-                input_schema=input_schema,
-                output_schema=output_schema,
-                metadata=metadata,
-                category=category,
-                script_type=script_type,
-                script_content=script_content,
+                input_schema=params.input_schema,
+                output_schema=params.output_schema,
+                metadata=params.metadata,
+                category=params.category,
+                script_type=params.script_type,
+                script_content=params.script_content,
             )
         )
         return created
@@ -296,7 +308,7 @@ class ToolService:
         *,
         project_id: str,
         limit: int = 1000,
-    ) -> List[Tool]:
+    ) -> list[Tool]:
         return self.repo.get_by_org_id(
             org_id, skip=0, limit=limit, project_id=project_id
         )

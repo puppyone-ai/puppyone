@@ -14,7 +14,6 @@ import asyncio
 import base64
 import logging
 from pathlib import Path
-from typing import Optional
 
 import httpx
 from pydantic import Field
@@ -41,7 +40,7 @@ class DeepSeekOCRConfig(BaseSettings):
         env_ignore_empty=True,
     )
 
-    deepinfra_api_key: Optional[str] = Field(
+    deepinfra_api_key: str | None = Field(
         default=None,
         description="DeepInfra API Key (also used for DeepSeek OCR)",
     )
@@ -87,7 +86,7 @@ class DeepSeekOCRProvider(OCRProvider):
     - PDFs: downloaded and converted to page images, then sent as base64
     """
 
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str | None = None):
         self._api_key = api_key or deepseek_ocr_config.deepinfra_api_key
         self._base_url = deepseek_ocr_config.deepseek_ocr_api_base
         self._model = deepseek_ocr_config.deepseek_ocr_model
@@ -116,7 +115,7 @@ class DeepSeekOCRProvider(OCRProvider):
     async def parse_document(
         self,
         file_url: str,
-        data_id: Optional[str] = None,
+        data_id: str | None = None,
     ) -> ParsedDocument:
         headers = self._get_headers()
 

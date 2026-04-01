@@ -4,14 +4,14 @@ Project Data Access Layer
 Provides CRUD operations for the project table.
 """
 
-from typing import List, Optional
+
 from supabase import Client
 
 from src.infra.supabase.exceptions import handle_supabase_error
 from src.platform.project.supabase_schemas import (
     ProjectCreate,
-    ProjectUpdate,
     ProjectResponse,
+    ProjectUpdate,
 )
 
 
@@ -30,7 +30,7 @@ class ProjectRepository:
         except Exception as e:
             raise handle_supabase_error(e, "create project")
 
-    def get_by_id(self, project_id: str) -> Optional[ProjectResponse]:
+    def get_by_id(self, project_id: str) -> ProjectResponse | None:
         response = (
             self._client.table("projects")
             .select("*")
@@ -45,9 +45,9 @@ class ProjectRepository:
         self,
         skip: int = 0,
         limit: int = 100,
-        org_id: Optional[str] = None,
-        name: Optional[str] = None,
-    ) -> List[ProjectResponse]:
+        org_id: str | None = None,
+        name: str | None = None,
+    ) -> list[ProjectResponse]:
         query = self._client.table("projects").select("*")
 
         if org_id is not None:
@@ -61,7 +61,7 @@ class ProjectRepository:
 
     def update(
         self, project_id: str, project_data: ProjectUpdate
-    ) -> Optional[ProjectResponse]:
+    ) -> ProjectResponse | None:
         try:
             data = project_data.model_dump(exclude_none=True)
             if not data:

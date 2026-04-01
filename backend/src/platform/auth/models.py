@@ -2,8 +2,9 @@
 Authentication data models
 """
 
+from typing import Any
+
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
 
 
 class AuthMethod(BaseModel):
@@ -25,14 +26,14 @@ class TokenClaims(BaseModel):
     role: str  # Role
 
     # Optional fields
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    session_id: Optional[str] = None
-    is_anonymous: Optional[bool] = None
-    aal: Optional[str] = None
-    amr: Optional[List[AuthMethod]] = None
-    app_metadata: Optional[Dict[str, Any]] = None
-    user_metadata: Optional[Dict[str, Any]] = None
+    email: str | None = None
+    phone: str | None = None
+    session_id: str | None = None
+    is_anonymous: bool | None = None
+    aal: str | None = None
+    amr: list[AuthMethod] | None = None
+    app_metadata: dict[str, Any] | None = None
+    user_metadata: dict[str, Any] | None = None
 
     @property
     def user_id(self) -> str:
@@ -44,12 +45,12 @@ class CurrentUser(BaseModel):
     """Current authenticated user information"""
 
     user_id: str
-    email: Optional[str] = None
-    phone: Optional[str] = None
+    email: str | None = None
+    phone: str | None = None
     role: str
     is_anonymous: bool = False
-    app_metadata: Dict[str, Any] = {}
-    user_metadata: Dict[str, Any] = {}
+    app_metadata: dict[str, Any] = {}
+    user_metadata: dict[str, Any] = {}
 
     @classmethod
     def from_claims(cls, claims: TokenClaims) -> "CurrentUser":

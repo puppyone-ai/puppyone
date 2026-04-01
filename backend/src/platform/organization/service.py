@@ -1,10 +1,9 @@
 import re
-from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from src.platform.organization.models import Organization, OrgMember, OrgInvitation
+from src.exceptions import AppException, ErrorCode, ForbiddenException, NotFoundException
+from src.platform.organization.models import Organization, OrgInvitation, OrgMember
 from src.platform.organization.repository import OrganizationRepository
-from src.exceptions import NotFoundException, ForbiddenException, AppException, ErrorCode
 
 
 class OrganizationService:
@@ -14,7 +13,7 @@ class OrganizationService:
 
     # ── Organization CRUD ──
 
-    def list_my_orgs(self, user_id: str) -> List[Organization]:
+    def list_my_orgs(self, user_id: str) -> list[Organization]:
         return self._repo.list_by_user(user_id)
 
     def get_by_id(self, org_id: str) -> Organization:
@@ -23,7 +22,7 @@ class OrganizationService:
             raise NotFoundException(f"Organization not found: {org_id}", code=ErrorCode.NOT_FOUND)
         return org
 
-    def create(self, name: str, slug: Optional[str], user_id: str) -> Organization:
+    def create(self, name: str, slug: str | None, user_id: str) -> Organization:
         if not slug:
             slug = re.sub(r"[^a-z0-9-]", "-", name.lower()).strip("-")
             slug = re.sub(r"-+", "-", slug)
@@ -51,11 +50,11 @@ class OrganizationService:
 
     # ── Members ──
 
-    def list_members(self, org_id: str, user_id: str) -> List[dict]:
+    def list_members(self, org_id: str, user_id: str) -> list[dict]:
         self._require_membership(org_id, user_id)
         return self._repo.list_members(org_id)
 
-    def get_my_role(self, org_id: str, user_id: str) -> Optional[str]:
+    def get_my_role(self, org_id: str, user_id: str) -> str | None:
         member = self._repo.get_member(org_id, user_id)
         return member.role if member else None
 
@@ -117,7 +116,7 @@ class OrganizationService:
         if not invitation:
             raise NotFoundException("Invitation not found or expired", code=ErrorCode.NOT_FOUND)
 
-        if datetime.now(timezone.utc) > invitation.expires_at.replace(tzinfo=timezone.utc):
+        if datetime.now(UTC) > invitation.expires_at.replace(tzinfo=UTC):
             raise AppException("Invitation expired", code=ErrorCode.FORBIDDEN)
 
         existing = self._repo.get_member(invitation.org_id, user_id)
@@ -128,7 +127,7 @@ class OrganizationService:
         self._repo.accept_invitation(invitation.id)
         return member
 
-    def list_invitations(self, org_id: str, user_id: str) -> List[OrgInvitation]:
+    def list_invitations(self, org_id: str, user_id: str) -> list[OrgInvitation]:
         self._require_owner(org_id, user_id)
         return self._repo.list_invitations(org_id)
 

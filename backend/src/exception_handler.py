@@ -1,14 +1,15 @@
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from src.exceptions import AppException, ErrorCode
-from src.common_schemas import ApiResponse
+from fastapi.responses import JSONResponse
 from loguru import logger
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from src.common_schemas import ApiResponse
+from src.exceptions import AppException, ErrorCode
 from src.utils.request_context import request_id_var
 
 
-async def app_exception_handler(request: Request, exc: AppException):
+def app_exception_handler(request: Request, exc: AppException):
     """Handle custom application exceptions"""
     # Note: AppException (4xx/business errors) should also be logged by default for troubleshooting.
     # Previously only returning the response without logging created the illusion of "no errors visible".
@@ -35,7 +36,7 @@ async def app_exception_handler(request: Request, exc: AppException):
     return resp
 
 
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """Handle FastAPI/Starlette HTTPException"""
     resp = JSONResponse(
         status_code=exc.status_code,
@@ -50,7 +51,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return resp
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle request parameter validation exceptions"""
     # Convert Pydantic's error list to a more readable format
     errors = []
@@ -71,7 +72,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return resp
 
 
-async def generic_exception_handler(request: Request, exc: Exception):
+def generic_exception_handler(request: Request, exc: Exception):
     """Handle all uncaught exceptions"""
     # Log full stack trace; request context (request_id/path/method etc.) injected by middleware + patcher
     logger.exception("Unhandled exception")

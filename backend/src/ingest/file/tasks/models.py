@@ -4,9 +4,9 @@ ETL Task Models
 Data models for ETL tasks, backed by the `uploads` table.
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -37,18 +37,18 @@ class ETLTaskResult(BaseModel):
     output_path: str = Field(..., description="Path to output JSON file in S3")
     output_size: int = Field(..., description="Size of output file in bytes")
     processing_time: float = Field(..., description="Total processing time in seconds")
-    mineru_task_id: Optional[str] = Field(None, description="MineRU task ID")
+    mineru_task_id: str | None = Field(None, description="MineRU task ID")
 
 
 class ETLTask(BaseModel):
     """ETL task model — maps to the `uploads` table."""
 
-    task_id: Optional[str] = Field(
+    task_id: str | None = Field(
         None, description="Unique task identifier (TEXT UUID, None for new tasks)"
     )
-    created_by: Optional[str] = Field(None, description="User ID who created the task (audit field)")
+    created_by: str | None = Field(None, description="User ID who created the task (audit field)")
     project_id: str = Field(..., description="Project ID (UUID)")
-    path: Optional[str] = Field(
+    path: str | None = Field(
         None, description="Associated MUT path"
     )
     type: str = Field(
@@ -63,20 +63,20 @@ class ETLTask(BaseModel):
         default=ETLTaskStatus.PENDING, description="Task status"
     )
     progress: int = Field(default=0, description="Progress percentage (0-100)")
-    message: Optional[str] = Field(None, description="Status message")
-    error: Optional[str] = Field(None, description="Error message if failed")
-    result_path: Optional[str] = Field(
+    message: str | None = Field(None, description="Status message")
+    error: str | None = Field(None, description="Error message if failed")
+    result_path: str | None = Field(
         None, description="Result MUT path"
     )
-    result: Optional[ETLTaskResult] = Field(
+    result: ETLTaskResult | None = Field(
         None, description="Task result if completed"
     )
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    started_at: Optional[datetime] = Field(
+    started_at: datetime | None = Field(
         None, description="When task started running"
     )
-    completed_at: Optional[datetime] = Field(
+    completed_at: datetime | None = Field(
         None, description="When task completed"
     )
 
@@ -88,36 +88,35 @@ class ETLTask(BaseModel):
         default_factory=dict, description="Additional metadata (stored in config)"
     )
 
-    def update_status(self, status: ETLTaskStatus, progress: Optional[int] = None):
+    def update_status(self, status: ETLTaskStatus, progress: int | None = None):
         """Update task status and timestamp."""
         self.status = status
         if progress is not None:
             self.progress = progress
-        if status in _RUNNING_SUBSTATUS or status == ETLTaskStatus.RUNNING:
-            if self.started_at is None:
-                self.started_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        if (status in _RUNNING_SUBSTATUS or status == ETLTaskStatus.RUNNING) and self.started_at is None:
+            self.started_at = datetime.now(UTC)
+        self.updated_at = datetime.now(UTC)
 
     def mark_failed(self, error: str):
         """Mark task as failed with error message."""
         self.status = ETLTaskStatus.FAILED
         self.error = error
         self.progress = 0
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(UTC)
 
     def mark_cancelled(self, reason: str | None = None):
         """Mark task as cancelled."""
         self.status = ETLTaskStatus.CANCELLED
         if reason:
             self.error = reason
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(UTC)
 
     def mark_completed(self, result: ETLTaskResult):
         """Mark task as completed with result."""
         self.status = ETLTaskStatus.COMPLETED
         self.result = result
         self.progress = 100
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         self.updated_at = now
         self.completed_at = now
 
@@ -168,7 +167,7 @@ class ETLTask(BaseModel):
         return data
 
     @classmethod
-    def _parse_timestamp(cls, value: Any) -> Optional[datetime]:
+    def _parse_timestamp(cls, value: Any) -> datetime | None:
         if value is None:
             return None
         if isinstance(value, str):
@@ -184,8 +183,8 @@ class ETLTask(BaseModel):
 
         config = data.get("config") or {}
 
-        created_at = cls._parse_timestamp(data.get("created_at")) or datetime.utcnow()
-        updated_at = cls._parse_timestamp(data.get("updated_at")) or datetime.utcnow()
+        created_at = cls._parse_timestamp(data.get("created_at")) or datetime.now(UTC)
+        updated_at = cls._parse_timestamp(data.get("updated_at")) or datetime.now(UTC)
         started_at = cls._parse_timestamp(data.get("started_at"))
         completed_at = cls._parse_timestamp(data.get("completed_at"))
 

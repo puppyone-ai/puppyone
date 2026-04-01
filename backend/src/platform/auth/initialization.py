@@ -7,9 +7,9 @@ The trigger only creates the profile; the rest is handled by this service at the
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error, log_info
 
 if TYPE_CHECKING:
     from src.platform.organization.repository import OrganizationRepository
@@ -31,7 +31,7 @@ class UserInitializationService:
         self,
         user_id: str,
         email: str,
-        display_name: Optional[str] = None,
+        display_name: str | None = None,
     ) -> dict:
         """
         Ensure user has profile + default org + membership.

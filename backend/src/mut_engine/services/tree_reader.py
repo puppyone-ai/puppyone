@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 from mut.core.object_store import ObjectStore
 from mut.core.tree import read_tree, tree_to_flat
@@ -52,10 +51,10 @@ class MutEntry:
     name: str
     path: str
     type: str              # "folder" | "json" | "markdown" | "file"
-    content_hash: Optional[str] = None
-    size_bytes: Optional[int] = None
-    mime_type: Optional[str] = None
-    children_count: Optional[int] = None
+    content_hash: str | None = None
+    size_bytes: int | None = None
+    mime_type: str | None = None
+    children_count: int | None = None
 
 
 class MutTreeReader:
@@ -95,32 +94,26 @@ class MutTreeReader:
             log_error(f"[MutTreeReader] Failed to read tree at {path}: {e}")
             return []
 
-        result = []
-        for name, (typ, hash_val) in entries.items():
-            if name == ".keep":
-                continue
-
-            entry_path = f"{path}/{name}" if path else name
-
-            if typ == "T":
-                child_count = self._count_children(repo.store, hash_val)
-                result.append(MutEntry(
-                    name=name,
-                    path=entry_path,
-                    type="folder",
-                    children_count=child_count,
-                ))
-            else:
-                result.append(MutEntry(
-                    name=name,
-                    path=entry_path,
-                    type=detect_type(name),
-                    content_hash=hash_val,
-                    mime_type=detect_mime(name),
-                ))
-
+        result = [
+            self._build_entry(repo.store, name, typ, hash_val, path)
+            for name, (typ, hash_val) in entries.items()
+            if name != ".keep"
+        ]
         result.sort(key=lambda e: (e.type != "folder", e.name.lower()))
         return result
+
+    def _build_entry(self, store, name: str, typ: str,
+                     hash_val: str, parent_path: str) -> MutEntry:
+        entry_path = f"{parent_path}/{name}" if parent_path else name
+        if typ == "T":
+            return MutEntry(
+                name=name, path=entry_path, type="folder",
+                children_count=self._count_children(store, hash_val),
+            )
+        return MutEntry(
+            name=name, path=entry_path, type=detect_type(name),
+            content_hash=hash_val, mime_type=detect_mime(name),
+        )
 
     def read_file(self, project_id: str, path: str) -> bytes:
         """Read file content."""
@@ -138,7 +131,7 @@ class MutTreeReader:
 
         return repo.store.get(blob_hash)
 
-    def stat(self, project_id: str, path: str) -> Optional[MutEntry]:
+    def stat(self, project_id: str, path: str) -> MutEntry | None:
         """Get information for a single entry (similar to stat)."""
         try:
             repo = self._repos.get_repo(project_id)
@@ -240,7 +233,7 @@ class MutTreeReader:
 
     def _navigate_to_subtree(
         self, store: ObjectStore, root_hash: str, path: str
-    ) -> Optional[str]:
+    ) -> str | None:
         parts = [p for p in path.split("/") if p]
         current = root_hash
         for part in parts:
@@ -258,7 +251,7 @@ class MutTreeReader:
 
     def _resolve_blob(
         self, store: ObjectStore, root_hash: str, path: str
-    ) -> Optional[str]:
+    ) -> str | None:
         if not root_hash:
             return None
         try:

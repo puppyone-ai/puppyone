@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, UTC
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from arq.connections import ArqRedis
 
@@ -47,12 +47,12 @@ class ETLStateRepositoryRedis:
             prefix = f"{prefix}:"
         return f"{prefix}task:{task_id}"
 
-    async def get(self, task_id: str | int) -> Optional[ETLRuntimeState]:
+    async def get(self, task_id: str | int) -> ETLRuntimeState | None:
         raw = await self.redis.get(self._key(task_id))
         if not raw:
             return None
         try:
-            if isinstance(raw, (bytes, bytearray)):
+            if isinstance(raw, bytes | bytearray):
                 raw = raw.decode("utf-8")
             data = json.loads(raw)
             return ETLRuntimeState.model_validate(data)
@@ -70,7 +70,7 @@ class ETLStateRepositoryRedis:
 
     async def merge(
         self, task_id: str | int, patch: dict[str, Any], *, ttl_seconds: int | None = None
-    ) -> Optional[ETLRuntimeState]:
+    ) -> ETLRuntimeState | None:
         current = await self.get(task_id)
         if current is None:
             return None

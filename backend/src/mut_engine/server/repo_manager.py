@@ -16,14 +16,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from mut.core.object_store import ObjectStore
 from mut.core.merge import ConflictResolver
+from mut.core.object_store import ObjectStore
 
 from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
-from src.mut_engine.server.backends.s3_storage import S3StorageBackend, CachedStorageBackend
-from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
+from src.mut_engine.server.backends import safe_data
+from src.mut_engine.server.backends.s3_storage import CachedStorageBackend, S3StorageBackend
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
+from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
 from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
 from src.mut_engine.server.server_repo import PuppyOneServerRepo
 from src.utils.logger import log_error
@@ -99,8 +100,9 @@ class MutRepoManager:
                 .maybe_single()
                 .execute()
             )
-            if resp and hasattr(resp, 'data') and resp.data:
-                return resp.data.get("name", "project")
+            data = safe_data(resp)
+            if data:
+                return data.get("name", "project")
             return "project"
         except Exception as e:
             log_error(f"[RepoManager] Failed to lookup project name: {e}")

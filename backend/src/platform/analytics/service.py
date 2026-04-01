@@ -10,20 +10,21 @@ All logs are grouped by session_id for complete audit trail.
 Designed to be lightweight and non-blocking.
 """
 
-from typing import Optional, Any, Dict
+from typing import Any
+
 from src.infra.supabase import get_supabase_client
 from src.utils.logger import logger
 
 
-async def log_agent_call(
+def log_agent_call(
     call_type: str,  # 'bash', 'tool', 'llm'
-    user_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    user_id: str | None = None,
+    agent_id: str | None = None,
+    session_id: str | None = None,
     success: bool = True,
-    latency_ms: Optional[int] = None,
-    error_message: Optional[str] = None,
-    details: Optional[Dict[str, Any]] = None,
+    latency_ms: int | None = None,
+    error_message: str | None = None,
+    details: dict[str, Any] | None = None,
 ) -> None:
     """
     Record an agent execution event.
@@ -74,14 +75,14 @@ async def log_agent_call(
 
 async def log_bash_execution(
     command: str,
-    user_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    sandbox_session_id: Optional[str] = None,
+    user_id: str | None = None,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+    sandbox_session_id: str | None = None,
     success: bool = True,
-    output: Optional[str] = None,
-    latency_ms: Optional[int] = None,
-    error_message: Optional[str] = None,
+    output: str | None = None,
+    latency_ms: int | None = None,
+    error_message: str | None = None,
 ) -> None:
     """Log a bash command execution."""
     # Truncate output
@@ -89,7 +90,7 @@ async def log_bash_execution(
     if output:
         output_preview = output[:500] + "..." if len(output) > 500 else output
 
-    await log_agent_call(
+    log_agent_call(
         call_type="bash",
         user_id=user_id,
         agent_id=agent_id,
@@ -108,20 +109,20 @@ async def log_bash_execution(
 async def log_tool_call(
     tool_name: str,
     tool_input: Any,
-    user_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    user_id: str | None = None,
+    agent_id: str | None = None,
+    session_id: str | None = None,
     success: bool = True,
-    output: Optional[str] = None,
-    latency_ms: Optional[int] = None,
-    error_message: Optional[str] = None,
+    output: str | None = None,
+    latency_ms: int | None = None,
+    error_message: str | None = None,
 ) -> None:
     """Log a tool (MCP) call."""
     output_preview = None
     if output:
         output_preview = output[:500] + "..." if len(output) > 500 else output
 
-    await log_agent_call(
+    log_agent_call(
         call_type="tool",
         user_id=user_id,
         agent_id=agent_id,
@@ -141,15 +142,15 @@ async def log_llm_call(
     model: str,
     input_tokens: int,
     output_tokens: int,
-    user_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    session_id: Optional[str] = None,
+    user_id: str | None = None,
+    agent_id: str | None = None,
+    session_id: str | None = None,
     success: bool = True,
-    latency_ms: Optional[int] = None,
-    error_message: Optional[str] = None,
+    latency_ms: int | None = None,
+    error_message: str | None = None,
 ) -> None:
     """Log an LLM API call."""
-    await log_agent_call(
+    log_agent_call(
         call_type="llm",
         user_id=user_id,
         agent_id=agent_id,
@@ -166,14 +167,14 @@ async def log_llm_call(
 
 
 # Legacy function for context access (kept for backward compatibility)
-async def log_context_access(
+def log_context_access(
     path: str,
-    node_type: Optional[str] = None,
-    node_name: Optional[str] = None,
-    user_id: Optional[str] = None,
-    agent_id: Optional[str] = None,
-    session_id: Optional[str] = None,
-    project_id: Optional[str] = None,
+    node_type: str | None = None,
+    node_name: str | None = None,
+    user_id: str | None = None,
+    agent_id: str | None = None,
+    session_id: str | None = None,
+    project_id: str | None = None,
 ) -> None:
     """
     Record a context access event (data injection to sandbox).

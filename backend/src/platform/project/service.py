@@ -5,12 +5,11 @@ Handles business logic for Project
 """
 
 import logging
-from typing import List, Optional
 from dataclasses import dataclass
 
+from src.exceptions import ErrorCode, NotFoundException
 from src.platform.project.models import Project
 from src.platform.project.repository import ProjectRepositoryBase
-from src.exceptions import NotFoundException, ErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +20,7 @@ class TableInfo:
 
     id: str
     name: str
-    rows: Optional[int] = None
+    rows: int | None = None
 
 
 class ProjectService:
@@ -30,7 +29,7 @@ class ProjectService:
     def __init__(self, repo: ProjectRepositoryBase):
         self.repo = repo
 
-    def get_by_id(self, project_id: str) -> Optional[Project]:
+    def get_by_id(self, project_id: str) -> Project | None:
         """
         Get project by ID
 
@@ -72,7 +71,7 @@ class ProjectService:
 
         return project
 
-    def get_by_org_id(self, org_id: str) -> List[Project]:
+    def get_by_org_id(self, org_id: str) -> list[Project]:
         """
         Get all projects under an organization
 
@@ -87,7 +86,7 @@ class ProjectService:
     def create(
         self,
         name: str,
-        description: Optional[str],
+        description: str | None,
         org_id: str,
         created_by: str,
     ) -> Project:
@@ -113,8 +112,8 @@ class ProjectService:
     def update(
         self,
         project_id: str,
-        name: Optional[str],
-        description: Optional[str],
+        name: str | None,
+        description: str | None,
     ) -> Project:
         """
         Update a project
@@ -157,7 +156,7 @@ class ProjectService:
                 f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND
             )
 
-    def verify_project_access(self, project_id: str, user_id: str) -> Optional[str]:
+    def verify_project_access(self, project_id: str, user_id: str) -> str | None:
         """
         Verify whether the user has access to the specified project
 

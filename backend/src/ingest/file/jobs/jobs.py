@@ -10,10 +10,11 @@ import asyncio
 import json
 import logging
 import time
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from src.infra.supabase.client import SupabaseClient
 from src.ingest.file.config import etl_config
 from src.ingest.file.exceptions import ETLTransformationError
 from src.ingest.file.ocr.base import OCRProvider, OCRProviderError
@@ -22,7 +23,6 @@ from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
-from src.infra.supabase.client import SupabaseClient
 
 logger = logging.getLogger(__name__)
 

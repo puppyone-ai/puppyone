@@ -12,13 +12,11 @@ import time as time_mod
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
-from typing import Optional
 
+from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.common_schemas import ApiResponse
-from src.utils.logger import log_info, log_error
-
+from src.utils.logger import log_error, log_info
 
 router = APIRouter(
     prefix="/workspace",
@@ -32,13 +30,13 @@ router = APIRouter(
 
 class CreateWorkspaceRequest(BaseModel):
     project_id: str
-    agent_id: Optional[str] = None
+    agent_id: str | None = None
 
 
 class CreateWorkspaceResponse(BaseModel):
     agent_id: str
     workspace_path: str
-    base_snapshot_id: Optional[int] = None
+    base_snapshot_id: int | None = None
     mount_command: str
 
 
@@ -53,8 +51,8 @@ class CompleteWorkspaceResponse(BaseModel):
 class WorkspaceStatusResponse(BaseModel):
     agent_id: str
     exists: bool
-    workspace_path: Optional[str] = None
-    base_snapshot_id: Optional[int] = None
+    workspace_path: str | None = None
+    base_snapshot_id: int | None = None
 
 
 # ============================================================
@@ -66,9 +64,9 @@ async def create_workspace(
     request: CreateWorkspaceRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    from src.mut_engine.dependencies import create_mut_ops
     from src.platform.workspace.provider import get_workspace_provider
     from src.platform.workspace.sync_worker import SyncWorker
-    from src.mut_engine.dependencies import create_mut_ops
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"
 
@@ -115,8 +113,8 @@ async def complete_workspace(
     2. Build modified/deleted lists
     3. Perform atomic commit via MutOps.bulk_write
     """
-    from src.platform.workspace.provider import get_workspace_provider
     from src.mut_engine.dependencies import create_mut_ops
+    from src.platform.workspace.provider import get_workspace_provider
 
     provider = get_workspace_provider()
 

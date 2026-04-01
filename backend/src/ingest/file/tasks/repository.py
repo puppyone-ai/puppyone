@@ -7,12 +7,11 @@ Repository for managing ETL task persistence in the `uploads` table.
 import logging
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime, UTC
-from typing import Optional
+from datetime import UTC, datetime
 
-from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
 from src.infra.supabase.client import SupabaseClient
 from src.infra.supabase.exceptions import handle_supabase_error
+from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,7 @@ class ETLTaskRepositoryBase(ABC):
         """
 
     @abstractmethod
-    def get_task(self, task_id: str) -> Optional[ETLTask]:
+    def get_task(self, task_id: str) -> ETLTask | None:
         """
         Get task by ID.
 
@@ -47,7 +46,7 @@ class ETLTaskRepositoryBase(ABC):
         """
 
     @abstractmethod
-    def update_task(self, task: ETLTask) -> Optional[ETLTask]:
+    def update_task(self, task: ETLTask) -> ETLTask | None:
         """
         Update existing task.
 
@@ -61,8 +60,8 @@ class ETLTaskRepositoryBase(ABC):
     @abstractmethod
     def list_tasks(
         self,
-        project_id: Optional[str] = None,
-        status: Optional[ETLTaskStatus] = None,
+        project_id: str | None = None,
+        status: ETLTaskStatus | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ETLTask]:
@@ -82,8 +81,8 @@ class ETLTaskRepositoryBase(ABC):
     @abstractmethod
     def count_tasks(
         self,
-        project_id: Optional[str] = None,
-        status: Optional[ETLTaskStatus] = None,
+        project_id: str | None = None,
+        status: ETLTaskStatus | None = None,
     ) -> int:
         """
         Count tasks with optional filters.
@@ -146,7 +145,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
         except Exception as e:
             handle_supabase_error(e, "create ETL task")
 
-    def get_task(self, task_id: str) -> Optional[ETLTask]:
+    def get_task(self, task_id: str) -> ETLTask | None:
         """Get task by ID from Supabase."""
         try:
             response = (
@@ -168,7 +167,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             logger.error(f"Error getting task {task_id}: {e}")
             return None
 
-    def update_task(self, task: ETLTask) -> Optional[ETLTask]:
+    def update_task(self, task: ETLTask) -> ETLTask | None:
         """Update existing task in Supabase."""
         if task.task_id is None:
             logger.error("Cannot update task without task_id")
@@ -204,8 +203,8 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
     def list_tasks(
         self,
-        project_id: Optional[str] = None,
-        status: Optional[ETLTaskStatus] = None,
+        project_id: str | None = None,
+        status: ETLTaskStatus | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> list[ETLTask]:
@@ -243,8 +242,8 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
 
     def count_tasks(
         self,
-        project_id: Optional[str] = None,
-        status: Optional[ETLTaskStatus] = None,
+        project_id: str | None = None,
+        status: ETLTaskStatus | None = None,
     ) -> int:
         """Count tasks with optional filters (only ETL upload types)."""
         try:

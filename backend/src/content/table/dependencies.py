@@ -1,10 +1,10 @@
 from fastapi import Depends, Path
+
+from src.content.table.models import Table
 from src.content.table.repository import TableRepositorySupabase
 from src.content.table.service import TableService
-from src.content.table.models import Table
-from src.platform.auth.models import CurrentUser
 from src.platform.auth.dependencies import get_current_user
-
+from src.platform.auth.models import CurrentUser
 
 _table_repository = None
 _table_service = None

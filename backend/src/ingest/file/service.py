@@ -13,20 +13,20 @@ Execution happens in ARQ workers; API process is responsible for:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, UTC
-from typing import Optional, Any
+from datetime import UTC, datetime
+from typing import Any
 
+from src.exceptions import ErrorCode, NotFoundException
+from src.infra.supabase.dependencies import get_supabase_client
 from src.ingest.file.arq_client import ETLArqClient
 from src.ingest.file.config import etl_config
 from src.ingest.file.exceptions import RuleNotFoundError
 from src.ingest.file.rules.default_rules import get_default_rule_id
-from src.exceptions import NotFoundException, ErrorCode
 from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
 from src.ingest.file.tasks.repository import ETLTaskRepositoryBase
-from src.infra.supabase.dependencies import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class ETLService:
 
         logger.info("ETLService initialized")
 
-    def _get_rule_repository(self, org_id: Optional[str] = None, created_by: Optional[str] = None) -> RuleRepositorySupabase:
+    def _get_rule_repository(self, org_id: str | None = None, created_by: str | None = None) -> RuleRepositorySupabase:
         """
         Get rule repository instance.
 
@@ -149,7 +149,7 @@ class ETLService:
 
         return task_with_id
 
-    async def create_failed_task(
+    def create_failed_task(
         self,
         *,
         user_id: str,
@@ -157,7 +157,7 @@ class ETLService:
         filename: str,
         rule_id: int | None,
         error: str,
-        metadata: Optional[dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> ETLTask:
         """
         Create a failed ETL task record for cases where we want a pollable task_id
@@ -191,7 +191,7 @@ class ETLService:
         )
         return task_with_id
 
-    async def get_task_status(self, task_id: str | int) -> Optional[ETLTask]:
+    async def get_task_status(self, task_id: str | int) -> ETLTask | None:
         """
         Get ETL task status.
 
@@ -297,8 +297,8 @@ class ETLService:
 
     async def list_tasks(
         self,
-        project_id: Optional[str] = None,
-        status: Optional[ETLTaskStatus] = None,
+        project_id: str | None = None,
+        status: ETLTaskStatus | None = None,
     ) -> list[ETLTask]:
         """
         List ETL tasks with optional filters.
@@ -335,6 +335,15 @@ class ETLService:
 
         return tasks
 
+    @staticmethod
+    def _validate_cancellable(status: ETLTaskStatus, *, force: bool) -> None:
+        """Raise ValueError if the task/state status is not cancellable."""
+        terminal = {ETLTaskStatus.COMPLETED, ETLTaskStatus.FAILED, ETLTaskStatus.CANCELLED}
+        if not force and status != ETLTaskStatus.PENDING:
+            raise ValueError(f"Task not cancellable in status={status.value}")
+        if force and status in terminal:
+            raise ValueError(f"Task not cancellable in status={status.value}")
+
     async def cancel_task(
         self, task_id: str | int, user_id: str, *, force: bool = False
     ) -> ETLTask:
@@ -355,17 +364,7 @@ class ETLService:
                 f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
             )
 
-        if not force:
-            # Only allow cancelling pending in DB as well
-            if task.status != ETLTaskStatus.PENDING:
-                raise ValueError(f"Task not cancellable in status={task.status.value}")
-        else:
-            if task.status in (
-                ETLTaskStatus.COMPLETED,
-                ETLTaskStatus.FAILED,
-                ETLTaskStatus.CANCELLED,
-            ):
-                raise ValueError(f"Task not cancellable in status={task.status.value}")
+        self._validate_cancellable(task.status, force=force)
 
         state = await self.state_repo.get(task_id)
         if state is None:
@@ -387,14 +386,7 @@ class ETLService:
                 raise NotFoundException(
                     f"ETL task not found: {task_id}", code=ErrorCode.NOT_FOUND
                 )
-            if not force and state.status != ETLTaskStatus.PENDING:
-                raise ValueError(f"Task not cancellable in status={state.status.value}")
-            if state.status in (
-                ETLTaskStatus.COMPLETED,
-                ETLTaskStatus.FAILED,
-                ETLTaskStatus.CANCELLED,
-            ):
-                raise ValueError(f"Task not cancellable in status={state.status.value}")
+            self._validate_cancellable(state.status, force=force)
             state.status = ETLTaskStatus.CANCELLED
             state.phase = ETLPhase.FINALIZE
             state.progress = 0

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -7,12 +7,12 @@ class Organization(BaseModel):
     id: str
     name: str
     slug: str
-    avatar_url: Optional[str] = None
+    avatar_url: str | None = None
     type: str = "team"
     plan: str = "free"
     seat_limit: int = 5
-    stripe_customer_id: Optional[str] = None
-    stripe_subscription_id: Optional[str] = None
+    stripe_customer_id: str | None = None
+    stripe_subscription_id: str | None = None
     created_by: str
     created_at: datetime
     updated_at: datetime

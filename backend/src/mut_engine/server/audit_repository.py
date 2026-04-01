@@ -4,7 +4,8 @@ L2 Collaboration — AuditRepository
 Data access layer for the audit_logs table.
 """
 
-from typing import Optional, Any, List
+from typing import Any
+
 from src.infra.supabase.client import SupabaseClient
 
 
@@ -20,15 +21,15 @@ class AuditRepository:
         self,
         action: str,
         path: str,
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
         operator_type: str = "user",
-        operator_id: Optional[str] = None,
-        old_version: Optional[int] = None,
-        new_version: Optional[int] = None,
-        status: Optional[str] = None,
-        strategy: Optional[str] = None,
-        conflict_details: Optional[str] = None,
-        metadata: Optional[dict] = None,
+        operator_id: str | None = None,
+        old_version: int | None = None,
+        new_version: int | None = None,
+        status: str | None = None,
+        strategy: str | None = None,
+        conflict_details: str | None = None,
+        metadata: dict | None = None,
     ) -> None:
         """Insert an audit log entry"""
         data: dict[str, Any] = {
@@ -56,8 +57,8 @@ class AuditRepository:
         self.client.table(self.TABLE_NAME).insert(data).execute()
 
     def list_by_path(
-        self, path: str, limit: int = 50, offset: int = 0, project_id: Optional[str] = None,
-    ) -> List[dict]:
+        self, path: str, limit: int = 50, offset: int = 0, project_id: str | None = None,
+    ) -> list[dict]:
         """Query audit logs for a path, scoped by project_id."""
         query = (
             self.client.table(self.TABLE_NAME)
@@ -75,8 +76,8 @@ class AuditRepository:
         return response.data
 
     def list_by_paths(
-        self, paths: List[str], limit: int = 100, offset: int = 0, project_id: Optional[str] = None,
-    ) -> List[dict]:
+        self, paths: list[str], limit: int = 100, offset: int = 0, project_id: str | None = None,
+    ) -> list[dict]:
         """Query audit logs for multiple paths, scoped by project_id."""
         if not paths:
             return []
@@ -97,7 +98,7 @@ class AuditRepository:
 
     def list_by_project(
         self, project_id: str, limit: int = 100, offset: int = 0,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Query all audit logs for a project."""
         response = (
             self.client.table(self.TABLE_NAME)
@@ -119,7 +120,7 @@ class AuditRepository:
         )
         return response.count or 0
 
-    def count_by_path(self, path: str, project_id: Optional[str] = None) -> int:
+    def count_by_path(self, path: str, project_id: str | None = None) -> int:
         """Count audit log entries for a path, scoped by project_id."""
         query = (
             self.client.table(self.TABLE_NAME)

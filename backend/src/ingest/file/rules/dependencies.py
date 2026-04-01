@@ -5,12 +5,13 @@ Provides dependency injection functions for obtaining ETL rule repository instan
 """
 
 import logging
+
 from fastapi import Depends
 
-from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.infra.supabase.dependencies import get_supabase_client
-from src.platform.auth.models import CurrentUser
+from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 
 logger = logging.getLogger(__name__)
 

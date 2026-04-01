@@ -6,7 +6,7 @@ Manages asynchronous ETL task queue and workers.
 
 import asyncio
 import logging
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from src.ingest.file.tasks.models import ETLTask, ETLTaskStatus
 from src.ingest.file.tasks.repository import ETLTaskRepositoryBase
@@ -36,7 +36,7 @@ class ETLQueue:
         self.tasks: dict[int, ETLTask] = {}
         self.worker_count = worker_count
         self.workers: list[asyncio.Task] = []
-        self.executor: Optional[Callable[[ETLTask], None]] = None
+        self.executor: Callable[[ETLTask], None] | None = None
         self.is_running = False
 
         logger.info(
@@ -79,7 +79,7 @@ class ETLQueue:
         logger.info(f"Task {task_with_id.task_id} submitted to queue")
         return task_with_id
 
-    def get_task(self, task_id: str | int) -> Optional[ETLTask]:
+    def get_task(self, task_id: str | int) -> ETLTask | None:
         """
         Get task by ID from memory cache.
 
@@ -103,8 +103,8 @@ class ETLQueue:
 
     def list_tasks(
         self,
-        project_id: Optional[str] = None,
-        status: Optional[ETLTaskStatus] = None,
+        project_id: str | None = None,
+        status: ETLTaskStatus | None = None,
     ) -> list[ETLTask]:
         """
         List tasks with optional filters.
@@ -193,7 +193,7 @@ class ETLQueue:
                 # Get task from queue with timeout
                 try:
                     task_id = await asyncio.wait_for(self.queue.get(), timeout=1.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
 
                 task = self.tasks.get(task_id)

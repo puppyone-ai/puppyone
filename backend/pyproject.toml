@@ -47,6 +47,30 @@ dependencies = [
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "BLE"]
+ignore = [
+    "E501",     # line too long — handled by formatter
+    "B008",     # Depends() in defaults — standard FastAPI pattern
+    "BLE001",   # blind exception — addressed per-file, not globally
+    "B904",     # raise from — low priority for HTTP routers
+    "RUF001",   # ambiguous unicode chars (emoji in log messages)
+    "RUF002",   # ambiguous unicode in docstrings (multiplication sign etc.)
+    "RUF003",   # ambiguous unicode in comments (Chinese punctuation)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "D", "BLE001"]
+"src/ingest/file/jobs/worker.py" = ["E402"]
+"src/ingest/router.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

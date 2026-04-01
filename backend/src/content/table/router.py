@@ -1,22 +1,23 @@
+
 from fastapi import APIRouter, Depends, Query, status
-from typing import List, Optional
-from src.content.table.service import TableService
+
+from src.common_schemas import ApiResponse
 from src.content.table.dependencies import get_table_service, get_verified_table
 from src.content.table.models import Table
 from src.content.table.schemas import (
-    TableCreate,
-    TableUpdate,
-    TableOut,
     ContextDataCreate,
-    ContextDataUpdate,
     ContextDataDelete,
     ContextDataGet,
+    ContextDataUpdate,
     ProjectWithTables,
+    TableCreate,
+    TableOut,
+    TableUpdate,
 )
-from src.common_schemas import ApiResponse
-from src.platform.auth.models import CurrentUser
+from src.content.table.service import TableService
+from src.exceptions import ErrorCode, NotFoundException
 from src.platform.auth.dependencies import get_current_user
-from src.exceptions import NotFoundException, ErrorCode
+from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import resolve_org_ids
 
 router = APIRouter(
@@ -31,12 +32,12 @@ router = APIRouter(
 
 @router.get(
     "/",
-    response_model=ApiResponse[List[ProjectWithTables]],
+    response_model=ApiResponse[list[ProjectWithTables]],
     summary="Get all projects and their tables",
     status_code=status.HTTP_200_OK,
 )
 def list_tables(
-    org_id: Optional[str] = Query(None, description="Organization ID"),
+    org_id: str | None = Query(None, description="Organization ID"),
     table_service: TableService = Depends(get_table_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -150,7 +151,7 @@ async def create_context_data(
 )
 def get_context_data(
     table: Table = Depends(get_verified_table),
-    json_pointer_path: Optional[str] = Query(
+    json_pointer_path: str | None = Query(
         default="",
         description='JSON pointer path (RFC 6901)',
         min_length=0,

@@ -6,9 +6,9 @@ Manages storage and retrieval of ETL transformation rules (Supabase database imp
 
 import logging
 import uuid
-from datetime import datetime, UTC
-from typing import Optional
+from datetime import UTC, datetime
 
+from src.infra.supabase.exceptions import handle_supabase_error
 from src.ingest.file.rules.schemas import (
     ETLRule,
     RuleCreateRequest,
@@ -16,7 +16,6 @@ from src.ingest.file.rules.schemas import (
     build_rule_payload,
     parse_rule_payload,
 )
-from src.infra.supabase.exceptions import handle_supabase_error
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class RuleRepositorySupabase:
 
     TABLE_NAME = "etl_rules"
 
-    def __init__(self, supabase_client, org_id: Optional[str] = None, created_by: Optional[str] = None):
+    def __init__(self, supabase_client, org_id: str | None = None, created_by: str | None = None):
         """
         Initialize Supabase rule repository.
 
@@ -131,7 +130,7 @@ class RuleRepositorySupabase:
         except Exception as e:
             handle_supabase_error(e, "create ETL rule")
 
-    def get_rule(self, rule_id: str) -> Optional[ETLRule]:
+    def get_rule(self, rule_id: str) -> ETLRule | None:
         """
         Get rule by ID.
 
@@ -184,9 +183,36 @@ class RuleRepositorySupabase:
             logger.error(f"Error getting rule {rule_id}: {e}")
             return None
 
+    @staticmethod
+    def _build_update_data(
+        request: RuleUpdateRequest, existing_rule: ETLRule
+    ) -> dict:
+        """Build the update payload from request fields and existing rule state."""
+        update_data: dict = {}
+        if request.name is not None:
+            update_data["name"] = request.name
+        if request.description is not None:
+            update_data["description"] = request.description
+        if request.system_prompt is not None:
+            update_data["system_prompt"] = request.system_prompt
+
+        if (
+            request.json_schema is not None
+            or request.postprocess_mode is not None
+            or request.postprocess_strategy is not None
+        ):
+            mode, strategy, schema = parse_rule_payload(existing_rule.json_schema)
+            update_data["json_schema"] = build_rule_payload(
+                json_schema=request.json_schema if request.json_schema is not None else schema,
+                postprocess_mode=request.postprocess_mode or mode,
+                postprocess_strategy=request.postprocess_strategy if request.postprocess_strategy is not None else strategy,
+            )
+
+        return update_data
+
     def update_rule(
         self, rule_id: str, request: RuleUpdateRequest
-    ) -> Optional[ETLRule]:
+    ) -> ETLRule | None:
         """
         Update an existing rule.
 
@@ -206,36 +232,7 @@ class RuleRepositorySupabase:
             return None
 
         # Prepare update data
-        update_data: dict = {}
-        if request.name is not None:
-            update_data["name"] = request.name
-        if request.description is not None:
-            update_data["description"] = request.description
-        if request.system_prompt is not None:
-            update_data["system_prompt"] = request.system_prompt
-
-        # Handle json_schema + postprocess config as a single payload
-        if (
-            request.json_schema is not None
-            or request.postprocess_mode is not None
-            or request.postprocess_strategy is not None
-        ):
-            # Load existing payload to merge
-            mode, strategy, schema = parse_rule_payload(existing_rule.json_schema)
-            next_mode = request.postprocess_mode or mode
-            next_strategy = (
-                request.postprocess_strategy
-                if request.postprocess_strategy is not None
-                else strategy
-            )
-            next_schema = (
-                request.json_schema if request.json_schema is not None else schema
-            )
-            update_data["json_schema"] = build_rule_payload(
-                json_schema=next_schema,
-                postprocess_mode=next_mode,
-                postprocess_strategy=next_strategy,
-            )
+        update_data = self._build_update_data(request, existing_rule)
 
         if not update_data:
             # No fields to update

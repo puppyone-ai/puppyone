@@ -1,8 +1,9 @@
 import json
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AliasChoices, Field, field_validator, model_validator
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
+
+from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -45,6 +46,30 @@ class Settings(BaseSettings):
     # CORS configuration
     ALLOWED_HOSTS: list[str] | None = None
 
+    @staticmethod
+    def _parse_hosts_string(raw: str) -> list[str]:
+        """Parse a string value into a list of host strings."""
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "ALLOWED_HOSTS must be a JSON array or comma-separated string"
+                ) from exc
+            if not isinstance(parsed, list):
+                raise ValueError("ALLOWED_HOSTS JSON value must be an array")
+            return [str(item) for item in parsed]
+        return [item.strip() for item in raw.split(",")]
+
+    @staticmethod
+    def _normalize_host_list(hosts: list[str]) -> list[str]:
+        """Strip empty entries and trailing slashes (except for '*')."""
+        return [
+            host if host == "*" else host.rstrip("/")
+            for host in hosts
+            if host
+        ]
+
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod
     def normalize_allowed_hosts(cls, value: Any) -> Any:
@@ -52,37 +77,17 @@ class Settings(BaseSettings):
         if value is None:
             return None
 
-        hosts: list[str]
-
         if isinstance(value, str):
             raw = value.strip()
             if not raw:
                 return []
-
-            if raw.startswith("["):
-                try:
-                    parsed = json.loads(raw)
-                except json.JSONDecodeError as exc:
-                    raise ValueError(
-                        "ALLOWED_HOSTS must be a JSON array or comma-separated string"
-                    ) from exc
-                if not isinstance(parsed, list):
-                    raise ValueError("ALLOWED_HOSTS JSON value must be an array")
-                hosts = [str(item) for item in parsed]
-            else:
-                hosts = [item.strip() for item in raw.split(",")]
+            hosts = cls._parse_hosts_string(raw)
         elif isinstance(value, list):
             hosts = [str(item).strip() for item in value]
         else:
             return value
 
-        normalized_hosts: list[str] = []
-        for host in hosts:
-            if not host:
-                continue
-            normalized_hosts.append(host if host == "*" else host.rstrip("/"))
-
-        return normalized_hosts
+        return cls._normalize_host_list(hosts)
 
     @model_validator(mode="after")
     def apply_runtime_defaults(self):
@@ -118,7 +123,7 @@ class Settings(BaseSettings):
     # - "auto": Auto-select (use E2B if E2B_API_KEY is available, otherwise use Docker)
     SANDBOX_TYPE: Literal["e2b", "docker", "auto"] = "auto"
     # Docker sandbox dedicated temp directory; only needed when containerized backend controls host Docker
-    SANDBOX_TMPDIR: Optional[str] = None
+    SANDBOX_TMPDIR: str | None = None
     # Sandbox file download concurrency
     SANDBOX_DOWNLOAD_CONCURRENCY: int = 10
     # Large file streaming threshold (bytes); files exceeding this size use streaming transfer

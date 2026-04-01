@@ -18,8 +18,9 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr
 from supabase import create_client
+
 from src.common_schemas import ApiResponse
-from src.platform.auth.dependencies import get_current_user, get_initialization_service, CurrentUser
+from src.platform.auth.dependencies import CurrentUser, get_current_user, get_initialization_service
 from src.platform.auth.initialization import UserInitializationService
 
 router = APIRouter(prefix="/auth", tags=["auth"])

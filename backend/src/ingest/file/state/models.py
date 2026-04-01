@@ -6,9 +6,9 @@ Redis runtime state is the source of truth for in-flight ETL tasks.
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -29,7 +29,7 @@ class ETLRuntimeState(BaseModel):
     user_id: str
     project_id: str
     filename: str
-    rule_id: Optional[int] = None
+    rule_id: int | None = None
 
     status: ETLTaskStatus = Field(default=ETLTaskStatus.PENDING)
     phase: ETLPhase = Field(default=ETLPhase.OCR)
@@ -38,15 +38,15 @@ class ETLRuntimeState(BaseModel):
     attempt_ocr: int = 0
     attempt_postprocess: int = 0
 
-    arq_job_id_ocr: Optional[str] = None
-    arq_job_id_postprocess: Optional[str] = None
+    arq_job_id_ocr: str | None = None
+    arq_job_id_postprocess: str | None = None
 
-    artifact_mineru_markdown_key: Optional[str] = None
-    provider_task_id: Optional[str] = None  # e.g. mineru_task_id
+    artifact_mineru_markdown_key: str | None = None
+    provider_task_id: str | None = None  # e.g. mineru_task_id
 
-    error_code: Optional[str] = None
-    error_message: Optional[str] = None
-    error_stage: Optional[str] = None  # "mineru" | "postprocess"
+    error_code: str | None = None
+    error_message: str | None = None
+    error_stage: str | None = None  # "mineru" | "postprocess"
 
     metadata: dict[str, Any] = Field(default_factory=dict)
 

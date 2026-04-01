@@ -16,37 +16,36 @@ import logging
 import os
 import uuid
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 
-from src.platform.auth.dependencies import get_current_user
-from src.platform.auth.models import CurrentUser
-from src.platform.project.dependencies import get_project_service
-from src.platform.project.service import ProjectService
 from src.infra.s3.dependencies import get_s3_service
-from src.infra.s3.service import S3Service
 from src.infra.s3.exceptions import S3Error, S3FileSizeExceededError
+from src.infra.s3.service import S3Service
+from src.ingest.dependencies import get_ingest_service
 
+# Import underlying services for file processing
+from src.ingest.file.dependencies import get_etl_service
+from src.ingest.file.exceptions import RuleNotFoundError
+from src.ingest.file.service import ETLService
+from src.ingest.file.tasks.models import ETLTaskStatus
 from src.ingest.schemas import (
-    SourceType,
-    IngestType,
+    BatchQueryRequest,
+    BatchTaskResponse,
     IngestStatus,
     IngestSubmitItem,
     IngestSubmitResponse,
     IngestTaskResponse,
-    BatchQueryRequest,
-    BatchTaskResponse,
+    IngestType,
+    SourceType,
 )
-from src.ingest.dependencies import get_ingest_service
 from src.ingest.service import IngestService
 from src.ingest.shared.task.normalizers import detect_file_ingest_type
-
-# Import underlying services for file processing
-from src.ingest.file.dependencies import get_etl_service
-from src.ingest.file.service import ETLService
-from src.ingest.file.tasks.models import ETLTaskStatus
-from src.ingest.file.exceptions import RuleNotFoundError
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +91,8 @@ async def submit_file_ingest(
 
     # Optional configuration
     mode: str = Form("ocr_parse", description="Processing mode: raw | ocr_parse"),
-    rule_id: Optional[int] = Form(None, description="ETL rule ID (for ocr_parse mode)"),
-    parent_path: Optional[str] = Form(None, description="Parent directory path for new files"),
+    rule_id: int | None = Form(None, description="ETL rule ID (for ocr_parse mode)"),
+    parent_path: str | None = Form(None, description="Parent directory path for new files"),
 
     # Dependencies
     etl_service: ETLService = Depends(get_etl_service),
@@ -141,7 +140,7 @@ async def submit_file_ingest(
                 json_bytes = json.dumps(json_data, ensure_ascii=False, indent=2).encode("utf-8")
                 modified_files[file_path] = json_bytes
 
-                task = await _create_completed_task(
+                task = _create_completed_task(
                     etl_service, current_user.user_id, project_id,
                     original_filename, rule_id, file_path, "json"
                 )
@@ -150,7 +149,7 @@ async def submit_file_ingest(
             elif file_type == "text":
                 modified_files[file_path] = content
 
-                task = await _create_completed_task(
+                task = _create_completed_task(
                     etl_service, current_user.user_id, project_id,
                     original_filename, rule_id, file_path, "markdown"
                 )
@@ -171,8 +170,8 @@ async def submit_file_ingest(
                     )
                 except RuleNotFoundError as e:
                     items.append(_make_failed_item(
-                        await etl_service.create_failed_task(
-                            current_user.user_id, project_id, original_filename, rule_id, str(e)
+                        etl_service.create_failed_task(
+                            user_id=current_user.user_id, project_id=project_id, filename=original_filename, rule_id=rule_id, error=str(e)
                         ),
                         original_filename, s3_key, str(e)
                     ))
@@ -197,7 +196,7 @@ async def submit_file_ingest(
                     s3_service, project_id, original_filename, content, f.content_type
                 )
 
-                task = await _create_completed_task(
+                task = _create_completed_task(
                     etl_service, current_user.user_id, project_id,
                     original_filename, rule_id, file_path, "file"
                 )
@@ -205,8 +204,8 @@ async def submit_file_ingest(
 
         except S3FileSizeExceededError as e:
             items.append(_make_failed_item(
-                await etl_service.create_failed_task(
-                    current_user.user_id, project_id, original_filename, rule_id, str(e),
+                etl_service.create_failed_task(
+                    user_id=current_user.user_id, project_id=project_id, filename=original_filename, rule_id=rule_id, error=str(e),
                     metadata={"error_stage": "upload"}
                 ),
                 original_filename, None, str(e)
@@ -214,8 +213,8 @@ async def submit_file_ingest(
         except (S3Error, Exception) as e:
             logger.error(f"File ingest failed for {original_filename}: {e}", exc_info=True)
             items.append(_make_failed_item(
-                await etl_service.create_failed_task(
-                    current_user.user_id, project_id, original_filename, rule_id, f"Import failed: {e}",
+                etl_service.create_failed_task(
+                    user_id=current_user.user_id, project_id=project_id, filename=original_filename, rule_id=rule_id, error=f"Import failed: {e}",
                     metadata={"error_stage": "process"}
                 ),
                 original_filename, None, str(e)
@@ -242,7 +241,7 @@ async def _upload_to_s3(
     project_id: str,
     original_filename: str,
     content: bytes,
-    content_type: Optional[str],
+    content_type: str | None,
 ) -> str:
     _, ext = os.path.splitext(original_filename)
     safe_filename = f"{uuid.uuid4()}{ext}"
@@ -264,16 +263,16 @@ async def _upload_to_s3(
     return s3_key
 
 
-async def _create_completed_task(
+def _create_completed_task(
     etl_service: ETLService,
     user_id: str,
     project_id: str,
     filename: str,
-    rule_id: Optional[int],
+    rule_id: int | None,
     path: str,
     node_type: str,
 ):
-    task = await etl_service.create_failed_task(
+    task = etl_service.create_failed_task(
         user_id=user_id,
         project_id=project_id,
         filename=filename,
@@ -296,7 +295,7 @@ def _make_completed_item(
     task,
     filename: str,
     path: str,
-    s3_key: Optional[str] = None,
+    s3_key: str | None = None,
 ) -> IngestSubmitItem:
     return IngestSubmitItem(
         task_id=str(task.task_id or 0),
@@ -312,7 +311,7 @@ def _make_completed_item(
 def _make_failed_item(
     task,
     filename: str,
-    s3_key: Optional[str],
+    s3_key: str | None,
     error: str,
 ) -> IngestSubmitItem:
     return IngestSubmitItem(
@@ -368,7 +367,7 @@ def _detect_provider_from_url(url: str) -> str:
 async def submit_saas_ingest(
     project_id: str = Form(..., description="Target project ID"),
     url: str = Form(..., description="SaaS or Web URL"),
-    name: Optional[str] = Form(None, description="Custom name"),
+    name: str | None = Form(None, description="Custom name"),
 
     # Dependencies
     project_service: ProjectService = Depends(get_project_service),
@@ -379,11 +378,11 @@ async def submit_saas_ingest(
 
     All data writes go through MUT protocol.
     """
-    from src.connectors.datasource.service import SyncService
-    from src.connectors.datasource.engine import SyncEngine
     from src.connectors.datasource.dependencies import get_connector_registry
-    from src.infra.supabase.client import SupabaseClient
+    from src.connectors.datasource.engine import SyncEngine
     from src.connectors.datasource.repository import SyncRepository
+    from src.connectors.datasource.service import SyncService
+    from src.infra.supabase.client import SupabaseClient
 
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise HTTPException(status_code=404, detail="Project not found")
@@ -547,13 +546,13 @@ async def get_ingest_health(
 
 # === Rules Management Endpoints ===
 
+from src.ingest.file.rules.dependencies import get_rule_repository
 from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.rules.schemas import RuleCreateRequest
-from src.ingest.file.rules.dependencies import get_rule_repository
 from src.ingest.file.schemas import (
     ETLRuleCreateRequest,
-    ETLRuleResponse,
     ETLRuleListResponse,
+    ETLRuleResponse,
 )
 
 

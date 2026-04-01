@@ -5,7 +5,7 @@ Factory for creating OCR provider instances based on configuration.
 """
 
 import logging
-from typing import Optional
+from typing import ClassVar
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -45,7 +45,7 @@ class OCRProviderFactory:
         result = await provider.parse_document(url)
     """
 
-    _providers: dict[str, type[OCRProvider]] = {}
+    _providers: ClassVar[dict[str, type[OCRProvider]]] = {}
 
     @classmethod
     def register(cls, name: str, provider_class: type[OCRProvider]) -> None:
@@ -60,7 +60,7 @@ class OCRProviderFactory:
         logger.debug(f"Registered OCR provider: {name}")
 
     @classmethod
-    def get_provider(cls, name: Optional[str] = None) -> OCRProvider:
+    def get_provider(cls, name: str | None = None) -> OCRProvider:
         """
         Get an OCR provider instance.
 
@@ -94,9 +94,9 @@ class OCRProviderFactory:
     @classmethod
     def _register_default_providers(cls) -> None:
         """Register built-in providers."""
+        from src.ingest.file.ocr.deepseek_provider import DeepSeekOCRProvider
         from src.ingest.file.ocr.mineru_adapter import MineRUProvider
         from src.ingest.file.ocr.reducto_provider import ReductoProvider
-        from src.ingest.file.ocr.deepseek_provider import DeepSeekOCRProvider
 
         cls.register("mineru", MineRUProvider)
         cls.register("reducto", ReductoProvider)
@@ -110,7 +110,7 @@ class OCRProviderFactory:
         return list(cls._providers.keys())
 
 
-def get_ocr_provider(name: Optional[str] = None) -> OCRProvider:
+def get_ocr_provider(name: str | None = None) -> OCRProvider:
     """
     Convenience function to get an OCR provider.
 

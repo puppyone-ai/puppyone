@@ -6,19 +6,18 @@ Endpoints:
   GET  /nodes/project-audit-logs                project-level audit logs
 """
 
-from typing import Optional, List
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
 from datetime import datetime
 
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from src.common_schemas import ApiResponse
+from src.infra.supabase.client import SupabaseClient
+from src.mut_engine.server.audit_repository import AuditRepository
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.platform.project.service import ProjectService
 from src.platform.project.dependencies import get_project_service
-from src.mut_engine.server.audit_repository import AuditRepository
-from src.infra.supabase.client import SupabaseClient
-from src.common_schemas import ApiResponse
-
+from src.platform.project.service import ProjectService
 
 router = APIRouter(prefix="/nodes", tags=["audit-logs"])
 
@@ -30,26 +29,26 @@ router = APIRouter(prefix="/nodes", tags=["audit-logs"])
 class AuditLogItem(BaseModel):
     id: int
     action: str
-    path: Optional[str] = None
-    old_version: Optional[int] = None
-    new_version: Optional[int] = None
+    path: str | None = None
+    old_version: int | None = None
+    new_version: int | None = None
     operator_type: str
-    operator_id: Optional[str] = None
-    status: Optional[str] = None
-    strategy: Optional[str] = None
-    conflict_details: Optional[str] = None
-    metadata: Optional[dict] = None
-    created_at: Optional[datetime] = None
+    operator_id: str | None = None
+    status: str | None = None
+    strategy: str | None = None
+    conflict_details: str | None = None
+    metadata: dict | None = None
+    created_at: datetime | None = None
 
 
 class AuditLogListResponse(BaseModel):
     path: str
-    logs: List[AuditLogItem]
+    logs: list[AuditLogItem]
     total: int
 
 
 class ProjectAuditLogListResponse(BaseModel):
-    logs: List[AuditLogItem]
+    logs: list[AuditLogItem]
     total: int
 
 
@@ -66,7 +65,7 @@ def _ensure_project_access(
 ):
     project = project_service.get_by_id(project_id)
     if not project:
-        from src.exceptions import NotFoundException, ErrorCode
+        from src.exceptions import ErrorCode, NotFoundException
         raise NotFoundException("Project not found", code=ErrorCode.NOT_FOUND)
 
 

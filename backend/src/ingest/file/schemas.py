@@ -5,7 +5,7 @@ Pydantic models for ETL API requests and responses.
 """
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,10 +18,10 @@ class UploadAndSubmitItem(BaseModel):
     filename: str = Field(..., description="Original filename")
     task_id: str = Field(..., description="ETL task ID (created even if upload failed)")
     status: ETLTaskStatus = Field(..., description="Initial task status")
-    s3_key: Optional[str] = Field(
+    s3_key: str | None = Field(
         default=None, description="Uploaded raw S3 key (None if upload failed)"
     )
-    error: Optional[str] = Field(default=None, description="Error message if failed")
+    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class UploadAndSubmitResponse(BaseModel):
@@ -35,7 +35,7 @@ class ETLTaskResponse(BaseModel):
     """Response for ETL task status query."""
 
     task_id: str
-    created_by: Optional[str] = None
+    created_by: str | None = None
     project_id: str
     filename: str
     rule_id: int
@@ -43,8 +43,8 @@ class ETLTaskResponse(BaseModel):
     progress: int
     created_at: datetime
     updated_at: datetime
-    result: Optional[dict[str, Any]] = None
-    error: Optional[str] = None
+    result: dict[str, Any] | None = None
+    error: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -62,12 +62,12 @@ class ETLRuleCreateRequest(BaseModel):
 
     name: str = Field(..., description="Rule name")
     description: str = Field(..., description="Rule description")
-    json_schema: Optional[dict[str, Any]] = Field(
+    json_schema: dict[str, Any] | None = Field(
         None, description="JSON Schema for output (required for llm)"
     )
-    system_prompt: Optional[str] = Field(None, description="Optional system prompt")
-    postprocess_mode: Optional[str] = Field(default=None, description="llm|skip")
-    postprocess_strategy: Optional[str] = Field(
+    system_prompt: str | None = Field(None, description="Optional system prompt")
+    postprocess_mode: str | None = Field(default=None, description="llm|skip")
+    postprocess_strategy: str | None = Field(
         default=None, description="Postprocess strategy (optional)"
     )
 
@@ -79,9 +79,9 @@ class ETLRuleResponse(BaseModel):
     name: str
     description: str
     json_schema: dict[str, Any]
-    system_prompt: Optional[str]
-    postprocess_mode: Optional[str] = None
-    postprocess_strategy: Optional[str] = None
+    system_prompt: str | None
+    postprocess_mode: str | None = None
+    postprocess_strategy: str | None = None
     created_at: datetime
     updated_at: datetime
 

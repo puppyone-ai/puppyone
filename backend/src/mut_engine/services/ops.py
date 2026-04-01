@@ -19,11 +19,11 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Optional
 
 from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.server.validation import validate_path
 from src.mut_engine.services.ephemeral_client import MutEphemeralClient
-from src.mut_engine.services.tree_reader import MutTreeReader, MutEntry
+from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
 
 
 @dataclass
@@ -56,7 +56,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Write a single file."""
-        path = path.strip("/")
+        path = validate_path(path)
         return await self._do_push(
             project_id, who, scope,
             modified={path: content},
@@ -88,7 +88,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Create a directory (writes a .keep placeholder)."""
-        path = path.strip("/")
+        path = validate_path(path)
         keep = f"{path}/.keep"
         return await self._do_push(
             project_id, who, scope,
@@ -175,7 +175,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Soft-delete: move to .trash/{basename}_{timestamp}."""
-        path = path.strip("/")
+        path = validate_path(path)
         basename = path.rsplit("/", 1)[-1] if "/" in path else path
         trash_path = f".trash/{basename}_{int(time.time())}"
 
@@ -255,7 +255,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Hard-delete a file or folder (no trash)."""
-        path = path.strip("/")
+        path = validate_path(path)
 
         client = self._make_client(project_id, who, scope)
         files = await asyncio.to_thread(client.clone)
@@ -293,7 +293,7 @@ class MutOps:
     ) -> list[MutEntry]:
         return self._reader.list_tree(project_id, path.strip("/"), max_depth=max_depth)
 
-    def stat(self, project_id: str, path: str) -> Optional[MutEntry]:
+    def stat(self, project_id: str, path: str) -> MutEntry | None:
         return self._reader.stat(project_id, path.strip("/"))
 
     def get_version(self, project_id: str) -> int:

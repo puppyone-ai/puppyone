@@ -6,18 +6,17 @@ Pydantic models for ETL transformation rules.
 
 from __future__ import annotations
 
-from datetime import datetime, UTC
-from typing import Any, Literal, Optional
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
-
 
 PostprocessMode = Literal["llm", "skip"]
 
 
 def parse_rule_payload(
     raw_json_schema: dict[str, Any],
-) -> tuple[PostprocessMode, Optional[str], dict[str, Any]]:
+) -> tuple[PostprocessMode, str | None, dict[str, Any]]:
     """
     Backward compatible parsing for rule json_schema stored in DB.
 
@@ -75,10 +74,10 @@ class ETLRule(BaseModel):
     postprocess_mode: PostprocessMode = Field(
         default="llm", description="Postprocess mode: llm|skip"
     )
-    postprocess_strategy: Optional[str] = Field(
+    postprocess_strategy: str | None = Field(
         default=None, description="Postprocess strategy (optional)"
     )
-    system_prompt: Optional[str] = Field(
+    system_prompt: str | None = Field(
         None, description="System prompt to guide LLM transformation"
     )
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -100,20 +99,20 @@ class RuleCreateRequest(BaseModel):
 
     name: str = Field(..., description="Rule name")
     description: str = Field(..., description="Rule description")
-    json_schema: Optional[dict[str, Any]] = Field(
+    json_schema: dict[str, Any] | None = Field(
         default=None, description="JSON Schema for output (required for llm)"
     )
     postprocess_mode: PostprocessMode = Field(default="llm", description="llm|skip")
-    postprocess_strategy: Optional[str] = Field(
+    postprocess_strategy: str | None = Field(
         default=None, description="Postprocess strategy (optional)"
     )
-    system_prompt: Optional[str] = Field(None, description="Optional system prompt")
+    system_prompt: str | None = Field(None, description="Optional system prompt")
 
     @field_validator("json_schema")
     @classmethod
     def validate_create_schema(
-        cls, v: Optional[dict[str, Any]]
-    ) -> Optional[dict[str, Any]]:
+        cls, v: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
         if v is None:
             return None
         if not isinstance(v, dict):
@@ -124,14 +123,14 @@ class RuleCreateRequest(BaseModel):
 class RuleUpdateRequest(BaseModel):
     """Request to update an existing ETL rule."""
 
-    name: Optional[str] = Field(None, description="Rule name")
-    description: Optional[str] = Field(None, description="Rule description")
-    json_schema: Optional[dict[str, Any]] = Field(None, description="JSON Schema")
-    system_prompt: Optional[str] = Field(None, description="System prompt")
-    postprocess_mode: Optional[PostprocessMode] = Field(
+    name: str | None = Field(None, description="Rule name")
+    description: str | None = Field(None, description="Rule description")
+    json_schema: dict[str, Any] | None = Field(None, description="JSON Schema")
+    system_prompt: str | None = Field(None, description="System prompt")
+    postprocess_mode: PostprocessMode | None = Field(
         default=None, description="llm|skip"
     )
-    postprocess_strategy: Optional[str] = Field(
+    postprocess_strategy: str | None = Field(
         default=None, description="Postprocess strategy"
     )
 
@@ -140,10 +139,10 @@ class TransformationResult(BaseModel):
     """Result of applying an ETL rule."""
 
     success: bool = Field(..., description="Whether transformation succeeded")
-    output: Optional[dict[str, Any] | list[Any]] = Field(
+    output: dict[str, Any] | list[Any] | None = Field(
         None, description="Transformed JSON output (dict or list)"
     )
-    error: Optional[str] = Field(None, description="Error message if failed")
-    llm_usage: Optional[dict[str, Any]] = Field(
+    error: str | None = Field(None, description="Error message if failed")
+    llm_usage: dict[str, Any] | None = Field(
         None, description="LLM usage statistics"
     )

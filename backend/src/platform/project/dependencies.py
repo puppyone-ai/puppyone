@@ -3,12 +3,12 @@ Project Dependency Injection
 """
 
 from fastapi import Depends, Path
+
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.project.models import Project
 from src.platform.project.repository import ProjectRepositorySupabase
 from src.platform.project.service import ProjectService
-from src.platform.project.models import Project
-from src.platform.auth.models import CurrentUser
-from src.platform.auth.dependencies import get_current_user
-
 
 # Use global variables for singletons instead of creating new instances each time
 # This avoids redundant initialization and improves performance

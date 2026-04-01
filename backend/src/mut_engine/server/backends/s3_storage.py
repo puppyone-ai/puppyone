@@ -20,7 +20,6 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 import threading
-from typing import Optional
 
 import cachetools
 
@@ -46,7 +45,6 @@ def _run_async(coro):
         return asyncio.run(coro)
     return _SHARED_POOL.submit(_run_in_thread).result(timeout=_ASYNC_BRIDGE_TIMEOUT_SECS)
 
-
 # ═══════════════════════════════════════════════
 # CachedStorageBackend — process-wide LRU cache
 # ═══════════════════════════════════════════════
@@ -54,7 +52,7 @@ def _run_async(coro):
 _CACHE_MAX_BYTES = 128 * 1024 * 1024  # 128 MB total budget
 _CACHEABLE_THRESHOLD = 1 * 1024 * 1024  # only cache objects < 1 MB (tree objects are ~few KB)
 
-_global_cache: Optional[cachetools.LRUCache] = None
+_global_cache: cachetools.LRUCache | None = None
 _cache_lock = threading.Lock()
 
 

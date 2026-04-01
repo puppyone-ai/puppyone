@@ -9,10 +9,10 @@ SaaS platform sync has been moved to src/sync/saas/.
 """
 
 from src.ingest.schemas import (
-    SourceType,
-    IngestType,
-    IngestStatus,
     IngestMode,
+    IngestStatus,
+    IngestType,
+    SourceType,
 )
 
 __all__ = [
