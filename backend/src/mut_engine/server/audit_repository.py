@@ -95,6 +95,30 @@ class AuditRepository:
         )
         return response.data
 
+    def list_by_project(
+        self, project_id: str, limit: int = 100, offset: int = 0,
+    ) -> List[dict]:
+        """Query all audit logs for a project."""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("*")
+            .eq("project_id", project_id)
+            .order("created_at", desc=True)
+            .range(offset, offset + limit - 1)
+            .execute()
+        )
+        return response.data
+
+    def count_by_project(self, project_id: str) -> int:
+        """Count audit log entries for a project."""
+        response = (
+            self.client.table(self.TABLE_NAME)
+            .select("id", count="exact")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        return response.count or 0
+
     def count_by_path(self, path: str, project_id: Optional[str] = None) -> int:
         """Count audit log entries for a path, scoped by project_id."""
         query = (

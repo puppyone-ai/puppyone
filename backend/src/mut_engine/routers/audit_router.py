@@ -2,7 +2,8 @@
 Audit Logs — API Router
 
 Endpoints:
-  GET  /nodes/{path:path}/audit-logs     node audit logs
+  GET  /nodes/{path:path}/audit-logs            node audit logs
+  GET  /nodes/project-audit-logs                project-level audit logs
 """
 
 from typing import Optional, List
@@ -29,7 +30,7 @@ router = APIRouter(prefix="/nodes", tags=["audit-logs"])
 class AuditLogItem(BaseModel):
     id: int
     action: str
-    path: str
+    path: Optional[str] = None
     old_version: Optional[int] = None
     new_version: Optional[int] = None
     operator_type: str
@@ -43,6 +44,11 @@ class AuditLogItem(BaseModel):
 
 class AuditLogListResponse(BaseModel):
     path: str
+    logs: List[AuditLogItem]
+    total: int
+
+
+class ProjectAuditLogListResponse(BaseModel):
     logs: List[AuditLogItem]
     total: int
 
@@ -67,6 +73,28 @@ def _ensure_project_access(
 # ============================================================
 # Endpoints
 # ============================================================
+
+@router.get("/project-audit-logs", response_model=ApiResponse[ProjectAuditLogListResponse])
+def get_project_audit_logs(
+    project_id: str = Query(..., description="Project ID"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    audit_repo: AuditRepository = Depends(_get_audit_repo),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Get all audit logs for a project (clone/push/pull/rollback events)"""
+    _ensure_project_access(project_service, current_user, project_id)
+
+    rows = audit_repo.list_by_project(project_id, limit, offset)
+    total = audit_repo.count_by_project(project_id)
+    logs = [AuditLogItem(**row) for row in rows]
+
+    return ApiResponse.success(data=ProjectAuditLogListResponse(
+        logs=logs,
+        total=total,
+    ))
+
 
 @router.get("/{path:path}/audit-logs", response_model=ApiResponse[AuditLogListResponse])
 def get_node_audit_logs(
