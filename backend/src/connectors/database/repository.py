@@ -1,4 +1,4 @@
-"""DB Connector Repository — uses unified connections table (provider='database')"""
+"""DB Connector Repository — uses unified access_points table (provider='database')"""
 
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -15,9 +15,9 @@ DB_PROVIDER = "database"
 
 
 class DBConnectionRepository:
-    """Database connection CRUD over the unified connections table."""
+    """Database access point CRUD over the unified access_points table."""
 
-    TABLE = "connections"
+    TABLE = "access_points"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
@@ -66,7 +66,7 @@ class DBConnectionRepository:
         }
         response = self.client.table(self.TABLE).insert(data).execute()
         if not response.data:
-            raise Exception("Failed to create db connection")
+            raise Exception("Failed to create db access")
         return self._row_to_model(response.data[0])
 
     def get_by_id(self, connection_id: str) -> Optional[DBConnection]:

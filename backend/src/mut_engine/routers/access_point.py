@@ -7,7 +7,7 @@ types, or platform concepts — just a URL and a key.
 
 URL format: /mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-version
 
-The access_key maps to a connections row which contains:
+The access_key maps to an access_points row which contains:
   - project_id: which MUT tree to operate on
   - config.scope: path-based permission (path, exclude, mode)
   - provider: connector type (agent, filesystem, direct, etc.)
@@ -41,7 +41,7 @@ from src.utils.logger import log_error, log_info
 def resolve_access_point(access_key: str) -> tuple[str, dict]:
     """Resolve an access_key to (project_id, auth_context).
 
-    Looks up the connections table by access_key, validates the key is
+    Looks up the access_points table by access_key, validates the key is
     active (not revoked), and builds the MUT auth context.
 
     Returns:
@@ -53,7 +53,7 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     client = SupabaseClient().client
 
     resp = (
-        client.table("connections")
+        client.table("access_points")
         .select("id, project_id, provider, config, revoked_at")
         .eq("access_key", access_key)
         .maybe_single()

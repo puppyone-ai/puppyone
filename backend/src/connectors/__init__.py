@@ -1,7 +1,7 @@
 """
 Connectors Module — All connection types for PuppyOne.
 
-Seven peer-level areas, all backed by the unified `connections` table:
+Seven peer-level areas, all backed by the unified `access_points` table:
 
   connectors/
   ├── manager/            Unified connection CRUD (single entry-point)

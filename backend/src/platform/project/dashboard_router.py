@@ -2,7 +2,7 @@
 Project Dashboard API
 
 Aggregated endpoint that returns a project-level overview in a single call:
-project info, node counts, all connections, tools, and active uploads.
+project info, node counts, all access points, tools, and active uploads.
 """
 
 
@@ -70,7 +70,7 @@ class DashboardUpload(BaseModel):
 class ProjectDashboard(BaseModel):
     project: DashboardProject
     nodes: DashboardNodeCounts
-    connections: list[DashboardConnection] = []
+    access_points: list[DashboardConnection] = []
     tools: list[DashboardTool] = []
     uploads: list[DashboardUpload] = []
 
@@ -92,7 +92,7 @@ def get_project_dashboard(
     sb = SupabaseClient().client
 
     node_counts = _compute_node_counts(ops, project_id)
-    connections = _fetch_connections(sb, project_id)
+    access_points = _fetch_access_points(sb, project_id)
     tools = _fetch_tools(sb, project_id)
     uploads = _fetch_uploads(sb, project_id)
 
@@ -103,7 +103,7 @@ def get_project_dashboard(
             description=project.description,
         ),
         nodes=node_counts,
-        connections=connections,
+        access_points=access_points,
         tools=tools,
         uploads=uploads,
     )
@@ -122,9 +122,9 @@ def _compute_node_counts(ops: MutOps, project_id: str) -> DashboardNodeCounts:
     )
 
 
-def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
+def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
     conn_rows = (
-        sb.table("connections")
+        sb.table("access_points")
         .select("id, provider, config, path, direction, status, access_key, trigger, last_synced_at, error_message, created_at")
         .eq("project_id", project_id)
         .order("created_at")

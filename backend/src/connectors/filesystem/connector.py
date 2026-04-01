@@ -39,7 +39,7 @@ class FilesystemConnector(BaseConnector):
     async def fetch(self, config: dict, credentials: Credentials) -> FetchResult:
         raise NotImplementedError(
             "Filesystem uses MUT protocol directly via access_point. "
-            "Use POST /api/v1/filesystem/bootstrap to create a connection."
+            "Use POST /api/v1/filesystem/bootstrap to create an access point."
         )
 
     async def push(self, sync: Sync, content: Any, node_type: str) -> PushResult:

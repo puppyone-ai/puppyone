@@ -56,7 +56,7 @@ backend/
 │   ├── tool/                  # 工具注册 & 搜索索引
 │   │
 │   ├── connectors/            # 连接器
-│   │   ├── manager/           # 统一连接 CRUD (connections 表)
+│   │   ├── manager/           # 统一 Access CRUD (access_points 表)
 │   │   ├── agent/             # AI Agent (config/chat/MCP 绑定)
 │   │   ├── datasource/        # SaaS 数据源 (Gmail/GitHub/Notion/...)
 │   │   │   └── oauth/         # OAuth 授权流程 & token 存储
@@ -183,7 +183,7 @@ uv run arq src.upload.file.jobs.worker.WorkerSettings
 | `/api/v1/mcp` | connectors/agent/mcp | MCP 工具绑定 & 代理 |
 | `/api/v1/mcp-endpoints` | connectors/mcp_endpoint | MCP 端点 CRUD |
 | `/api/v1/sandbox-endpoints` | connectors/sandbox_endpoint | Sandbox 端点 CRUD |
-| `/api/v1/connections` | connectors/manager | 统一连接管理 |
+| `/api/v1/access` | connectors/manager | 统一 Access 管理 |
 | `/api/v1/sync` | connectors/datasource | SaaS 数据源同步 |
 | `/api/v1/collab` | mut_engine | 协作 (checkout/commit/versions/rollback/diff) |
 | `/api/v1/mut/{project_id}` | mut_engine | MUT 协议 (clone/push/pull/negotiate) |

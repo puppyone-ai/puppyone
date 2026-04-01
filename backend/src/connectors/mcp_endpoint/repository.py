@@ -1,5 +1,5 @@
 """
-MCP Endpoint Repository — reads/writes `connections` table (provider='mcp').
+MCP Endpoint Repository — reads/writes `access_points` table (provider='mcp').
 
 Type-specific fields (name, description, tools_config, accesses) live in
 the `config` JSONB column, following the same pattern as Agent.
@@ -19,7 +19,7 @@ def generate_mcp_api_key() -> str:
 
 
 def _row_to_endpoint(row: dict) -> dict:
-    """Flatten connections row into the shape the MCP router/service expects."""
+    """Flatten access_points row into the shape the MCP router/service expects."""
     config = row.get("config") or {}
     return {
         "id": row["id"],
@@ -40,7 +40,7 @@ def _row_to_endpoint(row: dict) -> dict:
 
 class McpEndpointRepository:
 
-    TABLE = "connections"
+    TABLE = "access_points"
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:

@@ -78,15 +78,23 @@ class MutAdminService:
         limit: int = 50,
         since_version: int = 0,
     ) -> list[dict]:
-        """Get version history."""
+        """Get version history.
+
+        When *path* is specified we need to fetch a larger batch from the DB
+        because the SQL query returns all commits (not just those touching the
+        file) and we filter in Python.  We cap the post-filter result at
+        *limit* so callers always get at most the requested number of entries.
+        """
         repo = self._repos.get_repo(project_id)
-        entries = repo.history.get_since(since_version, limit=limit)
+        fetch_limit = limit * 10 if path else limit
+        entries = repo.history.get_since(since_version, limit=fetch_limit)
 
         if path:
             entries = [
                 e for e in entries
                 if any(c.get("path") == path for c in e.get("changes", []))
             ]
+            entries = entries[:limit]
 
         return entries
 

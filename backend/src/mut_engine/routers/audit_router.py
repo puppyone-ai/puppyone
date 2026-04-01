@@ -2,7 +2,8 @@
 Audit Logs — API Router
 
 Endpoints:
-  GET  /nodes/{path:path}/audit-logs     node audit logs
+  GET  /nodes/{path:path}/audit-logs            node audit logs
+  GET  /nodes/project-audit-logs                project-level audit logs
 """
 
 from datetime import datetime
@@ -28,7 +29,7 @@ router = APIRouter(prefix="/nodes", tags=["audit-logs"])
 class AuditLogItem(BaseModel):
     id: int
     action: str
-    path: str
+    path: str | None = None
     old_version: int | None = None
     new_version: int | None = None
     operator_type: str
@@ -46,6 +47,11 @@ class AuditLogListResponse(BaseModel):
     total: int
 
 
+class ProjectAuditLogListResponse(BaseModel):
+    logs: list[AuditLogItem]
+    total: int
+
+
 # ============================================================
 # Dependencies
 # ============================================================
@@ -57,7 +63,7 @@ def _get_audit_repo() -> AuditRepository:
 def _ensure_project_access(
     project_service: ProjectService, current_user: CurrentUser, project_id: str
 ):
-    project = project_service.get_project(project_id)
+    project = project_service.get_by_id(project_id)
     if not project:
         from src.exceptions import ErrorCode, NotFoundException
         raise NotFoundException("Project not found", code=ErrorCode.NOT_FOUND)
@@ -66,6 +72,28 @@ def _ensure_project_access(
 # ============================================================
 # Endpoints
 # ============================================================
+
+@router.get("/project-audit-logs", response_model=ApiResponse[ProjectAuditLogListResponse])
+def get_project_audit_logs(
+    project_id: str = Query(..., description="Project ID"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    audit_repo: AuditRepository = Depends(_get_audit_repo),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Get all audit logs for a project (clone/push/pull/rollback events)"""
+    _ensure_project_access(project_service, current_user, project_id)
+
+    rows = audit_repo.list_by_project(project_id, limit, offset)
+    total = audit_repo.count_by_project(project_id)
+    logs = [AuditLogItem(**row) for row in rows]
+
+    return ApiResponse.success(data=ProjectAuditLogListResponse(
+        logs=logs,
+        total=total,
+    ))
+
 
 @router.get("/{path:path}/audit-logs", response_model=ApiResponse[AuditLogListResponse])
 def get_node_audit_logs(

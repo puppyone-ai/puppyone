@@ -141,7 +141,7 @@ class SyncEngine:
                 )
 
             return {
-                "sync_id": sync.id,
+                "access_point_id": sync.id,
                 "path": file_path,
                 "provider": sync.provider,
                 "version": new_version,
@@ -245,7 +245,7 @@ class SyncEngine:
                     )
 
                 return {
-                    "sync_id": sync.id,
+                    "access_point_id": sync.id,
                     "path": path,
                     "provider": sync.provider,
                     "version": version,

@@ -1,9 +1,9 @@
 """
 Unified Sync — Repository
 
-SyncRepository — CRUD for sync bindings in the `connections` table.
+SyncRepository — CRUD for sync bindings in the `access_points` table.
 
-The `connections` table is the unified store for all external connections
+The `access_points` table is the unified store for all access points
 (syncs + agents). SyncRepository operates on rows where provider != 'agent'.
 Each sync row represents one sync binding between a MUT path and an
 external resource.
@@ -16,9 +16,9 @@ from src.connectors.datasource.schemas import Sync
 
 
 class SyncRepository:
-    """CRUD for sync bindings in the `connections` table (provider != 'agent')."""
+    """CRUD for sync bindings in the `access_points` table (provider != 'agent')."""
 
-    TABLE = "connections"
+    TABLE = "access_points"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
@@ -106,10 +106,10 @@ class SyncRepository:
         return self._to_model(response.data[0]) if response.data else None
 
     def find_owner_by_path(self, file_path: str) -> Optional[Sync]:
-        """Find the connection that owns this file path.
+        """Find the access point that owns this file path.
 
         Walks up the path tree to find the nearest ancestor folder
-        that is a connection mount point. Returns the most specific
+        that is an access point mount point. Returns the most specific
         (longest path) match.
         """
         parts = file_path.split("/")

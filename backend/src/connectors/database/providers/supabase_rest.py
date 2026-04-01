@@ -219,7 +219,7 @@ class SupabaseRestProvider(BaseDBProvider):
                     ) from e
                 else:
                     raise SupabaseConnectionError(
-                        f"Connection failed (HTTP {status_code}): {e.response.text}"
+                        f"Access failed (HTTP {status_code}): {e.response.text}"
                     ) from e
             except httpx.RequestError as e:
                 raise SupabaseConnectionError(

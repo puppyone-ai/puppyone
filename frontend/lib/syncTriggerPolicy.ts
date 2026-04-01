@@ -17,7 +17,7 @@ interface TriggerPolicy {
 // Static fallback — guarantees correct behaviour even before the API responds
 // or if the network request fails. API specs take priority when available.
 const PROVIDER_POLICIES: Record<string, TriggerPolicy> = {
-  filesystem: { supportedModes: ['realtime'], defaultMode: 'realtime' },
+  filesystem: { supportedModes: ['manual'], defaultMode: 'manual' },
   gmail:      { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
   google_calendar: { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },
   google_sheets:   { supportedModes: ['import_once', 'manual', 'scheduled'], defaultMode: 'import_once' },

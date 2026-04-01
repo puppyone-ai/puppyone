@@ -6,7 +6,7 @@ Maps PuppyOne's authentication system to the MUT (agent, _scope) model:
   - Access Key → connection + restricted scope (via ScopeManager)
 
 Supports:
-  - Key revocation (revoked connections are rejected)
+  - Key revocation (revoked access points are rejected)
   - User identity binding via X-Mut-User header
 """
 
@@ -112,7 +112,7 @@ class PuppyOneAuthenticator:
     def _try_access_key(self, key: str, project_id: str) -> dict | None:
         try:
             resp = (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .select("id, project_id, provider, config, revoked_at")
                 .eq("access_key", key)
                 .limit(1)
@@ -135,7 +135,7 @@ class PuppyOneAuthenticator:
         """Revoke an access key by setting revoked_at timestamp."""
         from datetime import datetime
         try:
-            self._client.table("connections").update(
+            self._client.table("access_points").update(
                 {"revoked_at": datetime.now(UTC).isoformat()}
             ).eq("access_key", access_key).execute()
             return True
@@ -146,13 +146,13 @@ class PuppyOneAuthenticator:
     def revoke_by_scope(self, scope_id: str, project_id: str) -> int:
         """Revoke all keys for a given scope within a project.
 
-        Matches connections whose config->scope->id equals scope_id.
+        Matches access points whose config->scope->id equals scope_id.
         """
         from datetime import datetime
         try:
             now = datetime.now(UTC).isoformat()
             resp = (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .select("id, config")
                 .eq("project_id", project_id)
                 .is_("revoked_at", "null")
@@ -163,7 +163,7 @@ class PuppyOneAuthenticator:
                 cfg = row.get("config") or {}
                 scope = cfg.get("scope") or {}
                 if scope.get("id") == scope_id:
-                    self._client.table("connections").update(
+                    self._client.table("access_points").update(
                         {"revoked_at": now}
                     ).eq("id", row["id"]).execute()
                     count += 1

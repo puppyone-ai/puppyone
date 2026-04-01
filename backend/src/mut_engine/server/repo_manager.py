@@ -22,7 +22,7 @@ from mut.core.object_store import ObjectStore
 from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.backends import safe_data
-from src.mut_engine.server.backends.s3_storage import S3StorageBackend
+from src.mut_engine.server.backends.s3_storage import CachedStorageBackend, S3StorageBackend
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
 from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
 from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
@@ -73,10 +73,11 @@ class MutRepoManager:
         )
 
     def _create_repo(self, project_id: str) -> ProjectRepo:
-        backend = S3StorageBackend(self._s3, project_id)
+        s3_backend = S3StorageBackend(self._s3, project_id)
+        cached_backend = CachedStorageBackend(s3_backend)
         store = ObjectStore(
             objects_dir=Path(f"/tmp/mut-stub/{project_id}"),
-            backend=backend,
+            backend=cached_backend,
         )
         history = SupabaseHistoryManager(self._supabase, project_id)
         audit = SupabaseAuditManager(self._supabase, project_id)

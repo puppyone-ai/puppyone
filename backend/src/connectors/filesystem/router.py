@@ -4,16 +4,16 @@ Filesystem Module — HTTP Endpoints (lifecycle only).
 Data sync is handled by MUT protocol via access_point.py:
   POST /mut/ap/{access_key}/clone|push|pull|negotiate
 
-This router provides connection lifecycle management:
+This router provides access lifecycle management:
 
 Lifecycle (JWT auth):
-  POST   /api/v1/filesystem/bootstrap                Create filesystem connection
-  GET    /api/v1/filesystem/{sync_id}/connection-status  Poll CLI connection status
+  POST   /api/v1/filesystem/bootstrap                Create filesystem access
+  GET    /api/v1/filesystem/{sync_id}/access-status   Poll CLI access status
 
 CLI daemon (X-Access-Key auth):
   POST   /api/v1/filesystem/connect                  CLI first connect
   POST   /api/v1/filesystem/heartbeat                CLI heartbeat
-  GET    /api/v1/filesystem/status                   CLI connection status
+  GET    /api/v1/filesystem/status                   CLI access status
   DELETE /api/v1/filesystem/disconnect               CLI disconnect
 """
 
@@ -75,7 +75,7 @@ def _auth_access_key(access_key: str):
 
 
 def _ensure_project_access(project_service, current_user, project_id):
-    project = project_service.get_project(project_id)
+    project = project_service.get_by_id_with_access_check(project_id, current_user.user_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     return project
@@ -92,13 +92,13 @@ def bootstrap(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Create a filesystem connection for a folder. Returns access_key for CLI + MUT protocol."""
+    """Create a filesystem access for a folder. Returns access_key for CLI + MUT protocol."""
     _ensure_project_access(project_service, current_user, project_id)
 
     svc, _ = _get_service()
     sync = svc.bootstrap(project_id=project_id, path=path)
     return ApiResponse.success(data={
-        "sync_id": sync.id,
+        "access_point_id": sync.id,
         "access_key": sync.access_key,
         "path": sync.path,
         "project_id": sync.project_id,
@@ -106,13 +106,13 @@ def bootstrap(
     })
 
 
-@router.get("/{sync_id}/connection-status", response_model=ApiResponse)
-def get_connection_status(
+@router.get("/{sync_id}/access-status", response_model=ApiResponse)
+def get_access_status(
     sync_id: str,
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Poll CLI connection status for a filesystem connection."""
+    """Poll CLI access status for a filesystem access point."""
     _, sync_repo = _get_service()
     sync = sync_repo.get_by_id(sync_id)
     if not sync or sync.provider != "filesystem":
@@ -134,13 +134,13 @@ async def connect(
     request: ConnectRequest,
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
-    """CLI first connect: update workspace_path, return connection info."""
+    """CLI first connect: update workspace_path, return access info."""
     sync, svc = _auth_access_key(x_access_key)
 
     svc.connect(sync, request.workspace_path)
 
     return ApiResponse.success(data={
-        "sync_id": sync.id,
+        "access_point_id": sync.id,
         "project_id": sync.project_id,
         "path": sync.path,
         "ap_base": f"/mut/ap/{sync.access_key}",
@@ -160,7 +160,7 @@ async def heartbeat(
 async def status(
     x_access_key: str = Header(..., alias="X-Access-Key"),
 ):
-    """Query CLI connection status."""
+    """Query CLI access status."""
     sync, svc = _auth_access_key(x_access_key)
     data = svc.status(sync)
     return ApiResponse.success(data=data)
@@ -174,5 +174,5 @@ async def disconnect(
     sync, svc = _auth_access_key(x_access_key)
     ok = svc.disconnect(sync)
     if not ok:
-        return ApiResponse.success(data={"message": "No active connection found"})
-    return ApiResponse.success(data={"message": "Disconnected", "sync_id": sync.id})
+        return ApiResponse.success(data={"message": "No active access found"})
+    return ApiResponse.success(data={"message": "Disconnected", "access_point_id": sync.id})

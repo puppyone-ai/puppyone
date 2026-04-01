@@ -56,7 +56,7 @@ class FilesystemService:
 
     Data sync is handled entirely by MUT protocol via access_point.py
     (POST /mut/ap/{access_key}/clone|push|pull|negotiate).
-    This service only manages the connections table row.
+    This service only manages the access_points table row.
     """
 
     def __init__(
@@ -116,6 +116,7 @@ class FilesystemService:
                 },
             },
             trigger={"type": "realtime"},
+            conflict_strategy="three_way_merge",
         )
         log_info(f"[Filesystem] Bootstrapped connection #{sync.id} for path {path}")
         return sync
@@ -154,7 +155,7 @@ class FilesystemService:
 
         return {
             "connected": daemon_active,
-            "sync_id": sync.id,
+            "access_point_id": sync.id,
             "folder_path": sync.path,
             "workspace_path": sync.config.get("path"),
             "connected_at": sync.created_at,

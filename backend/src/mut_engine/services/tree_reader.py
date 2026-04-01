@@ -110,13 +110,9 @@ class MutTreeReader:
                 name=name, path=entry_path, type="folder",
                 children_count=self._count_children(store, hash_val),
             )
-        import contextlib
-        size = None
-        with contextlib.suppress(Exception):
-            size = len(store.get(hash_val))
         return MutEntry(
             name=name, path=entry_path, type=detect_type(name),
-            content_hash=hash_val, size_bytes=size, mime_type=detect_mime(name),
+            content_hash=hash_val, mime_type=detect_mime(name),
         )
 
     def read_file(self, project_id: str, path: str) -> bytes:
@@ -177,19 +173,11 @@ class MutTreeReader:
                 children_count=child_count,
             )
 
-        size = None
-        try:
-            blob = repo.store.get(hash_val)
-            size = len(blob)
-        except Exception:
-            pass
-
         return MutEntry(
             name=name,
             path=path,
             type=detect_type(name),
             content_hash=hash_val,
-            size_bytes=size,
             mime_type=detect_mime(name),
         )
 

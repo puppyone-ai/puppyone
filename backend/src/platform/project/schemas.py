@@ -23,7 +23,9 @@ class ProjectOut(BaseModel):
     id: str
     name: str
     description: str | None = None
-    nodes: list[NodeInfo] = []  # Renamed from tables to nodes
+    nodes: list[NodeInfo] = []
+    updated_at: str | None = None
+    access_point_count: int = 0
 
 
 class ProjectCreate(BaseModel):

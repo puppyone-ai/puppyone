@@ -192,7 +192,7 @@ Look at the files below in the sidebar:
 
 ### Why Placeholders?
 The yellow "Not Connected" badge shows you **what types of data you can import**.
-Click any placeholder to start the OAuth connection flow.
+Click any placeholder to start the OAuth access flow.
 
 👉 **Try it yourself**: Click on a placeholder node, or use the **+** button to import other sources.
 """

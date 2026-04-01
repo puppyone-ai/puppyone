@@ -2,7 +2,7 @@
 Unified Sync — Data Models
 
 Sync — A single sync binding between a MUT path and an external resource.
-       Stored in the `connections` table (provider != 'agent').
+       Stored in the `access_points` table (provider != 'agent').
 """
 
 from dataclasses import dataclass, field
@@ -17,7 +17,7 @@ from pydantic import BaseModel
 @dataclass
 class Sync:
     """
-    Unified sync binding. Maps to the `connections` table (provider != 'agent').
+    Unified sync binding. Maps to the `access_points` table (provider != 'agent').
 
     Each row represents one sync relationship between a MUT path
     and an external resource, carrying both connection config and

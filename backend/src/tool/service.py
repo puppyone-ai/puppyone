@@ -118,7 +118,7 @@ class ToolService:
         from src.connectors.agent.config.repository import AgentRepository
 
         try:
-            response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("access_tools").select("access_point_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
 
@@ -126,7 +126,7 @@ class ToolService:
             seen_keys = set()
 
             for row in response.data:
-                conn_id = row.get("connection_id")
+                conn_id = row.get("access_point_id")
                 if not conn_id:
                     continue
                 agent = agent_repo.get_by_id(conn_id)
@@ -165,14 +165,14 @@ class ToolService:
         from src.connectors.agent.config.repository import AgentRepository
 
         try:
-            response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("access_tools").select("access_point_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
 
             agent_repo = AgentRepository()
 
             for row in response.data:
-                conn_id = row.get("connection_id")
+                conn_id = row.get("access_point_id")
                 if not conn_id:
                     continue
                 agent_tools = agent_repo.get_tools_by_agent_id(conn_id)

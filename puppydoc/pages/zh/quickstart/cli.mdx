@@ -80,7 +80,7 @@ puppyone fs write /products/list.json -d '[{"name": "Widget", "price": 99}]'
 puppyone sync auth notion
 
 # 将 Notion 数据库连接到指定目录
-puppyone conn add notion https://notion.so/your-database-id --folder /docs
+puppyone access add notion https://notion.so/your-database-id --folder /docs
 ```
 
 支持 Notion、GitHub、Gmail、Google Drive、Linear、Airtable 等 15+ 平台。
@@ -92,26 +92,31 @@ puppyone conn add notion https://notion.so/your-database-id --folder /docs
 为 Cursor、Claude Desktop 等 MCP 客户端创建接入点。
 
 ```bash
-puppyone conn add mcp "My API"
+puppyone access add mcp "My API"
 ```
 
 创建后会返回 MCP Server URL 和 API Key，将其配置到客户端即可。
 
 ---
 
-## 挂载本地文件夹
+## 同步本地文件夹
 
-通过 OpenClaw 协议实现本地文件夹与云端的双向实时同步。
+通过 MUT 协议将本地文件夹同步到云端，支持版本控制。
 
 ```bash
-# 将本地文件夹注册为连接
-puppyone conn add folder ~/workspace --name "Dev Sync"
+# 创建文件夹同步连接（scope 为 docs）
+puppyone access add filesystem docs
+# 输出会显示 mut clone 命令，复制执行：
+mut clone <url> --credential <key> --dir ~/my-docs
 
-# 启动同步守护进程
-puppyone access up ~/workspace
+# 编辑文件后提交推送
+cd ~/my-docs
+echo "# Hello" > readme.md
+mut commit -m "init"
+mut push
 ```
 
-启动后，本地文件夹中的变更会自动同步到云端，反之亦然。
+需要先安装 MUT CLI：`pip install mut`
 
 ---
 
@@ -122,7 +127,7 @@ puppyone access up ~/workspace
 puppyone status
 
 # 列出所有连接（同步、MCP、Agent、本地文件夹等）
-puppyone conn ls
+puppyone access ls
 ```
 
 ---
@@ -152,18 +157,18 @@ puppyone fs write /products/catalog.json -d '[{"name": "Widget Pro", "price": 99
 
 # 连接 Notion 数据
 puppyone sync auth notion
-puppyone conn add notion https://notion.so/db-id --folder /docs/notion
+puppyone access add notion https://notion.so/db-id --folder /docs/notion
 
 # 为 Agent 创建 MCP 端点
-puppyone conn add mcp "Production API"
+puppyone access add mcp "Production API"
 
-# 挂载本地文件夹
-puppyone conn add folder ~/workspace --name "Local Dev"
-puppyone access up ~/workspace
+# 同步本地文件夹
+puppyone access add filesystem workspace
+# 复制输出中的 mut clone 命令执行
 
 # 检查结果
 puppyone fs tree
-puppyone conn ls
+puppyone access ls
 puppyone status
 ```
 

@@ -1,11 +1,11 @@
 """
 SupabaseScopeManager — PostgreSQL implementation of Mut ScopeBackend
 
-Scope data is stored in connections.config.scope (JSONB).
-Each connection (agent/mcp/sandbox) can have its own scope definition.
+Scope data is stored in access_points.config.scope (JSONB).
+Each access point (agent/mcp/sandbox) can have its own scope definition.
 
 Interface-compatible with Mut's native FileSystemScopeBackend:
-  scope_id = connection.id
+  scope_id = access_point.id
   scope = {"id": ..., "path": ..., "exclude": [...]}
 """
 
@@ -18,7 +18,7 @@ from src.utils.logger import log_error
 
 
 class SupabaseScopeBackend(ScopeBackend):
-    """Mut ScopeBackend backed by connections.config.scope in PostgreSQL."""
+    """Mut ScopeBackend backed by access_points.config.scope in PostgreSQL."""
 
     def __init__(self, supabase: SupabaseClient, project_id: str):
         self._client = supabase.client
@@ -27,7 +27,7 @@ class SupabaseScopeBackend(ScopeBackend):
     def get(self, scope_id: str) -> dict | None:
         try:
             resp = (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .select("id, config")
                 .eq("id", scope_id)
                 .eq("project_id", self._project_id)
@@ -49,7 +49,7 @@ class SupabaseScopeBackend(ScopeBackend):
     def put(self, scope_id: str, scope: dict) -> None:
         try:
             resp = (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .select("config")
                 .eq("id", scope_id)
                 .eq("project_id", self._project_id)
@@ -65,7 +65,7 @@ class SupabaseScopeBackend(ScopeBackend):
                 "mode": scope.get("mode", "rw"),
             }
             (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .update({"config": config})
                 .eq("id", scope_id)
                 .execute()
@@ -76,7 +76,7 @@ class SupabaseScopeBackend(ScopeBackend):
     def delete(self, scope_id: str) -> bool:
         try:
             resp = (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .select("config")
                 .eq("id", scope_id)
                 .eq("project_id", self._project_id)
@@ -90,7 +90,7 @@ class SupabaseScopeBackend(ScopeBackend):
                 return False
             del config["scope"]
             (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .update({"config": config})
                 .eq("id", scope_id)
                 .execute()
@@ -103,7 +103,7 @@ class SupabaseScopeBackend(ScopeBackend):
     def list_all(self) -> list[dict]:
         try:
             resp = (
-                self._client.table("connections")
+                self._client.table("access_points")
                 .select("id, config")
                 .eq("project_id", self._project_id)
                 .not_.is_("config", "null")

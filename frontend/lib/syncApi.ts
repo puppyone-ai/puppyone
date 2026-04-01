@@ -54,7 +54,7 @@ export interface CreateSyncResult {
     error_message?: string | null;
   };
   execution_result?: {
-    sync_id: string;
+    access_point_id: string;
     path: string;
     provider: string;
     version: number;
@@ -69,7 +69,7 @@ export async function getConnectorSpecs(): Promise<ConnectorSpec[]> {
 }
 
 export async function getConnectionTypes(): Promise<ConnectorSpec[]> {
-  return get<ConnectorSpec[]>('/api/v1/connections/types');
+  return get<ConnectorSpec[]>('/api/v1/access/types');
 }
 
 export async function createSyncConnection(
