@@ -13,6 +13,7 @@ import { get, post, del } from '@/lib/apiClient';
 import { getProviderDisplayLabel, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { getProviderLogo } from '@/components/agent/views/SyncDetailView';
+import { getProjectHistory } from '@/lib/contentTreeApi';
 
 /* ================================================================
    Types
@@ -750,48 +751,49 @@ function SandboxOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
    ================================================================ */
 
 function HistoryTab({ connectionPath, projectId }: { connectionPath: string | null; projectId: string }) {
-  const { data: logs } = useSWR(
-    connectionPath ? `/api/v1/nodes/${connectionPath}/audit-logs?project_id=${projectId}&limit=50` : null,
-    (url: string) => get<{ logs: AuditLog[] }>(url),
+  const { data: historyData } = useSWR(
+    projectId ? ['access-history', projectId, connectionPath] : null,
+    () => getProjectHistory(projectId, 20),
   );
 
-  const entries = logs?.logs || [];
+  const commits = useMemo(() => {
+    if (!historyData?.commits) return [];
+    if (!connectionPath) return historyData.commits;
+    return historyData.commits.filter(c =>
+      c.scope_path === connectionPath ||
+      c.changes.some(ch => ch.path.startsWith(connectionPath))
+    );
+  }, [historyData, connectionPath]);
 
   return (
     <div>
       <div style={{
         background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 8, overflow: 'hidden'
+        borderRadius: 8, overflow: 'hidden',
       }}>
-        {entries.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '60px 0' }}>
-            No activity recorded yet
+        {commits.length === 0 && (
+          <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '40px 0' }}>
+            No activity yet
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {entries.map((log, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 24, padding: '14px 20px',
-              borderBottom: i < entries.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+          {commits.map((c, i) => (
+            <div key={c.version} style={{
+              display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px',
+              borderBottom: i < commits.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
             }}>
-              <div style={{ fontSize: 12, color: '#71717a', width: 140, flexShrink: 0, fontFamily: "'JetBrains Mono', monospace" }}>
-                {log.created_at ? new Date(log.created_at).toLocaleString() : '—'}
-              </div>
-              <div style={{ fontSize: 13, color: '#d4d4d8' }}>
-                {log.action || 'Activity'}
-              </div>
+              <span style={{ fontSize: 11, color: '#52525b', fontFamily: 'monospace', width: 28, flexShrink: 0 }}>v{c.version}</span>
+              <span style={{ flex: 1, fontSize: 13, color: '#d4d4d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                {c.message || '(no message)'}
+              </span>
+              <span style={{ fontSize: 12, color: '#3f3f46', flexShrink: 0 }}>{c.changes.length} file{c.changes.length !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: 12, color: '#52525b', flexShrink: 0 }}>{timeAgo(c.created_at)}</span>
             </div>
           ))}
         </div>
       </div>
     </div>
   );
-}
-
-interface AuditLog {
-  action: string;
-  created_at: string;
-  metadata?: Record<string, unknown>;
 }
 
 /* ================================================================
