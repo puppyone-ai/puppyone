@@ -38,6 +38,6 @@ class ProjectResponse(ProjectBase):
 
     id: str
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
