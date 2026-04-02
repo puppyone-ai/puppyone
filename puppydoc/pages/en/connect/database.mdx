@@ -21,30 +21,40 @@ This allows your agents to query and analyze real business data without requirin
 
 ---
 
-## Set up with the CLI
+## Set up with the REST API
 
 ### Create a connection
 
 ```bash
-puppyone db connect "postgresql://user:pass@host:5432/mydb" --name "Prod DB"
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connect" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_string": "postgresql://user:pass@host:5432/mydb",
+    "name": "Prod DB",
+    "project_id": "{project_id}"
+  }'
 ```
 
 ### List existing connections
 
 ```bash
-puppyone db ls
+curl "https://api.puppyone.ai/api/v1/db-connector/connections?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### Browse database tables
 
 ```bash
-puppyone db tables <id>
+curl "https://api.puppyone.ai/api/v1/db-connector/{id}/tables" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### Preview table data
 
 ```bash
-puppyone db preview <id> <table_name>
+curl "https://api.puppyone.ai/api/v1/db-connector/{id}/preview/{table_name}" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### Save table data to PuppyOne
@@ -52,13 +62,15 @@ puppyone db preview <id> <table_name>
 Save the data from database tables as JSON content nodes in your Project:
 
 ```bash
-puppyone db save <id>
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/{id}/save" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### Delete a connection
 
 ```bash
-puppyone db rm <id>
+curl -X DELETE "https://api.puppyone.ai/api/v1/db-connector/{id}" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ---

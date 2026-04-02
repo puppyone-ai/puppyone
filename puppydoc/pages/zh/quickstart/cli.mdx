@@ -77,12 +77,11 @@ curl -X POST "$BASE_URL/write" \
 从外部平台同步数据到你的 Context File System。
 
 ```bash
-# 授权 Notion
-puppyone sync auth notion
-
-# 将 Notion 数据库连接到指定目录
+# 连接 Notion 数据源（会自动引导完成 OAuth 授权）
 puppyone access add notion https://notion.so/your-database-id --folder /docs
 ```
+
+> **Note:** Notion OAuth 授权通过 Dashboard 或 `puppyone access add notion` 流程自动完成，无需单独执行授权命令。
 
 支持 Notion、GitHub、Gmail、Google Drive、Linear、Airtable 等 15+ 平台。
 
@@ -164,8 +163,7 @@ curl -X POST "$BASE_URL/write" \
   -H "Content-Type: application/json" \
   -d '{"path": "products/catalog.json", "content": [{"name": "Widget Pro", "price": 99.99}], "node_type": "json"}'
 
-# 连接 Notion 数据
-puppyone sync auth notion
+# 连接 Notion 数据（OAuth 授权会自动引导完成）
 puppyone access add notion https://notion.so/db-id --folder /docs/notion
 
 # 为 Agent 创建 MCP 端点
