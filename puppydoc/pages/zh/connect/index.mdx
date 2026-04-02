@@ -56,23 +56,23 @@ Sync Connector 不是一次性的数据导入。它是一个持续的**同步关
 
 ### 通过 CLI
 
-使用 `puppyone conn add` 命令快速添加连接：
+使用 `puppyone access add` 命令快速添加连接：
 
 ```bash
 # 添加 Notion 连接（需要先完成 OAuth）
-puppyone conn add notion <notion-url>
+puppyone access add notion <notion-url>
 
 # 添加 GitHub 连接
-puppyone conn add github <repo-url>
+puppyone access add github <repo-url>
 
 # 添加本地文件夹连接
-puppyone conn add folder ~/workspace --name "My Workspace"
+puppyone access add filesystem ~/workspace --name "My Workspace"
 
 # 添加 PostHog 连接
-puppyone conn add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
+puppyone access add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
 
 # 查看所有连接
-puppyone conn ls
+puppyone access ls
 ```
 
 同步完成后，数据会出现在 Project 的文件树中，可直接通过 MCP 或 API 访问。

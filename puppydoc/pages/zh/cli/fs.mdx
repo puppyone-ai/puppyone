@@ -1,221 +1,222 @@
-# 文件系统命令
+# 内容操作 (REST API)
 
-`puppyone fs` 提供一套 POSIX 风格的命令，让你像操作本地文件系统一样管理云端的 Content Node 树——浏览、读写、上传下载、版本管理，全部在终端完成。
+PuppyOne 的所有内容操作通过 REST API 完成，地址为 `/api/v1/content/{project_id}/...`。文件和文件夹通过**路径**（如 `docs/readme.md`）寻址，而非 UUID。
 
 ---
 
-## 命令总览
+## Base URL 与认证
 
-| 命令 | 说明 |
-|------|------|
-| `fs ls [path]` | 列出文件和文件夹 |
-| `fs tree [path]` | 树状视图 |
-| `fs cat <path>` | 读取文件内容 |
-| `fs mkdir <path>` | 创建文件夹 |
-| `fs touch <path>` | 创建空文件 |
-| `fs write <path>` | 写入内容 |
-| `fs mv <src> <dst>` | 移动或重命名 |
-| `fs rm <path>` | 删除（软删除） |
-| `fs info <path>` | 查看节点详情 |
-| `fs upload <local> [remote]` | 上传本地文件 |
-| `fs download <remote> [local]` | 下载到本地 |
-| `fs versions <path>` | 查看版本历史 |
-| `fs diff <path> <v1> <v2>` | 对比两个版本 |
-| `fs rollback <path> <ver>` | 回滚到指定版本 |
-| `fs audit <path>` | 查看审计日志 |
+所有请求使用以下模式：
+
+```bash
+BASE_URL="https://api.puppyone.ai/api/v1/content/{project_id}"
+TOKEN="YOUR_ACCESS_TOKEN"
+```
+
+每个请求需携带认证头：
+
+```
+Authorization: Bearer $TOKEN
+```
+
+---
+
+## 接口总览
+
+| 接口 | 方法 | 说明 |
+|------|------|------|
+| `/{project_id}/ls?path=` | GET | 列出目录 |
+| `/{project_id}/cat?path=` | GET | 读取文件内容 |
+| `/{project_id}/stat?path=` | GET | 获取文件/目录元信息 |
+| `/{project_id}/tree?path=&max_depth=` | GET | 完整目录树 |
+| `/{project_id}/trash` | GET | 列出回收站 |
+| `/{project_id}/write` | POST | 写入文件 |
+| `/{project_id}/mkdir` | POST | 创建目录 |
+| `/{project_id}/mv` | POST | 移动或重命名 |
+| `/{project_id}/rm` | POST | 删除 / 移入回收站 |
+| `/{project_id}/restore` | POST | 从回收站恢复 |
+| `/{project_id}/bulk-write` | POST | 批量写入文件 |
+| `/{project_id}/versions?path=&limit=` | GET | 版本历史 |
+| `/{project_id}/version-content?path=&version=` | GET | 指定版本的内容 |
+| `/{project_id}/diff?v1=&v2=` | GET | 对比两个版本 |
+| `/{project_id}/rollback` | POST | 回滚到指定版本 |
 
 ---
 
 ## 浏览与读取
 
-### 列出文件
+### 列出目录
 
 ```bash
 # 列出根目录
-puppyone fs ls
+curl "$BASE_URL/ls" \
+  -H "Authorization: Bearer $TOKEN"
 
 # 列出指定路径
-puppyone fs ls /docs
-
-# 详细模式，显示类型、大小、修改时间
-puppyone fs ls -l /docs
-```
-
-### 树状浏览
-
-```bash
-# 显示完整目录树
-puppyone fs tree
-
-# 限制深度
-puppyone fs tree -d 2
-
-# 指定子目录
-puppyone fs tree /docs -d 3
+curl "$BASE_URL/ls?path=docs" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 读取文件内容
 
 ```bash
-# 读取 Markdown 文件
-puppyone fs cat /docs/readme
+curl "$BASE_URL/cat?path=docs/readme.md" \
+  -H "Authorization: Bearer $TOKEN"
+```
 
-# 读取 JSON 文件
-puppyone fs cat /config/settings.json
+### 获取文件或目录元信息
+
+```bash
+curl "$BASE_URL/stat?path=docs/readme.md" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### 树状浏览
+
+```bash
+# 从根目录开始的完整树
+curl "$BASE_URL/tree" \
+  -H "Authorization: Bearer $TOKEN"
+
+# 指定子目录和深度限制
+curl "$BASE_URL/tree?path=docs&max_depth=2" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ---
 
 ## 创建与写入
 
-### 创建文件夹
+### 创建目录
 
 ```bash
-puppyone fs mkdir /docs
-puppyone fs mkdir /docs/guides
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs/guides"}'
 ```
 
-### 创建空文件
+### 写入文件
+
+写入时，如果文件不存在则创建，已存在则更新。
 
 ```bash
-# 默认创建 JSON 文件
-puppyone fs touch /config/settings
+# 写入 JSON 文件
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "config/settings.json",
+    "content": {"theme": "dark", "lang": "zh"},
+    "node_type": "json",
+    "message": "初始设置"
+  }'
 
-# 指定文件类型
-puppyone fs touch /docs/guide -t markdown
-puppyone fs touch /data/records -t json
+# 写入 Markdown 文件
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "docs/readme.md",
+    "content": "# Hello World\n\n欢迎使用 PuppyOne。",
+    "node_type": "markdown",
+    "message": "添加 readme"
+  }'
 ```
 
-### 写入内容
+### 批量写入
 
-`fs write` 支持三种方式传入内容：
-
-```bash
-# 通过 -d 参数直接写入
-puppyone fs write /config/settings -d '{"theme": "dark", "lang": "zh"}'
-
-# 从本地文件读取
-puppyone fs write /docs/readme -f ./README.md
-
-# 通过管道传入（stdin）
-echo '{"key": "value"}' | puppyone fs write /config/app
-cat report.md | puppyone fs write /docs/report
-```
-
-常见场景——用脚本批量写入数据：
+一次请求写入多个文件：
 
 ```bash
-# 将 API 返回的 JSON 直接写入
-curl -s https://api.example.com/data | puppyone fs write /imports/api-data
-
-# 将处理后的内容写入
-jq '.results' data.json | puppyone fs write /processed/results
+curl -X POST "$BASE_URL/bulk-write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "files": [
+      {"path": "data/products.json", "content": [{"name": "Widget"}], "node_type": "json"},
+      {"path": "docs/changelog.md", "content": "# Changelog", "node_type": "markdown"}
+    ],
+    "message": "初始化数据"
+  }'
 ```
 
 ---
 
 ## 文件管理
 
-### 移动与重命名
+### 移动或重命名
 
 ```bash
-# 重命名
-puppyone fs mv /docs/old-name /docs/new-name
-
-# 移动到其他目录
-puppyone fs mv /docs/draft /published/article
+curl -X POST "$BASE_URL/mv" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"old_path": "docs/draft.md", "new_path": "published/article.md"}'
 ```
 
 ### 删除
 
 ```bash
-# 软删除（可恢复）
-puppyone fs rm /docs/outdated
+# 软删除（移入回收站）
+curl -X POST "$BASE_URL/rm" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs/outdated.md", "permanent": false}'
 ```
 
-### 查看节点详情
+### 查看回收站
 
 ```bash
-puppyone fs info /docs/readme
+curl "$BASE_URL/trash" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-输出包含节点 ID、类型、创建时间、修改时间、大小等元信息。
-
-### 上传本地文件
+### 从回收站恢复
 
 ```bash
-# 上传到指定路径
-puppyone fs upload ./report.pdf /docs/report.pdf
-
-# 不指定远程路径时，使用本地文件名
-puppyone fs upload ./data.csv
-```
-
-### 下载到本地
-
-```bash
-# 下载到指定路径
-puppyone fs download /docs/report.pdf ./downloads/report.pdf
-
-# 不指定本地路径时，下载到当前目录
-puppyone fs download /exports/data.json
+curl -X POST "$BASE_URL/restore" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs/outdated.md"}'
 ```
 
 ---
 
 ## 版本管理
 
-每次写入操作都会自动生成版本记录，你可以随时查看历史、对比差异、回滚到任意版本。
+每次写入操作都会自动创建一个新版本（Mut commit），你可以随时查看历史、对比差异、回滚到任意版本。
 
 ### 查看版本历史
 
 ```bash
-puppyone fs versions /docs/readme
+curl "$BASE_URL/versions?path=docs/readme.md&limit=10" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
-输出示例：
+### 读取特定版本的内容
 
-```
-Version  Author        Date                 Summary
-v3       user@test.com 2025-01-15 14:30:00  Updated introduction
-v2       agent-bot     2025-01-14 10:00:00  Added FAQ section
-v1       user@test.com 2025-01-13 09:00:00  Initial version
+```bash
+curl "$BASE_URL/version-content?path=docs/readme.md&version=3" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 对比两个版本
 
 ```bash
-# 对比 v1 和 v3
-puppyone fs diff /docs/readme v1 v3
+curl "$BASE_URL/diff?v1=1&v2=3" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 回滚到指定版本
 
 ```bash
-# 回滚到 v2
-puppyone fs rollback /docs/readme v2
+curl -X POST "$BASE_URL/rollback" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"target_version": 2}'
 ```
 
-回滚会创建一个新版本，内容与目标版本相同，不会丢失中间的版本记录。
-
----
-
-## 审计日志
-
-查看某个节点的所有操作记录——谁在什么时间做了什么。
-
-```bash
-puppyone fs audit /docs/readme
-```
-
-输出示例：
-
-```
-Time                 Actor         Action    Details
-2025-01-15 14:30:00  user@test.com update    Updated content
-2025-01-15 10:00:00  agent-bot     update    Added FAQ section
-2025-01-13 09:00:00  user@test.com create    Created node
-```
+回滚会创建一个新的 commit，内容与目标版本相同，不会丢失中间的版本记录。
 
 ---
 
@@ -224,45 +225,54 @@ Time                 Actor         Action    Details
 ### 快速搭建项目结构
 
 ```bash
-puppyone fs mkdir /docs
-puppyone fs mkdir /config
-puppyone fs mkdir /data
-puppyone fs touch /config/settings -t json
-puppyone fs write /config/settings -d '{"version": "1.0", "env": "production"}'
-puppyone fs touch /docs/readme -t markdown
-puppyone fs write /docs/readme -f ./README.md
+# 创建目录
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs"}'
+
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "config"}'
+
+# 写入初始内容
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "config/settings.json",
+    "content": {"version": "1.0", "env": "production"},
+    "node_type": "json",
+    "message": "初始配置"
+  }'
 ```
 
-### 数据导入与整理
+### 从脚本导入数据
 
 ```bash
-# 上传本地文件
-puppyone fs upload ./dataset.csv /data/raw/dataset.csv
-
-# 写入处理后的数据
-puppyone fs touch /data/processed/summary -t json
-puppyone fs write /data/processed/summary -d '{"total": 1024, "status": "done"}'
+# 将 API 返回的数据写入 PuppyOne
+DATA=$(curl -s https://api.example.com/data)
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"path\": \"imports/api-data.json\", \"content\": $DATA, \"node_type\": \"json\"}"
 ```
 
 ### 版本对比与回滚
 
 ```bash
-# 查看某个重要配置的历史
-puppyone fs versions /config/settings
+# 查看版本历史
+curl "$BASE_URL/versions?path=config/settings.json" \
+  -H "Authorization: Bearer $TOKEN"
 
-# 发现最近的修改有问题，回滚
-puppyone fs diff /config/settings v3 v5
-puppyone fs rollback /config/settings v3
-```
+# 对比版本
+curl "$BASE_URL/diff?v1=3&v2=5" \
+  -H "Authorization: Bearer $TOKEN"
 
-### 配合 JSON 输出做自动化
-
-```bash
-# 获取目录结构的 JSON 输出
-puppyone fs ls /data --json
-
-# 在脚本中遍历文件
-for file in $(puppyone fs ls /data --json | jq -r '.[].name'); do
-  puppyone fs cat "/data/$file" --json > "backup_$file.json"
-done
+# 回滚
+curl -X POST "$BASE_URL/rollback" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"target_version": 3}'
 ```

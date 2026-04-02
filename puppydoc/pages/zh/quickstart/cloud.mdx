@@ -42,21 +42,34 @@ Project 是你的顶层容器，所有数据以 Content Node 树（文件夹、J
 或者通过 CLI：
 
 ```bash
-puppyone sync auth notion
-puppyone conn add notion https://notion.so/your-database-id --folder /docs
+# OAuth 授权会在添加连接时自动引导完成
+puppyone access add notion https://notion.so/your-database-id --folder /docs
 ```
 
 ### 方式三：手动创建
 
-通过 CLI 直接创建内容节点：
+在 Dashboard 的编辑器中手动创建和编辑 JSON / Markdown 内容，也可以通过 REST API 创建：
 
 ```bash
-puppyone fs mkdir /products
-puppyone fs touch -t json /products/widget.json
-puppyone fs write /products/widget.json -d '{"name": "Widget Pro", "price": 99.99}'
+# 创建目录
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "products"}'
+
+# 写入 JSON 文件
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "products/widget.json",
+    "content": {"name": "Widget Pro", "price": 99.99},
+    "node_type": "json",
+    "message": "Add widget"
+  }'
 ```
 
-也可以在 Dashboard 的编辑器中手动创建和编辑 JSON / Markdown 内容。
+其中 `BASE_URL` 为 `https://api.puppyone.ai/api/v1/content/{project_id}`。
 
 ---
 
@@ -65,7 +78,7 @@ puppyone fs write /products/widget.json -d '{"name": "Widget Pro", "price": 99.9
 最快的方式是通过 MCP 协议。先在 Dashboard 或 CLI 中创建一个 MCP 端点：
 
 ```bash
-puppyone conn add mcp "My Data"
+puppyone access add mcp "My Data"
 ```
 
 创建后会返回 MCP Server URL（格式为 `https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx`）。

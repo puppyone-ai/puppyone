@@ -3,7 +3,7 @@ import { LanguageSwitcher } from './components/LanguageSwitcher'
 export default {
   logo: (
     <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <img src="/doc/puppyone-logo.svg" alt="PuppyOne" width={24} height={24} style={{ borderRadius: 6 }} />
+      <img src={`${process.env.NODE_ENV === 'production' ? '/doc' : ''}/puppyone-logo.svg`} alt="PuppyOne" width={24} height={24} style={{ borderRadius: 6 }} />
       <span style={{ fontWeight: 600 }}>puppyone</span>
     </span>
   ),

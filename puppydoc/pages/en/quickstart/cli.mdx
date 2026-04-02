@@ -39,46 +39,76 @@ Once set, all later operations will target the current project by default.
 
 ---
 
-## Browse files
+## Browse and create content
+
+Content operations are performed via the REST API at `/api/v1/content/{project_id}/...`. Set up your variables first:
 
 ```bash
-# List contents in the root directory
-puppyone fs ls
-
-# View the full directory tree
-puppyone fs tree
+BASE_URL="https://api.puppyone.ai/api/v1/content/YOUR_PROJECT_ID"
+TOKEN="YOUR_ACCESS_TOKEN"
 ```
 
----
-
-## Create content
-
-Data in PuppyOne is organized as a Content Node tree, with four supported types: folders, JSON, Markdown, and files.
+### List files
 
 ```bash
-# Create folders
-puppyone fs mkdir /docs
-puppyone fs mkdir /products
-
-# Create a Markdown file and write content
-puppyone fs touch /docs/readme.md -t markdown
-puppyone fs write /docs/readme.md -d "# Hello World"
-
-# Create a JSON file and write content
-puppyone fs touch -t json /products/list.json
-puppyone fs write /products/list.json -d '[{"name": "Widget", "price": 99}]'
+curl "$BASE_URL/ls" -H "Authorization: Bearer $TOKEN"
 ```
+
+### View the directory tree
+
+```bash
+curl "$BASE_URL/tree" -H "Authorization: Bearer $TOKEN"
+```
+
+### Create directories
+
+```bash
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs"}'
+
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "products"}'
+```
+
+### Write content
+
+```bash
+# Write a Markdown file
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "docs/readme.md",
+    "content": "# Hello World",
+    "node_type": "markdown",
+    "message": "Add readme"
+  }'
+
+# Write a JSON file
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "products/catalog.json",
+    "content": [{"name": "Widget", "price": 99}],
+    "node_type": "json",
+    "message": "Add catalog"
+  }'
+```
+
+You can also create and edit content through the Dashboard web UI.
 
 ---
 
 ## Connect a data source
 
-Sync data from external platforms into your Context File System.
+Sync data from external platforms into your content tree.
 
 ```bash
-# Authorize Notion
-puppyone sync auth notion
-
 # Connect a Notion database to a target folder
 puppyone access add notion https://notion.so/your-database-id --folder /docs
 ```
@@ -126,7 +156,7 @@ Requires the MUT CLI: `pip install mut`
 # Project overview
 puppyone status
 
-# List all connections (sync, MCP, agent, local folder, and more)
+# List all access points (sync, MCP, agent, local folder, and more)
 puppyone access ls
 ```
 
@@ -145,18 +175,26 @@ puppyone auth login -e user@example.com -p password
 puppyone org use "My Organization"
 puppyone project use "My Project"
 
-# Create directory structure
-puppyone fs mkdir /docs
-puppyone fs mkdir /products
+# Create content via REST API (or use the Dashboard)
+BASE_URL="https://api.puppyone.ai/api/v1/content/YOUR_PROJECT_ID"
+TOKEN="YOUR_ACCESS_TOKEN"
 
-# Write content
-puppyone fs touch /docs/readme.md -t markdown
-puppyone fs write /docs/readme.md -d "# Product Knowledge Base"
-puppyone fs touch /products/catalog.json -t json
-puppyone fs write /products/catalog.json -d '[{"name": "Widget Pro", "price": 99.99}]'
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs"}'
+
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "docs/readme.md",
+    "content": "# Product Knowledge Base",
+    "node_type": "markdown",
+    "message": "Initial readme"
+  }'
 
 # Connect Notion data
-puppyone sync auth notion
 puppyone access add notion https://notion.so/db-id --folder /docs/notion
 
 # Create an MCP endpoint for an agent
@@ -167,7 +205,6 @@ puppyone access add filesystem workspace
 # Copy and run the mut clone command from the output
 
 # Check the results
-puppyone fs tree
 puppyone access ls
 puppyone status
 ```
@@ -176,7 +213,7 @@ puppyone status
 
 ## Next steps
 
-- [Core Concepts](/en/concepts) - Learn the key ideas behind Content Nodes and Connections
+- [Core Concepts](/en/concepts) - Learn the key ideas behind the content tree and access points
 - [Connect more data sources](/en/connect) - Bring in more platforms
 - [Distribute to Agents](/en/distribute) - Use MCP, OpenClaw, and the REST API
 - [CLI Reference](/en/cli) - See all commands and flags

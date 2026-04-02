@@ -21,30 +21,40 @@
 
 ---
 
-## 通过 CLI 设置
+## 通过 REST API 设置
 
 ### 创建连接
 
 ```bash
-puppyone db connect "postgresql://user:pass@host:5432/mydb" --name "Prod DB"
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/connect" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_string": "postgresql://user:pass@host:5432/mydb",
+    "name": "Prod DB",
+    "project_id": "{project_id}"
+  }'
 ```
 
 ### 列出已有连接
 
 ```bash
-puppyone db ls
+curl "https://api.puppyone.ai/api/v1/db-connector/connections?project_id={project_id}" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### 浏览数据库表
 
 ```bash
-puppyone db tables <connection_id>
+curl "https://api.puppyone.ai/api/v1/db-connector/{id}/tables" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### 预览表数据
 
 ```bash
-puppyone db preview <connection_id> <table_name>
+curl "https://api.puppyone.ai/api/v1/db-connector/{id}/preview/{table_name}" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### 保存表数据到 PuppyOne
@@ -52,13 +62,15 @@ puppyone db preview <connection_id> <table_name>
 将数据库表的数据保存为项目中的 JSON 内容节点：
 
 ```bash
-puppyone db save <connection_id>
+curl -X POST "https://api.puppyone.ai/api/v1/db-connector/{id}/save" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ### 删除连接
 
 ```bash
-puppyone db rm <connection_id>
+curl -X DELETE "https://api.puppyone.ai/api/v1/db-connector/{id}" \
+  -H "Authorization: Bearer {token}"
 ```
 
 ---

@@ -16,7 +16,7 @@ Visit [puppyone.ai](https://puppyone.ai) and sign up.
 2. Enter a name, such as "Product Knowledge Base"
 3. Click **Create**
 
-A Project is your top-level container. All data inside it is organized as a Content Node tree made up of folders, JSON, Markdown, and files.
+A Project is your top-level container. All data inside it is organized as a tree of folders, JSON files, Markdown files, and uploaded files, stored in a Mut Merkle tree.
 
 ---
 
@@ -28,7 +28,7 @@ Once your Project is ready, you have several ways to bring data in.
 
 1. In the Dashboard, click **Import** → **Upload Files**
 2. Drag in or select files such as PDF, Word, or Excel
-3. Wait for processing to finish; the files will be converted into Content Nodes automatically
+3. Wait for processing to finish; the files will appear in the content tree automatically
 
 ### Option 2: Connect Notion
 
@@ -42,21 +42,33 @@ From the Dashboard:
 Or from the CLI:
 
 ```bash
-puppyone sync auth notion
-puppyone conn add notion https://notion.so/your-database-id --folder /docs
+puppyone access add notion https://notion.so/your-database-id --folder /docs
 ```
 
 ### Option 3: Create content manually
 
-Create content nodes directly from the CLI:
+Create content directly from the Dashboard editor, or use the REST API:
 
 ```bash
-puppyone fs mkdir /products
-puppyone fs touch -t json /products/widget.json
-puppyone fs write /products/widget.json -d '{"name": "Widget Pro", "price": 99.99}'
+# Create a directory
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "products"}'
+
+# Write a JSON file
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "products/widget.json",
+    "content": {"name": "Widget Pro", "price": 99.99},
+    "node_type": "json",
+    "message": "Add product"
+  }'
 ```
 
-You can also create and edit JSON or Markdown content manually in the Dashboard editor.
+Where `BASE_URL` is `https://api.puppyone.ai/api/v1/content/{project_id}`.
 
 ---
 
@@ -65,7 +77,7 @@ You can also create and edit JSON or Markdown content manually in the Dashboard 
 The fastest way is through MCP. First, create an MCP endpoint from the Dashboard or CLI:
 
 ```bash
-puppyone conn add mcp "My Data"
+puppyone access add mcp "My Data"
 ```
 
 After creation, you will get an MCP Server URL in the format `https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx`.
@@ -101,7 +113,7 @@ If everything is configured correctly, the agent will call PuppyOne and fetch th
 
 ## Next steps
 
-- [Core Concepts](/en/concepts) - Learn the core ideas behind Content Nodes, Connections, and more
+- [Core Concepts](/en/concepts) - Learn the core ideas behind the content tree, access points, and more
 - [Connect more data sources](/en/connect) - Bring in data from Notion, GitHub, Gmail, and other platforms
-- [Version Control](/en/version-control) - Explore version history, snapshots, and rollback
+- [Version Control](/en/version-control) - Explore version history and rollback
 - [Distribute to Agents](/en/distribute) - Use MCP, OpenClaw, or the REST API

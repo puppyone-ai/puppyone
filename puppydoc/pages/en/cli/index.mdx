@@ -1,6 +1,6 @@
 # CLI Installation & Configuration
 
-PuppyOne CLI (`puppyone`) is a command-line tool that gives you direct access to the full PuppyOne platform from your terminal: file management, data-source sync, agent chat, MCP endpoints, local folder sync, and more.
+PuppyOne CLI (`puppyone`) is a command-line tool that gives you direct access to the PuppyOne platform from your terminal: project management, access point configuration, agent chat, and more.
 
 ---
 
@@ -37,8 +37,6 @@ puppyone project use "My Project"
 
 Once finished, the CLI stores the current state in its config file, and later commands automatically use the selected organization and project.
 
-You can also run `puppyone init` to do interactive project setup in one step.
-
 ---
 
 ## Global options
@@ -58,7 +56,7 @@ All commands support these global options:
 Example: temporarily run a command against a different project without changing global config:
 
 ```bash
-puppyone fs ls -p proj_abc123
+puppyone access ls -p proj_abc123
 ```
 
 ---
@@ -68,9 +66,7 @@ puppyone fs ls -p proj_abc123
 Every command supports `--json`, which returns machine-readable JSON for integration with scripts, tooling, and AI agents:
 
 ```bash
-puppyone fs ls --json
-puppyone conn ls --json
-puppyone access ps --json
+puppyone access ls --json
 ```
 
 ---
@@ -101,59 +97,54 @@ puppyone config reset
 
 PuppyOne CLI is organized into these command groups:
 
-| Command | Alias | Description |
-|------|------|------|
-| `puppyone auth` | | Log in, log out, and inspect the current user |
-| `puppyone org` | | Organization management |
-| `puppyone project` | `p` | Project management |
-| `puppyone fs` | | Cloud file system, POSIX-style |
-| `puppyone conn` | `connection` | Unified connection management for data sources, agents, MCP, sandboxes, and folders |
-| `puppyone access` | `openclaw`, `oc` | Two-way local folder sync |
-| `puppyone sync` | | Data source sync |
-| `puppyone ingest` | | File and URL ingestion |
-| `puppyone table` | `t` | Structured data table operations |
-| `puppyone tool` | | Tool management |
-| `puppyone agent` | | Agent management and chat |
-| `puppyone mcp` | | MCP endpoint management |
-| `puppyone sandbox` | `sbx` | Sandbox management and execution |
-| `puppyone publish` | | Public publishing |
-| `puppyone db` | | Database connector |
-| `puppyone config` | | CLI configuration management |
-| `puppyone init` | | Project initialization |
-| `puppyone ps` | | Show running daemons |
-| `puppyone status` | | Project dashboard |
+| Command | Description |
+|------|------|
+| `puppyone auth` | Log in, log out, and inspect the current user |
+| `puppyone org` | Organization management |
+| `puppyone project` | Project management |
+| `puppyone access` | Unified access point management (data sources, agents, MCP, sandboxes, filesystem sync) |
+| `puppyone chat` | Agent chat |
+| `puppyone config` | CLI configuration management |
+| `puppyone status` | Project dashboard |
+| `puppyone ps` | Show running daemons |
+
+Content operations (browse, read, write, versioning) are performed via the [REST API](/en/cli/fs) rather than CLI commands.
 
 ---
 
 ## Common workflows
 
-### Browse project data
-
-```bash
-puppyone fs ls              # List the root directory
-puppyone fs tree            # Show a tree view
-puppyone fs cat /docs/readme # Read file content
-```
-
 ### Add a data source and sync it
 
 ```bash
-puppyone conn add notion https://notion.so/page-id --folder /notion-data
-puppyone conn ls
+puppyone access add notion https://notion.so/page-id --folder /notion-data
+puppyone access ls
 ```
 
 ### Create an agent and chat
 
 ```bash
-puppyone conn add agent "My Bot" --model gpt-4o
-puppyone agent chat
+puppyone access add agent "My Bot" --model gpt-4o
+puppyone chat
+```
+
+### Create an MCP endpoint
+
+```bash
+puppyone access add mcp "My Data"
 ```
 
 ### Mount a local folder
 
 ```bash
-puppyone access up ~/workspace --key cli_xxx
-puppyone access ps
+puppyone access add filesystem ~/workspace
+```
+
+### Check project status
+
+```bash
+puppyone status
+puppyone access ls
 ```
 
 ---
@@ -164,6 +155,6 @@ Append `--help` to any command to see usage details:
 
 ```bash
 puppyone --help
-puppyone fs --help
-puppyone fs ls --help
+puppyone access --help
+puppyone auth --help
 ```

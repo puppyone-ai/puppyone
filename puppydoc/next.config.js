@@ -3,6 +3,8 @@ const withNextra = require('nextra')({
   themeConfig: './theme.config.jsx',
 })
 
+const isProd = process.env.NODE_ENV === 'production'
+
 module.exports = withNextra({
-  basePath: '/doc',
+  ...(isProd ? { basePath: '/doc' } : {}),
 })

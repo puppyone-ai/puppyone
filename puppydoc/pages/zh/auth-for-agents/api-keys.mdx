@@ -59,10 +59,10 @@ cli_x9y8z7w6v5u4...        ← 文件系统同步 Key
 
 ```bash
 # 查看某个 Connection 的 Access Key
-puppyone conn key <connection-id>
+puppyone access key <connection-id>
 
 # 轮换 Access Key（旧 Key 立即失效）
-puppyone conn key <connection-id> --regenerate
+puppyone access key <connection-id> --regenerate
 ```
 
 轮换后，CLI 会显示新的 Access Key。请立即更新使用该 Key 的所有客户端配置。
@@ -77,7 +77,7 @@ puppyone conn key <connection-id> --regenerate
 
 ```
 1. 生成新 Key
-   puppyone conn key <id> --regenerate
+   puppyone access key <id> --regenerate
 
 2. 更新所有客户端配置
    将新 Key 写入环境变量 / 配置文件
@@ -199,7 +199,7 @@ Error: Permission denied
 puppyone auth whoami
 
 # Agent / Connection：查看 Key 信息
-puppyone conn info <connection-id>
+puppyone access info <connection-id>
 ```
 
 ---

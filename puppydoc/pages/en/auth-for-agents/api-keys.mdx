@@ -59,10 +59,10 @@ Create Connection
 
 ```bash
 # View the Access Key for a connection
-puppyone conn key <connection-id>
+puppyone access key <connection-id>
 
 # Rotate the Access Key (the old key becomes invalid immediately)
-puppyone conn key <connection-id> --regenerate
+puppyone access key <connection-id> --regenerate
 ```
 
 After rotation, the CLI shows the new Access Key. Update every client configuration that uses the key immediately.
@@ -77,7 +77,7 @@ Regular Access Key rotation reduces the risk of leaked credentials. Recommended 
 
 ```
 1. Generate a new key
-   puppyone conn key <id> --regenerate
+   puppyone access key <id> --regenerate
 
 2. Update all client configurations
    Write the new key into env vars / config files
@@ -199,7 +199,7 @@ This is not a key problem. It is an FLS permission configuration problem. Check:
 puppyone auth whoami
 
 # Agent / Connection: inspect key information
-puppyone conn info <connection-id>
+puppyone access info <connection-id>
 ```
 
 ---

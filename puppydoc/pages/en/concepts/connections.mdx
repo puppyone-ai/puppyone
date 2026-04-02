@@ -76,38 +76,38 @@ Every connection has one of three states:
 
 ## Manage connections through the CLI
 
-PuppyOne CLI provides a single `conn` command for every connection type:
+PuppyOne CLI provides a single `access` command for every connection type:
 
 ```bash
 # Add connections
-puppyone conn add notion <url>         # Add a Notion data source
-puppyone conn add github <repo>        # Add a GitHub repository
-puppyone conn add mcp "My Endpoint"    # Create an MCP endpoint
-puppyone conn add agent "My Agent"     # Create an agent
-puppyone conn add sandbox "My Box"     # Create a sandbox
-puppyone conn add folder ~/my-docs     # Mount a local folder
+puppyone access add notion <url>         # Add a Notion data source
+puppyone access add github <repo>        # Add a GitHub repository
+puppyone access add mcp "My Endpoint"    # Create an MCP endpoint
+puppyone access add agent "My Agent"     # Create an agent
+puppyone access add sandbox "My Box"     # Create a sandbox
+puppyone access add filesystem ~/my-docs     # Mount a local folder
 
 # View connections
-puppyone conn ls                       # List all connections
-puppyone conn info <id>                # View connection details
+puppyone access ls                       # List all connections
+puppyone access info <id>                # View connection details
 
 # Manage connections
-puppyone conn pause <id>               # Pause a connection
-puppyone conn resume <id>              # Resume a connection
-puppyone conn rm <id>                  # Delete a connection
+puppyone access pause <id>               # Pause a connection
+puppyone access resume <id>              # Resume a connection
+puppyone access rm <id>                  # Delete a connection
 ```
 
 ### Example: Create an MCP endpoint and inspect it
 
 ```bash
-$ puppyone conn add mcp "Product Knowledge Base MCP"
+$ puppyone access add mcp "Product Knowledge Base MCP"
 ✓ MCP endpoint created
   ID:         conn_abc123
   Name:       Product Knowledge Base MCP
   API Key:    sk_live_xxxxxxxxxxxx
   Server URL: https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx
 
-$ puppyone conn info conn_abc123
+$ puppyone access info conn_abc123
   Name:       Product Knowledge Base MCP
   Provider:   mcp
   Status:     active

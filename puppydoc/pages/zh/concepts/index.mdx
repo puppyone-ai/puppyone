@@ -69,10 +69,10 @@ PuppyOne 用「连接」这一个概念统一管理所有外部集成：
 不管是接入一个 Notion 数据源，还是创建一个 MCP 端点给 Cursor 使用，你都通过同一套接口管理：
 
 ```bash
-puppyone conn add notion <url>      # 添加 Notion 数据源
-puppyone conn add mcp "My MCP"      # 创建 MCP 端点
-puppyone conn add folder ~/docs     # 挂载本地文件夹
-puppyone conn ls                    # 查看所有连接
+puppyone access add notion <url>      # 添加 Notion 数据源
+puppyone access add mcp "My MCP"      # 创建 MCP 端点
+puppyone access add filesystem ~/docs     # 挂载本地文件夹
+puppyone access ls                    # 查看所有连接
 ```
 
 ---

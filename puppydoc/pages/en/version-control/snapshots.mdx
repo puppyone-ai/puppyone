@@ -1,58 +1,33 @@
-# Folder Snapshots
+# Commit-based Versioning
 
-Capture a point-in-time snapshot of an entire folder tree so you can archive it before batch operations and restore it later if something goes wrong.
-
----
-
-## What is a folder snapshot
-
-File version history tracks changes to **a single file**. A folder snapshot captures the **complete state of an entire directory tree** at a specific moment, including all subfolders and file contents.
-
-You can think of it as a full backup of one directory.
-
-```
-/research/
-├── papers/
-│   ├── paper-a.md    ← snapshot records the content at this moment
-│   └── paper-b.md    ← snapshot records the content at this moment
-├── notes.json        ← snapshot records the content at this moment
-└── summary.md        ← snapshot records the content at this moment
-```
-
-When you restore a snapshot, the whole directory returns to the state it had when the snapshot was taken.
+PuppyOne uses Mut commits to provide automatic, project-wide versioning for every write operation.
 
 ---
 
-## Common use cases
-
-| Scenario | Description |
-|----------|-------------|
-| Backup before a batch sync | Take a snapshot of the target folder before pulling a large amount of data from Notion or GitHub |
-| Before a large agent operation | Save the current state before an agent rewrites many files |
-| Data migration | Archive the folder before reorganizing the structure |
-| Scheduled backups | Take snapshots of important directories regularly as restore points |
+> **Note:** Folder snapshots have been deprecated. PuppyOne now uses **Mut commit-based versioning**, where every write to the Content API automatically creates a versioned commit. This provides the same safety guarantees as folder snapshots — with finer granularity and no manual snapshot step.
 
 ---
 
-## File versions vs folder snapshots
+## How it works
 
-| Dimension | File Version History | Folder Snapshot |
-|-----------|----------------------|-----------------|
-| Granularity | Single file | Entire folder tree |
-| Trigger | Created automatically on every edit | Created when you need directory-level protection |
-| Recorded content | Changes to one file | Folder structure + all file contents |
-| Restore scope | Restore one file | Restore an entire directory |
-| Best for | Tracking how a file evolves | Safe backup before batch operations |
+Every write operation through the Content API (`write`, `mkdir`, `mv`, `rm`) is recorded as a Mut commit in the `mut_commits` table. Each commit captures:
+
+- **What changed** — the mutations applied (file content, renames, deletions)
+- **Who made the change** — user email or agent identity
+- **When it happened** — precise timestamp
+- **Commit message** — optional description of the change
+
+This means you get a complete, automatic version history without ever needing to create manual snapshots or backups.
 
 ---
 
-## View snapshot list
+## Viewing commit history
 
-### API
+Use the versions API to see the full history of changes to any file:
 
 ```bash
-# Get the list of snapshots for a folder
-curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_id={project_id}" \
+# View all commits for a file
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/research/notes.json" \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -60,88 +35,81 @@ Example response:
 
 ```json
 {
-  "snapshots": [
+  "versions": [
     {
-      "snapshot_id": "snap_abc123",
-      "folder_id": "folder_001",
-      "created_at": "2025-03-09T10:00:00Z",
-      "created_by": "user@example.com",
-      "file_count": 42,
-      "total_size": 156000
+      "version": 5,
+      "created_at": "2025-03-09T15:30:00Z",
+      "author": "Agent: data-sync",
+      "message": "Synced latest research data"
     },
     {
-      "snapshot_id": "snap_def456",
-      "folder_id": "folder_001",
-      "created_at": "2025-03-01T08:00:00Z",
-      "created_by": "Agent: data-sync",
-      "file_count": 38,
-      "total_size": 142000
+      "version": 4,
+      "created_at": "2025-03-09T14:00:00Z",
+      "author": "user@example.com",
+      "message": "Updated analysis section"
     }
   ]
 }
 ```
 
-You can also access it through the collaboration route: `GET /api/v1/collab/snapshots/{folder_id}`
-
 ---
 
-## Restore a snapshot
+## Comparing versions
 
-Restoring a snapshot rolls the folder and all of its descendants back to the state captured in that snapshot.
-
-### API
+Compare any two versions to see exactly what changed:
 
 ```bash
-# Restore the folder to a specific snapshot
-curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/diff?path=/research/notes.json&v1=3&v2=5" \
   -H "Authorization: Bearer {token}"
 ```
 
-Example response:
-
-```json
-{
-  "message": "Folder restored to snapshot snap_abc123",
-  "restored_files": 42,
-  "folder_id": "folder_001"
-}
-```
-
-> Restoring does not delete the snapshot itself. After restore, each affected file also gets a new version record.
-
 ---
 
-## Real scenario: backup before sync
+## Rolling back
 
-Before syncing a large set of data from Notion into the `/research/` directory:
+Restore a file to any historical version. The rollback creates a new commit, so the full history is preserved:
 
 ```bash
-# 1. First, review the currently available snapshots
-curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_id={project_id}" \
-  -H "Authorization: Bearer {token}"
-
-# 2. Run the sync
-puppyone conn refresh <connection-id>
-
-# 3. If the sync result is not what you want, restore a target snapshot
-curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \
-  -H "Authorization: Bearer {token}"
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/rollback" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/research/notes.json", "version": 3}'
 ```
-
-This gives you a safe way to try large batch operations while always being able to return to a known good state.
 
 ---
 
-## Notes
+## Replacing the folder snapshot workflow
 
-- A snapshot records the full state at the moment it is taken, including folder structure and file contents
-- Restoring a snapshot affects all files under the folder, but does not delete files added after the snapshot was taken
-- Every restored file creates a new version record that you can trace in [File Version History and Rollback](/en/version-control/versions)
-- Snapshot data is stored in the `folder_snapshots` table, and operations can also be reviewed through the [Audit Log](/en/audit)
+Previously, you would take a manual snapshot of a folder before a large batch operation. With commit-based versioning, this is no longer necessary:
+
+| Old workflow (folder snapshots) | New workflow (Mut commits) |
+|-------------------------------|---------------------------|
+| Manually create a snapshot before batch operations | Every write automatically creates a commit |
+| Restore the entire folder from a snapshot | Roll back individual files to any version |
+| Snapshot data stored in `folder_snapshots` table | Commit data stored in `mut_commits` table |
+| Required explicit API call to create | Fully automatic — no extra steps |
+
+### Safe batch operations
+
+Before running a large sync or agent operation, simply note the current version numbers. If something goes wrong, roll back the affected files:
+
+```bash
+# 1. Check current versions before the operation
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/research/notes.json" \
+  -H "Authorization: Bearer {token}"
+
+# 2. Run the batch operation (sync, agent task, etc.)
+
+# 3. If the result is not what you want, roll back
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/rollback" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/research/notes.json", "version": 4}'
+```
 
 ---
 
 ## Next steps
 
-- [File Version History and Rollback](/en/version-control/versions) - Manage versions for individual files
+- [Version History and Rollback](/en/version-control/versions) - Manage versions for individual files
 - [Version Diff](/en/version-control/diff) - Compare different versions of a file

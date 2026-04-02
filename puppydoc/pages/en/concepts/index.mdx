@@ -11,7 +11,7 @@ PuppyOne organizes your data in a three-layer structure:
 ```
 Organization
 └── Project
-    └── Content Nodes
+    └── Content Nodes (Mut Merkle tree)
         ├── Folder
         │   ├── JSON file
         │   ├── Markdown file
@@ -32,14 +32,14 @@ An Organization is the top-level management unit, typically representing your te
 A Project is the namespace for a specific set of business data.
 
 - For example: "Product Knowledge Base", "Support FAQ", or "Engineering Docs"
-- Each Project has its own independent Content Node tree
+- Each Project has its own independent content tree, stored in a Mut Merkle tree backed by S3
 - You can configure project-level access control and membership
 
 ### Content Node
 
-A Content Node is PuppyOne's core data structure: a tree made up of folders, JSON files, Markdown files, and uploaded files.
+A Content Node is PuppyOne's core data structure: a tree made up of folders, JSON files, Markdown files, and uploaded files, all identified by path.
 
-Unlike a traditional table model, the Content Node tree supports arbitrary nesting and can hold both structured data and unstructured documents, much like a cloud file system.
+Unlike a traditional table model, the content tree supports arbitrary nesting and can hold both structured data and unstructured documents, much like a cloud file system.
 
 ---
 
@@ -47,18 +47,18 @@ Unlike a traditional table model, the Content Node tree supports arbitrary nesti
 
 | Concept | Description |
 |------|------|
-| **Content Node** | The basic unit of data. Supports four types: folder, JSON, Markdown, and file |
-| **Connection** | The unified abstraction for every external integration: data sync, agents, MCP endpoints, sandboxes, and local folders |
+| **Content Node** | The basic unit of data. Supports four types: folder, JSON, Markdown, and file. Identified by path, stored in a Mut Merkle tree. |
+| **Access Point** | The unified abstraction for every external integration: data sync, agents, MCP endpoints, sandboxes, and local folders |
 | **MCP Protocol** | The standard protocol AI models use to access your data directly from clients like Cursor and Claude Desktop |
 
 ---
 
-## Connections: the single entry point for integrations
+## Access Points: the single entry point for integrations
 
-PuppyOne uses the concept of a connection to manage every external integration in one place:
+PuppyOne uses the concept of an access point to manage every external integration in one place:
 
 ```
-Connection
+Access Point
 ├── Sync Source   - Pull data from Notion, GitHub, Gmail, and more
 ├── Agent         - AI agent with model and tool bindings
 ├── MCP Endpoint  - Expose data through MCP
@@ -69,10 +69,10 @@ Connection
 Whether you are connecting a Notion source or creating an MCP endpoint for Cursor, you use the same interface:
 
 ```bash
-puppyone conn add notion <url>      # Add a Notion data source
-puppyone conn add mcp "My MCP"      # Create an MCP endpoint
-puppyone conn add folder ~/docs     # Mount a local folder
-puppyone conn ls                    # List all connections
+puppyone access add notion <url>         # Add a Notion data source
+puppyone access add mcp "My MCP"         # Create an MCP endpoint
+puppyone access add filesystem ~/docs    # Mount a local folder
+puppyone access ls                       # List all access points
 ```
 
 ---
@@ -83,6 +83,6 @@ import { Cards, Card } from 'nextra/components'
 
 <Cards>
   <Card title="Content Node" href="/en/concepts/content-nodes" />
-  <Card title="Unified Connections" href="/en/concepts/connections" />
+  <Card title="Unified Access Points" href="/en/concepts/connections" />
   <Card title="MCP Protocol" href="/en/concepts/mcp" />
 </Cards>
