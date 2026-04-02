@@ -43,7 +43,7 @@ Or from the CLI:
 
 ```bash
 puppyone sync auth notion
-puppyone conn add notion https://notion.so/your-database-id --folder /docs
+puppyone access add notion https://notion.so/your-database-id --folder /docs
 ```
 
 ### Option 3: Create content manually
@@ -65,7 +65,7 @@ You can also create and edit JSON or Markdown content manually in the Dashboard 
 The fastest way is through MCP. First, create an MCP endpoint from the Dashboard or CLI:
 
 ```bash
-puppyone conn add mcp "My Data"
+puppyone access add mcp "My Data"
 ```
 
 After creation, you will get an MCP Server URL in the format `https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx`.

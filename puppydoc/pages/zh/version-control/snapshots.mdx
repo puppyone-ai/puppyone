@@ -121,7 +121,7 @@ curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_
   -H "Authorization: Bearer {token}"
 
 # 2. 执行同步操作
-puppyone conn refresh <connection-id>
+puppyone access refresh <connection-id>
 
 # 3. 如果同步结果不理想，恢复到目标快照
 curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \

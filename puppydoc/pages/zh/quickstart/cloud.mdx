@@ -43,7 +43,7 @@ Project 是你的顶层容器，所有数据以 Content Node 树（文件夹、J
 
 ```bash
 puppyone sync auth notion
-puppyone conn add notion https://notion.so/your-database-id --folder /docs
+puppyone access add notion https://notion.so/your-database-id --folder /docs
 ```
 
 ### 方式三：手动创建
@@ -65,7 +65,7 @@ puppyone fs write /products/widget.json -d '{"name": "Widget Pro", "price": 99.9
 最快的方式是通过 MCP 协议。先在 Dashboard 或 CLI 中创建一个 MCP 端点：
 
 ```bash
-puppyone conn add mcp "My Data"
+puppyone access add mcp "My Data"
 ```
 
 创建后会返回 MCP Server URL（格式为 `https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxx`）。

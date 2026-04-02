@@ -69,7 +69,7 @@ Every command supports `--json`, which returns machine-readable JSON for integra
 
 ```bash
 puppyone fs ls --json
-puppyone conn ls --json
+puppyone access ls --json
 puppyone access ps --json
 ```
 
@@ -107,7 +107,7 @@ PuppyOne CLI is organized into these command groups:
 | `puppyone org` | | Organization management |
 | `puppyone project` | `p` | Project management |
 | `puppyone fs` | | Cloud file system, POSIX-style |
-| `puppyone conn` | `connection` | Unified connection management for data sources, agents, MCP, sandboxes, and folders |
+| `puppyone access` | `connection` | Unified connection management for data sources, agents, MCP, sandboxes, and folders |
 | `puppyone access` | `openclaw`, `oc` | Two-way local folder sync |
 | `puppyone sync` | | Data source sync |
 | `puppyone ingest` | | File and URL ingestion |
@@ -138,14 +138,14 @@ puppyone fs cat /docs/readme # Read file content
 ### Add a data source and sync it
 
 ```bash
-puppyone conn add notion https://notion.so/page-id --folder /notion-data
-puppyone conn ls
+puppyone access add notion https://notion.so/page-id --folder /notion-data
+puppyone access ls
 ```
 
 ### Create an agent and chat
 
 ```bash
-puppyone conn add agent "My Bot" --model gpt-4o
+puppyone access add agent "My Bot" --model gpt-4o
 puppyone agent chat
 ```
 

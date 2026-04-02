@@ -94,13 +94,13 @@ npm install -g puppyone
 puppyone auth login
 
 # Create an MCP connection (for Cursor / Claude Desktop / custom clients)
-puppyone conn add mcp "My Data"
+puppyone access add mcp "My Data"
 
 # Create a local folder sync (for Claude Code)
-puppyone conn add folder ~/project/context --name "Claude Code Workspace"
+puppyone access add filesystem ~/project/context --name "Claude Code Workspace"
 
 # Create a sandbox (for code execution)
-puppyone conn add sandbox "Python Runner" --type e2b
+puppyone access add sandbox "Python Runner" --type e2b
 ```
 
 See the corresponding page for detailed setup instructions for each distribution method.

@@ -1,6 +1,6 @@
-# Unified Connection Management
+# Unified Access Management
 
-`puppyone conn`, or `puppyone connection`, is PuppyOne's unified connection management command. Every external integration, including data-source sync, agents, MCP endpoints, sandboxes, and local folders, is managed through the same command family.
+`puppyone access` is PuppyOne's unified access management command. Every external integration, including data-source sync, agents, MCP endpoints, sandboxes, and local folders, is managed through the same command family.
 
 ---
 
@@ -8,37 +8,37 @@
 
 | Command | Description |
 |------|------|
-| `conn add <type> [source]` | Create a connection |
-| `conn ls` | List all connections |
-| `conn info <id>` | Show connection details |
-| `conn pause <id>` | Pause a connection |
-| `conn resume <id>` | Resume a connection |
-| `conn rm <id>` | Delete a connection |
-| `conn key <id>` | Show the access key |
-| `conn refresh <id>` | Trigger sync manually |
-| `conn trigger <id> <mode>` | Set trigger mode |
-| `conn update <id>` | Update configuration |
-| `conn logs <id>` | Show execution logs |
-| `conn run <id>` | Run the connection once |
-| `conn schema <provider>` | Show configuration fields |
+| `access add <type> [source]` | Create a connection |
+| `access ls` | List all connections |
+| `access info <id>` | Show connection details |
+| `access pause <id>` | Pause a connection |
+| `access resume <id>` | Resume a connection |
+| `access rm <id>` | Delete a connection |
+| `access key <id>` | Show the access key |
+| `access refresh <id>` | Trigger sync manually |
+| `access trigger <id> <mode>` | Set trigger mode |
+| `access update <id>` | Update configuration |
+| `access logs <id>` | Show execution logs |
+| `access run <id>` | Run the connection once |
+| `access schema <provider>` | Show configuration fields |
 
 ---
 
 ## Create connections
 
-`conn add` is the main entry point. The first argument selects the connection type, and the remaining arguments and flags depend on that type.
+`access add` is the main entry point. The first argument selects the connection type, and the remaining arguments and flags depend on that type.
 
 ### Connection types
 
 | Type | Description | Example |
 |------|------|------|
-| `notion` | Notion data source | `conn add notion <url>` |
-| `github` | GitHub repository | `conn add github <url>` |
-| `gmail` | Gmail inbox | `conn add gmail` |
-| `url` | Web page scraping | `conn add url <url>` |
-| `agent` | AI agent | `conn add agent "name"` |
-| `mcp` | MCP endpoint | `conn add mcp "name"` |
-| `sandbox` | Code sandbox | `conn add sandbox "name"` |
+| `notion` | Notion data source | `access add notion <url>` |
+| `github` | GitHub repository | `access add github <url>` |
+| `gmail` | Gmail inbox | `access add gmail` |
+| `url` | Web page scraping | `access add url <url>` |
+| `agent` | AI agent | `access add agent "name"` |
+| `mcp` | MCP endpoint | `access add mcp "name"` |
+| `sandbox` | Code sandbox | `access add sandbox "name"` |
 | `filesystem` | Local folder sync | `access add filesystem <scope>` |
 
 ### Common options
@@ -62,16 +62,16 @@ Pull data from external platforms into your Content Node tree:
 
 ```bash
 # Notion: sync one page
-puppyone conn add notion https://notion.so/my-page-id --folder /docs
+puppyone access add notion https://notion.so/my-page-id --folder /docs
 
 # GitHub: sync one repository
-puppyone conn add github https://github.com/org/repo --folder /code
+puppyone access add github https://github.com/org/repo --folder /code
 
 # Gmail: sync email
-puppyone conn add gmail
+puppyone access add gmail
 
 # Web page scraping
-puppyone conn add url https://example.com/article --folder /imports
+puppyone access add url https://example.com/article --folder /imports
 ```
 
 ### Agent connections
@@ -80,10 +80,10 @@ Create an AI agent and bind its model and tools:
 
 ```bash
 # Create a GPT-4o agent
-puppyone conn add agent "My Bot" --model gpt-4o
+puppyone access add agent "My Bot" --model gpt-4o
 
 # Create an agent with a system prompt
-puppyone conn add agent "Analyst" --model gpt-4o --system-prompt "You are a data analyst"
+puppyone access add agent "Analyst" --model gpt-4o --system-prompt "You are a data analyst"
 ```
 
 ### MCP endpoints
@@ -91,10 +91,10 @@ puppyone conn add agent "Analyst" --model gpt-4o --system-prompt "You are a data
 Create an MCP endpoint so clients such as Cursor and Claude Desktop can access your data directly:
 
 ```bash
-puppyone conn add mcp "My Endpoint"
+puppyone access add mcp "My Endpoint"
 ```
 
-After creation, use `conn key` to retrieve the access key and configure it in the client.
+After creation, use `access key` to retrieve the access key and configure it in the client.
 
 ### Sandboxes
 
@@ -102,10 +102,10 @@ Create an isolated code execution environment:
 
 ```bash
 # Default sandbox
-puppyone conn add sandbox "Runner"
+puppyone access add sandbox "Runner"
 
 # Explicit E2B sandbox
-puppyone conn add sandbox "Runner" --type e2b
+puppyone access add sandbox "Runner" --type e2b
 ```
 
 ### Local folder sync
@@ -130,38 +130,38 @@ See the [Local Folder Sync](/en/cli/access) docs for the full workflow.
 
 ```bash
 # List everything
-puppyone conn ls
+puppyone access ls
 
 # Filter by provider
-puppyone conn ls --provider notion
+puppyone access ls --provider notion
 
 # Filter by status
-puppyone conn ls --status active
+puppyone access ls --status active
 
 # JSON output
-puppyone conn ls --json
+puppyone access ls --json
 ```
 
 ### Show connection details
 
 ```bash
-puppyone conn info conn_abc123
+puppyone access info conn_abc123
 ```
 
 ### Pause and resume
 
 ```bash
 # Pause a data-source sync
-puppyone conn pause conn_abc123
+puppyone access pause conn_abc123
 
 # Resume it
-puppyone conn resume conn_abc123
+puppyone access resume conn_abc123
 ```
 
 ### Delete a connection
 
 ```bash
-puppyone conn rm conn_abc123
+puppyone access rm conn_abc123
 ```
 
 ---
@@ -172,10 +172,10 @@ Agents, MCP endpoints, and sandboxes all authenticate with access keys.
 
 ```bash
 # Show the access key
-puppyone conn key conn_abc123
+puppyone access key conn_abc123
 
 # Regenerate the access key
-puppyone conn key conn_abc123 --regenerate
+puppyone access key conn_abc123 --regenerate
 ```
 
 ---
@@ -187,7 +187,7 @@ puppyone conn key conn_abc123 --regenerate
 For data-source connections, run one sync immediately:
 
 ```bash
-puppyone conn refresh conn_abc123
+puppyone access refresh conn_abc123
 ```
 
 ### Set trigger mode
@@ -195,8 +195,8 @@ puppyone conn refresh conn_abc123
 Configure how a connection is triggered:
 
 ```bash
-puppyone conn trigger conn_abc123 manual
-puppyone conn trigger conn_abc123 scheduled
+puppyone access trigger conn_abc123 manual
+puppyone access trigger conn_abc123 scheduled
 ```
 
 ### Run once
@@ -204,13 +204,13 @@ puppyone conn trigger conn_abc123 scheduled
 Execute the connection logic directly:
 
 ```bash
-puppyone conn run conn_abc123
+puppyone access run conn_abc123
 ```
 
 ### View execution logs
 
 ```bash
-puppyone conn logs conn_abc123
+puppyone access logs conn_abc123
 ```
 
 ---
@@ -221,10 +221,10 @@ Modify the configuration of an existing connection:
 
 ```bash
 # Update one setting
-puppyone conn update conn_abc123 --set name="New Name"
+puppyone access update conn_abc123 --set name="New Name"
 
 # Update multiple settings with JSON
-puppyone conn update conn_abc123 --config '{"folder": "/new-path", "mode": "incremental"}'
+puppyone access update conn_abc123 --config '{"folder": "/new-path", "mode": "incremental"}'
 ```
 
 ### Show config fields
@@ -232,8 +232,8 @@ puppyone conn update conn_abc123 --config '{"folder": "/new-path", "mode": "incr
 Inspect which config fields a given connection type supports:
 
 ```bash
-puppyone conn schema notion
-puppyone conn schema agent
+puppyone access schema notion
+puppyone access schema agent
 ```
 
 ---
@@ -244,26 +244,26 @@ puppyone conn schema agent
 
 ```bash
 # Connect Notion docs
-puppyone conn add notion https://notion.so/wiki-page --folder /wiki
+puppyone access add notion https://notion.so/wiki-page --folder /wiki
 
 # Connect a GitHub repo
-puppyone conn add github https://github.com/org/docs --folder /github
+puppyone access add github https://github.com/org/docs --folder /github
 
 # Connect Gmail
-puppyone conn add gmail
+puppyone access add gmail
 
 # Inspect connection health
-puppyone conn ls
+puppyone access ls
 ```
 
 ### Create and use an MCP endpoint
 
 ```bash
 # Create the endpoint
-puppyone conn add mcp "Cursor Endpoint"
+puppyone access add mcp "Cursor Endpoint"
 
 # Get the access key
-puppyone conn key <id>
+puppyone access key <id>
 
 # Use that key in Cursor MCP configuration
 ```
@@ -272,29 +272,29 @@ puppyone conn key <id>
 
 ```bash
 # Create a sandbox
-puppyone conn add sandbox "Code Runner" --type e2b
+puppyone access add sandbox "Code Runner" --type e2b
 
 # Inspect details
-puppyone conn info <id>
+puppyone access info <id>
 
 # Get the access key
-puppyone conn key <id>
+puppyone access key <id>
 
 # Trigger one execution
-puppyone conn run <id>
+puppyone access run <id>
 
 # View execution logs
-puppyone conn logs <id>
+puppyone access logs <id>
 ```
 
 ### Manage many connections in bulk
 
 ```bash
 # List paused connections
-puppyone conn ls --status paused --json
+puppyone access ls --status paused --json
 
 # Resume all paused connections from a script
-for id in $(puppyone conn ls --status paused --json | jq -r '.[].id'); do
-  puppyone conn resume "$id"
+for id in $(puppyone access ls --status paused --json | jq -r '.[].id'); do
+  puppyone access resume "$id"
 done
 ```

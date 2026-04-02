@@ -94,13 +94,13 @@ npm install -g puppyone
 puppyone auth login
 
 # 创建 MCP 连接（用于 Cursor / Claude Desktop / 自定义客户端）
-puppyone conn add mcp "My Data"
+puppyone access add mcp "My Data"
 
 # 创建本地文件夹同步（用于 Claude Code）
-puppyone conn add folder ~/project/context --name "Claude Code Workspace"
+puppyone access add filesystem ~/project/context --name "Claude Code Workspace"
 
 # 创建沙盒（用于代码执行）
-puppyone conn add sandbox "Python Runner" --type e2b
+puppyone access add sandbox "Python Runner" --type e2b
 ```
 
 每种分发方式的详细配置，请参阅对应的文档页面。

@@ -69,7 +69,7 @@ puppyone fs ls -p proj_abc123
 
 ```bash
 puppyone fs ls --json
-puppyone conn ls --json
+puppyone access ls --json
 puppyone access ps --json
 ```
 
@@ -107,7 +107,7 @@ PuppyOne CLI 将功能划分为以下命令组：
 | `puppyone org` | | 组织管理 |
 | `puppyone project` | `p` | 项目管理 |
 | `puppyone fs` | | 云端文件系统（POSIX 风格） |
-| `puppyone conn` | `connection` | 统一连接管理（数据源 / Agent / MCP / 沙盒 / 文件夹） |
+| `puppyone access` | `connection` | 统一连接管理（数据源 / Agent / MCP / 沙盒 / 文件夹） |
 | `puppyone access` | `openclaw`, `oc` | 本地文件夹双向同步 |
 | `puppyone sync` | | 数据源同步 |
 | `puppyone ingest` | | 文件 / URL 导入 |
@@ -138,14 +138,14 @@ puppyone fs cat /docs/readme # 读取文件内容
 ### 添加数据源并同步
 
 ```bash
-puppyone conn add notion https://notion.so/page-id --folder /notion-data
-puppyone conn ls
+puppyone access add notion https://notion.so/page-id --folder /notion-data
+puppyone access ls
 ```
 
 ### 创建 Agent 并对话
 
 ```bash
-puppyone conn add agent "My Bot" --model gpt-4o
+puppyone access add agent "My Bot" --model gpt-4o
 puppyone agent chat
 ```
 

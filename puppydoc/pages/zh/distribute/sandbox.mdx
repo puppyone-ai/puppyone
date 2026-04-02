@@ -50,10 +50,10 @@ PuppyOne 云端                       沙盒环境（隔离）
 
 ```bash
 # 创建 E2B 沙盒（云端）
-puppyone conn add sandbox "Python Runner" --type e2b
+puppyone access add sandbox "Python Runner" --type e2b
 
 # 创建 Docker 沙盒（自部署）
-puppyone conn add sandbox "Data Processor" --type docker
+puppyone access add sandbox "Data Processor" --type docker
 ```
 
 ### 通过 API
@@ -180,7 +180,7 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec 
 首先创建沙盒并挂载数据：
 
 ```bash
-puppyone conn add sandbox "Price Analyzer" --type e2b
+puppyone access add sandbox "Price Analyzer" --type e2b
 ```
 
 然后执行分析脚本：

@@ -50,10 +50,10 @@ Your Content Nodes are mounted under `/workspace/` inside the sandbox, so the ag
 
 ```bash
 # Create an E2B sandbox in the cloud
-puppyone conn add sandbox "Python Runner" --type e2b
+puppyone access add sandbox "Python Runner" --type e2b
 
 # Create a Docker sandbox for self-hosted use
-puppyone conn add sandbox "Data Processor" --type docker
+puppyone access add sandbox "Data Processor" --type docker
 ```
 
 ### Via API
@@ -180,7 +180,7 @@ Suppose you have a product list mounted at `/workspace/products/pricing.json` an
 First create a sandbox and mount the data:
 
 ```bash
-puppyone conn add sandbox "Price Analyzer" --type e2b
+puppyone access add sandbox "Price Analyzer" --type e2b
 ```
 
 Then run the analysis script:

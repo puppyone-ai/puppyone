@@ -121,7 +121,7 @@ curl -X GET "https://api.puppyone.ai/api/v1/nodes/{folder_id}/snapshots?project_
   -H "Authorization: Bearer {token}"
 
 # 2. Run the sync
-puppyone conn refresh <connection-id>
+puppyone access refresh <connection-id>
 
 # 3. If the sync result is not what you want, restore a target snapshot
 curl -X POST "https://api.puppyone.ai/api/v1/nodes/{folder_id}/rollback-snapshot/{snapshot_id}" \
