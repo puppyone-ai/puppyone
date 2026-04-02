@@ -39,35 +39,36 @@ puppyone project use "My Project"
 
 ---
 
-## 浏览文件
+## 浏览和创建内容
+
+PuppyOne 中的数据以 Content Node 树形式组织，支持文件夹、JSON、Markdown 和文件四种类型。内容操作通过 REST API 或 Dashboard 完成：
 
 ```bash
-# 列出根目录下的内容
-puppyone fs ls
+BASE_URL="https://api.puppyone.ai/api/v1/content/{project_id}"
 
-# 查看完整目录树
-puppyone fs tree
-```
+# 列出根目录
+curl "$BASE_URL/ls" -H "Authorization: Bearer $TOKEN"
 
----
-
-## 创建内容
-
-puppyone 中的数据以 Content Node 树形式组织，支持文件夹、JSON、Markdown 和文件四种类型。
-
-```bash
 # 创建文件夹
-puppyone fs mkdir /docs
-puppyone fs mkdir /products
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs"}'
 
-# 创建 Markdown 文件并写入内容
-puppyone fs touch /docs/readme.md -t markdown
-puppyone fs write /docs/readme.md -d "# Hello World"
+# 写入 Markdown 文件
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs/readme.md", "content": "# Hello World", "node_type": "markdown"}'
 
-# 创建 JSON 文件并写入内容
-puppyone fs touch -t json /products/list.json
-puppyone fs write /products/list.json -d '[{"name": "Widget", "price": 99}]'
+# 写入 JSON 文件
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "products/list.json", "content": [{"name": "Widget", "price": 99}], "node_type": "json"}'
 ```
+
+也可以在 Dashboard 编辑器中直接创建和编辑内容。
 
 ---
 
@@ -145,15 +146,23 @@ puppyone auth login -e user@example.com -p password
 puppyone org use "My Organization"
 puppyone project use "My Project"
 
-# 创建目录结构
-puppyone fs mkdir /docs
-puppyone fs mkdir /products
+# 通过 REST API 创建目录结构和写入内容
+BASE_URL="https://api.puppyone.ai/api/v1/content/{project_id}"
 
-# 写入内容
-puppyone fs touch /docs/readme.md -t markdown
-puppyone fs write /docs/readme.md -d "# 产品知识库"
-puppyone fs touch /products/catalog.json -t json
-puppyone fs write /products/catalog.json -d '[{"name": "Widget Pro", "price": 99.99}]'
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs"}'
+
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs/readme.md", "content": "# 产品知识库", "node_type": "markdown"}'
+
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "products/catalog.json", "content": [{"name": "Widget Pro", "price": 99.99}], "node_type": "json"}'
 
 # 连接 Notion 数据
 puppyone sync auth notion
@@ -167,7 +176,6 @@ puppyone access add filesystem workspace
 # 复制输出中的 mut clone 命令执行
 
 # 检查结果
-puppyone fs tree
 puppyone access ls
 puppyone status
 ```

@@ -18,43 +18,37 @@ Without a conflict management mechanism, the later write silently overwrites the
 
 ## PuppyOne's Solution
 
-PuppyOne offers three conflict resolution strategies for different scenarios:
+PuppyOne uses the **MUT (Mutation) engine** to handle concurrency. It offers two primary strategies:
 
 ```
-┌──────────────────────┬──────────────────────┬──────────────────────┐
-│  Checkout / Commit   │  Three-way Merge     │  Last-write-wins     │
-│  Pessimistic lock    │  Optimistic merge    │  Latest write wins   │
-│                      │                      │                      │
-│  Lock before edit.   │  Auto-merge on       │  Timestamps decide   │
-│  Other writers       │  commit. Conflicts   │  the winner. Older   │
-│  must wait.          │  marked for review.  │  version kept in     │
-│                      │                      │  history.            │
-│                      │                      │                      │
-│  Best for:           │  Best for:           │  Best for:           │
-│  critical data       │  collaborative edit  │  file sync           │
-└──────────────────────┴──────────────────────┴──────────────────────┘
+┌──────────────────────────────┬──────────────────────────────┐
+│  Three-way Merge             │  Last-write-wins             │
+│  Optimistic concurrency      │  Latest write wins           │
+│                              │                              │
+│  On push, MUT compares the   │  Timestamps decide the       │
+│  base version and both sets  │  winner. The overwritten      │
+│  of changes, then auto-      │  version is preserved in     │
+│  merges or flags conflicts.  │  commit history.             │
+│                              │                              │
+│  Best for:                   │  Best for:                   │
+│  collaborative editing       │  file sync, data sources     │
+└──────────────────────────────┴──────────────────────────────┘
 ```
 
-### 1. Checkout / Commit (Pessimistic Locking)
+### 1. Three-Way Merge (MUT Push)
 
-Lock first, edit second, commit last. While the node is locked, nobody else can modify it.
-
-This is best for scenarios with strict consistency requirements, such as editing API spec docs or updating critical configuration.
-
-### 2. Three-Way Merge
-
-No locking. Multiple actors can edit at the same time. On commit, the system compares the base version and both sets of changes, then tries to merge them intelligently:
+The MUT engine uses three-way merge during push operations. Multiple actors can edit at the same time. When changes are pushed, the system compares the common base version and both sets of changes:
 
 - Non-conflicting changes are merged automatically
-- Conflicting parts are marked for human review
+- Conflicting parts are flagged for resolution
 
-This is well suited to collaborative editing.
+The `write` endpoint also supports `base_version` for optimistic concurrency control — if the file was modified since you last read it, the write returns a conflict instead of silently overwriting.
 
-### 3. Last-write-wins
+### 2. Last-write-wins
 
-The simplest strategy: the later write directly overwrites the earlier one. The overwritten content is automatically preserved in version history and can be rolled back at any time.
+The simplest strategy: the later write directly overwrites the earlier one. The overwritten content is automatically preserved in commit history and can be rolled back at any time.
 
-This is the default strategy for OpenClaw local folder sync.
+This is the default strategy for filesystem sync operations.
 
 ---
 
@@ -62,11 +56,11 @@ This is the default strategy for OpenClaw local folder sync.
 
 | Scenario | Recommended Strategy | Why |
 |----------|----------------------|-----|
-| Editing critical config files | Checkout/Commit | Guarantees exclusive editing and avoids conflicts |
 | Multiple agents co-authoring docs | Three-way Merge | Allows parallel work and auto-merges safe changes |
-| Local folder sync | Last-write-wins | Simple, efficient, backed by version history |
+| Optimistic writes with base_version | Three-way Merge | Detects stale writes, prevents silent overwrites |
+| Local folder sync | Last-write-wins | Simple, efficient, backed by commit history |
 | Syncing from a data source | Last-write-wins | The external source is the system of record |
-| Agents updating important business data | Checkout/Commit | Prevents data loss from concurrent writes |
+| Agents updating business-critical data | Three-way Merge + base_version | Prevents data loss from concurrent writes |
 
 ---
 
@@ -75,7 +69,7 @@ This is the default strategy for OpenClaw local folder sync.
 import { Cards, Card } from 'nextra/components'
 
 <Cards>
-  <Card title="Checkout / Commit Workflow" href="/en/conflict/checkout" />
+  <Card title="MUT Concurrency Model" href="/en/conflict/checkout" />
   <Card title="Conflict Resolution Strategies" href="/en/conflict/resolution" />
   <Card title="Audit Log" href="/en/audit" />
   <Card title="Version Control" href="/en/version-control" />

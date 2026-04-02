@@ -1,18 +1,18 @@
-# File Version History and Rollback
+# Version History and Rollback
 
-Every edit creates a version automatically, so you can inspect history and restore any point in time whenever needed.
+Every write creates a versioned commit automatically, so you can inspect history and restore any point in time whenever needed.
 
 ---
 
 ## Automatic versioning
 
-Whenever a Content Node (JSON, Markdown, or file) is modified, PuppyOne automatically:
+Whenever a file (JSON, Markdown, or other content) is modified through the Content API, PuppyOne automatically:
 
-1. Creates a new version for the current content
+1. Creates a new commit with the current content
 2. Records when the change happened and who made it (human user or agent)
-3. Preserves the full chain of historical versions
+3. Preserves the full chain of historical commits
 
-No manual saving or commit is required. Whether the change comes from the Dashboard, CLI, API, or an agent writing through MCP, every update is tracked.
+No manual saving or commit is required. Whether the change comes from the Dashboard, API, or an agent writing through MCP, every update is tracked.
 
 ---
 
@@ -24,29 +24,11 @@ No manual saving or commit is required. Whether the change comes from the Dashbo
 2. Click the **History** tab in the right panel
 3. Review the version list, including version number, timestamp, and author
 
-### CLI
-
-```bash
-puppyone fs versions /docs/product-spec.md
-```
-
-Example output:
-
-```
-Version  Time                  Author
--------  --------------------  ----------------
-v5       2025-03-09 15:30:00   Agent: data-sync
-v4       2025-03-09 14:00:00   user@example.com
-v3       2025-03-08 10:20:00   Agent: writer
-v2       2025-03-07 16:45:00   user@example.com
-v1       2025-03-07 09:00:00   user@example.com
-```
-
 ### API
 
 ```bash
 # Get the version history of a file
-curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions?project_id={project_id}" \
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/docs/product-spec.md" \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -71,8 +53,6 @@ Example response:
 }
 ```
 
-You can also access it through the collaboration route: `GET /api/v1/collab/versions/{node_id}`
-
 ---
 
 ## View the content of a specific version
@@ -81,7 +61,7 @@ You can also access it through the collaboration route: `GET /api/v1/collab/vers
 
 ```bash
 # Get the full contents of version 3
-curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions/3" \
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/docs/product-spec.md&version=3" \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -91,7 +71,7 @@ The response returns the complete file contents for that version, which you can 
 
 ## Roll back to a historical version
 
-Rollback restores the file to the contents of a specific version. **The rollback operation itself also creates a new version**, so the history is never lost.
+Rollback restores the file to the contents of a specific version. **The rollback operation itself also creates a new commit**, so the history is never lost.
 
 ### Dashboard
 
@@ -100,29 +80,15 @@ Rollback restores the file to the contents of a specific version. **The rollback
 3. Click **Restore**
 4. Confirm the rollback
 
-### CLI
-
-```bash
-# Roll back to version 3
-puppyone fs rollback /docs/product-spec.md 3
-```
-
-Output:
-
-```
-Rolled back /docs/product-spec.md to version 3
-Current version is now v6 (restored from v3)
-```
-
 ### API
 
 ```bash
 # Roll back to version 3
-curl -X POST "https://api.puppyone.ai/api/v1/nodes/{node_id}/rollback/3" \
-  -H "Authorization: Bearer {token}"
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/rollback" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/docs/product-spec.md", "version": 3}'
 ```
-
-You can also use: `POST /api/v1/collab/rollback/{node_id}/{version}`
 
 ---
 
@@ -132,16 +98,21 @@ Suppose you asked an agent to update a product document, but it accidentally ove
 
 ```bash
 # 1. Check version history to confirm the problem
-puppyone fs versions /docs/product-spec.md
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/docs/product-spec.md" \
+  -H "Authorization: Bearer {token}"
 
 # Output shows v8 is the bad write by the agent
 # v7 is the correct version
 
 # 2. Compare versions to confirm the diff
-puppyone fs diff /docs/product-spec.md 7 8
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/diff?path=/docs/product-spec.md&v1=7&v2=8" \
+  -H "Authorization: Bearer {token}"
 
 # 3. Roll back to the correct version
-puppyone fs rollback /docs/product-spec.md 7
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/rollback" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/docs/product-spec.md", "version": 7}'
 ```
 
 The full recovery takes less than a minute, with zero data loss.
@@ -150,14 +121,14 @@ The full recovery takes less than a minute, with zero data loss.
 
 ## Notes
 
-- Rollback never deletes historical versions; it creates a new version with the content of the target version
+- Rollback never deletes historical versions; it creates a new commit with the content of the target version
 - Version numbers always increase, even after rollback
-- Each Content Node manages its version history independently, so changing one file does not affect others
+- Each file manages its version history independently, so changing one file does not affect others
 - Version history records the author, so you can trace changes later in the [Audit Log](/en/audit)
 
 ---
 
 ## Next steps
 
-- [Folder Snapshots](/en/version-control/snapshots) - Take a full backup of an entire directory
+- [Commit-based Versioning](/en/version-control/snapshots) - How Mut commits replace folder snapshots
 - [Version Diff](/en/version-control/diff) - Inspect differences between two versions line by line

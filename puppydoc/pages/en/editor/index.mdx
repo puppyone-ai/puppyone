@@ -37,7 +37,7 @@ Project
 | **Markdown** | Rich text content for docs and knowledge bases |
 | **File** | Binary files such as images and PDFs |
 
-Each Content Node has its own path, access control, and version history.
+Each Content Node has its own path, access control, and version history. Content is stored in a Mut Merkle tree backed by S3, with every write creating a versioned commit.
 
 For more details, see [Core Concepts - Content Node](/en/concepts/content-nodes).
 
@@ -58,12 +58,11 @@ Visually edit JSON data:
 
 ### Version control
 
-Every change is automatically saved as a version:
+Every change is automatically saved as a Mut commit:
 
 - View change history
 - Compare different versions (Diff)
 - Roll back to any version in one click
-- Create folder-level snapshots
 
 [Learn about version control →](/en/version-control)
 

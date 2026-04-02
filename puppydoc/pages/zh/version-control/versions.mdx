@@ -1,18 +1,18 @@
 # 文件版本历史与回滚
 
-每次修改自动创建版本，随时查看历史、恢复到任意时间点。
+每次写入自动创建版本化的 commit，随时查看历史、恢复到任意时间点。
 
 ---
 
 ## 自动版本化
 
-每次对 Content Node（JSON、Markdown、文件）的修改，PuppyOne 都会自动：
+每次对文件（JSON、Markdown 或其他内容）的修改通过 Content API 完成时，PuppyOne 都会自动：
 
-1. 为当前内容创建一个新版本
+1. 为当前内容创建一个新 commit
 2. 记录修改时间和操作者（人类用户或 Agent）
-3. 保留完整的历史版本链
+3. 保留完整的历史 commit 链
 
-不需要手动保存或提交。无论是通过 Dashboard 编辑、CLI 操作、API 调用，还是 Agent 通过 MCP 写入，所有变更都会被追踪。
+不需要手动保存或提交。无论是通过 Dashboard 编辑、API 调用，还是 Agent 通过 MCP 写入，所有变更都会被追踪。
 
 ---
 
@@ -24,29 +24,11 @@
 2. 点击右侧面板的 **History** 标签
 3. 查看版本列表，包含版本号、时间和操作者
 
-### CLI
-
-```bash
-puppyone fs versions /docs/product-spec.md
-```
-
-输出示例：
-
-```
-Version  Time                  Author
--------  --------------------  ----------------
-v5       2025-03-09 15:30:00   Agent: data-sync
-v4       2025-03-09 14:00:00   user@example.com
-v3       2025-03-08 10:20:00   Agent: writer
-v2       2025-03-07 16:45:00   user@example.com
-v1       2025-03-07 09:00:00   user@example.com
-```
-
 ### API
 
 ```bash
 # 获取文件的版本历史
-curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions?project_id={project_id}" \
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/docs/product-spec.md" \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -71,8 +53,6 @@ curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions?project_id=
 }
 ```
 
-也可以通过协作模块的路径访问：`GET /api/v1/collab/versions/{node_id}`
-
 ---
 
 ## 查看特定版本内容
@@ -81,7 +61,7 @@ curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions?project_id=
 
 ```bash
 # 获取版本 3 的完整内容
-curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions/3" \
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/docs/product-spec.md&version=3" \
   -H "Authorization: Bearer {token}"
 ```
 
@@ -100,29 +80,15 @@ curl -X GET "https://api.puppyone.ai/api/v1/nodes/{node_id}/versions/3" \
 3. 点击 **Restore**
 4. 确认回滚
 
-### CLI
-
-```bash
-# 回滚到版本 3
-puppyone fs rollback /docs/product-spec.md 3
-```
-
-输出：
-
-```
-Rolled back /docs/product-spec.md to version 3
-Current version is now v6 (restored from v3)
-```
-
 ### API
 
 ```bash
 # 回滚到版本 3
-curl -X POST "https://api.puppyone.ai/api/v1/nodes/{node_id}/rollback/3" \
-  -H "Authorization: Bearer {token}"
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/rollback" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/docs/product-spec.md", "version": 3}'
 ```
-
-也可以通过：`POST /api/v1/collab/rollback/{node_id}/{version}`
 
 ---
 
@@ -132,16 +98,21 @@ curl -X POST "https://api.puppyone.ai/api/v1/nodes/{node_id}/rollback/3" \
 
 ```bash
 # 1. 查看版本历史，确认问题
-puppyone fs versions /docs/product-spec.md
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/docs/product-spec.md" \
+  -H "Authorization: Bearer {token}"
 
 # 输出显示 v8 是 Agent 的错误写入
 # v7 是正确的版本
 
 # 2. 对比版本，确认差异
-puppyone fs diff /docs/product-spec.md 7 8
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/diff?path=/docs/product-spec.md&v1=7&v2=8" \
+  -H "Authorization: Bearer {token}"
 
 # 3. 回滚到正确版本
-puppyone fs rollback /docs/product-spec.md 7
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/rollback" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/docs/product-spec.md", "version": 7}'
 ```
 
 整个恢复过程不到一分钟，数据零丢失。
@@ -159,5 +130,5 @@ puppyone fs rollback /docs/product-spec.md 7
 
 ## 下一步
 
-- [文件夹快照](/zh/version-control/snapshots) — 对整个目录做完整备份
+- [基于 Commit 的版本管理](/zh/version-control/snapshots) — Mut commits 如何替代文件夹快照
 - [版本对比](/zh/version-control/diff) — 逐行查看两个版本的差异

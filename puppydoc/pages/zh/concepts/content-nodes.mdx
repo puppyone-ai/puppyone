@@ -25,7 +25,7 @@ Content Node（内容节点）是 PuppyOne 中数据的基本单元。
 
 ## 树形结构
 
-Content Node 通过 `parent_id` 构成一棵树。每个节点都有唯一的路径，就像文件系统中的路径一样：
+Content Node 构成一棵树，每个节点都有唯一的路径，就像文件系统中的路径一样：
 
 ```
 /
@@ -56,7 +56,6 @@ Content Node 通过 `parent_id` 构成一棵树。每个节点都有唯一的路
 | `type` | 节点类型：`folder` / `json` / `markdown` / `file` |
 | `path` | 完整路径（如 `/data/products.json`） |
 | `content` | 节点内容（JSON 或 Markdown 文本，folder 和 file 类型为空） |
-| `parent_id` | 父节点 ID（根节点为空） |
 | `project_id` | 所属 Project ID |
 
 ---
@@ -65,9 +64,8 @@ Content Node 通过 `parent_id` 构成一棵树。每个节点都有唯一的路
 
 每个 Content Node 自动追踪变更：
 
-- **版本历史** — 每次修改都会生成新版本，可以查看任意两个版本的 diff，支持一键回滚
+- **版本历史** — 每次修改都会生成新版本（Mut commit），可以查看任意两个版本的 diff，支持一键回滚
 - **审计日志** — 记录谁在什么时间对哪个节点做了什么操作，完整可追溯
-- **文件夹快照** — 对整个目录做时间点快照，批量回滚
 
 ---
 
@@ -89,38 +87,40 @@ Content Node 支持细粒度的访问控制（FLS, File Level Security）：
 
 在项目的数据页面中，点击「新建」按钮即可创建文件夹、JSON 文件或 Markdown 文件。上传文件可以直接拖拽到页面。
 
-### 通过 CLI
+### 通过 REST API
 
 ```bash
+BASE_URL="https://api.puppyone.ai/api/v1/content/{project_id}"
+
 # 创建文件夹
-puppyone fs mkdir /docs
+curl -X POST "$BASE_URL/mkdir" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "docs"}'
 
-# 创建 JSON 文件
-puppyone fs touch -t json /data/products.json
-
-# 写入内容
-puppyone fs write /data/products.json '{"items": []}'
-
-# 创建 Markdown 文件
-puppyone fs touch -t markdown /docs/guide.md
-
-# 查看目录结构
-puppyone fs ls /
-```
-
-### 通过 API
-
-```bash
-# 创建一个 JSON 节点
-curl -X POST https://api.puppyone.ai/api/v1/nodes/json \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+# 写入 JSON 文件
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "project_id": "proj_xxx",
-    "name": "products.json",
-    "parent_id": "node_data",
-    "content": {"items": []}
+    "path": "data/products.json",
+    "content": {"items": []},
+    "node_type": "json"
   }'
+
+# 写入 Markdown 文件
+curl -X POST "$BASE_URL/write" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "docs/guide.md",
+    "content": "# Guide",
+    "node_type": "markdown"
+  }'
+
+# 列出目录结构
+curl "$BASE_URL/ls" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ### 通过外部数据源同步

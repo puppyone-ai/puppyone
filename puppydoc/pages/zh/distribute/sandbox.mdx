@@ -69,7 +69,7 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
     "sandbox_type": "e2b",
     "mounts": [
       {
-        "node_id": "node_abc123",
+        "path": "products",
         "mount_path": "/workspace/products",
         "mode": "rw"
       }
@@ -105,12 +105,12 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "products",
       "mount_path": "/workspace/products",
       "mode": "rw"
     },
     {
-      "node_id": "node_def456",
+      "path": "docs",
       "mount_path": "/workspace/docs",
       "mode": "ro"
     }
@@ -269,7 +269,7 @@ print(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "ro"
     }
@@ -287,7 +287,7 @@ Agent 可以修改数据或创建新文件，变更自动同步回 PuppyOne。
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "rw"
     }

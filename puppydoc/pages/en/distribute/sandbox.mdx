@@ -69,7 +69,7 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
     "sandbox_type": "e2b",
     "mounts": [
       {
-        "node_id": "node_abc123",
+        "path": "products",
         "mount_path": "/workspace/products",
         "mode": "rw"
       }
@@ -99,18 +99,18 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
 
 ### Mount configuration
 
-Each mount defines which Content Nodes map to which sandbox paths:
+Each mount maps a content path from your project to a sandbox path:
 
 ```json
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "products",
       "mount_path": "/workspace/products",
       "mode": "rw"
     },
     {
-      "node_id": "node_def456",
+      "path": "docs",
       "mount_path": "/workspace/docs",
       "mode": "ro"
     }
@@ -269,7 +269,7 @@ Best for analysis-only workflows where agents must not modify data accidentally.
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "ro"
     }
@@ -287,7 +287,7 @@ The agent can modify data or create new files, and changes sync back to PuppyOne
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "rw"
     }

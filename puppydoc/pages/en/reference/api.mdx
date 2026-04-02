@@ -1,6 +1,6 @@
 # REST API Reference
 
-PuppyOne provides a complete REST API covering content management, agent configuration, data sync, collaborative editing, and more.
+PuppyOne provides a complete REST API covering content management, agent configuration, data sync, and more.
 
 ---
 
@@ -228,183 +228,169 @@ Creates default sample content for the project.
 
 ---
 
-## 4. Content nodes
+## 4. Content
 
-Content Nodes are PuppyOne's core data unit. Four types are supported: `folder`, `json`, `markdown`, and `file`.
+Content is PuppyOne's core data layer. All operations use **path-based addressing** under the `/content/{project_id}/` prefix. Three content types are supported: `json`, `markdown`, and `file`.
 
-### List nodes
+All responses are wrapped in `ApiResponse`:
+```json
+{"success": true, "data": {...}, "message": "..."}
+```
+
+### List directory
 
 ```
-GET /nodes/?project_id={project_id}&parent_id={parent_id}
+GET /content/{project_id}/ls?path={path}
 ```
 
 | Parameter | Type | Required | Description |
 |------|------|------|------|
-| `project_id` | string | Yes | Project ID |
-| `parent_id` | string | No | Parent node ID. If omitted, returns the root |
+| `path` | string | No | Directory path. Empty or omitted returns the root |
 
-### Get a single node
-
-```
-GET /nodes/{node_id}
-```
-
-**Response:**
-```json
-{
-  "id": "node_xxx",
-  "name": "config.json",
-  "type": "json",
-  "content": { "key": "value" },
-  "parent_id": "node_parent",
-  "project_id": "proj_xxx",
-  "created_at": "2025-01-01T00:00:00Z",
-  "updated_at": "2025-01-01T00:00:00Z"
-}
-```
-
-### Get a node by path
+### Read file
 
 ```
-GET /nodes/by-path?project_id={project_id}&path=/folder/file.json
+GET /content/{project_id}/cat?path={path}
 ```
 
-### Get a node by ID path
+Returns the file content. JSON nodes return `content`, Markdown nodes return `content_text`.
+
+### File metadata
 
 ```
-GET /nodes/by-mut-path/?project_id={project_id}&mut_path=folder/file.json
+GET /content/{project_id}/stat?path={path}
 ```
 
-### Batch get nodes
+Returns metadata including `type`, `name`, `content_hash`, `mime_type`, and `children_count`.
+
+### Recursive tree
 
 ```
-GET /nodes/batch?ids=node_1,node_2,node_3
+GET /content/{project_id}/tree?path={path}&max_depth=-1
 ```
 
-### Create folder
+| Parameter | Type | Required | Description |
+|------|------|------|------|
+| `path` | string | No | Root path for the tree |
+| `max_depth` | integer | No | Maximum depth. `-1` for unlimited (default) |
+
+### List trash
 
 ```
-POST /nodes/folder
+GET /content/{project_id}/trash
+```
+
+Returns all items in the trash bin.
+
+### Write file
+
+```
+POST /content/{project_id}/write
 ```
 
 **Request body:**
 ```json
 {
-  "name": "reports",
-  "project_id": "proj_xxx",
-  "parent_id": "node_parent"
+  "path": "reports/weekly.json",
+  "content": { "title": "Weekly Report", "status": "draft" },
+  "node_type": "json",
+  "message": "Create weekly report"
 }
 ```
 
-### Create JSON node
+| Field | Type | Required | Description |
+|------|------|------|------|
+| `path` | string | Yes | File path |
+| `content` | any | Yes | File content (object for JSON, string for Markdown) |
+| `node_type` | string | Yes | `json`, `markdown`, or `file` |
+| `message` | string | No | Commit message |
+
+### Create directory
 
 ```
-POST /nodes/json
+POST /content/{project_id}/mkdir
 ```
 
 **Request body:**
 ```json
 {
-  "name": "config.json",
-  "project_id": "proj_xxx",
-  "parent_id": "node_parent",
-  "content": { "key": "value", "nested": { "a": 1 } }
+  "path": "reports/2025"
 }
 ```
 
-### Create Markdown node
+### Move / rename
 
 ```
-POST /nodes/markdown
+POST /content/{project_id}/mv
 ```
 
 **Request body:**
 ```json
 {
-  "name": "README.md",
-  "project_id": "proj_xxx",
-  "parent_id": "node_parent",
-  "content": "# Hello\n\nThis is a markdown file."
+  "old_path": "reports/weekly.json",
+  "new_path": "archive/weekly-old.json",
+  "message": "Archive old report"
 }
 ```
 
-### Batch create nodes
+### Delete
 
 ```
-POST /nodes/bulk-create
+POST /content/{project_id}/rm
 ```
 
 **Request body:**
 ```json
 {
-  "project_id": "proj_xxx",
-  "parent_id": "node_parent",
-  "nodes": [
-    { "name": "a.json", "type": "json", "content": {} },
-    { "name": "b.md", "type": "markdown", "content": "# B" }
-  ]
+  "path": "reports/weekly.json",
+  "permanent": false
 }
 ```
 
-### Upload file
+When `permanent` is `false` (default), the file is moved to trash. Set `true` to delete permanently.
+
+### Restore from trash
 
 ```
-POST /nodes/upload
-```
-
-Returns a presigned upload URL, and the client uploads the file directly to S3.
-
-### Update node
-
-```
-PUT /nodes/{node_id}
+POST /content/{project_id}/restore
 ```
 
 **Request body:**
 ```json
 {
-  "name": "new-name.json",
-  "content": { "updated": true }
+  "trash_path": ".trash/weekly.json",
+  "original_path": "reports/weekly.json"
 }
 ```
 
-### Move node
+### Bulk write
 
 ```
-POST /nodes/{node_id}/move
+POST /content/{project_id}/bulk-write
 ```
 
 **Request body:**
 ```json
 {
-  "new_parent_id": "node_target_folder"
+  "files": [
+    { "path": "config/a.json", "content": { "key": "value" }, "node_type": "json" },
+    { "path": "docs/readme.md", "content": "# Hello", "node_type": "markdown" }
+  ],
+  "message": "Initial setup"
 }
 ```
-
-### Delete node
-
-```
-DELETE /nodes/{node_id}
-```
-
-Soft delete only. The node is moved into the `.trash` folder.
-
-### Get download URL
-
-```
-GET /nodes/{node_id}/download
-```
-
-Returns a presigned download URL for file-type nodes.
 
 ### Version history
 
 ```
-GET  /nodes/{node_id}/versions                                 # List versions
-GET  /nodes/{node_id}/versions/{version}                       # Get version content
-POST /nodes/{node_id}/rollback/{version}                       # Roll back to a version
-GET  /nodes/{node_id}/diff/{v1}/{v2}                           # Compare two versions
+GET /content/{project_id}/versions?path={path}&limit=50&since_version=0
 ```
+
+| Parameter | Type | Required | Description |
+|------|------|------|------|
+| `path` | string | Yes | File path |
+| `limit` | integer | No | Max versions to return (default 50) |
+| `since_version` | integer | No | Return versions after this version number |
 
 **Version list response:**
 ```json
@@ -425,17 +411,41 @@ GET  /nodes/{node_id}/diff/{v1}/{v2}                           # Compare two ver
 ]
 ```
 
-### Folder snapshots
+### Version content
 
 ```
-GET  /nodes/{folder_id}/snapshots                              # Snapshot history
-POST /nodes/{folder_id}/rollback-snapshot/{snapshot_id}        # Roll back to a snapshot
+GET /content/{project_id}/version-content?path={path}&version={version}
 ```
+
+Returns the content of a file at a specific version.
+
+### Diff
+
+```
+GET /content/{project_id}/diff?v1={v1}&v2={v2}
+```
+
+Compare two versions of the project.
+
+### Rollback
+
+```
+POST /content/{project_id}/rollback
+```
+
+**Request body:**
+```json
+{
+  "target_version": 5
+}
+```
+
+Rolls the project back to the specified version.
 
 ### Audit logs
 
 ```
-GET /nodes/{node_id}/audit-logs
+GET /nodes/{path}/audit-logs
 ```
 
 Returns the full operation history for a node, who did what and when.
@@ -447,7 +457,7 @@ Returns the full operation history for a node, who did what and when.
     "action": "update",
     "actor_type": "user",
     "actor_id": "user_xxx",
-    "node_id": "node_xxx",
+    "path": "reports/weekly.json",
     "timestamp": "2025-01-01T12:00:00Z",
     "details": {}
   }
@@ -553,25 +563,25 @@ GET /access/?project_id={project_id}
 ### Get connection
 
 ```
-GET /access/{connection_id}
+GET /access/{id}
 ```
 
 ### Update connection
 
 ```
-PATCH /access/{connection_id}
+PATCH /access/{id}
 ```
 
 ### Delete connection
 
 ```
-DELETE /access/{connection_id}
+DELETE /access/{id}
 ```
 
 ### Regenerate access key
 
 ```
-POST /access/{connection_id}/regenerate-key
+POST /access/{id}/regenerate-key
 ```
 
 ---
@@ -913,63 +923,7 @@ POST /sandbox-endpoints/{endpoint_id}/exec
 
 ---
 
-## 12. Collaboration
-
-PuppyOne provides a full collaborative editing workflow, including Checkout and Commit, version history, and snapshot rollback.
-
-### Checkout
-
-```
-POST /collab/checkout
-```
-
-**Request body:**
-```json
-{
-  "node_ids": ["node_1", "node_2"],
-  "project_id": "proj_xxx"
-}
-```
-
-### Commit
-
-```
-POST /collab/commit
-```
-
-**Request body:**
-```json
-{
-  "mutations": [
-    {
-      "node_id": "node_1",
-      "content": { "updated": true },
-      "message": "Update config"
-    }
-  ],
-  "project_id": "proj_xxx"
-}
-```
-
-### Version management
-
-```
-GET  /collab/versions/{node_id}                                # Version history
-GET  /collab/versions/{node_id}/{version}                      # Get version content
-POST /collab/rollback/{node_id}/{version}                      # Roll back to version
-GET  /collab/diff/{node_id}/{v1}/{v2}                          # Compare versions
-```
-
-### Folder snapshots
-
-```
-GET  /collab/snapshots/{folder_id}                             # List snapshots
-POST /collab/rollback-snapshot/{folder_id}/{snapshot_id}       # Roll back to snapshot
-```
-
----
-
-## 13. Tools
+## 12. Tools
 
 ### List tools
 
@@ -1029,7 +983,7 @@ DELETE /tools/{tool_id}
 
 ---
 
-## 14. Ingestion
+## 13. Ingestion
 
 ### Submit file ingestion
 
@@ -1067,7 +1021,7 @@ DELETE /ingest/rules/{rule_id}                                 # Delete rule
 
 ---
 
-## 15. OAuth
+## 14. OAuth
 
 PuppyOne supports OAuth integrations for multiple platforms. Each platform follows the same endpoint pattern:
 
@@ -1112,7 +1066,7 @@ GET /oauth/callback
 ```
 POST   /db-connector/access                                    # Create DB access
 GET    /db-connector/access                                    # List access points
-DELETE /db-connector/access/{connection_id}                    # Delete access point
+DELETE /db-connector/access/{id}                    # Delete access point
 GET    /db-connector/access/{id}/tables                        # List database tables
 GET    /db-connector/access/{id}/tables/{table}/preview        # Preview table data
 POST   /db-connector/access/{id}/save                          # Save as content node
@@ -1173,51 +1127,54 @@ GET  /workspace/{agent_id}/status                              # Workspace statu
 
 ## Code examples
 
-### cURL: create a JSON Content Node
+### cURL: write a JSON file
 
 ```bash
-curl -X POST "https://api.puppyone.ai/api/v1/nodes/json" \
+curl -X POST "https://api.puppyone.ai/api/v1/content/proj_xxx/write" \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "products.json",
-    "project_id": "proj_xxx",
+    "path": "products.json",
+    "node_type": "json",
     "content": {
       "products": [
         { "id": "SKU-001", "name": "Widget", "price": 59.99 }
       ]
-    }
+    },
+    "message": "Add product catalog"
   }'
 ```
 
-### Python: query Content Nodes
+### Python: list and read content
 
 ```python
 import requests
 
 API_BASE = "https://api.puppyone.ai/api/v1"
+PROJECT_ID = "proj_xxx"
 TOKEN = "<your-token>"
 
 headers = {"Authorization": f"Bearer {TOKEN}"}
 
 resp = requests.get(
-    f"{API_BASE}/nodes/",
+    f"{API_BASE}/content/{PROJECT_ID}/ls",
     headers=headers,
-    params={"project_id": "proj_xxx"}
 ).json()
 
-for node in resp["data"]["nodes"]:
-    print(f"{node['name']} ({node['type']})")
+for entry in resp["data"]:
+    print(f"{entry['name']} ({entry['type']})")
 ```
 
 ### JavaScript: get version history
 
 ```javascript
 const API_BASE = "https://api.puppyone.ai/api/v1";
+const PROJECT_ID = "proj_xxx";
 
-async function getVersionHistory(token, nodeId) {
+async function getVersionHistory(token, filePath) {
+  const params = new URLSearchParams({ path: filePath });
   const response = await fetch(
-    `${API_BASE}/nodes/${nodeId}/versions`,
+    `${API_BASE}/content/${PROJECT_ID}/versions?${params}`,
     {
       headers: { "Authorization": `Bearer ${token}` }
     }

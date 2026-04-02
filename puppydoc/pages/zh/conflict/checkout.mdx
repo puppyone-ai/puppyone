@@ -1,153 +1,136 @@
-# Checkout / Commit 工作流
+# MUT 并发控制模型
 
-通过「检出 → 编辑 → 提交」的流程，确保同一时间只有一个人或 Agent 修改关键数据。
+PuppyOne 使用 MUT（Mutation）引擎安全地处理并发写入，采用乐观并发控制和三方合并策略。
 
 ---
 
 ## 工作原理
 
-Checkout / Commit 是一种悲观锁定策略：编辑前先锁定目标节点，获得独占的工作副本，编辑完成后提交修改并释放锁定。
+PuppyOne 的 MUT 引擎不使用显式的检出/锁定机制，而是通过 **base_version 追踪** 和 **push 时三方合并** 来实现并发控制。这是一种乐观策略：多个操作者可以自由写入，冲突在写入时被检测和解决。
 
 ```
 Agent A                         PuppyOne                        Agent B
   │                                │                               │
-  ├── checkout /specs/api.md ────▶│                               │
-  │                                │── 锁定节点，创建工作副本       │
-  │◀── 返回工作副本 ──────────────│                               │
+  ├── 读取文件 (获得 v3) ──────────▶│                               │
+  │                                │                ├── 读取文件 (获得 v3)
+  │   (本地编辑)                    │                │   (本地编辑)
   │                                │                               │
-  │   （编辑工作副本）              │                               │
-  │                                │                  ├── 尝试修改 ─▶│
-  │                                │◀── 返回「已锁定」错误 ─────────│
+  ├── 写入 (base_version=3) ──────▶│                               │
+  │                                │── 接受，创建 v4                │
+  │◀── 成功 (v4) ─────────────────│                               │
   │                                │                               │
-  ├── commit 修改 ────────────────▶│                               │
-  │                                │── 保存修改，释放锁定           │
-  │◀── 提交成功 ─────────────────│                               │
-  │                                │                               │
-  │                                │                  ├── 现在可以编辑
+  │                                │      ├── 写入 (base_version=3)
+  │                                │── 检测冲突 (base=3, current=4)
+  │                                │── 尝试三方合并
+  │                                │◀── 合并结果或冲突 ─────────────┤
 ```
 
 ---
 
-## 检出节点
+## 带乐观并发的写入
+
+通过 Content API 写入时，可以包含 `base_version` 来启用冲突检测：
 
 ### API
 
 ```bash
-curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+# 带 base_version 的乐观并发写入
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/write" \
+  -H "Authorization: Bearer {token}" \
   -H "Content-Type: application/json" \
   -d '{
-    "node_ids": ["node_id_1", "node_id_2"]
-  }'
-```
-
-你可以一次检出多个节点，系统会为每个节点创建工作副本并加锁。
-
-### 检出后的状态
-
-节点被检出后：
-- 检出者获得一份工作副本，可以自由修改
-- 其他用户和 Agent 仍然可以**读取**该节点的当前版本
-- 其他用户和 Agent **无法修改**该节点，会收到「已锁定」的提示
-- Dashboard 中该节点会显示锁定状态和检出者信息
-
----
-
-## 编辑工作副本
-
-检出成功后，你可以通过任何方式修改节点内容：
-
-- 在 Dashboard 编辑器中直接编辑
-- 通过 API 更新内容
-- Agent 通过 MCP 协议修改
-- 通过 CLI 操作
-
-所有修改都在工作副本上进行，不会影响其他人看到的当前版本。
-
----
-
-## 提交修改
-
-编辑完成后，提交修改将工作副本的内容写入正式版本：
-
-### API
-
-```bash
-curl -X POST "https://api.puppyone.ai/api/v1/collab/commit" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "node_id": "node_id_1",
-    "node_type": "markdown",
+    "path": "specs/api-design.md",
+    "content": "# API Design\n\n更新了认证接口文档",
     "base_version": 3,
-    "content": "# API 认证\n\n这里是更新后的文档内容"
+    "message": "更新认证接口文档"
   }'
 ```
 
-提交时系统会：
+如果文件在 v3 之后被修改过，MUT 引擎会：
 
-1. **乐观锁检查** — 确认节点自检出以来没有被其他方式修改（如管理员强制解锁后的修改）
-2. **三方合并** — 如果基础版本在检出期间有变更，尝试自动合并
-3. **创建新版本** — 保存修改为新版本，旧版本保留在版本历史中
-4. **释放锁定** — 其他用户和 Agent 可以继续编辑
+1. **检测版本不匹配** — 当前版本比 base version 新
+2. **尝试三方合并** — 比较基础版本 (v3)、当前版本和传入的修改
+3. **返回结果** — 合并成功或返回需要解决的冲突详情
 
----
+### 不使用 base_version
 
-## 放弃修改
-
-如果你决定不提交这次修改，最稳妥的做法是直接丢弃本地工作副本，不把内容提交回 PuppyOne。对于关键内容，建议由项目管理员在 Dashboard 中确认锁定状态后再继续下一次检出，避免误把半成品写回正式版本。
+如果省略 `base_version`，写入将使用 last-write-wins 语义 — 直接覆盖当前内容。之前的版本保留在提交历史中。
 
 ---
 
-## 实际工作流示例
+## Push 时的三方合并
 
-以下是一个 Agent 修改 API 设计文档的完整流程：
+MUT 引擎的三方合并会比较三个版本：
 
-### 第一步：检出目标文件
-
-```bash
-curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
-  -H "Authorization: Bearer AGENT_A_TOKEN" \
-  -d '{"node_ids": ["api_design_node_id"]}'
+```
+        基础版本 (v3)
+       ┌──────┴──────┐
+       │             │
+   当前版本 (v4)   传入的修改
+    (Agent A)      (Agent B)
+       │             │
+       └──────┬──────┘
+              │
+        合并结果 (v5)
 ```
 
-### 第二步：修改文件内容
+- 如果两个操作者修改了文件的**不同部分**，合并会自动成功
+- 如果都修改了**同一部分**，返回冲突需要手动解决
 
-Agent A 通过 MCP 或 API 更新文件内容。其他 Agent 此时无法修改此文件。
+---
 
-### 第三步：提交修改
+## 处理合并冲突
 
-```bash
-curl -X POST "https://api.puppyone.ai/api/v1/collab/commit" \
-  -H "Authorization: Bearer AGENT_A_TOKEN" \
-  -d '{"node_id": "api_design_node_id", "node_type": "markdown", "base_version": 3, "content": "# API Design\n\n添加了认证接口的说明"}'
+当冲突无法自动解决时，API 会返回冲突详情：
+
+```json
+{
+  "status": "conflict",
+  "base_version": 3,
+  "current_version": 4,
+  "conflicts": [
+    {
+      "path": "/price",
+      "base_value": 99,
+      "current_value": 89,
+      "incoming_value": 79
+    }
+  ]
+}
 ```
 
-提交成功后，版本号自动递增，锁定释放。
+解决方式：
 
-### 第四步：其他 Agent 继续工作
+1. **保留当前版本** — 放弃你的修改
+2. **强制覆盖** — 不带 `base_version` 重新提交，使用 last-write-wins
+3. **手动合并** — 合并双方修改后用最新的 `base_version` 提交
 
-Agent B 现在可以检出并修改同一个文件：
+---
 
-```bash
-curl -X POST "https://api.puppyone.ai/api/v1/collab/checkout" \
-  -H "Authorization: Bearer AGENT_B_TOKEN" \
-  -d '{"node_ids": ["api_design_node_id"]}'
-```
+## 文件系统同步 (MUT 协议)
+
+对于双向本地文件夹同步，MUT 协议在协议层处理并发：
+
+- **Clone** — 下载项目的当前状态
+- **Push** — 上传本地修改；自动应用三方合并
+- **Pull** — 获取上次同步后的远程变更
+- **Negotiate** — 交换状态以确定需要同步的内容
+
+同步守护进程透明地使用此协议。Push 期间的冲突使用相同的三方合并逻辑解决。
 
 ---
 
 ## 注意事项
 
-- **超时释放**：如果检出后长时间未提交或释放，系统可能会自动释放锁定，防止节点被永久锁定
-- **管理员权限**：项目管理员可以强制释放任何人的检出锁定
-- **批量操作**：支持一次检出和提交多个节点，适合需要同时修改多个关联文件的场景
-- **审计记录**：每次检出和提交操作都会记录在审计日志中
+- **无显式锁** — 系统使用乐观并发控制，而非悲观锁
+- **自动版本管理** — 每次成功写入都会在 `mut_commits` 中创建新的提交
+- **完整历史** — 即使被覆盖的内容也会保留，可以回滚
+- **审计追踪** — 每次写入操作都记录在审计日志中
 
 ---
 
 ## 下一步
 
-- [冲突解决策略](/zh/conflict/resolution) — 了解三方合并和 last-write-wins
-- [审计日志](/zh/audit) — 追踪所有操作记录
-- [版本控制](/zh/version-control) — 查看和回滚历史版本
+- [冲突解决策略](/zh/conflict/resolution) - 了解三方合并和 last-write-wins 的详细信息
+- [审计日志](/zh/audit) - 追踪所有操作
+- [版本控制](/zh/version-control) - 查看和恢复历史版本
