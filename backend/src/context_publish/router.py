@@ -9,16 +9,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
-from typing import List
 
-from src.platform.auth.dependencies import get_current_user
-from src.platform.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.context_publish.dependencies import get_context_publish_service
 from src.context_publish.schemas import PublishCreate, PublishOut, PublishUpdate
 from src.context_publish.service import ContextPublishService
-
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 
 router = APIRouter(prefix="/publishes", tags=["publishes"])
 public_router = APIRouter(tags=["publishes"])
@@ -68,7 +66,7 @@ def create_publish(
 
 @router.get(
     "/",
-    response_model=ApiResponse[List[PublishOut]],
+    response_model=ApiResponse[list[PublishOut]],
     summary="List publishes for the current user",
     status_code=status.HTTP_200_OK,
 )

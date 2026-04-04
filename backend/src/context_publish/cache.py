@@ -3,7 +3,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from threading import RLock
-from typing import Optional
 
 from src.context_publish.models import ContextPublish
 
@@ -28,7 +27,7 @@ class PublishCache:
         self._lock = RLock()
         self._store: dict[str, _CacheItem] = {}
 
-    def get(self, publish_key: str) -> Optional[ContextPublish]:
+    def get(self, publish_key: str) -> ContextPublish | None:
         if not publish_key:
             return None
         now = time.time()
