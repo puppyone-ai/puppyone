@@ -7,18 +7,17 @@ Defines Pydantic models corresponding to the public.context_publish table.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
 
 class ContextPublishBase(BaseModel):
-    created_by: Optional[str] = None
-    table_id: Optional[int] = None
-    json_path: Optional[str] = None
-    publish_key: Optional[str] = None
-    status: Optional[bool] = None
-    expires_at: Optional[datetime] = None
+    created_by: str | None = None
+    table_id: str | None = None
+    json_path: str | None = None
+    publish_key: str | None = None
+    status: bool | None = None
+    expires_at: datetime | None = None
 
 
 class ContextPublishCreate(ContextPublishBase):
@@ -26,8 +25,8 @@ class ContextPublishCreate(ContextPublishBase):
 
 
 class ContextPublishUpdate(BaseModel):
-    status: Optional[bool] = None
-    expires_at: Optional[datetime] = None
+    status: bool | None = None
+    expires_at: datetime | None = None
 
 
 class ContextPublishResponse(ContextPublishBase):

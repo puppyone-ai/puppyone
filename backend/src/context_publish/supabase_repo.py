@@ -7,7 +7,6 @@ Provides CRUD operations for the public.context_publish table.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
 
 from supabase import Client
 
@@ -45,7 +44,7 @@ class ContextPublishRepository:
         except Exception as e:
             raise handle_supabase_error(e, "create ContextPublish")
 
-    def get_by_id(self, publish_id: int) -> Optional[ContextPublishResponse]:
+    def get_by_id(self, publish_id: int) -> ContextPublishResponse | None:
         response = (
             self._client.table("context_publishes")
             .select("*")
@@ -56,7 +55,7 @@ class ContextPublishRepository:
             return ContextPublishResponse(**response.data[0])
         return None
 
-    def get_by_publish_key(self, publish_key: str) -> Optional[ContextPublishResponse]:
+    def get_by_publish_key(self, publish_key: str) -> ContextPublishResponse | None:
         response = (
             self._client.table("context_publishes")
             .select("*")
@@ -72,8 +71,8 @@ class ContextPublishRepository:
         *,
         skip: int = 0,
         limit: int = 100,
-        created_by: Optional[str] = None,
-    ) -> List[ContextPublishResponse]:
+        created_by: str | None = None,
+    ) -> list[ContextPublishResponse]:
         query = self._client.table("context_publishes").select("*")
         if created_by is not None:
             query = query.eq("created_by", created_by)
@@ -82,7 +81,7 @@ class ContextPublishRepository:
 
     def update(
         self, publish_id: int, data: ContextPublishUpdate
-    ) -> Optional[ContextPublishResponse]:
+    ) -> ContextPublishResponse | None:
         try:
             payload = data.model_dump(exclude_none=True)
             if not payload:

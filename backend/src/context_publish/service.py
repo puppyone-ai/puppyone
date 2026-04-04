@@ -1,28 +1,29 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import secrets
 import string
-from typing import Any, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from src.config import settings
+from src.content.table.service import TableService
 from src.context_publish.cache import PublishCache
 from src.context_publish.models import ContextPublish
 from src.context_publish.repository import ContextPublishRepositoryBase
-from src.exceptions import ErrorCode, NotFoundException, ValidationException
-from src.infra.supabase.exceptions import SupabaseDuplicateKeyError, SupabaseException
 from src.context_publish.supabase_schemas import (
     ContextPublishCreate as SbContextPublishCreate,
+)
+from src.context_publish.supabase_schemas import (
     ContextPublishUpdate as SbContextPublishUpdate,
 )
-from src.content.table.service import TableService
-
+from src.exceptions import ErrorCode, NotFoundException, ValidationException
+from src.infra.supabase.exceptions import SupabaseDuplicateKeyError, SupabaseException
 
 _BASE62_ALPHABET = string.ascii_letters + string.digits
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _default_expires_at() -> datetime:
@@ -54,7 +55,7 @@ class ContextPublishService:
         created_by: str,
         table_id: str,
         json_path: str,
-        expires_at: Optional[datetime],
+        expires_at: datetime | None,
     ) -> ContextPublish:
         # Strict validation: table must belong to the current user
         self.table_service.get_by_id_with_access_check(table_id, created_by)
@@ -94,7 +95,7 @@ class ContextPublishService:
 
     def list_by_created_by(
         self, created_by: str, *, skip: int = 0, limit: int = 100
-    ) -> List[ContextPublish]:
+    ) -> list[ContextPublish]:
         return self.repo.list_by_created_by(created_by, skip=skip, limit=limit)
 
     def get_by_id_with_access_check(
@@ -110,8 +111,8 @@ class ContextPublishService:
         *,
         publish_id: int,
         created_by: str,
-        status: Optional[bool],
-        expires_at: Optional[datetime],
+        status: bool | None,
+        expires_at: datetime | None,
     ) -> ContextPublish:
         existing = self.get_by_id_with_access_check(publish_id, created_by)
         updated = self.repo.update(
@@ -131,7 +132,7 @@ class ContextPublishService:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
         self._invalidate_cache(existing.publish_key)
 
-    def _get_by_key_cached(self, publish_key: str) -> Optional[ContextPublish]:
+    def _get_by_key_cached(self, publish_key: str) -> ContextPublish | None:
         cached = self.cache.get(publish_key)
         if cached:
             return cached
