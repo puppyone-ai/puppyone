@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from src.context_publish.models import ContextPublish
 from src.context_publish.supabase_schemas import (
     ContextPublishCreate as SbContextPublishCreate,
+)
+from src.context_publish.supabase_schemas import (
     ContextPublishUpdate as SbContextPublishUpdate,
 )
 from src.infra.supabase.repository import SupabaseRepository
@@ -17,23 +18,23 @@ class ContextPublishRepositoryBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_by_id(self, publish_id: int) -> Optional[ContextPublish]:
+    def get_by_id(self, publish_id: int) -> ContextPublish | None:
         raise NotImplementedError
 
     @abstractmethod
-    def get_by_key(self, publish_key: str) -> Optional[ContextPublish]:
+    def get_by_key(self, publish_key: str) -> ContextPublish | None:
         raise NotImplementedError
 
     @abstractmethod
     def list_by_created_by(
         self, created_by: str, *, skip: int = 0, limit: int = 100
-    ) -> List[ContextPublish]:
+    ) -> list[ContextPublish]:
         raise NotImplementedError
 
     @abstractmethod
     def update(
         self, publish_id: int, data: SbContextPublishUpdate
-    ) -> Optional[ContextPublish]:
+    ) -> ContextPublish | None:
         raise NotImplementedError
 
     @abstractmethod
@@ -51,7 +52,7 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
             created_at=resp.created_at,
             updated_at=resp.updated_at,
             created_by=str(resp.created_by) if resp.created_by else None,
-            table_id=int(resp.table_id or 0),
+            table_id=str(resp.table_id or ""),
             json_path=resp.json_path or "",
             publish_key=resp.publish_key or "",
             status=bool(resp.status),
@@ -62,13 +63,13 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
         resp = self._repo.create_context_publish(data)
         return self._to_model(resp)
 
-    def get_by_id(self, publish_id: int) -> Optional[ContextPublish]:
+    def get_by_id(self, publish_id: int) -> ContextPublish | None:
         resp = self._repo.get_context_publish(publish_id)
         if not resp:
             return None
         return self._to_model(resp)
 
-    def get_by_key(self, publish_key: str) -> Optional[ContextPublish]:
+    def get_by_key(self, publish_key: str) -> ContextPublish | None:
         resp = self._repo.get_context_publish_by_key(publish_key)
         if not resp:
             return None
@@ -76,7 +77,7 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
 
     def list_by_created_by(
         self, created_by: str, *, skip: int = 0, limit: int = 100
-    ) -> List[ContextPublish]:
+    ) -> list[ContextPublish]:
         resps = self._repo.get_context_publish_list(
             skip=skip, limit=limit, created_by=created_by
         )
@@ -84,7 +85,7 @@ class ContextPublishRepositorySupabase(ContextPublishRepositoryBase):
 
     def update(
         self, publish_id: int, data: SbContextPublishUpdate
-    ) -> Optional[ContextPublish]:
+    ) -> ContextPublish | None:
         resp = self._repo.update_context_publish(publish_id, data)
         if not resp:
             return None
