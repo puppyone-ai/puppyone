@@ -296,6 +296,10 @@ class TableRepositorySupabase(TableRepositoryBase):
         if not table:
             return False
 
+        # Creator always has access
+        if table.created_by == user_id:
+            return True
+
         if not table.project_id:
             return False
 
