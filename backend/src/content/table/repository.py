@@ -188,6 +188,8 @@ class TableRepositorySupabase(TableRepositoryBase):
         description: str,
         data: dict,
         project_id: str,
+        *,
+        table_id: str | None = None,
     ) -> Table:
         """
         Create a new Table.
@@ -198,6 +200,7 @@ class TableRepositorySupabase(TableRepositoryBase):
             description: Table description
             data: Table data (JSON object)
             project_id: Project ID (required)
+            table_id: Optional pre-generated ID (e.g. from MUT write)
 
         Returns:
             Created Table object
@@ -206,7 +209,7 @@ class TableRepositorySupabase(TableRepositoryBase):
         from src.utils.id_generator import generate_uuid_v7
 
         table_data = TableCreate(
-            id=generate_uuid_v7(),
+            id=table_id or generate_uuid_v7(),
             name=name,
             project_id=project_id,
             created_by=created_by,

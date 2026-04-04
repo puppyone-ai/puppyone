@@ -9,19 +9,18 @@ command group to manage every access point from one place.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timezone
-from typing import Optional, List, Any
+from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Path, status, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
 
+from src.common_schemas import ApiResponse
+from src.exceptions import ErrorCode, NotFoundException
+from src.infra.supabase.client import SupabaseClient
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from src.common_schemas import ApiResponse
-from src.exceptions import NotFoundException, ErrorCode
-from src.infra.supabase.client import SupabaseClient
 from src.platform.organization.dependencies import resolve_org_ids
-
 
 router = APIRouter(prefix="/access", tags=["access"])
 
@@ -32,24 +31,24 @@ class ConnectionOut(BaseModel):
     id: str
     project_id: str
     provider: str
-    name: Optional[str] = None
-    path: Optional[str] = None
-    node_name: Optional[str] = None
-    direction: Optional[str] = None
+    name: str | None = None
+    path: str | None = None
+    node_name: str | None = None
+    direction: str | None = None
     status: str = "active"
-    access_key: Optional[str] = None
-    trigger: Optional[dict] = None
-    last_synced_at: Optional[str] = None
-    error_message: Optional[str] = None
-    config: Optional[dict] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    access_key: str | None = None
+    trigger: dict | None = None
+    last_synced_at: str | None = None
+    error_message: str | None = None
+    config: dict | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class ConnectionUpdate(BaseModel):
-    status: Optional[str] = None
-    trigger: Optional[dict] = None
-    config: Optional[dict] = None
+    status: str | None = None
+    trigger: dict | None = None
+    config: dict | None = None
 
 
 # ── Helpers ─────────────────────────────────────────────────
@@ -103,14 +102,14 @@ def _get_user_project_ids(sb_client, user_id: str, org_ids: list[str]) -> list[s
 
 @router.get(
     "/",
-    response_model=ApiResponse[List[ConnectionOut]],
+    response_model=ApiResponse[list[ConnectionOut]],
     summary="List all access points",
     status_code=status.HTTP_200_OK,
 )
 def list_connections(
-    project_id: Optional[str] = Query(None),
-    provider: Optional[str] = Query(None),
-    connection_status: Optional[str] = Query(None, alias="status"),
+    project_id: str | None = Query(None),
+    provider: str | None = Query(None),
+    connection_status: str | None = Query(None, alias="status"),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     sb = _get_client()
@@ -193,7 +192,7 @@ async def update_connection(
     if row["project_id"] not in pids:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
-    fields: dict[str, Any] = {"updated_at": datetime.now(timezone.utc).isoformat()}
+    fields: dict[str, Any] = {"updated_at": datetime.now(UTC).isoformat()}
     if payload.status is not None:
         fields["status"] = payload.status
     if payload.trigger is not None:
@@ -283,7 +282,7 @@ def regenerate_key(
     new_key = f"{prefix}_{secrets.token_urlsafe(32)}"
     sb.table("access_points").update({
         "access_key": new_key,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }).eq("id", connection_id).execute()
 
     return ApiResponse.success(data={"access_key": new_key}, message="Key regenerated")
@@ -354,23 +353,23 @@ class UnifiedConnectionCreate(BaseModel):
     """
     project_id: str = Field(..., description="Project ID")
     provider: str = Field(..., description="Access type: gmail, github, agent, mcp, sandbox, ...")
-    name: Optional[str] = Field(None, description="Display name")
-    path: Optional[str] = Field(None, description="Target MUT path")
+    name: str | None = Field(None, description="Display name")
+    path: str | None = Field(None, description="Target MUT path")
     config: dict = Field(default_factory=dict, description="Provider-specific configuration")
-    direction: Optional[str] = Field(None, description="Sync direction (datasource only)")
-    trigger: Optional[dict] = Field(None, description="Trigger config (datasource/agent)")
-    credentials_ref: Optional[str] = Field(None, description="OAuth credentials reference (datasource)")
-    sync_mode: Optional[str] = Field(None, description="Sync mode: import_once, scheduled (datasource)")
-    conflict_strategy: Optional[str] = Field(None, description="Conflict strategy (datasource)")
-    accesses: Optional[List[dict]] = Field(None, description="Node access bindings (agent/mcp)")
-    tools_config: Optional[List[dict]] = Field(None, description="Tool bindings (mcp)")
+    direction: str | None = Field(None, description="Sync direction (datasource only)")
+    trigger: dict | None = Field(None, description="Trigger config (datasource/agent)")
+    credentials_ref: str | None = Field(None, description="OAuth credentials reference (datasource)")
+    sync_mode: str | None = Field(None, description="Sync mode: import_once, scheduled (datasource)")
+    conflict_strategy: str | None = Field(None, description="Conflict strategy (datasource)")
+    accesses: list[dict] | None = Field(None, description="Node access bindings (agent/mcp)")
+    tools_config: list[dict] | None = Field(None, description="Tool bindings (mcp)")
 
 
 class UnifiedConnectionOut(BaseModel):
     id: str
     project_id: str
     provider: str
-    name: Optional[str] = None
+    name: str | None = None
     status: str = "active"
 
 
@@ -389,7 +388,8 @@ def _get_datasource_providers() -> set[str]:
 
 async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> UnifiedConnectionOut:
     from src.connectors.datasource.dependencies import (
-        get_connector_registry, _build_sync_service,
+        _build_sync_service,
+        get_connector_registry,
     )
 
     if not payload.path:
@@ -434,8 +434,8 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
 
 def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     from src.connectors.agent.config.repository import AgentRepository
-    from src.connectors.agent.config.service import AgentConfigService
     from src.connectors.agent.config.schemas import AgentBashCreate
+    from src.connectors.agent.config.service import AgentConfigService
 
     service = AgentConfigService(repository=AgentRepository())
 
@@ -474,8 +474,8 @@ def _create_agent(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     from src.connectors.mcp_endpoint.repository import McpEndpointRepository
-    from src.connectors.mcp_endpoint.service import McpEndpointService
     from src.connectors.mcp_endpoint.schemas import McpAccessItem, McpToolItem
+    from src.connectors.mcp_endpoint.service import McpEndpointService
 
     service = McpEndpointService(repository=McpEndpointRepository())
 
@@ -501,8 +501,8 @@ def _create_mcp(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
 
 def _create_sandbox(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
-    from src.connectors.sandbox_endpoint.service import SandboxEndpointService
     from src.connectors.sandbox_endpoint.schemas import SandboxMountItem, SandboxResourceLimits
+    from src.connectors.sandbox_endpoint.service import SandboxEndpointService
 
     service = SandboxEndpointService(repository=SandboxEndpointRepository())
 
@@ -533,8 +533,8 @@ async def _create_filesystem(
     payload: UnifiedConnectionCreate, _user_id: str,
 ) -> UnifiedConnectionOut:
     """Create a filesystem sync access point."""
-    from src.connectors.filesystem.service import FilesystemService
     from src.connectors.datasource.repository import SyncRepository
+    from src.connectors.filesystem.service import FilesystemService
     from src.infra.supabase.client import SupabaseClient
 
     supabase = SupabaseClient()
@@ -542,12 +542,19 @@ async def _create_filesystem(
     service = FilesystemService(supabase=supabase, sync_repo=sync_repo)
 
     cfg = payload.config
-    scope_path = cfg.get("scope", payload.path or "/")
+    scope = cfg.get("scope", {})
+    if isinstance(scope, dict):
+        scope_path = scope.get("path", payload.path or "/")
+    else:
+        scope_path = str(scope) if scope else (payload.path or "/")
 
-    sync = service.bootstrap(
-        project_id=payload.project_id,
-        path=scope_path,
-    )
+    try:
+        sync = service.bootstrap(
+            project_id=payload.project_id,
+            path=scope_path,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create filesystem access point: {e}") from e
 
     return UnifiedConnectionOut(
         id=sync.id,
@@ -584,20 +591,27 @@ async def create_connection(
 
     provider = payload.provider.lower()
 
-    if provider == "agent":
-        result = _create_agent(payload)
-    elif provider == "mcp":
-        result = _create_mcp(payload)
-    elif provider == "sandbox":
-        result = _create_sandbox(payload)
-    elif provider == "filesystem":
-        result = await _create_filesystem(payload, current_user.user_id)
-    elif provider in _get_datasource_providers():
-        result = await _create_datasource(payload, current_user.user_id)
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown provider: {provider}. Use GET /api/v1/access/types to see available types.",
-        )
+    try:
+        if provider == "agent":
+            result = _create_agent(payload)
+        elif provider == "mcp":
+            result = _create_mcp(payload)
+        elif provider == "sandbox":
+            result = _create_sandbox(payload)
+        elif provider == "filesystem":
+            result = await _create_filesystem(payload, current_user.user_id)
+        elif provider in _get_datasource_providers():
+            result = await _create_datasource(payload, current_user.user_id)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown provider: {provider}. Use GET /api/v1/access/types to see available types.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        from src.utils.logger import log_error
+        log_error(f"Failed to create {provider} access point: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create {provider} access point: {e}") from e
 
     return ApiResponse.success(data=result, message=f"{provider} access point created")

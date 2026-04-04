@@ -8,6 +8,7 @@ The tables table in DB is only used for storing metadata indexes.
 """
 
 import json
+from datetime import UTC
 from typing import Any
 
 import jmespath
@@ -148,8 +149,21 @@ class TableService:
         )
         log_info(f"[Table] Created table {table_id} via MUT")
 
-        table = self.repo.get_by_id(table_id)
-        if not table:
+        # Persist to Supabase index table
+        try:
+            table = self.repo.create(
+                created_by=user_id,
+                name=name,
+                description=description,
+                data=data,
+                project_id=project_id,
+                table_id=table_id,
+            )
+            return table
+        except Exception as e:
+            log_info(f"[Table] Failed to persist table {table_id} to index: {e}")
+            # MUT write succeeded, return synthetic object
+            from datetime import datetime
             return Table(
                 id=table_id,
                 name=name,
@@ -157,9 +171,8 @@ class TableService:
                 created_by=user_id,
                 description=description,
                 data=data,
-                created_at=__import__("datetime").datetime.now(),
+                created_at=datetime.now(UTC),
             )
-        return table
 
     async def update(
         self,

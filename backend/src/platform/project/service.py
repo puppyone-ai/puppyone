@@ -189,14 +189,25 @@ class ProjectService:
     def list_project_members(self, project_id: str) -> list:
         from src.infra.supabase.dependencies import get_supabase_client
         client = get_supabase_client()
-        resp = (
-            client.table("project_members")
-            .select("*, profiles(email, display_name, avatar_url)")
-            .eq("project_id", project_id)
-            .order("created_at")
-            .execute()
-        )
-        return resp.data
+        try:
+            resp = (
+                client.table("project_members")
+                .select("*, profiles(email, display_name, avatar_url)")
+                .eq("project_id", project_id)
+                .order("created_at")
+                .execute()
+            )
+            return resp.data or []
+        except Exception:
+            # Fallback: query without join if profiles table has issues
+            resp = (
+                client.table("project_members")
+                .select("*")
+                .eq("project_id", project_id)
+                .order("created_at")
+                .execute()
+            )
+            return resp.data or []
 
     def add_project_member(self, project_id: str, target_user_id: str, role: str) -> dict:
         from src.infra.supabase.dependencies import get_supabase_client
