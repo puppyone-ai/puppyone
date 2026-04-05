@@ -85,8 +85,8 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
     return out
 
 
-def _get_user_project_ids(sb_client, user_id: str, org_ids: list[str]) -> list[str]:
-    """Get all project IDs the user has access to."""
+def _get_user_project_ids(sb_client, org_ids: list[str]) -> list[str]:
+    """Get all project IDs across the user's organizations."""
     if not org_ids:
         return []
     resp = (
@@ -118,7 +118,7 @@ def list_connections(
     if project_id:
         project_ids = [project_id]
     else:
-        project_ids = _get_user_project_ids(sb, current_user.user_id, org_ids)
+        project_ids = _get_user_project_ids(sb, org_ids)
 
     if not project_ids:
         return ApiResponse.success(data=[], message="No access points")
@@ -157,7 +157,7 @@ def get_connection(
     row = resp.data[0]
     # Verify user has access via org membership
     org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
+    pids = _get_user_project_ids(sb, org_ids)
     if row["project_id"] not in pids:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
@@ -188,7 +188,7 @@ async def update_connection(
 
     row = resp.data[0]
     org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
+    pids = _get_user_project_ids(sb, org_ids)
     if row["project_id"] not in pids:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
@@ -235,7 +235,7 @@ async def delete_connection(
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
     org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
+    pids = _get_user_project_ids(sb, org_ids)
     if resp.data[0]["project_id"] not in pids:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
@@ -267,7 +267,7 @@ def regenerate_key(
 
     row = resp.data[0]
     org_ids = resolve_org_ids(None, current_user.user_id)
-    pids = _get_user_project_ids(sb, current_user.user_id, org_ids)
+    pids = _get_user_project_ids(sb, org_ids)
     if row["project_id"] not in pids:
         raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
 
