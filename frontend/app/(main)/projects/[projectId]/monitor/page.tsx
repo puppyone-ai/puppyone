@@ -151,7 +151,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
   const agentCount = allLogs.filter(l => l.type === 'agent').length;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#09090b' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
 
       {/* Header */}
       <div style={{

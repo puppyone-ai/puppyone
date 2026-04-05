@@ -16,7 +16,7 @@ export function EmptyWorkspaceState({
   onCreateClick,
 }: EmptyWorkspaceStateProps) {
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 text-center bg-[#0a0a0a] overflow-hidden min-w-0">
+    <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 text-center bg-[#0e0e0e] overflow-hidden min-w-0">
       <div className="text-[#52525b] text-[14px] font-medium tracking-wide mb-8 truncate max-w-full">
         PuppyOne: a context base built for agents.
       </div>

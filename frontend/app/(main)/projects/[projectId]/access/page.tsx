@@ -262,7 +262,7 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
       <div className="flex flex-1 min-h-0">
 
         {/* Left sidebar */}
-        <div className="w-[280px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#0a0a0a]">
+        <div className="w-[280px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#0e0e0e]">
 
           {/* Filter tabs */}
           {allGroups.length > 0 && (
@@ -300,7 +300,7 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar bg-[#0a0a0a]">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar">
             {connections.length === 0 ? (
               <div style={{ padding: '32px 16px', textAlign: 'center', color: '#3f3f46', fontSize: 13 }}>
                 No access points yet

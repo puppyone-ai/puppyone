@@ -858,7 +858,7 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
       </div>
       
       {/* Sidebar Content (Scrollable) */}
-      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative' }}>
+      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative', paddingTop: 6 }}>
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
 
           {/* The true Root node */}
