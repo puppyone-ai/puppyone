@@ -514,9 +514,9 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                     <div className="w-px h-3 bg-[#333] mx-1" />
                     <div className="flex items-center gap-1.5">
                       <div className="w-4 h-4 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[9px] font-bold text-[#888] flex-shrink-0">
-                        {latestCommit.author_name?.[0]?.toUpperCase() || 'U'}
+                        {latestCommit.who?.[0]?.toUpperCase() || 'U'}
                       </div>
-                      <span className="text-[12px] font-medium text-[#a1a1aa] whitespace-nowrap">{latestCommit.author_name || 'User'}</span>
+                      <span className="text-[12px] font-medium text-[#a1a1aa] whitespace-nowrap">{latestCommit.who || 'User'}</span>
                     </div>
                     <div className="w-px h-3 bg-[#333] mx-1" />
                     <div className="text-[12px] text-[#71717a] whitespace-nowrap flex-shrink-0 font-mono group-hover:text-[#a1a1aa] transition-colors">
