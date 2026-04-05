@@ -110,7 +110,7 @@ class MutAdminService:
         if not entry:
             raise ValueError(f"Version {version} not found")
 
-        root = entry.get("root_hash", "")
+        root = _resolve_entry_root(entry)
         if not root:
             raise ValueError(f"Version {version} has no root hash")
 
@@ -131,13 +131,25 @@ class MutAdminService:
         if not entry1 or not entry2:
             raise ValueError(f"Version {v1} or {v2} not found")
 
-        root1 = entry1.get("root_hash", "")
-        root2 = entry2.get("root_hash", "")
+        root1 = _resolve_entry_root(entry1)
+        root2 = _resolve_entry_root(entry2)
 
         if not root1 or not root2:
             return []
 
         return diff_trees(repo.store, root1, root2)
+
+
+def _resolve_entry_root(entry: dict) -> str:
+    """Extract the best available tree root hash from a history entry.
+
+    Prefers root_hash (full project tree); falls back to scope_hash
+    for backwards compatibility with commits recorded before the fix.
+    """
+    root = entry.get("root_hash", "")
+    if root:
+        return root
+    return entry.get("scope_hash", "")
 
 
 def _resolve_path_hash(store: ObjectStore, root_hash: str, path: str) -> str:
