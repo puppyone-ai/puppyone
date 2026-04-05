@@ -54,7 +54,7 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
 
     resp = (
         client.table("access_points")
-        .select("id, project_id, provider, config, revoked_at")
+        .select("id, project_id, provider, config, revoked_at, status")
         .eq("access_key", access_key)
         .maybe_single()
         .execute()
@@ -67,6 +67,9 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
 
     if conn.get("revoked_at"):
         raise HTTPException(status_code=401, detail="Access point key has been revoked")
+
+    if conn.get("status") not in (None, "active", "syncing"):
+        raise HTTPException(status_code=403, detail="Access point is not active")
 
     project_id = conn["project_id"]
     config = conn.get("config") or {}
