@@ -189,11 +189,11 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; is
    ================================================================ */
 
 const PROVIDER_GROUPS: { key: string; label: string; providers: string[] }[] = [
-  { key: 'filesystem', label: 'FILESYSTEM', providers: ['filesystem'] },
-  { key: 'datasources', label: 'DATA SOURCES', providers: ['gmail', 'google_sheets', 'google_calendar', 'google_docs', 'github', 'supabase', 'notion', 'linear', 'hackernews', 'posthog', 'google_search_console', 'url', 'rss', 'rest_api', 'script'] },
-  { key: 'agents', label: 'AGENTS', providers: ['agent'] },
+  { key: 'filesystem', label: 'Filesystem', providers: ['filesystem'] },
+  { key: 'datasources', label: 'Data Sources', providers: ['gmail', 'google_sheets', 'google_calendar', 'google_docs', 'github', 'supabase', 'notion', 'linear', 'hackernews', 'posthog', 'google_search_console', 'url', 'rss', 'rest_api', 'script'] },
+  { key: 'agents', label: 'Agents', providers: ['agent'] },
   { key: 'mcp', label: 'MCP', providers: ['mcp'] },
-  { key: 'sandbox', label: 'SANDBOX', providers: ['sandbox'] },
+  { key: 'sandbox', label: 'Sandbox', providers: ['sandbox'] },
 ];
 
 function groupConnections(connections: SyncStatusItem[]) {
@@ -234,7 +234,7 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
   const selected = connections.find(c => c.id === effectiveSelectedId) || null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#09090b' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
       {/* Header */}
       <div style={{
         height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)',
@@ -261,42 +261,46 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
       {/* Left-right split */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Left sidebar — matches History page sidebar exactly */}
-        <div className="w-[340px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#09090b] z-10 shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
+        {/* Left sidebar */}
+        <div className="w-[280px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#0a0a0a]">
 
-          {/* Filter tabs — matches History filter style */}
+          {/* Filter tabs */}
           {allGroups.length > 0 && (
-            <div className="flex flex-col border-b border-white/[0.04] bg-[#09090b]">
-              <div className="px-3 py-3 flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+            <div className="h-[40px] min-h-[40px] shrink-0 flex items-center gap-2 px-3 overflow-x-auto no-scrollbar border-b border-white/[0.06] bg-[#0e0e0e] relative z-10" style={{ scrollbarWidth: 'none' }}>
+              <button
+                onClick={() => setActiveFilter(null)}
+                className={`flex-shrink-0 px-2.5 py-1 rounded-[6px] text-[12px] font-medium transition-colors ${
+                  activeFilter === null
+                    ? 'bg-[#1a1a1a] text-[#eee]'
+                    : 'bg-transparent text-[#71717a] hover:text-[#a1a1aa] hover:bg-white/[0.04]'
+                }`}
+              >
+                All
+              </button>
+              {allGroups.map(g => (
                 <button
-                  onClick={() => setActiveFilter(null)}
-                  className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                    activeFilter === null
-                      ? 'bg-white/[0.1] text-zinc-100'
-                      : 'bg-transparent text-zinc-400 hover:bg-white/[0.06]'
+                  key={g.key}
+                  onClick={() => setActiveFilter(g.key)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[12px] font-medium transition-colors ${
+                    activeFilter === g.key
+                      ? 'bg-[#1a1a1a] text-[#eee]'
+                      : 'bg-transparent text-[#71717a] hover:text-[#a1a1aa] hover:bg-white/[0.04]'
                   }`}
                 >
-                  All
+                  {g.label}
+                  <span className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded border ${
+                    activeFilter === g.key 
+                      ? 'bg-[#222] text-[#888] border-[#333]' 
+                      : 'bg-[#111] text-[#666] border-[#222]'
+                  }`}>
+                    {g.items.length}
+                  </span>
                 </button>
-                {allGroups.map(g => (
-                  <button
-                    key={g.key}
-                    onClick={() => setActiveFilter(g.key)}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
-                      activeFilter === g.key
-                        ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]'
-                        : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
-                    }`}
-                  >
-                    <span style={{ fontSize: 8 }}>●</span>
-                    {g.label} <span className="opacity-70 font-mono font-normal">{g.items.length}</span>
-                  </button>
-                ))}
-              </div>
+              ))}
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar bg-[#0a0a0a]">
             {connections.length === 0 ? (
               <div style={{ padding: '32px 16px', textAlign: 'center', color: '#3f3f46', fontSize: 13 }}>
                 No access points yet
@@ -315,7 +319,7 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
         </div>
 
         {/* Right detail panel */}
-        <div className="flex-1 overflow-auto bg-[#09090b]">
+        <div className="flex-1 overflow-auto bg-[#0e0e0e]">
           {selected ? (
             <AccessDetailPanel
               connection={selected}
@@ -349,41 +353,26 @@ function AccessSidebarRow({ connection: c, isSelected, onClick }: {
   isSelected: boolean;
   onClick: () => void;
 }) {
-  const [hovered, setHovered] = useState(false);
   const name = c.name || c.node_name || PROVIDER_LABELS[c.provider] || c.provider;
   const statusColor = STATUS_COLORS[c.status] || '#71717a';
 
   return (
     <div
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex', alignItems: 'center',
-        margin: '1px 6px',
-        height: 30, boxSizing: 'border-box',
-        borderRadius: 6,
-        background: isSelected ? '#2a2a2a' : hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
-        color: isSelected ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
-        fontSize: 13, userSelect: 'none',
-        transition: 'background 0.1s, color 0.1s',
-        cursor: 'pointer',
-        paddingLeft: 10, paddingRight: 10,
-        gap: 8,
-      }}
+      className={`group flex items-center mx-1.5 h-[30px] rounded-md cursor-pointer px-2.5 gap-2 select-none transition-colors ${
+        isSelected ? 'bg-[#2a2a2a] text-white' : 'bg-transparent text-[#a1a1aa] hover:bg-white/[0.06] hover:text-[#d4d4d4]'
+      }`}
     >
-      <div style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+      <div className="w-4 h-4 flex items-center justify-center shrink-0">
         <ProviderIcon provider={c.provider} size={14} />
       </div>
-      <span style={{
-        flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        minWidth: 0,
-      }}>
+      <span className="flex-1 truncate text-[13px]">
         {name}
       </span>
-      <div style={{
-        width: 6, height: 6, borderRadius: '50%', background: statusColor, flexShrink: 0,
-      }} />
+      <div 
+        className="w-1.5 h-1.5 rounded-full shrink-0" 
+        style={{ backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}40` }}
+      />
     </div>
   );
 }

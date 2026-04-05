@@ -972,8 +972,7 @@ export default function DataPage({ params }: DataPageProps) {
         )}
 
         {/* Explorer Sidebar */}
-        {viewType === 'explorer' && (
-          <ExplorerSidebar
+        <ExplorerSidebar
             projectId={projectId}
             currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
             activeNodeId={
@@ -1020,7 +1019,6 @@ export default function DataPage({ params }: DataPageProps) {
             highlightNodeId={hoverHighlightNodeId || highlightNodeId}
             style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
           />
-        )}
 
         {/* Content column */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -1099,8 +1097,8 @@ export default function DataPage({ params }: DataPageProps) {
             {/* Content Column */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Explorer loading state */}
-            {viewType === 'explorer' && isResolvingPath && !isEditorView && (
+            {/* Loading state */}
+            {isResolvingPath && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0a0a0a' }}>
                 <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
                   <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
@@ -1109,7 +1107,7 @@ export default function DataPage({ params }: DataPageProps) {
             )}
 
             {/* Editor View */}
-            {isEditorView && activeProject && (
+            {isEditorView && !isResolvingPath && activeProject && (
               <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 <EditorArea
                   activeNodeId={activeNodeId}
@@ -1169,7 +1167,7 @@ export default function DataPage({ params }: DataPageProps) {
             )}
 
             {/* Folder View (Grid mode) */}
-            {isFolderView && viewType !== 'explorer' && (
+            {isFolderView && !isResolvingPath && (
               <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
                 {isLoading ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200 }}>
@@ -1180,6 +1178,19 @@ export default function DataPage({ params }: DataPageProps) {
                       Loading...
                     </div>
                     <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                  </div>
+                ) : items.length === 0 && !currentFolderId ? (
+                  <EmptyWorkspaceState
+                    project={activeProject}
+                    onConnectClick={openSyncCreatePanel}
+                    onCreateClick={handleCreateClick}
+                  />
+                ) : items.length === 0 && currentFolderId ? (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, gap: 8, height: '100%' }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span>This folder is empty</span>
                   </div>
                 ) : (
                   <GridView
@@ -1196,36 +1207,6 @@ export default function DataPage({ params }: DataPageProps) {
                     highlightNodeId={hoverHighlightNodeId || highlightNodeId}
                   />
                 )}
-              </div>
-            )}
-
-            {/* Explorer View - Empty State at project root */}
-            {viewType === 'explorer' && isFolderView && !isResolvingPath && items.length === 0 && !currentFolderId && (
-              <EmptyWorkspaceState
-                project={activeProject}
-                onConnectClick={openSyncCreatePanel}
-                onCreateClick={handleCreateClick}
-              />
-            )}
-
-            {/* Explorer View - Empty subfolder */}
-            {viewType === 'explorer' && isFolderView && !isResolvingPath && items.length === 0 && currentFolderId && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, gap: 8 }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                </svg>
-                <span>This folder is empty</span>
-              </div>
-            )}
-
-            {/* Explorer View - No selection prompt (has items but none selected) */}
-            {viewType === 'explorer' && isFolderView && !isResolvingPath && items.length > 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, gap: 8 }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-                <span>Select a file from the sidebar to view</span>
               </div>
             )}
 
@@ -1247,10 +1228,10 @@ export default function DataPage({ params }: DataPageProps) {
             isVersionHistoryOpen={panelState.type === 'version_history'}
             onOpenVersionHistory={openVersionHistoryPanel}
           />
-            </div>
+        </div>
 
-            {/* Right Panel */}
-            <ResizablePanel isVisible={!!editorTarget || panelState.type !== 'none'}>
+        {/* Right Panel */}
+        <ResizablePanel isVisible={!!editorTarget || panelState.type !== 'none'}>
           {editorTarget && (
             <DocumentEditor
               path={editorTarget.path}

@@ -8,6 +8,9 @@ import { listDir, getProjectHistory, type NodeInfo } from '@/lib/contentTreeApi'
 
 // ================= Types =================
 
+import Image from 'next/image';
+import { getFileIcon } from '@/components/dashboard/ProjectCard';
+
 interface DashboardProject {
   id: string;
   name: string;
@@ -181,9 +184,6 @@ function ActivityChart({ buckets }: { buckets: { date: string; count: number }[]
 
   return (
     <div style={{ marginBottom: 24 }}>
-      <div style={{ fontSize: 12, color: '#52525b', marginBottom: 8 }}>
-        {total} commits in the last 30 days
-      </div>
       <div style={{ position: 'relative' }}>
         <svg
           ref={svgRef}
@@ -227,7 +227,7 @@ function ActivityChart({ buckets }: { buckets: { date: string; count: number }[]
         )}
       </div>
       {/* X-axis date labels */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, position: 'relative', height: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, position: 'relative', height: 14 }}>
         {dateLabels.map(dl => (
           <span
             key={dl.idx}
@@ -356,207 +356,226 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
 
       {/* Main Content Area */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ display: 'flex', maxWidth: 1280, margin: '0 auto', width: '100%', padding: '24px 24px', gap: 32 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 1160, margin: '0 auto', width: '100%', padding: '24px 24px' }}>
         
-        {/* Left Column: Files */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          
-          {/* Project title + ID + Connect (Supabase-style) */}
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-              <div>
-                <h1 style={{ fontSize: 22, fontWeight: 600, color: '#e4e4e7', margin: 0, lineHeight: 1.3 }}>
-                  {dashboard.project.name}
-                </h1>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                  <span style={{ fontSize: 13, color: '#52525b', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{projectId}</span>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(projectId)}
-                    style={{ background: 'none', border: 'none', color: '#52525b', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
-                    title="Copy project ID"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
-                  </button>
-                </div>
-              </div>
-              {/* Connect dropdown */}
-              <div style={{ position: 'relative', flexShrink: 0, marginTop: 2 }} ref={connectDropdownRef}>
-                <button
-                  onClick={() => setConnectOpen(!connectOpen)}
-                  style={{
-                    background: '#22c55e', border: 'none', borderRadius: 6,
-                    padding: '6px 14px', cursor: 'pointer', color: '#fff',
-                    fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5,
-                  }}
-                >
-                  Connect <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg>
-                </button>
-                {connectOpen && (
-                  <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, width: 400, background: '#161618', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-                    <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>
-                      Connect to this ContextBase
-                    </div>
-                    {/* Access points first */}
-                    <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                      <div style={{ padding: '4px 16px 6px', fontSize: 11, color: '#52525b', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}>Access Points</div>
-                      {connections.length > 0 ? connections.map(conn => (
-                        <div
-                          key={conn.id}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', cursor: 'pointer' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
-                        >
-                          <ProviderAvatar provider={conn.provider} size={22} icon={(conn as any).icon} />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, color: '#c9d1d9', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
-                            </div>
-                          </div>
-                          {conn.access_key && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(conn.access_key!); }}
-                              style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 6px', color: '#52525b', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
-                              title="Copy access key"
-                            >
-                              Copy key
-                            </button>
-                          )}
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: conn.status === 'error' ? '#ef4444' : '#22c55e', flexShrink: 0 }} />
-                        </div>
-                      )) : (
-                        <div style={{ padding: '8px 16px', fontSize: 13, color: '#3f3f46' }}>No access points yet</div>
-                      )}
-                    </div>
-                    {/* CLI + MUT Protocol */}
-                    <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                      {connectMethods.map(m => (
-                        <div
-                          key={m.label}
-                          style={{ padding: '8px 16px', cursor: 'pointer' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                          onClick={() => navigator.clipboard.writeText(m.cmd)}
-                        >
-                          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>{m.label}</div>
-                          <div style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                            borderRadius: 4, padding: '6px 10px',
-                          }}>
-                            <code style={{ fontSize: 12, color: '#c9d1d9', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {m.cmd}
-                            </code>
-                            <svg width="12" height="12" viewBox="0 0 16 16" fill="#52525b" style={{ flexShrink: 0 }}><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div
-                      style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#58a6ff', fontSize: 13, fontWeight: 500 }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
-                    >
-                      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
-                      Create new access point
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Inline status text */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 12, fontSize: 13, color: '#52525b' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: connections.some(c => c.status === 'error') ? '#ef4444' : '#22c55e', display: 'inline-block' }} />
+        {/* Header - Spans full width */}
+        <div style={{ marginBottom: 32, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingBottom: 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <h1 style={{ fontSize: 24, fontWeight: 600, color: '#e4e4e7', margin: 0, lineHeight: 1 }}>
+              {dashboard.project.name}
+            </h1>
+            {/* Inline status text moved to Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#666' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: connections.some(c => c.status === 'error') ? '#ef4444' : '#22c55e', display: 'inline-block' }} />
                 {connections.some(c => c.status === 'error') ? 'Unhealthy' : 'Active'}
               </span>
-              <span style={{ color: '#3f3f46' }}>·</span>
-              <span style={{ cursor: 'pointer' }} onClick={() => router.push(`/projects/${projectId}/history`)}>
-                <span style={{ color: '#8b949e', fontWeight: 500 }}>{latestCommit ? `v${latestCommit.version}` : '—'}</span> · {historyData?.total || 0} versions
+              <span style={{ color: '#333' }}>·</span>
+              <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => router.push(`/projects/${projectId}/history`)}>
+                <span style={{ color: '#888', fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace' }}>{latestCommit ? `v${latestCommit.version}` : '—'}</span>
+                <span>·</span>
+                <span>{historyData?.total || 0} versions</span>
               </span>
-              <span style={{ color: '#3f3f46' }}>·</span>
-              <span style={{ cursor: 'pointer' }} onClick={() => router.push(`/projects/${projectId}/access`)}>
-                <span style={{ color: '#8b949e', fontWeight: 500 }}>{connections.length}</span> access points
+              <span style={{ color: '#333' }}>·</span>
+              <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => router.push(`/projects/${projectId}/access`)}>
+                <span style={{ color: '#888' }}>{connections.length}</span>
+                <span>access points</span>
               </span>
               {latestCommit && (
                 <>
-                  <span style={{ color: '#3f3f46' }}>·</span>
+                  <span style={{ color: '#333' }}>·</span>
                   <span>{formatRelative(latestCommit.created_at)}</span>
                 </>
               )}
             </div>
+            
+            {/* Project ID */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <span style={{ fontSize: 12, color: '#555', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{projectId}</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(projectId)}
+                style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                title="Copy project ID"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
+              </button>
+            </div>
           </div>
 
-          {/* File Box */}
-          <div style={{ border: '1px solid rgba(255,255,255,0.15)', borderRadius: 6, overflow: 'hidden', marginBottom: 24 }}>
-            
-            {/* Latest Commit Header */}
-            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                {latestCommit ? (
-                  <>
-                    <ProviderAvatar provider={latestCommit.who === 'system' ? 'agent' : 'filesystem'} size={24} />
-                    <span style={{ fontWeight: 600, color: '#c9d1d9', fontSize: 14 }}>{latestCommit.who}</span>
-                    <span style={{ color: '#8b949e', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {latestCommit.message || `v${latestCommit.version}`}
-                    </span>
-                  </>
-                ) : (
-                  <span style={{ color: '#8b949e', fontSize: 14 }}>No commits yet</span>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0, fontSize: 14 }}>
-                {latestCommit && (
-                  <>
-                    <span style={{ color: '#8b949e', fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace' }}>{latestCommit.root_hash.substring(0, 7)}</span>
-                    <span style={{ color: '#8b949e' }}>{formatRelative(latestCommit.created_at)}</span>
-                  </>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#c9d1d9', fontWeight: 600, cursor: 'pointer' }} onClick={() => router.push(`/projects/${projectId}/history`)}>
-                  <svg color="#8b949e" fill="currentColor" width="16" height="16" viewBox="0 0 16 16"><path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5h-3.32Zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0Z"></path></svg>
-                  <strong>{historyData?.total || 0}</strong> <span style={{ color: '#8b949e', fontWeight: 400 }}>Commits</span>
+          {/* Connect dropdown (Unchanged, just moved up) */}
+          <div style={{ position: 'relative', flexShrink: 0 }} ref={connectDropdownRef}>
+            <button
+              onClick={() => setConnectOpen(!connectOpen)}
+              style={{
+                background: '#22c55e', border: 'none', borderRadius: 6,
+                padding: '8px 16px', cursor: 'pointer', color: '#fff',
+                fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              Connect <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg>
+            </button>
+            {connectOpen && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, width: 400, background: '#161618', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>
+                  Connect to this ContextBase
                 </div>
-              </div>
-            </div>
-
-            {/* File Rows */}
-            {files.length === 0 ? (
-              <div style={{ padding: '32px', textAlign: 'center', color: '#8b949e', fontSize: 14 }}>
-                This repository is empty.
-              </div>
-            ) : (
-              files.map((node: NodeInfo, i: number) => (
+                {/* Access points first */}
+                <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ padding: '4px 16px 6px', fontSize: 11, color: '#52525b', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}>Access Points</div>
+                  {connections.length > 0 ? connections.map(conn => (
+                    <div
+                      key={conn.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
+                    >
+                      <ProviderAvatar provider={conn.provider} size={22} icon={(conn as any).icon} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: '#c9d1d9', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
+                        </div>
+                      </div>
+                      {conn.access_key && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(conn.access_key!); }}
+                          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 6px', color: '#52525b', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
+                          title="Copy access key"
+                        >
+                          Copy key
+                        </button>
+                      )}
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: conn.status === 'error' ? '#ef4444' : '#22c55e', flexShrink: 0 }} />
+                    </div>
+                  )) : (
+                    <div style={{ padding: '8px 16px', fontSize: 13, color: '#3f3f46' }}>No access points yet</div>
+                  )}
+                </div>
+                {/* CLI + MUT Protocol */}
+                <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  {connectMethods.map(m => (
+                    <div
+                      key={m.label}
+                      style={{ padding: '8px 16px', cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      onClick={() => navigator.clipboard.writeText(m.cmd)}
+                    >
+                      <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>{m.label}</div>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                        borderRadius: 4, padding: '6px 10px',
+                      }}>
+                        <code style={{ fontSize: 12, color: '#c9d1d9', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.cmd}
+                        </code>
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="#52525b" style={{ flexShrink: 0 }}><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 <div
-                  key={node.path}
-                  onClick={() => router.push(`/projects/${projectId}/data/${node.path}`)}
-                  style={{
-                    display: 'flex', alignItems: 'center', padding: '8px 16px', cursor: 'pointer',
-                    borderBottom: i < files.length - 1 ? '1px solid rgba(255,255,255,0.15)' : 'none',
-                    background: '#0e0e0e'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                  onMouseLeave={e => e.currentTarget.style.background = '#0e0e0e'}
+                  style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#58a6ff', fontSize: 13, fontWeight: 500 }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
                 >
-                  <div style={{ width: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <FileIcon type={node.type} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0, paddingRight: 16 }}>
-                    <span style={{ fontSize: 14, color: '#c9d1d9', textDecoration: 'none' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
-                      {node.name}
-                    </span>
-                  </div>
-                  <div style={{ width: '40%', color: '#8b949e', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {fileLastCommit[node.path]?.message || ''}
-                  </div>
-                  <div style={{ width: 100, textAlign: 'right', color: '#8b949e', fontSize: 14, flexShrink: 0 }}>
-                    {formatRelative(fileLastCommit[node.path]?.created_at)}
-                  </div>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
+                  Create new access point
                 </div>
-              ))
+              </div>
             )}
           </div>
+        </div>
+
+        {/* Two-column Layout Below Header */}
+        <div style={{ display: 'flex', gap: 40, width: '100%' }}>
+          
+          {/* Left Column: Files */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* File Box */}
+            <div className="mb-24 w-full bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl relative overflow-hidden" style={{ minHeight: 300 }}>
+              {/* Subtle top glare line */}
+              <div className="absolute top-0 left-0 right-0 h-px bg-[linear-gradient(to_right,transparent_0%,rgba(255,255,255,0.05)_10%,rgba(255,255,255,0.05)_90%,transparent_100%)] pointer-events-none z-20" />
+              
+              {/* Data Header */}
+              <div className="h-[40px] min-h-[40px] shrink-0 flex items-center justify-between px-4 border-b border-white/[0.06] bg-[#0e0e0e] relative z-10">
+                <div className="text-[13px] font-medium text-[#71717a] m-0 flex items-center gap-2">Data</div>
+                
+                {latestCommit && (
+                  <div 
+                    className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                    onClick={() => router.push(`/projects/${projectId}/history`)}
+                  >
+                    <span className="text-[12px] text-[#71717a] truncate max-w-[400px] text-right group-hover:text-[#a1a1aa] transition-colors">
+                      {latestCommit.message || `v${latestCommit.version}`}
+                    </span>
+                    <div className="w-px h-3 bg-[#333] mx-1" />
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-4 h-4 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[9px] font-bold text-[#888] flex-shrink-0">
+                        {latestCommit.author_name?.[0]?.toUpperCase() || 'U'}
+                      </div>
+                      <span className="text-[12px] font-medium text-[#a1a1aa] whitespace-nowrap">{latestCommit.author_name || 'User'}</span>
+                    </div>
+                    <div className="w-px h-3 bg-[#333] mx-1" />
+                    <div className="text-[12px] text-[#71717a] whitespace-nowrap flex-shrink-0 font-mono group-hover:text-[#a1a1aa] transition-colors">
+                      {formatRelative(latestCommit.created_at)}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* File Rows (Grid View) */}
+              <div className="p-8">
+                {files.length === 0 ? (
+                  <div style={{ padding: '64px 32px', textAlign: 'center', color: '#555', fontSize: 14 }}>
+                    Empty project
+                  </div>
+                ) : (
+                  <div className="grid gap-x-2 gap-y-2 w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
+                    {files.map((node: NodeInfo, i: number) => (
+                      <div
+                        key={node.path}
+                        onClick={() => router.push(`/projects/${projectId}/data/${node.path}`)}
+                        className="flex flex-col items-center justify-center gap-1.5 cursor-pointer group/file p-3 rounded-xl hover:bg-[#1a1a1a] transition-colors aspect-square relative"
+                      >
+                        <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover/file:opacity-100 transition-opacity drop-shadow-sm relative">
+                          <Image
+                            src={getFileIcon(node.type)}
+                            alt={node.type}
+                            width={56}
+                            height={56}
+                          />
+                          {node.type === 'folder' && node.children_count != null && node.children_count > 0 && (
+                            <div style={{
+                              position: 'absolute',
+                              bottom: 0,
+                              right: -4,
+                              background: '#3f3f46',
+                              border: '1px solid #52525b',
+                              borderRadius: 8,
+                              padding: '1px 5px',
+                              fontSize: 10,
+                              fontWeight: 600,
+                              color: '#a1a1aa',
+                              lineHeight: '14px',
+                              minWidth: 18,
+                              textAlign: 'center',
+                            }}>
+                              {node.children_count}
+                            </div>
+                          )}
+                        </div>
+                        <span className="text-[13px] text-center truncate w-full text-[#999] group-hover/file:text-[#eee] transition-colors font-medium">
+                          {node.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
 
         </div>
@@ -564,83 +583,90 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
         {/* Right Sidebar */}
         <div style={{ width: 296, flexShrink: 0 }}>
           
-          {/* History Preview (timeline tree) */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#c9d1d9', margin: 0 }}>
-                History <span style={{ background: 'rgba(110,118,129,0.4)', color: '#c9d1d9', borderRadius: 10, padding: '2px 8px', fontSize: 12, marginLeft: 4, fontWeight: 500 }}>{historyData?.total || 0}</span>
-              </h2>
-              <span onClick={() => router.push(`/projects/${projectId}/history`)} style={{ fontSize: 12, color: '#58a6ff', cursor: 'pointer' }}>View all</span>
+          {/* History Module */}
+          <div className="bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl mb-6 overflow-hidden">
+            <div className="h-[40px] min-h-[40px] shrink-0 flex items-center justify-between px-4 border-b border-white/[0.06] bg-[#0e0e0e] relative z-10">
+              <div className="text-[13px] font-medium text-[#71717a] m-0 flex items-center gap-2">
+                History <span className="bg-[#1c1c1c] text-[#71717a] rounded px-1.5 py-0.5 text-[10px] font-bold border border-[#333] leading-none">{historyData?.total || 0}</span>
+              </div>
+              <span onClick={() => router.push(`/projects/${projectId}/history`)} className="text-[12px] text-[#71717a] cursor-pointer font-medium hover:text-[#a1a1aa] transition-colors">View all</span>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div className="p-6">
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
               {[...commits].reverse().slice(0, 5).map((commit, i) => {
                 const isLast = i === Math.min(commits.length, 5) - 1;
                 const isHead = i === 0;
                 return (
-                  <div key={`v${commit.version}`} style={{ display: 'flex', gap: 10, cursor: 'pointer' }} onClick={() => router.push(`/projects/${projectId}/history`)}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: isHead ? '#22c55e' : '#0e0e0e', border: `2px solid ${isHead ? '#22c55e' : '#3f3f46'}`, zIndex: 1, flexShrink: 0, marginTop: 3 }} />
+                  <div key={`v${commit.version}`} style={{ display: 'flex', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '0 -8px', borderRadius: 8, position: 'relative' }} onClick={() => router.push(`/projects/${projectId}/history`)} className="group hover:bg-[#1a1a1a] transition-colors">
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0, marginTop: 4, position: 'relative', zIndex: 1 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: isHead ? '#22c55e' : '#1c1c1c', border: `2px solid ${isHead ? '#22c55e' : '#333'}`, zIndex: 2, flexShrink: 0 }} className="group-hover:border-[#555] transition-colors" />
                       {!isLast && (
-                        <div style={{ width: 2, flex: 1, background: '#3f3f46' }} />
+                        <div style={{ position: 'absolute', top: 8, bottom: -20, width: 2, background: '#1c1c1c', zIndex: 1 }} className="group-hover:bg-[#333] transition-colors" />
                       )}
                     </div>
-                    <div style={{ flex: 1, paddingBottom: isLast ? 0 : 8, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, color: '#c9d1d9', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ flex: 1, paddingBottom: 6, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: isHead ? '#ccc' : '#888', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="group-hover:text-[#eee] transition-colors font-medium">
                         {commit.message || `v${commit.version}`}
                       </div>
-                      <div style={{ fontSize: 12, color: '#52525b', marginTop: 1 }}>{formatRelative(commit.created_at)}</div>
+                      <div style={{ fontSize: 11, color: '#555', marginTop: 2 }} className="group-hover:text-[#888] transition-colors">{formatRelative(commit.created_at)}</div>
                     </div>
                   </div>
                 );
               })}
               {commits.length === 0 && (
-                <div style={{ fontSize: 13, color: '#8b949e' }}>No commits yet</div>
+                <div style={{ fontSize: 13, color: '#555' }}>No commits yet</div>
               )}
+            </div>
+
+            {/* Commit Activity Chart */}
+            {commitBuckets.length > 1 && (
+              <div className="mt-12">
+                <ActivityChart buckets={commitBuckets} />
+              </div>
+            )}
             </div>
           </div>
 
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', margin: '16px 0' }}></div>
-
-          {/* Commit Activity Chart */}
-          {commitBuckets.length > 1 && <ActivityChart buckets={commitBuckets} />}
-
-          <div style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', margin: '16px 0' }}></div>
-
-          {/* Access Points */}
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, color: '#c9d1d9', margin: 0, display: 'flex', alignItems: 'center' }}>
-                Access Points <span style={{ background: 'rgba(110,118,129,0.4)', color: '#c9d1d9', borderRadius: 10, padding: '2px 8px', fontSize: 12, marginLeft: 8, fontWeight: 500 }}>{connections.length}</span>
-              </h2>
-              <span onClick={() => router.push(`/projects/${projectId}/access`)} style={{ fontSize: 12, color: '#58a6ff', cursor: 'pointer' }}>Manage</span>
+          {/* Access Points Module */}
+          <div className="bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl overflow-hidden">
+            <div className="h-[40px] min-h-[40px] shrink-0 flex items-center justify-between px-4 border-b border-white/[0.06] bg-[#0e0e0e] relative z-10">
+              <div className="text-[13px] font-medium text-[#71717a] m-0 flex items-center gap-2">
+                Access Points <span className="bg-[#1c1c1c] text-[#71717a] rounded px-1.5 py-0.5 text-[10px] font-bold border border-[#333] leading-none">{connections.length}</span>
+              </div>
+              <span onClick={() => router.push(`/projects/${projectId}/access`)} className="text-[12px] text-[#71717a] cursor-pointer font-medium hover:text-[#a1a1aa] transition-colors">Manage</span>
             </div>
             
+            <div className="p-5">
             {connections.length === 0 ? (
-              <div style={{ fontSize: 13, color: '#8b949e' }}>No access points configured.</div>
+              <div style={{ fontSize: 13, color: '#555' }}>No access points configured.</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {connections.map(conn => {
                   const statusColor = conn.status === 'error' ? '#ef4444' : conn.status === 'paused' ? '#eab308' : conn.status === 'syncing' ? '#3b82f6' : '#22c55e';
                   return (
-                    <div key={conn.id} onClick={() => router.push(`/projects/${projectId}/access`)} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '4px 0' }}>
-                      <ProviderAvatar provider={conn.provider} size={28} icon={(conn as any).icon} />
+                    <div key={conn.id} onClick={() => router.push(`/projects/${projectId}/access`)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '-6px -8px', borderRadius: 8 }} className="hover:bg-[#1a1a1a] transition-colors group">
+                      <div className="opacity-80 group-hover:opacity-100 transition-opacity">
+                        <ProviderAvatar provider={conn.provider} size={28} icon={(conn as any).icon} />
+                      </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: '#c9d1d9', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ fontSize: 13, color: '#888', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="group-hover:text-[#ccc] transition-colors">
                           {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
                         </div>
-                        <div style={{ fontSize: 12, color: '#8b949e' }}>
+                        <div style={{ fontSize: 11, color: '#555' }} className="group-hover:text-[#666] transition-colors">
                           {PROVIDER_LABELS[conn.provider] || conn.provider}
                         </div>
                       </div>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0 }} />
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0, boxShadow: `0 0 8px ${statusColor}40` }} />
                     </div>
                   );
                 })}
               </div>
             )}
+            </div>
           </div>
 
         </div>
+      </div>
       </div>
       </div>
     </div>
