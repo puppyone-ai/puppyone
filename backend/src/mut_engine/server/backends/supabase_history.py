@@ -106,15 +106,41 @@ class SupabaseHistoryManager:
     def _upsert_scope_state(self, scope_path: str, *,
                             version: int | None = None,
                             scope_hash: str | None = None) -> None:
-        """Insert or update the scope state row."""
+        """Insert or update the scope state row.
+
+        Reads the existing row first and merges fields to avoid clobbering
+        previously-set values (e.g. set_scope_version followed by
+        set_scope_hash in the same push).
+        """
+        # Read current state so we can merge rather than overwrite
+        existing: dict = {}
+        try:
+            resp = (
+                self._client.table(self.SCOPE_STATE_TABLE)
+                .select("version, scope_hash")
+                .eq("project_id", self._project_id)
+                .eq("scope_path", scope_path)
+                .maybe_single()
+                .execute()
+            )
+            existing = resp.data or {} if resp and hasattr(resp, "data") else {}
+        except Exception:
+            pass
+
         data: dict = {
             "project_id": self._project_id,
             "scope_path": scope_path,
         }
+        # Merge: use new value if provided, else keep existing
         if version is not None:
             data["version"] = version
+        elif existing.get("version") is not None:
+            data["version"] = existing["version"]
+
         if scope_hash is not None:
             data["scope_hash"] = scope_hash
+        elif existing.get("scope_hash"):
+            data["scope_hash"] = existing["scope_hash"]
 
         try:
             self._client.table(self.SCOPE_STATE_TABLE).upsert(
@@ -122,11 +148,13 @@ class SupabaseHistoryManager:
             ).execute()
         except Exception:
             # Fallback: try insert, then update on conflict
+            update_data = {k: v for k, v in data.items()
+                          if k not in ("project_id", "scope_path")}
             try:
                 self._client.table(self.SCOPE_STATE_TABLE).insert(data).execute()
             except Exception:
                 self._client.table(self.SCOPE_STATE_TABLE).update(
-                    {k: v for k, v in data.items() if k not in ("project_id", "scope_path")}
+                    update_data
                 ).eq("project_id", self._project_id).eq(
                     "scope_path", scope_path
                 ).execute()

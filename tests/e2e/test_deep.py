@@ -285,23 +285,9 @@ def test_ap_revoke(t: T, ctx: Ctx):
     if not ap_key:
         return
 
-    # AP works (clone) — direct provider may fail with JSON parse error (known issue)
+    # AP clone
     code, body = _ap_post(ctx.api, ap_key, "clone")
-    if code != 200:
-        t.skip("AP clone before revoke", f"Direct provider clone not supported: {json.dumps(body)[:100]}")
-        # Test revoke/reactivate via API only (without clone verification)
-        code, body = t.patch(f"/api/v1/access/{ap_id}", {"status": "inactive"})
-        if code == 200:
-            t.check("Revoke AP (set inactive)", True)
-        else:
-            t.skip("Revoke AP", f"PATCH {code} — org_members RLS may block")
-        code, body = t.patch(f"/api/v1/access/{ap_id}", {"status": "active"})
-        t.check("Re-activate AP", code in (200, 403, 500))
-        sb.table("access_points").delete().eq("id", ap_id).execute()
-        t.check("Delete AP (via DB)", True)
-        return
-
-    t.check("AP works before revoke", code == 200)
+    t.check("AP works before revoke", code == 200, json.dumps(body)[:150])
 
     # Revoke via API (set status=inactive)
     code, body = t.patch(f"/api/v1/access/{ap_id}", {"status": "inactive"})
@@ -434,14 +420,8 @@ def test_scope_nesting(t: T, ctx: Ctx):
     # Clone via same ROOT AP that pushed
     code, body = _ap_post(ctx.api, root_key, "clone")
     root_files = list(body.get("files", {}).keys())
-    if root_files:
-        t.check("Root clone: has files after push", len(root_files) >= 4, f"files={root_files}")
-        t.check("Root clone: has deep.txt", any("deep" in f for f in root_files), f"files={root_files}")
-    else:
-        # Known issue: newly created AP's clone may return empty after push
-        # because scope_state initialization is incomplete
-        t.skip("Root clone files", "Clone returns empty after push (known scope_state init issue)")
-        t.skip("Root clone deep.txt", "Same as above")
+    t.check("Root clone: has files after push", len(root_files) >= 4, f"files={root_files}")
+    t.check("Root clone: has deep.txt", any("deep" in f for f in root_files), f"files={root_files}")
 
     # Clone via SCOPED AP — scope was just created, needs content pushed via this scope first
     # Push via scoped AP so it has its own scope tree
@@ -462,12 +442,8 @@ def test_scope_nesting(t: T, ctx: Ctx):
     # Now clone scoped AP
     code, body = _ap_post(ctx.api, scoped_key, "clone")
     files_list = list(body.get("files", {}).keys())
-    if files_list:
-        t.check("Scoped clone: has b/c/deep.txt", any("deep" in f for f in files_list), f"files={files_list}")
-        t.check("Scoped clone: has b/shared.txt", any("shared" in f for f in files_list), f"files={files_list}")
-    else:
-        t.skip("Scoped clone files", "Clone returns empty after push (known scope_state init issue)")
-        t.skip("Scoped clone shared", "Same as above")
+    t.check("Scoped clone: has b/c/deep.txt", any("deep" in f for f in files_list), f"files={files_list}")
+    t.check("Scoped clone: has b/shared.txt", any("shared" in f for f in files_list), f"files={files_list}")
     t.check("Scoped clone: NO secret files", not any("secret" in f or "key" in f for f in files_list),
             f"files={files_list}")
     t.check("Scoped clone: NO public/", not any("public" in f for f in files_list), f"files={files_list}")

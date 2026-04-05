@@ -165,12 +165,18 @@ class PuppyOneServerRepo:
         """Walk the Merkle tree in S3 to reconstruct scope files.
 
         Prefers scope_hash for the current scope state, falls back to
-        global root_hash + tree navigation for backwards compatibility.
+        the latest history entry's scope_hash, then to global root_hash
+        + tree navigation for backwards compatibility.
         """
         scope_path = normalize_path(scope.get("path", ""))
 
         # Try scope_hash first (new per-scope versioning)
         scope_hash = self.get_scope_hash(scope_path)
+        if scope_hash and self.store.exists(scope_hash):
+            return self._files_from_tree(scope_hash, scope_path, scope)
+
+        # Fallback: check the latest history entry for this scope's hash
+        scope_hash = self._scope_hash_from_history(scope_path)
         if scope_hash and self.store.exists(scope_hash):
             return self._files_from_tree(scope_hash, scope_path, scope)
 
@@ -229,6 +235,11 @@ class PuppyOneServerRepo:
         if scope_hash and self.store.exists(scope_hash):
             return scope_hash
 
+        # Fallback: check history entry for scope_hash
+        scope_hash = self._scope_hash_from_history(scope_path)
+        if scope_hash and self.store.exists(scope_hash):
+            return scope_hash
+
         root_hash = self.get_scope_hash("") or self.get_root_hash()
         if not root_hash:
             return self.store.put(json.dumps({}, sort_keys=True).encode())
@@ -263,6 +274,29 @@ class PuppyOneServerRepo:
         return self.store.put(json.dumps({}, sort_keys=True).encode())
 
     # ── Internal helpers ──
+
+    def _scope_hash_from_history(self, scope_path: str) -> str:
+        """Look up the scope_hash from the most recent history entry for this scope.
+
+        This acts as a fallback when mut_scope_state is missing or stale
+        (e.g. first push on a new scope where the upsert partially failed).
+        """
+        try:
+            latest_ver = self.get_latest_version()
+            if latest_ver <= 0:
+                return ""
+            # Walk backwards from latest to find an entry with scope_hash
+            for v in range(latest_ver, max(latest_ver - 10, 0), -1):
+                entry = self.history.get_entry(v)
+                if not entry:
+                    continue
+                entry_scope = entry.get("scope_path", "")
+                entry_hash = entry.get("scope_hash", "")
+                if entry_hash and (not scope_path or entry_scope == scope_path):
+                    return entry_hash
+        except Exception:
+            pass
+        return ""
 
     def _navigate_to_subtree(self, tree_hash: str, scope_path: str) -> str | None:
         parts = scope_path.split("/") if scope_path else []
