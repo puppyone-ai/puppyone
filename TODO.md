@@ -10,7 +10,10 @@
 
 - [ ] **Content write 不更新 root_hash** — content write API 创建的 commit 没有 root_hash，导致 diff/version-content/pull-version 无法正常工作。需要让 content write 在每次写入后同步更新 projects.mut_root_hash 和 mut_commits.root_hash
 - [ ] **Content rollback 不恢复文件内容** — rollback 创建了新版本号但实际文件内容未回滚到目标版本的 Merkle tree 状态
-- [ ] **POST /api/v1/access/ 创建非 filesystem 类型** — filesystem 已修，但 agent/mcp/sandbox 通过统一 API 创建可能仍有问题
+- [ ] **POST /api/v1/access/ 创建非 filesystem 类型** — agent/sandbox 通过统一 API 创建成功 ✅，但通过 API 创建的 filesystem AP clone 报 "Expecting value" JSON parse error
+- [ ] **Direct provider AP clone 失败** — `provider: "direct"` 的 AP 创建成功但 clone 返回 JSON parse error（`_invoke` 可能不支持 direct provider）
+- [ ] **MUT push 成功但 clone 返回空** — 新创建的 AP push 后 clone 返回空文件列表。push 更新了 scope_hash 但 clone 读 list_scope_files 找不到。可能是 scope_state 表未初始化
+- [ ] **Project member role 不执行** — 添加 viewer/editor 后，系统只检查 org_members 不检查 project_members 的 role，所以 viewer 也能写
 - [ ] **content write 的 .json 后缀** — 非 JSON 文件被自动加 `.json` 后缀（`hello.md` → `hello.md.json`），需评估是否为预期行为
 - [ ] **auth/config 端点 500** — Railway 缺 `SUPABASE_ANON_KEY` 环境变量（运维配置）
 
