@@ -130,7 +130,10 @@ async def ap_clone(access_key: str, request: Request):
     """Clone via Access Point URL."""
     try:
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
-        body = await request.json()
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
         result = await asyncio.to_thread(
             _invoke, handle_clone, repo_manager, project_id, auth, body,
         )
