@@ -14,7 +14,7 @@ const MilkdownEditor = dynamic(() => import('./MilkdownEditor'), {
       alignItems: 'center',
       justifyContent: 'center',
       color: '#525252',
-      background: '#0a0a0a',
+      background: '#0e0e0e',
     }}>
       Loading editor...
     </div>
@@ -50,7 +50,7 @@ const DARK_THEME_CONFIG = {
     { token: 'markup.list', foreground: 'f97316' },
   ],
   colors: {
-    'editor.background': '#0a0a0a',
+    'editor.background': '#0e0e0e',
     'editor.foreground': '#d4d4d4',
     'editor.lineHighlightBackground': '#141414',
     'editor.selectionBackground': '#3f3f46',
@@ -124,7 +124,7 @@ export function MarkdownEditor({
         height: '100%',
         width: '100%',
         position: 'relative',
-        background: '#0a0a0a',
+        background: '#0e0e0e',
       }}
     >
       {/* WYSIWYG Mode - Milkdown */}

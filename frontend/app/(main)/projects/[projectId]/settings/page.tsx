@@ -155,7 +155,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   if (!currentProject) return null;
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#09090b', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#0e0e0e', overflow: 'hidden' }}>
 
       <div style={{
         height: 40, minHeight: 40,
@@ -410,7 +410,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 }
 
 const sectionTitle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#a1a1aa', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' };
-const cardBox: React.CSSProperties = { border: '1px solid #27272a', borderRadius: 8, overflow: 'hidden', background: '#09090b', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' };
+const cardBox: React.CSSProperties = { border: '1px solid #27272a', borderRadius: 8, overflow: 'hidden', background: '#0a0a0a', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' };
 const row: React.CSSProperties = { padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' };
 const labelStyle: React.CSSProperties = { display: 'block', fontSize: 14, fontWeight: 500, color: '#e4e4e7', marginBottom: 4 };
 const descStyle: React.CSSProperties = { fontSize: 13, color: '#71717a', lineHeight: 1.5 };

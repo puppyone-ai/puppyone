@@ -673,7 +673,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#09090b', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#0e0e0e', overflow: 'hidden' }}>
       
       {/* Header */}
       <div style={{ 
@@ -691,7 +691,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
         display: 'flex', 
         alignItems: 'center',
         gap: 16,
-        background: '#0a0a0a',
+        background: '#0e0e0e',
         overflowX: 'auto',
         whiteSpace: 'nowrap',
       }}>

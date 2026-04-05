@@ -314,7 +314,7 @@ function VerticalCommitNode({
             cx={LINE_X}
             cy={ROW_HEIGHT / 2}
             r={3}
-            fill={isSelected ? currentInfo.color : (isSelected ? '#2a2a2a' : hovered ? '#1e1e1e' : '#09090b')}
+            fill={isSelected ? currentInfo.color : (isSelected ? '#2a2a2a' : hovered ? '#1e1e1e' : '#0e0e0e')}
             stroke={activeColor}
             strokeWidth={1.5}
             style={{ transition: 'all 0.2s' }}
@@ -459,7 +459,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   const headVersion = commits.length > 0 ? commits[commits.length - 1].version : 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#09090b' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#0e0e0e' }}>
 
       {/* ── Header ── */}
       <div style={{
@@ -524,11 +524,11 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       {!isLoading && !error && commits.length > 0 && (
         <div className="flex flex-1 min-h-0">
           {/* Left: Timeline List */}
-          <div className="w-[340px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#09090b] z-10 shadow-[4px_0_24px_rgba(0,0,0,0.2)]">
+          <div className="w-[340px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#0e0e0e] z-10">
             
             {/* Filter Header */}
             {accessPoints.length > 1 && (
-              <div className="flex flex-col border-b border-white/[0.04] bg-[#09090b]">
+              <div className="flex flex-col border-b border-white/[0.04] bg-[#0e0e0e]">
                 {/* Access Point Tabs */}
                 <div className="px-3 py-3 flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
                   <button
@@ -579,7 +579,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
           </div>
 
           {/* Right: Detail panel: commit info + file tree */}
-          <div className="flex-1 overflow-auto bg-[#09090b]">
+          <div className="flex-1 overflow-auto bg-[#0e0e0e]">
             {selectedCommit ? (
               <div className="p-6 md:p-8 max-w-5xl mx-auto">
                 {/* Commit info header */}
@@ -628,7 +628,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                 </div>
 
                 {/* File changes tree */}
-                <div className="bg-[#0c0c0e] border border-white/[0.08] rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-[#0a0a0a] border border-white/[0.08] rounded-xl overflow-hidden shadow-sm">
                   <div className="px-4 py-3 border-b border-white/[0.04] flex items-center gap-2 bg-white/[0.01]">
                     <span className="text-xs font-medium text-zinc-300">
                       Changed files

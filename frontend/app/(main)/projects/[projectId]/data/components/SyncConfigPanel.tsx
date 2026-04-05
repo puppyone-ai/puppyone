@@ -386,7 +386,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
           <div style={{ 
             padding: '12px', 
             borderTop: '1px solid rgba(255,255,255,0.06)',
-            background: '#09090b',
+            background: '#0e0e0e',
             flexShrink: 0
           }}>
             <button
@@ -463,7 +463,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
           <div style={{ 
             padding: '12px', 
             borderTop: '1px solid rgba(255,255,255,0.06)',
-            background: '#09090b',
+            background: '#0e0e0e',
             flexShrink: 0
           }}>
             <button
@@ -511,7 +511,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             <div style={{ 
               padding: '12px', 
               borderTop: '1px solid rgba(255,255,255,0.06)',
-              background: '#09090b',
+              background: '#0e0e0e',
               flexShrink: 0
             }}>
               <button
@@ -556,7 +556,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
         <div style={{ 
           padding: '12px', 
           borderTop: '1px solid rgba(255,255,255,0.06)',
-          background: '#09090b', // Match panel background to prevent transparency issues when scrolling
+          background: '#0e0e0e', // Match panel background to prevent transparency issues when scrolling
           flexShrink: 0
         }}>
           {deployError && (
