@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useState, useRef, useEffect, useMemo, memo } from 'react';
 import type { ContentType } from './GridView';
 import { getNodeTypeConfig, getSyncSourceIcon, getSyncSource, isSyncedType } from '@/lib/nodeTypeConfig';
 import { useContentNodes, useShallowTree } from '@/lib/hooks/useData';
@@ -9,11 +9,15 @@ import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 
 // === Persistent expanded state (survives component re-mounts) ===
 const expandedSet = new Set<string>();
-const listeners = new Set<() => void>();
+const expandedListeners = new Set<() => void>();
 
-function subscribe(cb: () => void) {
-  listeners.add(cb);
-  return () => listeners.delete(cb);
+function expandedSubscribe(cb: () => void) {
+  expandedListeners.add(cb);
+  return () => expandedListeners.delete(cb);
+}
+
+function notifyExpanded() {
+  expandedListeners.forEach(cb => cb());
 }
 
 function toggleExpanded(id: string) {
@@ -22,19 +26,34 @@ function toggleExpanded(id: string) {
   } else {
     expandedSet.add(id);
   }
-  listeners.forEach(cb => cb());
+  notifyExpanded();
 }
 
 export function ensureExpanded(id: string) {
   if (!expandedSet.has(id)) {
     expandedSet.add(id);
-    listeners.forEach(cb => cb());
+    notifyExpanded();
   }
 }
 
-function useExpandedFolders() {
-  const snap = useSyncExternalStore(subscribe, () => expandedSet.size, () => expandedSet.size);
-  return { isExpanded: (id: string) => expandedSet.has(id), version: snap };
+function ensureExpandedBatch(ids: string[]) {
+  let changed = false;
+  for (const id of ids) {
+    if (!expandedSet.has(id)) {
+      expandedSet.add(id);
+      changed = true;
+    }
+  }
+  if (changed) notifyExpanded();
+}
+
+/**
+ * Per-ID selective subscription: only re-renders when THIS folder's
+ * expanded state actually changes, not when any other folder toggles.
+ */
+function useIsExpanded(id: string): boolean {
+  const getSnapshot = useCallback(() => expandedSet.has(id), [id]);
+  return useSyncExternalStore(expandedSubscribe, getSnapshot, getSnapshot);
 }
 
 // === Pending active ID store (instant sidebar highlight, survives remounts) ===
@@ -557,13 +576,11 @@ interface TreeItemProps {
   highlightNodeId?: string | null;
 }
 
-function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, syncEndpoints, nodeEndpointMap, highlightNodeId }: TreeItemProps) {
+const TreeItem = memo(function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, syncEndpoints, nodeEndpointMap, highlightNodeId }: TreeItemProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
   const syncEndpoint = syncEndpoints?.get(item.id);
-  const { isExpanded } = useExpandedFolders();
-  const expanded = isFolder && isExpanded(item.id);
-  const [hovered, setHovered] = useState(false);
+  const expanded = useIsExpanded(item.id) && isFolder;
   const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
   const isHighlighted = highlightNodeId === item.id;
@@ -587,34 +604,33 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isFolder) {
-      toggleExpanded(item.id);
-    } else {
-      onNavigate(item);
-    }
+    if (isFolder) ensureExpanded(item.id);
+    onNavigate(item);
   }, [isFolder, item, onNavigate]);
+
+  const handleToggleExpand = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    toggleExpanded(item.id);
+  }, [item.id]);
 
   const isActive = activeId === item.id;
   const rowPaddingLeft = 8 + (depth * 16);
-  // childTextPadding aligns the "Empty/Loading" with child row text.
   const childTextPadding = rowPaddingLeft + 22;
 
   const isSyncActive = activeSyncNodeId === item.id;
-  const isEndpointActive = isSyncActive;
-  const isRowActive = isActive || isEndpointActive;
-  const getBackground = (h: boolean) => {
-    if (isDropTarget) return 'rgba(59, 130, 246, 0.2)';
-    if (isHighlighted) return 'rgba(59, 130, 246, 0.15)';
-    if (isRowActive) return '#2a2a2a';
-    return h ? 'rgba(255,255,255,0.06)' : 'transparent';
-  };
+  const isRowActive = isActive || isSyncActive;
 
-  const childItems: MillerColumnItem[] = children.map(n => ({
-    id: n.id, name: n.name, type: n.type as ContentType,
-    is_synced: n.is_synced, sync_source: n.sync_source, last_synced_at: n.last_synced_at,
-  }));
+  const hasSpecialBg = isDropTarget || isHighlighted || isRowActive;
+  const staticBg = isDropTarget ? 'rgba(59, 130, 246, 0.2)' : isHighlighted ? 'rgba(59, 130, 246, 0.15)' : isRowActive ? '#2a2a2a' : 'transparent';
+  const staticColor = isDropTarget ? '#93c5fd' : isRowActive ? '#fff' : '#a1a1aa';
 
-  const showActions = (hovered || menuOpen) && (onCreate || onRename || onDelete);
+  const childItems: MillerColumnItem[] = useMemo(() =>
+    children.map(n => ({
+      id: n.id, name: n.name, type: n.type as ContentType,
+      is_synced: n.is_synced, sync_source: n.sync_source, last_synced_at: n.last_synced_at,
+    })),
+    [children]
+  );
 
   const endpoints = nodeEndpointMap?.get(item.id) || (syncEndpoint ? [syncEndpoint] : []);
   const hasMultipleEndpoints = endpoints.length > 1;
@@ -622,10 +638,13 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
   const [endpointsExpanded, setEndpointsExpanded] = useState(false);
   const [statusHovered, setStatusHovered] = useState(false);
 
+  const hasActions = !!(onCreate || onRename || onDelete);
+
   return (
     <div>
       <div
         ref={rowRef}
+        className={`group/row ${!hasSpecialBg ? 'hover:bg-[rgba(255,255,255,0.06)] hover:text-[#d4d4d4]' : ''}`}
         onClick={handleClick}
         draggable
         onDragStart={(e) => {
@@ -638,21 +657,37 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
           e.dataTransfer.effectAllowed = 'copyMove';
         }}
         {...dropHandlers}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         style={{
           display: 'flex', alignItems: 'center',
           margin: '1px 6px',
           height: 30, boxSizing: 'border-box',
           borderRadius: 6,
-          background: getBackground(hovered),
-          color: isDropTarget ? '#93c5fd' : isRowActive ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
+          background: staticBg,
+          color: staticColor,
           fontSize: 13, userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
           boxShadow: isDropTarget ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)' : 'none',
           cursor: 'pointer',
+          position: 'relative',
         }}
       >
+        {/* Indent Guides */}
+        {depth > 1 && Array.from({ length: depth - 1 }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 32 + i * 16,
+              width: 1,
+              background: 'rgba(255, 255, 255, 0.08)',
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          />
+        ))}
+
         {/* File row content */}
         <div
           style={{
@@ -662,8 +697,29 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, width: 16, height: 16, justifyContent: 'center' }}>
-            {isFolder ? <FolderIcon expanded={expanded} /> : (() => {
+          <div
+            onClick={isFolder ? handleToggleExpand : undefined}
+            style={{
+              display: 'flex', alignItems: 'center', flexShrink: 0,
+              width: 16, height: 16, justifyContent: 'center',
+              position: 'relative',
+            }}
+          >
+            {isFolder ? (
+              <>
+                {/* Default: folder icon — hidden on row hover via CSS */}
+                <div className="flex items-center justify-center group-hover/row:hidden">
+                  <FolderIcon expanded={expanded} />
+                </div>
+                {/* Hover: chevron arrow — shown on row hover via CSS */}
+                <div className="hidden items-center justify-center group-hover/row:flex" style={{ width: 16, height: 16, borderRadius: 3 }}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                    style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}>
+                    <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </>
+            ) : (() => {
               const arrow = getSyncDirectionArrow(item.type);
               if (arrow) {
                 return (
@@ -684,47 +740,36 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
             })()}
           </span>
 
-          {/* Right area — actions only */}
-          <div style={{ 
-            display: 'flex', alignItems: 'center', 
-            justifyContent: 'flex-end', flexShrink: 0, 
-            marginLeft: 'auto',
-          }} onClick={e => e.stopPropagation()}>
-            
-            {/* Actions */}
-            {showActions && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {isFolder && onCreate && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onCreate(e, item.id); }}
-                    title="New item"
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      width: 22, height: 22, borderRadius: 4,
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                      color: '#999', padding: 0, transition: 'background 0.1s',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                  </button>
-                )}
-                {(onRename || onDelete) && (
-                  <ItemContextMenu
-                    itemId={item.id}
-                    itemName={item.name}
-                    isSynced={isSynced}
-                    onRename={onRename}
-                    onDelete={onDelete}
-                    onOpenChange={setMenuOpen}
-                  />
-                )}
-              </div>
-            )}
-          </div>
+          {/* Right area — actions (CSS-controlled visibility, JS override for open menu) */}
+          {hasActions && (
+            <div
+              className={`flex items-center gap-0.5 flex-shrink-0 ml-auto ${menuOpen ? 'visible' : 'invisible group-hover/row:visible'}`}
+              onClick={e => e.stopPropagation()}
+            >
+              {isFolder && onCreate && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onCreate(e, item.id); }}
+                  title="New item"
+                  className="flex items-center justify-center w-[22px] h-[22px] rounded text-[#999] hover:bg-[rgba(255,255,255,0.1)] transition-colors"
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              )}
+              {(onRename || onDelete) && (
+                <ItemContextMenu
+                  itemId={item.id}
+                  itemName={item.name}
+                  isSynced={isSynced}
+                  onRename={onRename}
+                  onDelete={onDelete}
+                  onOpenChange={setMenuOpen}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -745,7 +790,7 @@ function TreeItem({ item, depth, projectId, activeId, onNavigate, onCreate, onRe
       )}
     </div>
   );
-}
+});
 
 // === Main Component ===
 export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNavigate, onCreate, onRename, onDelete, onMoveNode, onSyncClick, onEndpointClick, activeSyncNodeId, syncEndpoints, nodeEndpointMap, highlightNodeId, className, style }: ExplorerSidebarProps) {
@@ -756,11 +801,15 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
     onMoveNode,
   });
 
+  // Stable dependency: serialize path IDs to avoid re-running on every render
+  // (currentPath is a new array reference each render from .map() in the parent)
+  const currentPathKey = currentPath.map(p => p.id).join('\0');
   useEffect(() => {
     if (currentPath.length > 0) {
-      currentPath.forEach(p => ensureExpanded(p.id));
+      ensureExpandedBatch(currentPath.map(p => p.id));
     }
-  }, [currentPath]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPathKey]);
 
   const rootItems: MillerColumnItem[] = rootNodes.map(n => ({
     id: n.id, name: n.name, type: n.type as ContentType,
@@ -818,11 +867,18 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
             margin: '2px 6px 2px 6px',
             height: 30, boxSizing: 'border-box',
             borderRadius: 6,
-            background: isRootDropTarget ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-            transition: 'background 0.1s',
+            background: isRootDropTarget ? 'rgba(59, 130, 246, 0.15)' : (!activeId && !activeNodeId) ? '#2a2a2a' : 'transparent',
+            color: (!activeId && !activeNodeId) ? '#fff' : '#a1a1aa',
+            transition: 'background 0.1s, color 0.1s',
             position: 'relative',
+            cursor: 'pointer',
           }}
             {...rootDropHandlers}
+            onClick={() => {
+              onNavigate({ id: '', name: 'Root', type: 'folder' as ContentType });
+            }}
+            onMouseEnter={e => { if (activeId || activeNodeId) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+            onMouseLeave={e => { if (activeId || activeNodeId) e.currentTarget.style.background = 'transparent'; }}
           >
             {/* Root content */}
             <div style={{ 
@@ -835,7 +891,7 @@ export function ExplorerSidebar({ projectId, currentPath, activeNodeId, onNaviga
                 <FolderIcon expanded={true} />
               </div>
               <span style={{
-                fontSize: 13, fontWeight: 500, color: '#a1a1aa',
+                fontSize: 13, fontWeight: 500, color: 'inherit',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
                 Root

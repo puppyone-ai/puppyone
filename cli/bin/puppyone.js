@@ -10,6 +10,7 @@ import { registerProject } from "../src/commands/project.js";
 import { registerAccess } from "../src/commands/access.js";
 import { registerChat } from "../src/commands/chat.js";
 import { registerConfig } from "../src/commands/config-cmd.js";
+import { registerData } from "../src/commands/data.js";
 import { registerGlobalCommands } from "../src/commands/global.js";
 
 program
@@ -32,6 +33,9 @@ registerProject(program);
 registerAccess(program);
 registerChat(program);
 registerConfig(program);
+
+// ─── Data Plane Commands ─────────────────────────────────
+registerData(program);
 
 // ─── Backward Compatibility ─────────────────────────────
 registerLegacyAuthAliases(program);

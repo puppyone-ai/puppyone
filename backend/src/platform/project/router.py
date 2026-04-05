@@ -109,6 +109,18 @@ def list_projects(
 
 
 @router.get(
+    "/templates/list",
+    response_model=ApiResponse[list],
+    summary="List available project templates",
+    description="Returns metadata for all available project templates.",
+    status_code=status.HTTP_200_OK,
+)
+def list_project_templates():
+    from src.platform.project.templates import list_templates
+    return ApiResponse.success(data=list_templates(), message="Templates retrieved")
+
+
+@router.get(
     "/{project_id}",
     response_model=ApiResponse[ProjectOut],
     summary="Get project details",
@@ -164,7 +176,15 @@ async def create_project(
     await writer.init_tree(str(project.id))
 
     entries = []
-    if payload.seed:
+    if payload.template:
+        from src.platform.project.templates import seed_template_content
+        await seed_template_content(
+            project_id=str(project.id),
+            template_id=payload.template,
+            created_by=current_user.user_id,
+        )
+        entries = ops.list_dir(str(project.id), "")
+    elif payload.seed:
         from src.platform.project.seed_content import seed_default_content
         await seed_default_content(
             project_id=str(project.id),

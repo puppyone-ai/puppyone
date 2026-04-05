@@ -2,10 +2,10 @@
 
 PuppyOne 有两个 CLI 工具，职责分明：
 
-- **`puppyone`** — 控制平面（登录、项目管理、Access Point 管理）
-- **`mut`** — 数据平面（clone、commit、push、pull——所有内容操作）
+- **`puppyone`** — 控制平面 + 远程直接 CRUD（登录、项目管理、Access Point 管理、`puppyone data` 远程文件操作）
+- **`mut`** — 数据平面（clone、commit、push、pull——本地工作目录 + sync 协议）
 
-**核心原则：所有对 MUT tree 的读写都必须经过 MUT 协议，不允许绕过。**
+**核心原则：所有对 MUT tree 的读写都必须经过 MUT 引擎（MutOps），不允许绕过。**
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -177,6 +177,19 @@ puppyone
 │   ├── key <id>                   查看/重新生成 access key
 │   ├── refresh <id>               立即触发一次同步
 │   └── logs <id>                  查看同步日志
+├── data                           远程直接文件操作（CRUD on MUT tree）
+│   ├── ls [path]                  列目录
+│   ├── cat <path>                 读文件
+│   ├── tree [path]                目录树
+│   ├── stat <path>                文件信息
+│   ├── write <path>               写文件
+│   ├── touch <path>               创建空文件
+│   ├── mkdir <path>               创建目录
+│   ├── cp <src> <dst>             复制
+│   ├── mv <src> <dst>             移动/重命名
+│   ├── rm <path>                  删除（默认进回收站）
+│   ├── trash                      查看回收站
+│   └── restore <path>             从回收站恢复
 ├── chat [agent-id]                与 Agent 聊天
 ├── status                         项目总览
 └── config                         CLI 配置
@@ -435,6 +448,7 @@ mut clone https://api.puppyone.com/mut/ap/ak_team123 ./wiki
 | `auth.js` | `puppyone login/logout/whoami` | 认证 |
 | `project.js` | `puppyone project` | 项目 CRUD |
 | `access.js` | `puppyone access` | Access Point 统一管理 |
+| `data.js` | `puppyone data` | 远程直接文件操作（见 `docs/cli/data.md`） |
 | `chat.js` | `puppyone chat` | Agent 聊天 |
 | `config-cmd.js` | `puppyone config` | CLI 配置 |
 | `global.js` | `puppyone status` | 全局状态 |
@@ -459,7 +473,7 @@ mut clone https://api.puppyone.com/mut/ap/ak_team123 ./wiki
 | 文件 | 原因 |
 |------|------|
 | `openclaw.js` | 已废弃的品牌名 + 调用不存在的旧端点 |
-| `fs.js` | 数据平面操作，应使用 `mut` |
+| `fs.js` | 已由 `data.js`（`puppyone data`）替代 |
 | `table.js` | 数据平面操作，应使用 `mut` |
 | `mcp.js` | 合并到 `access` |
 | `sandbox.js` | 合并到 `access` |

@@ -1,19 +1,24 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import type { ProjectInfo } from '@/lib/projectsApi';
 
-export const PROJECT_CARD_WIDTH = 280;
-export const PROJECT_CARD_HEIGHT = 140;
+export const PROJECT_CARD_WIDTH = 210;
 
-const ConnectorIcon = ({ size = 12 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 22v-5" />
-    <path d="M9 8V2" />
-    <path d="M15 8V2" />
-    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-  </svg>
-);
+const ACCENT = '#329955';
+const BORDER = '#222';
+
+const FILE_ICON_MAP: Record<string, string> = {
+  folder: '/icons/folder.svg',
+  json: '/icons/json-doc.svg',
+  markdown: '/icons/markdown-doc.svg',
+  file: '/icons/markdown-doc.svg',
+};
+
+export function getFileIcon(type: string): string {
+  return FILE_ICON_MAP[type] || FILE_ICON_MAP.file;
+}
 
 export interface ProjectCardProps {
   project: ProjectInfo;
@@ -36,54 +41,91 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
     : '—';
   const connectionCount = project.access_point_count ?? 0;
 
+  const nodes = project.nodes ?? [];
+  const displayNodes = nodes.slice(0, 8);
+
   return (
     <div
       onClick={onClick}
-      className="group relative w-full h-full flex flex-col rounded-lg bg-[#111] border border-[#222] hover:border-[#3a3a3a] hover:bg-[#161616] cursor-pointer transition-colors duration-150 overflow-hidden"
-      style={{ minHeight: PROJECT_CARD_HEIGHT }}
+      className="group relative w-full flex flex-col cursor-pointer aspect-square"
+      style={{ maxWidth: PROJECT_CARD_WIDTH, maxHeight: PROJECT_CARD_WIDTH }}
     >
-      {/* Main content */}
-      <div className="flex-1 p-4 pb-3">
-        <div className="flex items-start justify-between w-full">
-          <h3 className="text-[15px] font-medium text-[#eee] truncate leading-tight group-hover:text-white transition-colors">
-            {project.name}
-          </h3>
-
-          {/* Copy ID */}
-          <button
-            className="flex-shrink-0 text-[#555] hover:text-[#eee] p-1 -mr-1 -mt-0.5 rounded transition-colors opacity-0 group-hover:opacity-100"
-            onClick={handleCopyId}
-            title={copied ? 'Copied!' : 'Copy Project ID'}
-          >
-            {copied ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
-          </button>
-        </div>
-
-        {project.description && (
-          <p className="text-xs text-[#555] mt-1.5 line-clamp-2 leading-relaxed">
-            {project.description}
-          </p>
-        )}
+      {/* ── Tab ── */}
+      <div className="h-7 px-3 flex items-center rounded-t-md border-2 border-b-0 border-[#2a2a2a] group-hover:border-[#329955] self-start relative z-10 bg-[#1c1c1c] group-hover:bg-[#252525] transition-colors duration-150" style={{ maxWidth: '75%' }}>
+        <span className="text-[13px] font-medium truncate text-[#888] group-hover:text-[#329955] transition-colors">
+          {project.name}
+        </span>
+        <button
+          className="ml-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
+          onClick={handleCopyId}
+          title={copied ? 'Copied!' : 'Copy Project ID'}
+        >
+          {copied ? (
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          )}
+        </button>
       </div>
 
-      {/* Footer band — visually separate strip */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-[#0c0c0c] group-hover:bg-[#131313] transition-colors">
-        <span className="text-[11px] text-[#555]">
-          {lastUpdated}
-        </span>
+      {/* ── Body ── */}
+      <div className="flex-1 bg-[#0a0a0a] border-2 border-[#2a2a2a] group-hover:border-[#329955] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col group-hover:bg-[#111111] transition-colors duration-150">
+        {/* Separator line simulating the front flap of a physical folder */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-[linear-gradient(to_right,transparent_0%,rgba(255,255,255,0.05)_10%,rgba(255,255,255,0.05)_90%,transparent_100%)] pointer-events-none z-20" />
+        {/* File grid or description */}
+        <div className="absolute inset-0 p-3 pb-7">
+          {displayNodes.length > 0 ? (
+            <div className="grid grid-cols-4 gap-x-2 gap-y-3 w-full content-start">
+              {displayNodes.map((node, i) => (
+                <div key={node.id || i} className="flex flex-col items-center gap-1.5 relative z-10">
+                  <div className="flex items-center justify-center w-8 h-8">
+                    <Image
+                      src={getFileIcon(node.type)}
+                      alt={node.type}
+                      width={28}
+                      height={28}
+                      className="opacity-60 group-hover:opacity-90 transition-opacity"
+                    />
+                  </div>
+                  <span className="text-[9px] text-center truncate w-full text-[#555] group-hover:text-[#888] transition-colors leading-tight">
+                    {node.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col justify-center h-full relative z-10">
+              {project.description ? (
+                <p className="text-[12px] text-[#555] leading-relaxed line-clamp-3">
+                  {project.description}
+                </p>
+              ) : (
+                <p className="text-[12px] text-[#444] italic">
+                  Empty project
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
-        <div className="flex items-center gap-1 text-[#555]">
-          <ConnectorIcon size={12} />
-          <span className="text-[11px] font-mono">{connectionCount}</span>
+        {/* ── Commit bar ── */}
+        <div className="absolute bottom-0 left-0 right-0 border-t border-[#2a2a2a] bg-transparent px-3 py-1.5 h-[26px] flex items-center z-10 transition-colors duration-150">
+          <div className="flex items-center gap-2 text-[10px] w-full">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: connectionCount > 0 ? '#4ECDC4' : '#333' }} />
+            <span className="text-[#555]">{lastUpdated}</span>
+            {connectionCount > 0 && (
+              <>
+                <span className="text-[#333]">·</span>
+                <span className="text-[#4ECDC4]">{connectionCount}</span>
+                <span className="text-[#444]">conn</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -94,18 +136,26 @@ export function NewProjectCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group w-full h-full flex flex-col items-center justify-center gap-2.5 rounded-lg border border-dashed border-[#333] hover:border-[#555] hover:bg-[#111] bg-transparent cursor-pointer transition-colors duration-150"
-      style={{ minHeight: PROJECT_CARD_HEIGHT }}
+      className="group relative w-full flex flex-col cursor-pointer aspect-square"
+      style={{ maxWidth: PROJECT_CARD_WIDTH, maxHeight: PROJECT_CARD_WIDTH }}
     >
-      <div className="w-7 h-7 rounded-full flex items-center justify-center bg-[#1a1a1a] group-hover:bg-[#222] transition-colors">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#666] group-hover:text-[#eee] transition-colors">
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
+      <div className="h-6 px-3 flex items-center rounded-t-md border-2 border-b-0 border-dashed border-[#333] group-hover:border-[#555] self-start bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors relative z-10">
+        <span className="text-[12px] font-medium text-[#444] group-hover:text-[#888] transition-colors">
+          New
+        </span>
       </div>
-      <span className="text-[13px] text-[#666] group-hover:text-[#eee] font-medium transition-colors">
-        New Project
-      </span>
+
+      <div className="flex-1 border-2 border-dashed border-[#333] group-hover:border-[#555] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col items-center justify-center bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors duration-150">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#111] group-hover:bg-[#1a1a1a] transition-colors">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#555] group-hover:text-[#eee] transition-colors">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+        </div>
+        <span className="text-[13px] text-[#555] group-hover:text-[#ccc] font-medium transition-colors mt-2.5">
+          New Project
+        </span>
+      </div>
     </button>
   );
 }
@@ -113,7 +163,7 @@ export function NewProjectCard({ onClick }: { onClick: () => void }) {
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
+  if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;

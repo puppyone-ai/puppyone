@@ -35,6 +35,7 @@ class ProjectCreate(BaseModel):
     description: str | None = None
     org_id: str | None = None
     seed: bool = False
+    template: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
