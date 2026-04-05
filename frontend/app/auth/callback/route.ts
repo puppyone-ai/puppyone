@@ -60,18 +60,10 @@ export async function GET(request: Request) {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
-
-    const statusRes = await fetch(`${apiUrl}/api/v1/profile/onboarding/status`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const statusData = await statusRes.json();
-
-    if (statusData.code === 0 && !statusData.data.has_onboarded) {
-      return NextResponse.redirect(`${origin}/home`);
-    }
   } catch (e) {
-    console.error('Onboarding check failed:', e);
+    console.error('Auth initialization failed:', e);
   }
 
+  // Always redirect to /home — template-based onboarding handles first-time UX
   return NextResponse.redirect(`${origin}${next}`);
 }

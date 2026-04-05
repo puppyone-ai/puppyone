@@ -52,12 +52,30 @@ export async function createProject(
   name: string,
   description?: string,
   orgId?: string,
-  seed?: boolean
+  seed?: boolean,
+  template?: string
 ): Promise<ProjectInfo> {
   return apiRequest<ProjectInfo>('/api/v1/projects/', {
     method: 'POST',
-    body: JSON.stringify({ name, description, org_id: orgId, seed: seed ?? false }),
+    body: JSON.stringify({
+      name,
+      description,
+      org_id: orgId,
+      seed: seed ?? false,
+      template: template ?? null,
+    }),
   });
+}
+
+export interface ProjectTemplateInfo {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+}
+
+export async function getProjectTemplates(): Promise<ProjectTemplateInfo[]> {
+  return apiRequest<ProjectTemplateInfo[]>('/api/v1/projects/templates/list');
 }
 
 export async function updateProject(

@@ -269,7 +269,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
   );
 
   const commits = historyData?.commits || [];
-  const latestCommit = commits.length > 0 ? commits[0] : null;
+  const latestCommit = commits.length > 0 ? commits[commits.length - 1] : null;
 
   const commitBuckets = useMemo(() => {
     const buckets: { date: string; count: number }[] = [];
@@ -315,6 +315,23 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
     if (a.type !== 'folder' && b.type === 'folder') return 1;
     return a.name.localeCompare(b.name);
   });
+
+  const fileLastCommit = useMemo(() => {
+    const map: Record<string, { message: string; created_at: string | null }> = {};
+    const reversedCommits = [...commits].reverse();
+    for (const node of files) {
+      for (const commit of reversedCommits) {
+        const touches = commit.changes.some(c =>
+          c.path === node.path || c.path.startsWith(node.path + '/')
+        );
+        if (touches) {
+          map[node.path] = { message: commit.message, created_at: commit.created_at };
+          break;
+        }
+      }
+    }
+    return map;
+  }, [commits, files]);
 
   if (!dashboard) {
     return (
@@ -531,12 +548,10 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                     </span>
                   </div>
                   <div style={{ width: '40%', color: '#8b949e', fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {/* Mock commit message for files since we don't have per-file history easily */}
-                    {node.type === 'folder' ? 'Update folder contents' : 'Update ' + node.name}
+                    {fileLastCommit[node.path]?.message || ''}
                   </div>
                   <div style={{ width: 100, textAlign: 'right', color: '#8b949e', fontSize: 14, flexShrink: 0 }}>
-                    {/* Mock time */}
-                    last week
+                    {formatRelative(fileLastCommit[node.path]?.created_at)}
                   </div>
                 </div>
               ))
@@ -558,7 +573,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
               <span onClick={() => router.push(`/projects/${projectId}/history`)} style={{ fontSize: 12, color: '#58a6ff', cursor: 'pointer' }}>View all</span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {commits.slice(0, 5).map((commit, i) => {
+              {[...commits].reverse().slice(0, 5).map((commit, i) => {
                 const isLast = i === Math.min(commits.length, 5) - 1;
                 const isHead = i === 0;
                 return (

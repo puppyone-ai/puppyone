@@ -367,14 +367,10 @@ export default function DataPage({ params }: DataPageProps) {
   const setViewType = (v: ViewType) => { setViewTypeState(v); localStorage.setItem('puppyone-view-type', v); };
   const setEditorType = (e: EditorType) => { setEditorTypeState(e); localStorage.setItem('puppyone-editor-type', e); };
 
-  // Welcome check (new user onboarding)
+  // Legacy welcome query param — strip it without triggering old onboarding guide
   useEffect(() => {
-    const isWelcome = searchParams.get('welcome') === 'true';
-    if (isWelcome) {
-      refreshProjects(currentOrg?.id).then(() => {
-        setShowOnboardingGuide(true);
-        router.replace(`/projects/${projectId}/data`);
-      });
+    if (searchParams.get('welcome') === 'true') {
+      router.replace(`/projects/${projectId}/data`);
     }
   }, [searchParams, projectId, router]);
 

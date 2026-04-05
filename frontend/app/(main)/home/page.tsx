@@ -7,14 +7,90 @@ import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
-import { PreparingScreen } from '@/components/onboarding/PreparingScreen';
-import { checkOnboardingStatus, completeOnboarding } from '@/lib/profileApi';
+import { createProject } from '@/lib/projectsApi';
+
+/* ── Preparing screen (full-page loading between click and data page) ── */
+
+const PREPARING_MESSAGES = [
+  'Creating project...',
+  'Copying template files...',
+  'Setting up folder structure...',
+  'Almost ready...',
+];
+
+function PreparingScreen({ templateName }: { templateName: string }) {
+  const [msgIdx, setMsgIdx] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setMsgIdx(prev => Math.min(prev + 1, PREPARING_MESSAGES.length - 1));
+    }, 1200);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 200,
+        background: '#0e0e0e',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 }}>
+        {/* Animated rings */}
+        <div style={{ position: 'relative', width: 56, height: 56 }}>
+          <div
+            className="animate-spin"
+            style={{
+              position: 'absolute', inset: 0,
+              borderRadius: '50%',
+              border: '3px solid rgba(255,255,255,0.06)',
+              borderTopColor: 'rgba(255,255,255,0.5)',
+            }}
+          />
+          <div
+            className="animate-spin"
+            style={{
+              position: 'absolute', inset: 6,
+              borderRadius: '50%',
+              border: '2px solid rgba(255,255,255,0.04)',
+              borderBottomColor: 'rgba(255,255,255,0.25)',
+              animationDirection: 'reverse',
+              animationDuration: '1.5s',
+            }}
+          />
+        </div>
+
+        {/* Template name */}
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 500, color: '#ccc', marginBottom: 8 }}>
+            {templateName}
+          </div>
+          <div
+            style={{
+              fontSize: 13,
+              color: 'rgba(255,255,255,0.35)',
+              transition: 'opacity 0.3s',
+            }}
+          >
+            {PREPARING_MESSAGES[msgIdx]}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Dashboard Page
- * 
- * Onboarding 主入口是 /auth/callback/route.ts（服务端处理，不受 React StrictMode 影响）。
- * 这里是 fallback：如果 callback 中 onboarding 处理失败，在客户端重试一次。
+ *
+ * Template-driven onboarding: users pick a template card to create their
+ * first project. No automatic project creation or multi-step wizard.
+ * A lightweight welcome toast shows once (localStorage flag).
  */
 function DashboardPageContent() {
   const router = useRouter();
@@ -23,52 +99,24 @@ function DashboardPageContent() {
   const { currentOrg } = useOrganization();
   const { projects, isLoading: projectsLoading, refresh: refreshProjects } = useProjects(currentOrg?.id);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
-  
-  // Onboarding fallback state
-  const [isOnboarding, setIsOnboarding] = useState(false);
-  const [onboardingReady, setOnboardingReady] = useState(false);
-  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
-  const onboardingCheckedRef = useRef(false);
 
-  const userName = session?.user?.email?.split('@')[0] 
-    || session?.user?.user_metadata?.name
-    || session?.user?.user_metadata?.full_name
-    || undefined;
+  // Preparing state for template creation
+  const [preparing, setPreparing] = useState<{ name: string } | null>(null);
 
-  // Fallback: 检查 onboarding 状态（以防 /auth/callback 中的处理失败）
+  // Lightweight welcome toast (shows once per device, no backend state)
+  const [showWelcome, setShowWelcome] = useState(false);
+  const welcomeCheckedRef = useRef(false);
+
   useEffect(() => {
-    if (onboardingCheckedRef.current || projectsLoading) return;
-    onboardingCheckedRef.current = true;
+    if (welcomeCheckedRef.current || projectsLoading) return;
+    welcomeCheckedRef.current = true;
 
-    const doOnboarding = async () => {
-      try {
-        const status = await checkOnboardingStatus();
-        
-        if (!status.has_onboarded) {
-          // 新用户：显示 cooking 界面，执行 onboarding
-          setIsOnboarding(true);
-          
-          try {
-            const result = await completeOnboarding();
-            // 成功：设置跳转到 demo project
-            setRedirectUrl(result.redirect_to || null);
-            setOnboardingReady(true);
-          } catch (completeError) {
-            console.error('Complete onboarding failed:', completeError);
-            // 失败：redirectUrl 留空，点击按钮时直接退出 cooking 界面显示 dashboard
-            // 不设 redirectUrl = '/home'，否则 window.location.href = '/home' 会刷新页面死循环
-            setRedirectUrl(null);
-            setOnboardingReady(true);
-          }
-        }
-      } catch (e) {
-        console.error('Onboarding check failed:', e);
-        // checkOnboardingStatus 本身就失败了（网络不通等）
-        // 不进入 onboarding 流程，让用户看到 dashboard（可能为空）
-      }
-    };
-
-    doOnboarding();
+    const key = 'puppyone_welcomed';
+    if (!localStorage.getItem(key)) {
+      setShowWelcome(true);
+      localStorage.setItem(key, '1');
+      setTimeout(() => setShowWelcome(false), 5000);
+    }
   }, [projectsLoading]);
 
   // Handle ?create=true query param
@@ -79,29 +127,27 @@ function DashboardPageContent() {
     }
   }, [searchParams, projectsLoading, router]);
 
-  // 处理 "Enter Workspace" 点击
-  const handleEnterWorkspace = () => {
-    if (redirectUrl) {
-      // 正常情况：跳转到 demo project 页面
-      window.location.href = redirectUrl;
-    } else {
-      // 异常情况：onboarding 失败，退出 cooking 界面，显示 dashboard
-      setIsOnboarding(false);
-      // 刷新项目列表（可能 onboarding 创建了部分数据）
-      refreshProjects();
+  // Template click → show preparing screen → create project → navigate
+  const handleTemplateClick = async (
+    templateId: string,
+    templateName: string,
+    templateDescription: string,
+  ) => {
+    setPreparing({ name: templateName });
+    try {
+      const project = await createProject(
+        templateName,
+        templateDescription,
+        currentOrg?.id,
+        false,
+        templateId,
+      );
+      await refreshProjects();
+      router.push(`/projects/${project.id}/data`);
+    } catch {
+      setPreparing(null);
     }
   };
-
-  // Onboarding flow
-  if (isOnboarding) {
-    return (
-      <PreparingScreen
-        userName={userName}
-        isReady={onboardingReady}
-        onReady={handleEnterWorkspace}
-      />
-    );
-  }
 
   // Loading state
   if (projectsLoading) {
@@ -148,7 +194,51 @@ function DashboardPageContent() {
         backgroundColor: '#202020',
       }}
     >
-      {/* --- 全屏容器：Edge-to-Edge Pane Style --- */}
+      {/* Full-screen preparing overlay */}
+      {preparing && <PreparingScreen templateName={preparing.name} />}
+
+      {/* Welcome toast */}
+      {showWelcome && !preparing && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100,
+            background: '#1a1a1a',
+            border: '1px solid #333',
+            borderRadius: 12,
+            padding: '12px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            animation: 'fadeInDown 0.3s ease-out',
+          }}
+        >
+          <span style={{ fontSize: 18 }}>🐕</span>
+          <span style={{ fontSize: 14, color: '#ddd' }}>
+            Welcome to PuppyOne! Pick a template below to get started.
+          </span>
+          <button
+            onClick={() => setShowWelcome(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#666',
+              cursor: 'pointer',
+              fontSize: 16,
+              padding: '0 4px',
+              marginLeft: 8,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Main content */}
       <div
         style={{
           flex: 1,
@@ -167,6 +257,7 @@ function DashboardPageContent() {
           loading={projectsLoading}
           onProjectClick={projectId => router.push(`/projects/${projectId}`)}
           onCreateClick={() => setCreateProjectOpen(true)}
+          onTemplateClick={handleTemplateClick}
         />
       </div>
 
@@ -178,7 +269,6 @@ function DashboardPageContent() {
           onClose={() => setCreateProjectOpen(false)}
         />
       )}
-
     </div>
   );
 }
@@ -186,12 +276,12 @@ function DashboardPageContent() {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        height: '100%', 
-        backgroundColor: '#202020' 
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        backgroundColor: '#202020',
       }}>
         <span style={{ color: 'rgba(255, 255, 255, 0.5)' }}>Loading...</span>
       </div>
