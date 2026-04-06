@@ -189,10 +189,10 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     inbound: true,
-    sync: false,
-    tools: false,
-    agent: false,
-    build: false,
+    sync: true,
+    tools: true,
+    agent: true,
+    build: true,
   });
 
   const toggleSection = (section: string) => {

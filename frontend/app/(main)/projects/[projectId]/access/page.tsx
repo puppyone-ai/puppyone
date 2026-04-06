@@ -482,6 +482,11 @@ function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
           {/* Connection visualization */}
           <OverviewTab connection={c} projectId={projectId} />
 
+          {/* Filesystem: Getting Started */}
+          {c.provider === 'filesystem' && c.access_key && (
+            <FilesystemGettingStarted accessKey={c.access_key} nodeName={c.node_name} />
+          )}
+
           {/* Configuration (from Settings) */}
           <div style={{
             background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
@@ -533,6 +538,123 @@ function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
         </div>
       </div>
     </div>
+  );
+}
+
+/* ================================================================
+   FilesystemGettingStarted
+   ================================================================ */
+
+function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; nodeName: string | null }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
+  const cloneUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
+
+  const copy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const cmdStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    padding: '10px 14px', background: '#0a0a0a',
+    border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
+  };
+  const codeStyle: React.CSSProperties = {
+    flex: 1, fontSize: 12, color: '#d4d4d8', fontFamily: "'JetBrains Mono', monospace",
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.6,
+  };
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 20,
+      background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: 8, padding: '24px',
+    }}>
+      {/* Setup */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
+          Setup
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={cmdStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
+              <code style={codeStyle}>pip install mut</code>
+            </div>
+            <CopyBtn copied={copied === 'install'} onCopy={() => copy('pip install mut', 'install')} />
+          </div>
+          <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0, marginTop: 2 }}>$</span>
+              <code style={{ ...codeStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
+              </code>
+            </div>
+            <CopyBtn copied={copied === 'clone'} onCopy={() => copy(`mut clone ${cloneUrl} --credential ${accessKey}`, 'clone')} />
+          </div>
+        </div>
+        <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
+          Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#71717a' }}>./{nodeName || 'project'}/</code> folder linked to this context.
+        </div>
+      </div>
+
+      {/* Usage */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
+          Usage
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div>
+            <div style={cmdStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
+                <code style={codeStyle}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code>
+              </div>
+              <CopyBtn copied={copied === 'push'} onCopy={() => copy('mut commit -m "message" && mut push', 'push')} />
+            </div>
+            <div style={{ fontSize: 12, color: '#525252', marginTop: 4, paddingLeft: 20 }}>Send local changes to the cloud</div>
+          </div>
+          <div>
+            <div style={cmdStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
+                <code style={codeStyle}>mut pull</code>
+              </div>
+              <CopyBtn copied={copied === 'pull'} onCopy={() => copy('mut pull', 'pull')} />
+            </div>
+            <div style={{ fontSize: 12, color: '#525252', marginTop: 4, paddingLeft: 20 }}>Fetch changes from other agents or the web UI</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Credentials */}
+      <div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
+          Credentials
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <CopyField value={accessKey} label="Access Key" masked copied={copied === 'key'} onCopy={() => copy(accessKey, 'key')} />
+          <CopyField value={cloneUrl} label="Clone URL" copied={copied === 'url'} onCopy={() => copy(cloneUrl, 'url')} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CopyBtn({ copied, onCopy }: { copied: boolean; onCopy: () => void }) {
+  return (
+    <button onClick={onCopy} style={{
+      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4,
+      color: copied ? '#4ade80' : '#525252', padding: '3px 8px',
+      cursor: 'pointer', fontSize: 11, fontWeight: 500, flexShrink: 0, transition: 'all 0.15s',
+    }}
+    onMouseEnter={e => { if(!copied) { e.currentTarget.style.color = '#a1a1aa'; } }}
+    onMouseLeave={e => { if(!copied) { e.currentTarget.style.color = '#525252'; } }}
+    >
+      {copied ? '✓' : 'Copy'}
+    </button>
   );
 }
 
@@ -672,14 +794,15 @@ function McpOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
   );
 }
 
-function CopyField({ value, masked, copied, onCopy }: { value: string; masked?: boolean; copied: boolean; onCopy: () => void }) {
+function CopyField({ value, label, masked, copied, onCopy }: { value: string; label?: string; masked?: boolean; copied: boolean; onCopy: () => void }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
       background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
     }}>
+      {label && <span style={{ fontSize: 11, fontWeight: 500, color: '#525252', flexShrink: 0, width: 72 }}>{label}</span>}
       <span style={{ flex: 1, fontSize: 13, color: '#d4d4d8', fontFamily: "'JetBrains Mono', monospace", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {masked ? '•'.repeat(Math.min(value.length, 32)) : value}
+        {masked ? value.slice(0, 8) + '···' + value.slice(-4) : value}
       </span>
       <button onClick={onCopy} style={{
         background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, 
