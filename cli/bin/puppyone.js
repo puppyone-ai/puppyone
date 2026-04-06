@@ -41,4 +41,19 @@ registerData(program);
 registerLegacyAuthAliases(program);
 registerGlobalCommands(program);
 
+// Show animated banner on first-ever run (fresh install) or no subcommand
+if (process.stdout.isTTY) {
+  const { existsSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { homedir } = await import("node:os");
+  const configFile = join(homedir(), ".puppyone", "config.json");
+  const isFirstRun = !existsSync(configFile);
+  const noSubcommand = process.argv.length <= 2;
+
+  if (isFirstRun || noSubcommand) {
+    const { showBanner } = await import("../src/banner.js");
+    await showBanner();
+  }
+}
+
 program.parse();
