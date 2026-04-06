@@ -103,12 +103,12 @@ PuppyOne CLI 将功能划分为以下命令组：
 | `puppyone org` | 组织管理 |
 | `puppyone project` | 项目管理 |
 | `puppyone access` | 统一 Access Point 管理（数据源、Agent、MCP、沙盒、文件夹同步） |
+| `puppyone data` | 远程文件系统操作（浏览、读写、移动、删除） |
 | `puppyone chat` | Agent 对话 |
 | `puppyone config` | CLI 配置管理 |
 | `puppyone status` | 项目仪表盘 |
-| `puppyone ps` | 查看正在运行的守护进程 |
 
-内容操作（浏览、读写、版本管理）通过 [REST API](/zh/cli/fs) 完成，而非 CLI 命令。
+`puppyone data` 提供类似 `ls`、`cat`、`write`、`mv`、`rm` 等命令，直接操作云端内容树。版本管理（历史、对比、回滚）通过 [REST API](/zh/cli/fs) 完成。
 
 ---
 
@@ -138,6 +138,19 @@ puppyone access add mcp "My Data"
 
 ```bash
 puppyone access add filesystem ~/workspace
+```
+
+### 操作云端文件
+
+```bash
+# 浏览目录
+puppyone data ls /docs
+
+# 读取文件
+puppyone data cat /docs/readme.md
+
+# 写入文件
+puppyone data write /config.json --content '{"theme": "dark"}'
 ```
 
 ### 查看项目状态

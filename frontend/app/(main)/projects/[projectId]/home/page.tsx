@@ -537,7 +537,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                     {files.map((node: NodeInfo, i: number) => (
                       <div
                         key={node.path}
-                        onClick={() => router.push(`/projects/${projectId}/data/${node.path}`)}
+                        onClick={() => router.push(`/projects/${projectId}/data/${node.path.split('/').map(s => encodeURIComponent(s)).join('/')}${node.type ? `?type=${encodeURIComponent(node.type)}` : ''}`)}
                         className="flex flex-col items-center justify-center gap-1.5 cursor-pointer group/file p-3 rounded-xl hover:bg-[#1a1a1a] transition-colors aspect-square relative"
                       >
                         <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover/file:opacity-100 transition-opacity drop-shadow-sm relative">

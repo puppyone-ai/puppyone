@@ -1,6 +1,7 @@
 {
   "index": "Install & Configure",
-  "fs": "File System Commands",
+  "data": "Remote File Operations",
+  "fs": "File System REST API",
   "conn": "Unified Connection Management",
   "access": "Local Folder Sync"
 }

@@ -40,10 +40,10 @@ puppyone access add filesystem docs
   Creating filesystem access point for scope "docs"... done
 
   ─ Sync with MUT:
-    mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx --dir <folder>
+    mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
 
   ─ Then commit and push:
-    cd <folder> && mut commit -m "message" && mut push
+    mut commit -m "message" && mut push
 
   ─ Retrieve key later:
     puppyone access key <id>
@@ -51,18 +51,18 @@ puppyone access add filesystem docs
 
 ### 3. Clone 到本地
 
-复制输出中的 `mut clone` 命令，替换 `<folder>` 为你想要的本地目录：
+复制输出中的 `mut clone` 命令：
 
 ```bash
-mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx --dir ~/my-docs
+mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
 ```
 
-这会在 `~/my-docs` 下创建一个 MUT 仓库，并拉取云端已有的内容（如果有的话）。
+这会在当前目录下自动创建以 scope 路径命名的文件夹（如 `./docs/`），并拉取云端已有的内容。
 
 ### 4. 本地编辑，然后提交推送
 
 ```bash
-cd ~/my-docs
+cd docs
 
 # 正常编辑文件
 echo "# API Reference" > api.md
@@ -78,7 +78,7 @@ mut push
 当其他人（或 Agent）在云端修改了内容：
 
 ```bash
-cd ~/my-docs
+cd docs
 mut pull
 ```
 
@@ -93,19 +93,19 @@ mut pull
 puppyone access add filesystem docs
 puppyone access add filesystem code
 
-# 分别 clone 到不同本地目录
-mut clone <docs-url> --credential <docs-key> --dir ~/my-docs
-mut clone <code-url> --credential <code-key> --dir ~/my-code
+# 分别 clone
+mut clone <docs-url> --credential <docs-key>
+mut clone <code-url> --credential <code-key>
 ```
 
 在云端，项目树结构为：
 
 ```
 Root/
-├── docs/          ← ~/my-docs 的内容
+├── docs/          ← ./docs/ 的内容
 │   ├── api.md
 │   └── guide.md
-└── code/          ← ~/my-code 的内容
+└── code/          ← ./code/ 的内容
     ├── main.py
     └── utils.py
 ```
@@ -146,7 +146,7 @@ puppyone access rm <connection-id>
 
 | 命令 | 说明 |
 |------|------|
-| `mut clone <url> --credential <key> --dir <folder>` | 克隆远程仓库到本地 |
+| `mut clone <url> --credential <key>` | 克隆远程仓库到本地 |
 | `mut commit -m "message"` | 提交本地变更 |
 | `mut push` | 推送到云端 |
 | `mut pull` | 拉取云端变更 |
@@ -162,11 +162,11 @@ puppyone access rm <connection-id>
 ```bash
 # 创建连接并 clone
 puppyone access add filesystem workspace
-mut clone <url> --credential <key> --dir ~/ai-workspace
+mut clone <url> --credential <key>
 
-# 用 Claude Code 或 Cursor 打开该目录进行编辑
+# 用 Claude Code 或 Cursor 打开 ./workspace/ 目录进行编辑
 # AI 修改完成后，提交推送
-cd ~/ai-workspace
+cd workspace
 mut commit -m "AI updates"
 mut push
 ```

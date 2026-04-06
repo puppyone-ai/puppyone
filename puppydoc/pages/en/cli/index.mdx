@@ -103,12 +103,12 @@ PuppyOne CLI is organized into these command groups:
 | `puppyone org` | Organization management |
 | `puppyone project` | Project management |
 | `puppyone access` | Unified access point management (data sources, agents, MCP, sandboxes, filesystem sync) |
+| `puppyone data` | Remote file system operations (browse, read, write, move, delete) |
 | `puppyone chat` | Agent chat |
 | `puppyone config` | CLI configuration management |
 | `puppyone status` | Project dashboard |
-| `puppyone ps` | Show running daemons |
 
-Content operations (browse, read, write, versioning) are performed via the [REST API](/en/cli/fs) rather than CLI commands.
+`puppyone data` provides familiar commands like `ls`, `cat`, `write`, `mv`, and `rm` to operate directly on the cloud content tree. Version management (history, diff, rollback) is available via the [REST API](/en/cli/fs).
 
 ---
 
@@ -138,6 +138,19 @@ puppyone access add mcp "My Data"
 
 ```bash
 puppyone access add filesystem ~/workspace
+```
+
+### Operate on cloud files
+
+```bash
+# Browse a directory
+puppyone data ls /docs
+
+# Read a file
+puppyone data cat /docs/readme.md
+
+# Write a file
+puppyone data write /config.json --content '{"theme": "dark"}'
 ```
 
 ### Check project status

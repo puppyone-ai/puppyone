@@ -175,7 +175,13 @@ export async function loginAction(opts, cmd) {
     });
 
     out.done("✓");
-    out.info(`\n  Logged in as ${user_email}`);
+
+    if (process.stdout.isTTY) {
+      const { showBanner } = await import("../banner.js");
+      await showBanner();
+    }
+
+    out.info(`  Logged in as ${user_email}`);
     out.info(`  API: ${_targetLabel(apiUrl)}`);
 
     out.success({

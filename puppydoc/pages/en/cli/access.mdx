@@ -40,10 +40,10 @@ On success, the command outputs:
   Creating filesystem access point for scope "docs"... done
 
   ─ Sync with MUT:
-    mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx --dir <folder>
+    mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
 
   ─ Then commit and push:
-    cd <folder> && mut commit -m "message" && mut push
+    mut commit -m "message" && mut push
 
   ─ Retrieve key later:
     puppyone access key <id>
@@ -51,18 +51,18 @@ On success, the command outputs:
 
 ### 3. Clone to local
 
-Copy the `mut clone` command from the output and replace `<folder>` with your desired local directory:
+Copy the `mut clone` command from the output:
 
 ```bash
-mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx --dir ~/my-docs
+mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
 ```
 
-This creates a MUT repository in `~/my-docs` and pulls any existing cloud content.
+This automatically creates a folder named after the scope path (e.g. `./docs/`) in the current directory and pulls any existing cloud content.
 
 ### 4. Edit locally, then commit and push
 
 ```bash
-cd ~/my-docs
+cd docs
 
 # Edit files as usual
 echo "# API Reference" > api.md
@@ -78,7 +78,7 @@ mut push
 When others (or agents) make changes in the cloud:
 
 ```bash
-cd ~/my-docs
+cd docs
 mut pull
 ```
 
@@ -93,19 +93,19 @@ You can sync multiple local folders to different paths within the same project:
 puppyone access add filesystem docs
 puppyone access add filesystem code
 
-# Clone to different local directories
-mut clone <docs-url> --credential <docs-key> --dir ~/my-docs
-mut clone <code-url> --credential <code-key> --dir ~/my-code
+# Clone each
+mut clone <docs-url> --credential <docs-key>
+mut clone <code-url> --credential <code-key>
 ```
 
 The cloud project tree becomes:
 
 ```
 Root/
-├── docs/          ← contents of ~/my-docs
+├── docs/          ← contents of ./docs/
 │   ├── api.md
 │   └── guide.md
-└── code/          ← contents of ~/my-code
+└── code/          ← contents of ./code/
     ├── main.py
     └── utils.py
 ```
@@ -146,7 +146,7 @@ puppyone access rm <connection-id>
 
 | Command | Description |
 |------|------|
-| `mut clone <url> --credential <key> --dir <folder>` | Clone remote repo to local |
+| `mut clone <url> --credential <key>` | Clone remote repo to local |
 | `mut commit -m "message"` | Commit local changes |
 | `mut push` | Push to cloud |
 | `mut pull` | Pull cloud changes |
@@ -162,11 +162,11 @@ Local folder sync is the best way to give AI coding tools access to PuppyOne dat
 ```bash
 # Create connection and clone
 puppyone access add filesystem workspace
-mut clone <url> --credential <key> --dir ~/ai-workspace
+mut clone <url> --credential <key>
 
-# Open the directory in Claude Code or Cursor
+# Open the ./workspace/ directory in Claude Code or Cursor
 # After AI finishes editing, commit and push
-cd ~/ai-workspace
+cd workspace
 mut commit -m "AI updates"
 mut push
 ```

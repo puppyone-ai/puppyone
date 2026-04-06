@@ -1,12 +1,65 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { stat, readFile } from '@/lib/contentTreeApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import { setPendingActiveId } from '../components/views';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 
-export function usePathResolver(projectId: string, path: string[]) {
+function inferTypeFromName(name: string): string {
+  if (/\.json$/i.test(name)) return 'json';
+  if (/\.md$/i.test(name)) return 'markdown';
+  return 'file';
+}
+
+function buildBreadcrumbs(segments: string[]): Array<{ id: string; name: string }> {
+  return segments.map((seg, i) => ({
+    id: segments.slice(0, i + 1).join('/'),
+    name: seg,
+  }));
+}
+
+function applyFileState(
+  fullPath: string,
+  resolvedType: string,
+  segments: string[],
+  breadcrumbs: Array<{ id: string; name: string }>,
+  setters: {
+    setActiveNodeId: (v: string) => void;
+    setActiveNodeType: (v: string) => void;
+    setActivePreviewType: (v: string | null) => void;
+    setCurrentFolderPath: (v: string | null) => void;
+    setFolderBreadcrumbs: (v: Array<{ id: string; name: string }>) => void;
+  },
+) {
+  const isFolder = getNodeTypeConfig(resolvedType).renderAs === 'folder';
+  if (isFolder) {
+    setters.setCurrentFolderPath(fullPath);
+    setters.setFolderBreadcrumbs(breadcrumbs);
+    setters.setActiveNodeId('');
+    setters.setActiveNodeType('');
+  } else {
+    setters.setActiveNodeId(fullPath);
+    setters.setActiveNodeType(resolvedType);
+    if (segments.length > 1) {
+      setters.setCurrentFolderPath(segments.slice(0, -1).join('/'));
+      setters.setFolderBreadcrumbs(breadcrumbs.slice(0, -1));
+    } else {
+      setters.setCurrentFolderPath(null);
+      setters.setFolderBreadcrumbs([]);
+    }
+  }
+  setters.setActivePreviewType(null);
+}
+
+function safeDecode(s: string): string {
+  try { return decodeURIComponent(s); } catch { return s; }
+}
+
+export function usePathResolver(projectId: string, rawPath: string[]) {
+  const path = rawPath.map(safeDecode);
+  const searchParams = useSearchParams();
   const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
   const [folderBreadcrumbs, setFolderBreadcrumbs] = useState<Array<{ id: string; name: string }>>([]);
   const [isResolvingPath, setIsResolvingPath] = useState(path.length > 0);
@@ -21,101 +74,111 @@ export function usePathResolver(projectId: string, path: string[]) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pathKey = path.join('/');
+  const typeHint = searchParams.get('type') ?? '';
 
   useEffect(() => {
     let cancelled = false;
+    const setters = {
+      setActiveNodeId,
+      setActiveNodeType,
+      setActivePreviewType,
+      setCurrentFolderPath,
+      setFolderBreadcrumbs,
+    };
 
     async function resolve() {
-      setIsResolvingPath(true);
+      if (path.length === 0) {
+        setIsResolvingPath(false);
+        setPendingActiveId(null);
+        setCurrentFolderPath(null);
+        setFolderBreadcrumbs([]);
+        setActiveNodeId('');
+        setActiveNodeType('');
+        setActivePreviewType(null);
+        setMarkdownContent('');
+        return;
+      }
 
+      const fullPath = path.join('/');
+      const breadcrumbs = buildBreadcrumbs(path);
+
+      // When a type hint is available (sidebar click), render immediately
+      // without waiting for the stat round-trip.
+      if (typeHint) {
+        applyFileState(fullPath, typeHint, path, breadcrumbs, setters);
+        setPendingActiveId(null);
+        setIsResolvingPath(false);
+      } else {
+        setIsResolvingPath(true);
+      }
+
+      // Stat to determine (or confirm) the node type.
+      // On error we fall back to the type hint or file-name heuristic
+      // so the UI never gets stuck at root.
+      let resolvedType: string;
+      let exists = true;
       try {
-        if (path.length === 0) {
-          setPendingActiveId(null);
-          setCurrentFolderPath(null);
-          setFolderBreadcrumbs([]);
-          setActiveNodeId('');
-          setActiveNodeType('');
-          setActivePreviewType(null);
-          setMarkdownContent('');
-          return;
-        }
-
-        // Join URL path segments to form the full file path
-        const fullPath = path.join('/');
-
-        // Stat to determine type
         const statResult = await stat(projectId, fullPath);
         if (cancelled) return;
-
-        if (!statResult.exists) {
-          setPendingActiveId(null);
-          setCurrentFolderPath(null);
-          setFolderBreadcrumbs([]);
-          setActiveNodeId('');
-          setActiveNodeType('');
-          setActivePreviewType(null);
-          setMarkdownContent('');
-          return;
-        }
-
-        // Build breadcrumbs from path segments
-        const breadcrumbs: Array<{ id: string; name: string }> = [];
-        for (let i = 0; i < path.length; i++) {
-          const segmentPath = path.slice(0, i + 1).join('/');
-          breadcrumbs.push({ id: segmentPath, name: path[i] });
-        }
-
-        if (statResult.type === 'folder') {
-          setPendingActiveId(null);
-          setCurrentFolderPath(fullPath);
-          setFolderBreadcrumbs(breadcrumbs);
-          setActiveNodeId('');
-          setActiveNodeType('');
-          setActivePreviewType(null);
-          setMarkdownContent('');
-        } else {
-          // It's a file — the folder is everything except the last segment
-          setPendingActiveId(null);
-          setActiveNodeId(fullPath);
-          setActiveNodeType(statResult.type);
-          setActivePreviewType(null);
-
-          if (path.length > 1) {
-            const folderPath = path.slice(0, -1).join('/');
-            setCurrentFolderPath(folderPath);
-            setFolderBreadcrumbs(breadcrumbs.slice(0, -1));
-          } else {
-            setCurrentFolderPath(null);
-            setFolderBreadcrumbs([]);
-          }
-
-          const nodeConfig = getNodeTypeConfig(statResult.type);
-          if (nodeConfig.renderAs === 'markdown') {
-            setIsLoadingMarkdown(true);
-            try {
-              const content = await readFile(projectId, fullPath);
-              if (cancelled) return;
-              setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
-            } catch (err) {
-              if (cancelled) return;
-              console.error('Failed to load markdown content:', err);
-              setMarkdownContent('');
-            } finally {
-              if (!cancelled) setIsLoadingMarkdown(false);
-            }
-          } else {
-            setMarkdownContent('');
-          }
-        }
-      } finally {
-        if (!cancelled) setIsResolvingPath(false);
+        exists = statResult.exists;
+        resolvedType = statResult.type || typeHint || inferTypeFromName(path[path.length - 1]);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[usePathResolver] stat failed:', fullPath, err);
+        resolvedType = typeHint || inferTypeFromName(path[path.length - 1]);
       }
+
+      if (!exists) {
+        setPendingActiveId(null);
+        setCurrentFolderPath(null);
+        setFolderBreadcrumbs([]);
+        setActiveNodeId('');
+        setActiveNodeType('');
+        setActivePreviewType(null);
+        setMarkdownContent('');
+        setIsResolvingPath(false);
+        return;
+      }
+
+      applyFileState(fullPath, resolvedType, path, breadcrumbs, setters);
+      setPendingActiveId(null);
+
+      // Load markdown body if applicable
+      if (getNodeTypeConfig(resolvedType).renderAs === 'markdown') {
+        setIsLoadingMarkdown(true);
+        try {
+          const content = await readFile(projectId, fullPath);
+          if (cancelled) return;
+          setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
+        } catch (readErr) {
+          if (cancelled) return;
+          console.error('[usePathResolver] Failed to load markdown:', readErr);
+          setMarkdownContent('');
+        } finally {
+          if (!cancelled) setIsLoadingMarkdown(false);
+        }
+      } else {
+        setMarkdownContent('');
+      }
+
+      if (!cancelled) setIsResolvingPath(false);
     }
 
-    resolve();
+    resolve().catch((err) => {
+      if (cancelled) return;
+      console.error('[usePathResolver] Unexpected error:', err);
+      const fullPath = path.join('/');
+      const breadcrumbs = buildBreadcrumbs(path);
+      const guessedType = typeHint || inferTypeFromName(path[path.length - 1] ?? '');
+      applyFileState(fullPath, guessedType, path, breadcrumbs, setters);
+      setPendingActiveId(null);
+      setMarkdownContent('');
+      setIsResolvingPath(false);
+    });
+
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, pathKey]);
+  }, [projectId, pathKey, typeHint]);
 
   return {
     currentFolderId: currentFolderPath,

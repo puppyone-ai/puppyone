@@ -42,5 +42,5 @@ export default async function LegacyRedirectPage({ params }: LegacyPageProps) {
 
   // Legacy format: /projects/{projectId}/{nodeId...}
   // Redirect to: /projects/{projectId}/data/{nodeId...}
-  redirect(`/projects/${projectId}/data/${restPath.join('/')}`);
+  redirect(`/projects/${projectId}/data/${restPath.map(s => encodeURIComponent(s)).join('/')}`);
 }
