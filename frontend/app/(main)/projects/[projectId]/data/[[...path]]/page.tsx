@@ -320,8 +320,15 @@ function GlobalEndpointsAvatarGroup({
   );
 }
 
+function decodePath(segments: string[]): string[] {
+  return segments.map(s => {
+    try { return decodeURIComponent(s); } catch { return s; }
+  });
+}
+
 export default function DataPage({ params }: DataPageProps) {
-  const { projectId, path = [] } = use(params);
+  const { projectId, path: rawPath = [] } = use(params);
+  const path = decodePath(rawPath);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuth();
@@ -368,11 +375,12 @@ export default function DataPage({ params }: DataPageProps) {
   const setEditorType = (e: EditorType) => { setEditorTypeState(e); localStorage.setItem('puppyone-editor-type', e); };
 
   // Legacy welcome query param — strip it without triggering old onboarding guide
+  const hasWelcomeParam = searchParams.get('welcome') === 'true';
   useEffect(() => {
-    if (searchParams.get('welcome') === 'true') {
+    if (hasWelcomeParam) {
       router.replace(`/projects/${projectId}/data`);
     }
-  }, [searchParams, projectId, router]);
+  }, [hasWelcomeParam, projectId, router]);
 
   const handleOnboardingComplete = () => {
     sessionStorage.setItem(`onboarding-completed-${projectId}`, 'true');
@@ -425,9 +433,11 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── Navigation (path only, panel state is independent) ─────
 
-  const navigateTo = useCallback((nextPath: string[]) => {
-    const basePath = `/projects/${projectId}/data${nextPath.length > 0 ? `/${nextPath.join('/')}` : ''}`;
-    router.push(basePath);
+  const navigateTo = useCallback((nextPath: string[], typeHint?: string) => {
+    const encoded = nextPath.map(s => encodeURIComponent(s)).join('/');
+    const basePath = `/projects/${projectId}/data${encoded ? `/${encoded}` : ''}`;
+    const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
+    router.push(url);
   }, [projectId, router]);
 
   const closeRightPanel = useCallback(() => {
@@ -715,7 +725,7 @@ export default function DataPage({ params }: DataPageProps) {
     children_count: node.children_count,
     onClick: () => {
       if (node.type !== 'folder') setPendingActiveId(node.path);
-      navigateTo(node.path.split('/').filter(Boolean));
+      navigateTo(node.path.split('/').filter(Boolean), node.type || undefined);
     },
   }));
 
@@ -726,19 +736,19 @@ export default function DataPage({ params }: DataPageProps) {
     setCreateMenuOpen(true);
   };
 
-  const handleMillerCreateClick = (e: React.MouseEvent, parentId: string | null) => {
+  const handleMillerCreateClick = useCallback((e: React.MouseEvent, parentId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setCreateMenuPosition({ x: rect.right + 4, y: rect.top, anchorLeft: rect.left });
     setCreateInFolderId(parentId);
     setCreateMenuOpen(true);
-  };
+  }, []);
 
-  const handleMillerNavigate = (item: MillerColumnItem) => {
+  const handleMillerNavigate = useCallback((item: MillerColumnItem) => {
     setPendingActiveId(item.id);
-    navigateTo(item.id.split('/').filter(Boolean));
-  };
+    navigateTo(item.id.split('/').filter(Boolean), item.type || undefined);
+  }, [navigateTo]);
 
   const handleRefresh = async (path: string) => {
     alert(`Refresh not yet implemented for path: ${path}`);
@@ -803,7 +813,7 @@ export default function DataPage({ params }: DataPageProps) {
       folderBreadcrumbs.forEach((folder, index) => {
         const isLast = index === folderBreadcrumbs.length - 1;
         // folder.id is the full path up to this folder segment
-        const folderUrlPath = folder.id.split('/').filter(Boolean).join('/');
+        const folderUrlPath = folder.id.split('/').filter(Boolean).map(s => encodeURIComponent(s)).join('/');
         segments.push({
           label: folder.name,
           href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
