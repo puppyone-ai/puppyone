@@ -44,19 +44,19 @@ function ConnectionLine({ direction, isActive }: { direction: string; isActive: 
     );
   }
 
-  // inbound: External(Right) -> PuppyOne(Left)
+  // inbound: Source(Left) -> Workspace(Right)
   if (direction === 'inbound') {
     return (
       <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 8h76M6 4L2 8l4 4" />
+        <path d="M2 8h76M74 4l4 4-4 4" />
       </svg>
     );
   }
 
-  // outbound: PuppyOne(Left) -> External(Right)
+  // outbound: Workspace(Right) -> Source(Left)
   return (
     <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 8h76M74 4l4 4-4 4" />
+      <path d="M2 8h76M6 4L2 8l4 4" />
     </svg>
   );
 }
@@ -89,7 +89,11 @@ function getProviderLogo(provider: string, size: number) {
       </svg>
     );
     case 'filesystem':
-      return <span style={{ fontSize: size * 0.65 }}>🦞</span>;
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" />
+        </svg>
+      );
     case 'agent':
       return <span style={{ fontSize: size * 0.65 }}>💬</span>;
     case 'mcp':
@@ -134,9 +138,32 @@ export function SyncPreview({ provider, providerLabel, direction, targetName, ta
       display: 'flex', flexDirection: 'column', gap: 6, position: 'relative',
       paddingBottom: 4
     }}>
-      {/* Fixed-width row: icon(48) + gap + arrow(80) + gap + icon(48) centered */}
+      {/* Source (LEFT) → Arrow → Workspace (RIGHT) */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 0 }}>
-        {/* PuppyOne target node (LEFT) */}
+        {/* External source (LEFT) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 12,
+            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+          }}>
+            {getProviderLogo(provider, 24)}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
+            {providerLabel}
+          </div>
+        </div>
+
+        {/* Arrow area */}
+        <div style={{ 
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          width: 80, flexShrink: 0, paddingTop: 16,
+        }}>
+          <ConnectionLine direction={direction} isActive={ready} />
+        </div>
+
+        {/* PuppyOne target node (RIGHT) */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
           <div style={{
             width: 48, height: 48, borderRadius: 12,
@@ -156,29 +183,6 @@ export function SyncPreview({ provider, providerLabel, direction, targetName, ta
             whiteSpace: 'nowrap', maxWidth: 72,
           }}>
             {targetName || 'Workspace'}
-          </div>
-        </div>
-
-        {/* Arrow area - fixed width, vertically centered to icons */}
-        <div style={{ 
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          width: 80, flexShrink: 0, paddingTop: 16 // centers arrow vertically with the 48px icons
-        }}>
-          <ConnectionLine direction={direction} isActive={ready} />
-        </div>
-
-        {/* External source (RIGHT) */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-          }}>
-            {getProviderLogo(provider, 24)}
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
-            {providerLabel}
           </div>
         </div>
       </div>

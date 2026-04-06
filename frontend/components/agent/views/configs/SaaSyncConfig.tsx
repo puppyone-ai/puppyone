@@ -130,11 +130,11 @@ export function SaaSyncConfig({
 
       {/* ─── 2. Drag zone in styled callout bubble ─── */}
       <div style={{ position: 'relative', marginTop: 16 }}>
-        {/* CSS Triangle pointing up to the Workspace logo */}
+        {/* CSS Triangle pointing up to the Workspace logo (right side) */}
         <div style={{
           position: 'absolute',
           top: '-8px',
-          left: 'calc(50% - 76px)', // Aligned to center of 72px left node in the new layout: 50% - (80/2 + 72/2) = 50% - 76
+          left: 'calc(50% + 68px)',
           width: '16px',
           height: '16px',
           background: '#18181b',
@@ -142,7 +142,6 @@ export function SaaSyncConfig({
           borderTop: '1px solid rgba(255,255,255,0.08)',
           transform: 'rotate(45deg)',
           zIndex: 3,
-          marginLeft: '-8px'
         }} />
 
         <div style={{

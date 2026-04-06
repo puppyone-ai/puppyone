@@ -69,7 +69,7 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
     return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
   }
 
-  if (provider === 'filesystem') return <span style={{ fontSize: size * 0.85 }}>🦞</span>;
+  if (provider === 'filesystem') return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" /></svg>;
   if (provider === 'agent') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -96,7 +96,7 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
         <div style={{
           position: 'absolute',
           top: '-8px',
-          left: 'calc(50% - 76px)',
+          left: 'calc(50% + 68px)',
           width: '16px',
           height: '16px',
           background: '#18181b',

@@ -228,7 +228,7 @@ function SyncBadge({ provider, direction, active }: { provider: string; directio
       case 'notion': return <img src="/icons/notion.svg" width={sz} height={sz} style={{ display: 'block' }} />;
       case 'linear': return <img src="/icons/linear.svg" width={sz} height={sz} style={{ display: 'block' }} />;
       case 'airtable': return <img src="/icons/airtable.svg" width={sz} height={sz} style={{ display: 'block' }} />;
-      case 'filesystem': return <span style={{ fontSize: 10, lineHeight: 1 }}>🦞</span>;
+      case 'filesystem': return <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" /></svg>;
       default: return <span style={{ color: '#71717a', fontSize: 10 }}>⟳</span>;
     }
   })();

@@ -67,13 +67,16 @@ export function ResizablePanel({
         width: isVisible ? width : 0,
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
+        top: 0,
+        right: 0,
+        bottom: 0,
         borderLeft: isVisible ? '1px solid #2a2a2a' : 'none',
         background: '#111111',
-        position: 'relative',
-        flexShrink: 0,
+        position: 'absolute',
         overflow: 'hidden',
         transition: isResizing ? 'none' : 'width 0.2s ease',
+        zIndex: 20,
+        pointerEvents: isVisible || isResizing ? 'auto' : 'none',
       }}
     >
       {/* Resize Handle */}

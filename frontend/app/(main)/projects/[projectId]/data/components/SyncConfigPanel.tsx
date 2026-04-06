@@ -61,6 +61,17 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
   { id: 'sandbox', label: 'Sandbox', description: 'Isolated script execution environment', icon: <SandboxMini /> },
 ];
 
+interface SyncOptionDef {
+  id: string;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+const SYNC_OPTIONS: SyncOptionDef[] = [
+  { id: 'filesystem', label: 'Local Folder', description: 'Two-way sync with a folder on your device', icon: <FilesystemMini /> },
+];
+
 /* ================================================================
    Mini Icon Components
    ================================================================ */
@@ -81,6 +92,14 @@ function SandboxMini() {
   return (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
+    </svg>
+  );
+}
+
+function FilesystemMini() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   );
 }
@@ -170,8 +189,10 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     inbound: true,
-    bidirectional: false,
-    outbound: false,
+    sync: false,
+    tools: false,
+    agent: false,
+    build: false,
   });
 
   const toggleSection = (section: string) => {
@@ -488,11 +509,9 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
   // If a sync provider is selected, show config
   if (selectedSyncProvider) {
-    const providerDef = syncProviders.find(p => p.id === selectedSyncProvider)!;
-
-    if (providerDef.id === 'filesystem') {
+    if (selectedSyncProvider === 'filesystem') {
       return (
-        <PanelShell title={providerDef.label} onClose={onClose} onBack={handleBack}>
+        <PanelShell title="Local Folder" onClose={onClose} onBack={handleBack}>
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
               <SyncPreview
@@ -534,6 +553,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       );
     }
 
+  const providerDef = syncProviders.find(p => p.id === selectedSyncProvider)!;
   return (
     <PanelShell title={providerDef.label} onClose={onClose} onBack={handleBack}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -593,18 +613,20 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           
-          {/* Inbound */}
+          {/* 1. Import Data Sources */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
               type="inbound" 
-              title="Import to PuppyOne" 
+              title="Import Data Sources" 
+              hint="Gmail, Notion, GitHub..."
               isExpanded={expandedSections.inbound}
               onClick={() => toggleSection('inbound')}
             />
             {expandedSections.inbound && (
               <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 2, 
-                paddingLeft: 38, 
+                display: 'flex', flexDirection: 'column', gap: 4, 
+                paddingLeft: 24, 
+                paddingRight: 4,
                 paddingBottom: 12,
                 paddingTop: 4
               }}>
@@ -616,21 +638,32 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             )}
           </div>
 
-          {/* Bidirectional */}
+          {/* 2. Two-Way Workspace Sync */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
-              type="bidirectional" 
-              title="Two-way Workspace Sync" 
-              isExpanded={expandedSections.bidirectional}
-              onClick={() => toggleSection('bidirectional')}
+              type="sync" 
+              title="Two-Way Workspace Sync" 
+              hint="local dev, OpenClaw"
+              isExpanded={expandedSections.sync}
+              onClick={() => toggleSection('sync')}
             />
-            {expandedSections.bidirectional && (
+            {expandedSections.sync && (
               <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 2, 
-                paddingLeft: 38, 
+                display: 'flex', flexDirection: 'column', gap: 4, 
+                paddingLeft: 24, 
+                paddingRight: 4,
                 paddingBottom: 12,
                 paddingTop: 4
               }}>
+                {SYNC_OPTIONS.map(opt => (
+                  <ProviderRow
+                    key={opt.id}
+                    icon={opt.icon}
+                    label={opt.label}
+                    description={opt.description}
+                    onClick={() => handleSelectSyncProvider(opt.id)}
+                  />
+                ))}
                 {bidirectionalProviders.map(p => (
                   <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
                     onClick={() => handleSelectSyncProvider(p.id)} />
@@ -639,18 +672,48 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             )}
           </div>
 
-          {/* Outbound / AI Endpoints */}
+          {/* 3. Cursor, Claude Code & Terminal */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
-              type="outbound" 
-              title="AI Data Access" 
-              isExpanded={expandedSections.outbound}
-              onClick={() => toggleSection('outbound')}
+              type="tools" 
+              title="Terminal & SSH" 
+              hint="Cursor, Claude Code, Codex"
+              isExpanded={expandedSections.tools}
+              onClick={() => toggleSection('tools')}
             />
-            {expandedSections.outbound && (
+            {expandedSections.tools && (
               <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 2, 
-                paddingLeft: 38, 
+                display: 'flex', flexDirection: 'column', gap: 4, 
+                paddingLeft: 24, 
+                paddingRight: 4,
+                paddingBottom: 12,
+                paddingTop: 4
+              }}>
+                <ProviderRow
+                  icon={<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
+                  label="SSH Terminal"
+                  description="Coming soon"
+                  onClick={() => {}}
+                  disabled
+                />
+              </div>
+            )}
+          </div>
+
+          {/* 4. PuppyOne AI Agent */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <DirectionalSectionLabel 
+              type="agent" 
+              title="PuppyOne AI Agent" 
+              hint="built-in assistants"
+              isExpanded={expandedSections.agent}
+              onClick={() => toggleSection('agent')}
+            />
+            {expandedSections.agent && (
+              <div style={{ 
+                display: 'flex', flexDirection: 'column', gap: 4, 
+                paddingLeft: 24, 
+                paddingRight: 4,
                 paddingBottom: 12,
                 paddingTop: 4
               }}>
@@ -663,6 +726,27 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                     onClick={() => handleSelectAgentType(opt.id)}
                   />
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* 5. Build Custom Integrations */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <DirectionalSectionLabel 
+              type="build" 
+              title="Build Custom Integrations" 
+              hint="MCP, Sandbox"
+              isExpanded={expandedSections.build}
+              onClick={() => toggleSection('build')}
+            />
+            {expandedSections.build && (
+              <div style={{ 
+                display: 'flex', flexDirection: 'column', gap: 4, 
+                paddingLeft: 24, 
+                paddingRight: 4,
+                paddingBottom: 12,
+                paddingTop: 4
+              }}>
                 {ENDPOINT_OPTIONS.map(opt => (
                   <ProviderRow
                     key={opt.id}
@@ -697,9 +781,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DirectionalSectionLabel({ type, title, isExpanded, onClick }: { 
-  type: 'inbound' | 'bidirectional' | 'outbound', 
+function DirectionalSectionLabel({ type, title, hint, isExpanded, onClick }: { 
+  type: 'inbound' | 'sync' | 'tools' | 'agent' | 'build', 
   title: string, 
+  hint?: string,
   isExpanded: boolean,
   onClick: () => void 
 }) {
@@ -708,14 +793,17 @@ function DirectionalSectionLabel({ type, title, isExpanded, onClick }: {
 
   if (type === 'inbound') {
     iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
-  } else if (type === 'bidirectional') {
+  } else if (type === 'sync') {
     iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>;
+  } else if (type === 'tools') {
+    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>;
+  } else if (type === 'agent') {
+    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"></path><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="6" r="1"></circle></svg>;
   } else {
-    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>;
+    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>;
   }
 
-  // Capitalize title
-  const displayTitle = title.charAt(0).toUpperCase() + title.slice(1).toLowerCase();
+  const displayTitle = title;
 
   return (
     <button 
@@ -752,9 +840,21 @@ function DirectionalSectionLabel({ type, title, isExpanded, onClick }: {
         <div style={{
           fontSize: 13, fontWeight: 500, 
           color: (isExpanded || hovered) ? '#e4e4e7' : '#71717a', 
-          transition: 'color 0.2s'
+          transition: 'color 0.2s',
+          whiteSpace: 'nowrap',
         }}>
           {displayTitle}
+          {hint && (
+            <span style={{ 
+              fontWeight: 400, 
+              color: (isExpanded || hovered) ? '#71717a' : '#52525b',
+              fontSize: 12,
+              marginLeft: 4,
+              transition: 'color 0.2s',
+            }}>
+              ({hint})
+            </span>
+          )}
         </div>
       </div>
       <div style={{ 
@@ -767,37 +867,46 @@ function DirectionalSectionLabel({ type, title, isExpanded, onClick }: {
   );
 }
 
-function ProviderRow({ icon, label, description, onClick }: {
+function ProviderRow({ icon, label, description, onClick, disabled }: {
   icon: React.ReactNode;
   label: string;
   description: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        border: 'none', borderRadius: 6, cursor: 'pointer', width: '100%',
-        textAlign: 'left', transition: 'background 0.15s',
+        background: hovered && !disabled ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+        border: '1px solid',
+        borderColor: hovered && !disabled ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+        borderRadius: 8, cursor: disabled ? 'default' : 'pointer', width: '100%',
+        textAlign: 'left', transition: 'all 0.15s',
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       <div style={{
-        width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(255,255,255,0.04)', flexShrink: 0,
+        width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'rgba(255,255,255,0.05)', flexShrink: 0,
       }}>
         {icon}
       </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: hovered ? 500 : 400, color: hovered ? '#ffffff' : '#e4e4e7', transition: 'all 0.15s', lineHeight: 1.3 }}>{label}</div>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: hovered && !disabled ? '#ffffff' : '#e4e4e7', transition: 'all 0.15s', lineHeight: 1.3 }}>{label}</div>
         <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {description}
         </div>
       </div>
+      {!disabled && (
+        <div style={{ color: hovered ? '#71717a' : '#3f3f46', transition: 'color 0.15s', flexShrink: 0 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </div>
+      )}
     </button>
   );
 }
