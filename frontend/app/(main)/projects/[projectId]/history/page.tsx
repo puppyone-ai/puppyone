@@ -530,7 +530,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             {accessPoints.length > 1 && (
               <div className="flex flex-col border-b border-white/[0.04] bg-[#0e0e0e]">
                 {/* Access Point Tabs */}
-                <div className="px-3 py-3 flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                <div className="px-3 h-[40px] min-h-[40px] flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
                   <button
                     onClick={() => setActiveFilter(null)}
                     className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${

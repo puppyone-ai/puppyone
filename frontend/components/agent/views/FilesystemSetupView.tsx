@@ -340,7 +340,7 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
           flexShrink: 0,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>🦞</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="18" rx="2" /><line x1="2" y1="7" x2="22" y2="7" /><polyline points="8 13 11 16 8 19" /><line x1="14" y1="19" x2="18" y2="19" /></svg>
             <span style={{ fontSize: 14, fontWeight: 500, color: '#ededed' }}>
               {agent.name}
             </span>

@@ -3,6 +3,38 @@
 import React, { useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 
+const DARK_THEME_CONFIG = {
+  base: 'vs-dark' as const,
+  inherit: true,
+  rules: [
+    { token: '', foreground: 'd4d4d4', background: '0a0a0a' },
+    { token: 'comment', foreground: '6b7280', fontStyle: 'italic' },
+    { token: 'keyword', foreground: 'f97316' },
+    { token: 'string', foreground: '86efac' },
+    { token: 'string.key.json', foreground: 'a5b4fc' },
+    { token: 'string.value.json', foreground: '86efac' },
+    { token: 'number', foreground: '7dd3fc' },
+    { token: 'delimiter', foreground: '737373' },
+  ],
+  colors: {
+    'editor.background': '#0e0e0e',
+    'editor.foreground': '#d4d4d4',
+    'editor.lineHighlightBackground': '#141414',
+    'editor.selectionBackground': '#3f3f46',
+    'editor.inactiveSelectionBackground': '#3f3f4655',
+    'editorLineNumber.foreground': '#404040',
+    'editorLineNumber.activeForeground': '#737373',
+    'editorCursor.foreground': '#d4d4d4',
+    'editor.selectionHighlightBackground': '#52525b33',
+    'editorIndentGuide.background': '#1a1a1a',
+    'editorIndentGuide.activeBackground': '#262626',
+    'scrollbar.shadow': '#00000000',
+    'scrollbarSlider.background': '#40404055',
+    'scrollbarSlider.hoverBackground': '#52525b88',
+    'scrollbarSlider.activeBackground': '#52525b88',
+  },
+};
+
 interface MonacoJsonEditorProps {
   json: object;
   onChange?: (json: object) => void;
@@ -19,7 +51,9 @@ export function MonacoJsonEditor({
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
 
-    // Set up cursor position change listener for path tracking
+    monaco.editor.defineTheme('json-dark', DARK_THEME_CONFIG);
+    monaco.editor.setTheme('json-dark');
+
     editor.onDidChangeCursorPosition((e: any) => {
       if (!onPathChange) return;
 
@@ -31,7 +65,6 @@ export function MonacoJsonEditor({
         const offset = model.getOffsetAt(position);
         const content = model.getValue();
 
-        // Simple JSON path extraction based on cursor position
         const path = getJsonPathAtOffset(content, offset);
         onPathChange(path);
       } catch (error) {
@@ -58,7 +91,7 @@ export function MonacoJsonEditor({
       value={JSON.stringify(json, null, 2)}
       onChange={handleEditorChange}
       onMount={handleEditorMount}
-      theme='vs-dark'
+      theme='json-dark'
       options={{
         minimap: { enabled: false },
         fontSize: 14,
