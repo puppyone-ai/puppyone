@@ -4,12 +4,9 @@ import React, { use, useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
-import { listDir, getProjectHistory, type NodeInfo } from '@/lib/contentTreeApi';
+import { treeList, getProjectHistory, type TreeEntry } from '@/lib/contentTreeApi';
 
 // ================= Types =================
-
-import Image from 'next/image';
-import { getFileIcon } from '@/components/dashboard/ProjectCard';
 
 interface DashboardProject {
   id: string;
@@ -246,6 +243,117 @@ function ActivityChart({ buckets }: { buckets: { date: string; count: number }[]
   );
 }
 
+// ================= Data Tree =================
+
+interface TreeNode {
+  entry: TreeEntry;
+  children: TreeNode[];
+}
+
+function TreeRows({
+  nodes, depth, projectId, router, accessByPath,
+}: {
+  nodes: TreeNode[];
+  depth: number;
+  projectId: string;
+  router: ReturnType<typeof useRouter>;
+  accessByPath: Map<string, DashboardConnection[]>;
+}) {
+  return (
+    <>
+      {nodes.map((node, idx) => {
+        const { entry, children } = node;
+        const isFolder = entry.type === 'folder';
+        const isLast = idx === nodes.length - 1;
+        const attachedAccess = accessByPath.get(entry.path) || [];
+        const encodedPath = entry.path.split('/').map(s => encodeURIComponent(s)).join('/');
+
+        return (
+          <React.Fragment key={entry.path}>
+            <div
+              className="group/row flex items-center gap-0 cursor-pointer hover:bg-[rgba(255,255,255,0.03)] transition-colors"
+              style={{ height: 32, paddingRight: 12 }}
+              onClick={() => router.push(`/projects/${projectId}/data/${encodedPath}${entry.type ? `?type=${encodeURIComponent(entry.type)}` : ''}`)}
+            >
+              {/* Tree guides */}
+              <div style={{ width: 16 + depth * 20, flexShrink: 0, height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 0 }}>
+                {depth > 0 && (
+                  <svg width={20} height={32} style={{ position: 'absolute', right: 0, top: 0 }} viewBox="0 0 20 32" fill="none">
+                    <line x1="10" y1="0" x2="10" y2={isLast ? 16 : 32} stroke="#2a2a2a" strokeWidth="1" />
+                    <line x1="10" y1="16" x2="20" y2="16" stroke="#2a2a2a" strokeWidth="1" />
+                  </svg>
+                )}
+              </div>
+
+              {/* Icon */}
+              <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 6 }}>
+                <FileIcon type={entry.type} />
+              </div>
+
+              {/* Name */}
+              <span className="text-[13px] truncate group-hover/row:text-[#e4e4e7] transition-colors" style={{ color: isFolder ? '#c9d1d9' : '#8b949e', fontWeight: isFolder ? 500 : 400 }}>
+                {entry.name}
+              </span>
+
+              {/* Folder item count */}
+              {isFolder && entry.children_count != null && entry.children_count > 0 && (
+                <span className="text-[11px] ml-2 flex-shrink-0" style={{ color: '#52525b' }}>
+                  {entry.children_count}
+                </span>
+              )}
+
+              {/* Spacer */}
+              <div style={{ flex: 1 }} />
+
+              {/* Access point badges */}
+              {attachedAccess.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  {attachedAccess.map(conn => (
+                    <div
+                      key={conn.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '2px 8px 2px 5px',
+                        borderRadius: 10,
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                      }}
+                      title={`${conn.name || PROVIDER_LABELS[conn.provider] || conn.provider} — ${conn.status}`}
+                    >
+                      <ProviderAvatar provider={conn.provider} size={14} icon={(conn as any).icon} />
+                      <span style={{ fontSize: 11, color: '#71717a', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
+                      </span>
+                      <div style={{
+                        width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
+                        background: conn.status === 'error' ? '#ef4444' : conn.status === 'paused' ? '#eab308' : '#22c55e',
+                      }} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Render children */}
+            {children.length > 0 && (
+              <div style={{ position: 'relative' }}>
+                {/* Vertical continuation line for parent */}
+                {depth > 0 && !isLast && (
+                  <div style={{
+                    position: 'absolute', left: 16 + (depth - 1) * 20 + 10, top: 0, bottom: 0,
+                    width: 1, background: '#2a2a2a',
+                  }} />
+                )}
+                <TreeRows nodes={children} depth={depth + 1} projectId={projectId} router={router} accessByPath={accessByPath} />
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+}
+
 // ================= Main Page =================
 
 export default function HomePage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -258,9 +366,9 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
     { refreshInterval: 30000 }
   );
 
-  const { data: rootNodes } = useSWR(
-    projectId ? ['root-nodes', projectId] : null,
-    () => listDir(projectId, '')
+  const { data: treeEntries } = useSWR(
+    projectId ? ['home-tree', projectId] : null,
+    () => treeList(projectId, '', 3)
   );
 
   const { data: historyData } = useSWR(
@@ -310,28 +418,48 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
     { label: 'MUT Protocol', cmd: `${apiBase}/api/v1/mut/${projectId}` },
   ];
   
-  const files = (rootNodes?.nodes || []).sort((a: NodeInfo, b: NodeInfo) => {
-    if (a.type === 'folder' && b.type !== 'folder') return -1;
-    if (a.type !== 'folder' && b.type === 'folder') return 1;
-    return a.name.localeCompare(b.name);
-  });
+  const tree = useMemo(() => {
+    const entries = treeEntries || [];
+    const sorted = [...entries].sort((a, b) => {
+      if (a.type === 'folder' && b.type !== 'folder') return -1;
+      if (a.type !== 'folder' && b.type === 'folder') return 1;
+      return a.name.localeCompare(b.name);
+    });
 
-  const fileLastCommit = useMemo(() => {
-    const map: Record<string, { message: string; created_at: string | null }> = {};
-    const reversedCommits = [...commits].reverse();
-    for (const node of files) {
-      for (const commit of reversedCommits) {
-        const touches = commit.changes.some(c =>
-          c.path === node.path || c.path.startsWith(node.path + '/')
-        );
-        if (touches) {
-          map[node.path] = { message: commit.message, created_at: commit.created_at };
-          break;
+    const nodeMap = new Map<string, TreeNode>();
+    const roots: TreeNode[] = [];
+
+    for (const entry of sorted) {
+      nodeMap.set(entry.path, { entry, children: [] });
+    }
+
+    for (const entry of sorted) {
+      const node = nodeMap.get(entry.path)!;
+      const slashIdx = entry.path.lastIndexOf('/');
+      if (slashIdx === -1) {
+        roots.push(node);
+      } else {
+        const parentPath = entry.path.substring(0, slashIdx);
+        const parent = nodeMap.get(parentPath);
+        if (parent) {
+          parent.children.push(node);
+        } else {
+          roots.push(node);
         }
       }
     }
+    return roots;
+  }, [treeEntries]);
+
+  const accessByPath = useMemo(() => {
+    const map = new Map<string, DashboardConnection[]>();
+    for (const conn of connections) {
+      const key = conn.path || '';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(conn);
+    }
     return map;
-  }, [commits, files]);
+  }, [connections]);
 
   if (!dashboard) {
     return (
@@ -495,7 +623,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
           {/* Left Column: Files */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* File Box */}
-            <div className="mb-24 w-full bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl relative overflow-hidden" style={{ minHeight: 300 }}>
+            <div className="mb-24 w-full bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl relative overflow-hidden">
               {/* Subtle top glare line */}
               <div className="absolute top-0 left-0 right-0 h-px bg-[linear-gradient(to_right,transparent_0%,rgba(255,255,255,0.05)_10%,rgba(255,255,255,0.05)_90%,transparent_100%)] pointer-events-none z-20" />
               
@@ -526,53 +654,14 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                 )}
               </div>
               
-              {/* File Rows (Grid View) */}
-              <div className="p-8">
-                {files.length === 0 ? (
-                  <div style={{ padding: '64px 32px', textAlign: 'center', color: '#555', fontSize: 14 }}>
+              {/* File Tree */}
+              <div className="py-1">
+                {tree.length === 0 ? (
+                  <div style={{ padding: '48px 32px', textAlign: 'center', color: '#555', fontSize: 14 }}>
                     Empty project
                   </div>
                 ) : (
-                  <div className="grid gap-x-2 gap-y-2 w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
-                    {files.map((node: NodeInfo, i: number) => (
-                      <div
-                        key={node.path}
-                        onClick={() => router.push(`/projects/${projectId}/data/${node.path.split('/').map(s => encodeURIComponent(s)).join('/')}${node.type ? `?type=${encodeURIComponent(node.type)}` : ''}`)}
-                        className="flex flex-col items-center justify-center gap-1.5 cursor-pointer group/file p-3 rounded-xl hover:bg-[#1a1a1a] transition-colors aspect-square relative"
-                      >
-                        <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover/file:opacity-100 transition-opacity drop-shadow-sm relative">
-                          <Image
-                            src={getFileIcon(node.type)}
-                            alt={node.type}
-                            width={56}
-                            height={56}
-                          />
-                          {node.type === 'folder' && node.children_count != null && node.children_count > 0 && (
-                            <div style={{
-                              position: 'absolute',
-                              bottom: 0,
-                              right: -4,
-                              background: '#3f3f46',
-                              border: '1px solid #52525b',
-                              borderRadius: 8,
-                              padding: '1px 5px',
-                              fontSize: 10,
-                              fontWeight: 600,
-                              color: '#a1a1aa',
-                              lineHeight: '14px',
-                              minWidth: 18,
-                              textAlign: 'center',
-                            }}>
-                              {node.children_count}
-                            </div>
-                          )}
-                        </div>
-                        <span className="text-[13px] text-center truncate w-full text-[#999] group-hover/file:text-[#eee] transition-colors font-medium">
-                          {node.name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <TreeRows nodes={tree} depth={0} projectId={projectId} router={router} accessByPath={accessByPath} />
                 )}
               </div>
             </div>
