@@ -49,7 +49,7 @@ export function ProjectManageDialog({
       if (mode === 'edit' && projectId) {
         await updateProject(projectId, name.trim(), description);
       } else {
-        await createProject(name.trim(), '', currentOrg?.id, true);
+        await createProject(name.trim(), '', currentOrg?.id, false);
       }
       await refreshProjects(currentOrg?.id);
       onClose();

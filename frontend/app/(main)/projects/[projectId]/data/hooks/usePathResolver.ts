@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { stat, readFile } from '@/lib/contentTreeApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
-import { setPendingActiveId } from '../components/views';
+import { setPendingActiveId } from '../components/explorer';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 
 function inferTypeFromName(name: string): string {

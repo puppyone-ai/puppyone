@@ -45,21 +45,21 @@ import {
   type AccessPoint,
 } from '@/lib/mcpApi';
 
-import { writeFile, mkdir } from '@/lib/contentTreeApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import {
   GridView,
+  type AgentResource,
+  type ContentType,
+} from '../components/views';
+import {
   ExplorerSidebar,
   EndpointIconRenderer,
-  ensureExpanded,
   setPendingActiveId,
   usePendingActiveId,
   type MillerColumnItem,
-  type AgentResource,
-  type ContentType,
   type SyncEndpointInfo,
-} from '../components/views';
+} from '../components/explorer';
 
 import { useAgent } from '@/contexts/AgentContext';
 import { VersionHistoryPanel } from '@/components/editors/VersionHistoryPanel';
@@ -74,7 +74,8 @@ import { useNodeActions } from '../hooks/useNodeActions';
 // Extracted components
 import { EditorArea } from '../components/EditorArea';
 import { BottomBar } from '../components/BottomBar';
-import { DataPageDialogs, type CreateMenuActions } from '../components/DataPageDialogs';
+import { DataPageDialogs } from '../components/DataPageDialogs';
+import { DataPageOverlays } from '../components/DataPageOverlays';
 import { SyncConfigPanel } from '../components/SyncConfigPanel';
 import { McpConfigPanel } from '../components/McpConfigPanel';
 import { SandboxConfigPanel } from '../components/SandboxConfigPanel';
@@ -83,6 +84,7 @@ import { ChatRuntimeView } from '@/components/agent/views/ChatRuntimeView';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import { usePanelStore, type PanelState } from '../usePanelStore';
 import type { AccessOption } from '@/components/chat/ChatInputArea';
+import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 
 interface EditorTarget {
   path: string;
@@ -475,66 +477,32 @@ export default function DataPage({ params }: DataPageProps) {
   const lastSyncedTableId = useRef<string | null>(null);
 
   // Dialog states
-  const [createTableOpen, setCreateTableOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [defaultStartOption, setDefaultStartOption] = useState<'documents' | 'url'>('documents');
 
   // Supabase connector
   const [supabaseConnectOpen, setSupabaseConnectOpen] = useState(false);
   const [supabaseSQLEditorOpen, setSupabaseSQLEditorOpen] = useState(false);
   const [supabaseConnectionId, setSupabaseConnectionId] = useState<string | null>(null);
 
-  // Create menu
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number; anchorLeft: number } | null>(null);
-  const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined);
-  const createMenuRef = useRef<HTMLDivElement>(null);
-
-  // Highlight newly created node
-  const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const highlightCreatedNode = useCallback((nodeId: string) => {
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    setHighlightNodeId(nodeId);
-    highlightTimerRef.current = setTimeout(() => setHighlightNodeId(null), 2500);
-  }, []);
-
-  const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
-    gmail: 'json', calendar: 'json', sheets: 'json', linear: 'json', supabase: 'json',
-    docs: 'markdown', github: 'folder', notion: 'folder',
-  };
-  const PROVIDER_DEFAULT_NAMES: Record<string, string> = {
-    gmail: 'Gmail Inbox', calendar: 'Calendar Events', sheets: 'Sheet Data',
-    linear: 'Linear Issues', docs: 'Document', github: 'GitHub Repo', notion: 'Notion Pages',
-    supabase: 'Supabase Data',
-  };
-  const handleCreateAndSync = useCallback(async (saasProvider: string) => {
-    const nodeType = PROVIDER_NODE_TYPE[saasProvider];
-    if (!nodeType) { openSyncSetting(saasProvider); openSyncCreatePanel(); return; }
-    const name = PROVIDER_DEFAULT_NAMES[saasProvider] || 'Untitled';
-    const parentPath = currentFolderId ?? '';
-    try {
-      const fullPath = parentPath ? `${parentPath}/${name}` : name;
-      if (nodeType === 'json') {
-        await writeFile(projectId, fullPath, null, 'json');
-      } else if (nodeType === 'markdown') {
-        await writeFile(projectId, fullPath, '', 'markdown');
-      } else {
-        await mkdir(projectId, fullPath);
-      }
-      await refreshAllContentNodes(projectId);
-      const resourceNodeType: 'folder' | 'json' | 'file' =
-        nodeType === 'markdown' ? 'file' : nodeType;
-      openSyncSetting(saasProvider, {
-        path: fullPath, nodeName: name, nodeType: resourceNodeType,
-        readonly: true,
-      });
-      openSyncCreatePanel();
-    } catch {
-      openSyncSetting(saasProvider);
-      openSyncCreatePanel();
-    }
-  }, [projectId, currentFolderId, openSyncSetting, openSyncCreatePanel]);
+  const {
+    createTableOpen,
+    defaultStartOption,
+    createMenuOpen,
+    createMenuOpenForId,
+    createMenuPosition,
+    createMenuRef,
+    createMenuActions,
+    highlightNodeId,
+    handleCreateClick,
+    handleMillerCreateClick,
+    closeCreateTable,
+  } = useDataCreateFlow({
+    projectId,
+    currentFolderId,
+    navigateTo,
+    openSyncCreatePanel,
+    openSyncSetting,
+  });
 
   const agentResources: AgentResource[] = useMemo(() => {
     const toAgentResource = (r: { path: string; readonly?: boolean }) => ({
@@ -600,19 +568,6 @@ export default function DataPage({ params }: DataPageProps) {
     setAccessPoints(initialAccessPoints);
     lastSyncedTableId.current = activeNodeId;
   }, [activeNodeId, toolsLoading, tableTools]);
-
-  // Close create menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) {
-        setCreateMenuOpen(false);
-      }
-    };
-    if (createMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [createMenuOpen]);
 
   // Sync state to WorkspaceContext
   useEffect(() => { setProjectId(projectId); }, [projectId, setProjectId]);
@@ -729,22 +684,6 @@ export default function DataPage({ params }: DataPageProps) {
     },
   }));
 
-  const handleCreateClick = (e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setCreateMenuPosition({ x: rect.right + 4, y: rect.top, anchorLeft: rect.left });
-    setCreateInFolderId(undefined);
-    setCreateMenuOpen(true);
-  };
-
-  const handleMillerCreateClick = useCallback((e: React.MouseEvent, parentId: string | null) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setCreateMenuPosition({ x: rect.right + 4, y: rect.top, anchorLeft: rect.left });
-    setCreateInFolderId(parentId);
-    setCreateMenuOpen(true);
-  }, []);
-
   const handleMillerNavigate = useCallback((item: MillerColumnItem) => {
     setPendingActiveId(item.id);
     navigateTo(item.id.split('/').filter(Boolean), item.type || undefined);
@@ -840,60 +779,6 @@ export default function DataPage({ params }: DataPageProps) {
   const isFolderView = !activeNodeId;
   const isLoading = isResolvingPath || contentNodesLoading;
 
-  // ───── CreateMenu Actions ─────
-
-  const createMenuActions = useMemo<CreateMenuActions>(() => {
-    const targetFolderPathFn = () => createInFolderId === undefined ? currentFolderId : createInFolderId;
-
-    return {
-      onClose: () => setCreateMenuOpen(false),
-      onCreateFolder: async () => {
-        const targetFolderPath = targetFolderPathFn();
-        try {
-          const folderPath = targetFolderPath ? `${targetFolderPath}/New Folder` : 'New Folder';
-          await mkdir(projectId, folderPath);
-          if (targetFolderPath) ensureExpanded(targetFolderPath);
-          await refreshAllContentNodes(projectId);
-          ensureExpanded(folderPath);
-          highlightCreatedNode(folderPath);
-        } catch (err) { console.error('Failed to create folder:', err); }
-      },
-      onCreateBlankJson: async () => {
-        const targetFolderPath = targetFolderPathFn();
-        try {
-          const filePath = targetFolderPath ? `${targetFolderPath}/Untitled` : 'Untitled';
-          await writeFile(projectId, filePath, {}, 'json');
-          if (targetFolderPath) ensureExpanded(targetFolderPath);
-          await refreshAllContentNodes(projectId);
-          highlightCreatedNode(filePath);
-          navigateTo(filePath.split('/').filter(Boolean));
-        } catch (err) { console.error('Failed to create JSON:', err); }
-      },
-      onCreateBlankMarkdown: async () => {
-        const targetFolderPath = targetFolderPathFn();
-        try {
-          const filePath = targetFolderPath ? `${targetFolderPath}/Untitled Note` : 'Untitled Note';
-          await writeFile(projectId, filePath, '', 'markdown');
-          if (targetFolderPath) ensureExpanded(targetFolderPath);
-          await refreshAllContentNodes(projectId);
-          highlightCreatedNode(filePath);
-          navigateTo(filePath.split('/').filter(Boolean));
-        } catch (err) { console.error('Failed to create markdown:', err); }
-      },
-      onImportFromFiles: () => { setDefaultStartOption('documents'); setCreateTableOpen(true); },
-      onImportFromUrl: () => { setDefaultStartOption('url'); setCreateTableOpen(true); },
-      onImportFromSaas: () => { openSyncSetting('_generic'); openSyncCreatePanel(); },
-      onImportNotion: () => { handleCreateAndSync('notion'); },
-      onImportGitHub: () => { handleCreateAndSync('github'); },
-      onImportGmail: () => { handleCreateAndSync('gmail'); },
-      onImportDocs: () => { handleCreateAndSync('docs'); },
-      onImportCalendar: () => { handleCreateAndSync('calendar'); },
-      onImportSheets: () => { handleCreateAndSync('sheets'); },
-      onConnectSupabase: () => { handleCreateAndSync('supabase'); },
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, currentFolderId, createInFolderId, highlightCreatedNode, openSyncSetting, openSyncCreatePanel, handleCreateAndSync, navigateTo]);
-
   // ───── Render ─────
 
   return (
@@ -903,7 +788,6 @@ export default function DataPage({ params }: DataPageProps) {
         currentFolderId={currentFolderId}
         projects={projects}
         activeProject={activeProject}
-        activeNodeId={activeNodeId}
         showOnboardingGuide={showOnboardingGuide}
         onCloseOnboarding={() => setShowOnboardingGuide(false)}
         onOnboardingComplete={handleOnboardingComplete}
@@ -919,13 +803,8 @@ export default function DataPage({ params }: DataPageProps) {
           await nodeActions.handleMoveNode(nodeId, targetFolderId);
         }}
         onCloseMove={() => nodeActions.setMoveDialogTarget(null)}
-        toast={nodeActions.toast}
-        createMenuOpen={createMenuOpen}
-        createMenuPosition={createMenuPosition}
-        createMenuRef={createMenuRef}
-        createMenuActions={createMenuActions}
         createTableOpen={createTableOpen}
-        onCloseCreateTable={() => { setCreateTableOpen(false); setDefaultStartOption('documents'); }}
+        onCloseCreateTable={closeCreateTable}
         defaultStartOption={defaultStartOption}
         createFolderOpen={createFolderOpen}
         onCloseFolderDialog={() => setCreateFolderOpen(false)}
@@ -945,15 +824,14 @@ export default function DataPage({ params }: DataPageProps) {
         onCloseFileImport={fileImport.closeFileImportDialog}
         onFileImportConfirm={fileImport.handleFileImportConfirm}
         droppedFiles={fileImport.droppedFiles}
-        toolPanelTarget={nodeActions.toolPanelTarget}
-        onCloseToolPanel={() => nodeActions.setToolPanelTarget(null)}
-        projectTools={projectTools}
-        onToolsChange={() => {
-          if (nodeActions.toolPanelTarget) {
-            refreshToolsByPath(nodeActions.toolPanelTarget.id);
-            refreshProjectTools(projectId);
-          }
-        }}
+      />
+
+      <DataPageOverlays
+        toast={nodeActions.toast}
+        createMenuOpen={createMenuOpen}
+        createMenuPosition={createMenuPosition}
+        createMenuRef={createMenuRef}
+        createMenuActions={createMenuActions}
       />
 
       {/* Main Content */}
@@ -995,38 +873,13 @@ export default function DataPage({ params }: DataPageProps) {
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}
-            onSyncClick={(item) => {
-              setEditorTarget(null);
-              setIsEditorFullScreen(false);
-
-              const endpoint = syncEndpoints.get(item.id);
-              if (endpoint) {
-                const ps = endpointToPanelState(endpoint, item.id);
-                togglePanel(ps);
-              } else {
-                openSyncSetting('_generic', {
-                  path: item.id,
-                  nodeName: item.name,
-                  nodeType: 'folder',
-                  readonly: true,
-                });
-                openPanel({ type: 'sync_create' });
-              }
-            }}
-            onEndpointClick={(item, endpoint) => {
-              setEditorTarget(null);
-              setIsEditorFullScreen(false);
-              const ps = endpointToPanelState(endpoint, item.id);
-              togglePanel(ps);
-            }}
             activeSyncNodeId={
               panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
                 ? (panelState.nodeId ?? null)
                 : null
             }
-            syncEndpoints={syncEndpoints}
-            nodeEndpointMap={nodeEndpointMap}
             highlightNodeId={hoverHighlightNodeId || highlightNodeId}
+            createMenuOpenForId={createMenuOpenForId}
             style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
           />
 
@@ -1178,7 +1031,7 @@ export default function DataPage({ params }: DataPageProps) {
 
             {/* Folder View (Grid mode) */}
             {isFolderView && !isResolvingPath && (
-              <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+              <div style={{ flex: 1, overflow: 'auto', padding: items.length === 0 && !currentFolderId ? 0 : 24, display: 'flex', flexDirection: 'column' }}>
                 {isLoading ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#525252', fontSize: 14 }}>
@@ -1192,15 +1045,42 @@ export default function DataPage({ params }: DataPageProps) {
                 ) : items.length === 0 && !currentFolderId ? (
                   <EmptyWorkspaceState
                     project={activeProject}
-                    onConnectClick={openSyncCreatePanel}
                     onCreateClick={handleCreateClick}
                   />
                 ) : items.length === 0 && currentFolderId ? (
-                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, gap: 8, height: '100%' }}>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <span>This folder is empty</span>
+                  <div style={{ flex: 1, minHeight: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
+                    <button
+                      type="button"
+                      onClick={handleCreateClick}
+                      title="Create item"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#666',
+                        cursor: 'pointer',
+                        padding: 0,
+                        transition: 'background 0.12s, color 0.12s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                        e.currentTarget.style.color = '#ddd';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#666';
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
                   </div>
                 ) : (
                   <GridView
