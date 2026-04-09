@@ -31,147 +31,165 @@ ContextBase 后端是一个基于 **FastAPI** 的 Python 服务，为 LLM Agent 
 - **向量搜索**: Turbopuffer
 - **LLM 网关**: LiteLLM
 
+## 架构（Mut-Native）
+
+**Mut tree (S3) 是唯一的内容 SOT。PG 是控制平面，不持有内容节点。**
+
+- 没有 `content_nodes` 表
+- 没有独立的权限绑定表（scope 存储在 `access_points.config.scope`）
+- 文件操作全部通过 MutWriteService / MutTreeReader
+- 权限通过 Mut scope (access_points.config.scope) 管理
+- 前端使用 path-based 路由和 Tree API
+
 ## 项目结构
 
 ```
 backend/
-├── src/                       # 主源码
+├── src/
 │   ├── main.py                # 应用入口 & 生命周期
 │   ├── config.py              # 全局配置 (Pydantic Settings)
-│   ├── auth/                  # JWT 认证
-│   ├── project/               # 项目管理
-│   ├── content_node/          # 内容节点树
-│   ├── table/                 # 结构化数据表 (JSON Pointer)
+│   │
+│   ├── mut_engine/            # MUT 版本引擎 (核心读写通道)
+│   │   ├── routers/           # HTTP 路由层
+│   │   │   ├── content_router.py  # Content API (/api/v1/content/*)
+│   │   │   ├── protocol_router.py # MUT 线协议 (/api/v1/mut/*)
+│   │   │   ├── access_point.py    # Access Point (/mut/ap/*)
+│   │   │   └── audit_router.py    # 审计日志
+│   │   ├── services/          # 业务服务层
+│   │   │   ├── ops.py         # MutOps — 统一操作入口
+│   │   │   ├── ephemeral_client.py # 进程内 clone→push
+│   │   │   ├── tree_reader.py # MutTreeReader — 轻量读取
+│   │   │   └── hooks.py       # Post-commit hooks
+│   │   ├── server/            # 服务端基础设施层
+│   │   │   ├── server_repo.py # PuppyOneServerRepo (S3/PG 适配)
+│   │   │   ├── repo_manager.py# per-project Mut 仓库管理
+│   │   │   ├── admin.py       # MutAdminService (init/历史/diff)
+│   │   │   ├── auth.py        # 认证适配器
+│   │   │   └── backends/      # 存储后端 (S3/Supabase)
+│   │   ├── schemas.py         # 所有数据模型
+│   │   ├── dependencies.py    # FastAPI DI 工厂
+│   │   ├── audit_router.py    # 审计日志 API
+│   │   ├── protocol_router.py # MUT 线路协议 (clone/push/pull/negotiate)
+│   │   └── backends/          # S3 + Supabase 后端适配
+│   │
+│   ├── content/
+│   │   └── table/             # 结构化数据表 (JSON Pointer)
 │   ├── tool/                  # 工具注册 & 搜索索引
-│   ├── agent/                 # Agent 聊天 (SSE) & 配置
-│   ├── mcp_v3/                # MCP 协议 v3 (工具绑定/代理)
-│   ├── mcp/                   # MCP 实例管理
-│   ├── ingest/                # 数据摄取 ETL
-│   │   ├── file/              # 文件摄取 (MineRU + LLM)
-│   │   └── saas/              # SaaS 同步 (Notion/GitHub 等)
-│   ├── search/                # 向量搜索 (Turbopuffer + RRF)
-│   ├── chunking/              # 文本分块
-│   ├── llm/                   # LLM 服务
-│   ├── oauth/                 # OAuth 集成 (9+ 平台)
-│   ├── s3/                    # S3 存储服务
-│   ├── sandbox/               # 代码沙盒 (E2B/Docker)
-│   ├── scheduler/             # 定时任务 (APScheduler)
-│   ├── context_publish/       # 公开 JSON 发布
-│   ├── analytics/             # 分析
-│   ├── profile/               # 用户画像
-│   ├── internal/              # 内部 API
-│   ├── supabase/              # Supabase 客户端 & Repository
-│   └── utils/                 # 工具库 (日志/中间件)
-├── mcp_service/               # MCP Server 独立服务
-├── sql/                       # 数据库 DDL
+│   │
+│   ├── connectors/            # 连接器
+│   │   ├── manager/           # 统一 Access CRUD (access_points 表)
+│   │   ├── agent/             # AI Agent (config/chat/MCP 绑定)
+│   │   ├── datasource/        # SaaS 数据源 (Gmail/GitHub/Notion/...)
+│   │   │   └── oauth/         # OAuth 授权流程 & token 存储
+│   │   ├── filesystem/        # 双向本地文件夹同步 (OpenClaw)
+│   │   ├── database/          # 外部数据库连接
+│   │   ├── mcp_endpoint/      # MCP 端点 CRUD & API key
+│   │   └── sandbox_endpoint/  # Sandbox 端点 CRUD & exec
+│   │
+│   ├── platform/              # 平台服务
+│   │   ├── auth/              # JWT 认证
+│   │   ├── organization/      # 组织管理
+│   │   ├── project/           # 项目管理
+│   │   ├── profile/           # 用户资料
+│   │   ├── workspace/         # 工作空间
+│   │   └── analytics/         # 使用统计
+│   │
+│   ├── infra/                 # 基础设施
+│   │   ├── supabase/          # Supabase 客户端
+│   │   ├── s3/                # S3 存储
+│   │   ├── llm/               # LLM 服务
+│   │   ├── search/            # 向量搜索
+│   │   └── scheduler/         # 定时任务
+│   │
+│   └── utils/                 # 工具模块
 ├── tests/                     # 测试
-├── scripts/                   # 脚本
-└── docs/                      # 功能文档
+└── sql/                       # 数据库 DDL & 迁移
 ```
 
-## 开发规范
+## 核心模块
 
-### 代码模式
+### MutWriteService（唯一写入入口）
 
-- **分层架构**: `Router → Service → Repository (Supabase)` 三层分离
-- **依赖注入**: 使用 FastAPI Depends 注入 Service 和 Repository
-- **全异步**: 所有 I/O 操作使用 `async/await`
-- **Pydantic 模型**: 所有 Request/Response 使用 Pydantic schema 定义
-- **UUID 主键**: 所有实体使用 UUID 作为主键
-- **JSONB 字段**: 灵活数据使用 PostgreSQL JSONB 存储
+```python
+class MutWriteService:
+    def __init__(self, repo_manager: MutRepoManager): ...
 
-### 命名约定
+    async def write_file(project_id, path, content, operator, message, base_version) -> WriteResult
+    async def delete_file(project_id, path, operator, message) -> DeleteResult
+    async def move_file(project_id, old_path, new_path, operator, message) -> MoveResult
+    async def move_folder(project_id, old_path, new_path, operator, message) -> MoveResult
+    async def mkdir(project_id, path, operator) -> WriteResult
+    async def trash(project_id, path, operator) -> MoveResult
+    async def restore(project_id, trash_path, original_path, operator) -> MoveResult
+    async def delete_folder(project_id, path, operator, message) -> DeleteResult
+    async def read_file(project_id, path) -> bytes
+    async def get_version_history(project_id, path, limit, since_version) -> list[dict]
+    async def get_version_content(project_id, path, version) -> bytes
+    async def compute_diff(project_id, v1, v2) -> list[dict]
+    async def rollback(project_id, target_version, operator) -> int
+```
 
-- **文件**: `snake_case.py`
-- **类**: `PascalCase` (如 `TableService`, `ToolRepository`)
-- **函数/变量**: `snake_case`
-- **路由前缀**: 所有业务 API 统一 `/api/v1`，内部 API 使用 `/internal`
-- **模块结构**: 每个模块通常包含 `router.py`, `service.py`, `repository.py`, `schemas.py`
+### MutTreeReader（唯一读取入口）
 
-### 认证
+```python
+class MutTreeReader:
+    def __init__(self, repo_manager: MutRepoManager): ...
 
-- JWT 认证基于 Supabase Auth
-- 使用 `get_current_user` 依赖获取当前用户
-- `get_current_user_optional` 用于可选认证的端点
-- 测试环境可通过 `SKIP_AUTH=true` 跳过认证
+    def list_dir(project_id, path) -> list[MutEntry]
+    def read_file(project_id, path) -> bytes
+    def stat(project_id, path) -> MutEntry | None
+    def list_tree(project_id, path, max_depth) -> list[MutEntry]
+    def exists(project_id, path) -> bool
+    def get_root_hash(project_id) -> str
+    def get_version(project_id) -> int
+```
 
-### 错误处理
+### DI 注入
 
-- 使用 `AppException` 自定义异常类
-- 全局异常处理器统一 JSON 响应格式
-- 包含 `RequestValidationError`, `HTTPException`, 通用 `Exception` 处理
+```python
+from src.mut_engine.dependencies import (
+    get_mut_write_service,    # FastAPI DI
+    get_tree_reader,          # FastAPI DI
+    get_repo_manager,         # FastAPI DI
+    create_mut_write_service, # Standalone (scheduler/ARQ)
+    create_tree_reader,       # Standalone
+    get_repo_manager_standalone,
+    read_blob_content,        # 通过 content_hash 读取
+)
+```
 
-### 日志
+## API 路由
 
-- 使用 **Loguru** (非标准库 logging)
-- 使用 `log_info()`, `log_error()` 等 (来自 `src.utils.logger`)
-- 日志格式: 本地终端彩色文本，生产环境 JSON
+| 路由前缀 | 模块 | 说明 |
+|----------|------|------|
+| `/api/v1/content/{project_id}` | mut_engine/routers/content_router | Content API (ls/cat/stat/tree/write/mkdir/mv/rm) |
+| `/api/v1/mut/{project_id}` | mut_engine/protocol_router | MUT 线路协议 |
+| `/api/v1/tables` | content/table | 数据表 JSON Pointer 操作 |
+| `/api/v1/projects` | platform/project | 项目管理 |
+| `/api/v1/organizations` | platform/organization | 组织管理 |
+| `/api/v1/tools` | tool | 工具注册 |
+| `/api/v1/agents` | connectors/agent | Agent SSE 聊天 |
+| `/api/v1/agent-config` | connectors/agent/config | Agent CRUD |
+| `/api/v1/mcp` | connectors/agent/mcp | MCP v3 工具绑定 |
+| `/api/v1/sync` | connectors/datasource | 数据源同步 |
+| `/api/v1/access` | connectors/manager | 统一 Access 管理 |
+| `/api/v1/ingest` | ingest | 文件/URL 导入 |
+| `/api/v1/oauth` | oauth | OAuth 授权 |
+| `/internal` | internal | 内部 API |
 
 ## 常用命令
 
 ```bash
-# 安装依赖
-uv sync
-
-# 启动开发服务器
+uv sync                 # 安装依赖
 uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log
-
-# 运行测试
-uv run pytest
-uv run pytest -m "not e2e"      # 排除 e2e 测试
-
-# 启动 File Worker (文件 ETL / OCR)
-uv run arq src.upload.file.jobs.worker.WorkerSettings
+uv run pytest           # 运行测试
 ```
 
-## 关键依赖
+## 开发约定
 
-| 包 | 用途 |
-|------|------|
-| `fastapi` | Web 框架 |
-| `supabase` | 数据库客户端 |
-| `boto3` | S3 存储客户端 |
-| `litellm` | 统一 LLM 调用网关 |
-| `turbopuffer` | 向量数据库客户端 |
-| `arq` | 异步任务队列 (Redis) |
-| `anthropic` | Anthropic SDK |
-| `e2b-code-interpreter` | E2B 沙盒 |
-| `fastmcp` | MCP 协议库 |
-| `firecrawl-py` | 网页抓取 |
-| `loguru` | 结构化日志 |
-| `apscheduler` | 定时任务调度 |
-
-## API 路由总览
-
-| 路由前缀 | 模块 | 说明 |
-|----------|------|------|
-| `/api/v1/projects` | project | 项目 CRUD |
-| `/api/v1/nodes` | content_node | 内容节点 (文件夹/JSON/MD/文件) |
-| `/api/v1/tables` | table | 数据表 & JSON Pointer 操作 |
-| `/api/v1/tools` | tool | 工具注册 & 搜索索引 |
-| `/api/v1/agents` | agent | Agent SSE 流式对话 |
-| `/api/v1/mcp` | mcp_v3 | MCP 工具绑定 & 代理 |
-| `/api/v1/ingest` | ingest | 文件/SaaS/URL 数据摄取 |
-| `/api/v1/s3` | s3 | 文件上传/下载/预签名URL |
-| `/api/v1/publishes` | context_publish | 公开 JSON 短链接 |
-| `/api/v1/oauth` | oauth | OAuth 授权 (9+ 平台) |
-| `/internal` | internal | 内部服务 API |
-| `/health` | main | 健康检查 |
-
-## 部署架构
-
-Railway 多服务部署 (共享代码库，通过 `SERVICE_ROLE` 区分):
-
-- **api** (默认): 主 API 服务
-- **file_worker**: 文件 ETL / OCR Worker (ARQ)
-- **mcp_server**: MCP 协议服务 (FastMCP)
-
-## 文档资源
-
-- `docs/` — 各模块功能文档
-- `docs/turbopuffer/` — Turbopuffer API 参考
-- `docs/anthropic/` — Anthropic API 参考
-- `docs/e2b/` — E2B 沙盒参考
-- `docs/etl/` — ETL 管道文档
-- `openspec/` — OpenSpec 变更规范
-- `sql/` — 数据库 DDL 与迁移脚本
+- **分层架构**: Router → Service → MutWriteService/MutTreeReader
+- **依赖注入**: FastAPI Depends
+- **全异步**: 所有 I/O 使用 async/await
+- **路径标识**: 文件以 path（如 "docs/readme.md"）标识，不使用 UUID
+- **命名**: 文件 snake_case.py，类 PascalCase，函数/变量 snake_case
+- **路由前缀**: 业务 API 在 /api/v1，内部 API 在 /internal

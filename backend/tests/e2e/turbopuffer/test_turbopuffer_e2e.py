@@ -13,9 +13,9 @@ from uuid import uuid4
 import pytest
 from dotenv import load_dotenv
 
-from src.turbopuffer.config import TurbopufferConfig
-from src.turbopuffer.exceptions import TurbopufferNotFound, TurbopufferRequestError
-from src.turbopuffer.service import TurbopufferSearchService
+from src.infra.turbopuffer.config import TurbopufferConfig
+from src.infra.turbopuffer.exceptions import TurbopufferNotFound, TurbopufferRequestError
+from src.infra.turbopuffer.service import TurbopufferSearchService
 from tests.e2e._reporter import E2EReporter
 
 
@@ -30,7 +30,7 @@ def _make_namespace(prefix: str = "e2e-tpuf-") -> str:
 
 def simple_chunk(text: str, *, max_chars: int = 80) -> list[str]:
     """
-    一个“足够简单”的 chunker：
+    一个"足够简单"的 chunker：
     - 以句号分句
     - 按 max_chars 聚合
     """

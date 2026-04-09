@@ -6,53 +6,54 @@ ContextBase Backend Server Entrypoint.
 
 import time
 from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Response
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.mcp.dependencies import get_mcp_instance_service
+from src.infra.mcp_server.dependencies import get_mcp_instance_service
 
-# 记录应用启动时间
+# Record application start time
 APP_START_TIME = time.time()
 
-# 加载 .env 文件（仅用于本地开发，生产环境直接使用系统环境变量）
+# Load .env file (for local development only; production uses system environment variables directly)
 from dotenv import load_dotenv
 
 dotenv_start = time.time()
 load_dotenv(override=True)
 dotenv_duration = time.time() - dotenv_start
 
-# 初始化 Loguru + 拦截标准 logging（含 uvicorn.*）
+# Initialize Loguru + intercept standard logging (including uvicorn.*)
 from src.utils.logging_setup import setup_logging
 
 setup_logging()
 
-# 记录各模块导入时间
+# Record module import times
 config_start = time.time()
 from src.config import settings
 
 config_duration = time.time() - config_start
 
 exceptions_start = time.time()
-from src.exceptions import AppException
 from src.exception_handler import (
     app_exception_handler,
+    generic_exception_handler,
     http_exception_handler,
     validation_exception_handler,
-    generic_exception_handler,
 )
+from src.exceptions import AppException
 
 exceptions_duration = time.time() - exceptions_start
 
 logger_start = time.time()
-from src.utils.logger import log_info, log_error
+from src.utils.logger import log_error, log_info
 
 logger_duration = time.time() - logger_start
 
-# 记录各路由模块导入时间
+# Record router module import times
 table_router_start = time.time()
-from src.table.router import router as table_router
+from src.content.table.router import router as table_router
 
 table_router_duration = time.time() - table_router_start
 
@@ -62,37 +63,37 @@ from src.tool.router import router as tool_router
 tool_router_duration = time.time() - tool_router_start
 
 mcp_v3_router_start = time.time()
-from src.agent.mcp.router import router as mcp_v3_router
+from src.connectors.agent.mcp.router import router as mcp_v3_router
 
 mcp_v3_router_duration = time.time() - mcp_v3_router_start
 
 agent_router_start = time.time()
-from src.agent.router import router as agent_router
-from src.agent.config.router import router as agent_config_router
+from src.connectors.agent.config.router import router as agent_config_router
+from src.connectors.agent.router import router as agent_router
 
 agent_router_duration = time.time() - agent_router_start
 
 context_publish_router_start = time.time()
-from src.context_publish.router import router as context_publish_router
 from src.context_publish.router import public_router as context_publish_public_router
+from src.context_publish.router import router as context_publish_router
 
 context_publish_router_duration = time.time() - context_publish_router_start
 
 # Unified ingest router (file + SaaS imports)
 ingest_router_start = time.time()
-from src.upload.router import router as ingest_router
+from src.ingest.router import router as ingest_router
 
 ingest_router_duration = time.time() - ingest_router_start
 
 project_router_start = time.time()
-from src.project.router import router as project_router
+from src.platform.project.router import router as project_router
 
 project_router_duration = time.time() - project_router_start
 
-from src.organization.router import router as organization_router
+from src.platform.organization.router import router as organization_router
 
 oauth_router_start = time.time()
-from src.oauth.router import router as oauth_router
+from src.connectors.datasource.oauth.router import router as oauth_router
 
 oauth_router_duration = time.time() - oauth_router_start
 
@@ -101,37 +102,36 @@ from src.internal.router import router as internal_router
 
 internal_router_duration = time.time() - internal_router_start
 
-content_node_router_start = time.time()
-from src.content_node.router import router as content_node_router
+content_router_start = time.time()
 
-content_node_router_duration = time.time() - content_node_router_start
+content_router_duration = time.time() - content_router_start
 
 analytics_router_start = time.time()
-from src.analytics.router import router as analytics_router
+from src.platform.analytics.router import router as analytics_router
 
 analytics_router_duration = time.time() - analytics_router_start
 
 profile_router_start = time.time()
-from src.profile.router import router as profile_router
+from src.platform.profile.router import router as profile_router
 
 profile_router_duration = time.time() - profile_router_start
 
 db_connector_router_start = time.time()
-from src.db_connector.router import router as db_connector_router
+from src.connectors.database.router import router as db_connector_router
 
 db_connector_router_duration = time.time() - db_connector_router_start
 
 # Scheduler service import
 scheduler_start = time.time()
-from src.scheduler.service import get_scheduler_service
-from src.scheduler.config import scheduler_settings
+from src.infra.scheduler.config import scheduler_settings
+from src.infra.scheduler.service import get_scheduler_service
 
 scheduler_import_duration = time.time() - scheduler_start
 
 
 
 def _validate_security_baseline() -> None:
-    """在非开发环境校验关键安全配置。"""
+    """Validate critical security configuration in non-development environments."""
     if settings.DEBUG:
         return
 
@@ -158,32 +158,21 @@ routers_duration = (
     + project_router_duration
     + oauth_router_duration
     + internal_router_duration
-    + content_node_router_duration
+    + content_router_duration
     + analytics_router_duration
     + profile_router_duration
     + db_connector_router_duration
 )
 
 
-@asynccontextmanager
-async def app_lifespan(app: FastAPI):
-    """
-    FastAPI 应用的生命周期管理
-
-    可以在这里初始化数据库连接、缓存等资源
-    """
-    # 启动时的初始化逻辑
-    log_info("=" * 80)
-    log_info("🚀 ContextBase API 启动中...")
-    log_info("=" * 80)
-
-    # 输出模块导入时间
-    log_info("📦 模块导入耗时统计:")
-    log_info(f"  ├─ .env 加载: {dotenv_duration * 1000:.2f}ms")
-    log_info(f"  ├─ 配置模块 (config): {config_duration * 1000:.2f}ms")
-    log_info(f"  ├─ 异常处理模块 (exceptions): {exceptions_duration * 1000:.2f}ms")
-    log_info(f"  ├─ 日志模块 (logger): {logger_duration * 1000:.2f}ms")
-    log_info("  ├─ 路由模块:")
+def _log_import_times() -> None:
+    """Output module import time breakdown."""
+    log_info("📦 Module import time breakdown:")
+    log_info(f"  ├─ .env loading: {dotenv_duration * 1000:.2f}ms")
+    log_info(f"  ├─ Config module (config): {config_duration * 1000:.2f}ms")
+    log_info(f"  ├─ Exception handling module (exceptions): {exceptions_duration * 1000:.2f}ms")
+    log_info(f"  ├─ Logging module (logger): {logger_duration * 1000:.2f}ms")
+    log_info("  ├─ Router modules:")
     log_info(f"  │  ├─ table_router: {table_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ tool_router: {tool_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ mcp_router(v3): {mcp_v3_router_duration * 1000:.2f}ms")
@@ -195,164 +184,128 @@ async def app_lifespan(app: FastAPI):
     log_info(f"  │  ├─ project_router: {project_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ oauth_router: {oauth_router_duration * 1000:.2f}ms")
     log_info(f"  │  ├─ internal_router: {internal_router_duration * 1000:.2f}ms")
-    log_info(f"  │  └─ content_node_router: {content_node_router_duration * 1000:.2f}ms")
-    log_info(f"  └─ 路由总耗时: {routers_duration * 1000:.2f}ms")
-    log_info(f"📊 总导入时间: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
+    log_info(f"  │  └─ content_router: {content_router_duration * 1000:.2f}ms")
+    log_info(f"  └─ Total router time: {routers_duration * 1000:.2f}ms")
+    log_info(f"📊 Total import time: {(time.time() - APP_START_TIME) * 1000:.2f}ms")
     log_info("")
 
-    # 1. MCP模块: 检查 MCP Server 健康状态
+
+async def _init_mcp_health_check() -> None:
+    """Check MCP Server health status."""
     mcp_init_start = time.time()
     try:
-        log_info("🔌 检查 MCP Server 健康状态...")
-        from src.mcp.dependencies import get_mcp_instance_service
+        log_info("🔌 Checking MCP Server health status...")
+        from src.infra.mcp_server.dependencies import get_mcp_instance_service
 
         mcp_service = get_mcp_instance_service()
         health_result = await mcp_service.check_mcp_server_health()
         mcp_duration = time.time() - mcp_init_start
         if health_result.get("status", "") != "unhealthy":
             log_info(
-                f"✅ MCP Server 健康检查完成: {health_result} (耗时: {mcp_duration * 1000:.2f}ms)"
+                f"✅ MCP Server health check completed: {health_result} (took: {mcp_duration * 1000:.2f}ms)"
             )
         else:
-            log_error(f"❌ MCP Server停机, 健康信息: {health_result}")
+            log_error(f"❌ MCP Server is down, health info: {health_result}")
     except Exception as e:
         mcp_duration = time.time() - mcp_init_start
         log_error(
-            f"❌ MCP Server 健康检查失败 (耗时: {mcp_duration * 1000:.2f}ms): {e}"
+            f"❌ MCP Server health check failed (took: {mcp_duration * 1000:.2f}ms): {e}"
         )
 
-    # 2. 初始化 Scheduler 服务
+
+async def _init_scheduler() -> None:
+    """Initialize Scheduler service."""
     scheduler_init_start = time.time()
     try:
         if scheduler_settings.enabled:
-            log_info("⏰ 初始化 Scheduler 服务...")
+            log_info("⏰ Initializing Scheduler service...")
             scheduler_service = get_scheduler_service()
             await scheduler_service.start()
             scheduler_duration = time.time() - scheduler_init_start
-            log_info(f"✅ Scheduler 服务启动成功 (耗时: {scheduler_duration * 1000:.2f}ms)")
+            log_info(f"✅ Scheduler service started successfully (took: {scheduler_duration * 1000:.2f}ms)")
         else:
-            log_info("⏭️  Scheduler 服务已跳过（SCHEDULER_ENABLED 关闭）")
+            log_info("⏭️  Scheduler service skipped (SCHEDULER_ENABLED is off)")
     except Exception as e:
         scheduler_duration = time.time() - scheduler_init_start
-        log_error(f"❌ Scheduler 服务启动失败 (耗时: {scheduler_duration * 1000:.2f}ms): {e}")
+        log_error(f"❌ Scheduler service failed to start (took: {scheduler_duration * 1000:.2f}ms): {e}")
 
-    # 3. 初始化 File Ingest 服务（需要启用）
-    if settings.etl_enabled:
-        file_ingest_init_start = time.time()
-        try:
-            log_info("📄 初始化 File Ingest 服务...")
-            from src.upload.file.dependencies import get_etl_service
-            from pathlib import Path
 
-            file_ingest_service = await get_etl_service()
+async def _init_file_ingest() -> None:
+    """Initialize File Ingest service if ETL is enabled."""
+    if not settings.etl_enabled:
+        log_info("⏭️  File Ingest service skipped (ENABLE_ETL is off)")
+        return
+    file_ingest_init_start = time.time()
+    try:
+        log_info("📄 Initializing File Ingest service...")
+        from pathlib import Path
 
-            # 创建必要的目录
-            Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
-            Path(".etl_rules").mkdir(parents=True, exist_ok=True)
+        from src.ingest.file.dependencies import get_etl_service
 
-            # 启动 File Ingest 控制面（worker 由独立进程启动）
-            await file_ingest_service.start()
-            file_ingest_duration = time.time() - file_ingest_init_start
-            log_info(f"✅ File Ingest 服务启动成功 (耗时: {file_ingest_duration * 1000:.2f}ms)")
-            if settings.DEBUG:
-                log_info("   ℹ️  DEBUG 模式下 File workers 已启动（用于开发测试）")
-        except Exception as e:
-            file_ingest_duration = time.time() - file_ingest_init_start
-            log_error(f"❌ File Ingest 服务启动失败 (耗时: {file_ingest_duration * 1000:.2f}ms): {e}")
-    else:
-        log_info("⏭️  File Ingest 服务已跳过（ENABLE_ETL 关闭）")
+        file_ingest_service = await get_etl_service()
+        Path(".mineru_cache").mkdir(parents=True, exist_ok=True)
+        Path(".etl_rules").mkdir(parents=True, exist_ok=True)
+        await file_ingest_service.start()
+        file_ingest_duration = time.time() - file_ingest_init_start
+        log_info(f"✅ File Ingest service started successfully (took: {file_ingest_duration * 1000:.2f}ms)")
+        if settings.DEBUG:
+            log_info("   ℹ️  File workers started in DEBUG mode (for development testing)")
+    except Exception as e:
+        file_ingest_duration = time.time() - file_ingest_init_start
+        log_error(f"❌ File Ingest service failed to start (took: {file_ingest_duration * 1000:.2f}ms): {e}")
 
-    # 4. 初始化 ConnectorRegistry 单例
+
+def _init_connector_registry() -> None:
+    """Initialize ConnectorRegistry singleton."""
     registry_init_start = time.time()
     try:
-        log_info("🔌 初始化 ConnectorRegistry...")
-        from src.sync.dependencies import init_registry
+        log_info("🔌 Initializing ConnectorRegistry...")
+        from src.connectors.datasource.dependencies import init_registry
         init_registry()
         registry_duration = time.time() - registry_init_start
-        log_info(f"✅ ConnectorRegistry 初始化成功 (耗时: {registry_duration * 1000:.2f}ms)")
+        log_info(f"✅ ConnectorRegistry initialized successfully (took: {registry_duration * 1000:.2f}ms)")
     except Exception as e:
         registry_duration = time.time() - registry_init_start
-        log_error(f"❌ ConnectorRegistry 初始化失败 (耗时: {registry_duration * 1000:.2f}ms): {e}")
+        log_error(f"❌ ConnectorRegistry initialization failed (took: {registry_duration * 1000:.2f}ms): {e}")
 
-    # 5. 初始化 FolderSourceService + FolderAccessService（启动文件夹同步）
-    sync_init_start = time.time()
+
+async def _init_mut_trees() -> None:
+    """Auto-initialize empty Mut tree for all projects with empty mut_root_hash."""
+    mut_init_start = time.time()
     try:
-        log_info("🔄 初始化 Folder Sync Services...")
-        from src.filesystem.watcher import FolderSourceService
-        from src.filesystem.folder_access import FolderAccessService
-        from src.sync.repository import SyncRepository
-        from src.collaboration.service import CollaborationService
-        from src.collaboration.lock_service import LockService
-        from src.collaboration.conflict_service import ConflictService
-        from src.collaboration.version_service import VersionService as CollabVersionService
-        from src.collaboration.version_repository import FileVersionRepository, FolderSnapshotRepository
-        from src.collaboration.audit_service import AuditService
-        from src.collaboration.audit_repository import AuditRepository
-        from src.content_node.repository import ContentNodeRepository
-        from src.content_node.service import ContentNodeService
-        from src.s3.service import S3Service
-        from src.supabase.client import SupabaseClient
+        log_info("🌳 Checking and initializing Mut tree...")
+        from src.infra.supabase.client import SupabaseClient as _SC
+        from src.mut_engine.dependencies import create_mut_admin_service as _cms
 
-        from src.sync.changelog import SyncChangelogRepository
-
-        supabase = SupabaseClient()
-        node_repo = ContentNodeRepository(supabase)
-        s3_service = S3Service()
-        changelog_repo = SyncChangelogRepository(supabase)
-        version_svc = CollabVersionService(
-            node_repo=node_repo,
-            version_repo=FileVersionRepository(supabase),
-            snapshot_repo=FolderSnapshotRepository(supabase),
-            s3_service=s3_service,
-            changelog_repo=changelog_repo,
+        _sb = _SC()
+        resp = (
+            _sb.client.table("projects")
+            .select("id")
+            .or_("mut_root_hash.is.null,mut_root_hash.eq.")
+            .execute()
         )
-        node_svc = ContentNodeService(repo=node_repo, s3_service=s3_service, version_service=version_svc)
-
-        collab_svc = CollaborationService(
-            node_repo=node_repo,
-            node_service=node_svc,
-            lock_service=LockService(node_repo),
-            conflict_service=ConflictService(),
-            version_service=version_svc,
-            audit_service=AuditService(audit_repo=AuditRepository(supabase)),
-        )
-
-        sync_repo = SyncRepository(supabase)
-
-        folder_source = FolderSourceService(
-            node_service=node_svc,
-            sync_repo=sync_repo,
-        )
-        await folder_source.start()
-
-        folder_access = FolderAccessService(
-            collab_service=collab_svc,
-            node_service=node_svc,
-            sync_repo=sync_repo,
-        )
-        await folder_access.start()
-
-        sync_duration = time.time() - sync_init_start
-        log_info(f"✅ Folder Sync Services 启动成功 (耗时: {sync_duration * 1000:.2f}ms)")
+        uninit_projects = resp.data or []
+        if uninit_projects:
+            _writer = _cms()
+            for row in uninit_projects:
+                try:
+                    await _writer.init_tree(row["id"])
+                except Exception as init_err:
+                    log_error(f"  ❌ Failed to init Mut tree for {row['id']}: {init_err}")
+            log_info(f"  ✅ Initialized Mut tree for {len(uninit_projects)} project(s)")
+        else:
+            log_info("  ✅ All projects already have Mut tree")
+        mut_init_duration = time.time() - mut_init_start
+        log_info(f"✅ Mut tree check completed (took: {mut_init_duration * 1000:.2f}ms)")
     except Exception as e:
-        sync_duration = time.time() - sync_init_start
-        log_error(f"❌ Folder Sync Services 启动失败 (耗时: {sync_duration * 1000:.2f}ms): {e}")
+        mut_init_duration = time.time() - mut_init_start
+        log_error(f"❌ Mut tree initialization failed (took: {mut_init_duration * 1000:.2f}ms): {e}")
 
-    # 输出总启动时间
-    total_startup_time = time.time() - APP_START_TIME
-    log_info("")
-    log_info("=" * 80)
-    log_info(
-        f"✨ ContextBase API 启动完成! 总耗时: {total_startup_time * 1000:.2f}ms ({total_startup_time:.3f}s)"
-    )
-    log_info("=" * 80)
-    log_info("")
 
-    yield
-    # 关闭时的清理逻辑
-    log_info("ContextBase API 关闭中...")
+async def _shutdown_services() -> None:
+    """Shutdown cleanup logic."""
+    log_info("ContextBase API shutting down...")
 
-    # 停止 Scheduler 服务
     if scheduler_settings.enabled:
         try:
             scheduler_service = get_scheduler_service()
@@ -361,24 +314,11 @@ async def app_lifespan(app: FastAPI):
         except Exception as e:
             log_error(f"Failed to stop Scheduler service: {e}")
 
-    # 停止 Folder Sync Services
-    try:
-        from src.filesystem.watcher import FolderSourceService
-        from src.filesystem.folder_access import FolderAccessService
-        fs = FolderSourceService.get_instance()
-        if fs:
-            await fs.stop()
-        fa = FolderAccessService.get_instance()
-        if fa:
-            await fa.stop()
-        log_info("Folder Sync Services stopped successfully")
-    except Exception as e:
-        log_error(f"Failed to stop Folder Sync Services: {e}")
+    log_info("Filesystem sync: client-side, no cleanup needed")
 
-    # 停止 File Ingest 服务
     if settings.etl_enabled:
         try:
-            from src.upload.file.dependencies import get_etl_service
+            from src.ingest.file.dependencies import get_etl_service
 
             file_ingest_service = await get_etl_service()
             await file_ingest_service.stop()
@@ -387,15 +327,49 @@ async def app_lifespan(app: FastAPI):
             log_error(f"Failed to stop File Ingest service: {e}")
 
 
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    """
+    FastAPI application lifecycle management.
+
+    Database connections, caches, and other resources can be initialized here.
+    """
+    log_info("=" * 80)
+    log_info("🚀 ContextBase API starting...")
+    log_info("=" * 80)
+
+    _log_import_times()
+
+    await _init_mcp_health_check()
+    await _init_scheduler()
+    await _init_file_ingest()
+    _init_connector_registry()
+    await _init_mut_trees()
+
+    log_info("📁 Filesystem sync: client-side via MUT protocol (no server init needed)")
+
+    total_startup_time = time.time() - APP_START_TIME
+    log_info("")
+    log_info("=" * 80)
+    log_info(
+        f"✨ ContextBase API startup complete! Total time: {total_startup_time * 1000:.2f}ms ({total_startup_time:.3f}s)"
+    )
+    log_info("=" * 80)
+    log_info("")
+
+    yield
+    await _shutdown_services()
+
+
 def create_app() -> FastAPI:
-    """创建FastAPI应用实例"""
+    """Create FastAPI application instance."""
     app_create_start = time.time()
 
-    # 初始化FastAPI应用
+    # Initialize FastAPI application
     fastapi_start = time.time()
     app = FastAPI(
         title="ContextBase API",
-        description="可托管的上下文配置与导出平台",
+        description="Hostable context configuration and export platform",
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -403,7 +377,7 @@ def create_app() -> FastAPI:
     )
     fastapi_duration = time.time() - fastapi_start
 
-    # 配置CORS中间件
+    # Configure CORS middleware
     cors_start = time.time()
     app.add_middleware(
         CORSMiddleware,
@@ -419,63 +393,58 @@ def create_app() -> FastAPI:
 
     app.add_middleware(RequestContextMiddleware)
 
-    # 注册路由
+    # Register routes
     router_register_start = time.time()
     app.include_router(table_router, prefix="/api/v1", tags=["tables"])
     app.include_router(tool_router, prefix="/api/v1", tags=["tools"])
     app.include_router(mcp_v3_router, prefix="/api/v1", tags=["mcp"])
     app.include_router(agent_router, prefix="/api/v1", tags=["agents"])
     app.include_router(agent_config_router, prefix="/api/v1", tags=["agent-config"])
-    from src.agent.chat.router import router as chat_router
+    from src.connectors.agent.chat.router import router as chat_router
     app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
     app.include_router(context_publish_router, prefix="/api/v1", tags=["publishes"])
     # public short link: /p/{publish_key}
     app.include_router(context_publish_public_router, tags=["publishes"])
-    
+
     # Unified ingest router (file + SaaS imports)
     app.include_router(ingest_router, prefix="/api/v1", tags=["ingest"])
-    
+
     app.include_router(project_router, prefix="/api/v1", tags=["projects"])
     app.include_router(oauth_router, prefix="/api/v1", tags=["oauth"])
     app.include_router(
         internal_router, tags=["internal"]
-    )  # Internal API不加/api/v1前缀
-    app.include_router(content_node_router, prefix="/api/v1", tags=["content-nodes"])
-    from src.content_node.version_router import router as version_router
-    app.include_router(version_router, prefix="/api/v1", tags=["content-node-versions"])
-    from src.collaboration.audit_router import router as audit_router
+    )  # Internal API does not use /api/v1 prefix
+    from src.mut_engine.routers.content_router import router as content_router
+    app.include_router(content_router, prefix="/api/v1", tags=["content"])
+    from src.mut_engine.routers.audit_router import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
-    from src.collaboration.router import router as collab_router
-    app.include_router(collab_router, prefix="/api/v1", tags=["collaboration"])
-    from src.workspace.router import router as workspace_router
+    from src.mut_engine.routers.protocol_router import router as mut_protocol_router
+    app.include_router(mut_protocol_router, tags=["mut-protocol"])
+    from src.mut_engine.routers.access_point import ap_router
+    app.include_router(ap_router, tags=["access-point"])
+    from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
-    from src.sync.router import router as sync_router
+    from src.connectors.datasource.router import router as sync_router
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
-    from src.filesystem.router import router as filesystem_router
+    from src.connectors.filesystem.router import router as filesystem_router
     app.include_router(filesystem_router, tags=["filesystem"])
-    from src.sync.folder_router import router as folder_sync_compat_router
-    app.include_router(folder_sync_compat_router, tags=["folder-sync-compat"])
-    from src.sync.connectors.filesystem.router import router as openclaw_compat_router
-    app.include_router(openclaw_compat_router, tags=["sync-openclaw-compat"])
-    from src.access.filesystem.router import router as access_compat_router
-    app.include_router(access_compat_router, tags=["access-openclaw-compat"])
-    from src.auth.router import router as auth_router
+    from src.platform.auth.router import router as auth_router
     app.include_router(auth_router, prefix="/api/v1", tags=["auth"])
     app.include_router(analytics_router, tags=["analytics"])
     app.include_router(profile_router, tags=["profile"])
     app.include_router(db_connector_router, prefix="/api/v1", tags=["db-connector"])
     app.include_router(organization_router, prefix="/api/v1", tags=["organizations"])
-    from src.mcp_endpoint.router import router as mcp_endpoint_router
+    from src.connectors.mcp_endpoint.router import router as mcp_endpoint_router
     app.include_router(mcp_endpoint_router, prefix="/api/v1", tags=["mcp-endpoints"])
-    from src.sandbox_endpoint.router import router as sandbox_endpoint_router
+    from src.connectors.sandbox_endpoint.router import router as sandbox_endpoint_router
     app.include_router(sandbox_endpoint_router, prefix="/api/v1", tags=["sandbox-endpoints"])
-    from src.project.dashboard_router import router as dashboard_router
+    from src.platform.project.dashboard_router import router as dashboard_router
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
-    from src.connection.router import router as connection_router
-    app.include_router(connection_router, prefix="/api/v1", tags=["connections"])
+    from src.connectors.manager.router import router as access_router
+    app.include_router(access_router, prefix="/api/v1", tags=["access"])
     router_register_duration = time.time() - router_register_start
 
-    # 注册异常处理器
+    # Register exception handlers
     exception_handler_start = time.time()
     app.add_exception_handler(AppException, app_exception_handler)  # type: ignore
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)  # type: ignore
@@ -485,19 +454,19 @@ def create_app() -> FastAPI:
 
     app_create_duration = time.time() - app_create_start
 
-    # 统一用日志输出（已在文件顶部 setup_logging）
-    log_info("⚙️  FastAPI 应用创建耗时统计:")
-    log_info(f"  ├─ FastAPI 实例化: {fastapi_duration * 1000:.2f}ms")
-    log_info(f"  ├─ CORS 中间件配置: {cors_duration * 1000:.2f}ms")
-    log_info(f"  ├─ 路由注册: {router_register_duration * 1000:.2f}ms")
-    log_info(f"  └─ 异常处理器注册: {exception_handler_duration * 1000:.2f}ms")
-    log_info(f"📦 应用创建总耗时: {app_create_duration * 1000:.2f}ms")
+    # Unified logging output (setup_logging already called at top of file)
+    log_info("⚙️  FastAPI app creation time breakdown:")
+    log_info(f"  ├─ FastAPI instantiation: {fastapi_duration * 1000:.2f}ms")
+    log_info(f"  ├─ CORS middleware config: {cors_duration * 1000:.2f}ms")
+    log_info(f"  ├─ Route registration: {router_register_duration * 1000:.2f}ms")
+    log_info(f"  └─ Exception handler registration: {exception_handler_duration * 1000:.2f}ms")
+    log_info(f"📦 Total app creation time: {app_create_duration * 1000:.2f}ms")
     log_info("")
 
     return app
 
 
-# 创建应用实例
+# Create application instance
 app = create_app()
 
 
@@ -554,7 +523,7 @@ async def _build_readiness_report(mcp_service) -> dict:
 
 @app.get("/live")
 async def live_check():
-    """Liveness: 仅表示进程存活。"""
+    """Liveness: only indicates the process is alive."""
     return {
         "status": "alive",
         "service": "ContextBase API",
@@ -567,7 +536,7 @@ async def ready_check(
     response: Response,
     mcp_service=Depends(get_mcp_instance_service),
 ):
-    """Readiness: 表示服务是否可接收流量。"""
+    """Readiness: indicates whether the service can accept traffic."""
     report = await _build_readiness_report(mcp_service)
     if report["status"] != "ready":
         response.status_code = 503
@@ -579,12 +548,12 @@ async def health_check(
     response: Response,
     mcp_service=Depends(get_mcp_instance_service),
 ):
-    """兼容入口：返回 readiness 结果。"""
+    """Compatibility endpoint: returns readiness result."""
     report = await _build_readiness_report(mcp_service)
     if report["status"] != "ready":
         response.status_code = 503
     return report
 
 
-# 启动命令示例:
+# Startup command example:
 # uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log

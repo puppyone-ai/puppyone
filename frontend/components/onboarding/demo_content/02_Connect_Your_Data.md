@@ -24,4 +24,4 @@ These require a one-time authorization through your browser:
 
 ## Try it now
 
-Use the **+ Add Connection** button in the sidebar to connect your first data source, or upload files directly using drag-and-drop.
+Use the **+ New Access** button in the sidebar to connect your first data source, or upload files directly using drag-and-drop.

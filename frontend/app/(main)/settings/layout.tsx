@@ -303,7 +303,7 @@ export default function SettingsLayout({
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            background: '#0a0a0a',
+            background: '#0e0e0e',
           }}
         >
           {children}

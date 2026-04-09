@@ -64,7 +64,7 @@ export interface IngestTaskResponse {
   status: IngestStatus;
   progress: number;
   message?: string;
-  content_node_id?: string;
+  content_path?: string;
   items_count?: number;
   error?: string;
   created_at: string;
@@ -99,7 +99,7 @@ export interface FileIngestParams {
   files: File[];
   mode?: IngestMode;
   ruleId?: number;
-  nodeId?: string;
+  path?: string;
   jsonPath?: string;
 }
 
@@ -236,8 +236,8 @@ export async function submitFileIngest(
   if (params.ruleId !== undefined) {
     formData.append('rule_id', params.ruleId.toString());
   }
-  if (params.nodeId !== undefined) {
-    formData.append('node_id', params.nodeId);
+  if (params.path !== undefined) {
+    formData.append('path', params.path);
   }
   if (params.jsonPath !== undefined) {
     formData.append('json_path', params.jsonPath);

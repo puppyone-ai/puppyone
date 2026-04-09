@@ -555,11 +555,10 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {agent.resources.map((resource) => {
                 const { icon, color } = getNodeIcon(resource.nodeType);
-                // 使用新的 readonly 字段，向后兼容 terminalReadonly
-                const isReadonly = resource.readonly ?? resource.terminalReadonly ?? true;
+                const isReadonly = resource.readonly ?? true;
                 return (
                   <div
-                    key={resource.nodeId}
+                    key={resource.path}
                     style={{
                       display: 'flex',
                       alignItems: 'center',

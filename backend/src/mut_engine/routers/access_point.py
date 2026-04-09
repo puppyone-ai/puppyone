@@ -1,0 +1,267 @@
+"""
+Access Point — unified entry for MUT clients.
+
+An Access Point is a URL + credential that gives a MUT client everything
+it needs to connect. The client doesn't know about project_id, connector
+types, or platform concepts — just a URL and a key.
+
+URL format: /mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-version
+
+The access_key maps to an access_points row which contains:
+  - project_id: which MUT tree to operate on
+  - config.scope: path-based permission (path, exclude, mode)
+  - provider: connector type (agent, filesystem, direct, etc.)
+  - revoked_at: null if active, timestamp if revoked
+
+This module provides:
+  1. resolve_access_point() — lookup access_key → (project_id, auth_context)
+  2. Access Point router — thin HTTP shell that delegates to mut.server.handlers
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
+from mut.foundation.error import LockError, PermissionDenied
+from mut.server.handlers import (
+    handle_clone,
+    handle_negotiate,
+    handle_pull,
+    handle_push,
+)
+
+from src.infra.supabase.client import SupabaseClient
+from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.services.hooks import run_post_push_hook
+from src.utils.logger import log_error, log_info
+
+
+def resolve_access_point(access_key: str) -> tuple[str, dict]:
+    """Resolve an access_key to (project_id, auth_context).
+
+    Looks up the access_points table by access_key, validates the key is
+    active (not revoked), and builds the MUT auth context.
+
+    Returns:
+        (project_id, {"agent": str, "_scope": dict})
+
+    Raises:
+        HTTPException 401 if key is invalid/revoked
+    """
+    client = SupabaseClient().client
+
+    resp = (
+        client.table("access_points")
+        .select("id, project_id, provider, config, revoked_at, status")
+        .eq("access_key", access_key)
+        .maybe_single()
+        .execute()
+    )
+
+    if not resp or not hasattr(resp, 'data') or not resp.data:
+        raise HTTPException(status_code=401, detail="Invalid access point key")
+
+    conn = resp.data
+
+    if conn.get("revoked_at"):
+        raise HTTPException(status_code=401, detail="Access point key has been revoked")
+
+    if conn.get("status") not in (None, "active", "syncing"):
+        raise HTTPException(status_code=403, detail="Access point is not active")
+
+    project_id = conn["project_id"]
+    config = conn.get("config") or {}
+    raw_scope = config.get("scope")
+    scope = raw_scope if isinstance(raw_scope, dict) else {}
+    scope = {
+        "id": scope.get("id", conn["id"]),
+        "path": scope.get("path", ""),
+        "exclude": scope.get("exclude", []),
+        "mode": scope.get("mode", "rw"),
+    }
+
+    # Check X-Mut-User identity binding if configured
+    user_identity = config.get("user_identity", "")
+
+    auth_context = {
+        "agent": conn["id"],
+        "_scope": scope,
+        "_project_id": project_id,
+        "_provider": conn.get("provider", "direct"),
+        "_user_identity": user_identity,
+    }
+
+    return project_id, auth_context
+
+
+# ── Access Point Router ──────────────────────────────────────
+
+ap_router = APIRouter(prefix="/mut/ap")
+
+
+def _get_repo_manager() -> MutRepoManager:
+    from src.mut_engine.dependencies import get_repo_manager_standalone
+    return get_repo_manager_standalone()
+
+
+def _invoke(handler_fn, repo_manager: MutRepoManager, project_id: str, auth: dict, body: dict) -> dict:
+    """Resolve ServerRepo and call a MUT protocol handler (runs in worker thread)."""
+    repo = repo_manager.get_server_repo(project_id)
+    return handler_fn(repo, auth, body)
+
+
+async def _resolve_and_validate(access_key: str, request: Request) -> tuple[str, dict, MutRepoManager]:
+    """Common resolve + identity check for all access point endpoints."""
+    project_id, auth = await asyncio.to_thread(resolve_access_point, access_key)
+
+    bound_identity = auth.get("_user_identity", "")
+    request_identity = request.headers.get("x-mut-user", "")
+    if bound_identity and request_identity and request_identity != bound_identity:
+        raise HTTPException(
+            status_code=401,
+            detail="User identity mismatch: key is bound to a different user",
+        )
+
+    repo_manager = _get_repo_manager()
+    return project_id, auth, repo_manager
+
+
+@ap_router.post("/{access_key}/clone")
+async def ap_clone(access_key: str, request: Request):
+    """Clone via Access Point URL."""
+    try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        result = await asyncio.to_thread(
+            _invoke, handle_clone, repo_manager, project_id, auth, body,
+        )
+    except HTTPException:
+        raise
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        log_error(f"[AP] clone failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Clone failed: {e}")
+
+    log_info(f"[AP] clone ap={access_key[:8]}... project={project_id}")
+    return JSONResponse(result)
+
+
+@ap_router.post("/{access_key}/push")
+async def ap_push(access_key: str, request: Request):
+    """Push via Access Point URL."""
+    try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
+        result = await asyncio.to_thread(
+            _invoke, handle_push, repo_manager, project_id, auth, body,
+        )
+    except HTTPException:
+        raise
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except LockError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        log_error(f"[AP] push failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Push failed: {e}")
+
+    run_post_push_hook(project_id, repo_manager, result)
+
+    log_info(
+        f"[AP] push ap={access_key[:8]}... project={project_id} "
+        f"v={result.get('version')} merged={result.get('merged', False)}"
+    )
+    return JSONResponse(result)
+
+
+@ap_router.post("/{access_key}/pull")
+async def ap_pull(access_key: str, request: Request):
+    """Pull via Access Point URL."""
+    try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
+        result = await asyncio.to_thread(
+            _invoke, handle_pull, repo_manager, project_id, auth, body,
+        )
+    except HTTPException:
+        raise
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        log_error(f"[AP] pull failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Pull failed: {e}")
+
+    log_info(f"[AP] pull ap={access_key[:8]}... status={result.get('status')}")
+    return JSONResponse(result)
+
+
+@ap_router.post("/{access_key}/negotiate")
+async def ap_negotiate(access_key: str, request: Request):
+    """Hash negotiation via Access Point URL."""
+    try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
+        result = await asyncio.to_thread(
+            _invoke, handle_negotiate, repo_manager, project_id, auth, body,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"[AP] negotiate failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
+
+    return JSONResponse(result)
+
+
+@ap_router.post("/{access_key}/rollback")
+async def ap_rollback(access_key: str, request: Request):
+    """Rollback via Access Point URL."""
+    from mut.server.handlers import handle_rollback
+
+    try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
+        result = await asyncio.to_thread(
+            _invoke, handle_rollback, repo_manager, project_id, auth, body,
+        )
+    except HTTPException:
+        raise
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log_error(f"[AP] rollback failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
+
+    log_info(f"[AP] rollback ap={access_key[:8]}... target_v={result.get('target_version')}")
+    return JSONResponse(result)
+
+
+@ap_router.post("/{access_key}/pull-version")
+async def ap_pull_version(access_key: str, request: Request):
+    """Pull historical version via Access Point URL."""
+    from mut.server.handlers import handle_pull_version
+
+    try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
+        result = await asyncio.to_thread(
+            _invoke, handle_pull_version, repo_manager, project_id, auth, body,
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        log_error(f"[AP] pull-version failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Pull version failed: {e}")
+
+    log_info(f"[AP] pull-version ap={access_key[:8]}... version={result.get('version')}")
+    return JSONResponse(result)

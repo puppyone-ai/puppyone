@@ -13,7 +13,7 @@ import { Plugin, PluginKey } from '@milkdown/prose/state';
 // Design: line-height 24px + margin 8px = 40px visual rhythm
 const darkThemeStyles = `
   .milkdown-editor {
-    background: #0a0a0a;
+    background: #0e0e0e;
     color: #d4d4d4;
     font-family: 'SF Pro Text', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     font-size: 14px;
@@ -407,7 +407,7 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
           height: '100%',
           width: '100%',
           overflow: 'auto',
-          background: '#0a0a0a',
+          background: '#0e0e0e',
         }}
       >
         <style>{darkThemeStyles}</style>

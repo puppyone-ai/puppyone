@@ -1,12 +1,13 @@
 import json
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import AliasChoices, Field, field_validator, model_validator
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
+
+from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """应用配置"""
+    """Application configuration"""
 
     model_config = SettingsConfigDict(
         env_file=".env", case_sensitive=True, extra="ignore", env_file_encoding="utf-8"
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
         dotenv_settings,
         file_secret_settings,
     ):
-        # 让项目级 .env 优先生效，覆盖全局环境变量
+        # Let project-level .env take priority, overriding global environment variables
         return (
             init_settings,
             dotenv_settings,
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
             file_secret_settings,
         )
 
-    # 服务配置
+    # Service configuration
     APP_NAME: str = "ContextBase"
     APP_ENV: Literal["development", "test", "staging", "production"] = Field(
         default="development",
@@ -38,55 +39,59 @@ class Settings(BaseSettings):
     DEBUG: bool | None = None
     VERSION: str = "0.0.1"
 
-    # 本地存储配置，现在基本都用Supabase
+    # Local storage configuration, mostly using Supabase now
     DATA_PATH: Path = Path("./data")
     STORAGE_TYPE: Literal["json", "db", "supabase"] = "supabase"
 
-    # CORS配置
+    # CORS configuration
     ALLOWED_HOSTS: list[str] | None = None
+
+    @staticmethod
+    def _parse_hosts_string(raw: str) -> list[str]:
+        """Parse a string value into a list of host strings."""
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "ALLOWED_HOSTS must be a JSON array or comma-separated string"
+                ) from exc
+            if not isinstance(parsed, list):
+                raise ValueError("ALLOWED_HOSTS JSON value must be an array")
+            return [str(item) for item in parsed]
+        return [item.strip() for item in raw.split(",")]
+
+    @staticmethod
+    def _normalize_host_list(hosts: list[str]) -> list[str]:
+        """Strip empty entries and trailing slashes (except for '*')."""
+        return [
+            host if host == "*" else host.rstrip("/")
+            for host in hosts
+            if host
+        ]
 
     @field_validator("ALLOWED_HOSTS", mode="before")
     @classmethod
     def normalize_allowed_hosts(cls, value: Any) -> Any:
-        """支持 JSON 数组、单值字符串或逗号分隔字符串。"""
+        """Supports JSON arrays, single value strings, or comma-separated strings."""
         if value is None:
             return None
-
-        hosts: list[str]
 
         if isinstance(value, str):
             raw = value.strip()
             if not raw:
                 return []
-
-            if raw.startswith("["):
-                try:
-                    parsed = json.loads(raw)
-                except json.JSONDecodeError as exc:
-                    raise ValueError(
-                        "ALLOWED_HOSTS must be a JSON array or comma-separated string"
-                    ) from exc
-                if not isinstance(parsed, list):
-                    raise ValueError("ALLOWED_HOSTS JSON value must be an array")
-                hosts = [str(item) for item in parsed]
-            else:
-                hosts = [item.strip() for item in raw.split(",")]
+            hosts = cls._parse_hosts_string(raw)
         elif isinstance(value, list):
             hosts = [str(item).strip() for item in value]
         else:
             return value
 
-        normalized_hosts: list[str] = []
-        for host in hosts:
-            if not host:
-                continue
-            normalized_hosts.append(host if host == "*" else host.rstrip("/"))
-
-        return normalized_hosts
+        return cls._normalize_host_list(hosts)
 
     @model_validator(mode="after")
     def apply_runtime_defaults(self):
-        """按环境补齐默认配置，降低生产误配风险。"""
+        """Apply default configuration based on environment to reduce production misconfiguration risk."""
         if self.DEBUG is None:
             self.DEBUG = self.APP_ENV in {"development", "test"}
 
@@ -103,68 +108,68 @@ class Settings(BaseSettings):
 
         return self
 
-    # JWT配置
+    # JWT configuration
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"
 
-    # Anthropic 配置
+    # Anthropic configuration
     ANTHROPIC_API_KEY: str = ""
     ANTHROPIC_BASE_URL: str = ""
     ANTHROPIC_MODEL: str = "claude-sonnet-4-5-20250929"
 
-    # 沙盒配置
-    # - "e2b": 使用 E2B 云沙盒（需要 E2B_API_KEY）
-    # - "docker": 使用本地 Docker 容器沙盒
-    # - "auto": 自动选择（有 E2B_API_KEY 用 E2B，否则用 Docker）
+    # Sandbox configuration
+    # - "e2b": Use E2B cloud sandbox (requires E2B_API_KEY)
+    # - "docker": Use local Docker container sandbox
+    # - "auto": Auto-select (use E2B if E2B_API_KEY is available, otherwise use Docker)
     SANDBOX_TYPE: Literal["e2b", "docker", "auto"] = "auto"
-    # Docker 沙盒专用临时目录；仅在容器化后端控制宿主机 Docker 时需要设置
-    SANDBOX_TMPDIR: Optional[str] = None
-    # 沙盒文件下载并发数
+    # Docker sandbox dedicated temp directory; only needed when containerized backend controls host Docker
+    SANDBOX_TMPDIR: str | None = None
+    # Sandbox file download concurrency
     SANDBOX_DOWNLOAD_CONCURRENCY: int = 10
-    # 大文件流式处理阈值（字节），超过此大小使用流式传输
+    # Large file streaming threshold (bytes); files exceeding this size use streaming transfer
     SANDBOX_LARGE_FILE_THRESHOLD: int = 50 * 1024 * 1024  # 50MB
 
-    # Workspace Provider 配置
-    # - "auto": 自动检测平台（macOS → APFS Clone, Linux → OverlayFS, 其他 → 全量复制）
-    # - "apfs": 强制使用 APFS Clone（macOS only）
-    # - "overlayfs": 强制使用 OverlayFS（Linux only）
-    # - "fallback": 强制使用全量复制
+    # Workspace Provider configuration
+    # - "auto": Auto-detect platform (macOS -> APFS Clone, Linux -> OverlayFS, other -> full copy)
+    # - "apfs": Force APFS Clone (macOS only)
+    # - "overlayfs": Force OverlayFS (Linux only)
+    # - "fallback": Force full copy
     WORKSPACE_PROVIDER: str = "auto"
     WORKSPACE_BASE_DIR: str = "/tmp/contextbase"
 
-    # 测试配置
-    SKIP_AUTH: bool = False  # 是否跳过鉴权（仅用于测试环境）
+    # Test configuration
+    SKIP_AUTH: bool = False  # Whether to skip authentication (for test environments only)
 
-    # ETL 配置
-    # - None: 自动模式（本地 DEBUG 默认关闭，非 DEBUG 默认开启）
-    # - True/False: 强制开启/关闭（可通过环境变量 ENABLE_ETL 覆盖）
+    # ETL configuration
+    # - None: Auto mode (disabled by default in local DEBUG, enabled by default in non-DEBUG)
+    # - True/False: Force enable/disable (can be overridden via ENABLE_ETL env variable)
     ENABLE_ETL: bool | None = None
 
     @property
     def etl_enabled(self) -> bool:
-        """ETL 是否启用（同时控制 ETL 路由导入与 ETL 服务启动）"""
+        """Whether ETL is enabled (controls both ETL route imports and ETL service startup)"""
         if self.ENABLE_ETL is not None:
             return self.ENABLE_ETL
         return not self.DEBUG
 
-    # Notion 配置
-    # 方式1: Internal Integration (简单，只需 API Key)
-    NOTION_API_KEY: str = ""  # 格式: secret_xxx，从 https://www.notion.so/my-integrations 获取
-    # 方式2: OAuth (适合多用户场景)
-    # ========== OAuth 配置 ==========
-    # 统一格式: /oauth/{provider}/callback
-    
-    # Notion OAuth 配置
+    # Notion configuration
+    # Method 1: Internal Integration (simple, only requires API Key)
+    NOTION_API_KEY: str = ""  # Format: secret_xxx, obtained from https://www.notion.so/my-integrations
+    # Method 2: OAuth (suitable for multi-user scenarios)
+    # ========== OAuth configuration ==========
+    # Unified format: /oauth/{provider}/callback
+
+    # Notion OAuth configuration
     NOTION_CLIENT_ID: str = ""
     NOTION_CLIENT_SECRET: str = ""
     NOTION_REDIRECT_URI: str = "http://localhost:3000/oauth/notion/callback"
 
-    # GitHub OAuth 配置
+    # GitHub OAuth configuration
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
     GITHUB_REDIRECT_URI: str = "http://localhost:3000/oauth/github/callback"
 
-    # Google OAuth 配置 (所有 Google 服务共用同一个 OAuth Client)
+    # Google OAuth configuration (all Google services share the same OAuth Client)
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_SHEETS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-sheets/callback"
@@ -173,37 +178,37 @@ class Settings(BaseSettings):
     GOOGLE_CALENDAR_REDIRECT_URI: str = "http://localhost:3000/oauth/google-calendar/callback"
     GOOGLE_DOCS_REDIRECT_URI: str = "http://localhost:3000/oauth/google-docs/callback"
 
-    # Linear OAuth 配置
+    # Linear OAuth configuration
     LINEAR_CLIENT_ID: str = ""
     LINEAR_CLIENT_SECRET: str = ""
     LINEAR_REDIRECT_URI: str = "http://localhost:3000/oauth/linear/callback"
 
-    # Airtable OAuth 配置
+    # Airtable OAuth configuration
     AIRTABLE_CLIENT_ID: str = ""
     AIRTABLE_CLIENT_SECRET: str = ""
     AIRTABLE_REDIRECT_URI: str = "http://localhost:3000/oauth/airtable/callback"
 
-    # 服务间通信
-    INTERNAL_API_SECRET: str = ""  # 内部服务通信密钥
-    MCP_SERVER_URL: str = ""  # MCP服务的地址
+    # Inter-service communication
+    INTERNAL_API_SECRET: str = ""  # Internal service communication secret
+    MCP_SERVER_URL: str = ""  # MCP service address
 
-    # 公共访问 URL（用于生成对外的 API 链接）
-    # - 本地开发: http://localhost:8000
+    # Public access URL (used to generate external API links)
+    # - Local development: http://localhost:8000
     # - Railway: https://your-app.railway.app
-    # - 如果不设置，会从请求头自动推断
+    # - If not set, it will be auto-inferred from request headers
     PUBLIC_URL: str = ""
 
-    # Context Publish 配置
+    # Context Publish configuration
     PUBLISH_DEFAULT_EXPIRES_DAYS: int = 7
     PUBLISH_KEY_LENGTH: int = 16
     PUBLISH_CACHE_TTL_SECONDS: int = 10
 
-    # Search Tool indexing（异步）
-    # - 仅用于异步 indexing 的 wait_for 超时控制，避免后台任务无限挂起
+    # Search Tool indexing (async)
+    # - Only used for async indexing wait_for timeout control, preventing background tasks from hanging indefinitely
     SEARCH_INDEX_TIMEOUT_SECONDS: int = 120
 
-    # DB Connector 敏感配置加密（AES-256-GCM）
-    # 32-byte key 的 base64 编码字符串
+    # DB Connector sensitive config encryption (AES-256-GCM)
+    # Base64-encoded string of 32-byte key
     DB_CONNECTOR_ENCRYPTION_KEY: str = ""
     DB_CONNECTOR_ENCRYPTION_KID: str = "k1"
 

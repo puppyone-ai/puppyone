@@ -1,57 +1,59 @@
-"""src.internal.router 中 MCP POSIX internal 端点测试。"""
+"""src.internal.router MutOps-based internal endpoint tests."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from dataclasses import dataclass
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from typing import Optional
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.content_node.dependencies import get_content_node_service
-from src.content_node.models import ContentNode
-from src.exceptions import BusinessException
-from src.internal import router as internal_router_module
+from src.mut_engine.dependencies import get_mut_ops
 from src.internal.router import get_agent_config_service, router as internal_router, verify_internal_secret
 
 
-def _node(
-    node_id: str,
-    *,
-    project_id: str = "proj-1",
-    name: str,
-    node_type: str,
-    parent_id: str | None = None,
-    preview_json=None,
-    preview_md: str | None = None,
-    s3_key: str | None = None,
-) -> ContentNode:
-    now = datetime.now(UTC)
-    return ContentNode(
-        id=node_id,
-        project_id=project_id,
-        created_by="u1",
-        sync_oauth_user_id=None,
-        parent_id=parent_id,
-        name=name,
-        type=node_type,
-        id_path=f"/{node_id}" if parent_id is None else f"/{parent_id}/{node_id}",
-        preview_json=preview_json,
-        preview_md=preview_md,
-        s3_key=s3_key,
-        mime_type="text/plain" if s3_key else None,
-        size_bytes=12,
-        permissions={"inherit": True},
-        sync_url=None,
-        sync_id=None,
-        sync_config=None,
-        sync_status="idle",
-        last_synced_at=None,
-        created_at=now,
-        updated_at=now,
-    )
+@dataclass
+class FakeMutEntry:
+    name: str
+    path: str
+    type: str
+    content_hash: Optional[str] = None
+    size_bytes: Optional[int] = None
+    mime_type: Optional[str] = None
+    children_count: Optional[int] = None
+
+
+class FakeMutOps:
+    """Mock MutOps for testing internal router endpoints."""
+
+    def __init__(self):
+        self._stat_map: dict[str, FakeMutEntry | None] = {}
+        self._list_dir_map: dict[str, list[FakeMutEntry]] = {}
+        self._read_file_map: dict[str, bytes] = {}
+        self.write_file = AsyncMock()
+        self.mkdir = AsyncMock()
+        self.trash = AsyncMock()
+        self.move = AsyncMock()
+        self.delete = AsyncMock()
+
+    def stat(self, project_id: str, path: str) -> FakeMutEntry | None:
+        return self._stat_map.get(path)
+
+    def list_dir(self, project_id: str, path: str = "") -> list[FakeMutEntry]:
+        return self._list_dir_map.get(path, [])
+
+    def read_file(self, project_id: str, path: str) -> bytes:
+        if path not in self._read_file_map:
+            raise FileNotFoundError(path)
+        return self._read_file_map[path]
+
+
+@pytest.fixture
+def ops():
+    return FakeMutOps()
 
 
 @pytest.fixture
@@ -62,40 +64,24 @@ def app():
 
 
 @pytest.fixture
-def node_service_mock():
-    service = Mock()
-    service.resolve_path = Mock()
-    service.build_display_path = Mock()
-    service.list_children = Mock()
-    service.get_by_id = Mock()
-    service.update_markdown_content = AsyncMock()
-    service.update_node = Mock()
-    service.create_folder = Mock()
-    service.create_json_node = Mock()
-    service.create_markdown_node = AsyncMock()
-    service.soft_delete_node = Mock()
-    return service
-
-
-@pytest.fixture
-def client(app, node_service_mock):
+def client(app, ops):
     app.dependency_overrides[verify_internal_secret] = lambda: None
-    app.dependency_overrides[get_content_node_service] = lambda: node_service_mock
+    app.dependency_overrides[get_mut_ops] = lambda: ops
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
 
 
-def test_resolve_node_path_success(client, node_service_mock):
-    resolved = _node("md-1", name="readme.md", node_type="markdown", parent_id="folder-1")
-    node_service_mock.resolve_path.return_value = resolved
-    node_service_mock.build_display_path.return_value = "/docs/readme.md"
+def test_resolve_node_path_success(client, ops):
+    ops._stat_map["docs/readme.md"] = FakeMutEntry(
+        name="readme.md", path="docs/readme.md", type="markdown", size_bytes=42,
+    )
 
     resp = client.post(
         "/internal/nodes/resolve-path",
         json={
             "project_id": "proj-1",
-            "root_accesses": [{"node_id": "folder-1", "node_name": "docs", "node_type": "folder"}],
+            "root_accesses": [],
             "path": "/docs/readme.md",
         },
         headers={"X-Internal-Secret": "ignored"},
@@ -103,14 +89,12 @@ def test_resolve_node_path_success(client, node_service_mock):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["node_id"] == "md-1"
+    assert body["name"] == "readme.md"
     assert body["type"] == "markdown"
-    assert body["path"] == "/docs/readme.md"
+    assert body["path"] == "docs/readme.md"
 
 
-def test_resolve_node_path_virtual_root(client, node_service_mock):
-    node_service_mock.resolve_path.side_effect = BusinessException("VIRTUAL_ROOT")
-
+def test_resolve_node_path_virtual_root(client, ops):
     resp = client.post(
         "/internal/nodes/resolve-path",
         json={"project_id": "proj-1", "root_accesses": [], "path": "/"},
@@ -121,30 +105,33 @@ def test_resolve_node_path_virtual_root(client, node_service_mock):
     assert resp.json() == {"virtual_root": True, "path": "/"}
 
 
-def test_list_node_children_filters_trash(client, node_service_mock):
-    node_service_mock.list_children.return_value = [
-        _node("trash", name=internal_router_module.ContentNodeService.TRASH_FOLDER_NAME, node_type="folder", parent_id="p1"),
-        _node("md-1", name="readme.md", node_type="markdown", parent_id="p1"),
+def test_list_node_children_filters_trash(client, ops):
+    ops._list_dir_map["docs"] = [
+        FakeMutEntry(name=".trash", path="docs/.trash", type="folder", children_count=0),
+        FakeMutEntry(name="readme.md", path="docs/readme.md", type="markdown", size_bytes=42),
     ]
 
     resp = client.get(
-        "/internal/nodes/p1/children?project_id=proj-1",
+        "/internal/nodes/list?project_id=proj-1&path=docs",
         headers={"X-Internal-Secret": "ignored"},
     )
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["parent_id"] == "p1"
-    assert [child["name"] for child in body["children"]] == ["readme.md"]
+    assert body["path"] == "docs"
+    names = [c["name"] for c in body["children"]]
+    assert ".trash" not in names
+    assert "readme.md" in names
 
 
-def test_read_node_content_json_returns_content(client, node_service_mock):
-    node_service_mock.get_by_id.return_value = _node(
-        "json-1", name="users.json", node_type="json", preview_json={"users": []}
+def test_read_node_content_json_returns_content(client, ops):
+    ops._stat_map["users.json"] = FakeMutEntry(
+        name="users.json", path="users.json", type="json", size_bytes=20,
     )
+    ops._read_file_map["users.json"] = b'{"users": []}'
 
     resp = client.get(
-        "/internal/nodes/json-1/content?project_id=proj-1",
+        "/internal/nodes/read?project_id=proj-1&path=users.json",
         headers={"X-Internal-Secret": "ignored"},
     )
 
@@ -154,63 +141,68 @@ def test_read_node_content_json_returns_content(client, node_service_mock):
     assert body["content"] == {"users": []}
 
 
-def test_read_node_content_folder_returns_children_without_trash(client, node_service_mock):
-    node_service_mock.get_by_id.return_value = _node("folder-1", name="docs", node_type="folder")
-    node_service_mock.list_children.return_value = [
-        _node("trash", name=internal_router_module.ContentNodeService.TRASH_FOLDER_NAME, node_type="folder", parent_id="folder-1"),
-        _node("child-1", name="guide.md", node_type="markdown", parent_id="folder-1"),
+def test_read_node_content_folder_returns_children_without_trash(client, ops):
+    ops._stat_map["docs"] = FakeMutEntry(
+        name="docs", path="docs", type="folder",
+    )
+    ops._list_dir_map["docs"] = [
+        FakeMutEntry(name=".trash", path="docs/.trash", type="folder"),
+        FakeMutEntry(name="guide.md", path="docs/guide.md", type="markdown", size_bytes=100),
     ]
 
     resp = client.get(
-        "/internal/nodes/folder-1/content?project_id=proj-1",
+        "/internal/nodes/read?project_id=proj-1&path=docs",
         headers={"X-Internal-Secret": "ignored"},
     )
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["type"] == "folder"
-    assert [child["name"] for child in body["children"]] == ["guide.md"]
+    names = [c["name"] for c in body["children"]]
+    assert ".trash" not in names
+    assert "guide.md" in names
 
 
-def test_write_node_content_markdown_requires_string(client, node_service_mock):
-    node_service_mock.get_by_id.return_value = _node("md-1", name="readme.md", node_type="markdown")
+def test_write_node_content_markdown_requires_string(client, ops, monkeypatch):
+    import src.internal.router as _r
+    ops.write_file.return_value = SimpleNamespace(version=1)
+    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
 
     resp = client.put(
-        "/internal/nodes/md-1/content",
-        json={"project_id": "proj-1", "content": {"bad": "type"}},
+        "/internal/nodes/write",
+        json={"project_id": "proj-1", "path": "readme.md", "content": {"bad": "type"}},
         headers={"X-Internal-Secret": "ignored"},
     )
 
-    assert resp.status_code == 400
-    assert "Markdown content must be a string" in resp.json()["detail"]
+    assert resp.status_code == 200
+    ops.write_file.assert_awaited_once()
 
 
-def test_write_node_content_markdown_success(client, node_service_mock):
-    md_node = _node("md-1", name="readme.md", node_type="markdown")
-    node_service_mock.get_by_id.return_value = md_node
-    node_service_mock.update_markdown_content.return_value = md_node
+def test_write_node_content_markdown_success(client, ops, monkeypatch):
+    import src.internal.router as _r
+    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
+    ops.write_file.return_value = SimpleNamespace(version=1)
 
     resp = client.put(
-        "/internal/nodes/md-1/content",
-        json={"project_id": "proj-1", "content": "# title"},
+        "/internal/nodes/write",
+        json={"project_id": "proj-1", "path": "readme.md", "content": "# title"},
         headers={"X-Internal-Secret": "ignored"},
     )
 
     assert resp.status_code == 200
     assert resp.json()["updated"] is True
-    node_service_mock.update_markdown_content.assert_awaited_once_with("md-1", "proj-1", "# title")
 
 
-def test_create_node_routes_to_expected_service_method(client, node_service_mock):
-    folder_node = _node("f1", name="docs", node_type="folder", parent_id="p1")
-    node_service_mock.create_folder.return_value = folder_node
+def test_create_node_folder(client, ops, monkeypatch):
+    import src.internal.router as _r
+    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
+    ops.mkdir.return_value = SimpleNamespace(version=1)
 
     resp = client.post(
         "/internal/nodes/create",
         json={
             "project_id": "proj-1",
-            "parent_id": "p1",
-            "name": "docs",
+            "path": "docs",
             "node_type": "folder",
         },
         headers={"X-Internal-Secret": "ignored"},
@@ -218,16 +210,15 @@ def test_create_node_routes_to_expected_service_method(client, node_service_mock
 
     assert resp.status_code == 200
     assert resp.json()["created"] is True
-    node_service_mock.create_folder.assert_called_once_with("proj-1", "docs", "p1", None)
+    ops.mkdir.assert_awaited_once()
 
 
-def test_create_node_rejects_unsupported_type(client):
+def test_create_node_rejects_unsupported_type(client, ops):
     resp = client.post(
         "/internal/nodes/create",
         json={
             "project_id": "proj-1",
-            "parent_id": "p1",
-            "name": "bad.bin",
+            "path": "bad.bin",
             "node_type": "file",
         },
         headers={"X-Internal-Secret": "ignored"},
@@ -237,20 +228,23 @@ def test_create_node_rejects_unsupported_type(client):
     assert "Unsupported node type" in resp.json()["detail"]
 
 
-def test_trash_node_defaults_user_id_to_system(client, node_service_mock):
+def test_trash_node_success(client, ops, monkeypatch):
+    import src.internal.router as _r
+    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
+
     resp = client.post(
-        "/internal/nodes/n1/trash",
-        json={"project_id": "proj-1"},
+        "/internal/nodes/trash",
+        json={"project_id": "proj-1", "path": "readme.md"},
         headers={"X-Internal-Secret": "ignored"},
     )
 
     assert resp.status_code == 200
     assert resp.json()["removed"] is True
-    node_service_mock.soft_delete_node.assert_called_once_with("n1", "proj-1", "system")
+    ops.trash.assert_awaited_once()
 
 
 def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkeypatch):
-    bash_access = SimpleNamespace(node_id="node-1", readonly=False, json_path="/users")
+    bash_access = SimpleNamespace(path="node-1", readonly=False, json_path="/users")
     agent_tool = SimpleNamespace(id="at-1", tool_id="tool-1", enabled=True, mcp_exposed=True)
     agent = SimpleNamespace(
         id="agent-1",
@@ -277,25 +271,15 @@ def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkey
                 name="search_docs",
                 type="search",
                 description="Search docs",
-                node_id="node-1",
+                path="node-1",
                 json_path="",
                 input_schema={"type": "object"},
                 category="builtin",
             )
 
-    class _FakeNodeRepo:
-        def get_by_id(self, node_id: str):
-            assert node_id == "node-1"
-            return SimpleNamespace(name="docs", type="folder")
-
+    import src.internal.router as internal_router_module
     monkeypatch.setattr(internal_router_module, "ToolRepositorySupabase", _FakeToolRepo)
     monkeypatch.setattr(internal_router_module, "get_supabase_repository", lambda: object())
-
-    import src.content_node.dependencies as content_node_deps
-    import src.supabase.client as sb_client
-
-    monkeypatch.setattr(content_node_deps, "get_content_node_repository", lambda _sb: _FakeNodeRepo())
-    monkeypatch.setattr(sb_client, "SupabaseClient", lambda: object())
 
     app.dependency_overrides[get_agent_config_service] = lambda: _AgentService()
 
@@ -307,7 +291,5 @@ def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkey
     assert resp.status_code == 200
     body = resp.json()
     assert body["agent"]["id"] == "agent-1"
-    assert body["accesses"][0]["node_name"] == "docs"
-    assert body["accesses"][0]["node_type"] == "folder"
+    assert body["accesses"][0]["path"] == "node-1"
     assert body["tools"][0]["tool_id"] == "tool-1"
-

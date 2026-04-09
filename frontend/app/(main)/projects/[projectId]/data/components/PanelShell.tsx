@@ -4,6 +4,7 @@ import React from 'react';
 
 interface PanelShellProps {
   title: string;
+  subtitle?: string;
   icon?: React.ReactNode;
   onClose: () => void;
   onBack?: () => void;
@@ -11,7 +12,7 @@ interface PanelShellProps {
   children: React.ReactNode;
 }
 
-export function PanelShell({ title, icon, onClose, onBack, headerRight, children }: PanelShellProps) {
+export function PanelShell({ title, subtitle, icon, onClose, onBack, headerRight, children }: PanelShellProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{
@@ -34,8 +35,13 @@ export function PanelShell({ title, icon, onClose, onBack, headerRight, children
           </button>
         )}
         {icon && <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>}
-        <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {title}
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{title}</span>
+          {subtitle && (
+            <span style={{ fontSize: 12, fontWeight: 400, color: '#71717a', marginLeft: 6 }}>
+              /{subtitle}
+            </span>
+          )}
         </span>
         {headerRight}
         <button

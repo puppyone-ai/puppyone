@@ -19,7 +19,7 @@ export function createClient(cmd) {
   return _makeClient(apiUrl, { Authorization: `Bearer ${apiKey}` }, { autoRefresh: true });
 }
 
-export function createOpenClawClient(accessKey, cmd, apiUrlOverride) {
+export function createAccessKeyClient(accessKey, cmd, apiUrlOverride) {
   const opts = collectOpts(cmd);
   const config = loadConfig();
   const apiUrl = apiUrlOverride ?? opts.apiUrl ?? config.api_url ?? "http://localhost:9090";
@@ -30,6 +30,9 @@ export function createOpenClawClient(accessKey, cmd, apiUrlOverride) {
 
   return _makeClient(apiUrl, { "X-Access-Key": accessKey }, { autoRefresh: false });
 }
+
+/** @deprecated Use createAccessKeyClient */
+export const createOpenClawClient = createAccessKeyClient;
 
 export function collectOpts(cmd) {
   let cur = cmd;

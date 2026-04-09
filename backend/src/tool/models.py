@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-
 
 ToolCategory = Literal["builtin", "custom"]
 
@@ -13,24 +12,24 @@ class Tool(BaseModel):
     id: str
     created_at: datetime
 
-    created_by: Optional[str] = None
+    created_by: str | None = None
     org_id: str
-    project_id: Optional[str] = None  # 所属项目 ID（用于按项目过滤）
-    node_id: Optional[str] = None  # 绑定的 content_nodes 节点 ID
-    json_path: str = ""  # JSON 内部路径（如 /users/0）
+    project_id: str | None = None  # Associated project ID (for filtering by project)
+    path: str | None = None  # MUT path
+    json_path: str = ""  # JSON internal path (e.g. /users/0)
 
-    type: str  # 工具类型：search, query_data, create, update, delete, custom_script 等（注：shell_access 已移至 agent_bash）
+    type: str  # Tool type: search, query_data, create, update, delete, custom_script, etc. (note: shell_access moved to agent_bash)
     name: str
-    alias: Optional[str] = None
-    description: Optional[str] = None
+    alias: str | None = None
+    description: str | None = None
 
-    input_schema: Optional[Any] = Field(default=None, description="JSON Schema (input)")
-    output_schema: Optional[Any] = Field(
+    input_schema: Any | None = Field(default=None, description="JSON Schema (input)")
+    output_schema: Any | None = Field(
         default=None, description="JSON Schema (output)"
     )
-    metadata: Optional[Any] = Field(default=None, description="扩展配置（自定义工具的多节点绑定存这里）")
+    metadata: Any | None = Field(default=None, description="Extension config (multi-node bindings for custom tools stored here)")
 
-    # 新增字段
-    category: ToolCategory = "builtin"  # 工具分类：builtin（内置）或 custom（自定义）
-    script_type: Optional[str] = None  # 脚本类型：python, javascript, shell（仅 custom 类型使用）
-    script_content: Optional[str] = None  # 脚本代码内容（仅 custom 类型使用）
+    # Additional fields
+    category: ToolCategory = "builtin"  # Tool category: builtin or custom
+    script_type: str | None = None  # Script type: python, javascript, shell (only for custom category)
+    script_content: str | None = None  # Script code content (only for custom category)

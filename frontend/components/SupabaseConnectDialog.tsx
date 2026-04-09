@@ -272,7 +272,7 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                 </span>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#fca5a5', marginBottom: 4 }}>
-                    {error.error_code === 'RLS_BLOCKED' ? 'Row Level Security Detected' : 'Connection Failed'}
+                    {error.error_code === 'RLS_BLOCKED' ? 'Row Level Security Detected' : 'Access Setup Failed'}
                   </div>
                   <div style={{ fontSize: 12, color: '#e4e4e7', lineHeight: 1.5 }}>
                     {error.message}

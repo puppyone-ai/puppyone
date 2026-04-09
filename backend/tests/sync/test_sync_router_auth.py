@@ -4,11 +4,11 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
-from src.project.dependencies import get_project_service
-from src.sync.dependencies import get_sync_service
-from src.sync.router import router
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
+from src.platform.project.dependencies import get_project_service
+from src.connectors.datasource.dependencies import get_sync_service
+from src.connectors.datasource.router import router
 
 
 class StubProjectService:
@@ -25,28 +25,38 @@ class StubSyncRepo:
         self.sync_allowed = SimpleNamespace(
             id="sync-allowed",
             project_id="project-allowed",
-            node_id="node-1",
+            path="node-1",
             direction="bidirectional",
-            provider="openclaw",
+            provider="filesystem",
             config={},
             status="active",
             last_sync_version=3,
             error_message=None,
             access_key="access-key-123",
             last_synced_at=None,
+            trigger={},
+            authority="authoritative",
+            credentials_ref=None,
+            conflict_strategy=None,
+            remote_hash=None,
         )
         self.sync_other = SimpleNamespace(
             id="sync-other",
             project_id="project-other",
-            node_id="node-2",
+            path="node-2",
             direction="bidirectional",
-            provider="openclaw",
+            provider="filesystem",
             config={},
             status="active",
             last_sync_version=1,
             error_message=None,
             access_key="access-key-other",
             last_synced_at=None,
+            trigger={},
+            authority="authoritative",
+            credentials_ref=None,
+            conflict_strategy=None,
+            remote_hash=None,
         )
         self.by_id = {
             self.sync_allowed.id: self.sync_allowed,
@@ -167,7 +177,6 @@ def test_list_syncs_forbidden_without_project_access(current_user: CurrentUser):
         ("delete", "/api/v1/sync/syncs/sync-other"),
         ("post", "/api/v1/sync/syncs/sync-other/pause"),
         ("post", "/api/v1/sync/syncs/sync-other/resume"),
-        ("get", "/api/v1/sync/syncs/sync-other/openclaw-status"),
     ],
 )
 def test_sync_management_routes_forbid_other_project(
@@ -191,7 +200,7 @@ def test_bootstrap_openclaw_forbidden_without_project_access(current_user: Curre
     )
     response = client.post(
         "/api/v1/sync/syncs/openclaw/bootstrap",
-        params={"project_id": "project-other", "node_id": "node-2"},
+        params={"project_id": "project-other", "path": "node-2"},
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "No access to this project"

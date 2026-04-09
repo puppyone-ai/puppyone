@@ -8,13 +8,14 @@ import os
 import pytest
 from datetime import datetime, UTC
 
-from src.upload.file.rules.repository_supabase import RuleRepositorySupabase
-from src.upload.file.rules.schemas import RuleCreateRequest, RuleUpdateRequest
-from src.supabase.exceptions import SupabaseException
-from src.supabase.dependencies import get_supabase_client
+from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
+from src.ingest.file.rules.schemas import RuleCreateRequest, RuleUpdateRequest
+from src.infra.supabase.exceptions import SupabaseException
+from src.infra.supabase.dependencies import get_supabase_client
 
 
-if not os.getenv("SUPABASE_URL") or not os.getenv("SUPABASE_KEY"):
+_REAL_SUPABASE = os.getenv("SUPABASE_URL", "") and "localhost:54321" not in os.getenv("SUPABASE_URL", "")
+if not _REAL_SUPABASE:
     pytest.skip("Skip Supabase-dependent tests (SUPABASE_URL/KEY not set)", allow_module_level=True)
 
 @pytest.fixture

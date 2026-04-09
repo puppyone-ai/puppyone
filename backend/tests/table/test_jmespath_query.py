@@ -7,8 +7,8 @@ from datetime import datetime, UTC
 from unittest.mock import Mock
 import pytest
 
-from src.table.service import TableService
-from src.table.models import Table
+from src.content.table.service import TableService
+from src.content.table.models import Table
 from src.exceptions import NotFoundException, BusinessException
 
 
@@ -24,8 +24,11 @@ def mock_repository():
 
 @pytest.fixture
 def table_service(mock_repository):
-    """创建 TableService 实例"""
-    return TableService(repo=mock_repository)
+    """创建 TableService 实例 (mock repo_manager so _ensure_mut passes;
+    _read_json_from_mut raises → falls back to table.data)"""
+    svc = TableService(repo=mock_repository, repo_manager=Mock())
+    svc._read_json_from_mut = Mock(side_effect=Exception("no MUT in unit test"))
+    return svc
 
 
 @pytest.fixture

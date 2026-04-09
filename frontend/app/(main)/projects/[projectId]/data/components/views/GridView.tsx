@@ -12,8 +12,8 @@ export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'vi
 
 // Document shell: paper shape with fold corner, content area for preview
 const DocShell = ({ children }: { children?: React.ReactNode }) => (
-  <div style={{ position: 'relative', width: 64, height: 72 }}>
-    <svg width="64" height="72" viewBox="0 0 64 72" fill="none" style={{ position: 'absolute', top: 0, left: 0 }}>
+  <div style={{ position: 'relative', width: 52, height: 58 }}>
+    <svg width="52" height="58" viewBox="0 0 64 72" fill="none" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
       {/* Shadow */}
       <path
         d="M10 6C10 4.89543 10.8954 4 12 4H43L57 18V69C57 70.1046 56.1046 71 55 71H12C10.8954 71 10 70.1046 10 69V6Z"
@@ -32,10 +32,10 @@ const DocShell = ({ children }: { children?: React.ReactNode }) => (
     </svg>
     <div style={{
       position: 'absolute',
-      top: 18,
-      left: 12,
-      right: 10,
-      bottom: 6,
+      top: 13,
+      left: 9,
+      right: 7,
+      bottom: 4,
       overflow: 'hidden',
     }}>
       {children}
@@ -45,13 +45,13 @@ const DocShell = ({ children }: { children?: React.ReactNode }) => (
 
 // Folder icon with children count badge
 const FolderIconLarge = ({ childrenCount }: { childrenCount?: number | null }) => (
-  <div style={{ position: 'relative', width: 64, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <img src="/icons/folder.svg" alt="Folder" width={64} height={64} style={{ display: 'block' }} />
+  <div style={{ position: 'relative', width: 56, height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <img src="/icons/folder.svg" alt="Folder" width={56} height={56} style={{ display: 'block' }} />
     {childrenCount != null && childrenCount > 0 && (
       <div style={{
         position: 'absolute',
-        bottom: 2,
-        right: 0,
+        bottom: 0,
+        right: -4,
         background: '#3f3f46',
         border: '1px solid #52525b',
         borderRadius: 8,
@@ -298,15 +298,15 @@ const UnifiedBrandedIcon = ({
 };
 
 const CreateIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
     <path d="M12 5V19M5 12H19" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 // Agent resource type for props
 export interface AgentResource {
-  nodeId: string;
-  terminalReadonly: boolean;
+  path: string;
+  readonly: boolean;
 }
 
 export interface GridViewItem {
@@ -315,7 +315,7 @@ export interface GridViewItem {
   type: ContentType;  // type 直接决定渲染方式
   description?: string;
   rowCount?: number;
-  id_path?: string;
+  mut_path?: string;
   sync_url?: string | null;
   thumbnailUrl?: string;
   onClick: (e: React.MouseEvent) => void;
@@ -337,7 +337,7 @@ export interface GridViewProps {
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
-  onMove?: (id: string, name: string, id_path?: string) => void;
+  onMove?: (id: string, name: string, mut_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   loading?: boolean;
@@ -365,7 +365,7 @@ function GridItem({
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
-  onMove?: (id: string, name: string, id_path?: string) => void;
+  onMove?: (id: string, name: string, mut_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   isHighlighted?: boolean;
@@ -389,7 +389,7 @@ function GridItem({
 
   // Check if this item has agent access
   const hasAgentAccess = !!agentResource;
-  const accessMode = agentResource?.terminalReadonly ? 'read' : 'write';
+  const accessMode = agentResource?.readonly ? 'read' : 'write';
 
   // 判断是否为同步类型
   const isSynced = item.is_synced || isSyncedType(item.type);
@@ -465,34 +465,18 @@ function GridItem({
         e.dataTransfer.effectAllowed = 'copyMove';
       }}
       {...dropHandlers}
+      className={`flex flex-col items-center justify-center gap-1.5 cursor-pointer group p-3 rounded-xl transition-colors relative aspect-square ${
+        isDropTarget ? 'bg-blue-500/15 ring-2 ring-blue-500/60' : 
+        isHighlighted ? 'bg-blue-500/12 ring-2 ring-blue-500/50' : 
+        hasAgentAccess ? 'ring-2 ring-orange-500/50' :
+        hovered ? 'bg-[#1a1a1a]' : 'bg-transparent'
+      }`}
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        width: 112,
-        height: 128,
-        borderRadius: 8,
-        cursor: 'pointer',
-        background: isDropTarget ? 'rgba(59, 130, 246, 0.15)' : isHighlighted ? 'rgba(59, 130, 246, 0.12)' : hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        transition: 'all 0.15s',
-        position: 'relative',
-        outline: isDropTarget
-            ? '2px solid rgba(59, 130, 246, 0.6)'
-            : isHighlighted
-            ? '2px solid rgba(59, 130, 246, 0.5)'
-            : hasAgentAccess
-            ? '2px solid rgba(249, 115, 22, 0.5)'
-            : 'none',
-        outlineOffset: -2,
-        opacity: 1,
-        gap: 4,
-        padding: '6px 6px 8px',
         animation: isHighlighted ? 'gridItemHighlight 2s ease-out' : undefined,
       }}
     >
       {/* 图标区域 */}
-      <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }} title={isPlaceholder ? "Click to connect" : undefined}>
+      <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover:opacity-100 transition-opacity drop-shadow-sm relative" title={isPlaceholder ? "Click to connect" : undefined}>
         {getTypeIcon()}
       </div>
       
@@ -506,7 +490,7 @@ function GridItem({
             onRename={onRename}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
-            onMove={onMove ? (id, name) => onMove(id, name, item.id_path) : undefined}
+            onMove={onMove ? (id, name) => onMove(id, name, item.mut_path) : undefined}
             onRefresh={isSynced ? onRefresh : undefined}
             onCreateTool={onCreateTool}
             syncUrl={item.sync_url}
@@ -549,28 +533,12 @@ function GridItem({
       )}
 
       {/* Name */}
-      <div
-        style={{
-          fontSize: 11,
-          color: hovered ? '#e5e5e5' : '#a1a1aa',
-          wordBreak: 'break-word',
-          lineHeight: 1.3,
-          maxHeight: 30,
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          textAlign: 'center',
-          transition: 'color 0.15s',
-          width: '100%',
-          padding: '0 2px',
-        }}
-      >
+      <span className="text-[13px] text-center truncate w-full text-[#999] group-hover:text-[#eee] transition-colors font-medium">
         {item.name}
         {isSynced && syncSource && !isPlaceholder && (
           <span style={{ color: '#52525b', fontSize: 10 }}> · {formatSourceName(syncSource)}</span>
         )}
-      </div>
+      </span>
     </div>
   );
 }
@@ -587,41 +555,14 @@ function CreateButton({
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 112,
-        height: 128,
-        cursor: 'pointer',
-      }}
+      className="flex flex-col items-center justify-center gap-1.5 cursor-pointer group p-3 rounded-xl hover:bg-[#1a1a1a] transition-colors aspect-square"
     >
-      {/* 小圆角框 + 加号 */}
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 10,
-          border: '1.5px dashed',
-          borderColor: hovered ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.12)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: hovered ? '#a1a1aa' : '#525252',
-          transition: 'all 0.15s',
-        }}
-      >
+      <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover:opacity-100 transition-opacity drop-shadow-sm border-2 border-dashed border-[#2a2a2a] group-hover:border-[#3a3a3a] rounded-xl">
         <CreateIcon />
       </div>
-      <div style={{ 
-        marginTop: 8,
-        fontSize: 13, 
-        color: hovered ? '#a1a1aa' : '#525252',
-        transition: 'color 0.15s',
-      }}>
+      <span className="text-[13px] text-center truncate w-full text-[#999] group-hover:text-[#eee] transition-colors font-medium">
         New
-      </div>
+      </span>
     </div>
   );
 }
@@ -645,7 +586,7 @@ export function GridView({
     return <div style={{ color: '#666', padding: 16 }}>Loading...</div>;
   }
 
-  const resourceMap = new Map(agentResources?.map(r => [r.nodeId, r]) ?? []);
+  const resourceMap = new Map(agentResources?.map(r => [r.path, r]) ?? []);
 
   return (
     <>
@@ -655,14 +596,7 @@ export function GridView({
           100% { background: transparent; outline-color: transparent; }
         }
       `}</style>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 16,
-          alignContent: 'flex-start',
-        }}
-      >
+      <div className="grid gap-x-2 gap-y-2 w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
         {items.map(item => (
           <GridItem
             key={item.id}

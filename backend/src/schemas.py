@@ -5,18 +5,18 @@ T = TypeVar("T")
 
 
 class ApiResponse(BaseModel, Generic[T]):
-    """统一的API响应格式"""
+    """Unified API response format"""
 
-    code: int  # 业务状态码，0表示成功
-    message: str  # 响应消息
-    data: Optional[T] = None  # 响应数据
+    code: int  # Business status code, 0 means success
+    message: str  # Response message
+    data: Optional[T] = None  # Response data
 
     @classmethod
     def success(cls, data: T = None, message: str = "success") -> "ApiResponse[T]":
-        """创建成功响应"""
+        """Create a success response"""
         return cls(code=0, message=message, data=data)
 
     @classmethod
     def error(cls, code: int, message: str, data: T = None) -> "ApiResponse[T]":
-        """创建错误响应"""
+        """Create an error response"""
         return cls(code=code, message=message, data=data)

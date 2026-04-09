@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional, List
 
-from src.supabase.repository import SupabaseRepository
-from src.supabase.tools.schemas import (
+from src.infra.supabase.repository import SupabaseRepository
+from src.tool.models import Tool
+from src.tool.supabase_schemas import (
     ToolCreate as SbToolCreate,
+)
+from src.tool.supabase_schemas import (
     ToolUpdate as SbToolUpdate,
 )
-from src.tool.models import Tool
 
 
 class ToolRepositoryBase(ABC):
@@ -17,7 +18,7 @@ class ToolRepositoryBase(ABC):
         pass
 
     @abstractmethod
-    def get_by_id(self, tool_id: str) -> Optional[Tool]:
+    def get_by_id(self, tool_id: str) -> Tool | None:
         pass
 
     @abstractmethod
@@ -27,13 +28,13 @@ class ToolRepositoryBase(ABC):
         *,
         skip: int = 0,
         limit: int = 100,
-        node_id: Optional[str] = None,
-        project_id: Optional[str] = None,
-    ) -> List[Tool]:
+        path: str | None = None,
+        project_id: str | None = None,
+    ) -> list[Tool]:
         pass
 
     @abstractmethod
-    def update(self, tool_id: str, tool: SbToolUpdate) -> Optional[Tool]:
+    def update(self, tool_id: str, tool: SbToolUpdate) -> Tool | None:
         pass
 
     @abstractmethod
@@ -52,7 +53,7 @@ class ToolRepositorySupabase(ToolRepositoryBase):
             created_by=resp.created_by if resp.created_by else None,
             org_id=resp.org_id or "",
             project_id=resp.project_id,
-            node_id=resp.node_id,
+            path=resp.path,
             json_path=resp.json_path or "",
             type=resp.type or "",
             name=resp.name or "",
@@ -70,7 +71,7 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         resp = self._repo.create_tool(tool)
         return self._to_model(resp)
 
-    def get_by_id(self, tool_id: str) -> Optional[Tool]:
+    def get_by_id(self, tool_id: str) -> Tool | None:
         resp = self._repo.get_tool(tool_id)
         if not resp:
             return None
@@ -82,15 +83,15 @@ class ToolRepositorySupabase(ToolRepositoryBase):
         *,
         skip: int = 0,
         limit: int = 100,
-        node_id: Optional[str] = None,
-        project_id: Optional[str] = None,
-    ) -> List[Tool]:
+        path: str | None = None,
+        project_id: str | None = None,
+    ) -> list[Tool]:
         resps = self._repo.get_tools(
-            skip=skip, limit=limit, org_id=org_id, node_id=node_id, project_id=project_id
+            skip=skip, limit=limit, org_id=org_id, path=path, project_id=project_id
         )
         return [self._to_model(r) for r in resps]
 
-    def update(self, tool_id: str, tool: SbToolUpdate) -> Optional[Tool]:
+    def update(self, tool_id: str, tool: SbToolUpdate) -> Tool | None:
         resp = self._repo.update_tool(tool_id, tool)
         if not resp:
             return None

@@ -106,15 +106,19 @@
 
 虽然策略简单，但不用担心数据丢失：
 
-- 每次覆盖前，当前版本会自动保存到版本历史
-- 你可以随时查看历史版本并回滚
+- 每次覆盖前，当前版本会自动保存到版本历史（Mut commit）
+- 你可以随时通过 API 查看历史版本并回滚
 
 ```bash
 # 查看文件的版本历史
-puppyone fs versions /data/config.json
+curl -X GET "https://api.puppyone.ai/api/v1/content/{project_id}/versions?path=/data/config.json" \
+  -H "Authorization: Bearer {token}"
 
 # 回滚到指定版本
-puppyone fs rollback /data/config.json 3
+curl -X POST "https://api.puppyone.ai/api/v1/content/{project_id}/rollback" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"path": "/data/config.json", "version": 3}'
 ```
 
 ---
@@ -154,12 +158,13 @@ puppyone fs rollback /data/config.json 3
 
 ### 用 Checkout/Commit 保护关键数据
 
-对于不能出错的关键数据（如定价配置、API 规范），使用 Checkout/Commit 工作流锁定后再编辑：
+对于不能出错的关键数据（如定价配置、API 规范），使用 `base_version` 乐观并发控制，确保写入前文件未被修改：
 
 ```bash
-# 检出 → 编辑 → 提交，全程独占
-curl -X POST ".../api/v1/collab/checkout" \
-  -d '{"node_ids": ["pricing_node"], "project_id": "proj_123"}'
+# 带 base_version 写入，确保不会覆盖他人修改
+curl -X POST ".../api/v1/content/{project_id}/write" \
+  -H "Authorization: Bearer {token}" \
+  -d '{"path": "config/pricing.json", "content": {...}, "base_version": 5}'
 ```
 
 ### 用路径权限减少冲突
@@ -180,15 +185,11 @@ Agent B:
 
 ### 依赖版本历史作为安全网
 
-无论使用哪种策略，版本历史都会保留所有修改记录。即使出现意外覆盖，你也可以随时回滚到之前的版本。
+无论使用哪种策略，版本历史（Mut commits）都会保留所有修改记录。即使出现意外覆盖，你也可以随时回滚到之前的版本。
 
 ### 关注审计日志
 
-定期查看审计日志，了解哪些 Agent 在修改哪些文件，及时发现异常的并发修改模式：
-
-```bash
-puppyone fs audit /critical-data
-```
+定期查看审计日志，了解哪些 Agent 在修改哪些文件，及时发现异常的并发修改模式。可以通过 Dashboard 的 Audit 面板或 REST API 查看。
 
 ---
 

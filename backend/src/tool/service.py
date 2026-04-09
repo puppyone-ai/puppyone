@@ -1,28 +1,51 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import Any
 
-from src.exceptions import NotFoundException, ErrorCode, BusinessException
-from src.content_node.service import ContentNodeService
+from src.exceptions import BusinessException, ErrorCode, NotFoundException
+from src.infra.mcp_server.cache_invalidator import invalidate_mcp_cache
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.mut_engine.services.ops import MutOps
+from src.platform.project.service import ProjectService
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase
-from src.supabase.tools.schemas import (
+from src.tool.supabase_schemas import (
     ToolCreate as SbToolCreate,
+)
+from src.tool.supabase_schemas import (
     ToolUpdate as SbToolUpdate,
 )
-from src.supabase.dependencies import get_supabase_repository
-from src.mcp.cache_invalidator import invalidate_mcp_cache
-from src.project.service import ProjectService
+
+
+@dataclass
+class ToolCreateParams:
+    """Groups the parameters for creating a Tool."""
+    org_id: str
+    path: str | None
+    json_path: str
+    type: str
+    name: str
+    alias: str | None
+    description: str | None
+    input_schema: Any | None
+    output_schema: Any | None
+    metadata: Any | None
+    created_by: str | None = None
+    category: str = "builtin"
+    script_type: str | None = None
+    script_content: str | None = None
+    project_id: str | None = None
 
 
 @lru_cache(maxsize=64)
-def _get_default_tool_description(tool_type: str) -> Optional[str]:
+def _get_default_tool_description(tool_type: str) -> str | None:
     """
-    从 `src/mcp/description/{tool_type}.txt` 读取默认工具描述（用于 Tool.description 的默认值）。
+    Read default tool description from `src/infra/mcp_server/description/{tool_type}.txt` (used as default for Tool.description).
     """
-    desc_dir = Path(__file__).resolve().parents[1] / "mcp" / "description"
+    desc_dir = Path(__file__).resolve().parents[1] / "infra" / "mcp_server" / "description"
     p = desc_dir / f"{tool_type}.txt"
     if not p.exists():
         return None
@@ -37,12 +60,12 @@ class ToolService:
     def __init__(
         self,
         repo: ToolRepositoryBase,
-        node_service: ContentNodeService,
+        ops: MutOps,
         project_service: ProjectService,
-        supabase_repository: Optional[Any] = None,
+        supabase_repository: Any | None = None,
     ):
         self.repo = repo
-        self.node_service = node_service
+        self._ops = ops
         self.project_service = project_service
         self._sb = supabase_repository
 
@@ -51,35 +74,59 @@ class ToolService:
             self._sb = get_supabase_repository()
         return self._sb
 
-    def get_node_with_access_check(self, user_id: str, node_id: str):
-        node = self.node_service.get_by_id_unsafe(node_id)
-        if not self.project_service.verify_project_access(node.project_id, user_id):
-            raise NotFoundException(
-                f"Node not found: {node_id}", code=ErrorCode.NOT_FOUND
-            )
-        return node
+    def get_path_with_access_check(self, user_id: str, path: str):
+        """Check that a path is accessible.
+
+        Returns a simple object with project_id and type attributes.
+        """
+        from types import SimpleNamespace
+        tool = self.repo.get_by_path(path) if hasattr(self.repo, 'get_by_path') else None
+        project_id = tool.project_id if tool else None
+
+        if not project_id:
+            all_tools = self.repo.get_by_path_simple(path) if hasattr(self.repo, 'get_by_path_simple') else []
+            if all_tools:
+                project_id = all_tools[0].project_id
+
+        if project_id:
+            if not self.project_service.verify_project_access(project_id, user_id):
+                raise NotFoundException(
+                    f"Node not found: {path}", code=ErrorCode.NOT_FOUND
+                )
+            entry = self._ops.stat(project_id, path)
+            if entry:
+                return SimpleNamespace(
+                    project_id=project_id,
+                    type=entry.type,
+                    name=entry.name,
+                    path=entry.path,
+                )
+
+        raise NotFoundException(
+            f"Node not found: {path}", code=ErrorCode.NOT_FOUND
+        )
 
     def _invalidate_bound_agents_mcp(self, tool_id: str) -> None:
         """
-        best-effort：当 tool 发生变化时，通知所有绑定了该 tool 的 Agent 使 MCP 缓存失效。
-        
-        基于 connection_tool 表结构：
-        - 查找所有绑定了该 tool 的 connection_tool 记录
-        - 获取对应 Agent 的 mcp_api_key
-        - 使 MCP 缓存失效
+        Best-effort: when a tool changes, notify all Agents bound to this tool to invalidate their MCP cache.
+
+        Based on the connection_tool table structure:
+        - Find all connection_tool records bound to this tool
+        - Get the corresponding Agent's mcp_api_key
+        - Invalidate MCP cache
         """
-        from src.agent.config.repository import AgentRepository
-        
+        from src.connectors.agent.config.repository import AgentRepository
+
         try:
-            response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("access_tools").select("access_point_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
-            
+
             agent_repo = AgentRepository()
             seen_keys = set()
-            
+
             for row in response.data:
-                conn_id = row.get("connection_id")
+                conn_id = row.get("access_point_id")
                 if not conn_id:
                     continue
                 agent = agent_repo.get_by_id(conn_id)
@@ -92,6 +139,22 @@ class ToolService:
         except Exception:
             pass
 
+    def _check_sibling_name_conflict(
+        self, tool_id: str, user_id: str, new_name: str, conn_id: str, agent_tools: list
+    ) -> None:
+        """Check whether any sibling tool in a connection already uses *new_name*."""
+        for at in agent_tools:
+            if at.tool_id == tool_id:
+                continue
+            sib = self.repo.get_by_id(at.tool_id)
+            if not sib or sib.created_by != user_id:
+                continue
+            if sib.name == new_name:
+                raise BusinessException(
+                    f"Tool name conflict within connection (connection_id={conn_id}): name='{new_name}'",
+                    code=ErrorCode.VALIDATION_ERROR,
+                )
+
     def _assert_name_update_no_conflict(
         self, tool_id: str, user_id: str, new_name: str
     ) -> None:
@@ -99,60 +162,47 @@ class ToolService:
         Check if updating tool name would conflict with sibling tools
         in the same connection (Agent or MCP).
         """
-        from src.agent.config.repository import AgentRepository
-        
+        from src.connectors.agent.config.repository import AgentRepository
+
         try:
-            response = self._get_supabase_repository()._client.table("connection_tools").select("connection_id").eq("tool_id", tool_id).execute()
+            response = self._get_supabase_repository()._client.table("access_tools").select("access_point_id").eq("tool_id", tool_id).execute()
             if not response.data:
                 return
-            
+
             agent_repo = AgentRepository()
-            
+
             for row in response.data:
-                conn_id = row.get("connection_id")
+                conn_id = row.get("access_point_id")
                 if not conn_id:
                     continue
-                
                 agent_tools = agent_repo.get_tools_by_agent_id(conn_id)
-                for at in agent_tools:
-                    if at.tool_id == tool_id:
-                        continue
-                    sib = self.repo.get_by_id(at.tool_id)
-                    if not sib:
-                        continue
-                    if sib.created_by != user_id:
-                        continue
-                    if sib.name == new_name:
-                        raise BusinessException(
-                            f"Tool name conflict within connection (connection_id={conn_id}): name='{new_name}'",
-                            code=ErrorCode.VALIDATION_ERROR,
-                        )
+                self._check_sibling_name_conflict(tool_id, user_id, new_name, conn_id, agent_tools)
         except BusinessException:
             raise
         except Exception:
-            # 其他异常忽略
+            # Ignore other exceptions
             pass
 
     def list_org_tools(
         self, org_id: str, *, skip: int = 0, limit: int = 100
-    ) -> List[Tool]:
+    ) -> list[Tool]:
         return self.repo.get_by_org_id(org_id, skip=skip, limit=limit)
 
-    def list_org_tools_by_node_id(
+    def list_org_tools_by_path(
         self,
         user_id: str,
         org_id: str,
         *,
-        node_id: str,
+        path: str,
         skip: int = 0,
         limit: int = 1000,
-    ) -> List[Tool]:
-        self.get_node_with_access_check(user_id, node_id)
+    ) -> list[Tool]:
+        self.get_path_with_access_check(user_id, path)
         return self.repo.get_by_org_id(
-            org_id, skip=skip, limit=limit, node_id=node_id
+            org_id, skip=skip, limit=limit, path=path
         )
 
-    def get_by_id(self, tool_id: str) -> Optional[Tool]:
+    def get_by_id(self, tool_id: str) -> Tool | None:
         return self.repo.get_by_id(tool_id)
 
     def get_by_id_with_access_check(self, tool_id: str, user_id: str) -> Tool:
@@ -161,63 +211,48 @@ class ToolService:
             raise NotFoundException(
                 f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND
             )
-        if tool.project_id:
-            if not self.project_service.verify_project_access(tool.project_id, user_id):
-                raise NotFoundException(
-                    f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND
-                )
+        if tool.project_id and not self.project_service.verify_project_access(tool.project_id, user_id):
+            raise NotFoundException(
+                f"Tool not found: {tool_id}", code=ErrorCode.NOT_FOUND
+            )
         return tool
 
-    def create(
-        self,
-        *,
-        org_id: str,
-        created_by: Optional[str] = None,
-        node_id: Optional[str],
-        json_path: str,
-        type: str,
-        name: str,
-        alias: Optional[str],
-        description: Optional[str],
-        input_schema: Optional[Any],
-        output_schema: Optional[Any],
-        metadata: Optional[Any],
-        category: str = "builtin",
-        script_type: Optional[str] = None,
-        script_content: Optional[str] = None,
-        project_id: Optional[str] = None,
-    ) -> Tool:
-        if node_id and created_by:
-            node = self.get_node_with_access_check(created_by, node_id)
+    def create(self, *, params: ToolCreateParams) -> Tool:
+        path = params.path
+        created_by = params.created_by
+        project_id = params.project_id
+        description = params.description
+
+        if path and created_by:
+            node = self.get_path_with_access_check(created_by, path)
             if project_id and project_id != node.project_id:
                 raise BusinessException(
-                    "node_id does not belong to project_id",
+                    "path does not belong to project_id",
                     code=ErrorCode.VALIDATION_ERROR,
                 )
             if not project_id:
                 project_id = node.project_id
 
-        # 默认工具描述：当未传 description（或仅空白）时，根据 type 自动填充默认值
         if description is None or not str(description).strip():
-            description = _get_default_tool_description(str(type))
+            description = _get_default_tool_description(str(params.type))
 
         created = self.repo.create(
             SbToolCreate(
                 created_by=created_by,
-                org_id=org_id,
+                org_id=params.org_id,
                 project_id=project_id,
-                node_id=node_id,
-                json_path=json_path,
-                type=type,
-                name=name,
-                alias=alias,
+                path=path,
+                json_path=params.json_path,
+                type=params.type,
+                name=params.name,
+                alias=params.alias,
                 description=description,
-                input_schema=input_schema,
-                output_schema=output_schema,
-                metadata=metadata,
-                category=category,
-                script_type=script_type,
-                script_content=script_content,
+                input_schema=params.input_schema,
+                output_schema=params.output_schema,
+                metadata=params.metadata,
+                category=params.category,
+                script_type=params.script_type,
+                script_content=params.script_content,
             )
         )
         return created
@@ -225,24 +260,19 @@ class ToolService:
     def update(self, *, tool_id: str, user_id: str, patch: dict[str, Any]) -> Tool:
         existing = self.get_by_id_with_access_check(tool_id, user_id)
 
-        # 只处理传入的字段（路由层已用 exclude_unset 生成 patch）
+        # Only process fields that were passed in (router layer used exclude_unset to generate patch)
         name = patch.get("name")
         if name is not None and name != existing.name:
             self._assert_name_update_no_conflict(tool_id, user_id, name)
 
-        node_id = patch.get("node_id")
-        if node_id is not None:
-            node = self.get_node_with_access_check(user_id, node_id)
-            if existing.project_id and node.project_id != existing.project_id:
-                raise BusinessException(
-                    "cannot move tool across projects via node_id update",
-                    code=ErrorCode.VALIDATION_ERROR,
-                )
+        path = patch.get("path")
+        if path is not None:
+            self.get_path_with_access_check(user_id, path)
 
         updated = self.repo.update(
             tool_id,
             SbToolUpdate(
-                node_id=patch.get("node_id"),
+                path=patch.get("path"),
                 json_path=patch.get("json_path"),
                 type=patch.get("type"),
                 name=patch.get("name"),
@@ -257,7 +287,7 @@ class ToolService:
             ),
         )
         if not updated:
-            # 理论上不会发生（已做 get_by_id_with_access_check），这里做兜底
+            # Should not happen in practice (already did get_by_id_with_access_check); this is a safety net
             raise BusinessException(
                 "Tool update failed", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
@@ -267,7 +297,7 @@ class ToolService:
                 "Tool org mismatch after update", code=ErrorCode.INTERNAL_SERVER_ERROR
             )
 
-        # 触发所有绑定该 tool 的 Agent MCP 缓存失效
+        # Trigger MCP cache invalidation for all Agents bound to this tool
         self._invalidate_bound_agents_mcp(tool_id)
 
         return updated
@@ -278,7 +308,7 @@ class ToolService:
         *,
         project_id: str,
         limit: int = 1000,
-    ) -> List[Tool]:
+    ) -> list[Tool]:
         return self.repo.get_by_org_id(
             org_id, skip=0, limit=limit, project_id=project_id
         )

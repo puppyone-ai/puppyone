@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from src.turbopuffer.config import TurbopufferConfig
+from src.infra.turbopuffer.config import TurbopufferConfig
 
 
 def test_config_missing_api_key_warns(

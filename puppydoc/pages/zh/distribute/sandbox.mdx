@@ -50,10 +50,10 @@ PuppyOne 云端                       沙盒环境（隔离）
 
 ```bash
 # 创建 E2B 沙盒（云端）
-puppyone conn add sandbox "Python Runner" --type e2b
+puppyone access add sandbox "Python Runner" --type e2b
 
 # 创建 Docker 沙盒（自部署）
-puppyone conn add sandbox "Data Processor" --type docker
+puppyone access add sandbox "Data Processor" --type docker
 ```
 
 ### 通过 API
@@ -69,7 +69,7 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
     "sandbox_type": "e2b",
     "mounts": [
       {
-        "node_id": "node_abc123",
+        "path": "products",
         "mount_path": "/workspace/products",
         "mode": "rw"
       }
@@ -105,12 +105,12 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "products",
       "mount_path": "/workspace/products",
       "mode": "rw"
     },
     {
-      "node_id": "node_def456",
+      "path": "docs",
       "mount_path": "/workspace/docs",
       "mode": "ro"
     }
@@ -132,19 +132,6 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
 ---
 
 ## 执行代码
-
-### 通过 CLI
-
-```bash
-# 执行简单命令
-puppyone sandbox exec <sandbox_id> "ls /workspace/"
-
-# 执行 Python 脚本
-puppyone sandbox exec <sandbox_id> "python3 -c 'import json; data = json.load(open(\"/workspace/products/pricing.json\")); print(len(data[\"products\"]))'"
-
-# 执行 jq 查询
-puppyone sandbox exec <sandbox_id> "jq '.products[] | select(.price > 100)' /workspace/products/pricing.json"
-```
 
 ### 通过 API
 
@@ -180,33 +167,16 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec 
 首先创建沙盒并挂载数据：
 
 ```bash
-puppyone conn add sandbox "Price Analyzer" --type e2b
+puppyone access add sandbox "Price Analyzer" --type e2b
 ```
 
 然后执行分析脚本：
 
 ```bash
-puppyone sandbox exec <sandbox_id> "python3 -c '
-import json
-
-with open(\"/workspace/products/pricing.json\") as f:
-    data = json.load(f)
-
-expensive = [p for p in data[\"products\"] if p[\"price\"] > 100]
-print(f\"高价产品共 {len(expensive)} 个:\")
-for p in expensive:
-    print(f\"  - {p['name']}: ¥{p['price']}\")
-
-# 写入分析结果
-report = {
-    \"total\": len(data[\"products\"]),
-    \"expensive_count\": len(expensive),
-    \"expensive_products\": expensive,
-}
-with open(\"/workspace/products/analysis.json\", \"w\") as f:
-    json.dump(report, f, ensure_ascii=False, indent=2)
-print(\"报告已保存\")
-'"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "python3 -c '\''import json\nwith open(\"/workspace/products/pricing.json\") as f:\n    data = json.load(f)\nexpensive = [p for p in data[\"products\"] if p[\"price\"] > 100]\nprint(f\"高价产品共 {len(expensive)} 个:\")\nfor p in expensive:\n    print(f\"  - {p[\"name\"]}: ¥{p[\"price\"]}\")\nreport = {\"total\": len(data[\"products\"]), \"expensive_count\": len(expensive), \"expensive_products\": expensive}\nwith open(\"/workspace/products/analysis.json\", \"w\") as f:\n    json.dump(report, f, ensure_ascii=False, indent=2)\nprint(\"报告已保存\")'\''"}'
 ```
 
 输出：
@@ -225,16 +195,22 @@ print(\"报告已保存\")
 
 ```bash
 # 提取所有产品名称
-puppyone sandbox exec <sandbox_id> \
-  "jq '[.products[].name]' /workspace/products/pricing.json"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "jq '\''[.products[].name]'\'' /workspace/products/pricing.json"}'
 
 # 计算平均价格
-puppyone sandbox exec <sandbox_id> \
-  "jq '.products | map(.price) | add / length' /workspace/products/pricing.json"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "jq '\''.products | map(.price) | add / length'\'' /workspace/products/pricing.json"}'
 
 # 按类别分组
-puppyone sandbox exec <sandbox_id> \
-  "jq '.products | group_by(.category) | map({category: .[0].category, count: length})' /workspace/products/pricing.json"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "jq '\''.products | group_by(.category) | map({category: .[0].category, count: length})'\'' /workspace/products/pricing.json"}'
 ```
 
 ### 安装第三方库
@@ -242,19 +218,10 @@ puppyone sandbox exec <sandbox_id> \
 在 Python 运行时中，你可以安装额外的库：
 
 ```bash
-puppyone sandbox exec <sandbox_id> "pip install pandas && python3 -c '
-import pandas as pd
-import json
-
-with open(\"/workspace/products/pricing.json\") as f:
-    data = json.load(f)
-
-df = pd.DataFrame(data[\"products\"])
-print(df.describe())
-print()
-print(\"按类别统计:\")
-print(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))
-'"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "pip install pandas && python3 -c '\''import pandas as pd\nimport json\nwith open(\"/workspace/products/pricing.json\") as f:\n    data = json.load(f)\ndf = pd.DataFrame(data[\"products\"])\nprint(df.describe())\nprint()\nprint(\"按类别统计:\")\nprint(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))'\''"}'
 ```
 
 ---
@@ -269,7 +236,7 @@ print(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "ro"
     }
@@ -287,7 +254,7 @@ Agent 可以修改数据或创建新文件，变更自动同步回 PuppyOne。
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "rw"
     }
@@ -325,10 +292,16 @@ Agent 可以修改数据或创建新文件，变更自动同步回 PuppyOne。
 
 ```bash
 # Python 沙盒
-puppyone sandbox exec <id> "pip install requests pandas"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "pip install requests pandas"}'
 
 # Alpine 沙盒
-puppyone sandbox exec <id> "apk add --no-cache curl"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "apk add --no-cache curl"}'
 ```
 
 每次沙盒执行都是独立的环境，安装的工具不会持久化。如果需要持久化自定义环境，请使用 Docker 后端并构建自定义镜像。

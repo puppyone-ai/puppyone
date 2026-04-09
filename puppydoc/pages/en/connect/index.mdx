@@ -56,23 +56,23 @@ After data is synced in, it is converted into structured JSON or Markdown conten
 
 ### Via the CLI
 
-Use the `puppyone conn add` command to add connections quickly:
+Use the `puppyone access add` command to add connections quickly:
 
 ```bash
 # Add a Notion connection (OAuth required first)
-puppyone conn add notion <notion-url>
+puppyone access add notion <notion-url>
 
 # Add a GitHub connection
-puppyone conn add github <repo-url>
+puppyone access add github <repo-url>
 
 # Add a local folder connection
-puppyone conn add folder ~/workspace --name "My Workspace"
+puppyone access add filesystem ~/workspace --name "My Workspace"
 
 # Add a PostHog connection
-puppyone conn add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
+puppyone access add posthog --api-key phx_xxx --config '{"project_id":"123","mode":"events"}'
 
 # List all connections
-puppyone conn ls
+puppyone access ls
 ```
 
 After syncing finishes, the data appears in your Project file tree and can be accessed directly through MCP or the API.

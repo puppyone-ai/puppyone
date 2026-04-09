@@ -2,8 +2,8 @@
 配置加载：从 api_key / internal API 拉取 MCP 配置，并写入缓存
 
 支持双源认证：
-1. 独立 MCP 端点 (connections 表, provider='mcp') — 优先
-2. Agent 模式 (connections 表, provider='agent') — 回退
+1. 独立 MCP 端点 (access_points 表, provider='mcp') — 优先
+2. Agent 模式 (access_points 表, provider='agent') — 回退
 
 所有 MCP API key 均以 "mcp_" 开头。
 """
@@ -58,7 +58,7 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
         },
         "accesses": [
             {
-                "node_id": a.get("node_id"),
+                "path": a.get("path"),
                 "node_name": a.get("node_name", ""),
                 "node_type": a.get("node_type", ""),
                 "bash_enabled": a.get("bash_enabled", True),
@@ -78,7 +78,7 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
                 "name": t.get("name"),
                 "type": t.get("type"),
                 "description": t.get("description"),
-                "node_id": t.get("node_id"),
+                "path": t.get("path"),
                 "json_path": t.get("json_path", ""),
                 "input_schema": t.get("input_schema"),
                 "category": t.get("category", "builtin"),

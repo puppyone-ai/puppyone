@@ -3,11 +3,11 @@ from typing import Any, Optional
 
 
 class ErrorCode(int, Enum):
-    """全局错误码定义"""
+    """Global error code definitions"""
 
     SUCCESS = 0
 
-    # 通用错误 (1000-1999)
+    # General errors (1000-1999)
     INTERNAL_SERVER_ERROR = 1000
     BAD_REQUEST = 1001
     UNAUTHORIZED = 1002
@@ -16,18 +16,18 @@ class ErrorCode(int, Enum):
     METHOD_NOT_ALLOWED = 1005
     VALIDATION_ERROR = 1006
 
-    # 用户/认证相关 (2000-2999)
+    # User/authentication related (2000-2999)
     USER_NOT_FOUND = 2001
     USER_ALREADY_EXISTS = 2002
     INVALID_CREDENTIALS = 2003
     TOKEN_EXPIRED = 2004
     INVALID_TOKEN = 2005
 
-    # 内容节点相关 (4000-4999)
-    NAME_CONFLICT = 4001  # 同目录下存在同名节点
-    VERSION_CONFLICT = 4002  # 乐观锁版本冲突（并发写入）
+    # Content node related (4000-4999)
+    NAME_CONFLICT = 4001  # Duplicate name exists in the same directory
+    VERSION_CONFLICT = 4002  # Optimistic lock version conflict (concurrent write)
 
-    # MCP 相关 (3000-3999)
+    # MCP related (3000-3999)
     MCP_INSTANCE_NOT_FOUND = 3001
     MCP_INSTANCE_CREATION_FAILED = 3002
     MCP_INSTANCE_UPDATE_FAILED = 3003
@@ -36,7 +36,7 @@ class ErrorCode(int, Enum):
 
 
 class AppException(Exception):
-    """应用基础异常类"""
+    """Application base exception class"""
 
     def __init__(
         self,
@@ -52,7 +52,7 @@ class AppException(Exception):
         super().__init__(self.message)
 
 
-# 具体异常类 helper
+# Concrete exception class helpers
 class NotFoundException(AppException):
     def __init__(
         self, message: str = "Resource not found", code: ErrorCode = ErrorCode.NOT_FOUND
@@ -91,14 +91,14 @@ ForbiddenException = PermissionException
 
 
 class BusinessException(AppException):
-    """业务逻辑错误"""
+    """Business logic error"""
 
     def __init__(self, message: str, code: ErrorCode = ErrorCode.BAD_REQUEST):
         super().__init__(code=code, message=message, status_code=400)
 
 
 class NameConflictException(AppException):
-    """同目录下存在同名节点"""
+    """Duplicate name exists in the same directory"""
 
     def __init__(self, message: str = "A node with this name already exists in the folder"):
         super().__init__(
@@ -109,7 +109,7 @@ class NameConflictException(AppException):
 
 
 class VersionConflictException(AppException):
-    """版本冲突：并发写入导致乐观锁失败"""
+    """Version conflict: optimistic lock failure due to concurrent write"""
 
     def __init__(self, message: str = "Version conflict: concurrent update detected"):
         super().__init__(

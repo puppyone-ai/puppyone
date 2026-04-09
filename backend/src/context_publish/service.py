@@ -1,28 +1,29 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
 import secrets
 import string
-from typing import Any, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from src.config import settings
+from src.content.table.service import TableService
 from src.context_publish.cache import PublishCache
 from src.context_publish.models import ContextPublish
 from src.context_publish.repository import ContextPublishRepositoryBase
-from src.exceptions import ErrorCode, NotFoundException, ValidationException
-from src.supabase.exceptions import SupabaseDuplicateKeyError, SupabaseException
-from src.supabase.context_publish.schemas import (
+from src.context_publish.supabase_schemas import (
     ContextPublishCreate as SbContextPublishCreate,
+)
+from src.context_publish.supabase_schemas import (
     ContextPublishUpdate as SbContextPublishUpdate,
 )
-from src.table.service import TableService
-
+from src.exceptions import ErrorCode, NotFoundException, ValidationException
+from src.infra.supabase.exceptions import SupabaseDuplicateKeyError, SupabaseException
 
 _BASE62_ALPHABET = string.ascii_letters + string.digits
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _default_expires_at() -> datetime:
@@ -30,7 +31,7 @@ def _default_expires_at() -> datetime:
 
 
 def _generate_publish_key(*, length: int) -> str:
-    # 固定长度 base62 随机串：URL-safe、不可猜测
+    # Fixed-length base62 random string: URL-safe, non-guessable
     length = int(length)
     if length <= 0:
         raise ValueError("publish_key length must be positive")
@@ -54,15 +55,15 @@ class ContextPublishService:
         created_by: str,
         table_id: str,
         json_path: str,
-        expires_at: Optional[datetime],
+        expires_at: datetime | None,
     ) -> ContextPublish:
-        # 强校验：table 必须属于当前用户
+        # Strict validation: table must belong to the current user
         self.table_service.get_by_id_with_access_check(table_id, created_by)
 
         if expires_at is None:
             expires_at = _default_expires_at()
 
-        # 生成 key（全局唯一：只在“唯一冲突”时重试，其他错误应直接暴露真实原因）
+        # Generate key (globally unique: only retry on "unique conflict", other errors should expose the real cause)
         last_dup: Exception | None = None
         for _ in range(10):
             key = _generate_publish_key(length=int(settings.PUBLISH_KEY_LENGTH))
@@ -80,21 +81,21 @@ class ContextPublishService:
                 self.cache.set(created.publish_key, created)
                 return created
             except SupabaseDuplicateKeyError as e:
-                # 只对 publish_key 唯一冲突重试；其他字段冲突不该发生。
+                # Only retry on publish_key unique conflict; other field conflicts should not occur.
                 last_dup = e
                 continue
             except SupabaseException:
-                # 例如：表未创建、RLS/权限、字段/类型不匹配等 —— 直接抛出，避免被“unique 重试”掩盖
+                # E.g.: table not created, RLS/permissions, field/type mismatch, etc. -- raise directly, avoid being masked by "unique retry"
                 raise
             except Exception:
                 raise
 
-        # 极小概率：连续撞 key；这里返回 422（Validation）
+        # Extremely low probability: consecutive key collisions; return 422 (Validation)
         raise ValidationException("Failed to generate unique publish_key") from last_dup
 
     def list_by_created_by(
         self, created_by: str, *, skip: int = 0, limit: int = 100
-    ) -> List[ContextPublish]:
+    ) -> list[ContextPublish]:
         return self.repo.list_by_created_by(created_by, skip=skip, limit=limit)
 
     def get_by_id_with_access_check(
@@ -110,8 +111,8 @@ class ContextPublishService:
         *,
         publish_id: int,
         created_by: str,
-        status: Optional[bool],
-        expires_at: Optional[datetime],
+        status: bool | None,
+        expires_at: datetime | None,
     ) -> ContextPublish:
         existing = self.get_by_id_with_access_check(publish_id, created_by)
         updated = self.repo.update(
@@ -120,7 +121,7 @@ class ContextPublishService:
         )
         if not updated:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
-        # 主动失效缓存（按 spec：立即生效）
+        # Proactively invalidate cache (per spec: takes effect immediately)
         self._invalidate_cache(existing.publish_key)
         return updated
 
@@ -131,7 +132,7 @@ class ContextPublishService:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
         self._invalidate_cache(existing.publish_key)
 
-    def _get_by_key_cached(self, publish_key: str) -> Optional[ContextPublish]:
+    def _get_by_key_cached(self, publish_key: str) -> ContextPublish | None:
         cached = self.cache.get(publish_key)
         if cached:
             return cached
@@ -147,10 +148,10 @@ class ContextPublishService:
         if not p.status:
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
         if p.expires_at and p.expires_at <= _now_utc():
-            # 过期即视为不存在
+            # Expired is treated as non-existent
             raise NotFoundException("Publish not found", code=ErrorCode.NOT_FOUND)
 
-        # 注意：公开读取不做 user 权限校验；publish_key 即访问凭据
+        # Note: public read does not perform user permission checks; publish_key serves as the access credential
         data = self.table_service.get_context_data(
             table_id=p.table_id, json_pointer_path=p.json_path or ""
         )

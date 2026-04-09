@@ -1,4 +1,4 @@
-"""mcp_service.rpc.client 新增 POSIX 接口测试。"""
+"""mcp_service.rpc.client path-based (Mut-Native) API tests."""
 
 from __future__ import annotations
 
@@ -25,89 +25,71 @@ def _response(method: str, url: str, status_code: int, *, json_body=None, text: 
 
 
 @pytest.mark.asyncio
-async def test_resolve_path_success(rpc_client: InternalApiClient):
+async def test_stat_success(rpc_client: InternalApiClient):
     url = "http://main-service/internal/nodes/resolve-path"
     rpc_client._client.post = AsyncMock(
-        return_value=_response("POST", url, 200, json_body={"node_id": "n1", "path": "/docs"})
+        return_value=_response("POST", url, 200, json_body={"name": "readme.md", "path": "docs/readme.md", "type": "markdown"})
     )
 
-    result = await rpc_client.resolve_path(
-        project_id="proj-1",
-        root_accesses=[{"node_id": "root", "node_name": "docs", "node_type": "folder"}],
-        path="/docs",
-    )
+    result = await rpc_client.stat(project_id="proj-1", path="/docs/readme.md")
 
-    assert result == {"node_id": "n1", "path": "/docs"}
-    rpc_client._client.post.assert_awaited_once_with(
-        url,
-        json={
-            "project_id": "proj-1",
-            "root_accesses": [{"node_id": "root", "node_name": "docs", "node_type": "folder"}],
-            "path": "/docs",
-        },
-    )
+    assert result["name"] == "readme.md"
+    assert result["type"] == "markdown"
 
 
 @pytest.mark.asyncio
-async def test_resolve_path_http_error_is_wrapped(rpc_client: InternalApiClient):
+async def test_stat_http_error_is_wrapped(rpc_client: InternalApiClient):
     url = "http://main-service/internal/nodes/resolve-path"
     rpc_client._client.post = AsyncMock(
         return_value=_response("POST", url, 404, text='{"detail":"not found"}')
     )
 
-    with pytest.raises(RuntimeError, match="路径解析失败: HTTP 404"):
-        await rpc_client.resolve_path(project_id="proj-1", root_accesses=[], path="/missing")
+    with pytest.raises(RuntimeError, match="获取文件信息失败: HTTP 404"):
+        await rpc_client.stat(project_id="proj-1", path="/missing")
 
 
 @pytest.mark.asyncio
-async def test_list_children_request_error_is_wrapped(rpc_client: InternalApiClient):
-    url = "http://main-service/internal/nodes/root/children"
+async def test_list_dir_request_error_is_wrapped(rpc_client: InternalApiClient):
+    url = "http://main-service/internal/nodes/list"
     rpc_client._client.get = AsyncMock(
         side_effect=httpx.RequestError("boom", request=httpx.Request("GET", url))
     )
 
-    with pytest.raises(RuntimeError, match="列出子节点失败"):
-        await rpc_client.list_children("root", "proj-1")
+    with pytest.raises(RuntimeError, match="列出目录失败"):
+        await rpc_client.list_dir("proj-1", "docs")
 
 
 @pytest.mark.asyncio
-async def test_read_write_and_create_node_success(rpc_client: InternalApiClient):
-    read_url = "http://main-service/internal/nodes/node-1/content"
-    write_url = "http://main-service/internal/nodes/node-1/content"
-    create_url = "http://main-service/internal/nodes/create"
+async def test_read_write_and_mkdir_success(rpc_client: InternalApiClient):
+    read_url = "http://main-service/internal/nodes/read"
+    write_url = "http://main-service/internal/nodes/write"
+    mkdir_url = "http://main-service/internal/nodes/create"
 
     rpc_client._client.get = AsyncMock(
-        return_value=_response("GET", read_url, 200, json_body={"node_id": "node-1", "content": {"k": 1}})
+        return_value=_response("GET", read_url, 200, json_body={"name": "users.json", "type": "json", "content": {"k": 1}})
     )
     rpc_client._client.put = AsyncMock(
-        return_value=_response("PUT", write_url, 200, json_body={"node_id": "node-1", "updated": True})
+        return_value=_response("PUT", write_url, 200, json_body={"path": "users.json", "version": 2, "updated": True})
     )
     rpc_client._client.post = AsyncMock(
-        return_value=_response("POST", create_url, 200, json_body={"node_id": "node-2", "created": True})
+        return_value=_response("POST", mkdir_url, 200, json_body={"path": "docs", "created": True, "version": 1})
     )
 
-    read_result = await rpc_client.read_node_content("node-1", "proj-1")
-    write_result = await rpc_client.write_node_content("node-1", "proj-1", {"k": 2})
-    create_result = await rpc_client.create_node(
-        project_id="proj-1",
-        parent_id="root",
-        name="new.json",
-        node_type="json",
-        content={"a": 1},
-    )
+    read_result = await rpc_client.read_file("proj-1", "users.json")
+    write_result = await rpc_client.write_file("proj-1", "users.json", {"k": 2})
+    mkdir_result = await rpc_client.mkdir("proj-1", "docs")
 
     assert read_result["content"] == {"k": 1}
     assert write_result["updated"] is True
-    assert create_result["created"] is True
+    assert mkdir_result["created"] is True
 
 
 @pytest.mark.asyncio
-async def test_trash_node_http_error_is_wrapped(rpc_client: InternalApiClient):
-    url = "http://main-service/internal/nodes/node-1/trash"
+async def test_trash_http_error_is_wrapped(rpc_client: InternalApiClient):
+    url = "http://main-service/internal/nodes/trash"
     rpc_client._client.post = AsyncMock(
         return_value=_response("POST", url, 500, text='{"detail":"boom"}')
     )
 
-    with pytest.raises(RuntimeError, match="删除节点失败: HTTP 500"):
-        await rpc_client.trash_node("node-1", "proj-1", "agent-1")
-
+    with pytest.raises(RuntimeError, match="删除失败: HTTP 500"):
+        await rpc_client.trash("proj-1", "readme.md")

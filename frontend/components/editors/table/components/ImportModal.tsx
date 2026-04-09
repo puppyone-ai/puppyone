@@ -223,7 +223,7 @@ export function ImportModal({
 
       onSuccess({
         task_id: response.task_id,
-        node_id: response.node_id,
+        node_id: response.path,
         import_type: response.import_type,
       });
       onClose();

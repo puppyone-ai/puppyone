@@ -122,7 +122,7 @@ async def test_list_tools_returns_agent_tools(server_env, monkeypatch):
                 "agent": {"id": "agent-1", "name": "Agent", "project_id": "proj-1"},
                 "accesses": [
                     {
-                        "node_id": "n1",
+                        "path": "n1",
                         "node_name": "docs",
                         "node_type": "folder",
                         "bash_readonly": False,
@@ -153,14 +153,14 @@ async def test_call_tool_denies_write_when_all_accesses_readonly(server_env, mon
             return_value={
                 "mode": "agent",
                 "agent": {"id": "agent-1", "project_id": "proj-1"},
-                "accesses": [{"node_id": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": True}],
+                "accesses": [{"path": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": True}],
                 "tools": [],
             }
         ),
     )
 
     out = await fake_server._call_tool_fn("write", {"path": "/x.md", "content": "x"})
-    assert "没有写入权限" in out[0].text
+    assert "no write permission" in out[0].text
 
 
 @pytest.mark.asyncio
@@ -173,7 +173,7 @@ async def test_call_tool_routes_rm_and_uses_agent_id_as_user_id(server_env, monk
             return_value={
                 "mode": "agent",
                 "agent": {"id": "agent-abc", "project_id": "proj-1"},
-                "accesses": [{"node_id": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": False}],
+                "accesses": [{"path": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": False}],
                 "tools": [],
             }
         ),
@@ -185,7 +185,7 @@ async def test_call_tool_routes_rm_and_uses_agent_id_as_user_id(server_env, monk
     assert _FakeFsTool.latest is not None
     _FakeFsTool.latest.rm.assert_awaited_once_with(
         "proj-1",
-        [{"node_id": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": False}],
+        [{"path": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": False}],
         "/docs/a.md",
         user_id="agent-abc",
     )
@@ -225,7 +225,7 @@ async def test_call_tool_builtin_permission_denied(server_env, monkeypatch):
                 "agent": {"id": "agent-1", "project_id": "proj-1"},
                 "accesses": [
                     {
-                        "node_id": "node-1",
+                        "path": "node-1",
                         "json_path": "",
                         "tool_query": False,
                         "tool_create": False,
@@ -239,7 +239,7 @@ async def test_call_tool_builtin_permission_denied(server_env, monkeypatch):
     )
 
     out = await fake_server._call_tool_fn("node_0_query_data", {"query": "*"})
-    assert "没有查询权限" in out[0].text
+    assert "no query permission" in out[0].text
 
 
 @pytest.mark.asyncio
@@ -259,5 +259,5 @@ async def test_call_tool_unknown_name_returns_error(server_env, monkeypatch):
     )
 
     out = await fake_server._call_tool_fn("unknown_tool", {})
-    assert "未知的工具名称" in out[0].text
+    assert "unknown tool name" in out[0].text
 

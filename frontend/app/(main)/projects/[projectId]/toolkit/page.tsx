@@ -23,7 +23,7 @@ import {
   getSearchIndexStatus,
   SearchIndexTask,
 } from '@/lib/mcpApi';
-import { listNodes, type NodeInfo } from '@/lib/contentNodesApi';
+import { listDir, type NodeInfo } from '@/lib/contentTreeApi';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 
 // ================= Types =================
@@ -357,7 +357,7 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
 
   useEffect(() => {
     setLoading(true);
-    listNodes(projectId, null)
+    listDir(projectId, '')
       .then(res => setNodes(res.nodes))
       .finally(() => setLoading(false));
   }, [projectId]);
@@ -372,7 +372,7 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
     } else {
       setExpandedFolders(prev => new Set([...prev, folderId]));
       if (!childNodes[folderId]) {
-        const res = await listNodes(projectId, folderId);
+        const res = await listDir(projectId, folderId);
         setChildNodes(prev => ({ ...prev, [folderId]: res.nodes }));
       }
     }
@@ -430,7 +430,7 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
 
   return (
     <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-      {nodes.length === 0 ? <div style={{ padding: 20, textAlign: 'center', color: '#52525b', fontSize: 12 }}>No content nodes found</div> : nodes.map(node => renderNode(node))}
+      {nodes.length === 0 ? <div style={{ padding: 20, textAlign: 'center', color: '#52525b', fontSize: 12 }}>No files found</div> : nodes.map(node => renderNode(node))}
     </div>
   );
 }
@@ -452,7 +452,7 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
     setCreating(true);
     try {
       await createTool({
-        node_id: selectedNode.id,
+        path: selectedNode.id,
         json_path: '',
         type: selectedType,
         name: toolName || `${selectedType}_${selectedNode.name.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 20)}`,
@@ -591,7 +591,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
   const uniqueContexts = useMemo(() => {
     const contexts = new Map<string, string>();
     tools.forEach(tool => {
-      const nodeId = tool.node_id;
+      const nodeId = tool.path;
       if (nodeId) {
         // Try to extract node name from tool name or description
         const nodeName = tool.description?.match(/for (.+)$/)?.[1] || nodeId.slice(0, 8);
@@ -611,7 +611,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
       if (typeFilter !== 'all' && tool.type !== typeFilter) return false;
       
       // Context Filter
-      if (contextFilter !== 'all' && tool.node_id !== contextFilter) return false;
+      if (contextFilter !== 'all' && tool.path !== contextFilter) return false;
       
       // Status Filter
       if (statusFilter !== 'all') {
@@ -669,11 +669,11 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
   const getNodeName = (tool: Tool) => {
     // Extract from description like "Semantic search index for reactflow"
     const match = tool.description?.match(/for (.+)$/);
-    return match ? match[1] : tool.node_id?.slice(0, 8) || '-';
+    return match ? match[1] : tool.path?.slice(0, 8) || '-';
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#09090b', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#0e0e0e', overflow: 'hidden' }}>
       
       {/* Header */}
       <div style={{ 
@@ -691,7 +691,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
         display: 'flex', 
         alignItems: 'center',
         gap: 16,
-        background: '#0a0a0a',
+        background: '#0e0e0e',
         overflowX: 'auto',
         whiteSpace: 'nowrap',
       }}>

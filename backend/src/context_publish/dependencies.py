@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+from src.content.table.dependencies import get_table_service
 from src.context_publish.repository import ContextPublishRepositorySupabase
 from src.context_publish.service import ContextPublishService
-from src.supabase.dependencies import get_supabase_repository
-from src.table.dependencies import get_table_service
-
+from src.infra.supabase.dependencies import get_supabase_repository
 
 _publish_service: ContextPublishService | None = None
 

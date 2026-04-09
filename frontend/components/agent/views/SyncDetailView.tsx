@@ -2,14 +2,16 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import useSWR from 'swr';
-import { get, post, patch } from '@/lib/apiClient';
+import { get, post, patch, del } from '@/lib/apiClient';
 import { SYNC_MODE_META, getProviderDisplayLabel, getSyncTriggerPolicy } from '@/lib/syncTriggerPolicy';
 import type { SyncModeType } from '@/lib/syncTriggerPolicy';
+import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
+import { FilesystemDetailView } from './FilesystemDetailView';
 
 interface SyncDetail {
   id: string;
-  node_id: string;
+  path: string;
   node_name: string | null;
   node_type: string | null;
   provider: string;
@@ -71,7 +73,11 @@ function getProviderLogo(provider: string, size: number) {
     case 'notion': return <ProviderImg src="/icons/notion.svg" alt="Notion" size={size} />;
     case 'linear': return <ProviderImg src="/icons/linear.svg" alt="Linear" size={size} />;
     case 'filesystem':
-      return <span style={{ fontSize: size * 0.65 }}>🦞</span>;
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" />
+        </svg>
+      );
     default:
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -90,42 +96,28 @@ function getProviderLogo(provider: string, size: number) {
 
 function ConnectionLine({ direction, isActive, status }: { direction: string; color?: string; isActive: boolean; status: string }) {
   if (!isActive) {
-    const label = status === 'error' ? 'Sync error'
-      : status === 'paused' ? 'Paused'
-      : status === 'pending' || status === 'waiting' ? 'Waiting'
-      : 'Not connected';
-    const labelColor = status === 'error' ? '#ef4444' : status === 'paused' ? '#f59e0b' : '#525252';
-    const lineColor = status === 'error' ? 'rgba(239,68,68,0.3)' : status === 'paused' ? 'rgba(245,158,11,0.2)' : '#333';
+    const lineColor = status === 'error' ? '#ef4444' : status === 'paused' ? '#f59e0b' : '#525252';
     return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', margin: '0 4px' }}>
-        <div style={{ width: '100%', textAlign: 'center', position: 'relative', borderTop: `1px dashed ${lineColor}` }}>
-          <span style={{ position: 'relative', top: -7, background: '#0e0e0e', padding: '0 6px', fontSize: 9, fontWeight: 500, color: labelColor, whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>
-            {label}
-          </span>
-        </div>
-      </div>
+      <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={lineColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 4">
+        <path d="M2 8h76" />
+      </svg>
     );
   }
 
   const arrowColor = '#4ade80';
 
-  return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 4px' }}>
-      {direction === 'bidirectional' ? (
-        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 5h44M6 2L2 5l4 3" />
-          <path d="M42 8l4 3-4 3M2 11h44" />
-        </svg>
-      ) : direction === 'outbound' ? (
-        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M46 8H2M6 4L2 8l4 4" />
-        </svg>
-      ) : (
-        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 8h44M42 4l4 4-4 4" />
-        </svg>
-      )}
-    </div>
+  return direction === 'bidirectional' ? (
+    <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={arrowColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 5h76M6 2L2 5l4 3M74 8l4 3-4 3M2 11h76" />
+    </svg>
+  ) : direction === 'outbound' ? (
+    <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={arrowColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 8h76M6 4L2 8l4 4" />
+    </svg>
+  ) : (
+    <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={arrowColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 8h76M74 4l4 4-4 4" />
+    </svg>
   );
 }
 
@@ -168,6 +160,7 @@ export { getProviderLogo, PROVIDER_LABELS };
 
 export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewProps) {
   const [refreshing, setRefreshing] = useState(false);
+  const { specs } = useConnectorSpecs();
 
   const { data: syncData, mutate } = useSWR<{ syncs: SyncDetail[] }>(
     projectId ? ['sync-status', projectId] : null,
@@ -196,9 +189,44 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
     }
   }, [syncId, mutate]);
 
+  const handlePause = useCallback(async () => {
+    if (!syncId) return;
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/pause`);
+      await mutate();
+    } catch (err) {
+      console.error('Pause failed:', err);
+    }
+  }, [syncId, mutate]);
+
+  const handleResume = useCallback(async () => {
+    if (!syncId) return;
+    try {
+      await post(`/api/v1/sync/syncs/${syncId}/resume`);
+      await mutate();
+    } catch (err) {
+      console.error('Resume failed:', err);
+    }
+  }, [syncId, mutate]);
+
+  const [disconnecting, setDisconnecting] = useState(false);
+  const handleDisconnect = useCallback(async () => {
+    if (!syncId || disconnecting) return;
+    setDisconnecting(true);
+    try {
+      await del(`/api/v1/sync/syncs/${syncId}`);
+      await mutate();
+      onClose?.();
+    } catch (err) {
+      console.error('Disconnect failed:', err);
+    } finally {
+      setDisconnecting(false);
+    }
+  }, [syncId, disconnecting, mutate, onClose]);
+
   if (!sync) {
     return (
-      <PanelShell title="Connection" onClose={onClose || (() => {})}>
+      <PanelShell title="Access" onClose={onClose || (() => {})}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 12, height: '100%' }}>
           Sync endpoint not found
         </div>
@@ -206,8 +234,12 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
     );
   }
 
-  const providerLabel = getProviderDisplayLabel(sync.provider) !== sync.provider
-    ? getProviderDisplayLabel(sync.provider)
+  if (sync.provider === 'filesystem') {
+    return <FilesystemDetailView syncId={syncId} projectId={projectId} onClose={onClose} />;
+  }
+
+  const providerLabel = getProviderDisplayLabel(sync.provider, specs) !== sync.provider
+    ? getProviderDisplayLabel(sync.provider, specs)
     : (PROVIDER_LABELS[sync.provider] || sync.provider);
   const dirLabel = DIRECTION_LABELS[sync.direction] || sync.direction;
   const isActive = sync.status === 'active' || sync.status === 'syncing';
@@ -226,7 +258,8 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
       <PanelShell
-        title={sync.node_name || providerLabel}
+        title={providerLabel}
+        subtitle={sync.node_name || undefined}
         icon={getProviderLogo(sync.provider, 14)}
         onClose={onClose || (() => {})}
       >
@@ -234,45 +267,58 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
 
           {/* Sync visualization */}
           <div style={{
-            borderRadius: 10, padding: '24px 24px 16px',
-            display: 'flex', flexDirection: 'column', gap: 14,
+            borderRadius: 10, padding: '16px 0 8px',
+            display: 'flex', flexDirection: 'column', gap: 6,
           }}>
-            {/* Icons + connection */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
+            {/* Source (LEFT) → Arrow → Workspace (RIGHT) */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
                 <div style={{
-                  width: 36, height: 36, borderRadius: 8,
+                  width: 48, height: 48, borderRadius: 12,
                   background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
                 }}>
-                  {getProviderLogo(sync.provider, 22)}
+                  {getProviderLogo(sync.provider, 24)}
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
                   {providerLabel}
                 </div>
               </div>
 
-              <ConnectionLine
-                direction={sync.direction}
-                isActive={isActive}
-                status={sync.status}
-              />
+              <div style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                width: 80, flexShrink: 0, paddingTop: 16,
+              }}>
+                <ConnectionLine
+                  direction={sync.direction}
+                  isActive={isActive}
+                  status={sync.status}
+                />
+              </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
-                {sync.node_type === 'folder' || !sync.node_type
-                  ? <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
-                  : <MiniDocShell type={sync.node_type as 'json' | 'markdown' | 'file'} />
-                }
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
+                <div style={{
+                  width: 48, height: 48, borderRadius: 12,
+                  background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                }}>
+                  {sync.node_type === 'folder' || !sync.node_type
+                    ? <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block' }} />
+                    : <div style={{ transform: 'scale(0.6)' }}><MiniDocShell type={sync.node_type as 'json' | 'markdown' | 'file'} /></div>
+                  }
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
                   {sync.node_name || 'Workspace'}
                 </div>
               </div>
             </div>
 
             {/* Status line */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, paddingTop: 2 }}>
               <span style={{
-                width: 6, height: 6, borderRadius: '50%', background: statusColor,
+                width: 5, height: 5, borderRadius: '50%', background: statusColor,
                 display: 'inline-block', flexShrink: 0,
               }} />
               <span style={{ fontSize: 11, fontWeight: 500, color: statusTextColor }}>
@@ -332,20 +378,20 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
               <ActionButton label={refreshing ? 'Syncing...' : 'Sync now'} icon="retry" onClick={handleSyncRefresh} />
             )}
             {isActive && (
-              <ActionButton label="Pause" icon="pause" onClick={() => {}} />
+              <ActionButton label="Pause" icon="pause" onClick={handlePause} />
             )}
             {isPaused && (
-              <ActionButton label="Resume" icon="play" onClick={() => {}} />
+              <ActionButton label="Resume" icon="play" onClick={handleResume} />
             )}
             {isError && (
               <ActionButton label="Retry" icon="retry" onClick={handleSyncRefresh} />
             )}
-            <ActionButton label="Disconnect" icon="disconnect" variant="danger" onClick={() => {}} />
+            <ActionButton label={disconnecting ? 'Removing...' : 'Disconnect'} icon="disconnect" variant="danger" onClick={handleDisconnect} />
           </div>
 
-          {/* OpenClaw: Access Key */}
+          {/* Filesystem: MUT credentials & usage */}
           {sync.provider === 'filesystem' && sync.access_key && (
-            <AccessKeyRow accessKey={sync.access_key} />
+            <MutCredentialsSection accessKey={sync.access_key} path={sync.path} />
           )}
 
           {/* Details — minimal */}
@@ -404,7 +450,7 @@ function PanelHeader({ title, icon, onClose }: { title: string; icon?: React.Rea
 
 function normalizeMode(raw?: string): SyncModeType {
   if (!raw) return 'import_once';
-  if (raw === 'cli_push' || raw === 'realtime') return 'realtime';
+  if (raw === 'cli_push' || raw === 'realtime') return 'manual';
   if (raw === 'cron' || raw === 'scheduled') return 'scheduled';
   if (raw === 'manual') return 'manual';
   return 'import_once';
@@ -427,7 +473,8 @@ function TriggerModeSelector({
   currentTrigger: SyncDetail['trigger'];
   onUpdated: () => void;
 }) {
-  const policy = getSyncTriggerPolicy(provider);
+  const { specs } = useConnectorSpecs();
+  const policy = getSyncTriggerPolicy(provider, specs);
   const [saving, setSaving] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [pendingMode, setPendingMode] = useState<SyncModeType>(currentMode);
@@ -762,6 +809,69 @@ function ActionButton({ label, icon, variant = 'default', onClick }: {
       )}
       {label}
     </button>
+  );
+}
+
+function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: string }) {
+  const [copied, setCopied] = React.useState<string | null>(null);
+  const masked = accessKey.slice(0, 8) + '...' + accessKey.slice(-4);
+  const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
+  const cloneUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
+  const cloneCmd = `mut clone ${cloneUrl} --credential ${accessKey}`;
+
+  const handleCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(label);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  return (
+    <div style={{ padding: '0 4px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
+        Credentials
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+        <div style={{ fontSize: 11, color: '#525252', fontWeight: 500, width: 72 }}>Access Key</div>
+        <code style={{ flex: 1, fontSize: 11, color: '#a3a3a3', fontFamily: "'JetBrains Mono', monospace" }}>{masked}</code>
+        <button
+          onClick={() => handleCopy(accessKey, 'key')}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'key' ? '#4ade80' : '#525252', padding: 4, display: 'flex' }}
+        >
+          {copied === 'key' ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          )}
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 0' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          Quick Start
+        </div>
+        <div style={{
+          padding: '8px 10px', borderRadius: 6,
+          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <code style={{ flex: 1, fontSize: 10, color: '#a3a3a3', fontFamily: "'JetBrains Mono', monospace", wordBreak: 'break-all', lineHeight: 1.5 }}>
+            {cloneCmd}
+          </code>
+          <button
+            onClick={() => handleCopy(cloneCmd, 'cmd')}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'cmd' ? '#4ade80' : '#525252', padding: 4, display: 'flex', flexShrink: 0 }}
+          >
+            {copied === 'cmd' ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            )}
+          </button>
+        </div>
+        <div style={{ fontSize: 10, color: '#525252', lineHeight: 1.5 }}>
+          Then: <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#737373' }}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code>
+        </div>
+      </div>
+    </div>
   );
 }
 

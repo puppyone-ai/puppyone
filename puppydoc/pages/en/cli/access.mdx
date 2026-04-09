@@ -1,302 +1,203 @@
 # Local Folder Sync
 
-`puppyone access`, with aliases `puppyone openclaw` and `puppyone oc`, synchronizes a local folder with the cloud Content Node tree in both directions. It runs a background daemon that continuously watches for file changes so local and cloud data stay in sync in real time.
+`puppyone access add filesystem` creates a folder sync connection, then use the `mut` CLI for version-controlled sync — clone, commit, push, pull — a Git-like workflow.
 
 ---
 
-## Command overview
-
-| Command | Description |
-|------|------|
-| `access up [folder]` | Start the sync daemon |
-| `access down [folder]` | Stop the daemon |
-| `access connect [folder]` | Establish the first connection without starting the daemon |
-| `access disconnect [folder]` | Stop syncing and disconnect |
-| `access remove [folder]` | Same as `disconnect` |
-| `access ls` | List all connections |
-| `access ps` | List running daemons |
-| `access status [path]` | Show detailed sync status |
-| `access logs [folder]` | Show daemon logs |
-| `access trigger [folder]` | Force a sync run |
-
-### Top-level shortcuts
-
-| Shortcut | Equivalent |
-|----------|--------|
-| `puppyone ps` | `puppyone access ps` |
-| `puppyone status` | Project dashboard, when called without arguments |
-
----
-
-## First-time setup
-
-### Quick start
-
-The easiest path is `access up`, which establishes the connection and starts the daemon in one command:
+## Prerequisites
 
 ```bash
-puppyone access up ~/workspace --key cli_xxx
-```
+# Install PuppyOne CLI
+npm install -g puppyone
 
-Arguments:
-
-| Option | Description |
-|------|------|
-| `[folder]` | Local folder path to sync. Defaults to the current directory |
-| `--key <key>` | Connection access key |
-| `--path <path>` | Target path in the cloud |
-| `-y` | Skip confirmation prompts |
-
-### Step-by-step setup
-
-If you want to connect first and start syncing later, do it in two steps:
-
-```bash
-# Step 1: create the connection
-puppyone access connect ~/workspace --key cli_xxx
-
-# Step 2: start the daemon
-puppyone access up ~/workspace
-```
-
-### Get the access key
-
-Access keys come from connection management. First create a folder-sync connection in the web UI or CLI, then retrieve the key:
-
-```bash
-# Create the connection
-puppyone conn add folder ~/workspace --name "Dev Sync"
-
-# Get the access key
-puppyone conn key <connection-id>
+# Install mut CLI (Python)
+pip install mut
 ```
 
 ---
 
-## Daemon management
+## Full Workflow
 
-### Start the daemon
-
-```bash
-# Start sync for a folder
-puppyone access up ~/workspace
-
-# Provide the key on first start
-puppyone access up ~/workspace --key cli_xxx
-
-# Skip confirmation
-puppyone access up ~/workspace -y
-```
-
-### Stop the daemon
+### 1. Log in and select a project
 
 ```bash
-# Stop syncing a folder
-puppyone access down ~/workspace
+puppyone auth login
+puppyone org use "My Organization"
+puppyone project use "My Project"
 ```
 
-Stopping the daemon keeps the connection mapping, so the next `access up` can resume directly.
-
-### Show running daemons
+### 2. Create a filesystem sync connection
 
 ```bash
-puppyone access ps
-
-# Or the top-level shortcut
-puppyone ps
+puppyone access add filesystem docs
 ```
 
-Example output:
+`docs` is the cloud scope path — your local folder's contents sync to `/docs` in the project tree.
+
+On success, the command outputs:
 
 ```
-PID    Folder              Status   Synced At
-12345  ~/workspace         running  2025-01-15 14:30:00
-67890  ~/projects/blog     running  2025-01-15 14:28:00
+  Creating filesystem access point for scope "docs"... done
+
+  ─ Sync with MUT:
+    mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
+
+  ─ Then commit and push:
+    mut commit -m "message" && mut push
+
+  ─ Retrieve key later:
+    puppyone access key <id>
+```
+
+### 3. Clone to local
+
+Copy the `mut clone` command from the output:
+
+```bash
+mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
+```
+
+This automatically creates a folder named after the scope path (e.g. `./docs/`) in the current directory and pulls any existing cloud content.
+
+### 4. Edit locally, then commit and push
+
+```bash
+cd docs
+
+# Edit files as usual
+echo "# API Reference" > api.md
+echo '{"version": "1.0"}' > config.json
+
+# Commit and push to cloud
+mut commit -m "add api docs"
+mut push
+```
+
+### 5. Pull cloud changes
+
+When others (or agents) make changes in the cloud:
+
+```bash
+cd docs
+mut pull
 ```
 
 ---
 
-## Inspect status
+## Multi-folder sync to the same project
 
-### Connection list
+You can sync multiple local folders to different paths within the same project:
 
-List all established sync connections:
+```bash
+# Create two scopes
+puppyone access add filesystem docs
+puppyone access add filesystem code
+
+# Clone each
+mut clone <docs-url> --credential <docs-key>
+mut clone <code-url> --credential <code-key>
+```
+
+The cloud project tree becomes:
+
+```
+Root/
+├── docs/          ← contents of ./docs/
+│   ├── api.md
+│   └── guide.md
+└── code/          ← contents of ./code/
+    ├── main.py
+    └── utils.py
+```
+
+---
+
+## Managing connections
+
+### List all connections
 
 ```bash
 puppyone access ls
 ```
 
-### Detailed sync status
+### View Access Key
 
-Show detailed sync status for a folder:
+Shown once on creation; retrieve anytime later:
 
 ```bash
-puppyone access status ~/workspace
+puppyone access key <connection-id>
 ```
 
-The output includes the connection ID, sync direction, last sync time, file counts, and queued files waiting to sync.
-
----
-
-## Logs and debugging
-
-### View daemon logs
+### Regenerate Access Key
 
 ```bash
-# Show recent logs
-puppyone access logs ~/workspace
-
-# Follow logs live, like tail -f
-puppyone access logs ~/workspace -f
-
-# Show a specific number of lines
-puppyone access logs ~/workspace -n 50
+puppyone access key <connection-id> --regenerate
 ```
 
-### Force sync
-
-If you think a change was missed, manually trigger a full sync:
+### Delete a connection
 
 ```bash
-puppyone access trigger ~/workspace
+puppyone access rm <connection-id>
 ```
 
 ---
 
-## Disconnect
+## MUT command reference
 
-### Stop and disconnect
-
-Stop the daemon and remove the connection mapping:
-
-```bash
-puppyone access disconnect ~/workspace
-
-# Or
-puppyone access remove ~/workspace
-```
-
-After disconnecting, local files remain in place, but they no longer stay synced with the cloud.
+| Command | Description |
+|------|------|
+| `mut clone <url> --credential <key>` | Clone remote repo to local |
+| `mut commit -m "message"` | Commit local changes |
+| `mut push` | Push to cloud |
+| `mut pull` | Pull cloud changes |
+| `mut status` | View local change status |
+| `mut log` | View commit history |
 
 ---
 
-## Local config layout
+## Using with Claude Code / Cursor
 
-### Workspace config
+Local folder sync is the best way to give AI coding tools access to PuppyOne data:
 
-Each connected folder gets a `.puppyone/` directory containing sync configuration for that workspace:
+```bash
+# Create connection and clone
+puppyone access add filesystem workspace
+mut clone <url> --credential <key>
 
-```
-~/workspace/
-├── .puppyone/
-│   ├── config.json    # Connection config, key, remote path, etc.
-│   └── state.json     # Sync state, last sync time, cursors, etc.
-├── docs/
-├── config/
-└── ...
-```
-
-### Global registry
-
-All sync connections are also registered in a global file:
-
-```
-~/.puppyone/registry.json
+# Open the ./workspace/ directory in Claude Code or Cursor
+# After AI finishes editing, commit and push
+cd workspace
+mut commit -m "AI updates"
+mut push
 ```
 
-That file stores the folder-to-connection mapping used by `access ls`.
+All changes have version history and can be compared or rolled back at any time.
 
 ---
 
 ## Troubleshooting
 
-### Daemon will not start
+### mut command not found
 
 ```bash
-# Check for leftover processes
-puppyone access ps
-
-# If any remain, stop them
-puppyone access down ~/workspace
-
-# Start again
-puppyone access up ~/workspace
+pip install mut
 ```
 
-If it still fails, inspect the logs:
+Make sure `mut` is in your PATH.
+
+### Invalid Access Key
 
 ```bash
-puppyone access logs ~/workspace -n 100
+# Regenerate
+puppyone access key <id> --regenerate
 ```
 
-Common causes:
-- Access key expired or is invalid. Regenerate it with `puppyone conn key <id> --regenerate`
-- API URL is unreachable. Check the network or config with `puppyone config show`
-- Port conflict. Make sure no other process is blocking it
+### Push conflict
 
-### Sync appears stuck
-
-If file changes do not reach the cloud for a long time:
+If the cloud has a newer version, pull first then push:
 
 ```bash
-# Check current status
-puppyone access status ~/workspace
-
-# Force a sync
-puppyone access trigger ~/workspace
-
-# Follow logs live
-puppyone access logs ~/workspace -f
-```
-
-### Sync conflict
-
-If the same file changes locally and in the cloud at the same time, you may get a conflict. Check conflict state with:
-
-```bash
-puppyone access status ~/workspace
-```
-
-Conflicted files are marked, and you can choose whether to keep the local or cloud version. For more details, see [Conflict Resolution](/en/conflict).
-
----
-
-## Practical workflows
-
-### Sync a development workspace
-
-Keep a local dev folder synced with the cloud so agents can work directly on your files:
-
-```bash
-# Create the connection and start sync
-puppyone conn add folder ~/projects/my-app --name "My App"
-puppyone conn key <id>
-puppyone access up ~/projects/my-app --key <key>
-
-# Verify sync health
-puppyone access status ~/projects/my-app
-```
-
-### Sync multiple folders
-
-Run multiple sync daemons at the same time:
-
-```bash
-puppyone access up ~/workspace
-puppyone access up ~/projects/blog
-puppyone access up ~/docs
-
-# Show all daemons
-puppyone ps
-```
-
-### Use in scripts
-
-```bash
-#!/bin/bash
-# Start sync and wait for the first sync to complete
-puppyone access up ~/workspace --key cli_xxx -y
-
-# Check status
-puppyone access status ~/workspace --json | jq '.status'
+mut pull
+mut commit -m "merge"
+mut push
 ```

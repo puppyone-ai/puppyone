@@ -1,4 +1,4 @@
-from src.chunking.service import ChunkingService
+from src.infra.chunking.service import ChunkingService
 
 
 def test_chunk_text_basic_offsets_and_progress():

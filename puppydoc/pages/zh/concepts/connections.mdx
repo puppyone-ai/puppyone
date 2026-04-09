@@ -8,7 +8,7 @@
 
 在 PuppyOne 中，无论你想从 Notion 同步数据、创建一个 AI Agent、暴露 MCP 端点给 Cursor，还是挂载一个本地文件夹——它们都是「连接」。
 
-所有连接存储在同一张 `connections` 表中，通过 `provider`（提供方）和 `direction`（方向）区分类型。这意味着你可以用一套统一的接口来管理所有外部集成，不需要记忆不同的操作方式。
+所有 Access Point 存储在同一张 `access_points` 表中，通过 `provider`（提供方）和 `direction`（方向）区分类型。这意味着你可以用一套统一的接口来管理所有外部集成，不需要记忆不同的操作方式。
 
 ---
 
@@ -76,38 +76,38 @@
 
 ## 通过 CLI 管理连接
 
-PuppyOne CLI 提供统一的 `conn` 命令来管理所有类型的连接：
+PuppyOne CLI 提供统一的 `access` 命令来管理所有类型的连接：
 
 ```bash
 # 添加连接
-puppyone conn add notion <url>         # 添加 Notion 数据源
-puppyone conn add github <repo>        # 添加 GitHub 仓库
-puppyone conn add mcp "My Endpoint"    # 创建 MCP 端点
-puppyone conn add agent "My Agent"     # 创建 Agent
-puppyone conn add sandbox "My Box"     # 创建沙盒
-puppyone conn add folder ~/my-docs     # 挂载本地文件夹
+puppyone access add notion <url>         # 添加 Notion 数据源
+puppyone access add github <repo>        # 添加 GitHub 仓库
+puppyone access add mcp "My Endpoint"    # 创建 MCP 端点
+puppyone access add agent "My Agent"     # 创建 Agent
+puppyone access add sandbox "My Box"     # 创建沙盒
+puppyone access add filesystem ~/my-docs     # 挂载本地文件夹
 
 # 查看连接
-puppyone conn ls                       # 列出所有连接
-puppyone conn info <id>                # 查看连接详情
+puppyone access ls                       # 列出所有连接
+puppyone access info <id>                # 查看连接详情
 
 # 管理连接
-puppyone conn pause <id>               # 暂停连接
-puppyone conn resume <id>              # 恢复连接
-puppyone conn rm <id>                  # 删除连接
+puppyone access pause <id>               # 暂停连接
+puppyone access resume <id>              # 恢复连接
+puppyone access rm <id>                  # 删除连接
 ```
 
 ### 示例：创建 MCP 端点并查看详情
 
 ```bash
-$ puppyone conn add mcp "产品知识库 MCP"
+$ puppyone access add mcp "产品知识库 MCP"
 ✓ MCP endpoint created
   ID:         conn_abc123
   Name:       产品知识库 MCP
   API Key:    sk_live_xxxxxxxxxxxx
   Server URL: https://api.puppyone.ai/api/v1/mcp/server/sk_live_xxxxxxxxxxxx
 
-$ puppyone conn info conn_abc123
+$ puppyone access info conn_abc123
   Name:       产品知识库 MCP
   Provider:   mcp
   Status:     active

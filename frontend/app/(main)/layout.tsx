@@ -35,13 +35,17 @@ function MainLayoutInner({
     if (pathname.startsWith('/settings')) return 'settings';
     if (pathname.startsWith('/home')) return 'home';
     if (pathname.includes('/projects/')) {
+      if (pathname.includes('/home')) return 'home';
+      if (pathname.includes('/overview')) return 'home';
       if (pathname.includes('/toolkit')) return 'toolkit';
-      if (pathname.includes('/connections')) return 'connections';
+      if (pathname.includes('/history')) return 'history';
+      if (pathname.includes('/access')) return 'access';
       if (pathname.includes('/monitor')) return 'monitor';
       if (pathname.includes('/settings')) return 'settings';
-      return 'data';
+      if (pathname.includes('/data')) return 'data';
+      return 'home';
     }
-    return 'data';
+    return 'home';
   }, [pathname]);
 
   const userInitial = (session?.user?.email?.[0] || 'U').toUpperCase();

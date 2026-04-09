@@ -18,8 +18,8 @@ import { getMcpEndpoint, type McpEndpoint } from '@/lib/mcpEndpointsApi';
 import { getSandboxEndpoint, type SandboxEndpoint } from '@/lib/sandboxEndpointsApi';
 import {
   useProjects,
-  useTableTools,
-  refreshTableTools,
+  useToolsByPath,
+  refreshToolsByPath,
   refreshProjectTools,
   useTable,
   useContentNodes,
@@ -45,20 +45,21 @@ import {
   type AccessPoint,
 } from '@/lib/mcpApi';
 
-import { createFolder, createJsonNode, createMarkdownNode } from '@/lib/contentNodesApi';
 import { refreshProjects } from '@/lib/hooks/useData';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import {
   GridView,
+  type AgentResource,
+  type ContentType,
+} from '../components/views';
+import {
   ExplorerSidebar,
-  ensureExpanded,
+  EndpointIconRenderer,
   setPendingActiveId,
   usePendingActiveId,
   type MillerColumnItem,
-  type AgentResource,
-  type ContentType,
   type SyncEndpointInfo,
-} from '../components/views';
+} from '../components/explorer';
 
 import { useAgent } from '@/contexts/AgentContext';
 import { VersionHistoryPanel } from '@/components/editors/VersionHistoryPanel';
@@ -73,7 +74,8 @@ import { useNodeActions } from '../hooks/useNodeActions';
 // Extracted components
 import { EditorArea } from '../components/EditorArea';
 import { BottomBar } from '../components/BottomBar';
-import { DataPageDialogs, type CreateMenuActions } from '../components/DataPageDialogs';
+import { DataPageDialogs } from '../components/DataPageDialogs';
+import { DataPageOverlays } from '../components/DataPageOverlays';
 import { SyncConfigPanel } from '../components/SyncConfigPanel';
 import { McpConfigPanel } from '../components/McpConfigPanel';
 import { SandboxConfigPanel } from '../components/SandboxConfigPanel';
@@ -82,6 +84,7 @@ import { ChatRuntimeView } from '@/components/agent/views/ChatRuntimeView';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import { usePanelStore, type PanelState } from '../usePanelStore';
 import type { AccessOption } from '@/components/chat/ChatInputArea';
+import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 
 interface EditorTarget {
   path: string;
@@ -99,8 +102,235 @@ function endpointToPanelState(ep: SyncEndpointInfo, nodeId: string): PanelState 
   return { type: 'sync_config', nodeId };
 }
 
+interface EndpointEntry {
+  ep: SyncEndpointInfo;
+  nodeId: string;
+  name: string;
+  nodeName?: string;
+}
+
+type EndpointCategory = 'agents' | 'sync' | 'infra';
+
+const CATEGORY_CONFIG: Record<EndpointCategory, { label: string; color: string }> = {
+  agents: { label: 'Agents', color: '#a78bfa' },
+  sync: { label: 'Data Sync', color: '#34d399' },
+  infra: { label: 'Infrastructure', color: '#60a5fa' },
+};
+
+function categorizeEndpoint(provider: string): EndpointCategory {
+  if (provider.startsWith('agent:')) return 'agents';
+  if (provider === 'mcp' || provider === 'sandbox') return 'infra';
+  return 'sync';
+}
+
+function GlobalEndpointsAvatarGroup({ 
+  nodeEndpointMap, 
+  onEndpointClick,
+  onEndpointHover,
+  nameMap,
+}: { 
+  nodeEndpointMap: Map<string, SyncEndpointInfo[]>,
+  onEndpointClick: (ep: SyncEndpointInfo, nodeId: string) => void,
+  onEndpointHover?: (nodeId: string | null) => void,
+  nameMap: { agents: Record<string, string>; nodes: Record<string, string>; syncs: Record<string, string> },
+}) {
+  const [hoveredEndpoint, setHoveredEndpoint] = useState<string | null>(null);
+  const [showAllEndpoints, setShowAllEndpoints] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const uniqueEndpoints = useMemo(() => {
+    const map = new Map<string, EndpointEntry>();
+    for (const [nodeId, eps] of nodeEndpointMap.entries()) {
+      for (const ep of eps) {
+        if (!map.has(ep.syncId)) {
+          const isAgent = ep.provider.startsWith('agent:');
+          const name = isAgent
+            ? (nameMap.agents[ep.syncId] || 'Agent')
+            : (nameMap.syncs[ep.syncId] || ep.provider);
+          const nodeName = nameMap.nodes[nodeId];
+          map.set(ep.syncId, { ep, nodeId, name, nodeName });
+        }
+      }
+    }
+    return Array.from(map.values());
+  }, [nodeEndpointMap, nameMap]);
+
+  const grouped = useMemo(() => {
+    const groups: Record<EndpointCategory, EndpointEntry[]> = { agents: [], sync: [], infra: [] };
+    for (const entry of uniqueEndpoints) {
+      groups[categorizeEndpoint(entry.ep.provider)].push(entry);
+    }
+    return groups;
+  }, [uniqueEndpoints]);
+
+  if (uniqueEndpoints.length === 0) return null;
+
+  const maxVisible = 5;
+  const visibleEndpoints = uniqueEndpoints.slice(0, maxVisible);
+  const hiddenCount = uniqueEndpoints.length - maxVisible;
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setShowAllEndpoints(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      setShowAllEndpoints(false);
+      setHoveredEndpoint(null);
+      onEndpointHover?.(null);
+    }, 150);
+  };
+
+  const categoryOrder: EndpointCategory[] = ['agents', 'sync', 'infra'];
+
+  return (
+    <div 
+      style={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {visibleEndpoints.map(({ ep, nodeId, name }, index) => {
+        const isHovered = hoveredEndpoint === ep.syncId;
+        return (
+          <div
+            key={ep.syncId}
+            title={`${name} (Click to configure)`}
+            onClick={() => onEndpointClick(ep, nodeId)}
+            onMouseEnter={() => {
+              setHoveredEndpoint(ep.syncId);
+              onEndpointHover?.(nodeId);
+            }}
+            onMouseLeave={() => {
+              setHoveredEndpoint(null);
+              onEndpointHover?.(null);
+            }}
+            style={{
+              width: 24, height: 24, borderRadius: 6,
+              background: isHovered ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer',
+              opacity: isHovered ? 1 : 0.85,
+              transition: 'background 0.1s, opacity 0.1s',
+              position: 'relative',
+            }}
+          >
+            {/* For the top header avatars, we only show the icon to save space, no dot */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, color: '#a1a1aa' }}>
+              {ep.provider.startsWith('agent:') ? (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+              ) : ep.provider === 'mcp' ? (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                  <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                  <line x1="6" y1="6" x2="6.01" y2="6" />
+                  <line x1="6" y1="18" x2="6.01" y2="18" />
+                </svg>
+              ) : ep.provider === 'sandbox' ? (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="4 17 10 11 4 5" />
+                  <line x1="12" y1="19" x2="20" y2="19" />
+                </svg>
+              ) : (
+                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22v-5" />
+                  <path d="M9 8V2" />
+                  <path d="M15 8V2" />
+                  <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+                </svg>
+              )}
+            </div>
+            <div style={{
+              position: 'absolute', bottom: 2, right: 2,
+              width: 6, height: 6, borderRadius: '50%',
+              background: ep.status === 'error' ? '#ef4444' : ep.status === 'stopped' ? '#71717a' : '#10b981',
+              boxShadow: '0 0 0 2px #0e0e0e',
+            }} />
+          </div>
+        );
+      })}
+      
+      {hiddenCount > 0 && (
+        <div style={{
+          padding: '0 6px', height: 24, borderRadius: 6,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#a1a1aa', fontSize: 12, fontWeight: 500,
+          cursor: 'default',
+        }}>
+          +{hiddenCount}
+        </div>
+      )}
+
+      {showAllEndpoints && (
+        <div
+          style={{
+            position: 'absolute', top: '100%', right: 0, marginTop: 8,
+            background: '#0e0e0e',
+            border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+            padding: '6px 0', width: 240, maxHeight: 400, overflowY: 'auto',
+            zIndex: 1000,
+          }}
+        >
+          {categoryOrder.map((cat, catIdx) => {
+            const entries = grouped[cat];
+            if (entries.length === 0) return null;
+            return (
+              <div key={cat}>
+                {catIdx > 0 && grouped[categoryOrder[catIdx - 1]].length > 0 && (
+                  <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 8px' }} />
+                )}
+                {entries.map(({ ep, nodeId, name, nodeName }) => (
+                  <div
+                    key={`dropdown-${ep.syncId}`}
+                    onClick={() => { setShowAllEndpoints(false); onEndpointClick(ep, nodeId); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '0 8px', margin: '1px 6px', borderRadius: 6, height: 30,
+                      cursor: 'pointer', color: hoveredEndpoint === ep.syncId ? '#d4d4d4' : '#a1a1aa', fontSize: 13,
+                      transition: 'background 0.1s, color 0.1s',
+                      background: hoveredEndpoint === ep.syncId ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
+                      overflow: 'hidden',
+                    }}
+                    onMouseEnter={() => {
+                      setHoveredEndpoint(ep.syncId);
+                      onEndpointHover?.(nodeId);
+                    }}
+                    onMouseLeave={() => {
+                      setHoveredEndpoint(null);
+                      onEndpointHover?.(null);
+                    }}
+                  >
+                    <EndpointIconRenderer ep={ep} size={14} />
+                    <span style={{ 
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      fontWeight: 500, flex: 1, minWidth: 0,
+                    }}>
+                      {name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function decodePath(segments: string[]): string[] {
+  return segments.map(s => {
+    try { return decodeURIComponent(s); } catch { return s; }
+  });
+}
+
 export default function DataPage({ params }: DataPageProps) {
-  const { projectId, path = [] } = use(params);
+  const { projectId, path: rawPath = [] } = use(params);
+  const path = decodePath(rawPath);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuth();
@@ -146,16 +376,13 @@ export default function DataPage({ params }: DataPageProps) {
   const setViewType = (v: ViewType) => { setViewTypeState(v); localStorage.setItem('puppyone-view-type', v); };
   const setEditorType = (e: EditorType) => { setEditorTypeState(e); localStorage.setItem('puppyone-editor-type', e); };
 
-  // Welcome check (new user onboarding)
+  // Legacy welcome query param — strip it without triggering old onboarding guide
+  const hasWelcomeParam = searchParams.get('welcome') === 'true';
   useEffect(() => {
-    const isWelcome = searchParams.get('welcome') === 'true';
-    if (isWelcome) {
-      refreshProjects(currentOrg?.id).then(() => {
-        setShowOnboardingGuide(true);
-        router.replace(`/projects/${projectId}/data`);
-      });
+    if (hasWelcomeParam) {
+      router.replace(`/projects/${projectId}/data`);
     }
-  }, [searchParams, projectId, router]);
+  }, [hasWelcomeParam, projectId, router]);
 
   const handleOnboardingComplete = () => {
     sessionStorage.setItem(`onboarding-completed-${projectId}`, 'true');
@@ -163,6 +390,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
+  const [hoverHighlightNodeId, setHoverHighlightNodeId] = useState<string | null>(null);
 
   // ───── Custom Hooks ─────
 
@@ -207,9 +435,11 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── Navigation (path only, panel state is independent) ─────
 
-  const navigateTo = useCallback((nextPath: string[]) => {
-    const basePath = `/projects/${projectId}/data${nextPath.length > 0 ? `/${nextPath.join('/')}` : ''}`;
-    router.push(basePath);
+  const navigateTo = useCallback((nextPath: string[], typeHint?: string) => {
+    const encoded = nextPath.map(s => encodeURIComponent(s)).join('/');
+    const basePath = `/projects/${projectId}/data${encoded ? `/${encoded}` : ''}`;
+    const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
+    router.push(url);
   }, [projectId, router]);
 
   const closeRightPanel = useCallback(() => {
@@ -233,12 +463,13 @@ export default function DataPage({ params }: DataPageProps) {
 
   const handleSyncCreated = useCallback(async (nodeId: string) => {
     await mutateSyncStatus();
+    refreshCurrentNodes();
     openPanel({ type: 'sync_config', nodeId });
-  }, [mutateSyncStatus, openPanel]);
+  }, [mutateSyncStatus, refreshCurrentNodes, openPanel]);
 
   // ───── Table & Tools ─────
 
-  const { tools: tableTools, isLoading: toolsLoading } = useTableTools(activeNodeId);
+  const { tools: tableTools, isLoading: toolsLoading } = useToolsByPath(activeNodeId);
   const { tableData: currentTableData, refresh: refreshTable } = useTable(projectId, activeNodeId);
 
   // Access points state
@@ -246,72 +477,40 @@ export default function DataPage({ params }: DataPageProps) {
   const lastSyncedTableId = useRef<string | null>(null);
 
   // Dialog states
-  const [createTableOpen, setCreateTableOpen] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
-  const [defaultStartOption, setDefaultStartOption] = useState<'documents' | 'url'>('documents');
 
   // Supabase connector
   const [supabaseConnectOpen, setSupabaseConnectOpen] = useState(false);
   const [supabaseSQLEditorOpen, setSupabaseSQLEditorOpen] = useState(false);
   const [supabaseConnectionId, setSupabaseConnectionId] = useState<string | null>(null);
 
-  // Create menu
-  const [createMenuOpen, setCreateMenuOpen] = useState(false);
-  const [createMenuPosition, setCreateMenuPosition] = useState<{ x: number; y: number; anchorLeft: number } | null>(null);
-  const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined);
-  const createMenuRef = useRef<HTMLDivElement>(null);
-
-  // Highlight newly created node
-  const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
-  const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>();
-  const highlightCreatedNode = useCallback((nodeId: string) => {
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    setHighlightNodeId(nodeId);
-    highlightTimerRef.current = setTimeout(() => setHighlightNodeId(null), 2500);
-  }, []);
-
-  const PROVIDER_NODE_TYPE: Record<string, 'json' | 'markdown' | 'folder'> = {
-    gmail: 'json', calendar: 'json', sheets: 'json', linear: 'json', supabase: 'json',
-    docs: 'markdown', github: 'folder', notion: 'folder',
-  };
-  const PROVIDER_DEFAULT_NAMES: Record<string, string> = {
-    gmail: 'Gmail Inbox', calendar: 'Calendar Events', sheets: 'Sheet Data',
-    linear: 'Linear Issues', docs: 'Document', github: 'GitHub Repo', notion: 'Notion Pages',
-    supabase: 'Supabase Data',
-  };
-  const handleCreateAndSync = useCallback(async (saasProvider: string) => {
-    const nodeType = PROVIDER_NODE_TYPE[saasProvider];
-    if (!nodeType) { openSyncSetting(saasProvider); openSyncCreatePanel(); return; }
-    const name = PROVIDER_DEFAULT_NAMES[saasProvider] || 'Untitled';
-    const parentId = currentFolderId ?? undefined;
-    try {
-      let node: { id: string; name: string; type?: string };
-      if (nodeType === 'json') {
-        node = await createJsonNode(name, projectId, null, parentId);
-      } else if (nodeType === 'markdown') {
-        node = await createMarkdownNode(name, projectId, '', parentId);
-      } else {
-        node = await createFolder(name, projectId, parentId);
-      }
-      await refreshAllContentNodes(projectId);
-      openSyncSetting(saasProvider, {
-        nodeId: node.id, nodeName: node.name, nodeType: nodeType,
-        readonly: true, jsonPath: '',
-      } as any);
-      openSyncCreatePanel();
-    } catch {
-      openSyncSetting(saasProvider);
-      openSyncCreatePanel();
-    }
-  }, [projectId, currentFolderId, openSyncSetting, openSyncCreatePanel]);
+  const {
+    createTableOpen,
+    defaultStartOption,
+    createMenuOpen,
+    createMenuOpenForId,
+    createMenuPosition,
+    createMenuRef,
+    createMenuActions,
+    highlightNodeId,
+    handleCreateClick,
+    handleMillerCreateClick,
+    closeCreateTable,
+  } = useDataCreateFlow({
+    projectId,
+    currentFolderId,
+    navigateTo,
+    openSyncCreatePanel,
+    openSyncSetting,
+  });
 
   const agentResources: AgentResource[] = useMemo(() => {
-    const toAgentResource = (r: { nodeId: string; readonly?: boolean; terminal?: boolean; terminalReadonly?: boolean }) => ({
-      nodeId: r.nodeId,
-      terminalReadonly: r.readonly ?? r.terminalReadonly ?? true,
+    const toAgentResource = (r: { path: string; readonly?: boolean }) => ({
+      path: r.path,
+      readonly: r.readonly ?? true,
     });
 
-    if (hoveredSyncNodeId) return [{ nodeId: hoveredSyncNodeId, terminalReadonly: true }];
+    if (hoveredSyncNodeId) return [{ path: hoveredSyncNodeId, readonly: true }];
     if (hoveredAgentId) {
       const agent = savedAgents.find(a => a.id === hoveredAgentId);
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
@@ -322,7 +521,7 @@ export default function DataPage({ params }: DataPageProps) {
       if (agent?.resources && agent.resources.length > 0) return agent.resources.map(toAgentResource);
     }
     if (selectedSyncId && selectedSyncNodeId) {
-      return [{ nodeId: selectedSyncNodeId, terminalReadonly: true }];
+      return [{ path: selectedSyncNodeId, readonly: true }];
     }
     return [];
   }, [draftResources, editingAgentId, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, panelState.type]);
@@ -370,19 +569,6 @@ export default function DataPage({ params }: DataPageProps) {
     lastSyncedTableId.current = activeNodeId;
   }, [activeNodeId, toolsLoading, tableTools]);
 
-  // Close create menu on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (createMenuRef.current && !createMenuRef.current.contains(e.target as Node)) {
-        setCreateMenuOpen(false);
-      }
-    };
-    if (createMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [createMenuOpen]);
-
   // Sync state to WorkspaceContext
   useEffect(() => { setProjectId(projectId); }, [projectId, setProjectId]);
   useEffect(() => { setTableId(activeNodeId); }, [activeNodeId, setTableId]);
@@ -391,7 +577,7 @@ export default function DataPage({ params }: DataPageProps) {
   const tableNameByIdRef = useRef<string>('');
   const tableNameById = useMemo(() => {
     const map: Record<string, string> = {};
-    contentNodes.forEach(node => { map[node.id] = node.name; });
+    contentNodes.forEach(node => { map[node.path || node.id] = node.name; });
     if (currentTableData?.id && currentTableData?.name) map[currentTableData.id] = currentTableData.name;
     return map;
   }, [contentNodes, currentTableData?.id, currentTableData?.name]);
@@ -400,6 +586,30 @@ export default function DataPage({ params }: DataPageProps) {
     const key = JSON.stringify(tableNameById);
     if (key !== tableNameByIdRef.current) { tableNameByIdRef.current = key; setTableNameById(tableNameById); }
   }, [tableNameById, setTableNameById]);
+
+  const endpointNameMap = useMemo(() => {
+    const agents: Record<string, string> = {};
+    for (const a of savedAgents) { agents[a.id] = a.name; }
+    const nodes: Record<string, string> = { ...tableNameById };
+    if (syncStatusData?.syncs) {
+      for (const s of syncStatusData.syncs) {
+        if (s.path && !nodes[s.path] && s.name) nodes[s.path] = s.name;
+      }
+    }
+    const syncs: Record<string, string> = {};
+    if (syncStatusData?.syncs) {
+      for (const s of syncStatusData.syncs) {
+        const PROVIDER_LABELS: Record<string, string> = {
+          filesystem: 'Local Sync', gmail: 'Gmail',
+          google_calendar: 'Calendar', google_sheets: 'Sheets', google_drive: 'Drive',
+          google_docs: 'Docs', github: 'GitHub', notion: 'Notion', linear: 'Linear',
+          airtable: 'Airtable', mcp: 'MCP Server', sandbox: 'Sandbox',
+        };
+        syncs[s.id] = s.name || PROVIDER_LABELS[s.provider] || s.provider;
+      }
+    }
+    return { agents, nodes, syncs };
+  }, [savedAgents, tableNameById, syncStatusData]);
 
   useEffect(() => { setAccessPointsToContext(accessPoints); }, [accessPoints, setAccessPointsToContext]);
   useEffect(() => {
@@ -413,12 +623,12 @@ export default function DataPage({ params }: DataPageProps) {
 
   function normalizeJsonPath(p: string) { if (!p || p === '/') return ''; return p; }
 
-  async function syncToolsForPath(params: { nodeId: string; path: string; permissions: McpToolPermissions; existingTools: Tool[] }) {
-    const { nodeId, path: toolPath, permissions, existingTools } = params;
+  async function syncToolsForPath(params: { mutPath: string; path: string; permissions: McpToolPermissions; existingTools: Tool[] }) {
+    const { mutPath, path: toolPath, permissions, existingTools } = params;
     const jsonPath = normalizeJsonPath(toolPath);
     const byType = new Map<string, Tool>();
     for (const t of existingTools) {
-      if (t.node_id !== nodeId) continue;
+      if (t.path !== mutPath) continue;
       if ((t.json_path || '') !== jsonPath) continue;
       const toolType = t.type as string;
       if (toolType === 'shell_access' || toolType === 'shell_access_readonly') continue;
@@ -436,94 +646,51 @@ export default function DataPage({ params }: DataPageProps) {
     for (const id of toDelete) await deleteTool(id);
     for (const type of toCreate) {
       await createTool({
-        node_id: nodeId, json_path: jsonPath, type,
-        name: `${type}_${nodeId}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
+        path: mutPath, json_path: jsonPath, type,
+        name: `${type}_${mutPath}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
         description: undefined,
       });
     }
   }
 
-  async function deleteAllToolsForPath(params: { nodeId: string; path: string; existingTools: Tool[] }) {
-    const { nodeId, path: toolPath, existingTools } = params;
+  async function deleteAllToolsForPath(params: { mutPath: string; path: string; existingTools: Tool[] }) {
+    const { mutPath, path: toolPath, existingTools } = params;
     const jsonPath = normalizeJsonPath(toolPath);
-    const toDelete = existingTools.filter(t => t.node_id === nodeId && (t.json_path || '') === jsonPath);
+    const toDelete = existingTools.filter(t => t.path === mutPath && (t.json_path || '') === jsonPath);
     for (const t of toDelete) await deleteTool(t.id);
   }
 
   // ───── View Helpers ─────
 
-  const getPlaceholderSaasId = (nodeType: string): string | null => {
-    const mapping: Record<string, string> = {
-      'gmail': 'gmail', 'google_sheets': 'sheets', 'google_calendar': 'calendar',
-      'google_drive': 'drive', 'notion': 'notion', 'github': 'github',
-      'airtable': 'airtable', 'linear': 'linear',
-      'gmail_inbox': 'gmail', 'google_sheets_sync': 'sheets', 'google_calendar_sync': 'calendar',
-      'google_docs_sync': 'docs', 'notion_database': 'notion', 'github_repo': 'github',
-    };
-    return mapping[nodeType] || null;
-  };
-
   const items = contentNodes.map(node => ({
-    id: node.id,
+    id: node.path,
     name: node.name,
     type: node.type as ContentType,
-    id_path: node.id_path,
+    mut_path: node.mut_path,
     description: node.type === 'folder' ? 'Folder' :
                  node.type === 'json' ? 'JSON' :
                  node.type === 'markdown' ? 'Markdown' :
-                 node.type === 'file' ? 'File' :
-                 node.is_synced ? `Sync (${node.sync_source})` : 'Unknown',
-    is_synced: node.is_synced,
-    sync_source: node.sync_source,
-    sync_url: node.sync_url,
-    sync_status: node.sync_status,
-    last_synced_at: node.last_synced_at,
-    preview_snippet: node.preview_snippet,
+                 node.type === 'file' ? 'File' : 'Unknown',
+    is_synced: false,
+    sync_source: null as string | null,
+    sync_url: null as string | null,
+    sync_status: 'not_connected' as const,
+    last_synced_at: null as string | null,
+    preview_snippet: null as string | null,
     children_count: node.children_count,
     onClick: () => {
-      if (node.sync_status === 'not_connected') {
-        const saasId = getPlaceholderSaasId(node.type);
-        if (saasId) {
-          openSyncSetting(saasId, {
-            nodeId: node.id, nodeName: node.name, nodeType: node.type as any,
-            readonly: true, jsonPath: '',
-          } as any);
-          openSyncCreatePanel();
-        }
-        return;
-      }
-      if (node.type !== 'folder') setPendingActiveId(node.id);
-      const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-      const newPath = currentPath ? `${currentPath}/${node.id}` : node.id;
-      navigateTo(newPath.split('/').filter(Boolean));
+      if (node.type !== 'folder') setPendingActiveId(node.path);
+      navigateTo(node.path.split('/').filter(Boolean), node.type || undefined);
     },
   }));
 
-  const handleCreateClick = (e: React.MouseEvent) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setCreateMenuPosition({ x: rect.right + 4, y: rect.top, anchorLeft: rect.left });
-    setCreateInFolderId(undefined);
-    setCreateMenuOpen(true);
-  };
-
-  const handleMillerCreateClick = (e: React.MouseEvent, parentId: string | null) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setCreateMenuPosition({ x: rect.right + 4, y: rect.top, anchorLeft: rect.left });
-    setCreateInFolderId(parentId);
-    setCreateMenuOpen(true);
-  };
-
-  const handleMillerNavigate = (item: MillerColumnItem, pathToItem: string[]) => {
+  const handleMillerNavigate = useCallback((item: MillerColumnItem) => {
     setPendingActiveId(item.id);
-    navigateTo(pathToItem);
-  };
+    navigateTo(item.id.split('/').filter(Boolean), item.type || undefined);
+  }, [navigateTo]);
 
-  const handleRefresh = async (id: string) => {
-    const node = contentNodes.find(n => n.id === id);
-    if (!node?.sync_url) { alert('No sync URL available for this item'); return; }
-    alert(`Refreshing from: ${node.sync_url}\n\n(Not yet implemented)`);
+  const handleRefresh = async (path: string) => {
+    alert(`Refresh not yet implemented for path: ${path}`);
   };
 
   // ───── Icons & Breadcrumbs ─────
@@ -584,10 +751,11 @@ export default function DataPage({ params }: DataPageProps) {
     } else {
       folderBreadcrumbs.forEach((folder, index) => {
         const isLast = index === folderBreadcrumbs.length - 1;
-        const folderPath = folderBreadcrumbs.slice(0, index + 1).map(f => f.id).join('/');
+        // folder.id is the full path up to this folder segment
+        const folderUrlPath = folder.id.split('/').filter(Boolean).map(s => encodeURIComponent(s)).join('/');
         segments.push({
           label: folder.name,
-          href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderPath}` : undefined,
+          href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
           icon: folderIcon,
         });
       });
@@ -611,62 +779,6 @@ export default function DataPage({ params }: DataPageProps) {
   const isFolderView = !activeNodeId;
   const isLoading = isResolvingPath || contentNodesLoading;
 
-  // ───── CreateMenu Actions ─────
-
-  const createMenuActions = useMemo<CreateMenuActions>(() => {
-    const targetFolderIdFn = () => createInFolderId === undefined ? currentFolderId : createInFolderId;
-
-    return {
-      onClose: () => setCreateMenuOpen(false),
-      onCreateFolder: async () => {
-        const targetFolderId = targetFolderIdFn();
-        try {
-          const result = await createFolder('New Folder', projectId, targetFolderId);
-          if (targetFolderId) ensureExpanded(targetFolderId);
-          await refreshAllContentNodes(projectId);
-          if (result?.id) { ensureExpanded(result.id); highlightCreatedNode(result.id); }
-        } catch (err) { console.error('Failed to create folder:', err); }
-      },
-      onCreateBlankJson: async () => {
-        const targetFolderId = targetFolderIdFn();
-        try {
-          const result = await createJsonNode('Untitled', projectId, {}, targetFolderId);
-          if (targetFolderId) ensureExpanded(targetFolderId);
-          await refreshAllContentNodes(projectId);
-          if (result?.id) {
-            highlightCreatedNode(result.id);
-            const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            navigateTo(navPath.split('/').filter(Boolean));
-          }
-        } catch (err) { console.error('Failed to create JSON:', err); }
-      },
-      onCreateBlankMarkdown: async () => {
-        const targetFolderId = targetFolderIdFn();
-        try {
-          const result = await createMarkdownNode('Untitled Note', projectId, '', targetFolderId);
-          if (targetFolderId) ensureExpanded(targetFolderId);
-          await refreshAllContentNodes(projectId);
-          if (result?.id) {
-            highlightCreatedNode(result.id);
-            const navPath = result.id_path?.replace(/^\//, '') || result.id;
-            navigateTo(navPath.split('/').filter(Boolean));
-          }
-        } catch (err) { console.error('Failed to create markdown:', err); }
-      },
-      onImportFromFiles: () => { setDefaultStartOption('documents'); setCreateTableOpen(true); },
-      onImportFromUrl: () => { setDefaultStartOption('url'); setCreateTableOpen(true); },
-      onImportFromSaas: () => { openSyncSetting('_generic'); openSyncCreatePanel(); },
-      onImportNotion: () => { handleCreateAndSync('notion'); },
-      onImportGitHub: () => { handleCreateAndSync('github'); },
-      onImportGmail: () => { handleCreateAndSync('gmail'); },
-      onImportDocs: () => { handleCreateAndSync('docs'); },
-      onImportCalendar: () => { handleCreateAndSync('calendar'); },
-      onImportSheets: () => { handleCreateAndSync('sheets'); },
-      onConnectSupabase: () => { handleCreateAndSync('supabase'); },
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, currentFolderId, createInFolderId, highlightCreatedNode, openSyncSetting, openSyncCreatePanel, handleCreateAndSync, navigateTo]);
-
   // ───── Render ─────
 
   return (
@@ -676,7 +788,6 @@ export default function DataPage({ params }: DataPageProps) {
         currentFolderId={currentFolderId}
         projects={projects}
         activeProject={activeProject}
-        activeNodeId={activeNodeId}
         showOnboardingGuide={showOnboardingGuide}
         onCloseOnboarding={() => setShowOnboardingGuide(false)}
         onOnboardingComplete={handleOnboardingComplete}
@@ -692,13 +803,8 @@ export default function DataPage({ params }: DataPageProps) {
           await nodeActions.handleMoveNode(nodeId, targetFolderId);
         }}
         onCloseMove={() => nodeActions.setMoveDialogTarget(null)}
-        toast={nodeActions.toast}
-        createMenuOpen={createMenuOpen}
-        createMenuPosition={createMenuPosition}
-        createMenuRef={createMenuRef}
-        createMenuActions={createMenuActions}
         createTableOpen={createTableOpen}
-        onCloseCreateTable={() => { setCreateTableOpen(false); setDefaultStartOption('documents'); }}
+        onCloseCreateTable={closeCreateTable}
         defaultStartOption={defaultStartOption}
         createFolderOpen={createFolderOpen}
         onCloseFolderDialog={() => setCreateFolderOpen(false)}
@@ -718,15 +824,14 @@ export default function DataPage({ params }: DataPageProps) {
         onCloseFileImport={fileImport.closeFileImportDialog}
         onFileImportConfirm={fileImport.handleFileImportConfirm}
         droppedFiles={fileImport.droppedFiles}
-        toolPanelTarget={nodeActions.toolPanelTarget}
-        onCloseToolPanel={() => nodeActions.setToolPanelTarget(null)}
-        projectTools={projectTools}
-        onToolsChange={() => {
-          if (nodeActions.toolPanelTarget) {
-            refreshTableTools(nodeActions.toolPanelTarget.id);
-            refreshProjectTools(projectId);
-          }
-        }}
+      />
+
+      <DataPageOverlays
+        toast={nodeActions.toast}
+        createMenuOpen={createMenuOpen}
+        createMenuPosition={createMenuPosition}
+        createMenuRef={createMenuRef}
+        createMenuActions={createMenuActions}
       />
 
       {/* Main Content */}
@@ -755,8 +860,7 @@ export default function DataPage({ params }: DataPageProps) {
         )}
 
         {/* Explorer Sidebar */}
-        {viewType === 'explorer' && (
-          <ExplorerSidebar
+        <ExplorerSidebar
             projectId={projectId}
             currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
             activeNodeId={
@@ -769,43 +873,15 @@ export default function DataPage({ params }: DataPageProps) {
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}
-            onSyncClick={(item) => {
-              setEditorTarget(null);
-              setIsEditorFullScreen(false);
-
-              const endpoint = syncEndpoints.get(item.id);
-              if (endpoint) {
-                const ps = endpointToPanelState(endpoint, item.id);
-                togglePanel(ps);
-              } else {
-                const nodeType = getNodeTypeConfig(item.type).renderAs;
-                openSyncSetting('_generic', {
-                  nodeId: item.id,
-                  nodeName: item.name,
-                  nodeType: nodeType === 'folder' ? 'folder' : nodeType === 'json' ? 'json' : 'file',
-                  readonly: true,
-                  jsonPath: '',
-                });
-                openPanel({ type: 'sync_create' });
-              }
-            }}
-            onEndpointClick={(item, endpoint) => {
-              setEditorTarget(null);
-              setIsEditorFullScreen(false);
-              const ps = endpointToPanelState(endpoint, item.id);
-              togglePanel(ps);
-            }}
             activeSyncNodeId={
               panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
                 ? (panelState.nodeId ?? null)
                 : null
             }
-            syncEndpoints={syncEndpoints}
-            nodeEndpointMap={nodeEndpointMap}
-            highlightNodeId={highlightNodeId}
+            highlightNodeId={hoverHighlightNodeId || highlightNodeId}
+            createMenuOpenForId={createMenuOpenForId}
             style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
           />
-        )}
 
         {/* Content column */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -824,10 +900,23 @@ export default function DataPage({ params }: DataPageProps) {
               display: 'flex', alignItems: 'center', paddingRight: 8,
               borderBottom: '1px solid rgba(255,255,255,0.1)', background: '#0e0e0e',
               height: '100%',
+              gap: 8,
             }}>
+              <GlobalEndpointsAvatarGroup 
+                nodeEndpointMap={nodeEndpointMap} 
+                onEndpointClick={(ep, nodeId) => {
+                  const ps = endpointToPanelState(ep, nodeId);
+                  togglePanel(ps);
+                }}
+                onEndpointHover={setHoverHighlightNodeId}
+                nameMap={endpointNameMap}
+              />
+              {nodeEndpointMap.size > 0 && (
+                <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)' }} />
+              )}
               <button
                 onClick={openSyncCreatePanel}
-                title="New connection"
+                title="New access"
                 style={{
                   display: 'flex', alignItems: 'center',
                   height: 28, paddingRight: 10, borderRadius: 6,
@@ -858,18 +947,8 @@ export default function DataPage({ params }: DataPageProps) {
                     <path d="M5 12h14" />
                   </svg>
                 </div>
-                <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
-                <span style={{ 
-                  display: 'flex', alignItems: 'center', gap: 4, 
-                  paddingLeft: 8
-                }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.85 }}>
-                    <path d="M12 22v-5" />
-                    <path d="M9 8V2" />
-                    <path d="M15 8V2" />
-                    <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-                  </svg>
-                  Connect
+                <span style={{ paddingLeft: 6 }}>
+                  Access
                 </span>
               </button>
             </div>
@@ -881,9 +960,9 @@ export default function DataPage({ params }: DataPageProps) {
             {/* Content Column */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
               <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Explorer loading state */}
-            {viewType === 'explorer' && isResolvingPath && !isEditorView && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0a0a0a' }}>
+            {/* Loading state */}
+            {isResolvingPath && (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0e0e0e' }}>
                 <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
                   <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
                 </svg>
@@ -891,68 +970,68 @@ export default function DataPage({ params }: DataPageProps) {
             )}
 
             {/* Editor View */}
-            {isEditorView && activeProject && (
-              <EditorArea
-                activeNodeId={activeNodeId}
-                activeNodeType={activeNodeType}
-                activeProject={activeProject}
-                currentTableData={currentTableData}
-                markdownContent={markdownContent}
-                isLoadingMarkdown={isLoadingMarkdown}
-                markdownSaveStatus={markdownSaveStatus}
-                markdownViewMode={markdownViewMode}
-                handleMarkdownChange={handleMarkdownChange}
-                setMarkdownViewMode={setMarkdownViewMode}
-                editorType={editorType}
-                configuredAccessPoints={configuredAccessPoints}
-                onActiveTableChange={(id: string) => {
-                  const currentPath = folderBreadcrumbs.map(f => f.id).join('/');
-                  const nodePath = currentPath ? `${currentPath}/${id}` : id;
-                  navigateTo(nodePath.split('/').filter(Boolean));
-                }}
-                onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {
-                  const hasAnyPermission = Object.values(permissions).some(Boolean);
-                  setAccessPoints(prev => {
-                    const existing = prev.find(ap => ap.path === apPath);
-                    if (existing) {
-                      if (!hasAnyPermission) return prev.filter(ap => ap.path !== apPath);
-                      return prev.map(ap => ap.path === apPath ? { ...ap, permissions } : ap);
-                    } else if (hasAnyPermission) {
-                      return [...prev, { id: `ap-${Date.now()}`, path: apPath, permissions }];
+            {isEditorView && !isResolvingPath && activeProject && (
+              <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <EditorArea
+                  activeNodeId={activeNodeId}
+                  activeNodeType={activeNodeType}
+                  activeProject={activeProject}
+                  currentTableData={currentTableData}
+                  markdownContent={markdownContent}
+                  isLoadingMarkdown={isLoadingMarkdown}
+                  markdownSaveStatus={markdownSaveStatus}
+                  markdownViewMode={markdownViewMode}
+                  handleMarkdownChange={handleMarkdownChange}
+                  setMarkdownViewMode={setMarkdownViewMode}
+                  editorType={editorType}
+                  configuredAccessPoints={configuredAccessPoints}
+                  onActiveTableChange={(nodePath: string) => {
+                    navigateTo(nodePath.split('/').filter(Boolean));
+                  }}
+                  onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {
+                    const hasAnyPermission = Object.values(permissions).some(Boolean);
+                    setAccessPoints(prev => {
+                      const existing = prev.find(ap => ap.path === apPath);
+                      if (existing) {
+                        if (!hasAnyPermission) return prev.filter(ap => ap.path !== apPath);
+                        return prev.map(ap => ap.path === apPath ? { ...ap, permissions } : ap);
+                      } else if (hasAnyPermission) {
+                        return [...prev, { id: `ap-${Date.now()}`, path: apPath, permissions }];
+                      }
+                      return prev;
+                    });
+                    if (activeNodeId) {
+                      syncToolsForPath({ mutPath: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
+                        refreshToolsByPath(activeNodeId);
+                        refreshProjectTools(projectId);
+                      });
                     }
-                    return prev;
-                  });
-                  if (activeNodeId) {
-                    syncToolsForPath({ nodeId: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
-                      refreshTableTools(activeNodeId);
-                      refreshProjectTools(projectId);
-                    });
-                  }
-                }}
-                onAccessPointRemove={(apPath: string) => {
-                  setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
-                  if (activeNodeId) {
-                    deleteAllToolsForPath({ nodeId: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
-                      refreshTableTools(activeNodeId);
-                      refreshProjectTools(projectId);
-                    });
-                  }
-                }}
-                onOpenDocument={(docPath: string, value: string) => {
-                  setEditorTarget({ path: docPath, value });
-                  setIsEditorFullScreen(false);
-                  closePanel();
-                }}
-                onCreateTool={(path: string) => {
-                  if (!activeNodeId) return;
-                  nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || 'File'}`, 'json', path);
-                }}
-              />
+                  }}
+                  onAccessPointRemove={(apPath: string) => {
+                    setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
+                    if (activeNodeId) {
+                      deleteAllToolsForPath({ mutPath: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
+                        refreshToolsByPath(activeNodeId);
+                        refreshProjectTools(projectId);
+                      });
+                    }
+                  }}
+                  onOpenDocument={(docPath: string, value: string) => {
+                    setEditorTarget({ path: docPath, value });
+                    setIsEditorFullScreen(false);
+                    closePanel();
+                  }}
+                  onCreateTool={(path: string) => {
+                    if (!activeNodeId) return;
+                    nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || 'File'}`, 'json', path);
+                  }}
+                />
+              </div>
             )}
 
             {/* Folder View (Grid mode) */}
-            {isFolderView && viewType !== 'explorer' && (
-              <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+            {isFolderView && !isResolvingPath && (
+              <div style={{ flex: 1, overflow: 'auto', padding: items.length === 0 && !currentFolderId ? 0 : 24, display: 'flex', flexDirection: 'column' }}>
                 {isLoading ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#525252', fontSize: 14 }}>
@@ -963,6 +1042,11 @@ export default function DataPage({ params }: DataPageProps) {
                     </div>
                     <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
                   </div>
+                ) : items.length === 0 && !currentFolderId ? (
+                  <EmptyWorkspaceState
+                    project={activeProject}
+                    onCreateClick={handleCreateClick}
+                  />
                 ) : (
                   <GridView
                     items={items}
@@ -975,19 +1059,10 @@ export default function DataPage({ params }: DataPageProps) {
                     onMoveNode={nodeActions.handleMoveNode}
                     onCreateTool={nodeActions.handleCreateTool}
                     agentResources={agentResources}
-                    highlightNodeId={highlightNodeId}
+                    highlightNodeId={hoverHighlightNodeId || highlightNodeId}
                   />
                 )}
               </div>
-            )}
-
-            {/* Explorer View - Empty State */}
-            {viewType === 'explorer' && isFolderView && !isResolvingPath && (
-              <EmptyWorkspaceState
-                project={activeProject}
-                onConnectClick={openSyncCreatePanel}
-                onCreateClick={handleCreateClick}
-              />
             )}
 
             <TaskStatusWidget inline />
@@ -1008,10 +1083,10 @@ export default function DataPage({ params }: DataPageProps) {
             isVersionHistoryOpen={panelState.type === 'version_history'}
             onOpenVersionHistory={openVersionHistoryPanel}
           />
-            </div>
+        </div>
 
-            {/* Right Panel */}
-            <ResizablePanel isVisible={!!editorTarget || panelState.type !== 'none'}>
+        {/* Right Panel */}
+        <ResizablePanel isVisible={!!editorTarget || panelState.type !== 'none'}>
           {editorTarget && (
             <DocumentEditor
               path={editorTarget.path}
@@ -1048,12 +1123,12 @@ export default function DataPage({ params }: DataPageProps) {
                 <span style={{ color: '#71717a', fontSize: 13 }}>Loading...</span>
               ) : (
                 <>
-                  <span style={{ color: '#525252', fontSize: 13 }}>No connection configured</span>
+                  <span style={{ color: '#525252', fontSize: 13 }}>No access configured</span>
                   <button
                     onClick={() => {
                       const nodeId = panelState.nodeId;
                       if (nodeId) {
-                        openSyncSetting('_generic', { nodeId, nodeName: '', nodeType: 'folder', readonly: true, jsonPath: '' });
+                        openSyncSetting('_generic', { path: nodeId, nodeName: '', nodeType: 'folder', readonly: true });
                       }
                       openPanel({ type: 'sync_create' });
                     }}
@@ -1063,7 +1138,7 @@ export default function DataPage({ params }: DataPageProps) {
                       borderRadius: 6, color: '#e4e4e7', cursor: 'pointer',
                     }}
                   >
-                    + New Connection
+                    + New Access
                   </button>
                 </>
               )}
@@ -1098,11 +1173,11 @@ export default function DataPage({ params }: DataPageProps) {
             if (chatAgent.resources) {
               for (const res of chatAgent.resources) {
                 tools.push({
-                  id: `bash:${res.nodeId}`,
-                  label: `${res.nodeName || res.nodeId} · Bash${res.readonly ? ' (Read-only)' : ''}`,
+                  id: `bash:${res.path}`,
+                  label: `${res.nodeName || res.path} · Bash${res.readonly ? ' (Read-only)' : ''}`,
                   type: 'bash' as const,
-                  tableId: res.nodeId,
-                  tableName: res.nodeName || res.nodeId,
+                  tableId: res.path,
+                  tableName: res.nodeName || res.path,
                 });
               }
             }

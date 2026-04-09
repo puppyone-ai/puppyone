@@ -493,7 +493,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const handlePlatformRowClick = (platformId: PlatformId) => {
     const state = platformStates[platformId];
     if (state?.status === 'error') {
-      window.alert('Re-authorize to fix connection');
+      window.alert('Re-authorize to fix access');
     }
   };
 

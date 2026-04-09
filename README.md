@@ -1,53 +1,44 @@
-<p align="center">
-  <img src="assets/title-puppyone.jpg" alt="PuppyOne — The context file system built for agents" width="100%" />
-</p>
+<div align="center">
+  <img src="assets/puppyone.svg" alt="Puppyone Logo" width="120" height="120" />
+  
+  <h1>Puppyone</h1>
+  
+  <p><b>File system built for AI agents</b></p>
+  <p>Puppyone provides the storage infrastructure for your agent harness.<br/>
+  Connect, host, govern, backup, version control, and distribute your context.</p>
 
-<p align="center">
-  <b>The context file system for agents.</b><br>
-   Connect, govern, and share context across all agents.
-</p>
-
-<p align="center">
-  <a href="https://www.puppyone.ai" target="_blank">
-    <img src="https://img.shields.io/badge/Web-puppyone.ai-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
-  </a>
-  &nbsp;
-  <a href="https://www.puppyone.ai/doc" target="_blank">
-    <img src="https://img.shields.io/badge/Docs-puppyone.ai/doc-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
-  </a>
-  &nbsp;
-  <a href="https://x.com/puppyone_ai" target="_blank">
-    <img src="https://img.shields.io/badge/X-@puppyone-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
-  </a>
-  &nbsp;
-  <a href="https://discord.gg/zwJ9Y3Uvpd" target="_blank">
-    <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord" height="22" />
-  </a>
-</p>
+  <p>
+    <a href="https://www.puppyone.ai"><img src="https://img.shields.io/badge/Website-puppyone.ai-39BC66?style=flat-square" alt="Website" /></a>
+    <a href="https://www.puppyone.ai/doc"><img src="https://img.shields.io/badge/Docs-Read-D7F3FF?style=flat-square&logo=readthedocs&logoColor=black" alt="Documentation" /></a>
+    <a href="https://discord.gg/zwJ9Y3Uvpd"><img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord" /></a>
+    <a href="https://x.com/puppyone_ai"><img src="https://img.shields.io/badge/X-(Twitter)-000000?style=flat-square&logo=x&logoColor=white" alt="X" /></a>
+  </p>
+</div>
 
 ---
 
+## What exactly is Puppyone?
 
-## Your agents need more than a file system for context
+Is Puppyone a runtime or a sandbox? No.  
+Is it a vector database for semantic search? No.  
 
-Most capable agents today are file-based: they read, write, and execute through Bash and local file systems. However, **traditional file systems were never built to be a context infra for agents.**
+Puppyone is the storage layer in agent harness engineering. 
 
-- **No connectors.** Your data lives in Notion, GitHub, Google Drive, and dozens of other tools. Your agent can't see any of it.
-- **No backup and rollback.** A hallucinating agent overwrites a critical file. The previous version is gone.
-- **No file-level auth for agents.** Controlling per-agent read/write access with chmod and SSH keys doesn't scale.
+If your agents' data is structured as files, you need a **puppyone: file system built for AI agents**.
 
-## Why PuppyOne? <a href="https://github.com/puppyone-ai/puppyone"><img src="https://img.shields.io/github/stars/puppyone-ai/puppyone?style=flat&logo=github&color=yellow" alt="GitHub Stars" /></a>
+## The Storage Layer of Agent Harness: Old World vs New World
 
-PuppyOne is a context file system built only for agents. It directly solves all of the above:
+Developers typically store agent context in local file systems backed by Git. But these were built for *humans*, not AI agents. With these problems:
 
-- **15+ Connectors** — Mount Notion, GitHub, Gmail, Google Drive, Airtable, and more into a single directory tree. All data is transformed into agent-friendly formats (Markdown, JSON, raw files).
-- **Versioning & Rollback** — Every write is tracked. Diff any file against its history and rollback to a previous state in one click.
-- **Auth for agents** — Each agent gets its own view of the file tree based on its identity.
-- **Audit Logs** — Full traceability: which agent read, wrote, or deleted which file, and when.
-- **Multi-Channel Access** — Distribute your context via OpenClaw, MCP, Bash, SSH, REST API, or CLI. Agents access it however they work best.
+<img src="assets/old-vs-new-world.png" alt="Old World vs New World architecture" width="100%" />
 
+|  | Local File System + Git | Puppyone |
+|--|------------------------|----------|
+| **Backup** | Relies on agent to `git commit`. Forget once, data is gone. | Every modification auto-snapshotted. One-click rollback. |
+| **Permissions** | OS user logins only. All agents share everything, or fully isolated sandboxes with no collaboration. | File Level Security (FLS). Shared context space, per-agent scoped views. |
+| **Access Channels** | Local Bash only. Need custom APIs for anything else. | Native MCP, REST API, CLI, Bash, Sandbox out of the box. |
+| **Data Sources** | Manual integration for each platform. | 15+ built-in connectors (Notion, GitHub, Drive, etc.) auto-sync as files. |
 
-<img src="assets/puppy-filesystem-demo.png" alt="puppyone file system" width="100%" />
 
 ---
 
@@ -130,8 +121,8 @@ Start with something that works immediately in both Cloud and self-hosted:
 
 | Source | Command |
 |--------|---------|
-| Webpage | `puppyone conn add url https://example.com --folder /refs` |
-| Local folder | `puppyone conn add folder ./my-docs --folder /docs` |
+| Webpage | `puppyone access add url https://example.com --scope /refs` |
+| Local folder | `puppyone access add folder ./my-docs --scope /docs` |
 
 You can also upload files directly from the web app. Use `--folder` to organize synced content into any path in your Context Space.
 
@@ -142,7 +133,7 @@ You can also upload files directly from the web app. Use `--folder` to organize 
 - **Distribute via MCP** — Create an MCP endpoint when you want agents in Cursor, Claude Desktop, or other MCP clients to read your Context Space:
 
 ```bash
-puppyone conn add mcp "My Context"
+puppyone access add mcp "My Context"
 # → outputs MCP endpoint URL and API key
 ```
 
@@ -156,7 +147,7 @@ See the [full connector guide](https://www.puppyone.ai/doc) for all 15+ supporte
 
 Connect context from SaaS tools, databases, and the web into agent-friendly files.
 
-PuppyOne provides OAuth connectors for **15+ platforms** — including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, Google Sheets, Google Calendar, and more. It also supports URL scraping, database connections, local folder sync, and custom scripts.
+Puppyone provides OAuth connectors for **15+ platforms** — including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, Google Sheets, Google Calendar, and more. It also supports URL scraping, database connections, local folder sync, and custom scripts.
 
 All data is transformed into agent-friendly formats (Markdown, JSON, raw files) and stored in your **Context Space** — a cloud file system that any agent can browse like a local directory.
 
@@ -213,7 +204,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-This repository uses the PuppyOne Sustainable Use License (SUL).
+This repository uses the Puppyone Sustainable Use License (SUL).
 
 | Use case | Allowed |
 |----------|---------|

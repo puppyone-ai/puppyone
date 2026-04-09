@@ -37,7 +37,7 @@ export interface MillerColumnsViewProps {
   /** Load children for a folder (null = root) */
   onLoadChildren: (folderId: string | null) => Promise<MillerColumnItem[]>;
   /** Navigate to item - updates URL */
-  onNavigate?: (item: MillerColumnItem, pathToItem: string[]) => void;
+  onNavigate?: (item: MillerColumnItem) => void;
   /** Create new item in folder */
   onCreateClick?: (e: React.MouseEvent, parentId: string | null) => void;
   /** Rename item */
@@ -295,12 +295,12 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                       flexShrink: 0,
                       padding: '1px 5px',
                       borderRadius: 3,
-                      background: agentResource?.terminalReadonly ? 'rgba(100, 100, 100, 0.25)' : 'rgba(249, 115, 22, 0.2)',
+                      background: agentResource?.readonly ? 'rgba(100, 100, 100, 0.25)' : 'rgba(249, 115, 22, 0.2)',
                       fontSize: 10,
                       fontWeight: 500,
-                      color: agentResource?.terminalReadonly ? '#a1a1aa' : '#fb923c',
+                      color: agentResource?.readonly ? '#a1a1aa' : '#fb923c',
                     }}>
-                      {agentResource?.terminalReadonly ? 'View' : 'Edit'}
+                      {agentResource?.readonly ? 'View' : 'Edit'}
                     </div>
                   )}
 
@@ -395,7 +395,7 @@ export function MillerColumnsView({
   const pathKey = currentPath.map(p => p.id).join('/');
 
   // Create a map for quick lookup
-  const resourceMap = new Map(agentResources?.map(r => [r.nodeId, r]) ?? []);
+  const resourceMap = new Map(agentResources?.map(r => [r.path, r]) ?? []);
 
   // 加载并缓存列数据
   const loadColumn = useCallback(async (parentId: string | null) => {
@@ -465,12 +465,9 @@ export function MillerColumnsView({
   })();
 
   // 点击处理：计算新路径并通知父组件
-  const handleItemClick = useCallback((columnIndex: number, item: MillerColumnItem) => {
-    // columnIndex 0 = root, 1 = first path folder's children, etc.
-    const pathToItem = currentPath.slice(0, columnIndex).map(p => p.id);
-    pathToItem.push(item.id);
-    onNavigate?.(item, pathToItem);
-  }, [currentPath, onNavigate]);
+  const handleItemClick = useCallback((_columnIndex: number, item: MillerColumnItem) => {
+    onNavigate?.(item);
+  }, [onNavigate]);
 
   const isLoading = externalLoading || loadingColumns.has('__root__');
 

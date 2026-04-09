@@ -7,8 +7,7 @@ interface ProjectPageProps {
 export default async function ProjectPage({ params }: ProjectPageProps) {
   const { projectId } = await params;
   
-  // Redirect to data view by default
-  redirect(`/projects/${projectId}/data`);
+  redirect(`/projects/${projectId}/home`);
 }
 
 

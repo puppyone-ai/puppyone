@@ -13,10 +13,10 @@ from __future__ import annotations
 import argparse
 from typing import Any, Dict, List, Optional
 
-from src.supabase.dependencies import get_supabase_repository
-from src.supabase.mcp_binding.schemas import McpBindingCreate
-from src.supabase.mcp_v2.schemas import McpV2Create
-from src.supabase.tools.schemas import ToolCreate
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.infra.supabase.mcp_binding.schemas import McpBindingCreate
+from src.infra.supabase.mcp_v2.schemas import McpV2Create
+from src.tool.supabase_schemas import ToolCreate
 
 
 DEFAULT_INPUT_SCHEMAS: dict[str, dict[str, Any]] = {

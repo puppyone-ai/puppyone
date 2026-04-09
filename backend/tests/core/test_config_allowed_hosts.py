@@ -36,6 +36,8 @@ def test_allowed_hosts_default_for_development_without_debug() -> None:
 
     assert settings.ALLOWED_HOSTS == [
         "http://localhost:3000",
+        "http://localhost:3001",
         "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
     ]
 

@@ -152,7 +152,7 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
     isReadOnly: false,
   },
   'notion': {
-    renderAs: 'json',  // 具体是 json 还是 markdown 根据 preview_json/preview_md 决定
+    renderAs: 'json',
     color: '#000000',  // Notion 黑色
     label: 'Notion',
     badgeIcon: NotionIcon,

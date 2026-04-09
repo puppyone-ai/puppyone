@@ -66,10 +66,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         token_ip = client_ip_var.set(request.client.host if request.client else None)
         token_pac = project_access_cache_var.set({})
 
-        try:
-            response = await call_next(request)
-        finally:
-            pass
+        response = await call_next(request)
 
         elapsed_ms = (time.perf_counter() - start) * 1000
         response.headers["X-Request-Id"] = request_id

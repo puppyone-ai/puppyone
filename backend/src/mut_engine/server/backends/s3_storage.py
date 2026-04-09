@@ -1,0 +1,197 @@
+"""
+S3StorageBackend — S3 implementation of Mut ObjectStore
+
+Each project's objects are stored under the S3 prefix mut/{project_id}/objects/.
+Objects are sharded by the first 2 characters of the hash: mut/{project_id}/objects/ab/cdef1234...
+
+Performance layers:
+  1. CachedStorageBackend — process-wide LRU keyed by content hash (immutable = forever cacheable)
+  2. Shared thread pool — reused across all S3 calls instead of per-call creation
+  3. S3StorageBackend — actual S3 I/O
+
+Sync/Async strategy:
+  Mut's ObjectStore interface is synchronous (get/put/exists).
+  PuppyOne's S3Service is asynchronous.
+  Synchronous methods bridge via a shared thread pool to avoid nested asyncio.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import concurrent.futures
+import threading
+
+import cachetools
+
+from mut.core.object_store import StorageBackend
+from mut.foundation.error import ObjectNotFoundError
+
+from src.infra.s3.service import S3Service
+from src.utils.logger import log_error
+
+_ASYNC_BRIDGE_TIMEOUT_SECS = 30
+_HASH_PREFIX_LEN = 2
+_MAX_LIST_KEYS = 10000
+
+# Shared thread pool for all sync-to-async bridges (instead of per-call creation).
+_SHARED_POOL = concurrent.futures.ThreadPoolExecutor(
+    max_workers=8, thread_name_prefix="mut-s3"
+)
+
+
+def _run_async(coro):
+    """Execute an async coroutine from a synchronous context using the shared pool."""
+    def _run_in_thread():
+        return asyncio.run(coro)
+    return _SHARED_POOL.submit(_run_in_thread).result(timeout=_ASYNC_BRIDGE_TIMEOUT_SECS)
+
+# ═══════════════════════════════════════════════
+# CachedStorageBackend — process-wide LRU cache
+# ═══════════════════════════════════════════════
+
+_CACHE_MAX_BYTES = 128 * 1024 * 1024  # 128 MB total budget
+_CACHEABLE_THRESHOLD = 1 * 1024 * 1024  # only cache objects < 1 MB (tree objects are ~few KB)
+
+_global_cache: cachetools.LRUCache | None = None
+_cache_lock = threading.Lock()
+
+
+def _get_global_cache() -> cachetools.LRUCache:
+    global _global_cache
+    if _global_cache is None:
+        with _cache_lock:
+            if _global_cache is None:
+                _global_cache = cachetools.LRUCache(
+                    maxsize=_CACHE_MAX_BYTES,
+                    getsizeof=len,
+                )
+    return _global_cache
+
+
+class CachedStorageBackend(StorageBackend):
+    """In-memory LRU cache in front of any StorageBackend.
+
+    Content-addressed objects are immutable by definition:
+    same hash = same content, forever. No TTL needed.
+
+    The cache is process-wide and shared across all projects.
+    """
+
+    def __init__(self, inner: StorageBackend):
+        self._inner = inner
+        self._cache = _get_global_cache()
+
+    def get(self, h: str) -> bytes:
+        try:
+            return self._cache[h]
+        except KeyError:
+            pass
+        data = self._inner.get(h)
+        if len(data) < _CACHEABLE_THRESHOLD:
+            with _cache_lock:
+                self._cache[h] = data
+        return data
+
+    def put(self, h: str, data: bytes) -> None:
+        self._inner.put(h, data)
+        if len(data) < _CACHEABLE_THRESHOLD:
+            with _cache_lock:
+                self._cache[h] = data
+
+    def exists(self, h: str) -> bool:
+        if h in self._cache:
+            return True
+        return self._inner.exists(h)
+
+    def all_hashes(self) -> list[str]:
+        return self._inner.all_hashes()
+
+    def count(self) -> tuple[int, int]:
+        return self._inner.count()
+
+    def delete(self, h: str) -> bool:
+        with _cache_lock:
+            self._cache.pop(h, None)
+        return self._inner.delete(h)
+
+
+# ═══════════════════════════════════════════════
+# S3StorageBackend — actual S3 I/O
+# ═══════════════════════════════════════════════
+
+class S3StorageBackend(StorageBackend):
+    """S3 backend for Mut ObjectStore, isolated by project_id."""
+
+    def __init__(self, s3: S3Service, project_id: str):
+        self._s3 = s3
+        self._prefix = f"mut/{project_id}/objects"
+
+    def _key_for(self, h: str) -> str:
+        return f"{self._prefix}/{h[:_HASH_PREFIX_LEN]}/{h[_HASH_PREFIX_LEN:]}"
+
+    # ── Sync methods (called by Mut's ObjectStore) ──
+
+    def get(self, h: str) -> bytes:
+        key = self._key_for(h)
+        try:
+            return _run_async(self._s3.download_file(key))
+        except Exception:
+            raise ObjectNotFoundError(f"object not found in S3: {h}")
+
+    def put(self, h: str, data: bytes) -> None:
+        key = self._key_for(h)
+        try:
+            _run_async(self._do_put(key, data))
+        except Exception as e:
+            log_error(f"[MutS3] Failed to put {h}: {e}")
+
+    def exists(self, h: str) -> bool:
+        try:
+            return _run_async(self._s3.file_exists(self._key_for(h)))
+        except Exception:
+            return False
+
+    def all_hashes(self) -> list[str]:
+        try:
+            items, _, _, _ = _run_async(
+                self._s3.list_files(prefix=f"{self._prefix}/", max_keys=_MAX_LIST_KEYS)
+            )
+            hashes = []
+            for item in items:
+                parts = item.key.removeprefix(f"{self._prefix}/").split("/")
+                if len(parts) == 2:
+                    hashes.append(parts[0] + parts[1])
+            return hashes
+        except Exception as e:
+            log_error(f"[MutS3] Failed to list hashes: {e}")
+            return []
+
+    def count(self) -> tuple[int, int]:
+        hashes = self.all_hashes()
+        return len(hashes), 0
+
+    def delete(self, h: str) -> bool:
+        try:
+            _run_async(self._s3.delete_file(self._key_for(h)))
+            return True
+        except Exception:
+            return False
+
+    # ── Async methods (for direct use in async contexts) ──
+
+    async def async_get(self, h: str) -> bytes:
+        key = self._key_for(h)
+        try:
+            return await self._s3.download_file(key)
+        except Exception:
+            raise ObjectNotFoundError(f"object not found in S3: {h}")
+
+    async def async_put(self, h: str, data: bytes) -> None:
+        await self._do_put(self._key_for(h), data)
+
+    async def async_exists(self, h: str) -> bool:
+        return await self._s3.file_exists(self._key_for(h))
+
+    async def _do_put(self, key: str, data: bytes) -> None:
+        if not await self._s3.file_exists(key):
+            await self._s3.upload_file(key, data, content_type="application/octet-stream")

@@ -1,43 +1,29 @@
 """
-Internal API路由
-供内部服务（如MCP Server）调用，使用SECRET鉴权
+Internal API Router
+Called by internal services (e.g., MCP Server), authenticated via SECRET
 """
 
 import hmac
-import json as json_lib
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
-from typing import Optional, Dict, Any, List
-from src.table.dependencies import get_table_service
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from typing import Optional, Dict, Any
+from src.content.table.dependencies import get_table_service
 from src.config import settings
-from src.exceptions import AppException, NotFoundException, BusinessException
-from src.supabase.dependencies import get_supabase_repository
-from src.turbopuffer.internal_router import router as turbopuffer_internal_router
-from src.search.dependencies import get_search_service
-from src.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
-from src.agent.config.service import AgentConfigService
-from src.agent.config.repository import AgentRepository
+from src.exceptions import AppException
+from src.infra.supabase.dependencies import get_supabase_repository
+from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
+from src.infra.search.dependencies import get_search_service
+from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
+from src.connectors.agent.config.service import AgentConfigService
+from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
-from src.tool.models import Tool
-from src.content_node.dependencies import get_content_node_service
-from src.content_node.service import ContentNodeService
-from src.collaboration.service import CollaborationService
-from src.collaboration.dependencies import get_collaboration_service
-from src.collaboration.schemas import Mutation, MutationType, Operator
+from src.mut_engine.dependencies import create_mut_ops, get_mut_ops
+from src.mut_engine.services.ops import MutOps
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 
 async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
-    """
-    验证Internal API的SECRET
-
-    Args:
-        x_internal_secret: X-Internal-Secret header
-
-    Raises:
-        HTTPException: 如果SECRET无效
-    """
     configured_secret = (settings.INTERNAL_API_SECRET or "").strip()
     if not configured_secret:
         raise HTTPException(
@@ -51,7 +37,6 @@ async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
 
 # ============================================================
 # Turbopuffer internal debug endpoints
-# - 仅内部调试使用：统一复用 X-Internal-Secret 鉴权
 # ============================================================
 router.include_router(
     turbopuffer_internal_router,
@@ -59,35 +44,18 @@ router.include_router(
 )
 
 
-# ============================================================
-# 已废弃的端点（V2 和 Legacy 模式已移除，只保留 Agent 模式）
-# /mcp-instance/{api_key} - Legacy 模式，已移除
-# /mcp-v2/{api_key} - V2 模式，已移除
-# ============================================================
-
-
 @router.get(
     "/table/{table_id}",
-    summary="获取表格元数据",
-    description="根据table_id获取表格的元数据（不包含数据内容）",
+    summary="Get table metadata",
+    description="Get table metadata by table_id (excluding data content)",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_metadata(table_id: str, table_service=Depends(get_table_service)):
-    """
-    获取表格元数据
-
-    Args:
-        table_id: 表格ID
-
-    Returns:
-        表格元数据
-    """
     table = table_service.get_by_id(table_id)
     if not table:
         raise HTTPException(status_code=404, detail="Table not found")
 
     return {
-        # 兼容字段：历史上有的客户端使用 id，有的使用 table_id
         "id": table.id,
         "table_id": table.id,
         "name": table.name,
@@ -97,21 +65,19 @@ async def get_table_metadata(table_id: str, table_service=Depends(get_table_serv
 
 
 # ============================================================
-# 新版 internal 端点（命名更规范，参数更清晰）
-# - json_path: 挂载点（JSON Pointer），对应 mcp_instance 的职责范围
-# - query: JMESPath 查询表达式
+# New internal endpoints (more standardized naming, clearer parameters)
 # ============================================================
 
 
 @router.get(
     "/tables/{table_id}/context-schema",
-    summary="获取表格挂载点数据结构",
-    description="根据 table_id + json_path（JSON Pointer）获取结构（不包含实际值）",
+    summary="Get table mount point data structure",
+    description="Get structure by table_id + json_path (JSON Pointer), excluding actual values",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_context_schema(
     table_id: str,
-    json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
+    json_path: str = Query(default="", description="Mount point JSON Pointer path"),
     table_service=Depends(get_table_service),
 ):
     try:
@@ -119,7 +85,6 @@ async def get_table_context_schema(
             table_id=table_id, json_pointer_path=json_path
         )
     except AppException as e:
-        # 让 internal 调用方获得正确的 HTTP status（尤其是 404/400），便于排查 json_path 问题
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -127,15 +92,15 @@ async def get_table_context_schema(
 
 @router.get(
     "/tables/{table_id}/context-data",
-    summary="获取表格挂载点数据（可选JMESPath查询）",
-    description="根据 table_id + json_path 获取数据；如传 query 则在该数据上做 JMESPath 查询",
+    summary="Get table mount point data (optional JMESPath query)",
+    description="Get data by table_id + json_path; if query is provided, performs JMESPath query on the data",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_table_context_data(
     table_id: str,
-    json_path: str = Query(default="", description="挂载点 JSON Pointer 路径"),
+    json_path: str = Query(default="", description="Mount point JSON Pointer path"),
     query: Optional[str] = Query(
-        default=None, description="JMESPath 查询表达式（可选）"
+        default=None, description="JMESPath query expression (optional)"
     ),
     table_service=Depends(get_table_service),
 ):
@@ -148,7 +113,6 @@ async def get_table_context_data(
             table_id=table_id, json_pointer_path=json_path
         )
     except AppException as e:
-        # NotFoundException/BusinessException 等需要保留语义，否则 MCP 侧只会看到 500
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
@@ -156,8 +120,8 @@ async def get_table_context_data(
 
 @router.post(
     "/tables/{table_id}/context-data",
-    summary="在挂载点批量创建元素",
-    description="根据 table_id + json_path 在挂载点创建元素；挂载点是 dict 时按 key 写入，list 时按顺序追加 content",
+    summary="Batch create elements at mount point",
+    description="Create elements at mount point by table_id + json_path; writes by key for dict, appends content in order for list",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def create_table_context_data(
@@ -168,12 +132,12 @@ async def create_table_context_data(
     try:
         json_path = payload.get("json_path", "")
         elements = payload.get("elements", [])
-        data = table_service.create_context_data(
+        data = await table_service.create_context_data(
             table_id=table_id,
             mounted_json_pointer_path=json_path,
             elements=elements,
         )
-        return {"message": "创建成功", "data": data}
+        return {"message": "Created successfully", "data": data}
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -182,8 +146,8 @@ async def create_table_context_data(
 
 @router.put(
     "/tables/{table_id}/context-data",
-    summary="在挂载点批量更新元素",
-    description="根据 table_id + json_path 更新元素；dict 时按 key 替换，list 时 key 视为下标替换",
+    summary="Batch update elements at mount point",
+    description="Update elements by table_id + json_path; replaces by key for dict, treats key as index for list",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def update_table_context_data(
@@ -194,10 +158,10 @@ async def update_table_context_data(
     try:
         json_path = payload.get("json_path", "")
         elements = payload.get("elements", [])
-        data = table_service.update_context_data(
+        data = await table_service.update_context_data(
             table_id=table_id, json_pointer_path=json_path, elements=elements
         )
-        return {"message": "更新成功", "data": data}
+        return {"message": "Updated successfully", "data": data}
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -206,8 +170,8 @@ async def update_table_context_data(
 
 @router.delete(
     "/tables/{table_id}/context-data",
-    summary="在挂载点批量删除元素",
-    description="根据 table_id + json_path 删除 keys；dict 时按 key 删除，list 时 key 视为下标删除",
+    summary="Batch delete elements at mount point",
+    description="Delete keys by table_id + json_path; deletes by key for dict, treats key as index for list",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def delete_table_context_data(
@@ -218,10 +182,10 @@ async def delete_table_context_data(
     try:
         json_path = payload.get("json_path", "")
         keys = payload.get("keys", [])
-        data = table_service.delete_context_data(
+        data = await table_service.delete_context_data(
             table_id=table_id, json_pointer_path=json_path, keys=keys
         )
-        return {"message": "删除成功", "data": data}
+        return {"message": "Deleted successfully", "data": data}
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -229,20 +193,20 @@ async def delete_table_context_data(
 
 
 # ============================================================
-# Search Tool internal endpoints（供 mcp_service v2 调用）
+# Search Tool internal endpoints (called by mcp_service v2)
 # ============================================================
 
 
 @router.post(
     "/tools/{tool_id}/search",
     response_model=SearchToolQueryResponse,
-    summary="执行 Search Tool（ANN retrieval）",
+    summary="Execute Search Tool (ANN retrieval)",
     description=(
-        "根据 tool_id 执行语义向量检索（ANN），返回结构化结果。\n\n"
-        "给前端/调用方的关键点：\n"
-        "- 该端点为 Internal API，需要 `X-Internal-Secret` 鉴权；\n"
-        "- tool 必须是 `type=search`，且必须绑定 `node_id`；\n"
-        "- 返回的 `results[*].json_path` 为 **相对于 tool.json_path 的 RFC6901 路径**，便于前端在 scope 内定位。"
+        "Execute semantic vector retrieval (ANN) by tool_id, returning structured results.\n\n"
+        "Key points for frontend/callers:\n"
+        "- This is an Internal API endpoint, requiring `X-Internal-Secret` authentication;\n"
+        "- Tool must be `type=search` and must have a bound `path`;\n"
+        "- Returned `results[*].json_path` is **relative to tool.json_path in RFC6901 format**, for frontend scoped positioning."
     ),
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -259,26 +223,23 @@ async def search_tool(
     if (tool.type or "").strip() != "search":
         raise HTTPException(status_code=400, detail="Tool is not a search tool")
 
-    node_id = tool.node_id or ""
-    if not node_id:
-        raise HTTPException(status_code=400, detail="tool.node_id is missing")
+    node_path = tool.path or ""
+    if not node_path:
+        raise HTTPException(status_code=400, detail="tool.path is missing")
 
     project_id = tool.project_id or ""
     if not project_id:
         raise HTTPException(status_code=400, detail="tool.project_id is missing")
 
-    # 根据节点类型选择搜索方式：
-    # - 如果索引任务有 folder_node_id，说明是 folder search
-    # - 否则是 scope (JSON) search
     try:
-        from src.search.index_task_repository import SearchIndexTaskRepository
-        from src.supabase.client import SupabaseClient
-        
+        from src.infra.search.index_task_repository import SearchIndexTaskRepository
+        from src.infra.supabase.client import SupabaseClient
+
         sb_client = SupabaseClient().get_client()
         task_repo = SearchIndexTaskRepository(sb_client)
         task = task_repo.get_by_tool_id(str(tool_id))
-        
-        is_folder_search = bool(task and task.folder_node_id)
+
+        is_folder_search = bool(task and task.folder_path)
     except Exception:
         is_folder_search = False
 
@@ -286,14 +247,14 @@ async def search_tool(
         if is_folder_search:
             results = await search_service.search_folder(
                 project_id=project_id,
-                folder_node_id=node_id,
+                folder_path=node_path,
                 query=payload.query,
                 top_k=payload.top_k,
             )
         else:
             results = await search_service.search_scope(
                 project_id=project_id,
-                node_id=node_id,
+                path=node_path,
                 tool_json_path=tool.json_path or "",
                 query=payload.query,
                 top_k=payload.top_k,
@@ -307,160 +268,43 @@ async def search_tool(
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-# @router.post(
-#     "/table-data/{table_id}/create",
-#     summary="创建表格数据",
-#     description="在指定表格和路径下创建数据",
-#     dependencies=[Depends(verify_internal_secret)]
-# )
-# async def create_table_data(
-#     table_id: int,
-#     payload: Dict[str, Any],
-#     table_service = Depends(get_table_service)
-# ):
-#     """
-#     创建表格数据
-
-#     Args:
-#         table_id: 表格ID
-#         payload: 请求体，包含json_pointer和elements
-
-#     Returns:
-#         操作结果
-#     """
-#     try:
-#         json_pointer = payload.get("json_pointer", "")
-#         elements = payload.get("elements", [])
-
-#         table_service.create_context_data(
-#             table_id=table_id,
-#             mounted_json_pointer_path=json_pointer,
-#             elements=elements
-#         )
-
-#         return {"message": "创建成功"}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# @router.post(
-#     "/table-data/{table_id}/update",
-#     summary="更新表格数据",
-#     description="更新指定表格和路径下的数据",
-#     dependencies=[Depends(verify_internal_secret)]
-# )
-# async def update_table_data(
-#     table_id: int,
-#     payload: Dict[str, Any],
-#     table_service = Depends(get_table_service)
-# ):
-#     """
-#     更新表格数据
-
-#     Args:
-#         table_id: 表格ID
-#         payload: 请求体，包含json_pointer和elements
-
-#     Returns:
-#         操作结果
-#     """
-#     try:
-#         json_pointer = payload.get("json_pointer", "")
-#         elements = payload.get("elements", [])
-
-#         table_service.update_context_data(
-#             table_id=table_id,
-#             json_pointer_path=json_pointer,
-#             elements=elements
-#         )
-
-#         return {"message": "更新成功"}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
-# @router.post(
-#     "/table-data/{table_id}/delete",
-#     summary="删除表格数据",
-#     description="删除指定表格和路径下的数据",
-#     dependencies=[Depends(verify_internal_secret)]
-# )
-# async def delete_table_data(
-#     table_id: int,
-#     payload: Dict[str, Any],
-#     table_service = Depends(get_table_service)
-# ):
-#     """
-#     删除表格数据
-
-#     Args:
-#         table_id: 表格ID
-#         payload: 请求体，包含json_pointer和keys
-
-#     Returns:
-#         操作结果
-#     """
-#     try:
-#         json_pointer = payload.get("json_pointer", "")
-#         keys = payload.get("keys", [])
-
-#         table_service.delete_context_data(
-#             table_id=table_id,
-#             json_pointer_path=json_pointer,
-#             keys=keys
-#         )
-
-#         return {"message": "删除成功"}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-
 # ============================================================
-# ContentNode POSIX endpoints（供 mcp_service POSIX 工具调用）
+# ContentNode POSIX endpoints (called by mcp_service POSIX tools)
+# All path-based, using MutOps (MUT clone/push under the hood)
 # ============================================================
 
 
 @router.post(
     "/nodes/resolve-path",
-    summary="解析人类可读路径到节点",
-    description="根据 project_id + root_accesses + path 解析到具体节点",
+    summary="Resolve path to node info",
+    description="Resolve to specific node info by project_id + path",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def resolve_node_path(
     payload: Dict[str, Any],
-    node_service: ContentNodeService = Depends(get_content_node_service),
+    ops: MutOps = Depends(get_mut_ops),
 ):
-    """
-    路径解析：人类可读路径 -> node_id + 元信息
-    
-    payload:
-        project_id: str
-        root_accesses: list[{node_id, node_name, node_type}]
-        path: str (如 "/docs/readme.md")
-    """
     try:
         project_id = payload.get("project_id", "")
-        root_accesses = payload.get("root_accesses", [])
-        path = payload.get("path", "/")
+        path = payload.get("path", "")
 
-        node = node_service.resolve_path(project_id, root_accesses, path)
-        display_path = node_service.build_display_path(node, root_accesses)
+        if not path or path == "/":
+            return {"virtual_root": True, "path": "/"}
+
+        path = path.strip("/")
+        entry = ops.stat(project_id, path)
+        if not entry:
+            raise HTTPException(status_code=404, detail=f"Path not found: {path}")
 
         return {
-            "node_id": node.id,
-            "name": node.name,
-            "type": node.type,
-            "path": display_path,
-            "parent_id": node.parent_id,
-            "size_bytes": node.size_bytes,
-            "mime_type": node.mime_type,
-            "updated_at": node.updated_at.isoformat() if node.updated_at else None,
+            "name": entry.name,
+            "type": entry.type,
+            "path": entry.path,
+            "size_bytes": entry.size_bytes,
+            "mime_type": entry.mime_type,
         }
-    except BusinessException as e:
-        if e.message == "VIRTUAL_ROOT":
-            # 虚拟根标记 — 告知调用方这是虚拟根目录
-            return {"virtual_root": True, "path": "/"}
-        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -468,35 +312,33 @@ async def resolve_node_path(
 
 
 @router.get(
-    "/nodes/{node_id}/children",
-    summary="列出子节点",
-    description="列出指定节点的子节点（含 display_path 等元信息）",
+    "/nodes/list",
+    summary="List directory contents",
+    description="List child entries at specified path (including metadata)",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def list_node_children(
-    node_id: str,
-    project_id: str = Query(..., description="项目 ID"),
-    node_service: ContentNodeService = Depends(get_content_node_service),
+    project_id: str = Query(..., description="Project ID"),
+    path: str = Query("", description="Directory path"),
+    ops: MutOps = Depends(get_mut_ops),
 ):
-    """列出子节点，过滤 .trash"""
     try:
-        children = node_service.list_children(project_id, node_id)
-        # 过滤掉 .trash 文件夹
-        children = [c for c in children if c.name != ContentNodeService.TRASH_FOLDER_NAME]
+        path = path.strip("/")
+        entries = ops.list_dir(project_id, path)
+        entries = [e for e in entries if e.name != ".trash"]
 
         return {
-            "parent_id": node_id,
+            "path": path,
             "children": [
                 {
-                    "node_id": c.id,
-                    "name": c.name,
-                    "type": c.type,
-                    "size_bytes": c.size_bytes,
-                    "mime_type": c.mime_type,
-                    "updated_at": c.updated_at.isoformat() if c.updated_at else None,
-                    "parent_id": c.parent_id,
+                    "name": e.name,
+                    "path": e.path,
+                    "type": e.type,
+                    "size_bytes": e.size_bytes,
+                    "mime_type": e.mime_type,
+                    "children_count": e.children_count,
                 }
-                for c in children
+                for e in entries
             ],
         }
     except AppException as e:
@@ -506,51 +348,36 @@ async def list_node_children(
 
 
 @router.get(
-    "/nodes/{node_id}/content",
-    summary="读取节点内容",
-    description="根据节点类型返回 JSON 内容 / Markdown 文本 / 文件元信息",
+    "/nodes/read",
+    summary="Read file content",
+    description="Return JSON content / Markdown text / file metadata based on path and type",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def read_node_content(
-    node_id: str,
-    project_id: str = Query(..., description="项目 ID"),
-    node_service: ContentNodeService = Depends(get_content_node_service),
+    project_id: str = Query(..., description="Project ID"),
+    path: str = Query(..., description="File path"),
+    ops: MutOps = Depends(get_mut_ops),
 ):
-    """读取节点内容（按类型分发）"""
     try:
-        node = node_service.get_by_id(node_id, project_id)
+        path = path.strip("/")
+        entry = ops.stat(project_id, path)
+        if not entry:
+            raise HTTPException(status_code=404, detail=f"Path not found: {path}")
 
         base = {
-            "node_id": node.id,
-            "name": node.name,
-            "type": node.type,
-            "size_bytes": node.size_bytes,
-            "updated_at": node.updated_at.isoformat() if node.updated_at else None,
+            "name": entry.name,
+            "path": entry.path,
+            "type": entry.type,
+            "size_bytes": entry.size_bytes,
         }
 
-        if node.is_json or (node.preview_json is not None and not node.is_folder):
-            base["content"] = node.preview_json
-            return base
-
-        if node.is_markdown or node.preview_md is not None:
-            base["content"] = node.preview_md
-            return base
-
-        if node.s3_key:
-            # 二进制文件 — 返回元信息 + presigned download URL
-            download_url = await node_service.get_download_url(node_id, project_id)
-            base["mime_type"] = node.mime_type
-            base["download_url"] = download_url
-            return base
-
-        if node.is_folder:
-            # 文件夹 — 返回子节点列表
-            children = node_service.list_children(project_id, node_id)
-            children = [c for c in children if c.name != ContentNodeService.TRASH_FOLDER_NAME]
+        if entry.type == "folder":
+            children = ops.list_dir(project_id, path)
+            children = [c for c in children if c.name != ".trash"]
             base["children"] = [
                 {
-                    "node_id": c.id,
                     "name": c.name,
+                    "path": c.path,
                     "type": c.type,
                     "size_bytes": c.size_bytes,
                 }
@@ -558,11 +385,26 @@ async def read_node_content(
             ]
             return base
 
-        # 同步节点等 — 返回 preview_json 如果有
-        if node.preview_json is not None:
-            base["content"] = node.preview_json
+        content_bytes = ops.read_file(project_id, path)
+
+        if entry.type == "json":
+            import json
+            try:
+                base["content"] = json.loads(content_bytes.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                base["content"] = content_bytes.decode("utf-8", errors="replace")
+            return base
+
+        if entry.type == "markdown":
+            base["content"] = content_bytes.decode("utf-8", errors="replace")
+            return base
+
+        base["mime_type"] = entry.mime_type
+        base["content"] = content_bytes.decode("utf-8", errors="replace")
         return base
 
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -570,61 +412,54 @@ async def read_node_content(
 
 
 @router.put(
-    "/nodes/{node_id}/content",
-    summary="更新节点内容（via Mut Protocol）",
-    description="更新 JSON 或 Markdown 节点的内容",
+    "/nodes/write",
+    summary="Write file content (via MutOps)",
+    description="Create or update file content",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def write_node_content(
-    node_id: str,
     payload: Dict[str, Any],
-    node_service: ContentNodeService = Depends(get_content_node_service),
-    collab: CollaborationService = Depends(get_collaboration_service),
 ):
     """
-    更新节点内容。
-    
+    Write file content via MutOps.
+
     payload:
         project_id: str
-        content: Any (JSON 对象或 Markdown 字符串)
-        operator_id: str (可选)
+        path: str
+        content: Any (JSON object or Markdown string)
+        operator_id: str (optional)
     """
     try:
         project_id = payload.get("project_id", "")
+        path = payload.get("path", "").strip("/")
         content = payload.get("content")
         operator_id = payload.get("operator_id", "mcp_agent")
-        node = node_service.get_by_id(node_id, project_id)
 
-        if node.is_markdown or node.type == "markdown":
-            if not isinstance(content, str):
-                raise HTTPException(status_code=400, detail="Markdown content must be a string")
-            node_type = "markdown"
-        elif node.is_json or node.type == "json" or node.preview_json is not None:
-            node_type = "json"
-        elif node.preview_md is not None:
-            if not isinstance(content, str):
-                raise HTTPException(status_code=400, detail="Markdown content must be a string")
-            node_type = "markdown"
+        if not path:
+            raise HTTPException(status_code=400, detail="path is required")
+
+        if isinstance(content, str):
+            content_bytes = content.encode("utf-8")
+        elif isinstance(content, (dict, list)):
+            import json
+            content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
         else:
-            raise HTTPException(status_code=400, detail=f"Cannot write to node type: {node.type}")
+            raise HTTPException(status_code=400, detail=f"Unsupported content type: {type(content).__name__}")
 
-        result = await collab.commit(Mutation(
-            type=MutationType.CONTENT_UPDATE,
-            operator=Operator(type="mcp_agent", id=operator_id),
-            node_id=node_id,
-            content=content,
-            node_type=node_type,
-            base_version=0,
-        ))
+        ops = create_mut_ops()
+        result = await ops.write_file(
+            project_id,
+            path,
+            content_bytes,
+            who=operator_id,
+            message=f"Write {path}",
+        )
 
-        updated = node_service.get_by_id(node_id, project_id)
         return {
-            "node_id": updated.id,
-            "name": updated.name,
-            "type": updated.type,
-            "updated": True,
+            "path": path,
             "version": result.version,
-            "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
+            "op": "modified",
+            "updated": True,
         }
     except HTTPException:
         raise
@@ -636,54 +471,67 @@ async def write_node_content(
 
 @router.post(
     "/nodes/create",
-    summary="创建节点（via Mut Protocol）",
-    description="在指定父目录下创建新节点（JSON / Markdown / Folder）",
+    summary="Create file or directory (via MutOps)",
+    description="Create a new file (JSON / Markdown) or empty directory at the specified path",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def create_node(
     payload: Dict[str, Any],
-    collab: CollaborationService = Depends(get_collaboration_service),
-    node_service: ContentNodeService = Depends(get_content_node_service),
 ):
     """
-    创建节点。
-    
+    Create file/directory via MutOps.
+
     payload:
         project_id: str
-        parent_id: str
-        name: str
+        path: str
         node_type: str (json | markdown | folder)
-        content: Any (可选, JSON 对象或 Markdown 字符串)
-        created_by: str (可选)
+        content: Any (optional)
+        created_by: str (optional)
     """
     try:
         project_id = payload.get("project_id", "")
-        parent_id = payload.get("parent_id")
-        name = payload.get("name", "")
+        path = payload.get("path", "").strip("/")
         node_type = payload.get("node_type", "")
         content = payload.get("content")
-        created_by = payload.get("created_by")
+        created_by = payload.get("created_by", "mcp_agent")
+
+        if not path:
+            raise HTTPException(status_code=400, detail="path is required")
 
         if node_type not in ("json", "markdown", "folder"):
             raise HTTPException(status_code=400, detail=f"Unsupported node type for creation: {node_type}")
 
-        result = await collab.commit(Mutation(
-            type=MutationType.NODE_CREATE,
-            operator=Operator(type="mcp_agent", id=created_by or "system"),
-            project_id=project_id,
-            parent_id=parent_id,
-            name=name,
-            node_type=node_type,
-            content=content if node_type != "folder" else None,
-        ))
+        ops = create_mut_ops()
 
-        node = node_service.get_by_id(result.node_id, project_id)
+        if node_type == "folder":
+            result = await ops.mkdir(
+                project_id,
+                path,
+                who=created_by,
+                message=f"mkdir {path}",
+            )
+        else:
+            if content is None:
+                content = {} if node_type == "json" else ""
+
+            if isinstance(content, str):
+                content_bytes = content.encode("utf-8")
+            else:
+                import json
+                content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
+
+            result = await ops.write_file(
+                project_id,
+                path,
+                content_bytes,
+                who=created_by,
+                message=f"Create {path}",
+            )
+
         return {
-            "node_id": node.id,
-            "name": node.name,
-            "type": node.type,
+            "path": path,
             "created": True,
-            "parent_id": node.parent_id,
+            "version": result.version,
         }
     except HTTPException:
         raise
@@ -694,34 +542,42 @@ async def create_node(
 
 
 @router.post(
-    "/nodes/{node_id}/trash",
-    summary="软删除节点（via Mut Protocol）",
-    description="将节点移入 .trash 文件夹（可恢复的软删除）",
+    "/nodes/trash",
+    summary="Soft delete (via MutOps)",
+    description="Move file or directory to .trash",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def trash_node(
-    node_id: str,
     payload: Dict[str, Any],
-    collab: CollaborationService = Depends(get_collaboration_service),
 ):
     """
-    软删除：移入 .trash
-    
+    Soft delete: move to .trash via MutOps.
+
     payload:
         project_id: str
+        path: str
         user_id: str
     """
     try:
         project_id = payload.get("project_id", "")
-        user_id = payload.get("user_id", "system")
+        path = payload.get("path", "").strip("/")
+        user_id = payload.get("user_id", "mcp_agent")
 
-        await collab.commit(Mutation(
-            type=MutationType.NODE_DELETE,
-            operator=Operator(type="mcp_agent", id=user_id),
-            node_id=node_id,
-            project_id=project_id,
-        ))
-        return {"node_id": node_id, "removed": True, "message": "Moved to trash"}
+        if not path:
+            raise HTTPException(status_code=400, detail="path is required")
+
+        basename = path.rsplit("/", 1)[-1] if "/" in path else path
+        ops = create_mut_ops()
+        await ops.trash(
+            project_id,
+            path,
+            who=user_id,
+            message=f"trash {basename}",
+        )
+
+        return {"path": path, "removed": True, "message": "Moved to trash"}
+    except HTTPException:
+        raise
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except Exception as e:
@@ -729,41 +585,42 @@ async def trash_node(
 
 
 # ============================================================
-# Node rename / move / prepare-upload（供 AGFS puppyonefs 等调用）
+# Node rename / move (called by AGFS puppyonefs, etc.)
 # ============================================================
 
 @router.post(
-    "/nodes/{node_id}/rename",
-    summary="重命名节点（via Mut Protocol）",
-    description="修改节点名称（不影响 id_path）",
+    "/nodes/rename",
+    summary="Rename file or directory (via MutOps)",
+    description="Rename by moving paths",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def rename_node(
-    node_id: str,
     payload: Dict[str, Any],
-    collab: CollaborationService = Depends(get_collaboration_service),
 ):
-    """
-    重命名节点
-
-    payload:
-        project_id: str
-        new_name: str
-    """
     try:
         project_id = payload.get("project_id", "")
+        path = payload.get("path", "").strip("/")
         new_name = payload.get("new_name", "")
         if not new_name:
             raise HTTPException(status_code=400, detail="new_name is required")
+        if not path:
+            raise HTTPException(status_code=400, detail="path is required")
 
-        result = await collab.commit(Mutation(
-            type=MutationType.NODE_RENAME,
-            operator=Operator(type="mcp_agent", id="system"),
-            node_id=node_id,
-            project_id=project_id,
-            new_name=new_name,
-        ))
-        return {"node_id": node_id, "name": new_name, "renamed": True}
+        parent = "/".join(path.split("/")[:-1])
+        new_path = f"{parent}/{new_name}" if parent else new_name
+
+        ops = create_mut_ops()
+        await ops.move(
+            project_id,
+            path,
+            new_path,
+            who="system",
+            message=f"rename {path} → {new_path}",
+        )
+
+        return {"path": new_path, "name": new_name, "renamed": True}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except HTTPException:
         raise
     except AppException as e:
@@ -773,126 +630,37 @@ async def rename_node(
 
 
 @router.post(
-    "/nodes/{node_id}/move",
-    summary="移动节点到新父目录（via Mut Protocol）",
-    description="将节点移动到另一个文件夹下（递归更新子节点 id_path）",
+    "/nodes/move",
+    summary="Move file or directory to new path (via MutOps)",
+    description="Move file/directory to a new parent directory",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def move_node_internal(
-    node_id: str,
     payload: Dict[str, Any],
-    collab: CollaborationService = Depends(get_collaboration_service),
 ):
-    """
-    移动节点
-
-    payload:
-        project_id: str
-        new_parent_id: str | None  (None 表示移动到项目根)
-    """
     try:
         project_id = payload.get("project_id", "")
-        new_parent_id = payload.get("new_parent_id")
+        path = payload.get("path", "").strip("/")
+        new_parent_path = payload.get("new_parent_path", "").strip("/")
 
-        await collab.commit(Mutation(
-            type=MutationType.NODE_MOVE,
-            operator=Operator(type="mcp_agent", id="system"),
-            node_id=node_id,
-            project_id=project_id,
-            new_parent_id=new_parent_id,
-        ))
-        return {"node_id": node_id, "parent_id": new_parent_id, "moved": True}
-    except HTTPException:
-        raise
-    except AppException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        if not path:
+            raise HTTPException(status_code=400, detail="path is required")
 
+        name = path.split("/")[-1]
+        new_path = f"{new_parent_path}/{name}" if new_parent_path else name
 
-@router.post(
-    "/nodes/prepare-upload",
-    summary="准备文件上传（获取 presigned URL）",
-    description="创建 file 类型节点并返回 S3 presigned upload URL",
-    dependencies=[Depends(verify_internal_secret)],
-)
-async def prepare_upload(
-    payload: Dict[str, Any],
-    node_service: ContentNodeService = Depends(get_content_node_service),
-):
-    """
-    准备上传
-
-    payload:
-        project_id: str
-        name: str
-        content_type: str (可选，默认 application/octet-stream)
-        parent_id: str | None (可选)
-    """
-    try:
-        project_id = payload.get("project_id", "")
-        name = payload.get("name", "")
-        content_type = payload.get("content_type", "application/octet-stream")
-        parent_id = payload.get("parent_id")
-
-        if not name:
-            raise HTTPException(status_code=400, detail="name is required")
-
-        node, upload_url = await node_service.prepare_file_upload(
-            project_id=project_id,
-            name=name,
-            content_type=content_type,
-            parent_id=parent_id,
+        ops = create_mut_ops()
+        await ops.move(
+            project_id,
+            path,
+            new_path,
+            who="system",
+            message=f"move {path} → {new_path}",
         )
-        return {
-            "node_id": node.id,
-            "upload_url": upload_url,
-            "s3_key": node.s3_key,
-        }
-    except HTTPException:
-        raise
-    except AppException as e:
-        raise HTTPException(status_code=e.status_code, detail=e.message) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
 
-
-@router.post(
-    "/nodes/{node_id}/reupload-url",
-    summary="获取已有 S3 文件节点的重新上传 URL",
-    description="为已有的 file 类型节点生成新的 presigned upload URL（覆盖原有 S3 对象）",
-    dependencies=[Depends(verify_internal_secret)],
-)
-async def get_reupload_url(
-    node_id: str,
-    payload: Dict[str, Any],
-    node_service: ContentNodeService = Depends(get_content_node_service),
-):
-    """
-    获取已有文件节点的 presigned upload URL，用于覆盖更新文件内容。
-
-    payload:
-        project_id: str
-        content_type: str (可选，默认 application/octet-stream)
-    """
-    try:
-        project_id = payload.get("project_id", "")
-        content_type = payload.get("content_type", "application/octet-stream")
-
-        node = node_service.get_by_id(node_id, project_id)
-        if not node.s3_key:
-            raise HTTPException(status_code=400, detail="Node has no S3 file key")
-
-        upload_url = await node_service.s3.generate_presigned_upload_url(
-            key=node.s3_key,
-            expires_in=3600,
-            content_type=content_type,
-        )
-        return {
-            "node_id": node.id,
-            "upload_url": upload_url,
-            "s3_key": node.s3_key,
-        }
+        return {"old_path": path, "new_path": new_path, "moved": True}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except HTTPException:
         raise
     except AppException as e:
@@ -902,91 +670,50 @@ async def get_reupload_url(
 
 
 # ============================================================
-# Agent internal endpoints（供 mcp_service 调用，新架构）
+# Agent internal endpoints (called by mcp_service, new architecture)
 # ============================================================
 
 def get_agent_config_service() -> AgentConfigService:
-    """获取 AgentConfigService 实例"""
     return AgentConfigService(AgentRepository())
 
 
 @router.get(
     "/agent-by-mcp-key/{mcp_api_key}",
-    summary="根据 MCP API key 获取 Agent 及其访问权限和工具",
-    description="MCP Server 调用此端点获取 Agent 配置，用于生成工具列表",
+    summary="Get Agent and its access permissions and tools by MCP API key",
+    description="MCP Server calls this endpoint to get Agent configuration for generating tool lists",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_agent_by_mcp_key(
     mcp_api_key: str,
     agent_service: AgentConfigService = Depends(get_agent_config_service),
 ):
-    """
-    根据 MCP API key 获取 Agent 及其 bash_accesses 和 tools
-    
-    返回结构：
-    {
-        "agent": { id, name, project_id, type },
-        "accesses": [
-            {
-                "node_id": "xxx",
-                "bash_enabled": true,
-                "bash_readonly": true,
-                "tool_query": true,
-                "tool_create": false,
-                "tool_update": false,
-                "tool_delete": false,
-                "json_path": ""
-            }
-        ],
-        "tools": [
-            {
-                "id": "xxx",
-                "tool_id": "xxx",
-                "name": "tool_name",
-                "type": "search",
-                "description": "...",
-                "node_id": "xxx",
-                "json_path": "",
-                "input_schema": {...},
-                "enabled": true,
-                "mcp_exposed": true
-            }
-        ]
-    }
-    """
     agent = agent_service.get_by_mcp_api_key(mcp_api_key)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
-    
-    # 获取关联的 Tool 详细信息
+
     tool_repo = ToolRepositorySupabase(get_supabase_repository())
     tools_data = []
-    for agent_tool in agent.tools:  # agent.tools 已在 get_by_mcp_api_key_with_accesses 中加载
+    for agent_tool in agent.tools:
         tool = tool_repo.get_by_id(agent_tool.tool_id)
         if tool:
             tools_data.append({
-                "id": agent_tool.id,  # agent_tool 关联 ID
+                "id": agent_tool.id,
                 "tool_id": tool.id,
                 "name": tool.name,
                 "type": tool.type,
                 "description": tool.description,
-                "node_id": tool.node_id,
+                "path": tool.path,
                 "json_path": tool.json_path,
                 "input_schema": tool.input_schema,
                 "category": tool.category,
                 "enabled": agent_tool.enabled,
                 "mcp_exposed": agent_tool.mcp_exposed,
             })
-    
-    # 构建 accesses（包含 node_name 和 node_type）
-    from src.content_node.dependencies import get_content_node_repository
-    from src.supabase.client import SupabaseClient
 
-    node_repo = get_content_node_repository(SupabaseClient())
     accesses_data = []
     for bash in agent.bash_accesses:
         access_entry = {
-            "node_id": bash.node_id,
+            "path": bash.path,
             "bash_enabled": True,
             "bash_readonly": bash.readonly,
             "tool_query": True,
@@ -994,14 +721,9 @@ async def get_agent_by_mcp_key(
             "tool_update": not bash.readonly,
             "tool_delete": not bash.readonly,
             "json_path": bash.json_path or "",
-            "node_name": "",   # 默认值
-            "node_type": "",   # 默认值
+            "node_name": bash.path,
+            "node_type": "",
         }
-        # 查询节点获取 name 和 type
-        node = node_repo.get_by_id(bash.node_id)
-        if node:
-            access_entry["node_name"] = node.name
-            access_entry["node_type"] = node.type
         accesses_data.append(access_entry)
 
     return {
@@ -1018,14 +740,12 @@ async def get_agent_by_mcp_key(
 
 @router.get(
     "/mcp-endpoint-by-key/{api_key}",
-    summary="根据 API key 获取独立 MCP 端点配置",
-    description="MCP Server 调用此端点获取独立 MCP Endpoint 配置",
+    summary="Get standalone MCP endpoint configuration by API key",
+    description="MCP Server calls this endpoint to get standalone MCP Endpoint configuration",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_mcp_endpoint_by_key(api_key: str):
-    from src.mcp_endpoint.repository import McpEndpointRepository
-    from src.content_node.dependencies import get_content_node_repository
-    from src.supabase.client import SupabaseClient
+    from src.connectors.mcp_endpoint.repository import McpEndpointRepository
 
     repo = McpEndpointRepository()
     endpoint = repo.get_by_api_key(api_key)
@@ -1034,11 +754,10 @@ async def get_mcp_endpoint_by_key(api_key: str):
     if endpoint.get("status") != "active":
         raise HTTPException(status_code=403, detail="MCP endpoint is not active")
 
-    node_repo = get_content_node_repository(SupabaseClient())
     accesses_data = []
     for a in endpoint.get("accesses", []):
         entry = {
-            "node_id": a.get("node_id", ""),
+            "path": a.get("path", ""),
             "bash_enabled": True,
             "bash_readonly": a.get("readonly", True),
             "tool_query": True,
@@ -1046,13 +765,9 @@ async def get_mcp_endpoint_by_key(api_key: str):
             "tool_update": not a.get("readonly", True),
             "tool_delete": not a.get("readonly", True),
             "json_path": a.get("json_path", ""),
-            "node_name": "",
+            "node_name": a.get("path", ""),
             "node_type": "",
         }
-        node = node_repo.get_by_id(a.get("node_id", ""))
-        if node:
-            entry["node_name"] = node.name
-            entry["node_type"] = node.type
         accesses_data.append(entry)
 
     tool_repo = ToolRepositorySupabase(get_supabase_repository())
@@ -1066,7 +781,7 @@ async def get_mcp_endpoint_by_key(api_key: str):
                 "name": tool.name,
                 "type": tool.type,
                 "description": tool.description,
-                "node_id": tool.node_id,
+                "path": tool.path,
                 "json_path": tool.json_path,
                 "input_schema": tool.input_schema,
                 "category": tool.category,
@@ -1087,14 +802,12 @@ async def get_mcp_endpoint_by_key(api_key: str):
 
 @router.get(
     "/sandbox-endpoint-by-key/{access_key}",
-    summary="根据 access key 获取独立 Sandbox 端点配置",
-    description="外部消费者调用执行前，先获取 Sandbox 端点的 mounts、runtime 等配置",
+    summary="Get standalone Sandbox endpoint configuration by access key",
+    description="External consumers call this to get Sandbox endpoint mounts, runtime, and other configuration before execution",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def get_sandbox_endpoint_by_key(access_key: str):
-    from src.sandbox_endpoint.repository import SandboxEndpointRepository
-    from src.content_node.dependencies import get_content_node_repository
-    from src.supabase.client import SupabaseClient
+    from src.connectors.sandbox_endpoint.repository import SandboxEndpointRepository
 
     repo = SandboxEndpointRepository()
     endpoint = repo.get_by_access_key(access_key)
@@ -1103,20 +816,15 @@ async def get_sandbox_endpoint_by_key(access_key: str):
     if endpoint.get("status") != "active":
         raise HTTPException(status_code=403, detail="Sandbox endpoint is not active")
 
-    node_repo = get_content_node_repository(SupabaseClient())
     mounts_data = []
     for m in endpoint.get("mounts", []):
         entry = {
-            "node_id": m.get("node_id", ""),
+            "path": m.get("path", ""),
             "mount_path": m.get("mount_path", "/workspace"),
             "permissions": m.get("permissions", {"read": True, "write": False, "exec": False}),
-            "node_name": "",
+            "node_name": m.get("path", ""),
             "node_type": "",
         }
-        node = node_repo.get_by_id(m.get("node_id", ""))
-        if node:
-            entry["node_name"] = node.name
-            entry["node_type"] = node.type
         mounts_data.append(entry)
 
     return {

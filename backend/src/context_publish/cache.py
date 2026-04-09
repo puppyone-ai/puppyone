@@ -3,7 +3,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from threading import RLock
-from typing import Optional
 
 from src.context_publish.models import ContextPublish
 
@@ -16,11 +15,11 @@ class _CacheItem:
 
 class PublishCache:
     """
-    进程内缓存（best-effort）。
+    In-process cache (best-effort).
 
-    - 以 publish_key 为 key 缓存 publish 记录，减少 DB 查询
-    - TTL 到期自动失效
-    - update/revoke/delete 时由上层主动失效
+    - Caches publish records keyed by publish_key to reduce DB queries
+    - Automatically expires when TTL is reached
+    - Proactively invalidated by upper layer on update/revoke/delete
     """
 
     def __init__(self, *, ttl_seconds: int):
@@ -28,7 +27,7 @@ class PublishCache:
         self._lock = RLock()
         self._store: dict[str, _CacheItem] = {}
 
-    def get(self, publish_key: str) -> Optional[ContextPublish]:
+    def get(self, publish_key: str) -> ContextPublish | None:
         if not publish_key:
             return None
         now = time.time()

@@ -1,24 +1,22 @@
 """
 Context Publish API
 
-- 管理端点（需登录）：/api/v1/publishes/*
-- 公共读取端点（无需登录）：/p/{publish_key}
+- Management endpoints (login required): /api/v1/publishes/*
+- Public read endpoint (no login required): /p/{publish_key}
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.responses import JSONResponse
-from typing import List
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.context_publish.dependencies import get_context_publish_service
 from src.context_publish.schemas import PublishCreate, PublishOut, PublishUpdate
 from src.context_publish.service import ContextPublishService
-
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 
 router = APIRouter(prefix="/publishes", tags=["publishes"])
 public_router = APIRouter(tags=["publishes"])
@@ -26,10 +24,7 @@ public_router = APIRouter(tags=["publishes"])
 
 def _build_public_url(request: Request, publish_key: str) -> str:
     base = (settings.PUBLIC_URL or "").strip()
-    if base:
-        base = base.rstrip("/")
-    else:
-        base = str(request.base_url).rstrip("/")
+    base = base.rstrip("/") if base else str(request.base_url).rstrip("/")
     return f"{base}/p/{publish_key}"
 
 
@@ -51,7 +46,7 @@ def _to_out(request: Request, p) -> PublishOut:
 @router.post(
     "/",
     response_model=ApiResponse[PublishOut],
-    summary="创建 publish（子 JSON 公开只读链接）",
+    summary="Create publish (public read-only link for sub-JSON)",
     status_code=status.HTTP_201_CREATED,
 )
 def create_publish(
@@ -66,13 +61,13 @@ def create_publish(
         json_path=payload.json_path,
         expires_at=payload.expires_at,
     )
-    return ApiResponse.success(data=_to_out(request, p), message="创建 Publish 成功")
+    return ApiResponse.success(data=_to_out(request, p), message="Publish created successfully")
 
 
 @router.get(
     "/",
-    response_model=ApiResponse[List[PublishOut]],
-    summary="列出当前用户的 publish",
+    response_model=ApiResponse[list[PublishOut]],
+    summary="List publishes for the current user",
     status_code=status.HTTP_200_OK,
 )
 def list_publishes(
@@ -85,14 +80,14 @@ def list_publishes(
     items = svc.list_by_created_by(current_user.user_id, skip=skip, limit=limit)
     return ApiResponse.success(
         data=[_to_out(request, p) for p in items],
-        message="获取 Publish 列表成功",
+        message="Publish list retrieved successfully",
     )
 
 
 @router.patch(
     "/{publish_id}",
     response_model=ApiResponse[PublishOut],
-    summary="更新 publish（status/expires_at）",
+    summary="Update publish (status/expires_at)",
     status_code=status.HTTP_200_OK,
 )
 def update_publish(
@@ -108,13 +103,13 @@ def update_publish(
         status=payload.status,
         expires_at=payload.expires_at,
     )
-    return ApiResponse.success(data=_to_out(request, p), message="更新 Publish 成功")
+    return ApiResponse.success(data=_to_out(request, p), message="Publish updated successfully")
 
 
 @router.delete(
     "/{publish_id}",
     response_model=ApiResponse[None],
-    summary="删除 publish",
+    summary="Delete publish",
     status_code=status.HTTP_200_OK,
 )
 def delete_publish(
@@ -123,12 +118,12 @@ def delete_publish(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     svc.delete(publish_id=publish_id, created_by=current_user.user_id)
-    return ApiResponse.success(data=None, message="删除 Publish 成功")
+    return ApiResponse.success(data=None, message="Publish deleted successfully")
 
 
 @public_router.get(
     "/p/{publish_key}",
-    summary="公开读取 publish 的 raw JSON（短链接）",
+    summary="Public read of publish raw JSON (short link)",
     status_code=status.HTTP_200_OK,
     include_in_schema=True,
 )
@@ -136,6 +131,6 @@ def get_public_json(
     publish_key: str,
     svc: ContextPublishService = Depends(get_context_publish_service),
 ):
-    # 返回 raw JSON（不要包 ApiResponse）
+    # Return raw JSON (do not wrap in ApiResponse)
     data = svc.get_public_json(publish_key)
     return JSONResponse(content=data)

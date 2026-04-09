@@ -4,6 +4,7 @@
  * 提供缓存、去重、自动重新验证的数据请求能力
  */
 
+import { useEffect } from 'react';
 import useSWR, { mutate } from 'swr';
 import {
   getProjects,
@@ -16,10 +17,11 @@ import {
 import {
   getTools,
   getToolsByProjectId,
-  getToolsByNodeId,
+  getToolsByPath,
   type Tool,
 } from '../mcpApi';
-import { listNodes, type NodeInfo } from '../contentNodesApi';
+import { listDir, treeList, entryToNodeInfo, type NodeInfo, type TreeEntry } from '../contentTreeApi';
+import { getConnectorSpecs, type ConnectorSpec } from '../syncApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
 const defaultConfig = {
@@ -141,14 +143,14 @@ export function updateTableCache(
 }
 
 /**
- * 获取指定文件夹下的子节点列表（SWR 缓存）
+ * Fetch directory listing for a given path (SWR cached).
  *
- * - 全局缓存：ExplorerSidebar / GridView / ListView 共享同一份数据
- * - 组件重挂后瞬间返回缓存，不显示 Loading
- * - keepPreviousData: 切换文件夹时保留旧列表直到新数据到达
+ * - Global cache: ExplorerSidebar / GridView / ListView share same data
+ * - keepPreviousData: preserves old list while new data loads
  */
-export function useContentNodes(projectId: string, parentId: string | null | undefined) {
-  const key = projectId ? ['nodes', projectId, parentId ?? '__root__'] : null;
+export function useTreeDir(projectId: string, dirPath: string | null | undefined) {
+  const normalizedPath = dirPath ?? '';
+  const key = projectId ? ['tree', projectId, normalizedPath] : null;
   const {
     data,
     error,
@@ -156,7 +158,7 @@ export function useContentNodes(projectId: string, parentId: string | null | und
     mutate: revalidate,
   } = useSWR<NodeInfo[]>(
     key,
-    () => listNodes(projectId, parentId ?? undefined).then(r => r.nodes),
+    () => listDir(projectId, normalizedPath).then(r => r.nodes),
     {
       ...defaultConfig,
       dedupingInterval: 30000,
@@ -173,44 +175,101 @@ export function useContentNodes(projectId: string, parentId: string | null | und
 }
 
 /**
- * 手动刷新指定文件夹下的节点列表
- * parentId = null 表示项目根目录
+ * Backward-compatible alias for useTreeDir.
+ * parentId is now treated as a directory path.
  */
-export function refreshContentNodes(projectId: string, parentId: string | null) {
-  return mutate(['nodes', projectId, parentId ?? '__root__']);
+export function useContentNodes(projectId: string, parentPath: string | null | undefined) {
+  return useTreeDir(projectId, parentPath);
 }
 
 /**
- * 刷新整个项目的所有文件夹缓存（用于外部变更：MCP/Bot/Sync）
- * 使用 SWR 的 key matcher 匹配所有 ['nodes', projectId, *] 的缓存
+ * Manually refresh directory listing for a given path.
+ */
+export function refreshContentNodes(projectId: string, dirPath: string | null) {
+  return mutate(['tree', projectId, dirPath ?? '']);
+}
+
+/**
+ * Refresh all directory caches for a project (used after external changes: MCP/Bot/Sync).
  */
 export function refreshAllContentNodes(projectId: string) {
   return mutate(
-    key => Array.isArray(key) && key[0] === 'nodes' && key[1] === projectId,
+    key => Array.isArray(key) && key[0] === 'tree' && key[1] === projectId,
     undefined,
     { revalidate: true }
   );
 }
 
 /**
- * 获取指定节点的 Tools（使用后端直接过滤）
+ * Shallow tree: fetch the entire tree up to `maxDepth` in a single request.
  *
- * @param nodeId 节点 ID (可选，为空时不请求)
+ * One request replaces N per-folder requests. The flat response is split by
+ * parent path and pre-populated into the per-folder SWR cache so that
+ * `useContentNodes(projectId, folderPath)` gets instant cache hits.
  *
- * - 按需加载：只有 nodeId 存在时才请求
- * - 后端过滤：直接调用 /api/v1/tools/by-node/{nodeId}
- * - 自动缓存：相同 nodeId 共享数据
+ * Returns root-level nodes directly for the sidebar's initial render.
  */
-export function useTableTools(nodeId: string | undefined) {
-  // 获取指定节点的 tools
+export function useShallowTree(projectId: string, maxDepth: number = 1) {
+  const key = projectId ? ['tree', projectId, `__shallow_${maxDepth}`] : null;
+  const {
+    data,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<TreeEntry[]>(
+    key,
+    () => treeList(projectId, '', maxDepth),
+    {
+      ...defaultConfig,
+      dedupingInterval: 30000,
+      keepPreviousData: true,
+    }
+  );
+
+  const entries = data ?? [];
+
+  // Pre-populate per-folder SWR caches from the flat response.
+  // This way useContentNodes(projectId, "docs") gets an instant cache hit.
+  useEffect(() => {
+    if (entries.length === 0 || !projectId) return;
+    const byParent = new Map<string, NodeInfo[]>();
+    for (const entry of entries) {
+      const parentPath = entry.path.includes('/')
+        ? entry.path.substring(0, entry.path.lastIndexOf('/'))
+        : '';
+      if (!byParent.has(parentPath)) byParent.set(parentPath, []);
+      byParent.get(parentPath)!.push(entryToNodeInfo(entry, projectId));
+    }
+    for (const [parentPath, nodes] of byParent) {
+      mutate(['tree', projectId, parentPath], nodes, { revalidate: false });
+    }
+  }, [entries, projectId]);
+
+  // Root nodes = entries whose path has no "/" (top-level items).
+  const rootNodes: NodeInfo[] = entries
+    .filter(e => !e.path.includes('/'))
+    .map(e => entryToNodeInfo(e, projectId));
+
+  return { rootNodes, isLoading, refresh: revalidate };
+}
+
+/**
+ * 获取指定路径的 Tools（使用后端直接过滤）
+ *
+ * @param path MUT 路径 (可选，为空时不请求)
+ *
+ * - 按需加载：只有 path 存在时才请求
+ * - 后端过滤：直接调用 /api/v1/tools/by-path/{path}
+ * - 自动缓存：相同 path 共享数据
+ */
+export function useToolsByPath(path: string | undefined) {
   const {
     data: tableTools,
     error,
     isLoading,
     mutate: revalidate,
   } = useSWR<Tool[]>(
-    nodeId ? ['tools-by-node', nodeId] : null,
-    () => getToolsByNodeId(nodeId!),
+    path ? ['tools-by-path', path] : null,
+    () => getToolsByPath(path!),
     {
       ...defaultConfig,
       dedupingInterval: 10000,
@@ -269,13 +328,12 @@ export function refreshProjectTools(projectId?: string | null) {
 }
 
 /**
- * 手动刷新指定节点的 Tools
+ * 手动刷新指定路径的 Tools
  */
-export function refreshTableTools(nodeId?: string) {
-  if (nodeId) {
-    mutate(['tools-by-node', nodeId]);
+export function refreshToolsByPath(path?: string) {
+  if (path) {
+    mutate(['tools-by-path', path]);
   }
-  // 同时刷新 all-tools 缓存
   return mutate('all-tools');
 }
 
@@ -376,4 +434,17 @@ export function refreshToolsAndMcp(apiKey?: string) {
   if (apiKey) {
     mutate(['bound-tools', apiKey]);
   }
+}
+
+/**
+ * Connector specs from backend (source of truth for sync providers)
+ */
+export function useConnectorSpecs() {
+  const { data, error, isLoading } = useSWR<ConnectorSpec[]>(
+    'connector-specs',
+    getConnectorSpecs,
+    { ...defaultConfig, dedupingInterval: 300000 }
+  );
+
+  return { specs: data ?? [], isLoading, error };
 }

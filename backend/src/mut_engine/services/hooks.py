@@ -1,0 +1,191 @@
+"""
+Post-commit hooks — maintain PuppyOne access_points table consistency after MUT writes.
+
+These hooks update the access_points table when files are deleted or moved
+in the MUT tree, ensuring access point paths and scope paths stay consistent.
+
+Best-effort: failures are logged, not propagated to the caller.
+"""
+
+from __future__ import annotations
+
+from src.utils.logger import log_error, log_info, log_warning
+
+
+def run_post_push_hook(
+    project_id: str,
+    repo_manager,
+    push_result: dict,
+) -> None:
+    """Inspect a push result and trigger relevant post-commit hooks.
+
+    Called by protocol_router and access_point after a successful MUT push.
+    1. Grafts scope tree into the global root hash so tree_reader can see it
+    2. Extracts deleted paths from the commit entry and runs post_commit_delete
+    """
+    version = push_result.get("version")
+    if not version or push_result.get("status") != "ok":
+        return
+
+    try:
+        repo = repo_manager.get_repo(project_id)
+
+        _update_global_root(repo, push_result)
+
+        entry = repo.history.get_entry(version)
+        if not entry:
+            return
+
+        changes = entry.get("changes", [])
+        if isinstance(changes, str):
+            import json
+            changes = json.loads(changes)
+
+        deleted_paths = [
+            c["path"] for c in changes
+            if c.get("action") == "delete" or c.get("op") == "deleted"
+        ]
+
+        if deleted_paths:
+            post_commit_delete(project_id, deleted_paths)
+
+    except Exception as e:
+        log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
+
+
+def _update_global_root(repo, push_result: dict) -> None:
+    """Graft the pushed scope tree into the global root hash.
+
+    This keeps the global root hash in sync so that tree_reader (which reads
+    from root_hash) can see files pushed via scoped access points.
+    repo is a ProjectRepo (dataclass with .store, .history).
+    """
+    scope_hash = push_result.get("root", "")
+    if not scope_hash:
+        return
+
+    try:
+        from mut.server.graft import graft_subtree
+
+        entry = repo.history.get_entry(push_result["version"])
+        if not entry:
+            log_error(f"[PostCommit] No history entry for version {push_result['version']}")
+            return
+
+        scope_path = (entry.get("scope_path") or "").strip("/")
+
+        old_root = repo.history.get_root_hash() or ""
+        if not old_root:
+            import json
+            old_root = repo.store.put(json.dumps({}, sort_keys=True).encode())
+
+        new_root = graft_subtree(repo.store, old_root, scope_path, scope_hash)
+        repo.history.set_root_hash(new_root)
+        log_info(f"[PostCommit] Updated global root: scope='{scope_path}' hash={new_root[:16]}")
+    except Exception as e:
+        log_error(f"[PostCommit] Failed to update global root hash: {e}")
+
+
+def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
+    """After deleting paths from MUT tree, clean up dangling access points.
+
+    Nullifies path on access points that referenced deleted paths.
+    Also updates scope.path if it falls under a deleted subtree.
+    """
+    if not deleted_paths:
+        return
+    try:
+        from src.infra.supabase.client import SupabaseClient
+        client = SupabaseClient().client
+        resp = (
+            client.table("access_points")
+            .select("id, path, config")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        for row in resp.data or []:
+            node_path = row.get("path") or ""
+            conn_id = row["id"]
+
+            if node_path and _path_matches_any(node_path, deleted_paths):
+                client.table("access_points").update(
+                    {"path": None}
+                ).eq("id", conn_id).execute()
+                log_info(f"[PostCommit] Cleared dangling path on access point {conn_id}")
+
+            config = row.get("config") or {}
+            scope = config.get("scope") or {}
+            scope_path = scope.get("path", "")
+            if scope_path and _path_matches_any(scope_path, deleted_paths):
+                config = dict(config)
+                config["scope"] = {**scope, "path": "", "_orphaned_from": scope_path}
+                client.table("access_points").update(
+                    {"config": config}
+                ).eq("id", conn_id).execute()
+                log_warning(f"[PostCommit] Orphaned scope path on access point {conn_id}")
+
+    except Exception as e:
+        log_error(f"[PostCommit] delete hook failed: {e}")
+
+
+def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
+    """After moving/renaming paths in MUT tree, update access point references."""
+    try:
+        from src.infra.supabase.client import SupabaseClient
+        client = SupabaseClient().client
+        resp = (
+            client.table("access_points")
+            .select("id, path, config")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        for row in resp.data or []:
+            updates = _build_move_updates(row, old_prefix, new_prefix)
+            if updates:
+                client.table("access_points").update(updates).eq("id", row["id"]).execute()
+                log_info(f"[PostCommit] Updated access point {row['id']} after move")
+
+    except Exception as e:
+        log_error(f"[PostCommit] move hook failed: {e}")
+
+
+def _build_move_updates(row: dict, old_prefix: str, new_prefix: str) -> dict:
+    """Build update dict for a single access point row after a path move."""
+    updates: dict = {}
+
+    node_path = row.get("path") or ""
+    if node_path:
+        new_node_path = _rewrite_path(node_path, old_prefix, new_prefix)
+        if new_node_path != node_path:
+            updates["path"] = new_node_path
+
+    config = row.get("config") or {}
+    scope = config.get("scope") or {}
+    scope_path = scope.get("path", "")
+    if scope_path:
+        new_scope_path = _rewrite_path(scope_path, old_prefix, new_prefix)
+        if new_scope_path != scope_path:
+            updates["config"] = {**config, "scope": {**scope, "path": new_scope_path}}
+
+    return updates
+
+
+def _path_matches_any(path: str, deleted_paths: list[str]) -> bool:
+    """Check if path equals or is a child of any deleted path."""
+    normalized = path.strip("/")
+    for dp in deleted_paths:
+        dp_norm = dp.strip("/")
+        if normalized == dp_norm or normalized.startswith(dp_norm + "/"):
+            return True
+    return False
+
+
+def _rewrite_path(path: str, old_prefix: str, new_prefix: str) -> str:
+    """Replace old_prefix with new_prefix in path."""
+    old_norm = old_prefix.rstrip("/")
+    new_norm = new_prefix.rstrip("/")
+    if path == old_norm:
+        return new_norm
+    if path.startswith(old_norm + "/"):
+        return new_norm + path[len(old_norm):]
+    return path

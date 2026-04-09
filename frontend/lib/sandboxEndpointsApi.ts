@@ -7,7 +7,7 @@ export interface SandboxMountPermissions {
 }
 
 export interface SandboxMount {
-  node_id: string;
+  path: string;
   mount_path: string;
   permissions: SandboxMountPermissions;
 }
@@ -20,7 +20,7 @@ export interface SandboxResourceLimits {
 export interface SandboxEndpoint {
   id: string;
   project_id: string;
-  node_id: string | null;
+  path: string | null;
   name: string;
   description: string | null;
   access_key: string;
@@ -41,9 +41,9 @@ export async function getSandboxEndpoint(id: string): Promise<SandboxEndpoint> {
   return get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/${id}`);
 }
 
-export async function getSandboxEndpointByNode(nodeId: string): Promise<SandboxEndpoint | null> {
+export async function getSandboxEndpointByPath(path: string): Promise<SandboxEndpoint | null> {
   try {
-    return await get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/by-node/${nodeId}`);
+    return await get<SandboxEndpoint>(`/api/v1/sandbox-endpoints/by-path/${path}`);
   } catch {
     return null;
   }
@@ -52,9 +52,9 @@ export async function getSandboxEndpointByNode(nodeId: string): Promise<SandboxE
 export async function createSandboxEndpoint(params: {
   project_id: string;
   name?: string;
-  node_id?: string;
+  path?: string;
   description?: string;
-  mounts?: { node_id: string; mount_path?: string; permissions?: Partial<SandboxMountPermissions> }[];
+  mounts?: { path: string; mount_path?: string; permissions?: Partial<SandboxMountPermissions> }[];
   runtime?: 'alpine' | 'python' | 'node';
   timeout_seconds?: number;
   resource_limits?: Partial<SandboxResourceLimits>;
@@ -65,9 +65,9 @@ export async function createSandboxEndpoint(params: {
 export async function updateSandboxEndpoint(id: string, params: Partial<{
   name: string;
   description: string;
-  node_id: string;
+  path: string;
   status: string;
-  mounts: { node_id: string; mount_path?: string; permissions?: Partial<SandboxMountPermissions> }[];
+  mounts: { path: string; mount_path?: string; permissions?: Partial<SandboxMountPermissions> }[];
   runtime: 'alpine' | 'python' | 'node';
   timeout_seconds: number;
   resource_limits: Partial<SandboxResourceLimits>;

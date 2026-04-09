@@ -10,8 +10,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.testclient import TestClient
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.auth.dependencies import get_current_user
-from src.auth.models import CurrentUser
+from src.platform.auth.dependencies import get_current_user
+from src.platform.auth.models import CurrentUser
 from src.context_publish.dependencies import get_context_publish_service
 from src.context_publish.models import ContextPublish
 from src.context_publish.repository import ContextPublishRepositoryBase
@@ -24,7 +24,7 @@ from src.exception_handler import (
     validation_exception_handler,
 )
 from src.exceptions import AppException
-from src.supabase.context_publish.schemas import (
+from src.context_publish.supabase_schemas import (
     ContextPublishCreate as SbContextPublishCreate,
     ContextPublishUpdate as SbContextPublishUpdate,
 )

@@ -50,10 +50,10 @@ Your Content Nodes are mounted under `/workspace/` inside the sandbox, so the ag
 
 ```bash
 # Create an E2B sandbox in the cloud
-puppyone conn add sandbox "Python Runner" --type e2b
+puppyone access add sandbox "Python Runner" --type e2b
 
 # Create a Docker sandbox for self-hosted use
-puppyone conn add sandbox "Data Processor" --type docker
+puppyone access add sandbox "Data Processor" --type docker
 ```
 
 ### Via API
@@ -69,7 +69,7 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
     "sandbox_type": "e2b",
     "mounts": [
       {
-        "node_id": "node_abc123",
+        "path": "products",
         "mount_path": "/workspace/products",
         "mode": "rw"
       }
@@ -99,18 +99,18 @@ curl -X POST https://api.puppyone.ai/api/v1/sandbox-endpoints \
 
 ### Mount configuration
 
-Each mount defines which Content Nodes map to which sandbox paths:
+Each mount maps a content path from your project to a sandbox path:
 
 ```json
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "products",
       "mount_path": "/workspace/products",
       "mode": "rw"
     },
     {
-      "node_id": "node_def456",
+      "path": "docs",
       "mount_path": "/workspace/docs",
       "mode": "ro"
     }
@@ -132,19 +132,6 @@ The `timeout` parameter controls the maximum duration of a single execution in s
 ---
 
 ## Execute code
-
-### Via CLI
-
-```bash
-# Run a simple command
-puppyone sandbox exec <sandbox_id> "ls /workspace/"
-
-# Run a Python script
-puppyone sandbox exec <sandbox_id> "python3 -c 'import json; data = json.load(open(\"/workspace/products/pricing.json\")); print(len(data[\"products\"]))'"
-
-# Run a jq query
-puppyone sandbox exec <sandbox_id> "jq '.products[] | select(.price > 100)' /workspace/products/pricing.json"
-```
 
 ### Via API
 
@@ -180,33 +167,16 @@ Suppose you have a product list mounted at `/workspace/products/pricing.json` an
 First create a sandbox and mount the data:
 
 ```bash
-puppyone conn add sandbox "Price Analyzer" --type e2b
+puppyone access add sandbox "Price Analyzer" --type e2b
 ```
 
 Then run the analysis script:
 
 ```bash
-puppyone sandbox exec <sandbox_id> "python3 -c '
-import json
-
-with open(\"/workspace/products/pricing.json\") as f:
-    data = json.load(f)
-
-expensive = [p for p in data[\"products\"] if p[\"price\"] > 100]
-print(f\"Found {len(expensive)} expensive products:\")
-for p in expensive:
-    print(f\"  - {p['name']}: ${p['price']}\")
-
-# Write analysis results
-report = {
-    \"total\": len(data[\"products\"]),
-    \"expensive_count\": len(expensive),
-    \"expensive_products\": expensive,
-}
-with open(\"/workspace/products/analysis.json\", \"w\") as f:
-    json.dump(report, f, ensure_ascii=False, indent=2)
-print(\"Report saved\")
-'"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "python3 -c '\''import json\nwith open(\"/workspace/products/pricing.json\") as f:\n    data = json.load(f)\nexpensive = [p for p in data[\"products\"] if p[\"price\"] > 100]\nprint(f\"Found {len(expensive)} expensive products:\")\nfor p in expensive:\n    print(f\"  - {p[\"name\"]}: ${p[\"price\"]}\")\nreport = {\"total\": len(data[\"products\"]), \"expensive_count\": len(expensive), \"expensive_products\": expensive}\nwith open(\"/workspace/products/analysis.json\", \"w\") as f:\n    json.dump(report, f, ensure_ascii=False, indent=2)\nprint(\"Report saved\")'\''"}'
 ```
 
 Output:
@@ -225,16 +195,22 @@ Because the mount mode is `rw`, the generated `analysis.json` automatically sync
 
 ```bash
 # Extract all product names
-puppyone sandbox exec <sandbox_id> \
-  "jq '[.products[].name]' /workspace/products/pricing.json"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "jq '\''[.products[].name]'\'' /workspace/products/pricing.json"}'
 
 # Calculate average price
-puppyone sandbox exec <sandbox_id> \
-  "jq '.products | map(.price) | add / length' /workspace/products/pricing.json"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "jq '\''.products | map(.price) | add / length'\'' /workspace/products/pricing.json"}'
 
 # Group by category
-puppyone sandbox exec <sandbox_id> \
-  "jq '.products | group_by(.category) | map({category: .[0].category, count: length})' /workspace/products/pricing.json"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "jq '\''.products | group_by(.category) | map({category: .[0].category, count: length})'\'' /workspace/products/pricing.json"}'
 ```
 
 ### Install third-party libraries
@@ -242,19 +218,10 @@ puppyone sandbox exec <sandbox_id> \
 In the Python runtime, you can install extra libraries:
 
 ```bash
-puppyone sandbox exec <sandbox_id> "pip install pandas && python3 -c '
-import pandas as pd
-import json
-
-with open(\"/workspace/products/pricing.json\") as f:
-    data = json.load(f)
-
-df = pd.DataFrame(data[\"products\"])
-print(df.describe())
-print()
-print(\"Grouped by category:\")
-print(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))
-'"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{sandbox_id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "pip install pandas && python3 -c '\''import pandas as pd\nimport json\nwith open(\"/workspace/products/pricing.json\") as f:\n    data = json.load(f)\ndf = pd.DataFrame(data[\"products\"])\nprint(df.describe())\nprint()\nprint(\"Grouped by category:\")\nprint(df.groupby(\"category\")[\"price\"].agg([\"count\", \"mean\", \"max\"]))'\''"}'
 ```
 
 ---
@@ -269,7 +236,7 @@ Best for analysis-only workflows where agents must not modify data accidentally.
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "ro"
     }
@@ -287,7 +254,7 @@ The agent can modify data or create new files, and changes sync back to PuppyOne
 {
   "mounts": [
     {
-      "node_id": "node_abc123",
+      "path": "data",
       "mount_path": "/workspace/data",
       "mode": "rw"
     }
@@ -325,10 +292,16 @@ The default sandbox environment is intentionally minimal. You can install tools 
 
 ```bash
 # Python sandbox
-puppyone sandbox exec <id> "pip install requests pandas"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "pip install requests pandas"}'
 
 # Alpine sandbox
-puppyone sandbox exec <id> "apk add --no-cache curl"
+curl -X POST "https://api.puppyone.ai/api/v1/sandbox-endpoints/{id}/exec" \
+  -H "Authorization: Bearer {token}" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "apk add --no-cache curl"}'
 ```
 
 Each sandbox execution runs in an isolated environment, so installed tools are not persisted. If you need a persistent custom environment, use the Docker backend and build a custom image.

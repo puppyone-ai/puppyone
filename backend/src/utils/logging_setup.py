@@ -10,7 +10,6 @@ from loguru import logger
 
 from src.utils.request_context import patch_log_record_from_context
 
-
 _CONFIGURED = False
 
 
@@ -47,6 +46,85 @@ class InterceptHandler(logging.Handler):
         )
 
 
+def _console_formatter(record: dict[str, Any]) -> str:
+    extra = record.get("extra", {}) or {}
+    rid = extra.get("request_id")
+    method = extra.get("method")
+    path = extra.get("path")
+    status = extra.get("status_code")
+    latency = extra.get("latency_ms")
+
+    ctx_parts: list[str] = []
+    if rid:
+        ctx_parts.append(f"rid={rid}")
+    if method and path:
+        ctx_parts.append(f"{method} {path}")
+    if status is not None:
+        ctx_parts.append(f"status={status}")
+    if latency is not None:
+        ctx_parts.append(f"latency_ms={latency}")
+
+    ctx = " | " + " ".join(ctx_parts) if ctx_parts else ""
+    return (
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+        "<level>{level: <8}</level> | "
+        "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
+        "{message}" + ctx + "\n{exception}"
+    )
+
+
+def _add_console_sink(log_level: str, json_console: bool) -> None:
+    if json_console:
+        logger.add(
+            sys.stderr, level=log_level, serialize=True, backtrace=True, diagnose=False
+        )
+    else:
+        logger.add(
+            sys.stderr,
+            level=log_level,
+            backtrace=True,
+            diagnose=False,
+            enqueue=True,
+            colorize=True,
+            format=_console_formatter,
+        )
+
+
+def _add_file_sink(log_path: str, log_level: str, log_rotation: str, log_retention: str, json_file: bool) -> None:
+    logger.add(
+        log_path,
+        level=log_level,
+        rotation=log_rotation,
+        retention=log_retention,
+        enqueue=True,
+        backtrace=True,
+        diagnose=False,
+        serialize=json_file,
+    )
+
+
+def _intercept_stdlib_logging(log_level: str, disable_uvicorn_access: bool) -> None:
+    intercept_handler = InterceptHandler()
+    logging.root.handlers = [intercept_handler]
+    logging.root.setLevel(log_level)
+
+    for name in (
+        "uvicorn",
+        "uvicorn.error",
+        "uvicorn.access",
+        "fastapi",
+        "starlette",
+        "httpx",
+        "asyncio",
+    ):
+        _logger = logging.getLogger(name)
+        _logger.handlers = [intercept_handler]
+        _logger.propagate = False
+
+    if disable_uvicorn_access:
+        logging.getLogger("uvicorn.access").disabled = True
+
+
 def setup_logging() -> None:
     """
     Configure Loguru + intercept stdlib logging (including uvicorn.*).
@@ -58,9 +136,9 @@ def setup_logging() -> None:
     - LOG_ROTATION: e.g. "100 MB" / "1 day" (default: "100 MB")
     - LOG_RETENTION: e.g. "14 days" (default: "14 days")
     - LOG_JSON_CONSOLE: 1/0
-        - 默认：如果 stderr 是 TTY（本地开发）则为 0（彩色可读文本），否则为 1（JSON，适合日志采集）
+        - Default: 0 (colorized readable text) if stderr is a TTY (local dev), otherwise 1 (JSON, suitable for log collection)
     - LOG_JSON_FILE: 1/0 (default: 1)
-    - DISABLE_UVICORN_ACCESS_LOG: 1/0 (default: 1)  # 避免与自定义 access log 重复
+    - DISABLE_UVICORN_ACCESS_LOG: 1/0 (default: 1)  # Avoid duplicating custom access log
     """
 
     global _CONFIGURED
@@ -88,82 +166,9 @@ def setup_logging() -> None:
     # Inject request context fields into every record (request_id, etc.)
     logger.configure(patcher=patch_log_record_from_context)
 
-    # Console (stderr)
-    if json_console:
-        logger.add(
-            sys.stderr, level=log_level, serialize=True, backtrace=True, diagnose=False
-        )
-    else:
-
-        def _console_formatter(record: dict[str, Any]) -> str:
-            extra = record.get("extra", {}) or {}
-            rid = extra.get("request_id")
-            method = extra.get("method")
-            path = extra.get("path")
-            status = extra.get("status_code")
-            latency = extra.get("latency_ms")
-
-            ctx_parts: list[str] = []
-            if rid:
-                ctx_parts.append(f"rid={rid}")
-            if method and path:
-                ctx_parts.append(f"{method} {path}")
-            if status is not None:
-                ctx_parts.append(f"status={status}")
-            if latency is not None:
-                ctx_parts.append(f"latency_ms={latency}")
-
-            ctx = " | " + " ".join(ctx_parts) if ctx_parts else ""
-            return (
-                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-                "<level>{level: <8}</level> | "
-                "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> | "
-                "{message}" + ctx + "\n{exception}"
-            )
-
-        logger.add(
-            sys.stderr,
-            level=log_level,
-            backtrace=True,
-            diagnose=False,
-            enqueue=True,
-            colorize=True,
-            format=_console_formatter,
-        )
-
-    # File
-    logger.add(
-        str(log_path),
-        level=log_level,
-        rotation=log_rotation,
-        retention=log_retention,
-        enqueue=True,
-        backtrace=True,
-        diagnose=False,
-        serialize=json_file,
-    )
-
-    # Intercept standard logging
-    intercept_handler = InterceptHandler()
-    logging.root.handlers = [intercept_handler]
-    logging.root.setLevel(log_level)
-
-    # Ensure common noisy libraries behave
-    for name in (
-        "uvicorn",
-        "uvicorn.error",
-        "uvicorn.access",
-        "fastapi",
-        "starlette",
-        "httpx",
-        "asyncio",
-    ):
-        _logger = logging.getLogger(name)
-        _logger.handlers = [intercept_handler]
-        _logger.propagate = False
-
-    if disable_uvicorn_access:
-        logging.getLogger("uvicorn.access").disabled = True
+    _add_console_sink(log_level, json_console)
+    _add_file_sink(str(log_path), log_level, log_rotation, log_retention, json_file)
+    _intercept_stdlib_logging(log_level, disable_uvicorn_access)
 
 
 def get_loguru_logger(**extra: Any):

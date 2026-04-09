@@ -18,48 +18,9 @@ export function requireOrg(cmd) {
   throw new ApiError(0, "NO_ORG", "No active organization set.", "Run `puppyone org use <id-or-name>` first.");
 }
 
-export async function resolvePath(client, projectId, pathStr) {
-  if (!pathStr || pathStr === "/" || pathStr === ".") return null;
-
-  const parts = pathStr.replace(/^\/+/, "").replace(/\/+$/, "").split("/").filter(Boolean);
-  let parentId = null;
-
-  for (const part of parts) {
-    const query = { project_id: projectId };
-    if (parentId) query.parent_id = parentId;
-    const children = await client.get("/nodes", query);
-    const list = Array.isArray(children) ? children : children?.items ?? [];
-    const match = list.find((n) => n.name === part);
-    if (!match) {
-      throw new ApiError(404, "NOT_FOUND", `Path not found: "${part}" in /${parts.join("/")}`, "Check the path exists.");
-    }
-    parentId = match.id;
-  }
-
-  return parentId;
-}
-
-export async function resolveNode(client, projectId, pathStr) {
-  if (!pathStr || pathStr === "/" || pathStr === ".") return null;
-
-  const parts = pathStr.replace(/^\/+/, "").replace(/\/+$/, "").split("/").filter(Boolean);
-  let parentId = null;
-  let node = null;
-
-  for (const part of parts) {
-    const query = { project_id: projectId };
-    if (parentId) query.parent_id = parentId;
-    const children = await client.get("/nodes", query);
-    const list = Array.isArray(children) ? children : children?.items ?? [];
-    const match = list.find((n) => n.name === part);
-    if (!match) {
-      throw new ApiError(404, "NOT_FOUND", `Path not found: "${part}" in /${parts.join("/")}`, "Check the path exists.");
-    }
-    parentId = match.id;
-    node = match;
-  }
-
-  return node;
+export function normalizePath(pathStr) {
+  if (!pathStr || pathStr === "/" || pathStr === ".") return "";
+  return pathStr.replace(/^\/+/, "").replace(/\/+$/, "").replace(/\/\/+/g, "/");
 }
 
 export function splitPath(pathStr) {
@@ -67,7 +28,7 @@ export function splitPath(pathStr) {
   const parts = clean.split("/").filter(Boolean);
   if (parts.length === 0) return { parentPath: null, name: null };
   const name = parts.pop();
-  const parentPath = parts.length > 0 ? "/" + parts.join("/") : null;
+  const parentPath = parts.length > 0 ? parts.join("/") : null;
   return { parentPath, name };
 }
 

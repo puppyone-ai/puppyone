@@ -1,6 +1,6 @@
 import pytest
 
-from src.agent.schemas import AgentRequest
+from src.connectors.agent.schemas import AgentRequest
 
 
 def test_agent_request_requires_prompt():

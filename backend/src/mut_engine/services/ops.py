@@ -1,0 +1,361 @@
+"""
+MutOps — Unified entry point for MUT tree operations.
+
+All channels (Web UI / Agent / Sandbox / MCP / Datasource / Ingest / Table / Seed)
+operate on the MUT tree through this class. Channels do not directly touch
+MutEphemeralClient or MutTreeReader.
+
+Write operations: clone → modify → push (via MutEphemeralClient)
+Read operations: direct Merkle tree reads (via MutTreeReader)
+
+Usage:
+    ops = MutOps(repo_manager)
+    result = await ops.write_file("proj_1", "readme.md", b"# Hi", who="user:123")
+    content = ops.read_file("proj_1", "readme.md")
+"""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from dataclasses import dataclass, field
+
+from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.server.validation import validate_path
+from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
+
+
+@dataclass
+class WriteResult:
+    version: int = 0
+    status: str = "ok"
+    merged: bool = False
+    conflicts: int = 0
+    paths: list[str] = field(default_factory=list)
+
+
+class MutOps:
+    """Unified entry point for MUT tree operations."""
+
+    def __init__(self, repo_manager: MutRepoManager):
+        self._repos = repo_manager
+        self._reader = MutTreeReader(repo_manager)
+
+    # ══════════════════════════════════════════════
+    # Write operations (async — all go through clone → push)
+    # ══════════════════════════════════════════════
+
+    async def write_file(
+        self,
+        project_id: str,
+        path: str,
+        content: bytes,
+        who: str,
+        scope: str = "",
+        message: str = "",
+    ) -> WriteResult:
+        """Write a single file."""
+        path = validate_path(path)
+        return await self._do_push(
+            project_id, who, scope,
+            modified={path: content},
+            message=message or f"write {path}",
+        )
+
+    async def delete(
+        self,
+        project_id: str,
+        paths: list[str],
+        who: str,
+        scope: str = "",
+        message: str = "",
+    ) -> WriteResult:
+        """Delete one or more files."""
+        paths = [p.strip("/") for p in paths]
+        return await self._do_push(
+            project_id, who, scope,
+            deleted=paths,
+            message=message or f"delete {len(paths)} files",
+        )
+
+    async def mkdir(
+        self,
+        project_id: str,
+        path: str,
+        who: str,
+        scope: str = "",
+        message: str = "",
+    ) -> WriteResult:
+        """Create a directory (writes a .keep placeholder)."""
+        path = validate_path(path)
+        keep = f"{path}/.keep"
+        return await self._do_push(
+            project_id, who, scope,
+            modified={keep: b""},
+            message=message or f"mkdir {path}",
+        )
+
+    async def move(
+        self,
+        project_id: str,
+        old_path: str,
+        new_path: str,
+        who: str,
+        scope: str = "",
+        message: str = "",
+    ) -> WriteResult:
+        """Move / rename a file or folder."""
+        old_path = old_path.strip("/")
+        new_path = new_path.strip("/")
+
+        client = self._make_client(project_id, who, scope)
+        files = await asyncio.to_thread(client.clone)
+
+        modified: dict[str, bytes] = {}
+        deleted: list[str] = []
+
+        entry = self._reader.stat(project_id, old_path)
+        if not entry:
+            raise FileNotFoundError(f"Path not found: {old_path}")
+
+        if entry.type == "folder":
+            prefix = old_path + "/"
+            for p, content in files.items():
+                if p == old_path or p.startswith(prefix):
+                    suffix = p[len(old_path):]
+                    modified[new_path + suffix] = content
+                    deleted.append(p)
+        else:
+            content = files.get(old_path)
+            if content is None:
+                raise FileNotFoundError(f"File not found: {old_path}")
+            modified[new_path] = content
+            deleted.append(old_path)
+
+        result = await asyncio.to_thread(
+            client.push,
+            modified=modified,
+            deleted=deleted,
+            message=message or f"move {old_path} → {new_path}",
+        )
+        self._run_post_push_hook(project_id, result)
+        try:
+            from src.mut_engine.services.hooks import post_commit_move
+            post_commit_move(project_id, old_path, new_path)
+        except Exception:
+            pass
+        return self._to_result(result, list(modified.keys()) + deleted)
+
+    async def bulk_write(
+        self,
+        project_id: str,
+        files: dict[str, bytes],
+        who: str,
+        scope: str = "",
+        deleted: list[str] | None = None,
+        message: str = "",
+    ) -> WriteResult:
+        """Batch write + optional batch delete in a single push."""
+        clean = {k.strip("/"): v for k, v in files.items()}
+        clean_del = [p.strip("/") for p in (deleted or [])]
+        return await self._do_push(
+            project_id, who, scope,
+            modified=clean,
+            deleted=clean_del,
+            message=message or f"bulk write {len(clean)} files",
+        )
+
+    async def trash(
+        self,
+        project_id: str,
+        path: str,
+        who: str,
+        scope: str = "",
+        message: str = "",
+    ) -> WriteResult:
+        """Soft-delete: move to .trash/{basename}_{timestamp}."""
+        path = validate_path(path)
+        basename = path.rsplit("/", 1)[-1] if "/" in path else path
+        trash_path = f".trash/{basename}_{int(time.time())}"
+
+        client = self._make_client(project_id, who, scope)
+        files = await asyncio.to_thread(client.clone)
+
+        modified: dict[str, bytes] = {}
+        deleted: list[str] = []
+
+        entry = self._reader.stat(project_id, path)
+        if entry and entry.type == "folder":
+            prefix = path + "/"
+            for p, content in files.items():
+                if p == path or p.startswith(prefix):
+                    suffix = p[len(path):]
+                    modified[trash_path + suffix] = content
+                    deleted.append(p)
+        else:
+            modified[trash_path] = files.get(path, b"")
+            deleted.append(path)
+
+        result = await asyncio.to_thread(
+            client.push,
+            modified=modified,
+            deleted=deleted,
+            message=message or f"trash {basename}",
+        )
+        self._run_post_push_hook(project_id, result)
+        return self._to_result(result, [path, trash_path])
+
+    async def restore(
+        self,
+        project_id: str,
+        trash_path: str,
+        original_path: str,
+        who: str,
+        scope: str = "",
+        message: str = "",
+    ) -> WriteResult:
+        """Restore from .trash back to original path."""
+        trash_path = trash_path.strip("/")
+        original_path = original_path.strip("/")
+
+        client = self._make_client(project_id, who, scope)
+        files = await asyncio.to_thread(client.clone)
+
+        modified: dict[str, bytes] = {}
+        deleted: list[str] = []
+
+        entry = self._reader.stat(project_id, trash_path)
+        if entry and entry.type == "folder":
+            prefix = trash_path + "/"
+            for p, content in files.items():
+                if p == trash_path or p.startswith(prefix):
+                    suffix = p[len(trash_path):]
+                    modified[original_path + suffix] = content
+                    deleted.append(p)
+        else:
+            modified[original_path] = files.get(trash_path, b"")
+            deleted.append(trash_path)
+
+        result = await asyncio.to_thread(
+            client.push,
+            modified=modified,
+            deleted=deleted,
+            message=message or f"restore {original_path}",
+        )
+        self._run_post_push_hook(project_id, result)
+        return self._to_result(result, [original_path, trash_path])
+
+    async def permanent_delete(
+        self,
+        project_id: str,
+        path: str,
+        who: str,
+        scope: str = "",
+        message: str = "",
+    ) -> WriteResult:
+        """Hard-delete a file or folder (no trash)."""
+        path = validate_path(path)
+
+        client = self._make_client(project_id, who, scope)
+        files = await asyncio.to_thread(client.clone)
+
+        deleted: list[str] = []
+        entry = self._reader.stat(project_id, path)
+        if entry and entry.type == "folder":
+            prefix = path + "/"
+            for p in files:
+                if p == path or p.startswith(prefix):
+                    deleted.append(p)
+        else:
+            deleted.append(path)
+
+        result = await asyncio.to_thread(
+            client.push,
+            deleted=deleted,
+            message=message or f"delete {path}",
+        )
+        self._run_post_push_hook(project_id, result)
+        return self._to_result(result, deleted)
+
+    # ══════════════════════════════════════════════
+    # Read operations (sync — direct Merkle tree reads)
+    # ══════════════════════════════════════════════
+
+    def read_file(self, project_id: str, path: str) -> bytes:
+        return self._reader.read_file(project_id, path.strip("/"))
+
+    def list_dir(self, project_id: str, path: str = "") -> list[MutEntry]:
+        return self._reader.list_dir(project_id, path.strip("/"))
+
+    def list_tree(
+        self, project_id: str, path: str = "", max_depth: int = -1
+    ) -> list[MutEntry]:
+        return self._reader.list_tree(project_id, path.strip("/"), max_depth=max_depth)
+
+    def stat(self, project_id: str, path: str) -> MutEntry | None:
+        return self._reader.stat(project_id, path.strip("/"))
+
+    def get_version(self, project_id: str) -> int:
+        return self._reader.get_version(project_id)
+
+    def get_root_hash(self, project_id: str) -> str:
+        return self._reader.get_root_hash(project_id)
+
+    # ══════════════════════════════════════════════
+    # Internal helpers
+    # ══════════════════════════════════════════════
+
+    def _make_client(
+        self, project_id: str, who: str, scope: str = ""
+    ) -> MutEphemeralClient:
+        auth = {
+            "agent": who,
+            "_scope": {
+                "id": who,
+                "path": scope,
+                "exclude": [],
+                "mode": "rw",
+            },
+        }
+        return MutEphemeralClient(self._repos, project_id, auth)
+
+    async def _do_push(
+        self,
+        project_id: str,
+        who: str,
+        scope: str,
+        modified: dict[str, bytes] | None = None,
+        deleted: list[str] | None = None,
+        message: str = "",
+    ) -> WriteResult:
+        client = self._make_client(project_id, who, scope)
+        await asyncio.to_thread(client.clone)
+        result = await asyncio.to_thread(
+            client.push,
+            modified=modified,
+            deleted=deleted,
+            message=message,
+            who=who,
+        )
+        self._run_post_push_hook(project_id, result)
+        all_paths = list((modified or {}).keys()) + (deleted or [])
+        return self._to_result(result, all_paths)
+
+    def _run_post_push_hook(self, project_id: str, push_result: dict) -> None:
+        """Best-effort post-push hook to maintain access_points table consistency."""
+        try:
+            from src.mut_engine.services.hooks import run_post_push_hook
+            run_post_push_hook(project_id, self._repos, push_result)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _to_result(raw: dict, paths: list[str] | None = None) -> WriteResult:
+        return WriteResult(
+            version=raw.get("version", 0),
+            status=raw.get("status", "ok"),
+            merged=raw.get("merged", False),
+            conflicts=raw.get("conflicts", 0),
+            paths=paths or [],
+        )

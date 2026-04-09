@@ -14,6 +14,15 @@ class _FakeRpc:
     async def get_agent_by_mcp_key(self, api_key: str):
         return self._agent_data
 
+    async def get_mcp_endpoint_by_key(self, api_key: str):
+        return None
+
+    async def resolve_mcp_config(self, api_key: str):
+        result = await self.get_mcp_endpoint_by_key(api_key)
+        if result:
+            return result
+        return await self.get_agent_by_mcp_key(api_key)
+
 
 @pytest.mark.asyncio
 async def test_load_config_rejects_non_agent_key(monkeypatch):
@@ -56,7 +65,7 @@ async def test_load_config_agent_mode_success(monkeypatch):
             },
             "accesses": [
                 {
-                    "node_id": "node-1",
+                    "path": "node-1",
                     "bash_enabled": True,
                     "bash_readonly": False,
                     "tool_query": True,

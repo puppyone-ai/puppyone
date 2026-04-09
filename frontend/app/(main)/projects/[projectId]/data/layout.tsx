@@ -40,8 +40,8 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
 
     if (syncStatusData?.syncs) {
       for (const s of syncStatusData.syncs) {
-        if (s.node_id)
-          append(s.node_id, {
+        if (s.path)
+          append(s.path, {
             syncId: s.id,
             provider: s.provider,
             direction: s.direction,
@@ -53,7 +53,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     for (const agent of savedAgents) {
       if (agent.type === 'chat' && agent.resources) {
         for (const r of agent.resources) {
-          append(r.nodeId, {
+          append(r.path, {
             syncId: agent.id,
             provider: `agent:${agent.type}`,
             direction: 'bidirectional',

@@ -55,7 +55,7 @@ class InternalApiClient:
     # ============================================================
     
     async def get_mcp_endpoint_by_key(self, api_key: str) -> Optional[Dict[str, Any]]:
-        """Query MCP endpoint from connections table (provider='mcp')."""
+        """Query MCP endpoint from access_points table (provider='mcp')."""
         try:
             url = f"{self.base_url}/internal/mcp-endpoint-by-key/{api_key}"
             response = await self._client.get(url)
@@ -69,7 +69,7 @@ class InternalApiClient:
             return None
 
     async def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Dict[str, Any]]:
-        """Query agent-based MCP config from connections table (provider='agent')."""
+        """Query agent-based MCP config from access_points table (provider='agent')."""
         try:
             url = f"{self.base_url}/internal/agent-by-mcp-key/{mcp_api_key}"
             response = await self._client.get(url)
@@ -180,7 +180,7 @@ class InternalApiClient:
         创建表格数据
         
         Args:
-            table_id: 表格ID（node_id）
+            table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
             elements: 要创建的元素列表
             
@@ -218,7 +218,7 @@ class InternalApiClient:
         更新表格数据
         
         Args:
-            table_id: 表格ID（node_id）
+            table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
             elements: 要更新的元素列表
             
@@ -256,7 +256,7 @@ class InternalApiClient:
         删除表格数据
         
         Args:
-            table_id: 表格ID（node_id）
+            table_id: 表格ID
             json_path: 挂载点 JSON Pointer 路径
             keys: 要删除的key列表
             
@@ -285,120 +285,110 @@ class InternalApiClient:
             raise RuntimeError(f"删除元素失败: {str(e)}") from e
 
     # ============================================================
-    # ContentNode POSIX 端点
+    # Tree API 端点 (path-based, Mut-Native)
     # ============================================================
 
-    async def resolve_path(
+    async def list_dir(
         self,
         project_id: str,
-        root_accesses: List[Dict[str, Any]],
+        path: str = "",
+    ) -> Dict[str, Any]:
+        """List directory entries at the given path."""
+        try:
+            url = f"{self.base_url}/internal/nodes/list"
+            params = {"project_id": project_id, "path": path}
+            response = await self._client.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"列出目录失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"列出目录失败: {str(e)}") from e
+
+    async def read_file(
+        self,
+        project_id: str,
         path: str,
     ) -> Dict[str, Any]:
-        """
-        解析人类可读路径到节点信息。
-        
-        Returns:
-            {"node_id": "...", "name": "...", "type": "...", "path": "...", ...}
-            或 {"virtual_root": True, "path": "/"} 表示虚拟根
-        """
+        """Read file content at the given path."""
+        try:
+            url = f"{self.base_url}/internal/nodes/read"
+            params = {"project_id": project_id, "path": path}
+            response = await self._client.get(url, params=params)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"读取文件失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"读取文件失败: {str(e)}") from e
+
+    async def stat(
+        self,
+        project_id: str,
+        path: str,
+    ) -> Dict[str, Any]:
+        """Get file/folder metadata at the given path."""
         try:
             url = f"{self.base_url}/internal/nodes/resolve-path"
-            payload = {
-                "project_id": project_id,
-                "root_accesses": root_accesses,
-                "path": path,
-            }
+            payload = {"project_id": project_id, "path": path}
             response = await self._client.post(url, json=payload)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             body = (e.response.text or "").strip()
             raise RuntimeError(
-                f"路径解析失败: HTTP {e.response.status_code} - {body}"
+                f"获取文件信息失败: HTTP {e.response.status_code} - {body}"
             ) from e
         except httpx.RequestError as e:
-            raise RuntimeError(f"路径解析失败: {str(e)}") from e
+            raise RuntimeError(f"获取文件信息失败: {str(e)}") from e
 
-    async def list_children(
+    async def write_file(
         self,
-        node_id: str,
         project_id: str,
-    ) -> Dict[str, Any]:
-        """列出子节点"""
-        try:
-            url = f"{self.base_url}/internal/nodes/{node_id}/children"
-            params = {"project_id": project_id}
-            response = await self._client.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            body = (e.response.text or "").strip()
-            raise RuntimeError(
-                f"列出子节点失败: HTTP {e.response.status_code} - {body}"
-            ) from e
-        except httpx.RequestError as e:
-            raise RuntimeError(f"列出子节点失败: {str(e)}") from e
-
-    async def read_node_content(
-        self,
-        node_id: str,
-        project_id: str,
-    ) -> Dict[str, Any]:
-        """读取节点内容"""
-        try:
-            url = f"{self.base_url}/internal/nodes/{node_id}/content"
-            params = {"project_id": project_id}
-            response = await self._client.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            body = (e.response.text or "").strip()
-            raise RuntimeError(
-                f"读取节点失败: HTTP {e.response.status_code} - {body}"
-            ) from e
-        except httpx.RequestError as e:
-            raise RuntimeError(f"读取节点失败: {str(e)}") from e
-
-    async def write_node_content(
-        self,
-        node_id: str,
-        project_id: str,
+        path: str,
         content: Any,
+        file_type: Optional[str] = None,
+        message: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """更新节点内容"""
+        """Write content to a file at the given path (creates if not exists)."""
         try:
-            url = f"{self.base_url}/internal/nodes/{node_id}/content"
-            payload = {"project_id": project_id, "content": content}
+            url = f"{self.base_url}/internal/nodes/write"
+            payload: Dict[str, Any] = {
+                "project_id": project_id,
+                "path": path,
+                "content": content,
+            }
+            if message:
+                payload["operator_id"] = "mcp_agent"
             response = await self._client.put(url, json=payload)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             body = (e.response.text or "").strip()
             raise RuntimeError(
-                f"写入节点失败: HTTP {e.response.status_code} - {body}"
+                f"写入文件失败: HTTP {e.response.status_code} - {body}"
             ) from e
         except httpx.RequestError as e:
-            raise RuntimeError(f"写入节点失败: {str(e)}") from e
+            raise RuntimeError(f"写入文件失败: {str(e)}") from e
 
-    async def create_node(
+    async def mkdir(
         self,
         project_id: str,
-        parent_id: str,
-        name: str,
-        node_type: str,
-        content: Any = None,
-        created_by: Optional[str] = None,
+        path: str,
     ) -> Dict[str, Any]:
-        """创建节点"""
+        """Create a directory at the given path."""
         try:
             url = f"{self.base_url}/internal/nodes/create"
             payload = {
                 "project_id": project_id,
-                "parent_id": parent_id,
-                "name": name,
-                "node_type": node_type,
-                "content": content,
-                "created_by": created_by,
+                "path": path,
+                "node_type": "folder",
             }
             response = await self._client.post(url, json=payload)
             response.raise_for_status()
@@ -406,128 +396,71 @@ class InternalApiClient:
         except httpx.HTTPStatusError as e:
             body = (e.response.text or "").strip()
             raise RuntimeError(
-                f"创建节点失败: HTTP {e.response.status_code} - {body}"
+                f"创建目录失败: HTTP {e.response.status_code} - {body}"
             ) from e
         except httpx.RequestError as e:
-            raise RuntimeError(f"创建节点失败: {str(e)}") from e
+            raise RuntimeError(f"创建目录失败: {str(e)}") from e
 
-    async def trash_node(
+    async def move(
         self,
-        node_id: str,
         project_id: str,
-        user_id: str,
+        src: str,
+        dst: str,
     ) -> Dict[str, Any]:
-        """软删除节点（移入废纸篓）"""
+        """Move/rename a file or folder."""
         try:
-            url = f"{self.base_url}/internal/nodes/{node_id}/trash"
-            payload = {"project_id": project_id, "user_id": user_id}
+            dst_parts = dst.rsplit("/", 1)
+            new_parent_path = dst_parts[0] if len(dst_parts) > 1 else ""
+            new_name = dst_parts[-1]
+
+            src_name = src.rsplit("/", 1)[-1]
+            if new_name != src_name:
+                url = f"{self.base_url}/internal/nodes/rename"
+                payload = {
+                    "project_id": project_id,
+                    "path": src,
+                    "new_name": new_name,
+                }
+                response = await self._client.post(url, json=payload)
+                response.raise_for_status()
+                return response.json()
+            else:
+                url = f"{self.base_url}/internal/nodes/move"
+                payload = {
+                    "project_id": project_id,
+                    "path": src,
+                    "new_parent_path": new_parent_path,
+                }
+                response = await self._client.post(url, json=payload)
+                response.raise_for_status()
+                return response.json()
+        except httpx.HTTPStatusError as e:
+            body = (e.response.text or "").strip()
+            raise RuntimeError(
+                f"移动文件失败: HTTP {e.response.status_code} - {body}"
+            ) from e
+        except httpx.RequestError as e:
+            raise RuntimeError(f"移动文件失败: {str(e)}") from e
+
+    async def trash(
+        self,
+        project_id: str,
+        path: str,
+    ) -> Dict[str, Any]:
+        """Soft-delete a file or folder (move to .trash)."""
+        try:
+            url = f"{self.base_url}/internal/nodes/trash"
+            payload = {"project_id": project_id, "path": path}
             response = await self._client.post(url, json=payload)
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
             body = (e.response.text or "").strip()
             raise RuntimeError(
-                f"删除节点失败: HTTP {e.response.status_code} - {body}"
+                f"删除失败: HTTP {e.response.status_code} - {body}"
             ) from e
         except httpx.RequestError as e:
-            raise RuntimeError(f"删除节点失败: {str(e)}") from e
-
-    # ============================================================
-    # Node rename / move / prepare-upload 端点
-    # ============================================================
-
-    async def rename_node(
-        self,
-        node_id: str,
-        project_id: str,
-        new_name: str,
-    ) -> Dict[str, Any]:
-        """重命名节点"""
-        try:
-            url = f"{self.base_url}/internal/nodes/{node_id}/rename"
-            payload = {"project_id": project_id, "new_name": new_name}
-            response = await self._client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            body = (e.response.text or "").strip()
-            raise RuntimeError(
-                f"重命名节点失败: HTTP {e.response.status_code} - {body}"
-            ) from e
-        except httpx.RequestError as e:
-            raise RuntimeError(f"重命名节点失败: {str(e)}") from e
-
-    async def move_node(
-        self,
-        node_id: str,
-        project_id: str,
-        new_parent_id: str | None,
-    ) -> Dict[str, Any]:
-        """移动节点到新父目录"""
-        try:
-            url = f"{self.base_url}/internal/nodes/{node_id}/move"
-            payload = {"project_id": project_id, "new_parent_id": new_parent_id}
-            response = await self._client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            body = (e.response.text or "").strip()
-            raise RuntimeError(
-                f"移动节点失败: HTTP {e.response.status_code} - {body}"
-            ) from e
-        except httpx.RequestError as e:
-            raise RuntimeError(f"移动节点失败: {str(e)}") from e
-
-    async def prepare_upload(
-        self,
-        project_id: str,
-        name: str,
-        content_type: str = "application/octet-stream",
-        parent_id: str | None = None,
-    ) -> Dict[str, Any]:
-        """准备文件上传，返回 presigned URL"""
-        try:
-            url = f"{self.base_url}/internal/nodes/prepare-upload"
-            payload = {
-                "project_id": project_id,
-                "name": name,
-                "content_type": content_type,
-                "parent_id": parent_id,
-            }
-            response = await self._client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            body = (e.response.text or "").strip()
-            raise RuntimeError(
-                f"准备上传失败: HTTP {e.response.status_code} - {body}"
-            ) from e
-        except httpx.RequestError as e:
-            raise RuntimeError(f"准备上传失败: {str(e)}") from e
-
-    async def get_reupload_url(
-        self,
-        node_id: str,
-        project_id: str,
-        content_type: str = "application/octet-stream",
-    ) -> Dict[str, Any]:
-        """获取已有 S3 文件节点的重新上传 URL"""
-        try:
-            url = f"{self.base_url}/internal/nodes/{node_id}/reupload-url"
-            payload = {
-                "project_id": project_id,
-                "content_type": content_type,
-            }
-            response = await self._client.post(url, json=payload)
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            body = (e.response.text or "").strip()
-            raise RuntimeError(
-                f"获取重新上传URL失败: HTTP {e.response.status_code} - {body}"
-            ) from e
-        except httpx.RequestError as e:
-            raise RuntimeError(f"获取重新上传URL失败: {str(e)}") from e
+            raise RuntimeError(f"删除失败: {str(e)}") from e
 
     # ============================================================
     # Search Tool 端点

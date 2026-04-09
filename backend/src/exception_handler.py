@@ -1,17 +1,18 @@
 from fastapi import Request
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from src.exceptions import AppException, ErrorCode
-from src.common_schemas import ApiResponse
+from fastapi.responses import JSONResponse
 from loguru import logger
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from src.common_schemas import ApiResponse
+from src.exceptions import AppException, ErrorCode
 from src.utils.request_context import request_id_var
 
 
-async def app_exception_handler(request: Request, exc: AppException):
-    """处理自定义应用异常"""
-    # 注意：AppException（4xx/业务错误）默认也应该记录日志，便于排障。
-    # 之前只返回响应不打日志，会造成“看不到任何报错”的错觉。
+def app_exception_handler(request: Request, exc: AppException):
+    """Handle custom application exceptions"""
+    # Note: AppException (4xx/business errors) should also be logged by default for troubleshooting.
+    # Previously only returning the response without logging created the illusion of "no errors visible".
     rid = request_id_var.get()
     log = logger.bind(
         err_code=int(exc.code),
@@ -35,12 +36,12 @@ async def app_exception_handler(request: Request, exc: AppException):
     return resp
 
 
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """处理 FastAPI/Starlette 的 HTTPException"""
+def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle FastAPI/Starlette HTTPException"""
     resp = JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse.error(
-            code=ErrorCode.BAD_REQUEST,  # 默认映射为 BAD_REQUEST，或者根据 exc.status_code 细分
+            code=ErrorCode.BAD_REQUEST,  # Default mapping to BAD_REQUEST, or subdivide by exc.status_code
             message=str(exc.detail),
         ).model_dump(),
     )
@@ -50,9 +51,9 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return resp
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """处理请求参数验证异常"""
-    # 将 Pydantic 的 error list 转换为更易读的格式
+def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle request parameter validation exceptions"""
+    # Convert Pydantic's error list to a more readable format
     errors = []
     for error in exc.errors():
         loc = ".".join([str(x) for x in error["loc"]])
@@ -71,9 +72,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return resp
 
 
-async def generic_exception_handler(request: Request, exc: Exception):
-    """处理所有未捕获的异常"""
-    # 记录完整堆栈；request 上下文（request_id/path/method 等）由 middleware + patcher 注入
+def generic_exception_handler(request: Request, exc: Exception):
+    """Handle all uncaught exceptions"""
+    # Log full stack trace; request context (request_id/path/method etc.) injected by middleware + patcher
     logger.exception("Unhandled exception")
     resp = JSONResponse(
         status_code=500,
