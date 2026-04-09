@@ -81,7 +81,8 @@ CREATE INDEX IF NOT EXISTS idx_mut_commits_who
 
 ALTER TABLE mut_commits ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS service_role_all_mut_commits
+DROP POLICY IF EXISTS service_role_all_mut_commits ON mut_commits;
+CREATE POLICY service_role_all_mut_commits
     ON mut_commits FOR ALL TO service_role
     USING (true) WITH CHECK (true);
 

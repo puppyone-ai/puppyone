@@ -5,6 +5,8 @@
 -- UUID (id) remains as stable identifier for external references.
 -- =============================================================
 
+BEGIN;
+
 -- 0. Ensure mut_path column exists (may have been added by earlier backend migration)
 ALTER TABLE content_nodes ADD COLUMN IF NOT EXISTS mut_path TEXT;
 
@@ -136,39 +138,39 @@ $$;
 
 DROP INDEX IF EXISTS idx_content_nodes_unique_name_v2;
 
-CREATE UNIQUE INDEX idx_cn_unique_name_mut
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cn_unique_name_mut
     ON content_nodes (project_id, parent_mut_path(mut_path), name);
 
--- 7. Drop old id_path-based indexes
+-- 7a. Drop old id_path-based indexes
 DROP INDEX IF EXISTS idx_content_nodes_id_path;
+
+-- 7b.
 DROP INDEX IF EXISTS idx_content_nodes_children_lookup;
+
+-- 7c.
 DROP INDEX IF EXISTS idx_content_nodes_mut_path;
 
--- 8. Drop old SQL functions that depend on id_path
-DROP FUNCTION IF EXISTS parent_path(TEXT);
-DROP FUNCTION IF EXISTS move_node_atomic(TEXT, TEXT, TEXT);
-DROP FUNCTION IF EXISTS move_node_atomic(TEXT, TEXT, TEXT, TEXT);
-
--- 9. Drop check_no_cycle trigger (Mut tree guarantees no cycles)
-DROP TRIGGER IF EXISTS trg_check_no_cycle ON content_nodes;
-DROP FUNCTION IF EXISTS check_no_cycle();
-
--- 10. Redefine depth as generated column from mut_path
-ALTER TABLE content_nodes DROP COLUMN IF EXISTS depth;
-ALTER TABLE content_nodes ADD COLUMN depth INT GENERATED ALWAYS AS (
-    CASE
-        WHEN mut_path = '' THEN 0
-        ELSE array_length(string_to_array(mut_path, '/'), 1)
-    END
-) STORED;
-
--- 11. Recreate children lookup index with new depth column
-CREATE INDEX IF NOT EXISTS idx_cn_children_mut_v2
-    ON content_nodes (project_id, depth, mut_path text_pattern_ops);
-DROP INDEX IF EXISTS idx_cn_children_mut;
-
--- 12. Drop id_path column
-ALTER TABLE content_nodes DROP COLUMN IF EXISTS id_path;
+-- 8-12. Drop legacy functions, triggers, indexes; redefine depth column
+DO $cleanup$
+BEGIN
+    EXECUTE 'DROP FUNCTION IF EXISTS parent_path(TEXT)';
+    EXECUTE 'DROP FUNCTION IF EXISTS move_node_atomic(TEXT, TEXT, TEXT)';
+    EXECUTE 'DROP FUNCTION IF EXISTS move_node_atomic(TEXT, TEXT, TEXT, TEXT)';
+    EXECUTE 'DROP TRIGGER IF EXISTS trg_check_no_cycle ON content_nodes';
+    EXECUTE 'DROP FUNCTION IF EXISTS check_no_cycle()';
+    EXECUTE 'ALTER TABLE content_nodes DROP COLUMN IF EXISTS depth';
+    EXECUTE 'ALTER TABLE content_nodes ADD COLUMN depth INT GENERATED ALWAYS AS (
+        CASE
+            WHEN mut_path = '''' THEN 0
+            ELSE array_length(string_to_array(mut_path, ''/''), 1)
+        END
+    ) STORED';
+    EXECUTE 'CREATE INDEX IF NOT EXISTS idx_cn_children_mut_v2
+        ON content_nodes (project_id, depth, mut_path text_pattern_ops)';
+    EXECUTE 'DROP INDEX IF EXISTS idx_cn_children_mut';
+    EXECUTE 'ALTER TABLE content_nodes DROP COLUMN IF EXISTS id_path';
+END;
+$cleanup$;
 
 -- 13. count_children_batch using mut_path (LEFT JOIN to include empty folders)
 CREATE OR REPLACE FUNCTION count_children_batch(p_parent_ids TEXT[])
@@ -186,3 +188,5 @@ BEGIN
     GROUP BY p.id;
 END;
 $$;
+
+COMMIT;

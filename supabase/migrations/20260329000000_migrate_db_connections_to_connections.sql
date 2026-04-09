@@ -8,6 +8,8 @@
 -- The repository code (connectors/database/repository.py) has already been
 -- updated to read/write from `connections` with provider='database'.
 
+BEGIN;
+
 INSERT INTO connections (id, project_id, provider, direction, status, config, last_synced_at, created_at, updated_at)
 SELECT
     id,
@@ -29,3 +31,5 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Drop the old table after confirming data integrity.
 DROP TABLE IF EXISTS db_connections;
+
+COMMIT;
