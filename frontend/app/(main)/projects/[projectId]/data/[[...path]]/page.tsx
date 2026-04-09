@@ -1047,41 +1047,6 @@ export default function DataPage({ params }: DataPageProps) {
                     project={activeProject}
                     onCreateClick={handleCreateClick}
                   />
-                ) : items.length === 0 && currentFolderId ? (
-                  <div style={{ flex: 1, minHeight: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-start' }}>
-                    <button
-                      type="button"
-                      onClick={handleCreateClick}
-                      title="Create item"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: 24,
-                        height: 24,
-                        borderRadius: 6,
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#666',
-                        cursor: 'pointer',
-                        padding: 0,
-                        transition: 'background 0.12s, color 0.12s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                        e.currentTarget.style.color = '#ddd';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = '#666';
-                      }}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                        <line x1="12" y1="5" x2="12" y2="19" />
-                        <line x1="5" y1="12" x2="19" y2="12" />
-                      </svg>
-                    </button>
-                  </div>
                 ) : (
                   <GridView
                     items={items}

@@ -1,0 +1,42 @@
+<svg width="210" height="210" viewBox="0 0 210 210" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Tab -->
+  <rect x="1" y="1" width="126" height="27" rx="6" fill="#1c1c1c" stroke="#2a2a2a" stroke-width="2"/>
+  <rect x="1" y="18" width="126" height="10" fill="#1c1c1c"/>
+  <line x1="1" y1="18" x2="1" y2="28" stroke="#2a2a2a" stroke-width="2"/>
+  <line x1="127" y1="18" x2="127" y2="28" stroke="#2a2a2a" stroke-width="2"/>
+  <text x="14" y="19" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500" fill="#888888">puppyhappy</text>
+
+  <!-- Body -->
+  <path d="M1 26 L127 26 L202 26 Q209 26 209 33 L209 202 Q209 209 202 209 L8 209 Q1 209 1 202 Z" fill="#0a0a0a" stroke="#2a2a2a" stroke-width="2"/>
+
+  <!-- Folder icon 1: .trash -->
+  <g transform="translate(22, 50)">
+    <path d="M2 6C2 4.9 2.9 4 4 4H12L14.5 7H28C29.1 7 30 7.9 30 9V25C30 26.1 29.1 27 28 27H4C2.9 27 2 26.1 2 25V6Z" fill="#3B82F6" opacity="0.65"/>
+    <path d="M2 11C2 9.9 2.9 9 4 9H28C29.1 9 30 9.9 30 11V25C30 26.1 29.1 27 28 27H4C2.9 27 2 26.1 2 25V11Z" fill="#60A5FA" opacity="0.65"/>
+    <text x="16" y="40" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#555555" text-anchor="middle">.trash</text>
+  </g>
+
+  <!-- Folder icon 2: New Folder -->
+  <g transform="translate(76, 50)">
+    <path d="M2 6C2 4.9 2.9 4 4 4H12L14.5 7H28C29.1 7 30 7.9 30 9V25C30 26.1 29.1 27 28 27H4C2.9 27 2 26.1 2 25V6Z" fill="#3B82F6" opacity="0.65"/>
+    <path d="M2 11C2 9.9 2.9 9 4 9H28C29.1 9 30 9.9 30 11V25C30 26.1 29.1 27 28 27H4C2.9 27 2 26.1 2 25V11Z" fill="#60A5FA" opacity="0.65"/>
+    <text x="16" y="40" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#555555" text-anchor="middle">New F...</text>
+  </g>
+
+  <!-- Document icon 3: Document.md -->
+  <g transform="translate(130, 50)">
+    <path d="M4 2C4 0.9 4.9 0 6 0H19L26 7V26C26 27.1 25.1 28 24 28H6C4.9 28 4 27.1 4 26V2Z" fill="#3f3f46" stroke="#52525b" stroke-width="1.5"/>
+    <path d="M19 0V7H26" fill="none" stroke="#71717a" stroke-width="1.5" stroke-linejoin="round"/>
+    <rect x="8" y="13" width="14" height="2" rx="0.5" fill="#a1a1aa"/>
+    <rect x="8" y="17" width="8" height="2" rx="0.5" fill="#a1a1aa"/>
+    <rect x="8" y="21" width="11" height="2" rx="0.5" fill="#a1a1aa"/>
+    <text x="16" y="40" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#555555" text-anchor="middle">Docum...</text>
+  </g>
+
+  <!-- Bottom commit bar -->
+  <line x1="2" y1="184" x2="208" y2="184" stroke="#2a2a2a" stroke-width="1"/>
+  <circle cx="14" cy="197" r="3" fill="#4ECDC4"/>
+  <text x="24" y="200" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="#555555">7h ago</text>
+
+</svg>
