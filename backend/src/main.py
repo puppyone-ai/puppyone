@@ -442,6 +442,8 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router, prefix="/api/v1", tags=["projects"])
     from src.connectors.manager.router import router as access_router
     app.include_router(access_router, prefix="/api/v1", tags=["access"])
+    from src.connectors.gateway.router import router as gateway_router
+    app.include_router(gateway_router, prefix="/api/v1", tags=["gateways"])
     router_register_duration = time.time() - router_register_start
 
     # Register exception handlers
