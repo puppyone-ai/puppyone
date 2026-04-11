@@ -374,6 +374,7 @@ export function registerAccess(program) {
     .option("--type <subtype>", "sub-type: chat | devbox (agent), e2b | docker (sandbox)")
     .option("--set <kv...>", "config key=value (repeatable)")
     .option("--config <json>", "provider-specific config as JSON (merged, lower priority than --set)")
+    .option("--gateway <id>", "Gateway ID (required for datasource providers, auto-detected if only one)")
     .action(withErrors(async (type, source, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
@@ -510,6 +511,28 @@ export function registerAccess(program) {
         return;
       }
 
+      // Resolve gateway for datasource providers
+      let gatewayId = opts.gateway || null;
+      if (!gatewayId) {
+        // Auto-detect: if user has exactly one gateway for this provider, use it
+        try {
+          const gateways = await client.get("/gateways", { params: { provider } });
+          const gwList = gateways?.data || gateways || [];
+          if (Array.isArray(gwList) && gwList.length === 1) {
+            gatewayId = gwList[0].id;
+            out.info(`  Using gateway: ${gwList[0].name || gwList[0].id}`);
+          } else if (Array.isArray(gwList) && gwList.length > 1) {
+            out.info(`  Multiple ${provider} gateways found. Use --gateway <id> to specify:`);
+            for (const gw of gwList) {
+              out.info(`    ${gw.id}  ${gw.name || "—"}`);
+            }
+            return;
+          }
+        } catch {
+          // Gateway API not available yet, proceed without
+        }
+      }
+
       const body = {
         project_id: projectId,
         provider,
@@ -517,6 +540,7 @@ export function registerAccess(program) {
         path: targetPath,
         config,
         sync_mode: opts.mode || "import_once",
+        gateway_id: gatewayId,
       };
 
       out.step(`Adding ${spec.display_name} sync...`);

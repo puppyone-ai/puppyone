@@ -119,22 +119,49 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
       "Content-Type": "application/json",
     };
 
-    const res = await fetch(url, {
+    const fetchOpts = {
       method,
       headers,
       body: body != null ? JSON.stringify(body) : undefined,
-    });
+      redirect: "manual",  // handle redirects manually to preserve auth headers
+    };
+    let res = await fetch(url, fetchOpts);
+
+    // Follow redirects manually (preserving Authorization header + fixing http→https)
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location");
+      if (location) {
+        let redirectUrl = location.startsWith("http") ? location : new URL(location, url).href;
+        // Fix protocol downgrade (proxy may strip https)
+        if (url.startsWith("https://") && redirectUrl.startsWith("http://")) {
+          redirectUrl = redirectUrl.replace("http://", "https://");
+        }
+        res = await fetch(redirectUrl, { ...fetchOpts, redirect: "follow" });
+      }
+    }
 
     if (res.status === 401 && autoRefresh) {
       const newToken = await _tryRefreshToken(baseUrl);
       if (newToken) {
+        const retryHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${newToken}` };
         const retryRes = await fetch(url, {
           method,
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${newToken}` },
+          headers: retryHeaders,
           body: body != null ? JSON.stringify(body) : undefined,
+          redirect: "manual",
         });
-        if (retryRes.ok) {
-          const json = await retryRes.json();
+        // Follow redirect on retry too (fixing http→https)
+        let retryFinal = retryRes;
+        if (retryRes.status >= 300 && retryRes.status < 400) {
+          const loc = retryRes.headers.get("location");
+          if (loc) {
+            let rUrl = loc.startsWith("http") ? loc : new URL(loc, url).href;
+            if (url.startsWith("https://") && rUrl.startsWith("http://")) rUrl = rUrl.replace("http://", "https://");
+            retryFinal = await fetch(rUrl, { method, headers: retryHeaders, body: body ? JSON.stringify(body) : undefined });
+          }
+        }
+        if (retryFinal.ok) {
+          const json = await retryFinal.json();
           if (json.code !== 0) {
             throw new ApiError(0, "API_BIZ_ERROR", json.message ?? "Unknown error");
           }
