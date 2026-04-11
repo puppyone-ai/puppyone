@@ -44,23 +44,9 @@ def list_gateways(
     return ApiResponse.success(data=gateways, message="Gateways listed")
 
 
-# ── Get detail ─────────────────────────────────────────────
-
-@router.get(
-    "/{gateway_id}",
-    response_model=ApiResponse[GatewayDetail],
-    summary="Get gateway details",
-)
-def get_gateway(
-    gateway_id: str,
-    current_user: CurrentUser = Depends(get_current_user),
-    svc: GatewayService = Depends(_get_service),
-):
-    detail = svc.get_detail(gateway_id)
-    return ApiResponse.success(data=detail)
-
-
 # ── Create (manual — for database, custom) ─────────────────
+# NOTE: /{gateway_id} detail route is at the bottom of this file
+# to avoid capturing fixed paths like /providers, /{provider}/authorize
 
 @router.post(
     "/",
@@ -242,3 +228,19 @@ def oauth_callback(
         data=GatewayService._to_out(row),
         message=f"{provider} gateway created",
     )
+
+
+# ── Get detail (must be LAST — /{gateway_id} catches all) ──
+
+@router.get(
+    "/{gateway_id}",
+    response_model=ApiResponse[GatewayDetail],
+    summary="Get gateway details",
+)
+def get_gateway(
+    gateway_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    svc: GatewayService = Depends(_get_service),
+):
+    detail = svc.get_detail(gateway_id)
+    return ApiResponse.success(data=detail)

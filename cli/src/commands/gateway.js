@@ -30,12 +30,12 @@ export function registerGateway(program) {
   gateway
     .command("providers")
     .description("List available gateway providers")
-    .action(withErrors(async (opts) => {
-      const out = createOutput(opts);
-      const api = createClient();
+    .action(withErrors(async (opts, cmd) => {
+      const out = createOutput(cmd);
+      const api = createClient(cmd);
       const { data } = await api.get("/gateways/providers");
 
-      if (out.json(data)) return;
+      if (out.json) { out.success(data); return; }
 
       out.table(
         ["Provider", "Name", "Auth"],
@@ -51,9 +51,9 @@ export function registerGateway(program) {
     .argument("<provider>", "Provider: gmail, github, notion, database, ...")
     .option("--name <name>", "Display name for this connection")
     .option("--set <kv...>", "Key=value pairs for credentials (database)")
-    .action(withErrors(async (provider, opts) => {
-      const out = createOutput(opts);
-      const api = createClient();
+    .action(withErrors(async (provider, opts, cmd) => {
+      const out = createOutput(cmd);
+      const api = createClient(cmd);
 
       // For OAuth providers: get authorize URL and open browser
       const oauthProviders = new Set([
@@ -97,7 +97,7 @@ export function registerGateway(program) {
         metadata: {},
       });
 
-      if (out.json(data)) return;
+      if (out.json) { out.success(data); return; }
       out.success(`Gateway created: ${data.id}`);
       out.info(`  Provider: ${data.provider}`);
       out.info(`  Name: ${data.name}`);
@@ -109,14 +109,14 @@ export function registerGateway(program) {
     .command("ls")
     .description("List all gateways in the current organization")
     .option("--provider <provider>", "Filter by provider")
-    .action(withErrors(async (opts) => {
-      const out = createOutput(opts);
-      const api = createClient();
+    .action(withErrors(async (opts, cmd) => {
+      const out = createOutput(cmd);
+      const api = createClient(cmd);
       const params = {};
       if (opts.provider) params.provider = opts.provider;
       const { data } = await api.get("/gateways", { params });
 
-      if (out.json(data)) return;
+      if (out.json) { out.success(data); return; }
 
       if (!data || data.length === 0) {
         out.info("No gateways found. Use 'puppyone gateway connect <provider>' to add one.");
@@ -141,12 +141,12 @@ export function registerGateway(program) {
     .command("info")
     .description("Show gateway details")
     .argument("<id>", "Gateway ID")
-    .action(withErrors(async (id, opts) => {
-      const out = createOutput(opts);
-      const api = createClient();
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const api = createClient(cmd);
       const { data } = await api.get(`/gateways/${id}`);
 
-      if (out.json(data)) return;
+      if (out.json) { out.success(data); return; }
 
       out.info(`Gateway: ${data.id}`);
       out.info(`Provider:     ${data.provider}`);
@@ -166,9 +166,9 @@ export function registerGateway(program) {
     .command("rm")
     .description("Delete a gateway (must have no linked access points)")
     .argument("<id>", "Gateway ID")
-    .action(withErrors(async (id, opts) => {
-      const out = createOutput(opts);
-      const api = createClient();
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const api = createClient(cmd);
       await api.delete(`/gateways/${id}`);
       out.success("Gateway deleted");
     }));
@@ -179,11 +179,11 @@ export function registerGateway(program) {
     .command("refresh")
     .description("Refresh OAuth token for a gateway")
     .argument("<id>", "Gateway ID")
-    .action(withErrors(async (id, opts) => {
-      const out = createOutput(opts);
-      const api = createClient();
+    .action(withErrors(async (id, opts, cmd) => {
+      const out = createOutput(cmd);
+      const api = createClient(cmd);
       const { data } = await api.post(`/gateways/${id}/refresh-token`);
-      if (out.json(data)) return;
+      if (out.json) { out.success(data); return; }
       out.success("Token refreshed");
     }));
 }
