@@ -37,6 +37,7 @@ class ConnectionOut(BaseModel):
     direction: str | None = None
     status: str = "active"
     access_key: str | None = None
+    gateway_id: str | None = None
     trigger: dict | None = None
     last_synced_at: str | None = None
     error_message: str | None = None
@@ -356,6 +357,7 @@ class UnifiedConnectionCreate(BaseModel):
     name: str | None = Field(None, description="Display name")
     path: str | None = Field(None, description="Target MUT path")
     config: dict = Field(default_factory=dict, description="Provider-specific configuration")
+    gateway_id: str | None = Field(None, description="Gateway ID (required for datasource providers)")
     direction: str | None = Field(None, description="Sync direction (datasource only)")
     trigger: dict | None = Field(None, description="Trigger config (datasource/agent)")
     credentials_ref: str | None = Field(None, description="OAuth credentials reference (datasource)")
@@ -371,6 +373,8 @@ class UnifiedConnectionOut(BaseModel):
     provider: str
     name: str | None = None
     status: str = "active"
+    gateway_id: str | None = None
+    access_key: str | None = None
 
 
 DATASOURCE_PROVIDERS: set[str] = set()
@@ -423,12 +427,23 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
         except Exception:
             pass
 
+    # Link gateway_id to the newly created access point
+    if payload.gateway_id and sync.id:
+        try:
+            sb = _get_client()
+            sb.table("access_points").update(
+                {"gateway_id": payload.gateway_id}
+            ).eq("id", sync.id).execute()
+        except Exception:
+            pass  # best-effort: gateway linking is not critical for sync
+
     return UnifiedConnectionOut(
         id=sync.id,
         project_id=sync.project_id,
         provider=sync.provider,
         name=payload.name or sync.provider,
         status=sync.status,
+        gateway_id=payload.gateway_id,
     )
 
 

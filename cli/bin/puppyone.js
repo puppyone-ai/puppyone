@@ -8,6 +8,7 @@ import { registerAuth, registerLegacyAuthAliases } from "../src/commands/auth.js
 import { registerOrg } from "../src/commands/org.js";
 import { registerProject } from "../src/commands/project.js";
 import { registerAccess } from "../src/commands/access.js";
+import { registerGateway } from "../src/commands/gateway.js";
 import { registerChat } from "../src/commands/chat.js";
 import { registerConfig } from "../src/commands/config-cmd.js";
 import { registerData } from "../src/commands/data.js";
@@ -31,6 +32,7 @@ registerAuth(program);
 registerOrg(program);
 registerProject(program);
 registerAccess(program);
+registerGateway(program);
 registerChat(program);
 registerConfig(program);
 
