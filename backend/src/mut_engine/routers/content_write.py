@@ -30,7 +30,16 @@ _EXT_MAP = {"json": ".json", "markdown": ".md"}
 
 
 def _serialize_content(path: str, content, node_type: str) -> tuple[str, bytes]:
-    """Convert request content to bytes + enforce file extension."""
+    """Convert request content to bytes and enforce the canonical file extension.
+
+    By design, this function appends the canonical extension (e.g. ``.json``,
+    ``.md``) when the caller-supplied *path* does not already end with it.
+    This is intentional: the MUT tree uses file extensions to determine
+    content type during reads (see ``tree_reader.detect_type``), so a JSON
+    node stored without ``.json`` would be misclassified on retrieval.
+    Callers that want a specific filename should include the extension in
+    the request path.
+    """
     if node_type == "json":
         if isinstance(content, str):
             data = content.encode("utf-8")

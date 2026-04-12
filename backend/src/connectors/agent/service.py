@@ -17,6 +17,7 @@ Supported tool types:
 - bash (sandbox): configured via agent_bash, executed in a data sandbox
 - search: linked via agent_tool, vector retrieval (Turbopuffer)
 """
+import asyncio
 import json
 import time
 from dataclasses import dataclass

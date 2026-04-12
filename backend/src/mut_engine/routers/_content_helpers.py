@@ -14,6 +14,21 @@ def ensure_project_access(
     current_user: CurrentUser,
     project_id: str,
 ) -> None:
+    """Check that the user has *any* access to the project.
+
+    TODO(auth): This only checks membership (org_members / project_members)
+    but does NOT enforce the member's *role*.  A user with role='viewer' in
+    project_members will pass this check and be allowed to perform write
+    operations (write, mkdir, mv, rm, restore, bulk-write).  To fix this
+    properly, verify_project_access should return the role string (it already
+    does), and callers performing mutations should reject 'viewer' role.
+    Example:
+        role = project_service.verify_project_access(project_id, current_user.user_id)
+        if not role:
+            raise NotFoundException(...)
+        if role == "viewer":
+            raise PermissionException("Viewers cannot perform write operations", ...)
+    """
     if not project_service.verify_project_access(project_id, current_user.user_id):
         raise NotFoundException(
             f"Project not found: {project_id}", code=ErrorCode.NOT_FOUND

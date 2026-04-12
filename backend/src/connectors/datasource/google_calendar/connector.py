@@ -7,6 +7,11 @@ Architecture:
 - Uses parallel requests for speed
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+
 import asyncio
 import hashlib
 import json
