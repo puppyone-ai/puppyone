@@ -163,6 +163,15 @@ async def rollback(
 
     from mut.server.handlers import handle_rollback
 
+    # Rollback creates a NEW version whose tree content matches the target
+    # version.  It does NOT rewind the version counter.  The mut handler
+    # reads the target version's scope_hash/root, reconstructs the full
+    # file set, applies it to the current tree, and records a new commit
+    # with the resulting root_hash.  If "cat" after rollback still shows
+    # the old content, check that:
+    #   1. The target version's history entry has a valid root/scope_hash
+    #   2. The S3 blobs referenced by that hash still exist
+    #   3. The new root_hash was written to the projects row (set_root_hash)
     who = f"user:{current_user.user_id}"
     auth = {
         "agent": who,

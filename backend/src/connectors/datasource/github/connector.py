@@ -10,6 +10,11 @@ Design (single-node mode):
 Also provides preview functionality for repos, issues, PRs, and projects.
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+
 import asyncio
 import base64
 import hashlib

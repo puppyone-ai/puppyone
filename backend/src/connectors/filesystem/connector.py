@@ -6,6 +6,11 @@ Data sync is driven by the CLI daemon using MUT access_point
 registry; fetch()/push() are not used.
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+
 from typing import Any, List
 
 from src.connectors.datasource._base import (
