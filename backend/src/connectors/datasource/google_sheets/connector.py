@@ -6,6 +6,11 @@ Architecture:
 - Agent can query with jq: jq '.sheets[0].rows[] | select(.Column1 == "value")'
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+
 import hashlib
 import json
 from datetime import datetime, timezone

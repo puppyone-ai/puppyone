@@ -87,7 +87,15 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
 
 
 def _get_user_project_ids(sb_client, org_ids: list[str]) -> list[str]:
-    """Get all project IDs across the user's organizations."""
+    """Get all project IDs across the user's organizations.
+
+    NOTE: This relies on resolve_org_ids() which queries org_members for the
+    user.  If a user was added to an org but their org_members row is missing
+    (e.g. RLS policy prevents the service-role read, or the invite flow didn't
+    insert a row), they will get zero org_ids and therefore zero project_ids,
+    causing 404 on access-point mutations.  This is a data/RLS issue, not a
+    code bug — ensure org_members rows exist for all invited users.
+    """
     if not org_ids:
         return []
     resp = (
@@ -580,6 +588,36 @@ async def _create_filesystem(
     )
 
 
+def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
+    """Create a direct access point (generic MUT protocol access)."""
+    sb = _get_client()
+    cfg = payload.config
+    scope = cfg.get("scope", {})
+    scope_path = scope.get("path", "") if isinstance(scope, dict) else ""
+    mode = scope.get("mode", "rw") if isinstance(scope, dict) else "rw"
+
+    ap_id = f"direct-{secrets.token_hex(4)}"
+    key = f"cli_{secrets.token_urlsafe(32)}"
+    sb.table("access_points").insert({
+        "id": ap_id,
+        "project_id": payload.project_id,
+        "provider": "direct",
+        "direction": "bidirectional",
+        "status": "active",
+        "config": {"scope": {"id": ap_id, "path": scope_path, "exclude": [], "mode": mode}},
+        "access_key": key,
+    }).execute()
+
+    return UnifiedConnectionOut(
+        id=ap_id,
+        project_id=payload.project_id,
+        provider="direct",
+        name=payload.name or "Direct Access",
+        status="active",
+        access_key=key,
+    )
+
+
 @router.post(
     "/",
     response_model=ApiResponse[UnifiedConnectionOut],
@@ -615,6 +653,8 @@ async def create_connection(
             result = _create_sandbox(payload)
         elif provider == "filesystem":
             result = await _create_filesystem(payload, current_user.user_id)
+        elif provider == "direct":
+            result = _create_direct(payload)
         elif provider in _get_datasource_providers():
             result = await _create_datasource(payload, current_user.user_id)
         else:
