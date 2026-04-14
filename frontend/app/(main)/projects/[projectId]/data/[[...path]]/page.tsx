@@ -396,7 +396,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const {
     currentFolderId, folderBreadcrumbs, isResolvingPath,
-    activeNodeId, activeNodeType, activePreviewType,
+    activeNodeId, activeNodeType, activePreviewType, activeMimeType,
     markdownContent, setMarkdownContent, isLoadingMarkdown,
     markdownViewMode, setMarkdownViewMode,
   } = usePathResolver(projectId, path);
@@ -975,6 +975,7 @@ export default function DataPage({ params }: DataPageProps) {
                 <EditorArea
                   activeNodeId={activeNodeId}
                   activeNodeType={activeNodeType}
+                  activeMimeType={activeMimeType}
                   activeProject={activeProject}
                   currentTableData={currentTableData}
                   markdownContent={markdownContent}

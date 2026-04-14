@@ -42,7 +42,7 @@ DEMO_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class MutClient:
     def __init__(self, api_url: str, access_key: str, role: str):
-        self.base = f"{api_url}/mut/ap/{access_key}"
+        self.base = f"{api_url}/api/v1/mut/ap/{access_key}"
         self.role = role
         self.session = requests.Session()
         self.session.headers["Content-Type"] = "application/json"

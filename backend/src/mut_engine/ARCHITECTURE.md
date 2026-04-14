@@ -116,7 +116,7 @@ POST /rollback       → handle_rollback(repo, auth, body)
 POST /pull-version   → handle_pull_version(repo, auth, body)
 ```
 
-### Access Point Router — `/mut/ap/{access_key}`
+### Access Point Router — `/api/v1/mut/ap/{access_key}`
 
 认证：access_key 路径参数 → 解析 access_points 表获取 project_id + scope
 
@@ -197,7 +197,7 @@ protocol_router.py
 
 ```
 任意 MUT 客户端
-  │  POST /mut/ap/{access_key}/push
+  │  POST /api/v1/mut/ap/{access_key}/push
   │  Body: { base_version, objects, tree, ... }
   ▼
 access_point.py

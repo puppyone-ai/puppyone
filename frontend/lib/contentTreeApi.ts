@@ -6,7 +6,9 @@
  * All responses wrapped in { code: 0, message: "success", data: {...} }
  */
 
-import { apiRequest } from './apiClient';
+import { apiRequest, getApiAccessToken } from './apiClient';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
 // === Types ===
 
@@ -30,6 +32,9 @@ export interface TreeStatResponse {
   type: NodeType;
   name: string;
   content_hash: string | null;
+  size_bytes?: number;
+  mime_type?: string | null;
+  children_count?: number | null;
   exists: boolean;
 }
 
@@ -209,6 +214,24 @@ export async function readFile(
   return treeRequest<TreeCatResponse>(
     `/api/v1/content/${projectId}/cat?${params.toString()}`
   );
+}
+
+/**
+ * Fetch raw file bytes as a Blob (for images, binary files, etc.).
+ * GET /api/v1/content/{projectId}/raw?path=...
+ */
+export async function fetchRawBlob(
+  projectId: string,
+  path: string
+): Promise<Blob> {
+  const token = await getApiAccessToken();
+  const params = new URLSearchParams({ path });
+  const res = await fetch(
+    `${API_BASE_URL}/api/v1/content/${projectId}/raw?${params}`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+  );
+  if (!res.ok) throw new Error(`Failed to fetch raw file: ${res.status}`);
+  return res.blob();
 }
 
 /**

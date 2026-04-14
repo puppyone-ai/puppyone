@@ -70,7 +70,7 @@ Each agent gets a single URL + API key. No SSH setup, no OAuth flows, no credent
 
 ```bash
 # That's it. One URL per agent.
-curl -X POST https://api.puppyone.ai/mut/ap/{access_key}/push
+curl -X POST https://api.puppyone.ai/api/v1/mut/ap/{access_key}/push
 ```
 
 ## Real-World Impact

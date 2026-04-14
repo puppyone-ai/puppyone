@@ -216,7 +216,7 @@ def test_filesystem_ap(t, ctx):
     t.section("1. Filesystem AP → MUT Clone + Push + Pull")
 
     ap_id, key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("filesystem: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "filesystem", key, url,
@@ -227,7 +227,7 @@ def test_filesystem_link(t, ctx):
     t.section("2. Filesystem AP → MUT Init + Link")
 
     ap_id, key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
 
     _test_mut_link(t, ctx, "filesystem-link", key, url,
                    os.path.join(ctx.base_dir, "fs-link"))
@@ -245,7 +245,7 @@ def test_agent_ap(t, ctx):
         # Fallback to DB
         ap_id, key = _create_ap_via_db(ctx, "agent", scope_path="", mode="rw")
 
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("agent: AP created with key", bool(key))
 
     _test_mut_connection(t, ctx, "agent", key, url,
@@ -256,7 +256,7 @@ def test_sandbox_ap(t, ctx):
     t.section("4. Sandbox AP → MUT Clone + Push + Pull")
 
     ap_id, key = _create_ap_via_db(ctx, "sandbox", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("sandbox: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "sandbox", key, url,
@@ -267,7 +267,7 @@ def test_direct_ap(t, ctx):
     t.section("5. Direct AP → MUT Clone + Push + Pull")
 
     ap_id, key = _create_ap_via_db(ctx, "direct", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("direct: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "direct", key, url,
@@ -278,7 +278,7 @@ def test_direct_readonly(t, ctx):
     t.section("6. Direct AP (Readonly) → MUT Clone (push blocked)")
 
     ap_id, key = _create_ap_via_db(ctx, "direct", scope_path="", mode="r")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("direct-ro: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "direct-ro", key, url,
@@ -290,7 +290,7 @@ def test_scoped_agent(t, ctx):
 
     # Push some content first via root AP
     root_id, root_key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
-    root_url = f"{ctx.api}/mut/ap/{root_key}"
+    root_url = f"{ctx.api}/api/v1/mut/ap/{root_key}"
     root_dir = os.path.join(ctx.base_dir, "scoped-root")
     repo = clone_op.clone(root_url, credential=root_key, workdir=root_dir)
     (Path(root_dir) / "global.txt").write_text("global file")
@@ -301,7 +301,7 @@ def test_scoped_agent(t, ctx):
 
     # Create scoped agent AP for /agent-data/
     agent_id, agent_key = _create_ap_via_db(ctx, "agent", scope_path="/agent-data/", mode="rw")
-    agent_url = f"{ctx.api}/mut/ap/{agent_key}"
+    agent_url = f"{ctx.api}/api/v1/mut/ap/{agent_key}"
 
     # Clone via scoped AP
     agent_dir = os.path.join(ctx.base_dir, "scoped-agent")
@@ -362,7 +362,7 @@ def test_multi_provider_concurrent(t, ctx):
     aps = []
     for i, provider in enumerate(["filesystem", "agent", "direct"]):
         ap_id, key = _create_ap_via_db(ctx, provider, scope_path="", mode="rw")
-        aps.append((provider, key, f"{ctx.api}/mut/ap/{key}"))
+        aps.append((provider, key, f"{ctx.api}/api/v1/mut/ap/{key}"))
 
     # Each AP clones, writes, pushes
     for provider, key, url in aps:
@@ -380,7 +380,7 @@ def test_multi_provider_concurrent(t, ctx):
     # Verify all files visible via one AP
     verify_dir = os.path.join(ctx.base_dir, "concurrent-verify")
     _, verify_key = _create_ap_via_db(ctx, "direct", scope_path="", mode="r")
-    client = MutClient(f"{ctx.api}/mut/ap/{verify_key}", verify_key)
+    client = MutClient(f"{ctx.api}/api/v1/mut/ap/{verify_key}", verify_key)
     clone_data = client.clone()
     files = list(clone_data.get("files", {}).keys())
     for provider in ["filesystem", "agent", "direct"]:

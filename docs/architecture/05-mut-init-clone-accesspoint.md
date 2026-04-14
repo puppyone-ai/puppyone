@@ -349,7 +349,7 @@ def create_server_with_root(root_dir_name: str):
 ```json
 {
   "version": 1,
-  "server": "https://api.puppyone.com/mut/ap/cli_abc123def456",
+  "server": "https://api.puppyone.com/api/v1/mut/ap/cli_abc123def456",
   "credential": "cli_abc123def456"
 }
 ```
@@ -369,10 +369,10 @@ def create_server_with_root(root_dir_name: str):
 ```bash
 # 1. 用户在 PuppyOne 创建项目，导入 GitHub repo
 #    → 自动创建 MUT Server，数据成为 SoT
-#    → 生成 Access Point: https://api.puppyone.com/mut/ap/cli_xxx
+#    → 生成 Access Point: https://api.puppyone.com/api/v1/mut/ap/cli_xxx
 
 # 2. 本地 clone
-mut clone https://api.puppyone.com/mut/ap/cli_xxx
+mut clone https://api.puppyone.com/api/v1/mut/ap/cli_xxx
 cd my-project
 
 # 3. 正常开发
@@ -392,7 +392,7 @@ mkdir my-project && cd my-project
 mut init
 
 # 2. 绑定到 PuppyOne（创建新 server + scope）
-mut link access https://api.puppyone.com/mut/ap/cli_xxx research
+mut link access https://api.puppyone.com/api/v1/mut/ap/cli_xxx research
 
 # 3. 开始在 research/ 下工作
 echo "# Research Notes" > research/notes.md
@@ -416,7 +416,7 @@ mut init
 #    → 生成 Access Point
 
 # 4. 绑定
-mut link access https://api.puppyone.com/mut/ap/cli_xxx
+mut link access https://api.puppyone.com/api/v1/mut/ap/cli_xxx
 
 # 5. 正常使用
 mut status

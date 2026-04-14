@@ -5,7 +5,7 @@ An Access Point is a URL + credential that gives a MUT client everything
 it needs to connect. The client doesn't know about project_id, connector
 types, or platform concepts — just a URL and a key.
 
-URL format: /mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-version
+URL format: /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-version
 
 The access_key maps to an access_points row which contains:
   - project_id: which MUT tree to operate on
@@ -98,7 +98,7 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
 
 # ── Access Point Router ──────────────────────────────────────
 
-ap_router = APIRouter(prefix="/mut/ap")
+ap_router = APIRouter(prefix="/api/v1/mut/ap")
 
 
 def _get_repo_manager() -> MutRepoManager:

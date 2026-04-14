@@ -3,7 +3,7 @@ Filesystem Connector — Bidirectional local folder sync via MUT protocol.
 
 Architecture:
   - CLI daemon handles all watch/diff/sync using MUT access_point
-    (POST /mut/ap/{access_key}/clone|push|pull|negotiate)
+    (POST /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate)
   - Backend provides connection lifecycle management only
 
 Components:
