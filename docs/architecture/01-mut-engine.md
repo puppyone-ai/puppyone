@@ -221,7 +221,7 @@ AuditLog                                 ScopeManager
 │  Protocol Router (/mut)         面向 CLI daemon，MUT 原生协议             │
 │    → mut.server.handlers 直调     clone / push / pull / negotiate        │
 │                                                                          │
-│  Access Point (/mut/ap)         面向任意 MUT 客户端，URL+Key 即可连接     │
+│  Access Point (/api/v1/mut/ap)         面向任意 MUT 客户端，URL+Key 即可连接     │
 │    → 和 Protocol Router 相同       无需传 project_id 和 auth header      │
 │                                                                          │
 │  Audit Router (/nodes)          面向前端审计面板                          │

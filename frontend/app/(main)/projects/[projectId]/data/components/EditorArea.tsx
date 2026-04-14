@@ -1,14 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
+import { fetchRawBlob } from '@/lib/contentTreeApi';
 import { MarkdownEditor, type MarkdownViewMode } from '@/components/editors/markdown';
 import { GithubRepoView } from '@/components/views/GithubRepoView';
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import type { EditorType } from '@/components/ProjectsHeader';
 import type { McpToolPermissions } from '@/lib/mcpApi';
 
-function FilePreview({ nodeName }: { nodeName: string }) {
+function FilePlaceholder({ nodeName }: { nodeName: string }) {
   return (
     <div style={{
       flex: 1, display: 'flex', flexDirection: 'column',
@@ -24,9 +25,92 @@ function FilePreview({ nodeName }: { nodeName: string }) {
   );
 }
 
+function ImagePreview({ projectId, filePath, nodeName }: { projectId: string; filePath: string; nodeName: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let revoked = false;
+    let url: string | null = null;
+
+    fetchRawBlob(projectId, filePath)
+      .then(blob => {
+        if (revoked) return;
+        url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      })
+      .catch(err => {
+        if (revoked) return;
+        setError(err.message);
+      });
+
+    return () => {
+      revoked = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [projectId, filePath]);
+
+  if (error) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444' }}>
+        Failed to load image: {error}
+      </div>
+    );
+  }
+
+  if (!blobUrl) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#71717a' }}>
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
+        </svg>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+      justifyContent: 'center', overflow: 'auto', padding: 24, background: '#0a0a0a',
+    }}>
+      <div style={{ fontSize: 13, color: '#71717a', marginBottom: 12 }}>{nodeName}</div>
+      <img
+        src={blobUrl}
+        alt={nodeName}
+        style={{ maxWidth: '100%', maxHeight: 'calc(100% - 40px)', objectFit: 'contain', borderRadius: 8 }}
+      />
+    </div>
+  );
+}
+
+function TextPreview({ content, nodeName }: { content: string; nodeName: string }) {
+  const ext = nodeName.split('.').pop()?.toLowerCase() || '';
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div style={{
+        padding: '8px 16px', borderBottom: '1px solid #262626', fontSize: 12,
+        color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+      }}>
+        <span style={{ fontWeight: 500 }}>{nodeName}</span>
+        {ext && <span style={{ color: '#525252' }}>{ext.toUpperCase()}</span>}
+      </div>
+      <pre style={{
+        flex: 1, margin: 0, padding: 16, overflow: 'auto',
+        fontFamily: 'ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace',
+        fontSize: 13, lineHeight: 1.6, color: '#d4d4d8', background: '#0a0a0a',
+        whiteSpace: 'pre-wrap', wordBreak: 'break-word', tabSize: 4,
+      }}>
+        {content}
+      </pre>
+    </div>
+  );
+}
+
 interface EditorAreaProps {
   activeNodeId: string;
   activeNodeType: string;
+  activeMimeType: string | null;
   activeProject: { id: string; name: string } & Record<string, any>;
   currentTableData: any;
   markdownContent: string;
@@ -47,6 +131,7 @@ interface EditorAreaProps {
 export function EditorArea({
   activeNodeId,
   activeNodeType,
+  activeMimeType,
   activeProject,
   currentTableData,
   markdownContent,
@@ -136,8 +221,31 @@ export function EditorArea({
     );
   }
 
-  if (['file', 'image'].includes(nodeConfig.renderAs) && !currentTableData?.data && !markdownContent) {
-    return <FilePreview nodeName={currentTableData?.name || ''} />;
+  if (['file', 'image'].includes(nodeConfig.renderAs) && !currentTableData?.data) {
+    const nodeName = currentTableData?.name || '';
+    const isImage = activeMimeType?.startsWith('image/');
+    const isText = activeMimeType?.startsWith('text/') || activeMimeType === 'application/javascript' || activeMimeType === 'application/typescript';
+
+    if (isImage) {
+      return <ImagePreview projectId={activeProject.id} filePath={activeNodeId} nodeName={nodeName} />;
+    }
+
+    if (isText && markdownContent) {
+      return <TextPreview content={markdownContent} nodeName={nodeName} />;
+    }
+
+    if (isText && isLoadingMarkdown) {
+      return (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252' }}>
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
+            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
+          </svg>
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+        </div>
+      );
+    }
+
+    return <FilePlaceholder nodeName={nodeName} />;
   }
 
   return (

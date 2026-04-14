@@ -2,7 +2,7 @@
 Filesystem Module — HTTP Endpoints (lifecycle only).
 
 Data sync is handled by MUT protocol via access_point.py:
-  POST /mut/ap/{access_key}/clone|push|pull|negotiate
+  POST /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate
 
 This router provides access lifecycle management:
 
@@ -102,7 +102,7 @@ def bootstrap(
         "access_key": sync.access_key,
         "path": sync.path,
         "project_id": sync.project_id,
-        "ap_base": f"/mut/ap/{sync.access_key}",
+        "ap_base": f"/api/v1/mut/ap/{sync.access_key}",
     })
 
 
@@ -143,7 +143,7 @@ async def connect(
         "access_point_id": sync.id,
         "project_id": sync.project_id,
         "path": sync.path,
-        "ap_base": f"/mut/ap/{sync.access_key}",
+        "ap_base": f"/api/v1/mut/ap/{sync.access_key}",
     })
 
 

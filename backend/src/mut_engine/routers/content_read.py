@@ -1,10 +1,11 @@
-"""Content Read API — ls, cat, stat, tree, trash."""
+"""Content Read API — ls, cat, stat, tree, trash, raw."""
 
 from __future__ import annotations
 
 import json as _json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from src.common_schemas import ApiResponse
 from src.mut_engine.dependencies import get_mut_ops
@@ -102,6 +103,40 @@ def read_file(
         content_hash=entry.content_hash if entry else None,
         version=version,
     ))
+
+
+@read_router.get(
+    "/{project_id}/raw",
+    summary="Serve raw file bytes with correct Content-Type",
+)
+def raw_file(
+    project_id: str,
+    path: str = Query(..., description="File path"),
+    ops: MutOps = Depends(get_mut_ops),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    ensure_project_access(project_service, current_user, project_id)
+    clean_path = validate_path(path)
+
+    try:
+        content = ops.read_file(project_id, clean_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
+
+    entry = ops.stat(project_id, clean_path)
+    from src.mut_engine.services.tree_reader import detect_mime
+    mime = detect_mime(clean_path) if entry else "application/octet-stream"
+
+    filename = clean_path.rsplit("/", 1)[-1] if "/" in clean_path else clean_path
+    return Response(
+        content=content,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
 
 
 @read_router.get(

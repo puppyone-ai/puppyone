@@ -33,7 +33,7 @@ export function registerGateway(program) {
     .action(withErrors(async (opts, cmd) => {
       const out = createOutput(cmd);
       const api = createClient(cmd);
-      const { data } = await api.get("/gateways/providers");
+      const data = await api.get("/gateways/providers");
 
       if (out.json) { out.success(data); return; }
 
@@ -63,7 +63,7 @@ export function registerGateway(program) {
       ]);
 
       if (oauthProviders.has(provider)) {
-        const { data } = await api.get(`/gateways/${provider}/authorize`);
+        const data = await api.get(`/gateways/${provider}/authorize`);
         const url = data?.authorize_url;
         if (url) {
           out.info(`Opening browser for ${provider} authorization...`);
@@ -90,7 +90,7 @@ export function registerGateway(program) {
         }
       }
 
-      const { data } = await api.post("/gateways", {
+      const data = await api.post("/gateways", {
         provider,
         name: opts.name || provider,
         credentials,
@@ -114,7 +114,7 @@ export function registerGateway(program) {
       const api = createClient(cmd);
       const params = {};
       if (opts.provider) params.provider = opts.provider;
-      const { data } = await api.get("/gateways", { params });
+      const data = await api.get("/gateways", params);
 
       if (out.json) { out.success(data); return; }
 
@@ -144,7 +144,7 @@ export function registerGateway(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const api = createClient(cmd);
-      const { data } = await api.get(`/gateways/${id}`);
+      const data = await api.get(`/gateways/${id}`);
 
       if (out.json) { out.success(data); return; }
 
@@ -169,7 +169,7 @@ export function registerGateway(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const api = createClient(cmd);
-      await api.delete(`/gateways/${id}`);
+      await api.del(`/gateways/${id}`);
       out.success("Gateway deleted");
     }));
 
@@ -182,7 +182,7 @@ export function registerGateway(program) {
     .action(withErrors(async (id, opts, cmd) => {
       const out = createOutput(cmd);
       const api = createClient(cmd);
-      const { data } = await api.post(`/gateways/${id}/refresh-token`);
+      const data = await api.post(`/gateways/${id}/refresh-token`);
       if (out.json) { out.success(data); return; }
       out.success("Token refreshed");
     }));

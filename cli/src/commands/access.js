@@ -877,7 +877,7 @@ function _showProviderGuidance(out, connection, baseUrl) {
   } else if (provider === "sandbox") {
     out.info("  \u2500 Execute via Agent or API.\n");
   } else if (provider === "filesystem" && key) {
-    const apBase = connection.ap_base || `/mut/ap/${key}`;
+    const apBase = connection.ap_base || `/api/v1/mut/ap/${key}`;
     out.info("  \u2500 Sync with MUT:");
     out.info(`    mut clone ${baseUrl}${apBase} --credential ${key} --dir <folder>`);
     out.info("");

@@ -146,15 +146,15 @@ def test_setup(t: T, ctx: Ctx):
         return key
 
     ctx.ap_root_key = _create_ap("int-root", "", "rw")
-    ctx.ap_root_url = f"{ctx.api}/mut/ap/{ctx.ap_root_key}"
+    ctx.ap_root_url = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_root_key}"
     t.check("Root AP created (rw, scope=/)", True)
 
     ctx.ap_docs_key = _create_ap("int-docs", "/docs/", "rw", ["/docs/internal/"])
-    ctx.ap_docs_url = f"{ctx.api}/mut/ap/{ctx.ap_docs_key}"
+    ctx.ap_docs_url = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_docs_key}"
     t.check("Docs AP created (rw, scope=/docs/, exclude=/docs/internal/)", True)
 
     ctx.ap_src_key = _create_ap("int-src", "/src/", "r")
-    ctx.ap_src_url = f"{ctx.api}/mut/ap/{ctx.ap_src_key}"
+    ctx.ap_src_url = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_src_key}"
     t.check("Src AP created (readonly, scope=/src/)", True)
 
     ctx.base_dir = tempfile.mkdtemp(prefix="cli-int-")
