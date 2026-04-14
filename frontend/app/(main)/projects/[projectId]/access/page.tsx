@@ -581,9 +581,9 @@ function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; 
           <div style={cmdStyle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
-              <code style={codeStyle}>pip install mut</code>
+              <code style={codeStyle}>pip install mutai</code>
             </div>
-            <CopyBtn copied={copied === 'install'} onCopy={() => copy('pip install mut', 'install')} />
+            <CopyBtn copied={copied === 'install'} onCopy={() => copy('pip install mutai', 'install')} />
           </div>
           <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>

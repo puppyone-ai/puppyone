@@ -290,15 +290,23 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
           </div>
         </CollapsibleSection>
 
-        {/* ── Setup (one-time) ── */}
+        {/* ── AI Agent Prompt ── */}
         {accessKey && (
           <div style={{ padding: '24px 20px 0' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
-              Setup
-            </div>
+            <AgentPromptBlock
+              cloneUrl={cloneUrl}
+              accessKey={accessKey}
+              scopeName={sync.node_name || 'project'}
+            />
+          </div>
+        )}
+
+        {/* ── Setup (one-time) ── */}
+        {accessKey && (
+          <CollapsibleSection title="Manual Setup" defaultOpen={false}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <CommandBlock
-                command="pip install mut"
+                command="pip install mutai"
                 label="Install"
               />
               <CommandBlock
@@ -309,21 +317,19 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
             <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
               Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: '#71717a' }}>./{sync.node_name || 'project'}/</code> folder linked to this context.
             </div>
-          </div>
+          </CollapsibleSection>
         )}
 
         {/* ── Sync Commands ── */}
         {accessKey && (
-          <div style={{ padding: '24px 20px 40px' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
-              Sync Commands
-            </div>
+          <CollapsibleSection title="Manual Sync Steps" defaultOpen={false}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
               <SyncStep step={1} command="mut pull" hint="Get the latest from cloud" />
               <SyncStep step={2} label="Edit files" />
-              <SyncStep step={3} command="mut push" hint="Send your changes to cloud" isLast />
+              <SyncStep step={3} command={'mut commit -m "your message"'} hint="Snapshot your changes locally" />
+              <SyncStep step={4} command="mut push" hint="Send your changes to cloud" isLast />
             </div>
-          </div>
+          </CollapsibleSection>
         )}
 
       </div>
@@ -334,6 +340,105 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
 /* ================================================================
    Sub-components
    ================================================================ */
+
+function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; accessKey: string; scopeName: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const prompt = [
+    `Sync my local folder with PuppyOne cloud using the \`mut\` CLI.`,
+    ``,
+    `## Setup (run once if not already cloned)`,
+    `\`\`\`bash`,
+    `pip install mutai`,
+    `mut clone ${cloneUrl} --credential ${accessKey}`,
+    `\`\`\``,
+    `This creates a \`./${scopeName}/\` folder.`,
+    ``,
+    `## Sync workflow`,
+    `\`\`\`bash`,
+    `cd ${scopeName}`,
+    `mut pull                          # get latest from cloud`,
+    `# ... make your edits ...`,
+    `mut commit -m "describe changes"  # snapshot locally`,
+    `mut push                          # send to cloud`,
+    `\`\`\``,
+    ``,
+    `Run \`mut status\` to check for uncommitted changes.`,
+    `Run \`mut log\` to view commit history.`,
+  ].join('\n');
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+        Quick Start
+      </div>
+      <div style={{ fontSize: 12, color: '#525252', lineHeight: 1.5, marginBottom: 12 }}>
+        Copy the prompt below and paste it into Claude Code, Cursor, or any AI coding agent.
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          background: '#0a0a0a',
+          border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.06)'}`,
+          borderRadius: 8, padding: '12px 14px',
+          transition: 'border-color 0.2s',
+        }}
+      >
+        <pre style={{
+          margin: 0, fontSize: 11, lineHeight: 1.65, color: '#8b8b8b',
+          fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace",
+          whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+          maxHeight: 160, overflow: 'hidden',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+          maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+        }}>
+          {prompt}
+        </pre>
+        <button
+          onClick={handleCopy}
+          style={{
+            position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+            height: 30, padding: '0 16px', borderRadius: 6,
+            background: copied ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.06)',
+            border: `1px solid ${copied ? 'rgba(52,211,153,0.25)' : 'rgba(255,255,255,0.1)'}`,
+            color: copied ? '#34d399' : '#a3a3a3',
+            fontSize: 12, fontWeight: 500, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => {
+            if (copied) return;
+            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+            e.currentTarget.style.color = '#e5e5e5';
+          }}
+          onMouseLeave={e => {
+            if (copied) return;
+            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+            e.currentTarget.style.color = '#a3a3a3';
+          }}
+        >
+          {copied ? (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              Copied
+            </>
+          ) : (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy Prompt
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function CollapsibleSection({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
