@@ -41,7 +41,7 @@ dependencies = [
     "apscheduler>=3.10.4",
     "watchdog>=6.0.0",
     "pymupdf>=1.25.0",
-    "mut",
+    "mutai",
 ]
 
 [build-system]
@@ -81,4 +81,4 @@ markers = [
 ]
 
 [tool.uv.sources]
-mut = { git = "https://github.com/puppyone-ai/mut.git", branch = "main" }
+mutai = { git = "https://github.com/puppyone-ai/mut.git", branch = "main" }
