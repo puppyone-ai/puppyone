@@ -340,6 +340,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
         });
         createdNodeId = target.path;
       } else {
+        if (!providerDef) return;
         const result = await createSyncConnection({
           project_id: projectId,
           provider: providerDef.id,
