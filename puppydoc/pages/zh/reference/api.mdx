@@ -324,6 +324,197 @@ GET /nodes/{node_id}/audit-logs
 ]
 ```
 
+### 按路径获取节点
+
+```
+GET /nodes/by-path?project_id={project_id}&path=/folder/file.json
+```
+
+### 按 ID 路径获取节点
+
+```
+GET /nodes/by-id-path/?project_id={project_id}&id_path=id1/id2/id3
+```
+
+### 批量获取节点
+
+```
+GET /nodes/batch?ids=node_1,node_2,node_3
+```
+
+### 创建文件夹
+
+```
+POST /nodes/folder
+```
+
+**请求体：**
+```json
+{
+  "name": "reports",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent"
+}
+```
+
+### 创建 JSON 节点
+
+```
+POST /nodes/json
+```
+
+**请求体：**
+```json
+{
+  "name": "config.json",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "content": { "key": "value", "nested": { "a": 1 } }
+}
+```
+
+### 创建 Markdown 节点
+
+```
+POST /nodes/markdown
+```
+
+**请求体：**
+```json
+{
+  "name": "README.md",
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "content": "# Hello\n\nThis is a markdown file."
+}
+```
+
+### 批量创建节点
+
+```
+POST /nodes/bulk-create
+```
+
+**请求体：**
+```json
+{
+  "project_id": "proj_xxx",
+  "parent_id": "node_parent",
+  "nodes": [
+    { "name": "a.json", "type": "json", "content": {} },
+    { "name": "b.md", "type": "markdown", "content": "# B" }
+  ]
+}
+```
+
+### 上传文件
+
+```
+POST /nodes/upload
+```
+
+返回预签名上传 URL，客户端直接上传文件到 S3。
+
+### 更新节点
+
+```
+PUT /nodes/{node_id}
+```
+
+**请求体：**
+```json
+{
+  "name": "new-name.json",
+  "content": { "updated": true }
+}
+```
+
+### 移动节点
+
+```
+POST /nodes/{node_id}/move
+```
+
+**请求体：**
+```json
+{
+  "new_parent_id": "node_target_folder"
+}
+```
+
+### 删除节点
+
+```
+DELETE /nodes/{node_id}
+```
+
+软删除，节点移入 `.trash` 文件夹。
+
+### 获取下载链接
+
+```
+GET /nodes/{node_id}/download
+```
+
+返回文件类型节点的预签名下载 URL。
+
+### 版本历史
+
+```
+GET  /nodes/{node_id}/versions                                 # 版本列表
+GET  /nodes/{node_id}/versions/{version}                       # 获取特定版本内容
+POST /nodes/{node_id}/rollback/{version}                       # 回滚到指定版本
+GET  /nodes/{node_id}/diff/{v1}/{v2}                           # 对比两个版本
+```
+
+**版本列表响应：**
+```json
+[
+  {
+    "version": 3,
+    "actor_type": "user",
+    "actor_id": "user_xxx",
+    "created_at": "2025-01-03T00:00:00Z",
+    "message": "Updated config"
+  },
+  {
+    "version": 2,
+    "actor_type": "agent",
+    "actor_id": "agent_xxx",
+    "created_at": "2025-01-02T00:00:00Z"
+  }
+]
+```
+
+### 文件夹快照
+
+```
+GET  /nodes/{folder_id}/snapshots                              # 快照历史
+POST /nodes/{folder_id}/rollback-snapshot/{snapshot_id}         # 回滚到快照
+```
+
+### 审计日志
+
+```
+GET /nodes/{node_id}/audit-logs
+```
+
+返回该节点的全部操作记录（谁在什么时候对该节点做了什么）。
+
+**响应：**
+```json
+[
+  {
+    "action": "update",
+    "actor_type": "user",
+    "actor_id": "user_xxx",
+    "node_id": "node_xxx",
+    "timestamp": "2025-01-01T12:00:00Z",
+    "details": {}
+  }
+]
+```
+
 ---
 
 ## 5. 数据表

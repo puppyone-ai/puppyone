@@ -13,6 +13,8 @@
 -- ============================================================
 
 
+BEGIN;
+
 -- ============================================================
 -- PART 1: ALTER mut_commits — add scope-level fields
 -- ============================================================
@@ -88,3 +90,5 @@ CREATE POLICY service_role_all_mut_scope_state
 -- counter (projects.mut_version) continues to be incremented for
 -- cross-scope ordering.
 -- ============================================================
+
+COMMIT;

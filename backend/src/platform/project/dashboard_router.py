@@ -7,6 +7,7 @@ project info, node counts, all access points, tools, and active uploads.
 
 
 from fastapi import APIRouter, Depends, status
+from loguru import logger
 from pydantic import BaseModel
 
 from src.common_schemas import ApiResponse
@@ -91,9 +92,24 @@ def get_project_dashboard(
     project_id = str(project.id)
     sb = SupabaseClient().client
 
-    node_counts = _compute_node_counts(ops, project_id)
-    access_points = _fetch_access_points(sb, project_id)
-    tools = _fetch_tools(sb, project_id)
+    try:
+        node_counts = _compute_node_counts(ops, project_id)
+    except Exception as e:
+        logger.exception(f"[Dashboard] _compute_node_counts failed for {project_id}")
+        raise
+
+    try:
+        access_points = _fetch_access_points(sb, project_id)
+    except Exception as e:
+        logger.exception(f"[Dashboard] _fetch_access_points failed for {project_id}")
+        raise
+
+    try:
+        tools = _fetch_tools(sb, project_id)
+    except Exception as e:
+        logger.exception(f"[Dashboard] _fetch_tools failed for {project_id}")
+        raise
+
     uploads = _fetch_uploads(sb, project_id)
 
     dashboard = ProjectDashboard(
