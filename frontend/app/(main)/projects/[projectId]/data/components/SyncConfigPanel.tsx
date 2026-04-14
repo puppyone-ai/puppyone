@@ -306,11 +306,21 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   const handleSyncDeploy = useCallback(async () => {
     if (!selectedSyncProvider || deploying) return;
     const providerDef = syncProviders.find(p => p.id === selectedSyncProvider);
-    if (!providerDef) return;
 
-    const missingRequired = providerDef.configFields
-      .filter(f => f.required && !syncConfigValues[f.key]?.trim());
-    if (missingRequired.length > 0) return;
+    const BOOTSTRAP_PROVIDERS: Record<string, { direction: 'inbound' | 'outbound' | 'bidirectional' }> = {
+      filesystem: { direction: 'bidirectional' },
+    };
+    const bootstrapFallback = BOOTSTRAP_PROVIDERS[selectedSyncProvider];
+
+    if (!providerDef && !bootstrapFallback) return;
+
+    const creationMode = providerDef?.creationMode ?? (bootstrapFallback ? 'bootstrap' : 'direct');
+
+    if (providerDef) {
+      const missingRequired = providerDef.configFields
+        .filter(f => f.required && !syncConfigValues[f.key]?.trim());
+      if (missingRequired.length > 0) return;
+    }
 
     setDeploying(true);
     setDeployError(null);
@@ -321,10 +331,10 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       const config: Record<string, unknown> = { ...syncConfigValues };
       let createdNodeId: string | null = null;
 
-      if (providerDef.creationMode === 'bootstrap') {
+      if (creationMode === 'bootstrap') {
         await deploySyncEndpoint({
-          provider: providerDef.id,
-          direction: providerDef.direction,
+          provider: providerDef?.id ?? selectedSyncProvider,
+          direction: providerDef?.direction ?? bootstrapFallback?.direction ?? 'bidirectional',
           config,
           uiMode: 'inline',
         });
