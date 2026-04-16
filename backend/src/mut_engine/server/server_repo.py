@@ -7,7 +7,9 @@ S3 ObjectStore + Supabase History/Audit/Scope instead of a local filesystem.
 Key design:
   - All reads go through root_hash (global tree) for cross-scope visibility
   - CAS on scope_hash for concurrency control (no application-level locks)
-  - Version counter uses DB atomic increment
+  - Commits are identified by a 16-hex commit_id (hash of metadata), not
+    an integer counter. Linear history is preserved by ordering commits
+    on (created_at ASC, commit_id ASC).
 """
 
 from __future__ import annotations
@@ -61,17 +63,13 @@ class PuppyOneServerRepo:
                   exclude: list | None = None) -> dict:
         return self.scopes.add(scope_id, path, exclude)
 
-    # ── Global Version ──
+    # ── Global Head Commit ──
 
-    def get_latest_version(self) -> int:
-        return self.history.get_latest_version()
+    def get_head_commit_id(self) -> str:
+        return self.history.get_head_commit_id()
 
-    def set_latest_version(self, version: int) -> None:
-        self.history.set_latest_version(version)
-
-    def next_global_version(self) -> int:
-        """Atomically increment and return the next global version."""
-        return self.history.atomic_next_version()
+    def set_head_commit_id(self, cid: str) -> None:
+        self.history.set_head_commit_id(cid)
 
     # ── Global Root Hash ──
 
@@ -81,13 +79,13 @@ class PuppyOneServerRepo:
     def set_root_hash(self, h: str) -> None:
         self.history.set_root_hash(h)
 
-    # ── Per-Scope Version + Hash ──
+    # ── Per-Scope Head + Hash ──
 
-    def get_scope_version(self, scope_path: str) -> int:
-        return self.history.get_scope_version(scope_path)
+    def get_scope_head_commit_id(self, scope_path: str) -> str:
+        return self.history.get_scope_head_commit_id(scope_path)
 
-    def set_scope_version(self, scope_path: str, version: int) -> None:
-        self.history.set_scope_version(scope_path, version)
+    def set_scope_head_commit_id(self, scope_path: str, cid: str) -> None:
+        self.history.set_scope_head_commit_id(scope_path, cid)
 
     def get_scope_hash(self, scope_path: str) -> str:
         return self.history.get_scope_hash(scope_path)
@@ -95,32 +93,50 @@ class PuppyOneServerRepo:
     def set_scope_hash(self, scope_path: str, h: str) -> None:
         self.history.set_scope_hash(scope_path, h)
 
-    def cas_update_scope(self, scope_path: str, old_hash: str, new_hash: str) -> bool:
-        """CAS update scope hash via database atomic operation."""
-        return self.history.cas_update_scope_hash(scope_path, old_hash, new_hash)
+    def cas_update_scope(
+        self,
+        scope_path: str,
+        old_hash: str,
+        new_hash: str,
+        head_commit_id: str = "",
+    ) -> bool:
+        """Atomic CAS on (scope_hash, head_commit_id).
+
+        Piggy-backs the matching ``head_commit_id`` onto the same
+        Postgres UPDATE so a losing CAS cannot later overwrite the
+        winner's head pointer. ``head_commit_id`` is optional only
+        for the filesystem interface parity — in practice the push
+        handler always passes the fresh commit id it just minted.
+        """
+        return self.history.cas_update_scope_hash(
+            scope_path, old_hash, new_hash,
+            head_commit_id=head_commit_id,
+        )
 
     # ── History ──
 
     def record_history(
-        self, version: int, who: str, message: str,
+        self, commit_id: str, who: str, message: str,
         scope_path: str, changes: list,
         conflicts: list | None = None,
-        scope_hash: str = "", scope_version: str = "",
+        scope_hash: str = "",
         root_hash: str = "",
+        created_at_iso: str = "",
     ) -> None:
         self.history.record(
-            version, who, message, scope_path, changes, conflicts,
+            commit_id, who, message, scope_path, changes, conflicts,
             root_hash=root_hash, scope_hash=scope_hash,
-            scope_version=scope_version,
+            created_at_iso=created_at_iso,
         )
 
     def get_history_since(
-        self, since_version: int, scope_path: str | None = None, limit: int = 0,
+        self, since_commit_id: str,
+        scope_path: str | None = None, limit: int = 0,
     ) -> list[dict]:
-        return self.history.get_since(since_version, scope_path, limit)
+        return self.history.get_since(since_commit_id, scope_path, limit)
 
-    def get_history_entry(self, version: int) -> dict | None:
-        return self.history.get_entry(version)
+    def get_history_entry(self, commit_id: str) -> dict | None:
+        return self.history.get_entry(commit_id)
 
     # ── Audit (delegate) ──
 

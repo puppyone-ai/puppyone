@@ -632,7 +632,7 @@ class AgentService:
                                     "path": f.path,
                                     "node_type": f.node_type,
                                     "readonly": tool["readonly"],
-                                    "base_version": f.base_version,
+                                    "base_commit_id": f.base_commit_id,
                                     "base_content": f.content,  # record original content at the time Agent reads it
                                 }
                         # Also record the folder itself (for display)
@@ -649,7 +649,7 @@ class AgentService:
                             "path": main_file.path,
                             "node_type": data.node_type,
                             "readonly": tool["readonly"],
-                            "base_version": main_file.base_version,
+                            "base_commit_id": main_file.base_commit_id,
                             "base_content": main_file.content,
                         }
                     else:

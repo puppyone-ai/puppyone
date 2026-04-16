@@ -91,7 +91,7 @@ async def mut_push(
 
     log_info(
         f"[MUT] push project={project_id} agent={auth['agent']} "
-        f"v={result.get('version')} merged={result.get('merged', False)}"
+        f"commit={result.get('commit_id')} merged={result.get('merged', False)}"
     )
     return JSONResponse(result)
 
@@ -153,7 +153,7 @@ async def mut_rollback(
     auth: dict = Depends(get_mut_auth),
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
-    """Rollback to a historical version (creates a revert commit)."""
+    """Rollback to a historical commit (creates a revert commit)."""
     from mut.server.handlers import handle_rollback
 
     body = await request.json()
@@ -174,35 +174,35 @@ async def mut_rollback(
 
     log_info(
         f"[MUT] rollback project={project_id} agent={auth['agent']} "
-        f"target_v={result.get('target_version')} new_v={result.get('new_version')}"
+        f"target={result.get('target_commit_id')} new={result.get('new_commit_id')}"
     )
     return JSONResponse(result)
 
 
-@router.post("/{project_id}/pull-version")
-async def mut_pull_version(
+@router.post("/{project_id}/pull-commit")
+async def mut_pull_commit(
     project_id: str,
     request: Request,
     auth: dict = Depends(get_mut_auth),
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
-    """Pull files at a specific historical version (not just latest)."""
-    from mut.server.handlers import handle_pull_version
+    """Pull files at a specific historical commit (not just latest)."""
+    from mut.server.handlers import handle_pull_commit
 
     body = await request.json()
 
     try:
         result = await asyncio.to_thread(
-            _invoke, handle_pull_version, repo_manager, project_id, auth, body,
+            _invoke, handle_pull_commit, repo_manager, project_id, auth, body,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log_error(f"[MUT] pull-version failed for project {project_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Pull version failed: {e}")
+        log_error(f"[MUT] pull-commit failed for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Pull commit failed: {e}")
 
     log_info(
-        f"[MUT] pull-version project={project_id} agent={auth['agent']} "
-        f"version={result.get('version')}"
+        f"[MUT] pull-commit project={project_id} agent={auth['agent']} "
+        f"commit={result.get('commit_id')}"
     )
     return JSONResponse(result)

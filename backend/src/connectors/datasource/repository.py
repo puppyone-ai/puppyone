@@ -45,7 +45,7 @@ class SyncRepository:
             last_synced_at=row.get("last_synced_at"),
             error_message=row.get("error_message"),
             remote_hash=row.get("remote_hash"),
-            last_sync_version=row.get("last_sync_version", 0),
+            last_sync_commit_id=row.get("last_sync_commit_id", "") or "",
             created_by=row.get("created_by"),
             created_at=row.get("created_at"),
             updated_at=row.get("updated_at"),
@@ -212,12 +212,17 @@ class SyncRepository:
     def update_sync_point(
         self,
         sync_id: str,
-        last_sync_version: int,
+        last_sync_commit_id: str,
         remote_hash: Optional[str] = None,
     ) -> None:
-        """Record a successful sync checkpoint."""
+        """Record a successful sync checkpoint.
+
+        ``last_sync_commit_id`` is the MUT ``commit_id`` produced by
+        the most recent inbound write, or returned by the most recent
+        outbound push.
+        """
         data: dict[str, Any] = {
-            "last_sync_version": last_sync_version,
+            "last_sync_commit_id": last_sync_commit_id,
             "status": "active",
             "last_synced_at": self._now(),
             "updated_at": self._now(),

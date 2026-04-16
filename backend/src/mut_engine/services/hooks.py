@@ -67,8 +67,8 @@ def run_post_push_hook(
 
     Called by protocol_router and access_point after a successful MUT
     push or rollback.  Accepts both formats:
-      - push:     {"status": "ok",         "version": N, "root": "..."}
-      - rollback: {"status": "rolled-back","new_version": N, "root": "..."}
+      - push:     {"status": "ok",         "commit_id": "…", "root": "..."}
+      - rollback: {"status": "rolled-back","new_commit_id": "…", "root": "..."}
 
     1. Grafts scope tree into the global root hash so tree_reader can see it
     2. Extracts deleted paths from the commit entry and runs post_commit_delete
@@ -77,18 +77,18 @@ def run_post_push_hook(
     if status not in _SUCCESS_STATUSES:
         return
 
-    version = push_result.get("version") or push_result.get("new_version")
-    if not version:
+    commit_id = push_result.get("commit_id") or push_result.get("new_commit_id") or ""
+    if not commit_id:
         return
 
-    result_for_graft = {**push_result, "version": version}
+    result_for_graft = {**push_result, "commit_id": commit_id}
 
     try:
         repo = repo_manager.get_repo(project_id)
 
         _update_global_root(repo, result_for_graft)
 
-        entry = repo.history.get_entry(version)
+        entry = repo.history.get_entry(commit_id)
         if not entry:
             return
 
@@ -121,13 +121,14 @@ def _update_global_root(repo, push_result: dict) -> None:
     if not scope_hash:
         return
 
-    entry = repo.history.get_entry(push_result["version"])
+    commit_id = push_result["commit_id"]
+    entry = repo.history.get_entry(commit_id)
     if not entry:
-        log_error(f"[PostCommit] No history entry for version {push_result['version']}")
+        log_error(f"[PostCommit] No history entry for commit {commit_id}")
         return
 
     scope_path = (entry.get("scope_path") or "").strip("/")
-    old_scope_hash = _get_previous_scope_hash(repo, push_result["version"], scope_path)
+    old_scope_hash = _get_previous_scope_hash(repo, commit_id, scope_path)
 
     MAX_GRAFT_RETRIES = 5
     for attempt in range(MAX_GRAFT_RETRIES):
@@ -157,14 +158,14 @@ def _update_global_root(repo, push_result: dict) -> None:
     log_error(f"[PostCommit] Graft failed after {MAX_GRAFT_RETRIES} retries for scope='{scope_path}'")
 
 
-def _get_previous_scope_hash(repo, current_version: int, scope_path: str) -> str:
-    """Get the scope hash from the version BEFORE the current push.
+def _get_previous_scope_hash(repo, current_commit_id: str, scope_path: str) -> str:
+    """Get the scope hash from the commit BEFORE the current one.
 
     Used for conflict detection in graft: if the subtree has changed
     from this hash, another scope modified files in our path.
     """
     try:
-        return repo.history.get_previous_scope_hash(scope_path, current_version)
+        return repo.history.get_previous_scope_hash(scope_path, current_commit_id)
     except Exception as e:
         log_warning(f"[PostCommit] Failed to get previous scope hash: {e}")
         return ""

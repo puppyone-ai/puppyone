@@ -10,6 +10,15 @@
 
 ## P0 — Data Safety (fix first)
 
+### P0-0: Version-number race / duplicate `mut_version` — REMOVED by commit_id migration (2026-04-17)
+
+| Key | Value |
+|-----|-------|
+| **Original symptom** | Two concurrent pushes could read the same `mut_version`, each `+1`, and each write back the same new number, producing duplicate entries in `mut_commits`. |
+| **Original root cause** | Per-instance counter (`projects.mut_version` read-modify-write in Python) instead of a DB-side atomic increment. |
+| **Final fix (this change set)** | Retire the integer version entirely. Each commit is now identified by `commit_id = sha256(scope_path, scope_hash, ts_microseconds, who)[:16]`. There is no counter to race on — identical inputs produce identical ids (deduped by CAS on `scope_hash`), distinct inputs produce distinct ids. Migration `20260418000000_mut_commit_id_identity.sql` drops `projects.mut_version`, `mut_commits.version`, `mut_scope_state.version`, `atomic_next_version(...)` RPCs, and the denormalized `last_sync_version` on `sync_state` / `access_points`. |
+| **Affected surfaces** | `mut` wire protocol (`base_commit_id`, `head_commit_id`, `commit_id`); backend mut_engine schemas + routers + audit metadata; sync connector idempotency checks; frontend `contentTreeApi` + History/Home/Monitor pages; CLI `data` commands output. All migrated in lockstep — no compat shim. |
+
 ### P0-1: `handle_rollback` bypasses CAS and never triggers grafting
 
 | Key | Value |

@@ -114,7 +114,7 @@ backend/
 class MutWriteService:
     def __init__(self, repo_manager: MutRepoManager): ...
 
-    async def write_file(project_id, path, content, operator, message, base_version) -> WriteResult
+    async def write_file(project_id, path, content, operator, message, base_commit_id) -> WriteResult
     async def delete_file(project_id, path, operator, message) -> DeleteResult
     async def move_file(project_id, old_path, new_path, operator, message) -> MoveResult
     async def move_folder(project_id, old_path, new_path, operator, message) -> MoveResult
@@ -123,10 +123,10 @@ class MutWriteService:
     async def restore(project_id, trash_path, original_path, operator) -> MoveResult
     async def delete_folder(project_id, path, operator, message) -> DeleteResult
     async def read_file(project_id, path) -> bytes
-    async def get_version_history(project_id, path, limit, since_version) -> list[dict]
-    async def get_version_content(project_id, path, version) -> bytes
-    async def compute_diff(project_id, v1, v2) -> list[dict]
-    async def rollback(project_id, target_version, operator) -> int
+    async def get_commit_history(project_id, path, limit, since_commit_id) -> list[dict]
+    async def get_commit_content(project_id, path, commit_id) -> bytes
+    async def compute_diff(project_id, from_commit_id, to_commit_id) -> list[dict]
+    async def rollback(project_id, target_commit_id, operator) -> str  # new commit_id
 ```
 
 ### MutTreeReader（唯一读取入口）

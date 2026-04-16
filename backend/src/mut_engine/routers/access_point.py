@@ -5,7 +5,7 @@ An Access Point is a URL + credential that gives a MUT client everything
 it needs to connect. The client doesn't know about project_id, connector
 types, or platform concepts — just a URL and a key.
 
-URL format: /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-version
+URL format: /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-commit
 
 The access_key maps to an access_points row which contains:
   - project_id: which MUT tree to operate on
@@ -190,7 +190,7 @@ async def ap_push(access_key: str, request: Request):
 
     log_info(
         f"[AP] push ap={access_key[:8]}... project={project_id} "
-        f"v={result.get('version')} merged={result.get('merged', False)}"
+        f"commit={result.get('commit_id')} merged={result.get('merged', False)}"
     )
     return JSONResponse(result)
 
@@ -257,28 +257,28 @@ async def ap_rollback(access_key: str, request: Request):
 
     await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
-    log_info(f"[AP] rollback ap={access_key[:8]}... target_v={result.get('target_version')}")
+    log_info(f"[AP] rollback ap={access_key[:8]}... target={result.get('target_commit_id')}")
     return JSONResponse(result)
 
 
-@ap_router.post("/{access_key}/pull-version")
-async def ap_pull_version(access_key: str, request: Request):
-    """Pull historical version via Access Point URL."""
-    from mut.server.handlers import handle_pull_version
+@ap_router.post("/{access_key}/pull-commit")
+async def ap_pull_commit(access_key: str, request: Request):
+    """Pull a specific historical commit via Access Point URL."""
+    from mut.server.handlers import handle_pull_commit
 
     try:
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
         body = await request.json()
         result = await asyncio.to_thread(
-            _invoke, handle_pull_version, repo_manager, project_id, auth, body,
+            _invoke, handle_pull_commit, repo_manager, project_id, auth, body,
         )
     except HTTPException:
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log_error(f"[AP] pull-version failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Pull version failed: {e}")
+        log_error(f"[AP] pull-commit failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Pull commit failed: {e}")
 
-    log_info(f"[AP] pull-version ap={access_key[:8]}... version={result.get('version')}")
+    log_info(f"[AP] pull-commit ap={access_key[:8]}... commit={result.get('commit_id')}")
     return JSONResponse(result)

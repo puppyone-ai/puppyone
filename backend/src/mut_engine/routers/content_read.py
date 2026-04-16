@@ -51,12 +51,12 @@ def list_dir(
 
     entries = ops.list_dir(project_id, clean_path)
     entries = _exclude_trash(entries)
-    version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=ListDirResponse(
         path=clean_path,
         entries=[entry_to_response(e) for e in entries],
-        version=version,
+        head_commit_id=head_commit_id,
     ))
 
 
@@ -82,7 +82,7 @@ def read_file(
 
     from src.mut_engine.services.tree_reader import detect_type
     node_type = detect_type(clean_path)
-    version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
     content_json = None
     content_text = None
@@ -101,7 +101,7 @@ def read_file(
         content=content_json,
         content_text=content_text,
         content_hash=None,
-        version=version,
+        head_commit_id=head_commit_id,
     ))
 
 
@@ -193,12 +193,12 @@ def full_tree(
 
     entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
     entries = _exclude_trash(entries)
-    version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=TreeResponse(
         path=clean_path,
         entries=[entry_to_response(e) for e in entries],
-        version=version,
+        head_commit_id=head_commit_id,
     ))
 
 

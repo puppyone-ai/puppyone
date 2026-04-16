@@ -821,7 +821,9 @@ export function registerAccess(program) {
       if (data && data.synced > 0 && data.results?.length > 0) {
         const r = data.results[0];
         out.info(`  Provider: ${r.provider}`);
-        out.info(`  Version:  ${r.version}`);
+        if (r.commit_id) {
+          out.info(`  Commit:   @${String(r.commit_id).slice(0, 8)}`);
+        }
         out.info(`  Summary:  ${r.summary || "\u2014"}`);
         if (r.run_id) {
           out.info(`  Run ID:   ${r.run_id}`);

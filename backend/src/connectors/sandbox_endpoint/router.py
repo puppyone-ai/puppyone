@@ -380,7 +380,7 @@ async def exec_command(
                 writeback_results.append({
                     "scope": scope_path,
                     "files_written": len(modified),
-                    "version": push_result.get("version"),
+                    "commit_id": push_result.get("commit_id"),
                 })
 
         if writeback_results:

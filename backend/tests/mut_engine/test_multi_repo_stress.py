@@ -8,20 +8,18 @@ Simulates realistic production scenarios:
   - Access Point routing across projects
   - Scope isolation, auth rejection, rollback under concurrency
 
-Each test creates isolated in-memory repos — no DB or S3 needed.
+Each test creates isolated in-memory repos — no DB or S3 needed. All commit
+identifiers are hash-based (``commit_id``, 16 hex chars).
 """
 
-import asyncio
 import base64
 import json
-import threading
-import time
 import pytest
 
 from mut.core import tree as tree_mod
 from mut.server.handlers import (
     handle_clone, handle_push, handle_pull,
-    handle_negotiate, handle_rollback, handle_pull_version,
+    handle_negotiate, handle_rollback, handle_pull_commit,
 )
 from mut.foundation.error import PermissionDenied
 
@@ -53,12 +51,16 @@ class RepoFactory:
         class MemScopeBackend:
             def __init__(self):
                 self._s = {}
+
             def get(self, sid):
                 return self._s.get(sid)
+
             def put(self, sid, scope):
                 self._s[sid] = scope
+
             def delete(self, sid):
                 return self._s.pop(sid, None) is not None
+
             def list_all(self):
                 return list(self._s.values())
 
@@ -68,7 +70,6 @@ class RepoFactory:
             project_name=project_name or project_id,
             store=store, history=history, audit=audit, scopes=scopes,
         )
-        history.record(0, "server", "init", "/", [])
         self._repos[project_id] = repo
         return repo
 
@@ -81,8 +82,9 @@ def factory(tmp_path):
     return RepoFactory(tmp_path)
 
 
-def _push(store, files, base=0):
-    nested = {}
+def _push_body(store, files, base_commit_id: str = "") -> dict:
+    """Build a valid push body (Merkle root + reachable objects)."""
+    nested: dict = {}
     for path, content in files.items():
         parts = path.split("/")
         d = nested
@@ -102,12 +104,24 @@ def _push(store, files, base=0):
     root = build(nested)
     reachable = tree_mod.collect_reachable_hashes(store, root)
     return {
-        "base_version": base,
-        "snapshots": [{"id": 1, "root": root, "message": "push",
-                       "who": "test", "time": ""}],
-        "objects": {h: base64.b64encode(store.get(h)).decode()
-                    for h in reachable},
+        "base_commit_id": base_commit_id,
+        "snapshots": [{
+            "id": 1, "root": root, "message": "push",
+            "who": "test", "time": "",
+        }],
+        "objects": {
+            h: base64.b64encode(store.get(h)).decode()
+            for h in reachable
+        },
     }
+
+
+def _push(repo, auth, files, base_commit_id: str = "") -> str:
+    """Convenience: push + return the resulting commit_id."""
+    body = _push_body(repo.store, files, base_commit_id=base_commit_id)
+    result = handle_push(repo, auth, body)
+    assert result["status"] == "ok", result
+    return result["commit_id"]
 
 
 def _auth(agent, scope_path="/", mode="rw", excludes=None):
@@ -135,47 +149,45 @@ class TestMultiProjectIsolation:
         auth_a = _auth("user-a")
         auth_b = _auth("user-b")
 
-        # Push to project A
-        handle_push(repo_a, auth_a, _push(repo_a.store, {"a.txt": b"A data"}))
+        _push(repo_a, auth_a, {"a.txt": b"A data"})
+        _push(repo_b, auth_b, {"b.txt": b"B data"})
 
-        # Push to project B
-        handle_push(repo_b, auth_b, _push(repo_b.store, {"b.txt": b"B data"}))
-
-        # Project A doesn't see B's files
         files_a = repo_a.list_scope_files(auth_a["_scope"])
         assert "a.txt" in files_a
         assert "b.txt" not in files_a
 
-        # Project B doesn't see A's files
         files_b = repo_b.list_scope_files(auth_b["_scope"])
         assert "b.txt" in files_b
         assert "a.txt" not in files_b
 
-    def test_version_numbers_independent(self, factory):
+    def test_commit_ids_independent(self, factory):
         repo_a = factory.create("proj-a")
         repo_b = factory.create("proj-b")
         auth = _auth("admin")
 
-        # Push 5 times to A
+        prev_a = ""
         for i in range(5):
-            handle_push(repo_a, auth, _push(repo_a.store, {f"f{i}.txt": b"x"}, base=i))
+            prev_a = _push(repo_a, auth, {f"f{i}.txt": b"x"}, base_commit_id=prev_a)
 
-        # Push 2 times to B
+        prev_b = ""
         for i in range(2):
-            handle_push(repo_b, auth, _push(repo_b.store, {f"g{i}.txt": b"y"}, base=i))
+            prev_b = _push(repo_b, auth, {f"g{i}.txt": b"y"}, base_commit_id=prev_b)
 
-        assert repo_a.get_latest_version() == 5
-        assert repo_b.get_latest_version() == 2
+        assert repo_a.get_scope_head_commit_id("") == prev_a
+        assert repo_b.get_scope_head_commit_id("") == prev_b
+        assert prev_a != prev_b
 
     def test_three_projects_concurrent_pushes(self, factory):
         repos = [factory.create(f"proj-{i}") for i in range(3)]
         auths = [_auth(f"user-{i}") for i in range(3)]
 
+        cids = []
         for i, (repo, auth) in enumerate(zip(repos, auths)):
-            handle_push(repo, auth, _push(repo.store, {f"file-{i}.txt": f"data-{i}".encode()}))
+            cid = _push(repo, auth, {f"file-{i}.txt": f"data-{i}".encode()})
+            cids.append(cid)
 
         for i, repo in enumerate(repos):
-            assert repo.get_latest_version() == 1
+            assert repo.get_scope_head_commit_id("") == cids[i]
             files = repo.list_scope_files(auths[i]["_scope"])
             assert f"file-{i}.txt" in files
 
@@ -193,12 +205,11 @@ class TestConcurrentSameScope:
         repo.scopes.add("scope-root", "/")
 
         all_files = {}
+        prev = ""
         for i in range(5):
             auth = _auth(f"client-{i}")
             all_files[f"client-{i}.txt"] = f"data-{i}".encode()
-            body = _push(repo.store, dict(all_files), base=i)
-            r = handle_push(repo, auth, body)
-            assert r["status"] == "ok"
+            prev = _push(repo, auth, dict(all_files), base_commit_id=prev)
 
         files = repo.list_scope_files(_auth("any")["_scope"])
         for i in range(5):
@@ -210,11 +221,8 @@ class TestConcurrentSameScope:
         auth_a = _auth("alice")
         auth_b = _auth("bob")
 
-        body_a = _push(repo.store, {"shared.txt": b"alice-version"})
-        body_b = _push(repo.store, {"shared.txt": b"bob-version"})
-
-        handle_push(repo, auth_a, body_a)
-        handle_push(repo, auth_b, body_b)
+        _push(repo, auth_a, {"shared.txt": b"alice-version"})
+        _push(repo, auth_b, {"shared.txt": b"bob-version"})
 
         files = repo.list_scope_files(auth_a["_scope"])
         assert b"bob-version" in files["shared.txt"]
@@ -224,13 +232,12 @@ class TestConcurrentSameScope:
         auth = _auth("bot")
         all_files = {}
 
+        prev = ""
         for i in range(20):
             all_files["counter.txt"] = f"count={i}".encode()
-            body = _push(repo.store, dict(all_files), base=i)
-            r = handle_push(repo, auth, body)
-            assert r["version"] == i + 1
+            prev = _push(repo, auth, dict(all_files), base_commit_id=prev)
 
-        assert repo.get_latest_version() == 20
+        assert repo.get_scope_head_commit_id("") == prev
 
 
 # ══════════════════════════════════════════════════════════════
@@ -248,12 +255,10 @@ class TestConcurrentDifferentScopes:
         auth_docs = _auth("doc-bot", "/docs/")
         auth_src = _auth("dev-bot", "/src/")
 
-        r1 = handle_push(repo, auth_docs, _push(repo.store, {"readme.md": b"# Docs"}))
-        r2 = handle_push(repo, auth_src, _push(repo.store, {"main.py": b"code"}))
+        cid_docs = _push(repo, auth_docs, {"readme.md": b"# Docs"})
+        cid_src = _push(repo, auth_src, {"main.py": b"code"})
 
-        assert r1["status"] == "ok"
-        assert r2["status"] == "ok"
-        assert r1["version"] != r2["version"]
+        assert cid_docs != cid_src
 
         docs_files = repo.list_scope_files(auth_docs["_scope"])
         src_files = repo.list_scope_files(auth_src["_scope"])
@@ -261,21 +266,24 @@ class TestConcurrentDifferentScopes:
         assert "main.py" not in docs_files
         assert "main.py" in src_files
 
-    def test_scope_version_tracking(self, factory):
-        repo = factory.create("scope-ver")
+    def test_scope_head_tracking(self, factory):
+        repo = factory.create("scope-head")
         repo.scopes.add("scope-docs", "/docs/")
         repo.scopes.add("scope-src", "/src/")
 
         auth_docs = _auth("doc", "/docs/")
         auth_src = _auth("dev", "/src/")
 
+        last_docs = ""
         for i in range(3):
-            handle_push(repo, auth_docs, _push(repo.store, {f"d{i}.md": b"x"}, base=i))
+            last_docs = _push(
+                repo, auth_docs, {f"d{i}.md": b"x"}, base_commit_id=last_docs,
+            )
 
-        handle_push(repo, auth_src, _push(repo.store, {"m.py": b"y"}, base=3))
+        last_src = _push(repo, auth_src, {"m.py": b"y"})
 
-        assert repo.get_scope_version("docs") == 3
-        assert repo.get_scope_version("src") == 1
+        assert repo.get_scope_head_commit_id("docs") == last_docs
+        assert repo.get_scope_head_commit_id("src") == last_src
 
 
 # ══════════════════════════════════════════════════════════════
@@ -290,26 +298,26 @@ class TestAuthScopeEnforcement:
         ro_auth = _auth("reader", "/", mode="r")
 
         with pytest.raises(PermissionDenied, match="read-only"):
-            handle_push(repo, ro_auth, _push(repo.store, {"x.txt": b"data"}))
+            handle_push(repo, ro_auth, _push_body(repo.store, {"x.txt": b"data"}))
 
     def test_readonly_can_clone_and_pull(self, factory):
         repo = factory.create("auth-test2")
         rw_auth = _auth("admin")
         ro_auth = _auth("reader", "/", mode="r")
 
-        handle_push(repo, rw_auth, _push(repo.store, {"doc.md": b"# Hello"}))
+        _push(repo, rw_auth, {"doc.md": b"# Hello"})
 
         clone = handle_clone(repo, ro_auth, {})
         assert "doc.md" in clone["files"]
 
-        pull = handle_pull(repo, ro_auth, {"since_version": 0})
+        pull = handle_pull(repo, ro_auth, {"since_commit_id": ""})
         assert pull["status"] == "updated"
 
     def test_scope_excludes_enforced(self, factory):
         repo = factory.create("exclude-test")
         auth = _auth("agent", "/docs/", excludes=["/docs/secret/"])
 
-        body = _push(repo.store, {"secret/classified.txt": b"top secret"})
+        body = _push_body(repo.store, {"secret/classified.txt": b"top secret"})
         with pytest.raises(PermissionDenied, match="paths outside scope"):
             handle_push(repo, auth, body)
 
@@ -319,16 +327,12 @@ class TestAuthScopeEnforcement:
         rw_auth = _auth("editor", "/docs/")
         ro_auth = _auth("viewer", "/docs/", mode="r")
 
-        # Editor pushes
-        body = _push(repo.store, {"notes.md": b"# Notes"})
-        handle_push(repo, rw_auth, body)
+        _push(repo, rw_auth, {"notes.md": b"# Notes"})
 
-        # Viewer can read
         clone = handle_clone(repo, ro_auth, {})
         assert "notes.md" in clone["files"]
 
-        # Viewer cannot push
-        body2 = _push(repo.store, {"hack.txt": b"nope"})
+        body2 = _push_body(repo.store, {"hack.txt": b"nope"})
         with pytest.raises(PermissionDenied):
             handle_push(repo, ro_auth, body2)
 
@@ -341,9 +345,9 @@ class TestAuthScopeEnforcement:
         docs_auth = _auth("doc", "/docs/")
         src_auth = _auth("dev", "/src/")
 
-        handle_push(repo, docs_auth, _push(repo.store, {"readme.md": b"docs"}))
+        _push(repo, docs_auth, {"readme.md": b"docs"})
 
-        pull = handle_pull(repo, src_auth, {"since_version": 0})
+        pull = handle_pull(repo, src_auth, {"since_commit_id": ""})
         assert "readme.md" not in pull.get("files", {})
 
 
@@ -358,17 +362,16 @@ class TestRollbackConcurrency:
         repo = factory.create("rollback-test")
         auth = _auth("admin")
 
-        # v1
-        handle_push(repo, auth, _push(repo.store, {"f.txt": b"v1"}))
-        # v2
-        handle_push(repo, auth, _push(repo.store, {"f.txt": b"v2"}, base=1))
-        # rollback to v1 → v3
-        rb = handle_rollback(repo, auth, {"target_version": 1})
-        assert rb["new_version"] == 3
+        c1 = _push(repo, auth, {"f.txt": b"v1"})
+        c2 = _push(repo, auth, {"f.txt": b"v2"}, base_commit_id=c1)
+        assert c1 != c2
 
-        # push v4 on top of rollback
-        handle_push(repo, auth, _push(repo.store, {"f.txt": b"v4"}, base=3))
-        assert repo.get_latest_version() == 4
+        rb = handle_rollback(repo, auth, {"target_commit_id": c1})
+        assert rb["status"] == "rolled-back"
+        rollback_cid = rb["new_commit_id"]
+
+        c4 = _push(repo, auth, {"f.txt": b"v4"}, base_commit_id=rollback_cid)
+        assert repo.get_scope_head_commit_id("") == c4
 
         files = repo.list_scope_files(auth["_scope"])
         assert files["f.txt"] == b"v4"
@@ -377,26 +380,31 @@ class TestRollbackConcurrency:
         repo = factory.create("rb-history")
         auth = _auth("admin")
 
+        cids = []
+        prev = ""
         for i in range(1, 4):
-            handle_push(repo, auth, _push(repo.store, {"f.txt": f"v{i}".encode()}, base=i-1))
+            prev = _push(
+                repo, auth, {"f.txt": f"v{i}".encode()}, base_commit_id=prev,
+            )
+            cids.append(prev)
 
-        handle_rollback(repo, auth, {"target_version": 1})
+        rb = handle_rollback(repo, auth, {"target_commit_id": cids[0]})
+        cids.append(rb["new_commit_id"])
 
-        # All 4 versions accessible
-        for v in range(1, 5):
-            entry = repo.get_history_entry(v)
-            assert entry is not None
+        for cid in cids:
+            entry = repo.get_history_entry(cid)
+            assert entry is not None, f"commit {cid} missing from history"
 
-    def test_pull_version_after_rollback(self, factory):
+    def test_pull_commit_after_rollback(self, factory):
         repo = factory.create("rb-pv")
         auth = _auth("admin")
 
-        handle_push(repo, auth, _push(repo.store, {"f.txt": b"original"}))
-        handle_push(repo, auth, _push(repo.store, {"f.txt": b"changed"}, base=1))
-        handle_rollback(repo, auth, {"target_version": 1})
+        c1 = _push(repo, auth, {"f.txt": b"original"})
+        c2 = _push(repo, auth, {"f.txt": b"changed"}, base_commit_id=c1)
+        handle_rollback(repo, auth, {"target_commit_id": c1})
 
-        # Pull version 2 (before rollback) — should show "changed"
-        pv = handle_pull_version(repo, auth, {"version": 2})
+        # Pull the pre-rollback commit — should still show "changed"
+        pv = handle_pull_commit(repo, auth, {"commit_id": c2})
         content = base64.b64decode(pv["files"]["f.txt"])
         assert content == b"changed"
 
@@ -409,32 +417,37 @@ class TestPuppyOneAsClient:
     """Simulates PuppyOne's internal MutOps writing to repos alongside external clients."""
 
     def test_internal_and_external_interleaved(self, factory):
-        """PuppyOne internal write (MutOps) + external CLI push with merge."""
+        """PuppyOne internal write (MutOps) + external CLI push with merge.
+
+        Internal writer (MutOps) advances HEAD with ``config.json``; an
+        external CLI push from the same stale seed base brings in
+        ``readme.md``. Three-way merge keeps both files.
+        """
         repo = factory.create("mixed-clients")
         internal_auth = _auth("system:web-ui")
         external_auth = _auth("cli:user-123")
 
-        # Internal write (simulating MutOps.write_file)
-        handle_push(repo, internal_auth, _push(repo.store, {"config.json": b'{"v": 1}'}))
+        seed = _push(repo, internal_auth, {"seed": b"s"})
+        _push(repo, internal_auth,
+              {"seed": b"s", "config.json": b'{"v": 1}'},
+              base_commit_id=seed)
 
-        # External push (CLI) — base=0, will trigger merge with v1
-        # The merge should preserve config.json from v1 and add readme.md
-        handle_push(repo, external_auth,
-                    _push(repo.store, {"readme.md": b"# Hello"}, base=0))
+        _push(repo, external_auth,
+              {"seed": b"s", "readme.md": b"# Hello"},
+              base_commit_id=seed)
 
         files = repo.list_scope_files(internal_auth["_scope"])
-        assert "config.json" in files  # preserved from v1 via merge
-        assert "readme.md" in files    # added by external push
+        assert "config.json" in files
+        assert "readme.md" in files
 
     def test_connector_sync_write(self, factory):
         """Simulates connector (Gmail/Notion) writing via MutOps."""
         repo = factory.create("connector-sync")
         sync_auth = _auth("sync:gmail:inbox")
 
-        # Connector syncs email data
-        handle_push(repo, sync_auth, _push(repo.store, {
+        _push(repo, sync_auth, {
             "inbox.json": json.dumps({"emails": [{"subject": "Hello"}]}).encode(),
-        }))
+        })
 
         files = repo.list_scope_files(sync_auth["_scope"])
         data = json.loads(files["inbox.json"])
@@ -446,10 +459,9 @@ class TestPuppyOneAsClient:
         repo.scopes.add("scope-data", "/data/")
         agent_auth = _auth("agent:research-bot", "/data/")
 
-        # Agent processes data and writes output
-        handle_push(repo, agent_auth, _push(repo.store, {
+        _push(repo, agent_auth, {
             "output.json": b'{"analysis": "complete", "score": 0.95}',
-        }))
+        })
 
         files = repo.list_scope_files(agent_auth["_scope"])
         output = json.loads(files["output.json"])
@@ -463,41 +475,43 @@ class TestPuppyOneAsClient:
 class TestHighVolumeStress:
     """Push many versions rapidly to test stability."""
 
-    def test_50_versions_single_project(self, factory):
+    def test_50_commits_single_project(self, factory):
         repo = factory.create("high-vol")
         auth = _auth("bot")
 
-        files = {}
+        files: dict[str, bytes] = {}
+        prev = ""
         for i in range(50):
             files[f"file-{i % 10}.txt"] = f"iteration-{i}".encode()
-            body = _push(repo.store, dict(files), base=i)
-            r = handle_push(repo, auth, body)
-            assert r["version"] == i + 1
+            prev = _push(repo, auth, dict(files), base_commit_id=prev)
 
-        assert repo.get_latest_version() == 50
+        assert repo.get_scope_head_commit_id("") == prev
 
     def test_5_projects_10_pushes_each(self, factory):
         """5 projects each get 10 pushes — total 50 operations."""
         repos = [factory.create(f"stress-{i}") for i in range(5)]
 
+        final_cids = []
         for proj_idx, repo in enumerate(repos):
             auth = _auth(f"agent-{proj_idx}")
+            prev = ""
             for v in range(10):
-                body = _push(repo.store,
-                             {f"p{proj_idx}-v{v}.txt": b"data"},
-                             base=v)
-                handle_push(repo, auth, body)
+                prev = _push(
+                    repo, auth,
+                    {f"p{proj_idx}-v{v}.txt": b"data"},
+                    base_commit_id=prev,
+                )
+            final_cids.append(prev)
 
         for i, repo in enumerate(repos):
-            assert repo.get_latest_version() == 10
+            assert repo.get_scope_head_commit_id("") == final_cids[i]
 
     def test_negotiate_with_many_hashes(self, factory):
         """Negotiate with 100 hashes — some present, some missing."""
         repo = factory.create("negotiate-stress")
         auth = _auth("admin")
 
-        # Push some data to create known hashes
-        handle_push(repo, auth, _push(repo.store, {"big.txt": b"x" * 10000}))
+        _push(repo, auth, {"big.txt": b"x" * 10000})
 
         known_hashes = repo.store.all_hashes()
         fake_hashes = [f"fake{i:040d}" for i in range(50)]
@@ -506,10 +520,8 @@ class TestHighVolumeStress:
         result = handle_negotiate(repo, auth, {"hashes": all_hashes})
         missing = set(result["missing"])
 
-        # All fake hashes should be missing
         for fh in fake_hashes:
             assert fh in missing
-        # Known hashes should NOT be missing
         for kh in known_hashes[:50]:
             assert kh not in missing
 
@@ -524,7 +536,10 @@ class TestEdgeCases:
     def test_empty_push(self, factory):
         repo = factory.create("empty")
         auth = _auth("admin")
-        result = handle_push(repo, auth, {"base_version": 0, "snapshots": [], "objects": {}})
+        result = handle_push(
+            repo, auth,
+            {"base_commit_id": "", "snapshots": [], "objects": {}},
+        )
         assert result["status"] == "ok"
 
     def test_clone_empty_project(self, factory):
@@ -532,37 +547,36 @@ class TestEdgeCases:
         auth = _auth("admin")
         clone = handle_clone(repo, auth, {})
         assert clone["files"] == {}
-        assert clone["version"] == 0
 
-    def test_pull_up_to_date(self, factory):
+    def test_pull_up_to_date_on_empty(self, factory):
         repo = factory.create("up-to-date")
         auth = _auth("admin")
-        pull = handle_pull(repo, auth, {"since_version": 0})
-        assert pull["status"] == "up-to-date"
+        pull = handle_pull(repo, auth, {"since_commit_id": ""})
+        # Empty project: either "up-to-date" or "updated" with no files.
+        assert pull["status"] in {"up-to-date", "updated"}
 
-    def test_rollback_invalid_version(self, factory):
+    def test_rollback_unknown_commit(self, factory):
         repo = factory.create("rb-invalid")
         auth = _auth("admin")
-        handle_push(repo, auth, _push(repo.store, {"f.txt": b"x"}))
+        _push(repo, auth, {"f.txt": b"x"})
 
-        with pytest.raises(ValueError, match="invalid"):
-            handle_rollback(repo, auth, {"target_version": 999})
+        with pytest.raises(ValueError, match="not found"):
+            handle_rollback(repo, auth, {"target_commit_id": "0000000000000000"})
 
-    def test_pull_version_zero(self, factory):
-        repo = factory.create("pv-zero")
+    def test_pull_commit_unknown(self, factory):
+        repo = factory.create("pv-missing")
         auth = _auth("admin")
-        handle_push(repo, auth, _push(repo.store, {"f.txt": b"x"}))
+        _push(repo, auth, {"f.txt": b"x"})
 
-        with pytest.raises(ValueError, match="invalid"):
-            handle_pull_version(repo, auth, {"version": 0})
+        with pytest.raises(ValueError, match="not found"):
+            handle_pull_commit(repo, auth, {"commit_id": "0000000000000000"})
 
     def test_push_with_binary_content(self, factory):
         repo = factory.create("binary")
         auth = _auth("admin")
-        binary_data = bytes(range(256)) * 100  # 25.6KB binary
+        binary_data = bytes(range(256)) * 100
 
-        body = _push(repo.store, {"image.bin": binary_data})
-        handle_push(repo, auth, body)
+        _push(repo, auth, {"image.bin": binary_data})
 
         files = repo.list_scope_files(auth["_scope"])
         assert files["image.bin"] == binary_data
@@ -572,8 +586,7 @@ class TestEdgeCases:
         auth = _auth("admin")
 
         content = "# 文档标题\n\n这是中文内容。\n日本語テスト。".encode("utf-8")
-        body = _push(repo.store, {"docs/readme.md": content})
-        handle_push(repo, auth, body)
+        _push(repo, auth, {"docs/readme.md": content})
 
         files = repo.list_scope_files(auth["_scope"])
         assert "docs/readme.md" in files

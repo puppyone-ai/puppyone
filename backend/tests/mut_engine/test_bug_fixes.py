@@ -3,13 +3,12 @@
 Each test class maps to a specific priority tier (P0, P1, P2).
 Tests are designed to run against in-memory fakes — no database or S3 needed.
 
-Tests that depend on unreleased mut library changes are marked xfail
-with a link to the relevant issue/PR.
+All identifiers in these tests are ``commit_id`` (16-hex SHA256 digests)
+rather than integer version numbers.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import threading
 from unittest.mock import MagicMock, patch
@@ -48,10 +47,18 @@ def server_repo(memory_store):
     class FakeScopeBackend:
         def __init__(self):
             self._scopes = {}
-        def get(self, sid): return self._scopes.get(sid)
-        def put(self, sid, scope): self._scopes[sid] = scope
-        def delete(self, sid): return self._scopes.pop(sid, None) is not None
-        def list_all(self): return list(self._scopes.values())
+
+        def get(self, sid):
+            return self._scopes.get(sid)
+
+        def put(self, sid, scope):
+            self._scopes[sid] = scope
+
+        def delete(self, sid):
+            return self._scopes.pop(sid, None) is not None
+
+        def list_all(self):
+            return list(self._scopes.values())
 
     return PuppyOneServerRepo(
         project_id="test-proj",
@@ -75,12 +82,17 @@ def _rw_auth(scope_path=""):
     }
 
 
-def _push_file(repo, auth, files: dict[str, bytes], base_version: int = 0) -> dict:
-    """Push files through the MUT protocol handler."""
+def _push_file(
+    repo,
+    auth,
+    files: dict[str, bytes],
+    base_commit_id: str = "",
+) -> dict:
+    """Push files through the MUT protocol handler and return the raw result."""
     from mut.foundation.hash import hash_bytes
     import base64
 
-    objects = {}
+    objects: dict[str, bytes] = {}
     nested: dict = {}
     for path, content in files.items():
         blob_hash = hash_bytes(content)
@@ -107,7 +119,7 @@ def _push_file(repo, auth, files: dict[str, bytes], base_version: int = 0) -> di
     objects_b64 = {h: base64.b64encode(d).decode() for h, d in objects.items()}
     body = {
         "protocol_version": 1,
-        "base_version": base_version,
+        "base_commit_id": base_commit_id,
         "snapshots": [{
             "id": 1, "root": root, "message": "test",
             "who": "test", "time": "2026-01-01T00:00:00",
@@ -122,27 +134,40 @@ def _push_file(repo, auth, files: dict[str, bytes], base_version: int = 0) -> di
 # ══════════════════════════════════════════════════
 
 class TestP0_1_RollbackBehavior:
-    """P0-1: Rollback basic behavior — already-at-version guard, version increments."""
+    """P0-1: Rollback basic behaviour — already-at-commit guard, new commits forward."""
 
-    def test_rollback_already_at_version(self, server_repo):
+    def test_rollback_already_at_commit(self, server_repo):
         auth = _rw_auth()
-        _push_file(server_repo, auth, {"a.txt": b"v1"})
-        result = handle_rollback(server_repo, auth, {"target_version": 1})
-        assert result["status"] == "already-at-version"
+        r1 = _push_file(server_repo, auth, {"a.txt": b"v1"})
+        result = handle_rollback(
+            server_repo, auth, {"target_commit_id": r1["commit_id"]},
+        )
+        assert result["status"] == "already-at-commit"
 
-    def test_rollback_creates_new_version(self, server_repo):
+    def test_rollback_creates_new_commit(self, server_repo):
         auth = _rw_auth()
-        _push_file(server_repo, auth, {"a.txt": b"v1"})
-        _push_file(server_repo, auth, {"a.txt": b"v2"}, base_version=1)
-        result = handle_rollback(server_repo, auth, {"target_version": 1})
+        r1 = _push_file(server_repo, auth, {"a.txt": b"v1"})
+        r2 = _push_file(
+            server_repo, auth, {"a.txt": b"v2"},
+            base_commit_id=r1["commit_id"],
+        )
+        assert r1["commit_id"] != r2["commit_id"]
+
+        result = handle_rollback(
+            server_repo, auth, {"target_commit_id": r1["commit_id"]},
+        )
         assert result["status"] == "rolled-back"
-        assert result["new_version"] == 3
+        assert result["new_commit_id"]
+        assert result["new_commit_id"] != r1["commit_id"]
+        assert result["new_commit_id"] != r2["commit_id"]
 
-    def test_rollback_invalid_version_raises(self, server_repo):
+    def test_rollback_invalid_commit_raises(self, server_repo):
         auth = _rw_auth()
         _push_file(server_repo, auth, {"a.txt": b"v1"})
-        with pytest.raises(ValueError, match="invalid target version"):
-            handle_rollback(server_repo, auth, {"target_version": 999})
+        with pytest.raises(ValueError, match="not found"):
+            handle_rollback(
+                server_repo, auth, {"target_commit_id": "0000000000000000"},
+            )
 
 
 class TestP0_2_S3PutReRaise:
@@ -171,7 +196,11 @@ class TestP0_3_PushAndFinalize:
         from src.mut_engine.services.hooks import push_and_finalize
 
         mock_client = MagicMock()
-        mock_client.push.return_value = {"status": "ok", "version": 1, "root": "abc"}
+        mock_client.push.return_value = {
+            "status": "ok",
+            "commit_id": "deadbeefdeadbeef",
+            "root": "abc",
+        }
 
         mock_rm = MagicMock()
 
@@ -207,7 +236,11 @@ class TestP0_3_PushAndFinalize:
         from src.mut_engine.services.hooks import push_and_finalize
 
         mock_client = MagicMock()
-        mock_client.push.return_value = {"status": "ok", "version": 1, "root": "abc"}
+        mock_client.push.return_value = {
+            "status": "ok",
+            "commit_id": "deadbeefdeadbeef",
+            "root": "abc",
+        }
 
         mock_rm = MagicMock()
 
@@ -269,9 +302,6 @@ class TestP0_4_EphemeralClientMergeConsume:
 
         client.pull = tracking_pull
 
-        with patch.object(type(client), 'push', wraps=None) as _:
-            pass
-
         repo = server_repo
         original_handle_push = handle_push
 
@@ -280,10 +310,14 @@ class TestP0_4_EphemeralClientMergeConsume:
             result["merged"] = True
             return result
 
-        with patch("src.mut_engine.services.ephemeral_client.handle_push", side_effect=mock_merge_push):
+        with patch(
+            "src.mut_engine.services.ephemeral_client.handle_push",
+            side_effect=mock_merge_push,
+        ):
             client.push(modified={"b.txt": b"new"}, message="test merge")
 
-        assert pull_called, "client.pull() should be called when push result has merged=True"
+        assert pull_called, \
+            "client.pull() should be called when push result has merged=True"
 
 
 # ══════════════════════════════════════════════════
@@ -462,7 +496,9 @@ class TestP1_8_UserIdentityRequired:
         with patch("src.mut_engine.server.auth.settings") as mock_settings:
             mock_settings.SKIP_AUTH = False
             with pytest.raises(HTTPException) as exc_info:
-                authenticator.authenticate("some-key", "proj-1", user_identity="bob@example.com")
+                authenticator.authenticate(
+                    "some-key", "proj-1", user_identity="bob@example.com",
+                )
             assert exc_info.value.status_code == 401
             assert "mismatch" in exc_info.value.detail.lower()
 
@@ -596,7 +632,11 @@ class TestP2_10_HookExceptionLogging:
 
         ops = MutOps(mock_repos)
 
-        push_result = {"status": "ok", "version": 1, "root": "abc"}
+        push_result = {
+            "status": "ok",
+            "commit_id": "deadbeefdeadbeef",
+            "root": "abc",
+        }
 
         with patch(
             "src.mut_engine.services.hooks.run_post_push_hook",
@@ -679,8 +719,8 @@ class TestRollbackHookIntegration:
 
         rollback_result = {
             "status": "rolled-back",
-            "new_version": 3,
-            "target_version": 1,
+            "new_commit_id": "cafe000000000003",
+            "target_commit_id": "cafe000000000001",
             "root": "new_scope_hash",
         }
 
@@ -689,8 +729,8 @@ class TestRollbackHookIntegration:
 
         mock_repo.history.cas_update_root_hash.assert_called_once()
 
-    def test_hook_uses_new_version_field(self):
-        """Hook must read new_version (not version) from rollback results."""
+    def test_hook_uses_new_commit_id_field(self):
+        """Hook must read new_commit_id (not version) from rollback results."""
         from src.mut_engine.services.hooks import run_post_push_hook
 
         mock_repo = MagicMock()
@@ -705,14 +745,14 @@ class TestRollbackHookIntegration:
 
         rollback_result = {
             "status": "rolled-back",
-            "new_version": 5,
+            "new_commit_id": "cafe000000000005",
             "root": "abc",
         }
 
         with patch("mut.server.graft.graft_or_merge_subtree", return_value="new"):
             run_post_push_hook("proj-1", mock_rm, rollback_result)
 
-        mock_repo.history.get_entry.assert_called_with(5)
+        mock_repo.history.get_entry.assert_called_with("cafe000000000005")
 
     def test_hook_still_ignores_non_success(self):
         """Hook must still skip non-success statuses."""
@@ -722,7 +762,7 @@ class TestRollbackHookIntegration:
         run_post_push_hook("proj-1", mock_rm, {"status": "conflict"})
         mock_rm.get_repo.assert_not_called()
 
-        run_post_push_hook("proj-1", mock_rm, {"status": "already-at-version"})
+        run_post_push_hook("proj-1", mock_rm, {"status": "already-at-commit"})
         mock_rm.get_repo.assert_not_called()
 
 
@@ -737,7 +777,7 @@ class TestGraftEmptyRootCAS:
         mock_repo.store.put.return_value = "empty_tree_hash"
         mock_repo.history.cas_update_root_hash.return_value = True
 
-        push_result = {"version": 1, "root": "scope_hash"}
+        push_result = {"commit_id": "cafe000000000001", "root": "scope_hash"}
         mock_repo.history.get_entry.return_value = {
             "scope_path": "", "changes": [],
         }
@@ -756,7 +796,7 @@ class TestGraftEmptyRootCAS:
         mock_repo.history.get_root_hash.return_value = "existing_root"
         mock_repo.history.cas_update_root_hash.return_value = True
 
-        push_result = {"version": 1, "root": "scope_hash"}
+        push_result = {"commit_id": "cafe000000000001", "root": "scope_hash"}
         mock_repo.history.get_entry.return_value = {
             "scope_path": "docs", "changes": [],
         }
@@ -765,7 +805,9 @@ class TestGraftEmptyRootCAS:
             with patch("mut.server.graft.graft_or_merge_subtree", return_value="new_root"):
                 _update_global_root(mock_repo, push_result)
 
-        mock_repo.history.cas_update_root_hash.assert_called_once_with("existing_root", "new_root")
+        mock_repo.history.cas_update_root_hash.assert_called_once_with(
+            "existing_root", "new_root",
+        )
 
 
 class TestRollbackEndToEnd:
@@ -783,13 +825,18 @@ class TestRollbackEndToEnd:
         r1 = _push_file(server_repo, auth, {"a.txt": b"version-1"})
         run_post_push_hook("test-proj", mock_rm, r1)
 
-        r2 = _push_file(server_repo, auth, {"a.txt": b"version-2"}, base_version=1)
+        r2 = _push_file(
+            server_repo, auth, {"a.txt": b"version-2"},
+            base_commit_id=r1["commit_id"],
+        )
         run_post_push_hook("test-proj", mock_rm, r2)
 
         root_before = server_repo.history.get_root_hash()
         assert root_before, "root_hash should be set after push+graft"
 
-        rollback_result = handle_rollback(server_repo, auth, {"target_version": 1})
+        rollback_result = handle_rollback(
+            server_repo, auth, {"target_commit_id": r1["commit_id"]},
+        )
         assert rollback_result["status"] == "rolled-back"
         assert rollback_result.get("root"), "rollback must return root for grafting"
 
@@ -804,24 +851,29 @@ class TestRollbackEndToEnd:
             for path, b64 in clone_result.get("files", {}).items()
         }
         assert cloned_files.get("a.txt") == b"version-1", \
-            "After rollback to v1, clone must return version-1 content"
+            "After rollback to r1, clone must return version-1 content"
 
 
 # ══════════════════════════════════════════════════
-# Mutai library compatibility — basic API surface
+# Mut library compatibility — basic API surface
 # ══════════════════════════════════════════════════
 
 class TestMutaiCompat:
     """Verify the installed mut library exposes required APIs."""
 
     def test_push_response_has_merged_changes(self):
-        resp = PushResponse(status="ok", version=1)
+        resp = PushResponse(status="ok", commit_id="cafe000000000001")
         assert isinstance(resp.merged_changes, list)
 
     def test_push_response_has_root(self):
-        resp = PushResponse(status="ok", version=1, root="abc123")
+        resp = PushResponse(status="ok", commit_id="cafe000000000001", root="abc123")
         d = resp.to_dict()
         assert d.get("root") == "abc123"
+
+    def test_push_response_exposes_commit_id(self):
+        resp = PushResponse(status="ok", commit_id="cafe000000000001")
+        d = resp.to_dict()
+        assert d.get("commit_id") == "cafe000000000001"
 
     def test_graft_or_merge_subtree_exists(self):
         from mut.server.graft import graft_or_merge_subtree
@@ -838,6 +890,16 @@ class TestMutaiCompat:
         resp = RollbackResponse(status="ok", root="abc123")
         d = resp.to_dict()
         assert d.get("root") == "abc123"
+
+    def test_rollback_response_exposes_new_commit_id(self):
+        resp = RollbackResponse(
+            status="rolled-back",
+            new_commit_id="cafe000000000002",
+            target_commit_id="cafe000000000001",
+        )
+        d = resp.to_dict()
+        assert d.get("new_commit_id") == "cafe000000000002"
+        assert d.get("target_commit_id") == "cafe000000000001"
 
     def test_flatten_tree_exposed(self):
         from mut.server.graft import _flatten_tree
@@ -968,7 +1030,9 @@ class TestPushObjectSizeValidation:
         assert exc_info.value.status_code == 413
 
     def test_too_many_objects_rejected(self):
-        from src.mut_engine.server.validation import validate_push_objects, MAX_FILES_PER_PUSH
+        from src.mut_engine.server.validation import (
+            validate_push_objects, MAX_FILES_PER_PUSH,
+        )
         from fastapi import HTTPException
 
         body = {"objects": {f"hash_{i}": "YQ==" for i in range(MAX_FILES_PER_PUSH + 1)}}
@@ -985,9 +1049,9 @@ class TestPushObjectSizeValidation:
             "hash1": base64.b64encode(b"hello").decode(),
             "hash2": base64.b64encode(b"world").decode(),
         }}
-        validate_push_objects(body)  # should not raise
+        validate_push_objects(body)
 
     def test_empty_objects_passes(self):
         from src.mut_engine.server.validation import validate_push_objects
         validate_push_objects({"objects": {}})
-        validate_push_objects({})  # no objects key at all
+        validate_push_objects({})

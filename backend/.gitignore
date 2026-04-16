@@ -9,3 +9,5 @@ logs/
 .uv_cache/
 .uv-cache/
 .cache/
+*.egg-info/
+src/**/*.egg-info/

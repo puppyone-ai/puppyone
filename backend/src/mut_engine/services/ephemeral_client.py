@@ -34,7 +34,8 @@ class MutEphemeralClient:
     """Stateless MUT client that calls handlers in-process.
 
     Each instance represents one clone → modify → push cycle.
-    Reuse across cycles is allowed (version state persists).
+    Commit identity is a 16-hex hash (``head_commit_id``); the old
+    integer ``version`` counter is gone.
     """
 
     def __init__(
@@ -47,7 +48,7 @@ class MutEphemeralClient:
         self._project_id = project_id
         self._auth = auth_context
 
-        self._version: int = 0
+        self._head_commit_id: str = ""
         self._scope: dict = {}
         self._files: dict[str, bytes] = {}
         self._object_hashes: set[str] = set()
@@ -57,8 +58,8 @@ class MutEphemeralClient:
         return self._scope
 
     @property
-    def version(self) -> int:
-        return self._version
+    def head_commit_id(self) -> str:
+        return self._head_commit_id
 
     @property
     def files(self) -> dict[str, bytes]:
@@ -74,7 +75,7 @@ class MutEphemeralClient:
         repo = self._get_server_repo()
         result = handle_clone(repo, self._auth, {})
 
-        self._version = result["version"]
+        self._head_commit_id = result.get("head_commit_id", "")
         self._scope = {
             "path": result["scope"]["path"],
             "exclude": result["scope"].get("exclude", []),
@@ -93,13 +94,13 @@ class MutEphemeralClient:
     # ── Pull ─────────────────────────────────────
 
     def pull(self) -> dict[str, bytes]:
-        """Pull latest changes since last known version.
+        """Pull latest changes since last known commit_id.
 
         Returns updated files or empty dict if up-to-date.
         """
         repo = self._get_server_repo()
         body = {
-            "since_version": self._version,
+            "since_commit_id": self._head_commit_id,
             "have_hashes": list(self._object_hashes),
         }
         result = handle_pull(repo, self._auth, body)
@@ -107,7 +108,7 @@ class MutEphemeralClient:
         if result.get("status") == "up-to-date":
             return dict(self._files)
 
-        self._version = result["version"]
+        self._head_commit_id = result.get("head_commit_id", self._head_commit_id)
 
         self._files = {
             path: base64.b64decode(b64)
@@ -168,7 +169,7 @@ class MutEphemeralClient:
 
         body = {
             "protocol_version": 1,
-            "base_version": self._version,
+            "base_commit_id": self._head_commit_id,
             "snapshots": [{
                 "id": 1,
                 "root": snapshot_root,
@@ -182,7 +183,9 @@ class MutEphemeralClient:
         result = handle_push(repo, self._auth, body)
 
         if result.get("status") == "ok":
-            self._version = result.get("version", self._version)
+            new_cid = result.get("commit_id", "")
+            if new_cid:
+                self._head_commit_id = new_cid
             if result.get("merged"):
                 self.pull()
             else:

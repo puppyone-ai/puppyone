@@ -162,8 +162,8 @@ class TestHistoryManagerNormalizesOnEntry:
 
     def test_record_normalizes_scope_path(self, history):
         history.record(
-            version=1, who="user:a", message="m", scope_path="/docs/",
-            changes=[], scope_hash="abc",
+            commit_id="deadbeef00000001", who="user:a", message="m",
+            scope_path="/docs/", changes=[], scope_hash="abc",
         )
         inserts = history._fake_recorder.get("inserts", [])
         assert inserts, "record() did not insert anything"
@@ -174,14 +174,14 @@ class TestHistoryManagerNormalizesOnEntry:
 
     def test_record_handles_none_scope_path(self, history):
         history.record(
-            version=1, who="user:a", message="m", scope_path=None,  # type: ignore
-            changes=[], scope_hash="abc",
+            commit_id="deadbeef00000002", who="user:a", message="m",
+            scope_path=None, changes=[], scope_hash="abc",  # type: ignore
         )
         inserts = history._fake_recorder.get("inserts", [])
         assert inserts[0]["scope_path"] == ""
 
     def test_get_since_normalizes_scope_filter(self, history):
-        history.get_since(since_version=0, scope_path="/docs/")
+        history.get_since(since_commit_id="", scope_path="/docs/")
         executes = history._fake_recorder.get("executes", [])
         assert executes, "get_since() did not execute a query"
         filters = executes[-1]
@@ -200,24 +200,29 @@ class TestHistoryManagerNormalizesOnEntry:
         upserts = history._fake_recorder.get("upserts", [])
         assert upserts and upserts[0]["scope_path"] == "docs"
 
-    def test_get_scope_version_normalizes(self, history):
-        history.get_scope_version("/docs/")
+    def test_get_scope_head_commit_id_normalizes(self, history):
+        history.get_scope_head_commit_id("/docs/")
         executes = history._fake_recorder.get("executes", [])
         assert any(e.get("scope_path") == "docs" for e in executes)
 
-    def test_set_scope_version_normalizes(self, history):
-        history.set_scope_version("/docs/", 5)
+    def test_set_scope_head_commit_id_normalizes(self, history):
+        history.set_scope_head_commit_id("/docs/", "deadbeef12345678")
         upserts = history._fake_recorder.get("upserts", [])
         assert upserts and upserts[0]["scope_path"] == "docs"
 
     def test_get_previous_scope_hash_normalizes(self, history):
-        history.get_previous_scope_hash("/docs/", before_version=10)
+        history.get_previous_scope_hash(
+            "/docs/", before_commit_id="deadbeefcafebabe",
+        )
         executes = history._fake_recorder.get("executes", [])
         assert any(e.get("scope_path") == "docs" for e in executes)
 
     def test_cas_update_scope_hash_normalizes_rpc_arg(self, history):
         # Force the RPC branch: old_hash != "" skips the insert fast-path
-        history.cas_update_scope_hash("/docs/", old_hash="old", new_hash="new")
+        history.cas_update_scope_hash(
+            "/docs/", old_hash="old", new_hash="new",
+            head_commit_id="deadbeefcafebabe",
+        )
         rpc_calls = history._fake_recorder.get("rpc_calls", [])
         assert rpc_calls, "no RPC was invoked"
         assert rpc_calls[0]["args"]["p_scope_path"] == "docs", (
@@ -225,11 +230,18 @@ class TestHistoryManagerNormalizesOnEntry:
             f"Got: {rpc_calls[0]['args']['p_scope_path']!r}"
         )
 
-    def test_cas_update_scope_hash_normalizes_insert_fast_path(self, history):
-        # First-push branch: old_hash == "" goes through INSERT, not RPC
-        history.cas_update_scope_hash("/docs/", old_hash="", new_hash="new")
-        inserts = history._fake_recorder.get("inserts", [])
-        assert inserts and inserts[0]["scope_path"] == "docs"
+    def test_cas_update_scope_hash_normalizes_empty_old_hash(self, history):
+        # The first-push branch (empty old_hash) now also goes through
+        # the RPC — the PL/pgSQL function handles INSERT-then-UPDATE
+        # internally. The important thing is that scope_path still
+        # arrives normalized.
+        history.cas_update_scope_hash(
+            "/docs/", old_hash="", new_hash="new",
+            head_commit_id="deadbeefcafebabe",
+        )
+        rpc_calls = history._fake_recorder.get("rpc_calls", [])
+        assert rpc_calls, "no RPC was invoked"
+        assert rpc_calls[0]["args"]["p_scope_path"] == "docs"
 
 
 # ══════════════════════════════════════════════════
@@ -248,13 +260,13 @@ class TestBugGetPreviousScopeHashAcrossFormats:
     def test_record_then_get_previous_uses_same_key(self, history):
         # record() inserts with the canonical form...
         history.record(
-            version=1, who="u", message="", scope_path="/docs/",
-            changes=[], scope_hash="h1",
+            commit_id="deadbeef00000010", who="u", message="",
+            scope_path="/docs/", changes=[], scope_hash="h1",
         )
         inserted_scope = history._fake_recorder["inserts"][0]["scope_path"]
 
         # ...and get_previous_scope_hash queries with the canonical form.
-        history.get_previous_scope_hash("/docs/", before_version=10)
+        history.get_previous_scope_hash("/docs/", before_commit_id="")
         queried_scope = history._fake_recorder["executes"][-1]["scope_path"]
 
         assert inserted_scope == queried_scope == "docs", (

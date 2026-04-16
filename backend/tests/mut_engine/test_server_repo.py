@@ -1,27 +1,30 @@
-"""Tests for PuppyOneServerRepo — scope versioning, global counter, file ops."""
+"""Tests for PuppyOneServerRepo — scope state, commit history, file ops.
+
+The server repo acts as an adapter glueing the generic mut.server.repo
+interface onto PuppyOne-specific storage: S3 for object bodies, Postgres
+(via SupabaseHistoryManager) for commit history and scope state, and an
+in-process ScopeManager for scope definitions.
+
+These tests use an in-memory ``FakeHistoryManager`` so we never touch
+Supabase — we only care about the interactions between ``ServerRepo``
+and the history/audit/scope interfaces.
+"""
 
 import json
 import pytest
-from unittest.mock import MagicMock, patch
 
 from mut.core.object_store import ObjectStore
 
 
 class FakeHistoryManager:
-    """In-memory mock for SupabaseHistoryManager."""
+    """In-memory mock for SupabaseHistoryManager (commit_id identity)."""
 
     def __init__(self):
-        self._version = 0
         self._root_hash = ""
-        self._scope_versions: dict[str, int] = {}
+        self._head_commit_id = ""
         self._scope_hashes: dict[str, str] = {}
-        self._entries: dict[int, dict] = {}
-
-    def get_latest_version(self) -> int:
-        return self._version
-
-    def set_latest_version(self, v: int) -> None:
-        self._version = v
+        self._scope_head_commit_ids: dict[str, str] = {}
+        self._entries: list[dict] = []
 
     def get_root_hash(self) -> str:
         return self._root_hash
@@ -29,11 +32,11 @@ class FakeHistoryManager:
     def set_root_hash(self, h: str) -> None:
         self._root_hash = h
 
-    def get_scope_version(self, scope_path: str) -> int:
-        return self._scope_versions.get(scope_path.strip("/"), 0)
+    def get_head_commit_id(self) -> str:
+        return self._head_commit_id
 
-    def set_scope_version(self, scope_path: str, version: int) -> None:
-        self._scope_versions[scope_path.strip("/")] = version
+    def set_head_commit_id(self, commit_id: str) -> None:
+        self._head_commit_id = commit_id
 
     def get_scope_hash(self, scope_path: str) -> str:
         return self._scope_hashes.get(scope_path.strip("/"), "")
@@ -41,42 +44,81 @@ class FakeHistoryManager:
     def set_scope_hash(self, scope_path: str, h: str) -> None:
         self._scope_hashes[scope_path.strip("/")] = h
 
-    def record(self, version, who, message, scope_path, changes,
-               conflicts=None, root_hash="", scope_hash="", scope_version=""):
-        self._entries[version] = {
-            "version": version, "who": who, "message": message,
-            "scope_path": scope_path, "changes": changes,
-            "root_hash": root_hash, "scope_hash": scope_hash,
-            "scope_version": scope_version, "root": root_hash,
-        }
+    def get_scope_head_commit_id(self, scope_path: str) -> str:
+        return self._scope_head_commit_ids.get(scope_path.strip("/"), "")
 
-    def get_entry(self, version: int) -> dict | None:
-        return self._entries.get(version)
+    def set_scope_head_commit_id(self, scope_path: str, commit_id: str) -> None:
+        self._scope_head_commit_ids[scope_path.strip("/")] = commit_id
 
-    def get_since(self, since_version, scope_path=None, limit=0):
-        entries = [e for v, e in sorted(self._entries.items()) if v > since_version]
+    def record(self, commit_id, who, message, scope_path, changes,
+               conflicts=None, root_hash="", scope_hash="", created_at_iso=""):
+        self._entries.append({
+            "commit_id": commit_id,
+            "who": who,
+            "message": message,
+            "scope_path": scope_path,
+            "changes": changes or [],
+            "conflicts": conflicts or [],
+            "root_hash": root_hash,
+            "scope_hash": scope_hash,
+            "root": root_hash,
+            "created_at": created_at_iso,
+        })
+
+    def get_entry(self, commit_id: str) -> dict | None:
+        for e in self._entries:
+            if e["commit_id"] == commit_id:
+                return e
+        return None
+
+    def get_since(self, since_commit_id: str = "", scope_path=None, limit=0):
+        entries = list(self._entries)
+        if since_commit_id:
+            anchor = self.get_entry(since_commit_id)
+            if anchor is not None:
+                idx = self._entries.index(anchor)
+                entries = self._entries[idx + 1:]
         if scope_path:
             entries = [e for e in entries if e.get("scope_path") == scope_path]
+        # Contract matches mut.server.history.FileSystemHistoryBackend:
+        # (1) rows ordered (created_at ASC, commit_id ASC);
+        # (2) when limit > 0, return the *newest* limit entries (tail),
+        #     not the oldest head — e.g. "latest 50 commits".
         if limit > 0:
             entries = entries[-limit:]
         return entries
 
-    def get_previous_scope_hash(self, scope_path: str, before_version: int) -> str:
+    def get_previous_scope_hash(self, scope_path: str, before_commit_id: str) -> str:
         norm = scope_path.strip("/")
-        best = ""
-        for v, entry in sorted(self._entries.items(), reverse=True):
-            if v < before_version and entry.get("scope_path", "").strip("/") == norm:
-                best = entry.get("scope_hash", "")
-                if best:
-                    break
-        return best
+        anchor = self.get_entry(before_commit_id)
+        if anchor is None:
+            # everything predates "nothing" → walk all entries for this scope
+            relevant = [e for e in self._entries
+                        if e.get("scope_path", "").strip("/") == norm]
+            return relevant[-1].get("scope_hash", "") if relevant else ""
 
-    def cas_update_scope_hash(self, scope_path: str, old_hash: str, new_hash: str) -> bool:
+        idx = self._entries.index(anchor)
+        for earlier in reversed(self._entries[:idx]):
+            if earlier.get("scope_path", "").strip("/") == norm:
+                h = earlier.get("scope_hash", "")
+                if h:
+                    return h
+        return ""
+
+    def cas_update_scope_hash(
+        self,
+        scope_path: str,
+        old_hash: str,
+        new_hash: str,
+        head_commit_id: str = "",
+    ) -> bool:
         norm = scope_path.strip("/")
         current = self._scope_hashes.get(norm, "")
         if current != old_hash:
             return False
         self._scope_hashes[norm] = new_hash
+        if head_commit_id:
+            self._scope_head_commit_ids[norm] = head_commit_id
         return True
 
     def cas_update_root_hash(self, old_hash: str, new_hash: str) -> bool:
@@ -84,10 +126,6 @@ class FakeHistoryManager:
             return False
         self._root_hash = new_hash
         return True
-
-    def atomic_next_version(self) -> int:
-        self._version += 1
-        return self._version
 
 
 class FakeAuditManager:
@@ -101,7 +139,6 @@ class FakeAuditManager:
 @pytest.fixture
 def memory_store(tmp_path):
     """Real ObjectStore backed by temp filesystem."""
-    from mut.core.object_store import ObjectStore
     obj_dir = tmp_path / "objects"
     obj_dir.mkdir()
     return ObjectStore(obj_dir)
@@ -118,12 +155,16 @@ def server_repo(memory_store):
     class FakeScopeBackend:
         def __init__(self):
             self._scopes = {}
+
         def get(self, sid):
             return self._scopes.get(sid)
+
         def put(self, sid, scope):
             self._scopes[sid] = scope
+
         def delete(self, sid):
             return self._scopes.pop(sid, None) is not None
+
         def list_all(self):
             return list(self._scopes.values())
 
@@ -139,66 +180,92 @@ def server_repo(memory_store):
     )
 
 
-class TestNextGlobalVersion:
-    def test_increments_from_zero(self, server_repo):
-        assert server_repo.next_global_version() == 1
-        assert server_repo.next_global_version() == 2
-        assert server_repo.next_global_version() == 3
-
-    def test_reads_current_on_first_call(self, server_repo):
-        server_repo.history.set_latest_version(10)
-        assert server_repo.next_global_version() == 11
-
-    def test_persists_to_history(self, server_repo):
-        server_repo.next_global_version()
-        assert server_repo.get_latest_version() == 1
-
-    def test_thread_safety(self, server_repo):
-        """Multiple threads incrementing should produce unique values."""
-        import threading
-        results = []
-
-        def increment():
-            results.append(server_repo.next_global_version())
-
-        threads = [threading.Thread(target=increment) for _ in range(20)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-
-        assert len(set(results)) == 20  # all unique
-        assert sorted(results) == list(range(1, 21))
-
-
-class TestScopeVersioning:
-    def test_get_set_scope_version(self, server_repo):
-        assert server_repo.get_scope_version("docs") == 0
-        server_repo.set_scope_version("docs", 5)
-        assert server_repo.get_scope_version("docs") == 5
-
+class TestScopeState:
     def test_get_set_scope_hash(self, server_repo):
         assert server_repo.get_scope_hash("docs") == ""
         server_repo.set_scope_hash("docs", "abc123")
         assert server_repo.get_scope_hash("docs") == "abc123"
 
+    def test_get_set_scope_head_commit_id(self, server_repo):
+        assert server_repo.get_scope_head_commit_id("docs") == ""
+        server_repo.set_scope_head_commit_id("docs", "deadbeef12345678")
+        assert server_repo.get_scope_head_commit_id("docs") == "deadbeef12345678"
+
     def test_scopes_independent(self, server_repo):
-        server_repo.set_scope_version("docs", 3)
-        server_repo.set_scope_version("src", 7)
-        assert server_repo.get_scope_version("docs") == 3
-        assert server_repo.get_scope_version("src") == 7
+        server_repo.set_scope_hash("docs", "aaa")
+        server_repo.set_scope_hash("src", "bbb")
+        assert server_repo.get_scope_hash("docs") == "aaa"
+        assert server_repo.get_scope_hash("src") == "bbb"
 
 
-class TestRecordHistory:
-    def test_record_with_scope_fields(self, server_repo):
+class TestGlobalRootHash:
+    def test_default_empty(self, server_repo):
+        assert server_repo.get_root_hash() == ""
+
+    def test_set_and_read(self, server_repo):
+        server_repo.set_root_hash("root-abc")
+        assert server_repo.get_root_hash() == "root-abc"
+
+    def test_cas_success(self, server_repo):
+        server_repo.set_root_hash("old")
+        assert server_repo.history.cas_update_root_hash("old", "new") is True
+        assert server_repo.get_root_hash() == "new"
+
+    def test_cas_failure_keeps_old(self, server_repo):
+        server_repo.set_root_hash("old")
+        assert server_repo.history.cas_update_root_hash("stale", "new") is False
+        assert server_repo.get_root_hash() == "old"
+
+
+class TestCommitHistory:
+    def test_record_and_fetch(self, server_repo):
         server_repo.record_history(
-            version=1, who="alice", message="test",
-            scope_path="docs", changes=[],
-            scope_hash="hash123", scope_version="docs/1",
+            commit_id="cafebabecafebabe",
+            who="alice",
+            message="add readme",
+            scope_path="docs",
+            changes=[],
+            scope_hash="tree-hash-1",
         )
-        entry = server_repo.get_history_entry(1)
-        assert entry["scope_hash"] == "hash123"
-        assert entry["scope_version"] == "docs/1"
+        entry = server_repo.get_history_entry("cafebabecafebabe")
+        assert entry["commit_id"] == "cafebabecafebabe"
+        assert entry["scope_hash"] == "tree-hash-1"
+        assert entry["who"] == "alice"
+
+    def test_get_since_empty_returns_all_oldest_first(self, server_repo):
+        """Contract: ``get_since`` returns ASC order (oldest first), matching
+        ``mut.server.history.FileSystemHistoryBackend``. The frontend history
+        page is the only consumer that wants DESC and it reverses in-place."""
+        server_repo.record_history(
+            commit_id="aaaaaaaaaaaaaaaa", who="a", message="1",
+            scope_path="docs", changes=[], scope_hash="h1",
+        )
+        server_repo.record_history(
+            commit_id="bbbbbbbbbbbbbbbb", who="b", message="2",
+            scope_path="docs", changes=[], scope_hash="h2",
+        )
+        entries = server_repo.history.get_since("", limit=0)
+        assert [e["commit_id"] for e in entries] == [
+            "aaaaaaaaaaaaaaaa",
+            "bbbbbbbbbbbbbbbb",
+        ]
+
+    def test_get_since_with_limit_keeps_newest_slice(self, server_repo):
+        """When ``limit`` is specified, ``get_since`` must return the newest
+        ``limit`` commits (the tail), not the oldest ``limit``. This is the
+        bug that broke the admin history page when a project exceeded 50
+        commits — callers asking for "latest 50" would silently receive the
+        earliest 50 instead."""
+        for i in range(5):
+            server_repo.record_history(
+                commit_id=f"{i:016x}", who="a", message=f"m{i}",
+                scope_path="docs", changes=[], scope_hash=f"h{i}",
+            )
+        entries = server_repo.history.get_since("", limit=3)
+        # Latest 3 commits, in ASC (chronological) order.
+        assert [e["commit_id"] for e in entries] == [
+            f"{2:016x}", f"{3:016x}", f"{4:016x}",
+        ]
 
 
 class TestListScopeFiles:
@@ -209,12 +276,10 @@ class TestListScopeFiles:
 
     def test_with_scope_hash(self, server_repo, memory_store):
         """list_scope_files prefers scope_hash when available."""
-        # Build a tree with one file
         blob_hash = memory_store.put(b"hello world")
         tree = json.dumps({"readme.md": ["B", blob_hash]}, sort_keys=True).encode()
         tree_hash = memory_store.put(tree)
 
-        # Set scope hash
         server_repo.set_scope_hash("docs", tree_hash)
 
         scope = {"id": "s1", "path": "/docs/", "exclude": [], "mode": "rw"}
@@ -229,9 +294,38 @@ class TestWriteAndBuildScopeTree:
         server_repo.write_scope_files(scope, {"a.txt": b"content-a"})
         tree_hash = server_repo.build_scope_tree(scope)
 
-        # Verify tree is valid
         from mut.core.tree import tree_to_flat
         flat = tree_to_flat(memory_store, tree_hash)
         assert "a.txt" in flat
         content = memory_store.get(flat["a.txt"])
         assert content == b"content-a"
+
+
+class TestCasUpdateScope:
+    """PuppyOneServerRepo.cas_update_scope should piggy-back the new
+    head_commit_id onto the same atomic RPC that updates scope_hash."""
+
+    def test_updates_hash_and_head_together(self, server_repo):
+        ok = server_repo.cas_update_scope(
+            "docs",
+            old_hash="",
+            new_hash="tree-hash-1",
+            head_commit_id="1234567890abcdef",
+        )
+        assert ok is True
+        assert server_repo.get_scope_hash("docs") == "tree-hash-1"
+        assert server_repo.get_scope_head_commit_id("docs") == "1234567890abcdef"
+
+    def test_losing_cas_does_not_overwrite_head(self, server_repo):
+        server_repo.cas_update_scope(
+            "docs", old_hash="", new_hash="winner-hash",
+            head_commit_id="winner-commit-id",
+        )
+
+        ok = server_repo.cas_update_scope(
+            "docs", old_hash="stale", new_hash="loser-hash",
+            head_commit_id="loser-commit-id",
+        )
+        assert ok is False
+        assert server_repo.get_scope_hash("docs") == "winner-hash"
+        assert server_repo.get_scope_head_commit_id("docs") == "winner-commit-id"

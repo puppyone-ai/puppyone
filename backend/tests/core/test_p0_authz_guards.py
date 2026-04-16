@@ -5,8 +5,10 @@ from unittest.mock import Mock
 import pytest
 
 from src.platform.auth.models import CurrentUser
-from src.mut_engine.routers.content_router import _ensure_project_access
+from src.mut_engine.routers._content_helpers import ensure_project_access
 from src.exceptions import NotFoundException
+
+_ensure_project_access = ensure_project_access  # back-compat alias for this test file
 
 
 def _make_user(user_id: str = "u_test") -> CurrentUser:

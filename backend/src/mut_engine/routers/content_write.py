@@ -88,7 +88,7 @@ async def write_file_endpoint(
     )
 
     return ApiResponse.success(data={
-        "version": result.version,
+        "commit_id": result.commit_id,
         "path": clean_path,
         "merged": result.merged,
         "conflicts": result.conflicts,
@@ -109,7 +109,7 @@ async def mkdir(
     ensure_write_access(project_service, current_user, project_id)
     who = f"user:{current_user.user_id}"
     result = await ops.mkdir(project_id, body.path, who=who)
-    return ApiResponse.success(data={"path": validate_path(body.path), "version": result.version})
+    return ApiResponse.success(data={"path": validate_path(body.path), "commit_id": result.commit_id})
 
 
 @write_router.post(
@@ -137,7 +137,7 @@ async def move(
         raise HTTPException(status_code=404, detail=str(e))
 
     return ApiResponse.success(data={
-        "version": result.version,
+        "commit_id": result.commit_id,
         "old_path": old_clean,
         "new_path": new_clean,
     })
@@ -161,14 +161,14 @@ async def remove(
     if body.permanent:
         result = await ops.permanent_delete(project_id, clean_path, who=who)
         return ApiResponse.success(data={
-            "version": result.version,
+            "commit_id": result.commit_id,
             "path": clean_path,
         })
     else:
         result = await ops.trash(project_id, clean_path, who=who)
         trash_path = [p for p in result.paths if p.startswith(".trash/")]
         return ApiResponse.success(data={
-            "version": result.version,
+            "commit_id": result.commit_id,
             "path": clean_path,
             "old_path": clean_path,
             "new_path": trash_path[0] if trash_path else "",
@@ -194,7 +194,7 @@ async def restore(
     )
 
     return ApiResponse.success(data={
-        "version": result.version,
+        "commit_id": result.commit_id,
         "old_path": validate_path(body.trash_path),
         "new_path": validate_path(body.original_path),
     })
@@ -232,7 +232,7 @@ async def bulk_write(
     )
 
     return ApiResponse.success(data={
-        "version": result.version,
+        "commit_id": result.commit_id,
         "total": len(modified),
         "merged": result.merged,
     })

@@ -30,8 +30,6 @@ class AuditLogItem(BaseModel):
     id: int
     action: str
     path: str | None = None
-    old_version: int | None = None
-    new_version: int | None = None
     operator_type: str
     operator_id: str | None = None
     status: str | None = None

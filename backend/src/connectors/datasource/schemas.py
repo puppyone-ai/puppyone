@@ -39,7 +39,7 @@ class Sync:
     last_synced_at: Optional[str] = None
     error_message: Optional[str] = None
     remote_hash: Optional[str] = None
-    last_sync_version: int = 0
+    last_sync_commit_id: str = ""
     created_by: Optional[str] = None  # Who created the sync (audit field)
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
@@ -94,7 +94,7 @@ class NodeSyncMeta:
     name: str = ""
     node_type: str = ""
     file_path: str = ""
-    version: int = 0
+    commit_id: str = ""
 
 
 class SyncProjectRequest(BaseModel):

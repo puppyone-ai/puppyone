@@ -28,7 +28,7 @@ from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
 
 @dataclass
 class WriteResult:
-    version: int = 0
+    commit_id: str = ""
     status: str = "ok"
     merged: bool = False
     conflicts: int = 0
@@ -302,8 +302,8 @@ class MutOps:
     def stat(self, project_id: str, path: str) -> MutEntry | None:
         return self._reader.stat(project_id, path.strip("/"))
 
-    def get_version(self, project_id: str) -> int:
-        return self._reader.get_version(project_id)
+    def get_head_commit_id(self, project_id: str) -> str:
+        return self._reader.get_head_commit_id(project_id)
 
     def get_root_hash(self, project_id: str) -> str:
         return self._reader.get_root_hash(project_id)
@@ -357,13 +357,13 @@ class MutOps:
             from src.utils.logger import log_warning
             log_warning(
                 f"[MutOps] post-push hook failed for project={project_id} "
-                f"v={push_result.get('version')}: {e}"
+                f"commit={push_result.get('commit_id') or push_result.get('new_commit_id')}: {e}"
             )
 
     @staticmethod
     def _to_result(raw: dict, paths: list[str] | None = None) -> WriteResult:
         return WriteResult(
-            version=raw.get("version", 0),
+            commit_id=raw.get("commit_id") or raw.get("new_commit_id") or "",
             status=raw.get("status", "ok"),
             merged=raw.get("merged", False),
             conflicts=raw.get("conflicts", 0),

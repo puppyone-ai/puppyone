@@ -95,10 +95,11 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
         action: a.action,
         source: a.operator_id || a.operator_type || 'system',
         detail: (() => {
+          const short = (cid?: string) => (cid ? String(cid).slice(0, 8) : '?');
           if (a.action === 'clone') return `Clone scope ${meta.scope || '/'} (${meta.files || 0} files)`;
-          if (a.action === 'push') return `Push v${meta.version || '?'} to ${meta.scope || '/'} (${meta.snapshots || 1} snapshot${meta.snapshots !== 1 ? 's' : ''})`;
-          if (a.action === 'pull') return `Pull v${meta.version || '?'} from ${meta.scope || '/'}`;
-          if (a.action === 'rollback') return `Rollback ${meta.scope || '/'} to v${meta.to_version || '?'}`;
+          if (a.action === 'push') return `Push ${short(meta.commit_id)} to ${meta.scope || '/'} (${meta.snapshots || 1} snapshot${meta.snapshots !== 1 ? 's' : ''})`;
+          if (a.action === 'pull') return `Pull ${short(meta.commit_id)} from ${meta.scope || '/'}`;
+          if (a.action === 'rollback') return `Rollback ${meta.scope || '/'} to ${short(meta.target_commit_id)}`;
           if (a.action === 'push_error') return `Push error: ${meta.error || 'unknown'}`;
           if (a.action === 'push_rejected') return `Push rejected: paths outside scope`;
           if (a.action === 'merge_conflict') return `Merge conflict in ${meta.scope || '/'} (${meta.conflicts?.length || 0} conflicts)`;

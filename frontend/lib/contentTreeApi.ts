@@ -49,7 +49,7 @@ export interface TreeCatResponse {
 export interface TreeWriteResponse {
   path: string;
   content_hash: string;
-  version: number;
+  commit_id: string;
 }
 
 export interface TreeMvResponse {
@@ -276,11 +276,11 @@ export async function writeFile(
   content: any,
   nodeType: NodeType = 'json',
   message?: string,
-  baseVersion?: number
+  baseCommitId?: string
 ): Promise<TreeWriteResponse> {
   const body: Record<string, any> = { path, content, node_type: nodeType };
   if (message) body.message = message;
-  if (baseVersion !== undefined) body.base_version = baseVersion;
+  if (baseCommitId !== undefined) body.base_commit_id = baseCommitId;
   return treeRequest<TreeWriteResponse>(`/api/v1/content/${projectId}/write`, {
     method: 'POST',
     body: JSON.stringify(body),
@@ -516,12 +516,14 @@ export async function getNodeContent(
   };
 }
 
-// === Version History API ===
+// === Commit History API ===
 // These types match the Mut-Native commit-based model.
 // The backend returns commit history from mut_commits table.
+// Commits are identified by opaque 16-hex `commit_id` strings — we no longer
+// expose monotonic integer versions on the wire.
 
 export interface FileVersionInfo {
-  version: number;
+  commit_id: string;
   who: string;
   message: string;
   changes: MutCommitChange[];
@@ -532,7 +534,7 @@ export interface FileVersionInfo {
 }
 
 export interface FileVersionDetail {
-  version: number;
+  commit_id: string;
   who: string;
   message: string;
   changes: MutCommitChange[];
@@ -544,7 +546,7 @@ export interface FileVersionDetail {
 export interface VersionHistoryResponse {
   project_id: string;
   path: string | null;
-  current_version: number;
+  head_commit_id: string;
   root_hash: string;
   commits: FileVersionInfo[];
   total: number;
@@ -559,71 +561,71 @@ export interface DiffItem {
 
 export interface DiffResponse {
   project_id: string;
-  v1: number;
-  v2: number;
+  from_commit_id: string;
+  to_commit_id: string;
   changes: DiffItem[];
 }
 
 export interface RollbackResponse {
   project_id: string;
-  new_version: number;
-  rolled_back_to: number;
+  new_commit_id: string;
+  rolled_back_to: string;
 }
 
 export async function getVersionHistory(
   filePath: string,
   projectId: string,
   limit: number = 50,
-  sinceVersion: number = 0
+  sinceCommitId: string = ''
 ): Promise<VersionHistoryResponse> {
   const params = new URLSearchParams({
     path: filePath,
     limit: String(limit),
-    since_version: String(sinceVersion),
+    since_commit_id: sinceCommitId,
   });
   return treeRequest<VersionHistoryResponse>(
-    `/api/v1/content/${projectId}/versions?${params}`
+    `/api/v1/content/${projectId}/commits?${params}`
   );
 }
 
 export async function getVersionContent(
   filePath: string,
-  version: number,
+  commitId: string,
   projectId: string
 ): Promise<FileVersionDetail> {
   const params = new URLSearchParams({
     path: filePath,
-    version: String(version),
+    commit_id: commitId,
   });
   return treeRequest<FileVersionDetail>(
-    `/api/v1/content/${projectId}/version-content?${params}`
+    `/api/v1/content/${projectId}/commit-content?${params}`
   );
 }
 
 export async function rollbackToVersion(
   filePath: string,
-  version: number,
+  commitId: string,
   projectId: string
 ): Promise<RollbackResponse> {
   return treeRequest<RollbackResponse>(
     `/api/v1/content/${projectId}/rollback`,
     {
       method: 'POST',
-      body: JSON.stringify({ path: filePath, target_version: version }),
+      body: JSON.stringify({ path: filePath, target_commit_id: commitId }),
     }
   );
 }
 
 export async function diffVersions(
   filePath: string,
-  v1: number,
-  v2: number,
+  fromCommitId: string,
+  toCommitId: string,
   projectId: string
 ): Promise<DiffResponse> {
   const params = new URLSearchParams({
     path: filePath,
-    v1: String(v1),
-    v2: String(v2),
+    from_commit_id: fromCommitId,
+    to_commit_id: toCommitId,
   });
   return treeRequest<DiffResponse>(
     `/api/v1/content/${projectId}/diff?${params}`
@@ -645,7 +647,7 @@ export interface MutCommitConflict {
 }
 
 export interface MutCommitInfo {
-  version: number;
+  commit_id: string;
   root_hash: string;
   scope_path: string;
   who: string;
@@ -657,7 +659,7 @@ export interface MutCommitInfo {
 
 export interface MutProjectHistoryResponse {
   project_id: string;
-  current_version: number;
+  head_commit_id: string;
   root_hash: string;
   commits: MutCommitInfo[];
   total: number;
@@ -666,25 +668,25 @@ export interface MutProjectHistoryResponse {
 export async function getProjectHistory(
   projectId: string,
   limit: number = 50,
-  sinceVersion: number = 0
+  sinceCommitId: string = ''
 ): Promise<MutProjectHistoryResponse> {
   const params = new URLSearchParams({
     limit: String(limit),
-    since_version: String(sinceVersion),
+    since_commit_id: sinceCommitId,
   });
   return treeRequest<MutProjectHistoryResponse>(
-    `/api/v1/content/${projectId}/versions?${params}`
+    `/api/v1/content/${projectId}/commits?${params}`
   );
 }
 
 // === Audit Logs API ===
+// Commit identity for audit entries lives inside `metadata` — we no longer
+// denormalize it onto top-level integer columns.
 
 export interface AuditLogItem {
   id: number;
   action: string;
   path: string;
-  old_version: number | null;
-  new_version: number | null;
   operator_type: string;
   operator_id: string | null;
   status: string | null;

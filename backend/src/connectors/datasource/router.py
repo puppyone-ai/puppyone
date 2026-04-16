@@ -56,7 +56,7 @@ class SyncResponse(BaseModel):
     provider: str
     config: dict
     status: str
-    last_sync_version: int
+    last_sync_commit_id: str = ""
     error_message: Optional[str] = None
 
 
@@ -751,10 +751,10 @@ async def trigger_push(
     else:
         parsed_content = content.decode("utf-8", errors="replace")
 
-    version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
     result = await engine.push_execute(
         path=path,
-        version=version,
+        commit_id=head_commit_id,
         content=parsed_content,
         node_type=node_type,
     )
