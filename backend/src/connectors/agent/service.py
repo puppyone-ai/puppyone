@@ -380,8 +380,11 @@ class AgentService:
                             }
                             client = MutEphemeralClient(repo_manager, agent.project_id, mut_auth)
                             await asyncio.to_thread(client.clone)
-                            push_result = await asyncio.to_thread(
-                                client.push,
+                            from src.mut_engine.services.hooks import push_and_finalize
+                            push_result = await push_and_finalize(
+                                client,
+                                agent.project_id,
+                                repo_manager=repo_manager,
                                 modified=modified_files,
                                 message="Schedule Agent write-back",
                                 who=agent_identity,
@@ -1195,8 +1198,10 @@ class AgentService:
                         live_session.scope_path,
                     )
                     if modified:
-                        push_result = await asyncio.to_thread(
-                            live_session.mut_client.push,
+                        from src.mut_engine.services.hooks import push_and_finalize
+                        push_result = await push_and_finalize(
+                            live_session.mut_client,
+                            live_session.project_id,
                             modified=modified,
                             message=f"Agent chat write-back ({len(modified)} files)",
                             who=f"agent:{request.agent_id}",

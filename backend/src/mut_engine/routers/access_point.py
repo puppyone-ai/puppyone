@@ -32,7 +32,6 @@ from mut.server.handlers import (
     handle_push,
 )
 
-from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.services.hooks import run_post_push_hook
 from src.utils.logger import log_error, log_info
@@ -50,6 +49,7 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     Raises:
         HTTPException 401 if key is invalid/revoked
     """
+    from src.infra.supabase.client import SupabaseClient
     client = SupabaseClient().client
 
     resp = (
@@ -74,15 +74,20 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     project_id = conn["project_id"]
     config = conn.get("config") or {}
     raw_scope = config.get("scope")
-    scope = raw_scope if isinstance(raw_scope, dict) else {}
+
+    if not isinstance(raw_scope, dict) or raw_scope.get("path") is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No scope configured for this access point",
+        )
+
     scope = {
-        "id": scope.get("id", conn["id"]),
-        "path": scope.get("path", ""),
-        "exclude": scope.get("exclude", []),
-        "mode": scope.get("mode", "rw"),
+        "id": raw_scope.get("id", conn["id"]),
+        "path": raw_scope.get("path", ""),
+        "exclude": raw_scope.get("exclude", []),
+        "mode": raw_scope.get("mode", "r"),
     }
 
-    # Check X-Mut-User identity binding if configured
     user_identity = config.get("user_identity", "")
 
     auth_context = {
@@ -117,12 +122,18 @@ async def _resolve_and_validate(access_key: str, request: Request) -> tuple[str,
     project_id, auth = await asyncio.to_thread(resolve_access_point, access_key)
 
     bound_identity = auth.get("_user_identity", "")
-    request_identity = request.headers.get("x-mut-user", "")
-    if bound_identity and request_identity and request_identity != bound_identity:
-        raise HTTPException(
-            status_code=401,
-            detail="User identity mismatch: key is bound to a different user",
-        )
+    if bound_identity:
+        request_identity = request.headers.get("x-mut-user", "")
+        if not request_identity:
+            raise HTTPException(
+                status_code=401,
+                detail="X-Mut-User header required: key is bound to a specific user",
+            )
+        if request_identity != bound_identity:
+            raise HTTPException(
+                status_code=401,
+                detail="User identity mismatch: key is bound to a different user",
+            )
 
     repo_manager = _get_repo_manager()
     return project_id, auth, repo_manager
@@ -158,6 +169,10 @@ async def ap_push(access_key: str, request: Request):
     try:
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
         body = await request.json()
+
+        from src.mut_engine.server.validation import validate_push_objects
+        validate_push_objects(body)
+
         result = await asyncio.to_thread(
             _invoke, handle_push, repo_manager, project_id, auth, body,
         )
@@ -166,12 +181,12 @@ async def ap_push(access_key: str, request: Request):
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         log_error(f"[AP] push failed: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
-    run_post_push_hook(project_id, repo_manager, result)
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(
         f"[AP] push ap={access_key[:8]}... project={project_id} "
@@ -239,6 +254,8 @@ async def ap_rollback(access_key: str, request: Request):
     except Exception as e:
         log_error(f"[AP] rollback failed: {e}")
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
+
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(f"[AP] rollback ap={access_key[:8]}... target_v={result.get('target_version')}")
     return JSONResponse(result)

@@ -30,3 +30,16 @@ jobs:
 
       - name: Push migrations
         run: supabase db push
+
+      - name: Smoke test — verify critical triggers
+        env:
+          DATABASE_URL: postgresql://postgres:${{ secrets.STAGING_DB_PASSWORD }}@db.${{ secrets.STAGING_PROJECT_ID }}.supabase.co:5432/postgres
+        run: psql "$DATABASE_URL" -f supabase/tests/smoke_test_triggers.sql
+
+      - name: Detect schema drift
+        run: |
+          DIFF=$(supabase db diff --linked 2>&1) || true
+          if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
+            echo "::warning::Schema drift detected after migration push!"
+            echo "$DIFF"
+          fi

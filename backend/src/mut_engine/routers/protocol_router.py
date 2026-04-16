@@ -72,6 +72,9 @@ async def mut_push(
     """Push changes to server (like `git push`). Includes server-side merge."""
     body = await request.json()
 
+    from src.mut_engine.server.validation import validate_push_objects
+    validate_push_objects(body)
+
     try:
         result = await asyncio.to_thread(
             _invoke, handle_push, repo_manager, project_id, auth, body,
@@ -79,12 +82,12 @@ async def mut_push(
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         log_error(f"[MUT] push failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
-    run_post_push_hook(project_id, repo_manager, result)
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(
         f"[MUT] push project={project_id} agent={auth['agent']} "
@@ -134,6 +137,8 @@ async def mut_negotiate(
         result = await asyncio.to_thread(
             _invoke, handle_negotiate, repo_manager, project_id, auth, body,
         )
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         log_error(f"[MUT] negotiate failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
@@ -164,6 +169,8 @@ async def mut_rollback(
     except Exception as e:
         log_error(f"[MUT] rollback failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
+
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(
         f"[MUT] rollback project={project_id} agent={auth['agent']} "

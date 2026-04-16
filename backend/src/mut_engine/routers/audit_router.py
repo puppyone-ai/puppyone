@@ -63,8 +63,8 @@ def _get_audit_repo() -> AuditRepository:
 def _ensure_project_access(
     project_service: ProjectService, current_user: CurrentUser, project_id: str
 ):
-    project = project_service.get_by_id(project_id)
-    if not project:
+    """Check that the current user is a member of the project."""
+    if not project_service.verify_project_access(project_id, current_user.user_id):
         from src.exceptions import ErrorCode, NotFoundException
         raise NotFoundException("Project not found", code=ErrorCode.NOT_FOUND)
 

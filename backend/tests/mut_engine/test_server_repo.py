@@ -61,6 +61,34 @@ class FakeHistoryManager:
             entries = entries[-limit:]
         return entries
 
+    def get_previous_scope_hash(self, scope_path: str, before_version: int) -> str:
+        norm = scope_path.strip("/")
+        best = ""
+        for v, entry in sorted(self._entries.items(), reverse=True):
+            if v < before_version and entry.get("scope_path", "").strip("/") == norm:
+                best = entry.get("scope_hash", "")
+                if best:
+                    break
+        return best
+
+    def cas_update_scope_hash(self, scope_path: str, old_hash: str, new_hash: str) -> bool:
+        norm = scope_path.strip("/")
+        current = self._scope_hashes.get(norm, "")
+        if current != old_hash:
+            return False
+        self._scope_hashes[norm] = new_hash
+        return True
+
+    def cas_update_root_hash(self, old_hash: str, new_hash: str) -> bool:
+        if self._root_hash != old_hash:
+            return False
+        self._root_hash = new_hash
+        return True
+
+    def atomic_next_version(self) -> int:
+        self._version += 1
+        return self._version
+
 
 class FakeAuditManager:
     def __init__(self):

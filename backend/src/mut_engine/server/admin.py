@@ -11,11 +11,12 @@ All writes (including rollback) go through MutOps → MUT protocol handlers.
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from mut.core.diff import diff_trees
 from mut.core.object_store import ObjectStore
-from mut.core.tree import tree_to_flat
+from mut.core.tree import read_tree, tree_to_flat
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_info, log_warning
@@ -106,7 +107,7 @@ class MutAdminService:
     ) -> bytes:
         """Get file content at a specific version."""
         repo = self._repos.get_repo(project_id)
-        entry = repo.history.get_entry(version)
+        entry = await asyncio.to_thread(repo.history.get_entry, version)
         if not entry:
             raise ValueError(f"Version {version} not found")
 
@@ -114,11 +115,13 @@ class MutAdminService:
         if not root:
             raise ValueError(f"Version {version} has no root hash")
 
-        blob_hash = _resolve_path_hash(repo.store, root, path)
+        blob_hash = await asyncio.to_thread(
+            _resolve_path_hash, repo.store, root, path,
+        )
         if not blob_hash:
             raise FileNotFoundError(f"File {path} not found at v{version}")
 
-        return repo.store.get(blob_hash)
+        return await asyncio.to_thread(repo.store.get, blob_hash)
 
     async def compute_diff(
         self, project_id: str, v1: int, v2: int
@@ -126,8 +129,8 @@ class MutAdminService:
         """Compute the diff between two versions."""
         repo = self._repos.get_repo(project_id)
 
-        entry1 = repo.history.get_entry(v1)
-        entry2 = repo.history.get_entry(v2)
+        entry1 = await asyncio.to_thread(repo.history.get_entry, v1)
+        entry2 = await asyncio.to_thread(repo.history.get_entry, v2)
         if not entry1 or not entry2:
             raise ValueError(f"Version {v1} or {v2} not found")
 
@@ -137,7 +140,7 @@ class MutAdminService:
         if not root1 or not root2:
             return []
 
-        return diff_trees(repo.store, root1, root2)
+        return await asyncio.to_thread(diff_trees, repo.store, root1, root2)
 
 
 def _resolve_entry_root(entry: dict) -> str:
@@ -153,11 +156,27 @@ def _resolve_entry_root(entry: dict) -> str:
 
 
 def _resolve_path_hash(store: ObjectStore, root_hash: str, path: str) -> str:
-    """Resolve a file path to its blob hash within a Merkle tree."""
-    if not root_hash:
+    """Resolve a file path to its blob hash by navigating the tree — O(depth)."""
+    if not root_hash or not path:
+        return ""
+    parts = [p for p in path.split("/") if p]
+    if not parts:
         return ""
     try:
-        flat = tree_to_flat(store, root_hash)
-        return flat.get(path, "")
+        current = root_hash
+        for part in parts[:-1]:
+            entries = read_tree(store, current)
+            if part not in entries:
+                return ""
+            typ, h = entries[part]
+            if typ != "T":
+                return ""
+            current = h
+        entries = read_tree(store, current)
+        leaf = parts[-1]
+        if leaf not in entries:
+            return ""
+        typ, h = entries[leaf]
+        return h if typ != "T" else ""
     except Exception:
         return ""

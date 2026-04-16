@@ -9,6 +9,11 @@ import React, {
 } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import { Session, SupabaseClient } from '@supabase/supabase-js';
+import {
+  getEmailConfirmUrl,
+  getPasswordResetRedirectUrl,
+  getOAuthCallbackUrl,
+} from '@/lib/auth-urls';
 
 type AuthContextValue = {
   supabase: SupabaseClient | null;
@@ -19,6 +24,7 @@ type AuthContextValue = {
   signInWithOtp: (email: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
+  resendConfirmation: (email: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -75,12 +81,10 @@ export function SupabaseAuthProvider({
     try {
       console.log('Starting OAuth sign-in with:', provider);
 
-      const redirectTo = `${window.location.origin}/auth/callback`;
-
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo,
+          redirectTo: getOAuthCallbackUrl(),
           skipBrowserRedirect: false,
         },
       });
@@ -102,7 +106,7 @@ export function SupabaseAuthProvider({
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: getEmailConfirmUrl(),
       },
     });
     if (error) {
@@ -131,6 +135,9 @@ export function SupabaseAuthProvider({
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: getEmailConfirmUrl(),
+      },
     });
     
     if (error) {
@@ -144,12 +151,30 @@ export function SupabaseAuthProvider({
     return { needsEmailConfirmation };
   };
 
+  const resendConfirmation = async (email: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: {
+        emailRedirectTo: getEmailConfirmUrl(),
+      },
+    });
+    if (error) {
+      throw error;
+    }
+  };
+
   const resetPassword = async (email: string) => {
     if (!supabase) {
       throw new Error('Supabase is not configured');
     }
     
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: getPasswordResetRedirectUrl(),
+    });
     
     if (error) {
       throw error;
@@ -187,6 +212,7 @@ export function SupabaseAuthProvider({
       signInWithOtp,
       signInWithEmail,
       signUpWithEmail,
+      resendConfirmation,
       resetPassword,
       updatePassword,
       signOut,

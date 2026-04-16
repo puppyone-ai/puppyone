@@ -31,13 +31,15 @@ export function getSupabaseAnonKey(): string {
  * Behind a reverse proxy (Railway, Vercel, etc.) `request.url` may reflect the
  * internal container address (e.g. http://localhost:8080). This helper checks,
  * in order:
- *   1. NEXT_PUBLIC_SITE_URL env var (explicit override)
- *   2. x-forwarded-host + x-forwarded-proto headers (set by most proxies)
- *   3. host header
- *   4. request.url fallback
+ *   1. NEXT_PUBLIC_APP_URL env var (preferred, explicit)
+ *   2. NEXT_PUBLIC_SITE_URL env var (legacy alias)
+ *   3. x-forwarded-host + x-forwarded-proto headers (set by most proxies)
+ *   4. host header
+ *   5. request.url fallback
  */
 export function getRequestOrigin(request: Request): string {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const siteUrl =
+    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL;
   if (siteUrl) return siteUrl.replace(/\/+$/, '');
 
   const forwardedHost = request.headers.get('x-forwarded-host');

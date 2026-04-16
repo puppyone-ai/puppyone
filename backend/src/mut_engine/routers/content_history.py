@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.common_schemas import ApiResponse
 from src.mut_engine.dependencies import get_mut_admin_service, get_mut_ops, get_repo_manager
-from src.mut_engine.routers._content_helpers import ensure_project_access
+from src.mut_engine.routers._content_helpers import ensure_project_access, ensure_write_access
 from src.mut_engine.schemas import (
     FileVersionInfo,
     RollbackRequest,
@@ -159,19 +159,12 @@ async def rollback(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
 
+    from mut.foundation.error import LockError, ObjectNotFoundError, PermissionDenied
     from mut.server.handlers import handle_rollback
+    from src.mut_engine.services.hooks import run_post_push_hook
 
-    # Rollback creates a NEW version whose tree content matches the target
-    # version.  It does NOT rewind the version counter.  The mut handler
-    # reads the target version's scope_hash/root, reconstructs the full
-    # file set, applies it to the current tree, and records a new commit
-    # with the resulting root_hash.  If "cat" after rollback still shows
-    # the old content, check that:
-    #   1. The target version's history entry has a valid root/scope_hash
-    #   2. The S3 blobs referenced by that hash still exist
-    #   3. The new root_hash was written to the projects row (set_root_hash)
     who = f"user:{current_user.user_id}"
     auth = {
         "agent": who,
@@ -184,8 +177,16 @@ async def rollback(
         result = await asyncio.to_thread(
             handle_rollback, repo, auth, mut_body,
         )
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except (ValueError, ObjectNotFoundError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except LockError as e:
+        raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
+
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     return ApiResponse.success(data=RollbackResponse(
         project_id=project_id,

@@ -80,8 +80,8 @@ def read_file(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
-    entry = ops.stat(project_id, clean_path)
-    node_type = entry.type if entry else "file"
+    from src.mut_engine.services.tree_reader import detect_type
+    node_type = detect_type(clean_path)
     version = ops.get_version(project_id)
 
     content_json = None
@@ -100,7 +100,7 @@ def read_file(
         type=node_type,
         content=content_json,
         content_text=content_text,
-        content_hash=entry.content_hash if entry else None,
+        content_hash=None,
         version=version,
     ))
 

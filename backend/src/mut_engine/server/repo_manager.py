@@ -47,6 +47,7 @@ class MutRepoManager:
         self._s3 = s3
         self._supabase = supabase
         self._cache: dict[str, ProjectRepo] = {}
+        self._name_cache: dict[str, str] = {}
         self._lock = __import__("threading").Lock()
 
     def get_repo(self, project_id: str) -> ProjectRepo:
@@ -58,9 +59,15 @@ class MutRepoManager:
             return self._cache[project_id]
 
     def get_server_repo(self, project_id: str) -> PuppyOneServerRepo:
-        """Get a PuppyOneServerRepo for MUT protocol handlers (clone/push/pull)."""
+        """Create a PuppyOneServerRepo for MUT protocol handlers.
+
+        Returns a NEW instance every time — PuppyOneServerRepo holds per-request
+        mutable state (_pending_scope, _last_scope_build) that must not be shared
+        across concurrent pushes. The expensive underlying components (store,
+        history, audit) are shared via the cached ProjectRepo.
+        """
         proj = self.get_repo(project_id)
-        project_name = self._lookup_project_name(project_id)
+        project_name = self._get_project_name(project_id)
         from mut.server.scope_manager import ScopeManager
         scope_backend = SupabaseScopeBackend(self._supabase, project_id)
         return PuppyOneServerRepo(
@@ -90,6 +97,14 @@ class MutRepoManager:
             audit=audit,
             resolver=resolver,
         )
+
+    def _get_project_name(self, project_id: str) -> str:
+        """Get project name, cached to avoid per-request DB queries."""
+        if project_id in self._name_cache:
+            return self._name_cache[project_id]
+        name = self._lookup_project_name(project_id)
+        self._name_cache[project_id] = name
+        return name
 
     def _lookup_project_name(self, project_id: str) -> str:
         try:

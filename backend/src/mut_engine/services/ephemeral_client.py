@@ -183,7 +183,10 @@ class MutEphemeralClient:
 
         if result.get("status") == "ok":
             self._version = result.get("version", self._version)
-            self._files = merged_files
+            if result.get("merged"):
+                self.pull()
+            else:
+                self._files = merged_files
 
         return result
 

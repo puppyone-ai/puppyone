@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { EmailOtpType } from '@supabase/supabase-js';
-import { getServerSupabaseUrl, getSupabaseAnonKey, getRequestOrigin } from '@/lib/server-env';
+import {
+  getServerApiBaseUrl,
+  getServerSupabaseUrl,
+  getSupabaseAnonKey,
+  getRequestOrigin,
+} from '@/lib/server-env';
 
 /**
  * Supabase Email Verification - Route Handler (服务端)
@@ -20,6 +25,7 @@ export async function GET(request: Request) {
   const token_hash = requestUrl.searchParams.get('token_hash');
   const type = requestUrl.searchParams.get('type') as EmailOtpType | null;
   const next = requestUrl.searchParams.get('next') ?? '/home';
+  const apiUrl = getServerApiBaseUrl();
 
   if (!token_hash || !type) {
     console.error('Auth confirm: missing token_hash or type');
@@ -46,7 +52,7 @@ export async function GET(request: Request) {
     }
   );
 
-  const { error } = await supabase.auth.verifyOtp({ token_hash, type });
+  const { data, error } = await supabase.auth.verifyOtp({ token_hash, type });
 
   if (error) {
     console.error('Auth confirm verifyOtp failed:', error.message);
@@ -55,6 +61,18 @@ export async function GET(request: Request) {
 
   if (type === 'recovery') {
     return NextResponse.redirect(`${origin}/reset-password`);
+  }
+
+  // For signup confirmations, initialize profile + org (same as OAuth callback)
+  if (type === 'signup' && data?.session) {
+    try {
+      await fetch(`${apiUrl}/api/v1/auth/initialize`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+    } catch (e) {
+      console.error('Auth initialization failed:', e);
+    }
   }
 
   return NextResponse.redirect(`${origin}${next}`);

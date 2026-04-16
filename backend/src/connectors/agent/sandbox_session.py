@@ -208,8 +208,10 @@ async def writeback_and_destroy(
                 session.scope_path,
             )
             if modified:
-                push_result = await asyncio.to_thread(
-                    session.mut_client.push,
+                from src.mut_engine.services.hooks import push_and_finalize
+                push_result = await push_and_finalize(
+                    session.mut_client,
+                    session.project_id,
                     modified=modified,
                     message=f"Agent write-back ({len(modified)} files)",
                     who=f"agent:{session.agent_id}",
