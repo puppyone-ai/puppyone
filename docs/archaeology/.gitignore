@@ -1,0 +1,4 @@
+# dig.sh writes timestamped diagnostic dumps here.
+# Those are throw-away local artifacts — the only thing committed in this
+# directory is ALIGNMENT_COMPLETE.md (and this .gitignore).
+*/
