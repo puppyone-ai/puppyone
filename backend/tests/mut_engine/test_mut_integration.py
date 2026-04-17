@@ -12,7 +12,7 @@ import json
 import pytest
 
 from mut.core import tree as tree_mod
-from mut.server.handlers import (
+from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
     handle_negotiate, handle_rollback, handle_pull_commit,
 )

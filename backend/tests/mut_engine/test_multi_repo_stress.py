@@ -17,7 +17,8 @@ import json
 import pytest
 
 from mut.core import tree as tree_mod
-from mut.server.handlers import (
+from mut.core.protocol import PROTOCOL_VERSION
+from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
     handle_negotiate, handle_rollback, handle_pull_commit,
 )
@@ -104,6 +105,7 @@ def _push_body(store, files, base_commit_id: str = "") -> dict:
     root = build(nested)
     reachable = tree_mod.collect_reachable_hashes(store, root)
     return {
+        "protocol_version": PROTOCOL_VERSION,
         "base_commit_id": base_commit_id,
         "snapshots": [{
             "id": 1, "root": root, "message": "push",

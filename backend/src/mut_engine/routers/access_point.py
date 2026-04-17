@@ -24,7 +24,7 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-from mut.foundation.error import LockError, PermissionDenied
+from mut.foundation.error import ClientTooOldError, LockError, PermissionDenied
 from mut.server.handlers import (
     handle_clone,
     handle_negotiate,
@@ -117,6 +117,11 @@ def _invoke(handler_fn, repo_manager: MutRepoManager, project_id: str, auth: dic
     return handler_fn(repo, auth, body)
 
 
+def _raise_too_old(e: ClientTooOldError) -> None:
+    """Map a ClientTooOldError to HTTP 426 (Upgrade Required)."""
+    raise HTTPException(status_code=426, detail=str(e))
+
+
 async def _resolve_and_validate(access_key: str, request: Request) -> tuple[str, dict, MutRepoManager]:
     """Common resolve + identity check for all access point endpoints."""
     project_id, auth = await asyncio.to_thread(resolve_access_point, access_key)
@@ -153,6 +158,8 @@ async def ap_clone(access_key: str, request: Request):
         )
     except HTTPException:
         raise
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -178,6 +185,8 @@ async def ap_push(access_key: str, request: Request):
         )
     except HTTPException:
         raise
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
@@ -206,6 +215,8 @@ async def ap_pull(access_key: str, request: Request):
         )
     except HTTPException:
         raise
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -227,6 +238,8 @@ async def ap_negotiate(access_key: str, request: Request):
         )
     except HTTPException:
         raise
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except Exception as e:
         log_error(f"[AP] negotiate failed: {e}")
         raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
@@ -247,6 +260,8 @@ async def ap_rollback(access_key: str, request: Request):
         )
     except HTTPException:
         raise
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
@@ -274,6 +289,8 @@ async def ap_pull_commit(access_key: str, request: Request):
         )
     except HTTPException:
         raise
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

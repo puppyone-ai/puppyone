@@ -18,6 +18,7 @@ import base64
 import json
 from datetime import UTC
 
+from mut.core.protocol import PROTOCOL_VERSION
 from mut.foundation.hash import hash_bytes as mut_hash
 from mut.server.handlers import (
     handle_clone,
@@ -73,7 +74,9 @@ class MutEphemeralClient:
     def clone(self) -> dict[str, bytes]:
         """Clone the scope subtree. Returns {rel_path: content}."""
         repo = self._get_server_repo()
-        result = handle_clone(repo, self._auth, {})
+        result = handle_clone(
+            repo, self._auth, {"protocol_version": PROTOCOL_VERSION}
+        )
 
         self._head_commit_id = result.get("head_commit_id", "")
         self._scope = {
@@ -100,6 +103,7 @@ class MutEphemeralClient:
         """
         repo = self._get_server_repo()
         body = {
+            "protocol_version": PROTOCOL_VERSION,
             "since_commit_id": self._head_commit_id,
             "have_hashes": list(self._object_hashes),
         }
@@ -155,6 +159,7 @@ class MutEphemeralClient:
 
         if new_objects:
             neg_result = handle_negotiate(repo, self._auth, {
+                "protocol_version": PROTOCOL_VERSION,
                 "hashes": list(new_objects.keys()),
             })
             missing = set(neg_result.get("missing", []))
@@ -168,7 +173,7 @@ class MutEphemeralClient:
         }
 
         body = {
-            "protocol_version": 1,
+            "protocol_version": PROTOCOL_VERSION,
             "base_commit_id": self._head_commit_id,
             "snapshots": [{
                 "id": 1,

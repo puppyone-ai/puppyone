@@ -15,7 +15,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from mut.foundation.error import LockError, PermissionDenied
+from mut.foundation.error import ClientTooOldError, LockError, PermissionDenied
 from mut.server.handlers import (
     handle_clone,
     handle_negotiate,
@@ -38,6 +38,18 @@ def _invoke(handler_fn, repo_manager: MutRepoManager, project_id: str, auth: dic
     return handler_fn(repo, auth, body)
 
 
+def _raise_too_old(e: ClientTooOldError):
+    """Lift a protocol-version rejection out of handler threads as an
+    HTTP 426 Upgrade Required.
+
+    The generic ``except Exception`` arms further down would otherwise
+    flatten this to a 500 and strip the semantic cue the client's
+    transport layer needs to print "please upgrade" instead of the
+    default "server error" / "cannot reach server" message.
+    """
+    raise HTTPException(status_code=e.http_status, detail=str(e))
+
+
 @router.post("/{project_id}/clone")
 async def mut_clone(
     project_id: str,
@@ -52,6 +64,8 @@ async def mut_clone(
         result = await asyncio.to_thread(
             _invoke, handle_clone, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -79,6 +93,8 @@ async def mut_push(
         result = await asyncio.to_thread(
             _invoke, handle_push, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
@@ -110,6 +126,8 @@ async def mut_pull(
         result = await asyncio.to_thread(
             _invoke, handle_pull, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -137,6 +155,8 @@ async def mut_negotiate(
         result = await asyncio.to_thread(
             _invoke, handle_negotiate, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -162,6 +182,8 @@ async def mut_rollback(
         result = await asyncio.to_thread(
             _invoke, handle_rollback, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
@@ -195,6 +217,8 @@ async def mut_pull_commit(
         result = await asyncio.to_thread(
             _invoke, handle_pull_commit, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

@@ -15,9 +15,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from mut.core.object_store import ObjectStore
-from mut.core.protocol import PushResponse, RollbackResponse
+from mut.core.protocol import PROTOCOL_VERSION, PushResponse, RollbackResponse
 from mut.core.scope import check_path_permission
-from mut.server.handlers import handle_clone, handle_push, handle_rollback
+from tests.mut_engine._handlers import handle_clone, handle_push, handle_rollback
 
 from tests.mut_engine.test_server_repo import (
     FakeAuditManager,
@@ -118,7 +118,7 @@ def _push_file(
     root = _build(nested)
     objects_b64 = {h: base64.b64encode(d).decode() for h, d in objects.items()}
     body = {
-        "protocol_version": 1,
+        "protocol_version": PROTOCOL_VERSION,
         "base_commit_id": base_commit_id,
         "snapshots": [{
             "id": 1, "root": root, "message": "test",
