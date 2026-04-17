@@ -3,7 +3,6 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import {
-  getServerApiBaseUrl,
   getServerSupabaseUrl,
   getSupabaseAnonKey,
   getRequestOrigin,
@@ -12,10 +11,9 @@ import {
 /**
  * Supabase Email Verification - Route Handler (服务端)
  *
- * 处理所有邮件类回调（无需 PKCE，用 token_hash 直接验证）：
- * - 注册邮箱确认 (type=signup)
- * - 密码重置 (type=recovery → 重定向到 /reset-password)
- * - 邮箱变更确认 (type=email_change)
+ * 仅处理密码重置 (type=recovery) 和邮箱变更 (type=email_change) 的链接回调。
+ * 注册邮箱确认 (type=signup) 已完全迁移到 OTP 验证码流程，由前端
+ * `/login` 页面的 verify-otp 视图直接调用 verifyOtp({ token, ... }) 完成。
  *
  * 邮件链接格式：/auth/confirm?token_hash=xxx&type=recovery&next=/reset-password
  */
@@ -25,11 +23,18 @@ export async function GET(request: Request) {
   const token_hash = requestUrl.searchParams.get('token_hash');
   const type = requestUrl.searchParams.get('type') as EmailOtpType | null;
   const next = requestUrl.searchParams.get('next') ?? '/home';
-  const apiUrl = getServerApiBaseUrl();
 
   if (!token_hash || !type) {
     console.error('Auth confirm: missing token_hash or type');
     return NextResponse.redirect(`${origin}/login?error=invalid_confirmation_link`);
+  }
+
+  // Signup flow is fully OTP — the email no longer contains a link. If a stale
+  // (pre-migration) link reaches this handler, redirect to /login so the user
+  // can request a fresh OTP code via "Verify your email".
+  if (type === 'signup') {
+    console.warn('Auth confirm: received deprecated signup link; redirecting to /login');
+    return NextResponse.redirect(`${origin}/login?error=signup_link_deprecated`);
   }
 
   const cookieStore = await cookies();
@@ -52,7 +57,7 @@ export async function GET(request: Request) {
     }
   );
 
-  const { data, error } = await supabase.auth.verifyOtp({ token_hash, type });
+  const { error } = await supabase.auth.verifyOtp({ token_hash, type });
 
   if (error) {
     console.error('Auth confirm verifyOtp failed:', error.message);
@@ -63,17 +68,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/reset-password`);
   }
 
-  // For signup confirmations, initialize profile + org (same as OAuth callback)
-  if (type === 'signup' && data?.session) {
-    try {
-      await fetch(`${apiUrl}/api/v1/auth/initialize`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      });
-    } catch (e) {
-      console.error('Auth initialization failed:', e);
-    }
-  }
-
+  // email_change and any other supported types
   return NextResponse.redirect(`${origin}${next}`);
 }

@@ -46,3 +46,29 @@ jobs:
             echo "The remote database has manual changes that are not captured in migrations."
             echo "Create a new migration to reconcile: supabase db diff -f <name>"
           fi
+
+      - name: Notify on failure (email)
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.ALERT_SMTP_USERNAME }}
+          password: ${{ secrets.ALERT_SMTP_PASSWORD }}
+          from: PuppyOne CI <${{ secrets.ALERT_SMTP_USERNAME }}>
+          to: ${{ secrets.ALERT_EMAIL_TO }}
+          subject: "🚨 [PROD] Migration failed: ${{ github.event.head_commit.message }}"
+          body: |
+            Production migration push FAILED.
+
+            Workflow: ${{ github.workflow }}
+            Commit:   ${{ github.sha }}
+            Author:   ${{ github.event.head_commit.author.name }}
+            Message:  ${{ github.event.head_commit.message }}
+
+            View logs:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ⚠️ Production database may be in a partially-migrated state.
+            Run `supabase db push` manually to retry, or revert the offending migration.
