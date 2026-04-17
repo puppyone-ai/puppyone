@@ -1,33 +1,92 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../supabase/SupabaseAuthProvider';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-type AuthView = 'main' | 'signin' | 'signup' | 'forgot';
+const URL_ERROR_MESSAGES: Record<string, string> = {
+  signup_link_deprecated:
+    'Email verification now uses a 6-digit code. Please sign in (or create your account) to receive a fresh code.',
+  confirmation_failed:
+    'That confirmation link is invalid or has expired. Please request a new one.',
+  invalid_confirmation_link:
+    'That confirmation link is invalid. Please try again.',
+  auth_callback_failed:
+    'Sign-in failed. Please try again.',
+};
+
+type AuthView = 'main' | 'signin' | 'signup' | 'verify-otp' | 'forgot';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+const RESEND_COOLDOWN_SECONDS = 300; // 5 minutes
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signInWithProvider, signInWithEmail, signUpWithEmail, resendConfirmation, resetPassword } = useAuth();
+  const searchParams = useSearchParams();
+  const {
+    signInWithProvider,
+    signInWithEmail,
+    signUpWithEmail,
+    verifyEmailOtp,
+    resendConfirmation,
+    resetPassword,
+    getAccessToken,
+  } = useAuth();
 
   const [view, setView] = useState<AuthView>('main');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [otpCode, setOtpCode] = useState('');
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [showResend, setShowResend] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoSubmittedRef = useRef(false);
 
   const clearFeedback = useCallback(() => {
     setError(null);
     setMessage(null);
   }, []);
 
+  const startResendCooldown = useCallback(() => {
+    setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    cooldownTimerRef.current = setInterval(() => {
+      setResendCooldown(prev => {
+        if (prev <= 1) {
+          if (cooldownTimerRef.current) {
+            clearInterval(cooldownTimerRef.current);
+            cooldownTimerRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    };
+  }, []);
+
+  // Surface errors carried over from server-side redirects (e.g. /auth/confirm).
+  useEffect(() => {
+    const code = searchParams?.get('error');
+    if (!code) return;
+    setError(URL_ERROR_MESSAGES[code] ?? 'Something went wrong. Please try again.');
+    // Clean up the URL so the message doesn't reappear on every navigation.
+    router.replace('/login');
+  }, [searchParams, router]);
+
   const goBack = useCallback(() => {
     setView('main');
     setPassword('');
+    setOtpCode('');
+    setNeedsVerification(false);
     clearFeedback();
   }, [clearFeedback]);
 
@@ -65,10 +124,19 @@ export default function LoginPage() {
     }
   };
 
+  // Switch to OTP verification view and reset relevant state.
+  const goToVerifyOtp = useCallback((withMessage?: string) => {
+    setOtpCode('');
+    autoSubmittedRef.current = false;
+    setView('verify-otp');
+    setError(null);
+    setMessage(withMessage ?? null);
+  }, []);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
-    setShowResend(false);
+    setNeedsVerification(false);
     setLoading('password');
     try {
       await signInWithEmail(email, password);
@@ -77,22 +145,39 @@ export default function LoginPage() {
       const msg = e instanceof Error ? e.message : 'Sign-in failed';
       setError(msg);
       if (msg.toLowerCase().includes('email not confirmed')) {
-        setShowResend(true);
+        setNeedsVerification(true);
       }
     } finally {
       setLoading(null);
     }
   };
 
-  const handleResendConfirmation = async () => {
+  // From signin error: send a fresh code and jump to OTP view.
+  const handleStartVerification = async () => {
     clearFeedback();
-    setShowResend(false);
+    setNeedsVerification(false);
+    setLoading('start-verify');
+    try {
+      await resendConfirmation(email);
+      startResendCooldown();
+      goToVerifyOtp(`We sent a 6-digit code to ${email}. Enter it below to finish signing in.`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to send verification code');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendCooldown > 0) return;
+    clearFeedback();
     setLoading('resend');
     try {
       await resendConfirmation(email);
-      setMessage('Confirmation email sent! Please check your inbox.');
+      startResendCooldown();
+      setMessage('A new code is on its way to your inbox.');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to resend confirmation email');
+      setError(e instanceof Error ? e.message : 'Failed to resend code');
     } finally {
       setLoading(null);
     }
@@ -105,7 +190,8 @@ export default function LoginPage() {
     try {
       const result = await signUpWithEmail(email, password);
       if (result.needsEmailConfirmation) {
-        setMessage('Check your email for the confirmation link.');
+        startResendCooldown();
+        goToVerifyOtp(`We sent a 6-digit code to ${email}.`);
         setPassword('');
       } else {
         router.push('/home');
@@ -116,6 +202,52 @@ export default function LoginPage() {
       setLoading(null);
     }
   };
+
+  const handleVerifyOtp = useCallback(async (code: string) => {
+    if (loading !== null) return;
+    if (code.length !== 6) {
+      setError('Please enter all 6 digits.');
+      return;
+    }
+    clearFeedback();
+    setLoading('verify');
+    try {
+      await verifyEmailOtp(email, code);
+      // Initialize profile + org (idempotent — same as OAuth callback).
+      try {
+        const token = await getAccessToken();
+        if (token) {
+          await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+        }
+      } catch (initErr) {
+        console.error('Auth initialization failed:', initErr);
+      }
+      router.push('/home');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Invalid or expired code';
+      setError(msg);
+      setOtpCode('');
+      autoSubmittedRef.current = false;
+    } finally {
+      setLoading(null);
+    }
+  }, [loading, clearFeedback, verifyEmailOtp, email, getAccessToken, router]);
+
+  // Auto-submit when 6 digits are entered (industry-standard UX).
+  useEffect(() => {
+    if (
+      view === 'verify-otp' &&
+      otpCode.length === 6 &&
+      loading === null &&
+      !autoSubmittedRef.current
+    ) {
+      autoSubmittedRef.current = true;
+      void handleVerifyOtp(otpCode);
+    }
+  }, [view, otpCode, loading, handleVerifyOtp]);
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,14 +363,14 @@ export default function LoginPage() {
 
               <Feedback error={error} message={message} />
 
-              {showResend && (
+              {needsVerification && (
                 <div className="mt-3">
                   <button
-                    onClick={handleResendConfirmation}
+                    onClick={handleStartVerification}
                     disabled={disabled}
                     className="w-full h-10 px-4 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1f1f1f] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loading === 'resend' ? 'Sending...' : 'Resend confirmation email'}
+                    {loading === 'start-verify' ? 'Sending code...' : 'Verify your email'}
                   </button>
                 </div>
               )}
@@ -249,6 +381,53 @@ export default function LoginPage() {
                   className="bg-transparent border-none text-[#888] hover:text-[#ccc] cursor-pointer text-sm p-0 transition-colors"
                 >
                   Forgot password?
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Verify OTP View ── */}
+          {view === 'verify-otp' && (
+            <div className="animate-fade-in">
+              <div className="mb-6 text-center">
+                <h2 className="text-xl font-semibold text-[#ededed]">Check your email</h2>
+                <p className="mt-1 text-sm text-[#a1a1aa]">
+                  Enter the 6-digit code we sent to
+                </p>
+                <p className="text-sm text-[#ededed] font-medium">{email}</p>
+              </div>
+
+              <form
+                onSubmit={(e) => { e.preventDefault(); void handleVerifyOtp(otpCode); }}
+                className="flex flex-col gap-3"
+              >
+                <OtpInput
+                  value={otpCode}
+                  onChange={(v) => {
+                    setOtpCode(v);
+                    if (error) setError(null);
+                  }}
+                  disabled={disabled}
+                  autoFocus
+                />
+                <SubmitButton disabled={disabled || otpCode.length !== 6}>
+                  {loading === 'verify' ? 'Verifying...' : 'Verify & Continue'}
+                </SubmitButton>
+              </form>
+
+              <Feedback error={error} message={message} />
+
+              <div className="mt-4 text-center">
+                <button
+                  onClick={handleResendCode}
+                  disabled={disabled || resendCooldown > 0}
+                  className="bg-transparent border-none text-[#888] enabled:hover:text-[#ccc] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm p-0 transition-colors"
+                >
+                  {resendCooldown > 0
+                    ? `Resend code in ${formatCooldown(resendCooldown)}`
+                    : loading === 'resend'
+                      ? 'Sending...'
+                      : "Didn't get a code? Resend"}
                 </button>
               </div>
             </div>
@@ -388,6 +567,48 @@ function BackButton({ onClick, label = 'All sign in options' }: { onClick: () =>
       <span>{label}</span>
     </button>
   );
+}
+
+function OtpInput({
+  value, onChange, disabled, autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  autoFocus?: boolean;
+}) {
+  const handleChange = (raw: string) => {
+    // Strip non-digits and clamp to 6 chars (handles paste of "123 456" etc.)
+    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    onChange(digits);
+  };
+  return (
+    <div>
+      <label className="block text-sm font-medium text-[#888] mb-1.5">
+        Verification code
+      </label>
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern="\d{6}"
+        maxLength={6}
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        placeholder="123456"
+        required
+        disabled={disabled}
+        autoFocus={autoFocus}
+        className="w-full h-12 px-3 rounded-md border border-[#333] bg-[#0a0a0a] text-[#e6e6e6] text-center text-2xl font-mono tracking-[0.5em] outline-none box-border transition-colors focus:border-[#666] placeholder:text-[#333]"
+      />
+    </div>
+  );
+}
+
+function formatCooldown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function Feedback({ error, message }: { error: string | null; message: string | null }) {
