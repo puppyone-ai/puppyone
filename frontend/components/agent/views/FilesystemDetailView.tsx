@@ -87,7 +87,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
 
   if (!sync) {
     return (
-      <PanelShell title="Local Folder" onClose={onClose || (() => {})}>
+      <PanelShell title="Machine Folder" onClose={onClose || (() => {})}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, height: '100%' }}>
           Access point not found
         </div>
@@ -106,7 +106,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
 
   return (
     <PanelShell
-      title="Local Folder"
+      title="Machine Folder"
       subtitle={sync.node_name || undefined}
       icon={<LaptopIcon size={14} />}
       onClose={onClose || (() => {})}
@@ -132,7 +132,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
                 <LaptopIcon size={24} />
               </div>
               <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center' }}>
-                Local Folder
+                Machine Folder
               </div>
             </div>
 

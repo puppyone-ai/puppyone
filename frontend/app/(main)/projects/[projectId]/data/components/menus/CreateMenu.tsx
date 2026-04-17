@@ -365,7 +365,7 @@ export function CreateMenu({
             }}
           >
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Import Data Sources
+              Sync data from a source
             </div>
             {onImportNotion && <MenuItem icon={<NotionIcon />} label="Notion" sublabel="Pages" onClick={() => { onImportNotion(); onClose(); }} />}
             {onImportGitHub && <MenuItem icon={<GitHubIcon />} label="GitHub" sublabel="Repository" onClick={() => { onImportGitHub(); onClose(); }} />}
@@ -391,14 +391,14 @@ export function CreateMenu({
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Two-Way Sync
+              Sync data with a folder
             </div>
-            {onImportLocalFolder && <MenuItem icon={<LocalFolderIcon />} label="Local Folder" sublabel="Desktop Sync" onClick={() => { onImportLocalFolder(); onClose(); }} />}
+            {onImportLocalFolder && <MenuItem icon={<LocalFolderIcon />} label="Machine Folder" sublabel="Two-way sync via terminal" onClick={() => { onImportLocalFolder(); onClose(); }} />}
 
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Terminal & SSH
+              Connect via terminal
             </div>
             <MenuItem
               icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
@@ -410,14 +410,14 @@ export function CreateMenu({
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              AI Agents
+              Share data with an AI Agent
             </div>
             {onCreateAgent && <MenuItem icon={<ChatAgentIcon />} label="Chat Agent" sublabel="Interactive assistant" onClick={() => { onCreateAgent(); onClose(); }} />}
 
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Custom Integrations
+              Expose data
             </div>
             {onCreateMcp && <MenuItem icon={<McpIcon />} label="MCP Server" sublabel="Endpoint" onClick={() => { onCreateMcp(); onClose(); }} />}
             {onCreateSandbox && <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Code execution" onClick={() => { onCreateSandbox(); onClose(); }} />}

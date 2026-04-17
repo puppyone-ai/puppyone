@@ -45,7 +45,7 @@ interface ProjectSyncStatus {
    ================================================================ */
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
+  filesystem: 'Machine Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
   google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
   supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
   agent: 'Agent', mcp: 'MCP Server', sandbox: 'Sandbox',
