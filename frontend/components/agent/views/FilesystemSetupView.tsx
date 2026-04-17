@@ -122,7 +122,7 @@ export function SetupDialog({
         }}>
           <div>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#e5e5e5' }}>
-              Connect Desktop Folder
+              Connect Machine Folder
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#525252' }}>
               Run these commands to sync a local folder with PuppyOne.
@@ -387,10 +387,10 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
           }}>
             {/* Icons + connection */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              {/* Desktop Folder (LEFT) */}
+              {/* Machine Folder (LEFT) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
                 <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>Desktop Folder</div>
+                <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>Machine Folder</div>
                 <div style={{
                   fontSize: 10, color: '#525252', fontFamily: 'monospace', textAlign: 'center',
                   wordBreak: 'break-all', lineHeight: 1.3, maxWidth: 80,

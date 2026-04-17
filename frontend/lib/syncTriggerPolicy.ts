@@ -34,7 +34,7 @@ const DEFAULT_POLICY: TriggerPolicy = {
 };
 
 const PROVIDER_DISPLAY_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Folder',
+  filesystem: 'Machine Folder',
   gmail: 'Gmail',
   google_calendar: 'Google Calendar',
   google_sheets: 'Google Sheets',
