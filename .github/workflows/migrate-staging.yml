@@ -43,3 +43,28 @@ jobs:
             echo "::warning::Schema drift detected after migration push!"
             echo "$DIFF"
           fi
+
+      - name: Notify on failure (email)
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.ALERT_SMTP_USERNAME }}
+          password: ${{ secrets.ALERT_SMTP_PASSWORD }}
+          from: PuppyOne CI <${{ secrets.ALERT_SMTP_USERNAME }}>
+          to: ${{ secrets.ALERT_EMAIL_TO }}
+          subject: "⚠️ [STAGING] Migration failed: ${{ github.event.head_commit.message }}"
+          body: |
+            Staging migration push FAILED.
+
+            Workflow: ${{ github.workflow }}
+            Commit:   ${{ github.sha }}
+            Author:   ${{ github.event.head_commit.author.name }}
+            Message:  ${{ github.event.head_commit.message }}
+
+            View logs:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Fix this BEFORE merging to main, otherwise production will break too.

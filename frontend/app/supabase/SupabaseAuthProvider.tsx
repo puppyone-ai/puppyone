@@ -24,6 +24,7 @@ type AuthContextValue = {
   signInWithOtp: (email: string) => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string) => Promise<{ needsEmailConfirmation: boolean }>;
+  verifyEmailOtp: (email: string, token: string) => Promise<{ accessToken: string }>;
   resendConfirmation: (email: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
@@ -135,9 +136,6 @@ export function SupabaseAuthProvider({
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        emailRedirectTo: getEmailConfirmUrl(),
-      },
     });
     
     if (error) {
@@ -151,6 +149,24 @@ export function SupabaseAuthProvider({
     return { needsEmailConfirmation };
   };
 
+  const verifyEmailOtp = async (email: string, token: string) => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured');
+    }
+    const { data, error } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: 'email',
+    });
+    if (error) {
+      throw error;
+    }
+    if (!data.session) {
+      throw new Error('Verification succeeded but no session was returned.');
+    }
+    return { accessToken: data.session.access_token };
+  };
+
   const resendConfirmation = async (email: string) => {
     if (!supabase) {
       throw new Error('Supabase is not configured');
@@ -158,9 +174,6 @@ export function SupabaseAuthProvider({
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email,
-      options: {
-        emailRedirectTo: getEmailConfirmUrl(),
-      },
     });
     if (error) {
       throw error;
@@ -212,6 +225,7 @@ export function SupabaseAuthProvider({
       signInWithOtp,
       signInWithEmail,
       signUpWithEmail,
+      verifyEmailOtp,
       resendConfirmation,
       resetPassword,
       updatePassword,
