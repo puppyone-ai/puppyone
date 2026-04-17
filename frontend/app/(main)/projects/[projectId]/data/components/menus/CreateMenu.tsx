@@ -44,29 +44,31 @@ interface MenuItemProps {
   onMouseEnter?: (e: ReactMouseEvent<HTMLDivElement>) => void;
   isActive?: boolean;
   hasSubmenu?: boolean;
+  disabled?: boolean;
 }
 
-function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasSubmenu }: MenuItemProps) {
+function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasSubmenu, disabled }: MenuItemProps) {
   return (
     <div
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 8,
         height: 32,
         padding: '0 12px',
-        cursor: 'pointer',
-        color: '#e4e4e7',
+        cursor: disabled ? 'default' : 'pointer',
+        color: disabled ? '#52525b' : '#e4e4e7',
         fontSize: 14,
         transition: 'background 0.1s',
         background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
         borderRadius: 6,
         margin: '0 4px',
         position: 'relative',
+        opacity: disabled ? 0.55 : 1,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+        if (!disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
         onMouseEnter?.(e);
       }}
       onMouseLeave={(e) => {
@@ -74,12 +76,16 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
       }}
     >
       {icon && (
-        <span style={{ display: 'flex', width: 14, height: 14, alignItems: 'center', justifyContent: 'center', opacity: 0.7 }}>
+        <span style={{
+          display: 'flex', width: 14, height: 14, alignItems: 'center', justifyContent: 'center',
+          opacity: disabled ? 0.4 : 0.7,
+          filter: disabled ? 'grayscale(1)' : undefined,
+        }}>
           {icon}
         </span>
       )}
       <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
-      {sublabel && <span style={{ fontSize: 11, color: '#71717a', marginLeft: 8 }}>{sublabel}</span>}
+      {sublabel && <span style={{ fontSize: 11, color: disabled ? '#52525b' : '#71717a', marginLeft: 8 }}>{sublabel}</span>}
       {hasSubmenu && (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
           <polyline points="9 18 15 12 9 6" />
@@ -365,14 +371,12 @@ export function CreateMenu({
             }}
           >
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Import Data Sources
+              Sync data from a source
             </div>
             {onImportNotion && <MenuItem icon={<NotionIcon />} label="Notion" sublabel="Pages" onClick={() => { onImportNotion(); onClose(); }} />}
-            {onImportGitHub && <MenuItem icon={<GitHubIcon />} label="GitHub" sublabel="Repository" onClick={() => { onImportGitHub(); onClose(); }} />}
             {onImportGmail && <MenuItem icon={<GmailIcon />} label="Gmail" sublabel="Emails" onClick={() => { onImportGmail(); onClose(); }} />}
             {onImportCalendar && <MenuItem icon={<CalendarIcon />} label="Google Calendar" sublabel="Events" onClick={() => { onImportCalendar(); onClose(); }} />}
             {onImportDocs && <MenuItem icon={<DocsIcon />} label="Google Docs" sublabel="Document" onClick={() => { onImportDocs(); onClose(); }} />}
-            {onImportSearchConsole && <MenuItem icon={<SearchConsoleIcon />} label="Google Search Console" sublabel="Performance" onClick={() => { onImportSearchConsole(); onClose(); }} />}
             {onImportSheets && <MenuItem icon={<SheetsIcon />} label="Google Sheets" sublabel="Spreadsheet" onClick={() => { onImportSheets(); onClose(); }} />}
             {onConnectSupabase && <MenuItem icon={<SupabaseIcon />} label="Supabase" sublabel="Database" onClick={() => { onConnectSupabase(); onClose(); }} />}
             <MenuItem
@@ -387,40 +391,42 @@ export function CreateMenu({
               sublabel="URL"
               onClick={() => { onImportFromUrl(); onClose(); }}
             />
+            <MenuItem icon={<GitHubIcon />} label="GitHub" sublabel="Coming soon" disabled />
+            <MenuItem icon={<SearchConsoleIcon />} label="Google Search Console" sublabel="Coming soon" disabled />
 
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Two-Way Sync
+              Sync data with a folder
             </div>
-            {onImportLocalFolder && <MenuItem icon={<LocalFolderIcon />} label="Local Folder" sublabel="Desktop Sync" onClick={() => { onImportLocalFolder(); onClose(); }} />}
+            {onImportLocalFolder && <MenuItem icon={<LocalFolderIcon />} label="Machine Folder" sublabel="Two-way sync via terminal" onClick={() => { onImportLocalFolder(); onClose(); }} />}
 
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Terminal & SSH
+              Connect via terminal
             </div>
             <MenuItem
               icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
               label="SSH Terminal"
               sublabel="Coming soon"
-              onClick={() => {}}
+              disabled
             />
 
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              AI Agents
+              Share data with an AI Agent
             </div>
-            {onCreateAgent && <MenuItem icon={<ChatAgentIcon />} label="Chat Agent" sublabel="Interactive assistant" onClick={() => { onCreateAgent(); onClose(); }} />}
+            <MenuItem icon={<ChatAgentIcon />} label="Chat Agent" sublabel="Coming soon" disabled />
 
             <Divider />
 
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Custom Integrations
+              Expose data
             </div>
-            {onCreateMcp && <MenuItem icon={<McpIcon />} label="MCP Server" sublabel="Endpoint" onClick={() => { onCreateMcp(); onClose(); }} />}
-            {onCreateSandbox && <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Code execution" onClick={() => { onCreateSandbox(); onClose(); }} />}
+            <MenuItem icon={<McpIcon />} label="MCP Server" sublabel="Coming soon" disabled />
+            <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Coming soon" disabled />
 
             <Divider />
 

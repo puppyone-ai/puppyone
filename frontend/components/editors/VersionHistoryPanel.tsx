@@ -4,12 +4,8 @@ import React, { useState, useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import {
   getVersionHistory,
-  getVersionContent,
-  diffVersions,
   rollbackToVersion,
   type FileVersionInfo,
-  type FileVersionDetail,
-  type DiffResponse,
   type MutCommitChange,
 } from '@/lib/contentTreeApi';
 
@@ -100,18 +96,21 @@ function ChangeSummary({ changes }: { changes: MutCommitChange[] }) {
   );
 }
 
+function shortCommit(cid: string): string {
+  return cid ? cid.slice(0, 8) : '';
+}
+
 function CommitRow({
   commit,
   isCurrent,
-  onViewDetail,
   onRollback,
 }: {
   commit: FileVersionInfo;
   isCurrent: boolean;
-  onViewDetail: (v: number) => void;
-  onRollback: (v: number) => void;
+  onRollback: (commitId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const shortId = shortCommit(commit.commit_id);
 
   return (
     <div style={{ position: 'relative', paddingLeft: 24 }}>
@@ -139,13 +138,16 @@ function CommitRow({
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-            <span style={{
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              fontSize: 11, fontWeight: 600,
-              color: isCurrent ? '#22c55e' : '#e4e4e7',
-              flexShrink: 0,
-            }}>
-              v{commit.version}
+            <span
+              title={commit.commit_id}
+              style={{
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontSize: 11, fontWeight: 600,
+                color: isCurrent ? '#22c55e' : '#e4e4e7',
+                flexShrink: 0,
+              }}
+            >
+              {shortId}
             </span>
             {isCurrent && (
               <span style={{
@@ -221,7 +223,7 @@ function CommitRow({
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
               {!isCurrent && (
                 <button
-                  onClick={() => onRollback(commit.version)}
+                  onClick={() => onRollback(commit.commit_id)}
                   style={{
                     fontSize: 10, padding: '3px 10px', borderRadius: 4,
                     border: '1px solid rgba(234,179,8,0.3)',
@@ -229,7 +231,7 @@ function CommitRow({
                     color: '#eab308', cursor: 'pointer',
                   }}
                 >
-                  Rollback to v{commit.version}
+                  Rollback to {shortId}
                 </button>
               )}
             </div>
@@ -246,7 +248,7 @@ export function VersionHistoryPanel({
   onClose,
   onRollbackComplete,
 }: VersionHistoryPanelProps) {
-  const [rollbackConfirm, setRollbackConfirm] = useState<number | null>(null);
+  const [rollbackConfirm, setRollbackConfirm] = useState<string | null>(null);
   const [isRollingBack, setIsRollingBack] = useState(false);
 
   const { data: history, error: historyError, mutate: refreshHistory } = useSWR(
@@ -255,10 +257,10 @@ export function VersionHistoryPanel({
     { revalidateOnFocus: false },
   );
 
-  const handleRollback = useCallback(async (version: number) => {
+  const handleRollback = useCallback(async (commitId: string) => {
     setIsRollingBack(true);
     try {
-      await rollbackToVersion(nodeId, version, projectId);
+      await rollbackToVersion(nodeId, commitId, projectId);
       setRollbackConfirm(null);
       await refreshHistory();
       onRollbackComplete?.();
@@ -270,7 +272,7 @@ export function VersionHistoryPanel({
   }, [nodeId, projectId, refreshHistory, onRollbackComplete]);
 
   const commits = history?.commits ?? [];
-  const currentVersion = history?.current_version ?? 0;
+  const headCommitId = history?.head_commit_id ?? '';
 
   const fileName = nodeId.includes('/') ? nodeId.split('/').pop() : nodeId;
 
@@ -337,11 +339,10 @@ export function VersionHistoryPanel({
             }} />
             {commits.map((commit) => (
               <CommitRow
-                key={commit.version}
+                key={commit.commit_id}
                 commit={commit}
-                isCurrent={commit.version === currentVersion}
-                onViewDetail={() => {}}
-                onRollback={(ver) => setRollbackConfirm(ver)}
+                isCurrent={Boolean(headCommitId) && commit.commit_id === headCommitId}
+                onRollback={(cid) => setRollbackConfirm(cid)}
               />
             ))}
           </div>
@@ -377,8 +378,9 @@ export function VersionHistoryPanel({
               Confirm Rollback
             </h3>
             <p style={{ margin: '0 0 20px', fontSize: 13, color: '#a1a1aa', lineHeight: 1.5 }}>
-              This will create a new version with the content from <strong>v{rollbackConfirm}</strong>.
-              The current version will be preserved in history.
+              This will create a new commit with the content from{' '}
+              <strong title={rollbackConfirm}>{shortCommit(rollbackConfirm)}</strong>.
+              The current head will be preserved in history.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
@@ -402,7 +404,7 @@ export function VersionHistoryPanel({
                   opacity: isRollingBack ? 0.6 : 1,
                 }}
               >
-                {isRollingBack ? 'Rolling back...' : `Rollback to v${rollbackConfirm}`}
+                {isRollingBack ? 'Rolling back...' : `Rollback to ${shortCommit(rollbackConfirm)}`}
               </button>
             </div>
           </div>

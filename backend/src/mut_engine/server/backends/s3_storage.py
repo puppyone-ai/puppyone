@@ -18,7 +18,6 @@ Sync/Async strategy:
 from __future__ import annotations
 
 import asyncio
-import concurrent.futures
 import threading
 
 import cachetools
@@ -33,17 +32,30 @@ _ASYNC_BRIDGE_TIMEOUT_SECS = 30
 _HASH_PREFIX_LEN = 2
 _MAX_LIST_KEYS = 10000
 
-# Shared thread pool for all sync-to-async bridges (instead of per-call creation).
-_SHARED_POOL = concurrent.futures.ThreadPoolExecutor(
-    max_workers=8, thread_name_prefix="mut-s3"
-)
+_BRIDGE_LOOP: asyncio.AbstractEventLoop | None = None
+_BRIDGE_LOCK = threading.Lock()
+
+
+def _get_bridge_loop() -> asyncio.AbstractEventLoop:
+    """Lazily create a single persistent event loop running on a background thread."""
+    global _BRIDGE_LOOP
+    if _BRIDGE_LOOP is None or _BRIDGE_LOOP.is_closed():
+        with _BRIDGE_LOCK:
+            if _BRIDGE_LOOP is None or _BRIDGE_LOOP.is_closed():
+                loop = asyncio.new_event_loop()
+                t = threading.Thread(
+                    target=loop.run_forever, daemon=True, name="mut-s3-loop",
+                )
+                t.start()
+                _BRIDGE_LOOP = loop
+    return _BRIDGE_LOOP
 
 
 def _run_async(coro):
-    """Execute an async coroutine from a synchronous context using the shared pool."""
-    def _run_in_thread():
-        return asyncio.run(coro)
-    return _SHARED_POOL.submit(_run_in_thread).result(timeout=_ASYNC_BRIDGE_TIMEOUT_SECS)
+    """Execute an async coroutine from a synchronous context via a persistent loop."""
+    loop = _get_bridge_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result(timeout=_ASYNC_BRIDGE_TIMEOUT_SECS)
 
 # ═══════════════════════════════════════════════
 # CachedStorageBackend — process-wide LRU cache
@@ -75,6 +87,8 @@ class CachedStorageBackend(StorageBackend):
     same hash = same content, forever. No TTL needed.
 
     The cache is process-wide and shared across all projects.
+    All cache access is protected by _cache_lock because
+    cachetools.LRUCache is not thread-safe.
     """
 
     def __init__(self, inner: StorageBackend):
@@ -82,10 +96,10 @@ class CachedStorageBackend(StorageBackend):
         self._cache = _get_global_cache()
 
     def get(self, h: str) -> bytes:
-        try:
-            return self._cache[h]
-        except KeyError:
-            pass
+        with _cache_lock:
+            cached = self._cache.get(h)
+        if cached is not None:
+            return cached
         data = self._inner.get(h)
         if len(data) < _CACHEABLE_THRESHOLD:
             with _cache_lock:
@@ -99,8 +113,9 @@ class CachedStorageBackend(StorageBackend):
                 self._cache[h] = data
 
     def exists(self, h: str) -> bool:
-        if h in self._cache:
-            return True
+        with _cache_lock:
+            if h in self._cache:
+                return True
         return self._inner.exists(h)
 
     def all_hashes(self) -> list[str]:
@@ -132,24 +147,29 @@ class S3StorageBackend(StorageBackend):
     # ── Sync methods (called by Mut's ObjectStore) ──
 
     def get(self, h: str) -> bytes:
-        key = self._key_for(h)
         try:
-            return _run_async(self._s3.download_file(key))
-        except Exception:
-            raise ObjectNotFoundError(f"object not found in S3: {h}")
+            return _run_async(self._s3.download_file(self._key_for(h)))
+        except ObjectNotFoundError:
+            raise
+        except Exception as e:
+            if _is_not_found_error(e):
+                raise ObjectNotFoundError(f"object not found in S3: {h}") from e
+            raise
 
     def put(self, h: str, data: bytes) -> None:
-        key = self._key_for(h)
         try:
-            _run_async(self._do_put(key, data))
+            _run_async(self._do_put(self._key_for(h), data))
         except Exception as e:
             log_error(f"[MutS3] Failed to put {h}: {e}")
+            raise
 
     def exists(self, h: str) -> bool:
         try:
             return _run_async(self._s3.file_exists(self._key_for(h)))
-        except Exception:
-            return False
+        except Exception as e:
+            if _is_not_found_error(e):
+                return False
+            raise
 
     def all_hashes(self) -> list[str]:
         try:
@@ -164,7 +184,7 @@ class S3StorageBackend(StorageBackend):
             return hashes
         except Exception as e:
             log_error(f"[MutS3] Failed to list hashes: {e}")
-            return []
+            raise
 
     def count(self) -> tuple[int, int]:
         hashes = self.all_hashes()
@@ -174,8 +194,9 @@ class S3StorageBackend(StorageBackend):
         try:
             _run_async(self._s3.delete_file(self._key_for(h)))
             return True
-        except Exception:
-            return False
+        except Exception as e:
+            log_error(f"[MutS3] Failed to delete {h}: {e}")
+            raise
 
     # ── Async methods (for direct use in async contexts) ──
 
@@ -195,3 +216,9 @@ class S3StorageBackend(StorageBackend):
     async def _do_put(self, key: str, data: bytes) -> None:
         if not await self._s3.file_exists(key):
             await self._s3.upload_file(key, data, content_type="application/octet-stream")
+
+
+def _is_not_found_error(exc: Exception) -> bool:
+    """Detect S3 'object not found' errors across exception wrapper types."""
+    msg = str(exc).lower()
+    return any(s in msg for s in ("not found", "nosuchkey", "404", "does not exist"))

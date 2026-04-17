@@ -36,7 +36,7 @@ class CreateWorkspaceRequest(BaseModel):
 class CreateWorkspaceResponse(BaseModel):
     agent_id: str
     workspace_path: str
-    base_snapshot_id: int | None = None
+    base_commit_id: str | None = None
     mount_command: str
 
 
@@ -52,7 +52,7 @@ class WorkspaceStatusResponse(BaseModel):
     agent_id: str
     exists: bool
     workspace_path: str | None = None
-    base_snapshot_id: int | None = None
+    base_commit_id: str | None = None
 
 
 # ============================================================
@@ -82,7 +82,7 @@ async def create_workspace(
     info = await provider.create_workspace(
         agent_id=agent_id,
         project_id=request.project_id,
-        base_snapshot_id=sync_result.get("version"),
+        base_commit_id=sync_result.get("head_commit_id") or None,
     )
 
     mount_cmd = f"docker run -v {info.path}:/workspace your-agent-image"
@@ -91,7 +91,7 @@ async def create_workspace(
     return ApiResponse.success(data=CreateWorkspaceResponse(
         agent_id=agent_id,
         workspace_path=info.path,
-        base_snapshot_id=info.base_snapshot_id,
+        base_commit_id=info.base_commit_id,
         mount_command=mount_cmd,
     ))
 
@@ -151,7 +151,7 @@ async def complete_workspace(
         conflict_count = result.conflicts
         strategies = ["merge"] if result.merged else []
         log_info(
-            f"[Workspace API] MUT push: v={result.version} "
+            f"[Workspace API] MUT push: commit={result.commit_id or '(none)'} "
             f"merged={result.merged} files={committed}"
         )
     except Exception as e:
@@ -196,7 +196,7 @@ async def workspace_status(
             agent_id=agent_id,
             exists=True,
             workspace_path=info.path,
-            base_snapshot_id=info.base_snapshot_id,
+            base_commit_id=info.base_commit_id,
         ))
 
     return ApiResponse.success(data=WorkspaceStatusResponse(

@@ -500,9 +500,14 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
               </span>
               <span style={{ color: '#333' }}>·</span>
               <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => router.push(`/projects/${projectId}/history`)}>
-                <span style={{ color: '#888', fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace' }}>{latestCommit ? `v${latestCommit.version}` : '—'}</span>
+                <span
+                  style={{ color: '#888', fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace' }}
+                  title={latestCommit?.commit_id}
+                >
+                  {latestCommit ? latestCommit.commit_id.slice(0, 8) : '—'}
+                </span>
                 <span>·</span>
-                <span>{historyData?.total || 0} versions</span>
+                <span>{historyData?.total || 0} commits</span>
               </span>
               <span style={{ color: '#333' }}>·</span>
               <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => router.push(`/projects/${projectId}/access`)}>
@@ -637,7 +642,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                     onClick={() => router.push(`/projects/${projectId}/history`)}
                   >
                     <span className="text-[12px] text-[#71717a] truncate max-w-[400px] text-right group-hover:text-[#a1a1aa] transition-colors">
-                      {latestCommit.message || `v${latestCommit.version}`}
+                      {latestCommit.message || latestCommit.commit_id.slice(0, 8)}
                     </span>
                     <div className="w-px h-3 bg-[#333] mx-1" />
                     <div className="flex items-center gap-1.5">
@@ -686,7 +691,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                 const isLast = i === Math.min(commits.length, 5) - 1;
                 const isHead = i === 0;
                 return (
-                  <div key={`v${commit.version}`} style={{ display: 'flex', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '0 -8px', borderRadius: 8, position: 'relative' }} onClick={() => router.push(`/projects/${projectId}/history`)} className="group hover:bg-[#1a1a1a] transition-colors">
+                  <div key={commit.commit_id} style={{ display: 'flex', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '0 -8px', borderRadius: 8, position: 'relative' }} onClick={() => router.push(`/projects/${projectId}/history`)} className="group hover:bg-[#1a1a1a] transition-colors">
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0, marginTop: 4, position: 'relative', zIndex: 1 }}>
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: isHead ? '#22c55e' : '#1c1c1c', border: `2px solid ${isHead ? '#22c55e' : '#333'}`, zIndex: 2, flexShrink: 0 }} className="group-hover:border-[#555] transition-colors" />
                       {!isLast && (
@@ -695,7 +700,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                     </div>
                     <div style={{ flex: 1, paddingBottom: 6, minWidth: 0 }}>
                       <div style={{ fontSize: 13, color: isHead ? '#ccc' : '#888', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="group-hover:text-[#eee] transition-colors font-medium">
-                        {commit.message || `v${commit.version}`}
+                        {commit.message || commit.commit_id.slice(0, 8)}
                       </div>
                       <div style={{ fontSize: 11, color: '#555', marginTop: 2 }} className="group-hover:text-[#888] transition-colors">{formatRelative(commit.created_at)}</div>
                     </div>

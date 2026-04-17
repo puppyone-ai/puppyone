@@ -249,12 +249,14 @@ function VerticalCommitNode({
   const MARGIN_Y = 1;
   const ROW_HEIGHT = ITEM_HEIGHT + MARGIN_Y * 2; // 32px total row space
   
-  // Left side for version number
-  const VERSION_WIDTH = 32;
+  // Left side for the short commit id
+  const VERSION_WIDTH = 60;
   // X position of the single straight line
   const LINE_X = VERSION_WIDTH + 14; 
   const activeColor = isSelected ? currentInfo.color : '#52525b';
   const svgWidth = LINE_X + 10;
+
+  const shortId = commit.commit_id ? commit.commit_id.slice(0, 8) : '';
 
   return (
     <div style={{ position: 'relative', height: ROW_HEIGHT }}>
@@ -329,20 +331,23 @@ function VerticalCommitNode({
             paddingRight: 6,
           }}
         >
-          {/* Fixed-width Version Column on the Left */}
-          <div style={{
-            width: VERSION_WIDTH,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            fontFamily: 'monospace',
-            fontSize: 11,
-            color: isSelected ? '#fff' : '#71717a',
-            transition: 'color 0.1s',
-            zIndex: 30, // Above SVG
-          }}>
-            v{commit.version}
+          {/* Fixed-width Commit ID Column on the Left */}
+          <div
+            title={commit.commit_id}
+            style={{
+              width: VERSION_WIDTH,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: isSelected ? '#fff' : '#71717a',
+              transition: 'color 0.1s',
+              zIndex: 30, // Above SVG
+            }}
+          >
+            {shortId}
           </div>
 
           {/* The content container starts AFTER the single line graph */}
@@ -437,26 +442,30 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     return filtered;
   }, [sortedCommits, activeFilter]);
 
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
 
-  // Auto-select the latest (HEAD) commit
+  const headCommitId = history?.head_commit_id ?? '';
+
+  // Auto-select the HEAD commit when history first lands (or switches projects).
   useEffect(() => {
-    if (commits.length > 0 && selectedVersion === null) {
-      setSelectedVersion(commits[commits.length - 1].version);
+    if (!selectedCommitId) {
+      if (headCommitId) {
+        setSelectedCommitId(headCommitId);
+      } else if (commits.length > 0) {
+        setSelectedCommitId(commits[0].commit_id);
+      }
     }
-  }, [commits, selectedVersion]);
+  }, [commits, selectedCommitId, headCommitId]);
 
   const selectedCommit = useMemo(
-    () => commits.find(c => c.version === selectedVersion) ?? null,
-    [commits, selectedVersion]
+    () => commits.find(c => c.commit_id === selectedCommitId) ?? null,
+    [commits, selectedCommitId]
   );
 
   const fileTree = useMemo(
     () => selectedCommit ? buildFileTree(selectedCommit.changes) : [],
     [selectedCommit]
   );
-
-  const headVersion = commits.length > 0 ? commits[commits.length - 1].version : 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#0e0e0e' }}>
@@ -475,7 +484,15 @@ export default function HistoryPage({ params }: HistoryPageProps) {
           </span>
           {history && (
             <span style={{ fontSize: 12, color: '#52525b' }}>
-              {history.total} commit{history.total !== 1 ? 's' : ''} · v{history.current_version}
+              {history.total} commit{history.total !== 1 ? 's' : ''}
+              {history.head_commit_id && (
+                <> · <span
+                  title={history.head_commit_id}
+                  style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+                >
+                  {history.head_commit_id.slice(0, 8)}
+                </span></>
+              )}
             </span>
           )}
         </div>
@@ -567,12 +584,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar">
               {filteredCommits.map((commit, i) => (
                 <VerticalCommitNode
-                  key={commit.version}
+                  key={commit.commit_id}
                   commit={commit}
                   nextCommit={i < filteredCommits.length - 1 ? filteredCommits[i + 1] : undefined}
-                  isSelected={commit.version === selectedVersion}
-                  isHead={commit.version === headVersion}
-                  onClick={() => setSelectedVersion(commit.version)}
+                  isSelected={commit.commit_id === selectedCommitId}
+                  isHead={Boolean(headCommitId) && commit.commit_id === headCommitId}
+                  onClick={() => setSelectedCommitId(commit.commit_id)}
                 />
               ))}
             </div>
@@ -585,8 +602,11 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                 {/* Commit info header */}
                 <div className="flex flex-wrap items-center gap-4 mb-6">
                   <div className="flex items-center gap-3">
-                    <span className="text-lg font-medium text-white font-mono">
-                      v{selectedCommit.version}
+                    <span
+                      className="text-lg font-medium text-white font-mono"
+                      title={selectedCommit.commit_id}
+                    >
+                      {selectedCommit.commit_id.slice(0, 8)}
                     </span>
                     <span className="text-sm text-zinc-400">
                       {selectedCommit.message || '(no message)'}

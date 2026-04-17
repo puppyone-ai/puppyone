@@ -165,7 +165,7 @@ def test_read_node_content_folder_returns_children_without_trash(client, ops):
 
 def test_write_node_content_markdown_requires_string(client, ops, monkeypatch):
     import src.internal.router as _r
-    ops.write_file.return_value = SimpleNamespace(version=1)
+    ops.write_file.return_value = SimpleNamespace(commit_id="abc1234567890def")
     monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
 
     resp = client.put(
@@ -181,7 +181,7 @@ def test_write_node_content_markdown_requires_string(client, ops, monkeypatch):
 def test_write_node_content_markdown_success(client, ops, monkeypatch):
     import src.internal.router as _r
     monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
-    ops.write_file.return_value = SimpleNamespace(version=1)
+    ops.write_file.return_value = SimpleNamespace(commit_id="abc1234567890def")
 
     resp = client.put(
         "/internal/nodes/write",
@@ -196,7 +196,7 @@ def test_write_node_content_markdown_success(client, ops, monkeypatch):
 def test_create_node_folder(client, ops, monkeypatch):
     import src.internal.router as _r
     monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
-    ops.mkdir.return_value = SimpleNamespace(version=1)
+    ops.mkdir.return_value = SimpleNamespace(commit_id="abc1234567890def")
 
     resp = client.post(
         "/internal/nodes/create",

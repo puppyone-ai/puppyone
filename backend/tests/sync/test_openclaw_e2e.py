@@ -3,7 +3,7 @@ OpenClaw ↔ PuppyOne E2E Sync Tests (LEGACY — needs rewrite for MUT protocol)
 
 These tests were written for the old per-file FolderSyncService API.
 The filesystem connector has been rewritten to use MUT protocol directly.
-New E2E tests should test via /mut/ap/{access_key}/clone|push|pull.
+New E2E tests should test via /api/v1/mut/ap/{access_key}/clone|push|pull.
 """
 
 import pytest

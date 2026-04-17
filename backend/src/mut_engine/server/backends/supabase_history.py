@@ -1,11 +1,38 @@
 """
 SupabaseHistoryManager — PostgreSQL implementation of Mut History
 
-Uses the mut_commits table to store version history, the projects table
-for global version counter, and mut_scope_state table for per-scope
-version + hash tracking.
+Storage layout
+──────────────
+* ``mut_commits`` — one row per commit, keyed by (project_id, commit_id).
+  ``commit_id`` is the 16-hex SHA256 of
+  ``scope_path | scope_hash | created_at_iso | who`` as computed by
+  :meth:`mut.server.history.HistoryManager.compute_commit_id`.
 
-Interface-compatible with Mut's native HistoryManager (filesystem JSON).
+* ``mut_scope_state`` — per-scope pointer. Holds the latest
+  ``scope_hash`` (content fingerprint, CAS target) and
+  ``head_commit_id`` (commit pointer derived from the hash). The old
+  per-scope integer ``version`` column no longer exists.
+
+* ``projects`` — keeps ``mut_root_hash`` only. ``mut_version`` is gone.
+
+Linear ordering
+───────────────
+Without an integer counter, history is ordered by
+``(created_at ASC, commit_id ASC)``. ``commit_id`` acts as a
+deterministic tie-breaker when two commits land in the same
+microsecond (extremely rare but possible under heavy concurrency).
+
+scope_path canonical form
+─────────────────────────
+Every public method that accepts a ``scope_path`` normalizes the
+value on entry via :func:`_normalize`. The DB-level trigger in
+``20260416100000_scope_path_canonical.sql`` enforces the same shape
+as a second line of defense.
+
+Interface compatibility
+───────────────────────
+This class matches the ``HistoryBackend`` surface expected by
+``mut.server.repo.ServerRepo`` and by ``mut.server.handlers``.
 """
 
 from __future__ import annotations
@@ -14,15 +41,11 @@ import json
 
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.backends import safe_data as _safe_data
-from src.utils.logger import log_info
+from src.utils.logger import log_error, log_info
 
 
 class SupabaseHistoryManager:
-    """Supabase/PostgreSQL implementation of Mut HistoryManager.
-
-    Supports per-scope versioning (scope_hash, scope_version) alongside
-    global version counter for cross-scope ordering.
-    """
+    """Supabase/PostgreSQL history backend keyed by commit_id."""
 
     TABLE = "mut_commits"
     SCOPE_STATE_TABLE = "mut_scope_state"
@@ -31,25 +54,37 @@ class SupabaseHistoryManager:
         self._client = supabase.client
         self._project_id = project_id
 
-    # ── Global Version ──
+    # ── Global Head ──
+    #
+    # There is no dedicated "global head" column on the projects
+    # table — head is always tracked per-scope on mut_scope_state.
+    # For compatibility with ``ServerRepo`` (which still exposes a
+    # project-level head), we return the commit_id of the most
+    # recently recorded commit across all scopes.
 
-    def get_latest_version(self) -> int:
+    def get_head_commit_id(self) -> str:
         resp = (
-            self._client.table("projects")
-            .select("mut_version")
-            .eq("id", self._project_id)
-            .maybe_single()
+            self._client.table(self.TABLE)
+            .select("commit_id")
+            .eq("project_id", self._project_id)
+            .order("created_at", desc=True)
+            .order("commit_id", desc=True)
+            .limit(1)
             .execute()
         )
-        data = _safe_data(resp)
-        return data.get("mut_version", 0) if data else 0
+        rows = _safe_data(resp) or []
+        return rows[0]["commit_id"] if rows else ""
 
-    def set_latest_version(self, version: int) -> None:
-        self._client.table("projects").update(
-            {"mut_version": version}
-        ).eq("id", self._project_id).execute()
+    def set_head_commit_id(self, _cid: str) -> None:
+        """No-op: project-level head is derived from mut_commits.
 
-    # ── Global Root Hash (deprecated, kept for backwards compat) ──
+        Kept on the interface because ``ServerRepo`` calls it; but
+        the source of truth is ``mut_scope_state.head_commit_id``
+        (per-scope). Persisting a second copy on ``projects`` would
+        create a global contention point we explicitly want to avoid.
+        """
+
+    # ── Global Root Hash (used by root-hash CAS path) ──
 
     def get_root_hash(self) -> str:
         resp = (
@@ -67,32 +102,32 @@ class SupabaseHistoryManager:
             {"mut_root_hash": h}
         ).eq("id", self._project_id).execute()
 
-    # ── Per-Scope Version + Hash ──
+    # ── Per-Scope Head & Hash ──
 
-    def get_scope_version(self, scope_path: str) -> int:
-        norm = _normalize(scope_path)
+    def get_scope_head_commit_id(self, scope_path: str) -> str:
+        scope_path = _normalize(scope_path)
         resp = (
             self._client.table(self.SCOPE_STATE_TABLE)
-            .select("version")
+            .select("head_commit_id")
             .eq("project_id", self._project_id)
-            .eq("scope_path", norm)
+            .eq("scope_path", scope_path)
             .maybe_single()
             .execute()
         )
         data = _safe_data(resp)
-        return data.get("version", 0) if data else 0
+        return data.get("head_commit_id", "") if data else ""
 
-    def set_scope_version(self, scope_path: str, version: int) -> None:
-        norm = _normalize(scope_path)
-        self._upsert_scope_state(norm, version=version)
+    def set_scope_head_commit_id(self, scope_path: str, cid: str) -> None:
+        scope_path = _normalize(scope_path)
+        self._upsert_scope_state(scope_path, head_commit_id=cid)
 
     def get_scope_hash(self, scope_path: str) -> str:
-        norm = _normalize(scope_path)
+        scope_path = _normalize(scope_path)
         resp = (
             self._client.table(self.SCOPE_STATE_TABLE)
             .select("scope_hash")
             .eq("project_id", self._project_id)
-            .eq("scope_path", norm)
+            .eq("scope_path", scope_path)
             .maybe_single()
             .execute()
         )
@@ -100,93 +135,137 @@ class SupabaseHistoryManager:
         return data.get("scope_hash", "") if data else ""
 
     def set_scope_hash(self, scope_path: str, h: str) -> None:
-        norm = _normalize(scope_path)
-        self._upsert_scope_state(norm, scope_hash=h)
+        scope_path = _normalize(scope_path)
+        self._upsert_scope_state(scope_path, scope_hash=h)
 
     def _upsert_scope_state(self, scope_path: str, *,
-                            version: int | None = None,
-                            scope_hash: str | None = None) -> None:
-        """Insert or update the scope state row.
+                            scope_hash: str | None = None,
+                            head_commit_id: str | None = None) -> None:
+        """Insert or update specific fields of the scope state row.
 
-        Reads the existing row first and merges fields to avoid clobbering
-        previously-set values (e.g. set_scope_version followed by
-        set_scope_hash in the same push).
+        ``scope_path`` is assumed to be already normalized by the caller.
         """
-        # Read current state so we can merge rather than overwrite
-        existing: dict = {}
-        try:
-            resp = (
-                self._client.table(self.SCOPE_STATE_TABLE)
-                .select("version, scope_hash")
-                .eq("project_id", self._project_id)
-                .eq("scope_path", scope_path)
-                .maybe_single()
-                .execute()
-            )
-            existing = resp.data or {} if resp and hasattr(resp, "data") else {}
-        except Exception:
-            pass
-
         data: dict = {
             "project_id": self._project_id,
             "scope_path": scope_path,
         }
-        # Merge: use new value if provided, else keep existing
-        if version is not None:
-            data["version"] = version
-        elif existing.get("version") is not None:
-            data["version"] = existing["version"]
-
         if scope_hash is not None:
             data["scope_hash"] = scope_hash
-        elif existing.get("scope_hash"):
-            data["scope_hash"] = existing["scope_hash"]
+        if head_commit_id is not None:
+            data["head_commit_id"] = head_commit_id
+
+        self._client.table(self.SCOPE_STATE_TABLE).upsert(
+            data, on_conflict="project_id,scope_path"
+        ).execute()
+
+    def cas_update_scope_hash(self, scope_path: str, old_hash: str,
+                              new_hash: str, head_commit_id: str = "") -> bool:
+        """Compare-and-swap on (scope_hash, head_commit_id).
+
+        Calls the ``cas_update_scope_state`` PL/pgSQL function which
+        atomically updates both fields when the pre-image
+        ``scope_hash`` matches. Returns ``True`` on success,
+        ``False`` on concurrent conflict.
+        """
+        scope_path = _normalize(scope_path)
 
         try:
-            self._client.table(self.SCOPE_STATE_TABLE).upsert(
-                data, on_conflict="project_id,scope_path"
-            ).execute()
-        except Exception:
-            # Fallback: try insert, then update on conflict
-            update_data = {k: v for k, v in data.items()
-                          if k not in ("project_id", "scope_path")}
-            try:
-                self._client.table(self.SCOPE_STATE_TABLE).insert(data).execute()
-            except Exception:
-                self._client.table(self.SCOPE_STATE_TABLE).update(
-                    update_data
-                ).eq("project_id", self._project_id).eq(
-                    "scope_path", scope_path
-                ).execute()
+            resp = self._client.rpc("cas_update_scope_state", {
+                "p_project_id": self._project_id,
+                "p_scope_path": scope_path,
+                "p_old_hash": old_hash or "",
+                "p_new_hash": new_hash,
+                "p_head_commit_id": head_commit_id or "",
+            }).execute()
+            data = resp.data
+            if isinstance(data, bool):
+                return data
+            if isinstance(data, list) and len(data) > 0:
+                return bool(data[0])
+            return False
+        except Exception as e:
+            log_error(
+                f"[CAS] cas_update_scope_state RPC failed for "
+                f"scope='{scope_path}': {e}. Deploy the SQL migration first."
+            )
+            raise RuntimeError(
+                "CAS RPC not available — concurrency control requires "
+                "the cas_update_scope_state function. Original error: "
+                f"{e}"
+            ) from e
 
-    # ── Version Index (derived from history entries) ──
+    def cas_update_root_hash(self, old_hash: str, new_hash: str) -> bool:
+        """CAS update the global root hash on the projects table."""
+        try:
+            resp = self._client.rpc("cas_update_root_hash", {
+                "p_project_id": self._project_id,
+                "p_old_hash": old_hash,
+                "p_new_hash": new_hash,
+            }).execute()
+            data = resp.data
+            if isinstance(data, bool):
+                return data
+            if isinstance(data, list) and len(data) > 0:
+                return bool(data[0])
+            return False
+        except Exception as e:
+            log_error(
+                f"[CAS] cas_update_root_hash RPC failed: {e}. "
+                "Deploy the SQL migration first."
+            )
+            raise RuntimeError(
+                "CAS RPC not available — concurrency control requires "
+                "the cas_update_root_hash function. Original error: "
+                f"{e}"
+            ) from e
 
-    def get_version_index(self) -> dict:
-        """Reconstruct global version -> scope version mapping from commits."""
-        resp = (
+    # ── Scope History Queries ──
+
+    def get_previous_scope_hash(self, scope_path: str,
+                                before_commit_id: str = "") -> str:
+        """Return the ``scope_hash`` of the commit immediately preceding
+        ``before_commit_id`` within this scope.
+
+        When ``before_commit_id`` is empty, returns the current latest
+        commit's scope_hash (i.e. "most recent known" for this scope).
+        Used by graft conflict detection — we compare this fingerprint
+        against the subtree under the global root to decide whether a
+        sibling scope concurrently modified our path.
+        """
+        scope_path = _normalize(scope_path)
+
+        # Locate the reference commit to anchor "before".
+        before_entry = None
+        if before_commit_id:
+            before_entry = self.get_entry(before_commit_id)
+
+        query = (
             self._client.table(self.TABLE)
-            .select("version, scope_path, scope_version")
+            .select("scope_hash, created_at, commit_id")
             .eq("project_id", self._project_id)
-            .order("version", desc=False)
-            .execute()
+            .eq("scope_path", scope_path)
+            .order("created_at", desc=True)
+            .order("commit_id", desc=True)
+            .limit(1)
         )
-        index = {}
-        for row in (resp.data or []):
-            index[str(row["version"])] = {
-                "scope": row.get("scope_path", ""),
-                "scope_version": row.get("scope_version", ""),
-            }
-        return index
 
-    def update_version_index(self, _global_version: int,
-                             _scope: str, _scope_version: str) -> None:
-        """No-op: version index is derived from history entries."""
+        if before_entry and before_entry.get("created_at"):
+            query = query.lt("created_at", before_entry["created_at"])
+
+        try:
+            resp = query.execute()
+            rows = _safe_data(resp) or []
+            if rows and rows[0].get("scope_hash"):
+                return rows[0]["scope_hash"]
+        except Exception:  # noqa: BLE001 — defensive on optional lookup
+            pass
+        return ""
 
     # ── Record ──
 
     def record(
         self,
-        version: int,
+        commit_id: str,
         who: str,
         message: str,
         scope_path: str,
@@ -194,63 +273,121 @@ class SupabaseHistoryManager:
         conflicts: list | None = None,
         root_hash: str = "",
         scope_hash: str = "",
-        scope_version: str = "",
+        created_at_iso: str = "",
     ) -> None:
-        data = {
+        """Persist a commit.
+
+        ``commit_id`` is the 16-hex SHA256 identifier. The caller is
+        expected to have computed it already (handlers do this right
+        before calling us, so the value ends up in the audit log too).
+        """
+        if not commit_id:
+            raise ValueError("commit_id is required")
+
+        scope_path = _normalize(scope_path)
+        data: dict = {
             "project_id": self._project_id,
-            "version": version,
+            "commit_id": commit_id,
             "root_hash": root_hash,
-            "scope_path": scope_path or "",
+            "scope_path": scope_path,
             "scope_hash": scope_hash,
-            "scope_version": scope_version,
             "who": who,
             "message": message or "",
-            "changes": json.dumps(changes) if isinstance(changes, list) else changes,
+            "changes": (
+                json.dumps(changes) if isinstance(changes, list) else changes
+            ),
         }
+        if created_at_iso:
+            data["created_at"] = created_at_iso
         if conflicts:
             from dataclasses import asdict
             serializable = [
-                asdict(c) if hasattr(c, '__dataclass_fields__') else c
+                asdict(c) if hasattr(c, "__dataclass_fields__") else c
                 for c in conflicts
             ]
             data["conflicts"] = json.dumps(serializable)
 
         self._client.table(self.TABLE).insert(data).execute()
-        log_info(f"[MutHistory] Recorded v{version} ({scope_version}) "
-                 f"for project {self._project_id}")
+        log_info(
+            f"[MutHistory] Recorded commit {commit_id[:8]} "
+            f"for project {self._project_id}"
+        )
 
     # ── Query ──
 
     def get_since(
         self,
-        since_version: int,
+        since_commit_id: str,
         scope_path: str | None = None,
         limit: int = 0,
     ) -> list[dict]:
+        """Return commits strictly after ``since_commit_id`` in linear
+        order.
+
+        Empty ``since_commit_id`` means "from the very beginning".
+        The final result is always ordered
+        ``(created_at ASC, commit_id ASC)`` — identical to the
+        filesystem backend in the ``mut`` library, so both backends
+        yield the same linear view.
+
+        When a ``limit`` is supplied, the returned slice is the
+        **newest** ``limit`` commits (matching
+        ``entries[-limit:]`` in the filesystem backend), not the
+        oldest.  We achieve this by pulling rows DESC from Postgres,
+        capping at ``limit``, and reversing in-process — so callers
+        that ask for "latest 50" get the most recent 50 commits in
+        chronological order, not the earliest 50 ever recorded.
+        """
+        since_entry = None
+        if since_commit_id:
+            since_entry = self.get_entry(since_commit_id)
+            if since_entry is None:
+                # Unknown anchor → safer to return nothing than to
+                # leak the full history.
+                return []
+
         query = (
             self._client.table(self.TABLE)
             .select("*")
             .eq("project_id", self._project_id)
-            .gt("version", since_version)
-            .order("version", desc=False)
+            # Fetch newest-first so LIMIT keeps the tail; we reverse
+            # below to present the caller with ASC order.
+            .order("created_at", desc=True)
+            .order("commit_id", desc=True)
         )
+
+        if since_entry:
+            anchor_time = since_entry.get("created_at", "")
+            anchor_cid = since_entry.get("commit_id", "")
+            # Emulate `(created_at, commit_id) > (anchor_time, anchor_cid)`
+            # via the PostgREST `or=` filter.
+            if anchor_time:
+                query = query.or_(
+                    f"created_at.gt.{anchor_time},"
+                    f"and(created_at.eq.{anchor_time},"
+                    f"commit_id.gt.{anchor_cid})"
+                )
+
         if scope_path:
-            query = query.eq("scope_path", scope_path)
+            query = query.eq("scope_path", _normalize(scope_path))
         if limit > 0:
             query = query.limit(limit)
 
         resp = query.execute()
         entries = _safe_data(resp) or []
+        entries.reverse()
         for entry in entries:
             _parse_json_fields(entry)
         return entries
 
-    def get_entry(self, version: int) -> dict | None:
+    def get_entry(self, commit_id: str) -> dict | None:
+        if not commit_id:
+            return None
         resp = (
             self._client.table(self.TABLE)
             .select("*")
             .eq("project_id", self._project_id)
-            .eq("version", version)
+            .eq("commit_id", commit_id)
             .limit(1)
             .execute()
         )
@@ -261,17 +398,23 @@ class SupabaseHistoryManager:
         return entry
 
 
-
 def _normalize(scope_path: str) -> str:
-    """Normalize scope path (strip slashes)."""
+    """Canonical scope_path form: strip surrounding ``/``, map None → ``""``.
+
+    Single source of truth for scope_path normalization on the
+    application side. The database-level trigger in
+    ``20260416100000_scope_path_canonical.sql`` enforces the same
+    rule as a second layer of defense.
+    """
     return scope_path.strip("/") if scope_path else ""
 
 
 def _parse_json_fields(entry: dict) -> None:
-    """Parse JSON string fields in a history entry."""
+    """Parse JSON string fields in a history entry and expose
+    ``root`` as an alias of ``root_hash`` for mut handler compat."""
     if isinstance(entry.get("changes"), str):
         entry["changes"] = json.loads(entry["changes"])
     if isinstance(entry.get("conflicts"), str):
         entry["conflicts"] = json.loads(entry["conflicts"])
-    # Map root_hash → root for Mut handler compatibility
     entry["root"] = entry.get("root_hash", "")
+    entry["time"] = entry.get("created_at", "")

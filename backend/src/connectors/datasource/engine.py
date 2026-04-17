@@ -13,7 +13,7 @@ converge into a single execute() call. The engine:
   4. Calls connector.fetch(config, credentials) → FetchResult
   5. Compares content_hash with sync.remote_hash
   6. If changed → MutOps.write_file() at the sync path
-  7. Updates the sync record (remote_hash, last_sync_version)
+  7. Updates the sync record (remote_hash, last_sync_commit_id)
 
 All data writes go through MutOps.
 """
@@ -121,17 +121,17 @@ class SyncEngine:
                 message=result.summary or f"Sync from {sync.provider}",
             )
 
-            new_version = write_result.version
+            new_commit_id = write_result.commit_id
 
             self.sync_repo.update_sync_point(
                 sync_id=sync.id,
-                last_sync_version=new_version,
+                last_sync_commit_id=new_commit_id,
                 remote_hash=result.content_hash,
             )
 
             log_info(
                 f"[SyncEngine] {sync.provider}:{external_resource_id} → "
-                f"{file_path} v{new_version}"
+                f"{file_path} commit={new_commit_id}"
             )
 
             if run and self.run_repo:
@@ -144,7 +144,7 @@ class SyncEngine:
                 "access_point_id": sync.id,
                 "path": file_path,
                 "provider": sync.provider,
-                "version": new_version,
+                "commit_id": new_commit_id,
                 "summary": result.summary,
                 "run_id": run.id if run else None,
             }
@@ -183,13 +183,19 @@ class SyncEngine:
     async def push_execute(
         self,
         path: str,
-        version: int,
+        commit_id: str,
         content: Any,
         node_type: str,
     ) -> Optional[dict]:
         """
         Push content from PuppyOne to the external system bound to this path.
         Called after a successful write for bidirectional/outbound syncs.
+
+        ``commit_id`` is the MUT commit just produced by the write; we
+        skip only if it matches what we already synced (avoids pushing
+        the same commit twice). Unlike the old integer counter we can
+        no longer order two unrelated commits, so we use equality as
+        the idempotency check and trust the write funnel to serialize.
         """
         sync = self.sync_repo.find_owner_by_path(path)
         if not sync:
@@ -202,7 +208,7 @@ class SyncEngine:
             log_debug(f"[SyncEngine] push skipped: sync {sync.id} status={sync.status}")
             return None
 
-        if sync.last_sync_version >= version:
+        if commit_id and sync.last_sync_commit_id == commit_id:
             return None
 
         connector = self.registry.get(sync.provider)
@@ -229,26 +235,26 @@ class SyncEngine:
             if push_result.success:
                 self.sync_repo.update_sync_point(
                     sync_id=sync.id,
-                    last_sync_version=version,
+                    last_sync_commit_id=commit_id,
                     remote_hash=push_result.remote_hash,
                 )
                 external_resource_id = (sync.config or {}).get("external_resource_id", "")
                 log_info(
-                    f"[SyncEngine] PUSH {path} v{version} → "
+                    f"[SyncEngine] PUSH {path} commit={commit_id} → "
                     f"{sync.provider}:{external_resource_id}"
                 )
 
                 if run and self.run_repo:
                     self.run_repo.complete(
                         run.id, status="success",
-                        result_summary=f"Pushed v{version}",
+                        result_summary=f"Pushed commit {commit_id}",
                     )
 
                 return {
                     "access_point_id": sync.id,
                     "path": path,
                     "provider": sync.provider,
-                    "version": version,
+                    "commit_id": commit_id,
                     "direction": "push",
                     "status": "success",
                     "run_id": run.id if run else None,

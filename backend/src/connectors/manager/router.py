@@ -37,6 +37,7 @@ class ConnectionOut(BaseModel):
     direction: str | None = None
     status: str = "active"
     access_key: str | None = None
+    gateway_id: str | None = None
     trigger: dict | None = None
     last_synced_at: str | None = None
     error_message: str | None = None
@@ -86,7 +87,15 @@ def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
 
 
 def _get_user_project_ids(sb_client, org_ids: list[str]) -> list[str]:
-    """Get all project IDs across the user's organizations."""
+    """Get all project IDs across the user's organizations.
+
+    NOTE: This relies on resolve_org_ids() which queries org_members for the
+    user.  If a user was added to an org but their org_members row is missing
+    (e.g. RLS policy prevents the service-role read, or the invite flow didn't
+    insert a row), they will get zero org_ids and therefore zero project_ids,
+    causing 404 on access-point mutations.  This is a data/RLS issue, not a
+    code bug — ensure org_members rows exist for all invited users.
+    """
     if not org_ids:
         return []
     resp = (
@@ -356,6 +365,7 @@ class UnifiedConnectionCreate(BaseModel):
     name: str | None = Field(None, description="Display name")
     path: str | None = Field(None, description="Target MUT path")
     config: dict = Field(default_factory=dict, description="Provider-specific configuration")
+    gateway_id: str | None = Field(None, description="Gateway ID (required for datasource providers)")
     direction: str | None = Field(None, description="Sync direction (datasource only)")
     trigger: dict | None = Field(None, description="Trigger config (datasource/agent)")
     credentials_ref: str | None = Field(None, description="OAuth credentials reference (datasource)")
@@ -371,6 +381,8 @@ class UnifiedConnectionOut(BaseModel):
     provider: str
     name: str | None = None
     status: str = "active"
+    gateway_id: str | None = None
+    access_key: str | None = None
 
 
 DATASOURCE_PROVIDERS: set[str] = set()
@@ -423,12 +435,23 @@ async def _create_datasource(payload: UnifiedConnectionCreate, user_id: str) -> 
         except Exception:
             pass
 
+    # Link gateway_id to the newly created access point
+    if payload.gateway_id and sync.id:
+        try:
+            sb = _get_client()
+            sb.table("access_points").update(
+                {"gateway_id": payload.gateway_id}
+            ).eq("id", sync.id).execute()
+        except Exception:
+            pass  # best-effort: gateway linking is not critical for sync
+
     return UnifiedConnectionOut(
         id=sync.id,
         project_id=sync.project_id,
         provider=sync.provider,
         name=payload.name or sync.provider,
         status=sync.status,
+        gateway_id=payload.gateway_id,
     )
 
 
@@ -565,6 +588,36 @@ async def _create_filesystem(
     )
 
 
+def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
+    """Create a direct access point (generic MUT protocol access)."""
+    sb = _get_client()
+    cfg = payload.config
+    scope = cfg.get("scope", {})
+    scope_path = scope.get("path", "") if isinstance(scope, dict) else ""
+    mode = scope.get("mode", "rw") if isinstance(scope, dict) else "rw"
+
+    ap_id = f"direct-{secrets.token_hex(4)}"
+    key = f"cli_{secrets.token_urlsafe(32)}"
+    sb.table("access_points").insert({
+        "id": ap_id,
+        "project_id": payload.project_id,
+        "provider": "direct",
+        "direction": "bidirectional",
+        "status": "active",
+        "config": {"scope": {"id": ap_id, "path": scope_path, "exclude": [], "mode": mode}},
+        "access_key": key,
+    }).execute()
+
+    return UnifiedConnectionOut(
+        id=ap_id,
+        project_id=payload.project_id,
+        provider="direct",
+        name=payload.name or "Direct Access",
+        status="active",
+        access_key=key,
+    )
+
+
 @router.post(
     "/",
     response_model=ApiResponse[UnifiedConnectionOut],
@@ -600,6 +653,8 @@ async def create_connection(
             result = _create_sandbox(payload)
         elif provider == "filesystem":
             result = await _create_filesystem(payload, current_user.user_id)
+        elif provider == "direct":
+            result = _create_direct(payload)
         elif provider in _get_datasource_providers():
             result = await _create_datasource(payload, current_user.user_id)
         else:

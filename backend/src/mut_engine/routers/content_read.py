@@ -1,10 +1,11 @@
-"""Content Read API — ls, cat, stat, tree, trash."""
+"""Content Read API — ls, cat, stat, tree, trash, raw."""
 
 from __future__ import annotations
 
 import json as _json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from src.common_schemas import ApiResponse
 from src.mut_engine.dependencies import get_mut_ops
@@ -50,12 +51,12 @@ def list_dir(
 
     entries = ops.list_dir(project_id, clean_path)
     entries = _exclude_trash(entries)
-    version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=ListDirResponse(
         path=clean_path,
         entries=[entry_to_response(e) for e in entries],
-        version=version,
+        head_commit_id=head_commit_id,
     ))
 
 
@@ -79,9 +80,9 @@ def read_file(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
-    entry = ops.stat(project_id, clean_path)
-    node_type = entry.type if entry else "file"
-    version = ops.get_version(project_id)
+    from src.mut_engine.services.tree_reader import detect_type
+    node_type = detect_type(clean_path)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
     content_json = None
     content_text = None
@@ -99,9 +100,43 @@ def read_file(
         type=node_type,
         content=content_json,
         content_text=content_text,
-        content_hash=entry.content_hash if entry else None,
-        version=version,
+        content_hash=None,
+        head_commit_id=head_commit_id,
     ))
+
+
+@read_router.get(
+    "/{project_id}/raw",
+    summary="Serve raw file bytes with correct Content-Type",
+)
+def raw_file(
+    project_id: str,
+    path: str = Query(..., description="File path"),
+    ops: MutOps = Depends(get_mut_ops),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    ensure_project_access(project_service, current_user, project_id)
+    clean_path = validate_path(path)
+
+    try:
+        content = ops.read_file(project_id, clean_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
+
+    entry = ops.stat(project_id, clean_path)
+    from src.mut_engine.services.tree_reader import detect_mime
+    mime = detect_mime(clean_path) if entry else "application/octet-stream"
+
+    filename = clean_path.rsplit("/", 1)[-1] if "/" in clean_path else clean_path
+    return Response(
+        content=content,
+        media_type=mime,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, max-age=3600",
+        },
+    )
 
 
 @read_router.get(
@@ -158,12 +193,12 @@ def full_tree(
 
     entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
     entries = _exclude_trash(entries)
-    version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=TreeResponse(
         path=clean_path,
         entries=[entry_to_response(e) for e in entries],
-        version=version,
+        head_commit_id=head_commit_id,
     ))
 
 

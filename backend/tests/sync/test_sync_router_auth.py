@@ -30,7 +30,7 @@ class StubSyncRepo:
             provider="filesystem",
             config={},
             status="active",
-            last_sync_version=3,
+            last_sync_commit_id="commit-allowed",
             error_message=None,
             access_key="access-key-123",
             last_synced_at=None,
@@ -48,7 +48,7 @@ class StubSyncRepo:
             provider="filesystem",
             config={},
             status="active",
-            last_sync_version=1,
+            last_sync_commit_id="commit-other",
             error_message=None,
             access_key="access-key-other",
             last_synced_at=None,
@@ -193,6 +193,16 @@ def test_sync_management_routes_forbid_other_project(
     assert response.json()["detail"] == "No access to this project"
 
 
+@pytest.mark.skip(
+    reason=(
+        "Legacy endpoint /api/v1/sync/syncs/openclaw/bootstrap was removed "
+        "when the filesystem connector migrated to MUT protocol. Kept here "
+        "until the corresponding authz guard is rewritten for the new "
+        "`/api/v1/mut/ap/{access_key}/clone|push|pull` routes (which have "
+        "their own access-key based auth and bypass project membership "
+        "checks)."
+    )
+)
 def test_bootstrap_openclaw_forbidden_without_project_access(current_user: CurrentUser):
     client, _, _ = _build_client(
         allowed_projects=set(),

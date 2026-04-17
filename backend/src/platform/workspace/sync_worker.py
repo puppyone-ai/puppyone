@@ -67,9 +67,9 @@ class SyncWorker:
         binary_count = 0
 
         try:
-            version = ops.get_version(project_id)
+            head_commit_id = ops.get_head_commit_id(project_id)
         except Exception:
-            version = 0
+            head_commit_id = ""
 
         try:
             entries = ops.list_tree(project_id)
@@ -111,7 +111,7 @@ class SyncWorker:
 
         self._cache.write_metadata(project_id, {
             "project_id": project_id,
-            "version": version,
+            "head_commit_id": head_commit_id,
             "synced_at": int(time.time()),
             "file_count": file_count,
             "dir_count": dir_count,
@@ -120,11 +120,12 @@ class SyncWorker:
 
         log_info(
             f"[SyncWorker] Materialized lower cache for {project_id}: "
-            f"{file_count} files ({binary_count} binary from S3), {dir_count} dirs, v{version}"
+            f"{file_count} files ({binary_count} binary from S3), {dir_count} dirs, "
+            f"commit={head_commit_id or '(none)'}"
         )
         return {
             "status": "ok",
-            "version": version,
+            "head_commit_id": head_commit_id,
             "file_count": file_count,
             "dir_count": dir_count,
             "binary_count": binary_count,

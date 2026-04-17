@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import useSWR from 'swr';
-import { get, del } from '@/lib/apiClient';
+import { get, del, post } from '@/lib/apiClient';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 
 interface SyncDetail {
@@ -69,9 +69,25 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
     }
   }, [syncId, disconnecting, mutate, onClose]);
 
+  const [togglingPause, setTogglingPause] = useState(false);
+  const isPaused = sync?.status === 'paused';
+  const handleTogglePause = useCallback(async () => {
+    if (!syncId || togglingPause) return;
+    setTogglingPause(true);
+    try {
+      const action = isPaused ? 'resume' : 'pause';
+      await post(`/api/v1/sync/syncs/${syncId}/${action}`);
+      await mutate();
+    } catch (err) {
+      console.error(`Toggle pause failed:`, err);
+    } finally {
+      setTogglingPause(false);
+    }
+  }, [syncId, isPaused, togglingPause, mutate]);
+
   if (!sync) {
     return (
-      <PanelShell title="Local Folder" onClose={onClose || (() => {})}>
+      <PanelShell title="Machine Folder" onClose={onClose || (() => {})}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, height: '100%' }}>
           Access point not found
         </div>
@@ -90,7 +106,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
 
   return (
     <PanelShell
-      title="Local Folder"
+      title="Machine Folder"
       subtitle={sync.node_name || undefined}
       icon={<LaptopIcon size={14} />}
       onClose={onClose || (() => {})}
@@ -116,7 +132,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
                 <LaptopIcon size={24} />
               </div>
               <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center' }}>
-                Local Folder
+                Machine Folder
               </div>
             </div>
 
@@ -183,85 +199,49 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
           </div>
         )}
 
-        {/* ── Setup (one-time) ── */}
-        {accessKey && (
-          <div style={{ padding: '20px 20px 0' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
-              Setup
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <CommandBlock
-                command="pip install mut"
-                label="Install"
-              />
-              <CommandBlock
-                command={`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
-                label="Clone"
-              />
-            </div>
-            <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
-              Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: '#71717a' }}>./{sync.node_name || 'project'}/</code> folder linked to this context.
-            </div>
-          </div>
-        )}
+        {/* ── Quick Actions ── */}
+        <div style={{ padding: '16px 20px 0', display: 'flex', gap: 8 }}>
+          <button
+            onClick={handleTogglePause}
+            disabled={togglingPause || isError}
+            style={{
+              flex: 1, height: 32, borderRadius: 6,
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#a3a3a3', fontSize: 13, fontWeight: 500,
+              cursor: (togglingPause || isError) ? 'not-allowed' : 'pointer',
+              transition: 'all 0.15s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              opacity: isError ? 0.5 : 1,
+            }}
+            onMouseEnter={e => {
+              if (togglingPause || isError) return;
+              e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+              e.currentTarget.style.color = '#e5e5e5';
+            }}
+            onMouseLeave={e => {
+              if (togglingPause || isError) return;
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#a3a3a3';
+            }}
+          >
+            {isPaused ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="6" y="4" width="4" height="16" /><rect x="14" y="4" width="4" height="16" />
+              </svg>
+            )}
+            {togglingPause ? (isPaused ? 'Resuming...' : 'Pausing...') : (isPaused ? 'Resume' : 'Pause')}
+          </button>
 
-        {/* ── Usage (ongoing) ── */}
-        {accessKey && (
-          <div style={{ padding: '20px 20px 0' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>
-              Usage
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <CommandBlock
-                command={`mut commit -m "message" && mut push`}
-                label="Push"
-                hint="Send local changes to the cloud"
-              />
-              <CommandBlock
-                command="mut pull"
-                label="Pull"
-                hint="Fetch changes from other agents or the web UI"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Credentials ── */}
-        {accessKey && (
-          <div style={{ padding: '24px 20px 0' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-              Credentials
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <CredentialRow label="Access Key" value={accessKey} />
-              <CredentialRow label="Clone URL" value={cloneUrl} />
-            </div>
-          </div>
-        )}
-
-        {/* ── Details ── */}
-        <div style={{ padding: '24px 20px 0' }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
-            Details
-          </div>
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 0,
-            background: 'rgba(255,255,255,0.02)', borderRadius: 8,
-            border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden',
-          }}>
-            <InfoRow label="Sync ID" value={sync.id} isLast={false} />
-            <InfoRow label="Direction" value="Bidirectional" isLast={false} />
-            <InfoRow label="Protocol" value="MUT" isLast />
-          </div>
-        </div>
-
-        {/* ── Disconnect ── */}
-        <div style={{ padding: '24px 20px 40px' }}>
           <button
             onClick={handleDisconnect}
             disabled={disconnecting}
             style={{
-              width: '100%', height: 36, borderRadius: 8,
+              flex: 1, height: 32, borderRadius: 6,
               background: 'transparent',
               border: '1px solid rgba(255,255,255,0.08)',
               color: '#a3a3a3', fontSize: 13, fontWeight: 500,
@@ -270,11 +250,13 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}
             onMouseEnter={e => {
+              if (disconnecting) return;
               e.currentTarget.style.background = 'rgba(239,68,68,0.06)';
               e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)';
               e.currentTarget.style.color = '#ef4444';
             }}
             onMouseLeave={e => {
+              if (disconnecting) return;
               e.currentTarget.style.background = 'transparent';
               e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
               e.currentTarget.style.color = '#a3a3a3';
@@ -287,6 +269,69 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
           </button>
         </div>
 
+        {/* ── Credentials & Details (Combined) ── */}
+        <CollapsibleSection title="Credentials & Details" defaultOpen={false}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {accessKey && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <CredentialRow label="Access Key" value={accessKey} />
+                <CredentialRow label="Clone URL" value={cloneUrl} />
+              </div>
+            )}
+            <div style={{
+              display: 'flex', flexDirection: 'column', gap: 0,
+              background: 'rgba(255,255,255,0.02)', borderRadius: 8,
+              border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden',
+            }}>
+              <InfoRow label="Sync ID" value={sync.id} isLast={false} />
+              <InfoRow label="Direction" value="Bidirectional" isLast={false} />
+              <InfoRow label="Protocol" value="MUT" isLast />
+            </div>
+          </div>
+        </CollapsibleSection>
+
+        {/* ── AI Agent Prompt ── */}
+        {accessKey && (
+          <div style={{ padding: '24px 20px 0' }}>
+            <AgentPromptBlock
+              cloneUrl={cloneUrl}
+              accessKey={accessKey}
+              scopeName={sync.node_name || 'project'}
+            />
+          </div>
+        )}
+
+        {/* ── Setup (one-time) ── */}
+        {accessKey && (
+          <CollapsibleSection title="Manual Setup" defaultOpen={false}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <CommandBlock
+                command="pip install mutai"
+                label="Install"
+              />
+              <CommandBlock
+                command={`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
+                label="Clone"
+              />
+            </div>
+            <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
+              Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: '#71717a' }}>./{sync.node_name || 'project'}/</code> folder linked to this context.
+            </div>
+          </CollapsibleSection>
+        )}
+
+        {/* ── Sync Commands ── */}
+        {accessKey && (
+          <CollapsibleSection title="Manual Sync Steps" defaultOpen={false}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <SyncStep step={1} command="mut pull" hint="Get the latest from cloud" />
+              <SyncStep step={2} label="Edit files" />
+              <SyncStep step={3} command={'mut commit -m "your message"'} hint="Snapshot your changes locally" />
+              <SyncStep step={4} command="mut push" hint="Send your changes to cloud" isLast />
+            </div>
+          </CollapsibleSection>
+        )}
+
       </div>
     </PanelShell>
   );
@@ -295,6 +340,213 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
 /* ================================================================
    Sub-components
    ================================================================ */
+
+function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; accessKey: string; scopeName: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const prompt = [
+    `Sync my local folder with PuppyOne cloud using the \`mut\` CLI.`,
+    ``,
+    `## Setup (run once if not already cloned)`,
+    `\`\`\`bash`,
+    `pip install mutai`,
+    `mut clone ${cloneUrl} --credential ${accessKey}`,
+    `\`\`\``,
+    `This creates a \`./${scopeName}/\` folder.`,
+    ``,
+    `## Sync workflow`,
+    `\`\`\`bash`,
+    `cd ${scopeName}`,
+    `mut pull                          # get latest from cloud`,
+    `# ... make your edits ...`,
+    `mut commit -m "describe changes"  # snapshot locally`,
+    `mut push                          # send to cloud`,
+    `\`\`\``,
+    ``,
+    `Run \`mut status\` to check for uncommitted changes.`,
+    `Run \`mut log\` to view commit history.`,
+  ].join('\n');
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+        Quick Start
+      </div>
+      <div style={{ fontSize: 12, color: '#525252', lineHeight: 1.5, marginBottom: 12 }}>
+        Copy the prompt below and paste it into Claude Code, Cursor, or any AI coding agent.
+      </div>
+      <div
+        style={{
+          position: 'relative',
+          background: '#0a0a0a',
+          border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.06)'}`,
+          borderRadius: 8, padding: '12px 14px',
+          transition: 'border-color 0.2s',
+        }}
+      >
+        <pre style={{
+          margin: 0, fontSize: 11, lineHeight: 1.65, color: '#8b8b8b',
+          fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace",
+          whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+          maxHeight: 160, overflow: 'hidden',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+          maskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
+        }}>
+          {prompt}
+        </pre>
+        <button
+          onClick={handleCopy}
+          style={{
+            position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+            height: 30, padding: '0 16px', borderRadius: 6,
+            background: copied ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.06)',
+            border: `1px solid ${copied ? 'rgba(52,211,153,0.25)' : 'rgba(255,255,255,0.1)'}`,
+            color: copied ? '#34d399' : '#a3a3a3',
+            fontSize: 12, fontWeight: 500, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6,
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => {
+            if (copied) return;
+            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+            e.currentTarget.style.color = '#e5e5e5';
+          }}
+          onMouseLeave={e => {
+            if (copied) return;
+            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+            e.currentTarget.style.color = '#a3a3a3';
+          }}
+        >
+          {copied ? (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              Copied
+            </>
+          ) : (
+            <>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              Copy Prompt
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CollapsibleSection({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginTop: 24, padding: '0 20px' }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          background: 'transparent', border: 'none', padding: 0,
+          display: 'flex', alignItems: 'center', gap: 6,
+          fontSize: 12, fontWeight: 600, color: '#71717a',
+          textTransform: 'uppercase', letterSpacing: '0.5px',
+          cursor: 'pointer', width: '100%', textAlign: 'left',
+          outline: 'none',
+        }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        {title}
+      </button>
+      {isOpen && (
+        <div style={{ marginTop: 12 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SyncStep({ step, command, hint, label, isLast }: { step: number; command?: string; hint?: string; label?: string; isLast?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    if (!command) return;
+    navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{ display: 'flex', gap: 12 }}>
+      {/* Left column: Circle & Line */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{
+          width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 600, color: '#a3a3a3',
+        }}>
+          {step}
+        </div>
+        {!isLast && (
+          <div style={{
+            width: 0, flex: 1, minHeight: 16,
+            borderLeft: '2px dotted rgba(255,255,255,0.08)',
+            margin: '4px 0',
+          }} />
+        )}
+      </div>
+
+      {/* Right column: Content */}
+      <div style={{ flex: 1, minWidth: 0, paddingTop: 1, paddingBottom: isLast ? 0 : 16 }}>
+        {command ? (
+          <div>
+            <div
+              style={{
+                position: 'relative',
+                background: '#0a0a0a',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 8, padding: '10px 12px',
+              }}
+            >
+              <code style={{
+                fontSize: 12, color: '#a3a3a3',
+                fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+              }}>
+                <span style={{ color: '#525252', userSelect: 'none' }}>$ </span>{command}
+              </code>
+              <button
+                onClick={handleCopy}
+                style={{
+                  position: 'absolute', top: 8, right: 8,
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: copied ? '#34d399' : '#525252', padding: 4, display: 'flex',
+                }}
+              >
+                {copied ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                )}
+              </button>
+            </div>
+            {hint && (
+              <div style={{ fontSize: 11, color: '#71717a', marginTop: 6, lineHeight: 1.5, paddingLeft: 4 }}>{hint}</div>
+            )}
+          </div>
+        ) : (
+          <div style={{ padding: '2px 0', fontSize: 13, color: '#a3a3a3' }}>
+            {label}
+            {hint && <div style={{ fontSize: 12, color: '#525252', marginTop: 4 }}>{hint}</div>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function CommandBlock({ command, label, hint }: {
   command: string;

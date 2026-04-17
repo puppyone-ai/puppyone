@@ -12,6 +12,13 @@ function contentPath(projectId, action) {
   return `/content/${projectId}/${action}`;
 }
 
+// Short human-friendly label for a MUT commit_id (16-hex string).
+// Returns the first 8 chars wrapped in "@" so commit ids are easy to
+// spot in terminal output without being mistaken for paths.
+function shortCommit(cid) {
+  return cid ? `@${String(cid).slice(0, 8)}` : "";
+}
+
 export function registerData(program) {
   const data = program
     .command("data")
@@ -34,7 +41,7 @@ export function registerData(program) {
       const entries = result.entries || [];
 
       if (out.json) {
-        out.success({ entries, path: cleanPath, version: result.version });
+        out.success({ entries, path: cleanPath, head_commit_id: result.head_commit_id });
         return;
       }
 
@@ -119,7 +126,7 @@ export function registerData(program) {
       const entries = result.entries || [];
 
       if (out.json) {
-        out.success({ entries, path: cleanPath, version: result.version });
+        out.success({ entries, path: cleanPath, head_commit_id: result.head_commit_id });
         return;
       }
 
@@ -216,7 +223,7 @@ export function registerData(program) {
         message: opts.message || `edit ${cleanPath}`,
       });
 
-      out.info(`Written: ${result.path ?? cleanPath} (v${result.version})`);
+      out.info(`Written: ${result.path ?? cleanPath} ${shortCommit(result.commit_id)}`);
       out.success(result);
     }));
 
@@ -243,7 +250,7 @@ export function registerData(program) {
         message: opts.message || `create ${cleanPath}`,
       });
 
-      out.info(`Created: ${result.path ?? cleanPath} (v${result.version})`);
+      out.info(`Created: ${result.path ?? cleanPath} ${shortCommit(result.commit_id)}`);
       out.success(result);
     }));
 
@@ -264,7 +271,7 @@ export function registerData(program) {
         path: cleanPath,
       });
 
-      out.info(`Directory created: ${result.path ?? cleanPath} (v${result.version})`);
+      out.info(`Directory created: ${result.path ?? cleanPath} ${shortCommit(result.commit_id)}`);
       out.success(result);
     }));
 
@@ -295,7 +302,7 @@ export function registerData(program) {
         message: opts.message || `copy ${srcPath} → ${dstPath}`,
       });
 
-      out.info(`Copied: ${srcPath} → ${result.path ?? dstPath} (v${result.version})`);
+      out.info(`Copied: ${srcPath} → ${result.path ?? dstPath} ${shortCommit(result.commit_id)}`);
       out.success(result);
     }));
 
@@ -320,7 +327,7 @@ export function registerData(program) {
         message: opts.message || `moved ${srcPath} → ${dstPath}`,
       });
 
-      out.info(`Moved: ${srcPath} → ${dstPath} (v${result.version})`);
+      out.info(`Moved: ${srcPath} → ${dstPath} ${shortCommit(result.commit_id)}`);
       out.success(result);
     }));
 
@@ -344,9 +351,9 @@ export function registerData(program) {
       });
 
       if (opts.force) {
-        out.info(`Deleted permanently: ${cleanPath} (v${result.version})`);
+        out.info(`Deleted permanently: ${cleanPath} ${shortCommit(result.commit_id)}`);
       } else {
-        out.info(`Moved to trash: ${cleanPath} → ${result.new_path || ".trash"} (v${result.version})`);
+        out.info(`Moved to trash: ${cleanPath} → ${result.new_path || ".trash"} ${shortCommit(result.commit_id)}`);
       }
       out.success(result);
     }));
@@ -401,7 +408,7 @@ export function registerData(program) {
         original_path: cleanOriginal,
       });
 
-      out.info(`Restored: ${cleanTrashPath} → ${result.new_path ?? cleanOriginal} (v${result.version})`);
+      out.info(`Restored: ${cleanTrashPath} → ${result.new_path ?? cleanOriginal} ${shortCommit(result.commit_id)}`);
       out.success(result);
     }));
 }

@@ -2,7 +2,9 @@
 
 Simulates the full flow a local Mut client would do when connecting to
 PuppyOne as the server. Uses real Mut handler code + PuppyOneServerRepo
-with in-memory object store (no S3/PG needed).
+with an in-memory object store (no S3/PG needed).
+
+Commits are identified by ``commit_id`` (16-hex SHA256 digest).
 """
 
 import base64
@@ -10,14 +12,11 @@ import json
 import pytest
 
 from mut.core import tree as tree_mod
-from mut.server.handlers import (
+from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
-    handle_negotiate, handle_rollback, handle_pull_version,
+    handle_negotiate, handle_rollback, handle_pull_commit,
 )
-from mut.server.history import HistoryManager
 
-
-# Reuse fixtures from test_server_repo
 from tests.mut_engine.test_server_repo import (
     FakeHistoryManager, FakeAuditManager, memory_store,
 )
@@ -35,19 +34,23 @@ def repo(memory_store):
     class FakeScopeBackend:
         def __init__(self):
             self._scopes = {}
+
         def get(self, sid):
             return self._scopes.get(sid)
+
         def put(self, sid, scope):
             self._scopes[sid] = scope
+
         def delete(self, sid):
             return self._scopes.pop(sid, None) is not None
+
         def list_all(self):
             return list(self._scopes.values())
 
     scopes = ScopeManager(FakeScopeBackend())
     scopes.add("scope-all", "/")
 
-    r = PuppyOneServerRepo(
+    return PuppyOneServerRepo(
         project_id="test-proj",
         project_name="Integration Test",
         store=memory_store,
@@ -55,10 +58,6 @@ def repo(memory_store):
         audit=audit,
         scopes=scopes,
     )
-
-    # Record initial version (like server init)
-    history.record(0, "server", "initial state", "/", [])
-    return r
 
 
 @pytest.fixture
@@ -69,9 +68,9 @@ def auth():
     }
 
 
-def _make_push_body(store, files: dict, base_version: int = 0) -> dict:
-    """Build a valid push body with Merkle tree + objects."""
-    nested = {}
+def _make_push_body(store, files: dict, base_commit_id: str = "") -> dict:
+    """Build a valid push body with a Merkle tree + all reachable objects."""
+    nested: dict = {}
     for path, content in files.items():
         parts = path.split("/")
         d = nested
@@ -95,9 +94,11 @@ def _make_push_body(store, files: dict, base_version: int = 0) -> dict:
     objects_b64 = {h: base64.b64encode(store.get(h)).decode() for h in reachable}
 
     return {
-        "base_version": base_version,
-        "snapshots": [{"id": 1, "root": root_hash, "message": "test push",
-                       "who": "test-agent", "time": ""}],
+        "base_commit_id": base_commit_id,
+        "snapshots": [{
+            "id": 1, "root": root_hash, "message": "test push",
+            "who": "test-agent", "time": "",
+        }],
         "objects": objects_b64,
     }
 
@@ -112,7 +113,6 @@ class TestClone:
         assert isinstance(result["files"], dict)
 
     def test_clone_with_files(self, repo, auth):
-        # Push a file first
         body = _make_push_body(repo.store, {"hello.txt": b"Hello World"})
         handle_push(repo, auth, body)
 
@@ -125,36 +125,56 @@ class TestClone:
 # ── Push ───────────────────────────────────────
 
 class TestPush:
-    def test_push_creates_version(self, repo, auth):
+    def test_push_returns_commit_id(self, repo, auth):
         body = _make_push_body(repo.store, {"a.txt": b"aaa"})
         result = handle_push(repo, auth, body)
         assert result["status"] == "ok"
-        assert result["version"] == 1
-        # Scope version tracked internally (not in PushResponse for compat)
-        assert repo.get_scope_version("") > 0
+        assert result["commit_id"]
+        assert len(result["commit_id"]) == 16
+        assert repo.get_scope_head_commit_id("") == result["commit_id"]
         assert repo.get_scope_hash("") != ""
 
-    def test_push_increments_version(self, repo, auth):
+    def test_push_chains_commits(self, repo, auth):
         body1 = _make_push_body(repo.store, {"a.txt": b"v1"})
         r1 = handle_push(repo, auth, body1)
 
-        body2 = _make_push_body(repo.store, {"a.txt": b"v2"}, base_version=1)
+        body2 = _make_push_body(
+            repo.store, {"a.txt": b"v2"}, base_commit_id=r1["commit_id"],
+        )
         r2 = handle_push(repo, auth, body2)
 
-        assert r1["version"] == 1
-        assert r2["version"] == 2
+        assert r1["commit_id"] != r2["commit_id"]
+        assert repo.get_scope_head_commit_id("") == r2["commit_id"]
 
-    def test_push_triggers_merge(self, repo, auth):
-        """Push with stale base_version triggers three-way merge."""
-        body1 = _make_push_body(repo.store, {"a.txt": b"v1"})
+    def test_push_stale_base_triggers_merge(self, repo, auth):
+        """Pushing against a stale base_commit_id auto-merges with HEAD.
+
+        Three-way merge only fires when both the client's ``base_commit_id``
+        and the server's head are non-empty and different. So we seed a
+        shared base commit first, advance HEAD on top of it, then push a
+        different file from the stale seed — the server must merge the
+        two branches and keep both files.
+        """
+        # 1. Seed the scope with an initial commit (empty base → no merge).
+        seed_body = _make_push_body(repo.store, {"seed.txt": b"seed"})
+        seed = handle_push(repo, auth, seed_body)["commit_id"]
+
+        # 2. Advance HEAD on top of seed by adding a.txt.
+        body1 = _make_push_body(
+            repo.store, {"seed.txt": b"seed", "a.txt": b"v1"},
+            base_commit_id=seed,
+        )
         handle_push(repo, auth, body1)
 
-        # Push v2 based on v0 (stale) — should auto-merge
-        body2 = _make_push_body(repo.store, {"b.txt": b"new-file"}, base_version=0)
+        # 3. Concurrent client still sees "seed" as its base and adds b.txt
+        #    instead. Base (seed) != HEAD → three-way merge path.
+        body2 = _make_push_body(
+            repo.store, {"seed.txt": b"seed", "b.txt": b"new-file"},
+            base_commit_id=seed,
+        )
         r2 = handle_push(repo, auth, body2)
-        assert r2["version"] == 2
+        assert r2["commit_id"]
 
-        # Both files should exist
         files = repo.list_scope_files(auth["_scope"])
         assert "a.txt" in files
         assert "b.txt" in files
@@ -174,17 +194,19 @@ class TestPush:
 
 class TestPull:
     def test_pull_up_to_date(self, repo, auth):
-        result = handle_pull(repo, auth, {"since_version": 0})
+        body = _make_push_body(repo.store, {"doc.md": b"# Hello"})
+        r1 = handle_push(repo, auth, body)
+
+        result = handle_pull(repo, auth, {"since_commit_id": r1["commit_id"]})
         assert result["status"] == "up-to-date"
 
-    def test_pull_after_push(self, repo, auth):
+    def test_pull_from_scratch(self, repo, auth):
         body = _make_push_body(repo.store, {"doc.md": b"# Hello"})
         handle_push(repo, auth, body)
 
-        result = handle_pull(repo, auth, {"since_version": 0})
+        result = handle_pull(repo, auth, {"since_commit_id": ""})
         assert result["status"] == "updated"
         assert "doc.md" in result["files"]
-        assert result["version"] == 1
 
 
 # ── Negotiate ──────────────────────────────────
@@ -204,101 +226,120 @@ class TestNegotiate:
 # ── Rollback ───────────────────────────────────
 
 class TestRollback:
-    def test_rollback_to_v1(self, repo, auth):
-        # Push v1
+    def test_rollback_to_earlier_commit(self, repo, auth):
         body1 = _make_push_body(repo.store, {"a.txt": b"version-1"})
-        handle_push(repo, auth, body1)
+        r1 = handle_push(repo, auth, body1)
 
-        # Push v2
-        body2 = _make_push_body(repo.store, {"a.txt": b"version-2"}, base_version=1)
-        handle_push(repo, auth, body2)
+        body2 = _make_push_body(
+            repo.store, {"a.txt": b"version-2"}, base_commit_id=r1["commit_id"],
+        )
+        r2 = handle_push(repo, auth, body2)
 
-        # Rollback to v1
-        result = handle_rollback(repo, auth, {"target_version": 1})
+        result = handle_rollback(
+            repo, auth, {"target_commit_id": r1["commit_id"]},
+        )
         assert result["status"] == "rolled-back"
-        assert result["new_version"] == 3
-        assert result["target_version"] == 1
+        assert result["new_commit_id"]
+        assert result["new_commit_id"] not in (r1["commit_id"], r2["commit_id"])
+        assert result["target_commit_id"] == r1["commit_id"]
 
-        # Verify content
         files = repo.list_scope_files(auth["_scope"])
         assert files["a.txt"] == b"version-1"
 
-    def test_rollback_already_at_version(self, repo, auth):
+    def test_rollback_already_at_commit(self, repo, auth):
+        body = _make_push_body(repo.store, {"a.txt": b"data"})
+        r1 = handle_push(repo, auth, body)
+
+        result = handle_rollback(
+            repo, auth, {"target_commit_id": r1["commit_id"]},
+        )
+        assert result["status"] == "already-at-commit"
+
+    def test_rollback_unknown_commit(self, repo, auth):
         body = _make_push_body(repo.store, {"a.txt": b"data"})
         handle_push(repo, auth, body)
 
-        result = handle_rollback(repo, auth, {"target_version": 1})
-        assert result["status"] == "already-at-version"
-
-    def test_rollback_invalid_version(self, repo, auth):
-        body = _make_push_body(repo.store, {"a.txt": b"data"})
-        handle_push(repo, auth, body)
-
-        with pytest.raises(ValueError, match="invalid"):
-            handle_rollback(repo, auth, {"target_version": 999})
+        with pytest.raises(ValueError, match="not found"):
+            handle_rollback(repo, auth, {"target_commit_id": "0000000000000000"})
 
 
-# ── Pull Version ───────────────────────────────
+# ── Pull Commit ────────────────────────────────
 
-class TestPullVersion:
-    def test_pull_historical_version(self, repo, auth):
+class TestPullCommit:
+    def test_pull_historical_commit(self, repo, auth):
         body1 = _make_push_body(repo.store, {"a.txt": b"v1-content"})
-        handle_push(repo, auth, body1)
+        r1 = handle_push(repo, auth, body1)
 
-        body2 = _make_push_body(repo.store, {"a.txt": b"v2-content"}, base_version=1)
+        body2 = _make_push_body(
+            repo.store, {"a.txt": b"v2-content"}, base_commit_id=r1["commit_id"],
+        )
         handle_push(repo, auth, body2)
 
-        result = handle_pull_version(repo, auth, {"version": 1})
+        result = handle_pull_commit(repo, auth, {"commit_id": r1["commit_id"]})
         assert result["status"] == "ok"
-        assert result["version"] == 1
+        assert result["commit_id"] == r1["commit_id"]
         content = base64.b64decode(result["files"]["a.txt"])
         assert content == b"v1-content"
 
-    def test_pull_version_invalid(self, repo, auth):
+    def test_pull_commit_unknown(self, repo, auth):
         body = _make_push_body(repo.store, {"a.txt": b"data"})
         handle_push(repo, auth, body)
 
-        with pytest.raises(ValueError, match="invalid"):
-            handle_pull_version(repo, auth, {"version": 0})
+        with pytest.raises(ValueError, match="not found"):
+            handle_pull_commit(repo, auth, {"commit_id": "0000000000000000"})
 
 
 # ── Full Workflow ──────────────────────────────
 
 class TestFullWorkflow:
     def test_push_rollback_push_pull(self, repo, auth):
-        """Simulate: push v1 → push v2 → rollback to v1 → push v3 → pull."""
-        # v1
+        """Simulate: push v1 → push v2 → rollback to v1 → push v4 → pull."""
         body1 = _make_push_body(repo.store, {"doc.md": b"# Version 1"})
         r1 = handle_push(repo, auth, body1)
-        assert r1["version"] == 1
 
-        # v2
-        body2 = _make_push_body(repo.store, {"doc.md": b"# Version 2"}, base_version=1)
+        body2 = _make_push_body(
+            repo.store, {"doc.md": b"# Version 2"}, base_commit_id=r1["commit_id"],
+        )
         r2 = handle_push(repo, auth, body2)
-        assert r2["version"] == 2
+        assert r2["commit_id"] != r1["commit_id"]
 
-        # Rollback to v1 → creates v3
-        rb = handle_rollback(repo, auth, {"target_version": 1})
-        assert rb["new_version"] == 3
+        rb = handle_rollback(
+            repo, auth, {"target_commit_id": r1["commit_id"]},
+        )
+        assert rb["status"] == "rolled-back"
+        rollback_cid = rb["new_commit_id"]
 
-        # Push v4 on top of rollback
-        body4 = _make_push_body(repo.store, {"doc.md": b"# Version 4"}, base_version=3)
+        body4 = _make_push_body(
+            repo.store, {"doc.md": b"# Version 4"}, base_commit_id=rollback_cid,
+        )
         r4 = handle_push(repo, auth, body4)
-        assert r4["version"] == 4
 
-        # Pull latest
-        pull = handle_pull(repo, auth, {"since_version": 0})
+        pull = handle_pull(repo, auth, {"since_commit_id": ""})
         assert pull["status"] == "updated"
-        assert pull["version"] == 4
+        assert pull["head_commit_id"] == r4["commit_id"]
         content = base64.b64decode(pull["files"]["doc.md"])
         assert content == b"# Version 4"
 
     def test_multi_file_merge(self, repo, auth):
-        """Two pushes with different files merge cleanly."""
-        body_a = _make_push_body(repo.store, {"a.txt": b"file-a"})
+        """Two concurrent pushes on the same base auto-merge cleanly.
+
+        Both writers share a common seed commit as their base. One advances
+        HEAD with ``a.txt``; the other still sees seed and adds ``b.txt``.
+        Server's three-way merge keeps both.
+        """
+        seed_body = _make_push_body(repo.store, {"seed.txt": b"seed"})
+        seed = handle_push(repo, auth, seed_body)["commit_id"]
+
+        body_a = _make_push_body(
+            repo.store, {"seed.txt": b"seed", "a.txt": b"file-a"},
+            base_commit_id=seed,
+        )
         handle_push(repo, auth, body_a)
 
-        body_b = _make_push_body(repo.store, {"b.txt": b"file-b"}, base_version=0)
+        body_b = _make_push_body(
+            repo.store, {"seed.txt": b"seed", "b.txt": b"file-b"},
+            base_commit_id=seed,
+        )
         handle_push(repo, auth, body_b)
 
         files = repo.list_scope_files(auth["_scope"])
@@ -307,16 +348,18 @@ class TestFullWorkflow:
         assert files["a.txt"] == b"file-a"
         assert files["b.txt"] == b"file-b"
 
-    def test_scope_version_tracked(self, repo, auth):
-        """Each push increments scope version independently."""
+    def test_scope_state_advances_on_push(self, repo, auth):
+        """Each push updates scope_hash and scope head_commit_id."""
         body = _make_push_body(repo.store, {"x.txt": b"data"})
-        handle_push(repo, auth, body)
+        r1 = handle_push(repo, auth, body)
 
-        # Verify scope state is tracked
-        assert repo.get_scope_version("") == 1
-        assert repo.get_scope_hash("") != ""
+        assert repo.get_scope_head_commit_id("") == r1["commit_id"]
+        hash_after_1 = repo.get_scope_hash("")
+        assert hash_after_1 != ""
 
-        # Second push increments
-        body2 = _make_push_body(repo.store, {"y.txt": b"data2"}, base_version=1)
-        handle_push(repo, auth, body2)
-        assert repo.get_scope_version("") == 2
+        body2 = _make_push_body(
+            repo.store, {"y.txt": b"data2"}, base_commit_id=r1["commit_id"],
+        )
+        r2 = handle_push(repo, auth, body2)
+        assert repo.get_scope_head_commit_id("") == r2["commit_id"]
+        assert repo.get_scope_hash("") != hash_after_1

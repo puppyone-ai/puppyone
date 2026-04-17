@@ -457,7 +457,7 @@ async def write_node_content(
 
         return {
             "path": path,
-            "version": result.version,
+            "commit_id": result.commit_id,
             "op": "modified",
             "updated": True,
         }
@@ -531,7 +531,7 @@ async def create_node(
         return {
             "path": path,
             "created": True,
-            "version": result.version,
+            "commit_id": result.commit_id,
         }
     except HTTPException:
         raise

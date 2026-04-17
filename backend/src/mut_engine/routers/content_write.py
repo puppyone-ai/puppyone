@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from src.common_schemas import ApiResponse
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.routers._content_helpers import ensure_project_access
+from src.mut_engine.routers._content_helpers import ensure_write_access
 from src.mut_engine.schemas import (
     BulkWriteRequest,
     MkdirRequest,
@@ -17,7 +17,7 @@ from src.mut_engine.schemas import (
     RestoreRequest,
     WriteFileRequest,
 )
-from src.mut_engine.server.validation import validate_path
+from src.mut_engine.server.validation import MAX_FILE_SIZE, validate_path
 from src.mut_engine.services.ops import MutOps
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -30,7 +30,16 @@ _EXT_MAP = {"json": ".json", "markdown": ".md"}
 
 
 def _serialize_content(path: str, content, node_type: str) -> tuple[str, bytes]:
-    """Convert request content to bytes + enforce file extension."""
+    """Convert request content to bytes and enforce the canonical file extension.
+
+    By design, this function appends the canonical extension (e.g. ``.json``,
+    ``.md``) when the caller-supplied *path* does not already end with it.
+    This is intentional: the MUT tree uses file extensions to determine
+    content type during reads (see ``tree_reader.detect_type``), so a JSON
+    node stored without ``.json`` would be misclassified on retrieval.
+    Callers that want a specific filename should include the extension in
+    the request path.
+    """
     if node_type == "json":
         if isinstance(content, str):
             data = content.encode("utf-8")
@@ -62,11 +71,16 @@ async def write_file_endpoint(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
 
     clean_path, content_bytes = _serialize_content(
         validate_path(body.path), body.content, body.node_type,
     )
+    if len(content_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File size {len(content_bytes)} exceeds limit of {MAX_FILE_SIZE} bytes",
+        )
     who = f"user:{current_user.user_id}"
     result = await ops.write_file(
         project_id, clean_path, content_bytes,
@@ -74,7 +88,7 @@ async def write_file_endpoint(
     )
 
     return ApiResponse.success(data={
-        "version": result.version,
+        "commit_id": result.commit_id,
         "path": clean_path,
         "merged": result.merged,
         "conflicts": result.conflicts,
@@ -92,10 +106,10 @@ async def mkdir(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
     who = f"user:{current_user.user_id}"
     result = await ops.mkdir(project_id, body.path, who=who)
-    return ApiResponse.success(data={"path": validate_path(body.path), "version": result.version})
+    return ApiResponse.success(data={"path": validate_path(body.path), "commit_id": result.commit_id})
 
 
 @write_router.post(
@@ -109,21 +123,23 @@ async def move(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
+    old_clean = validate_path(body.old_path)
+    new_clean = validate_path(body.new_path)
     who = f"user:{current_user.user_id}"
 
     try:
         result = await ops.move(
-            project_id, body.old_path, body.new_path,
-            who=who, message=body.message or f"moved {body.old_path} → {body.new_path}",
+            project_id, old_clean, new_clean,
+            who=who, message=body.message or f"moved {old_clean} → {new_clean}",
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
     return ApiResponse.success(data={
-        "version": result.version,
-        "old_path": validate_path(body.old_path),
-        "new_path": validate_path(body.new_path),
+        "commit_id": result.commit_id,
+        "old_path": old_clean,
+        "new_path": new_clean,
     })
 
 
@@ -138,21 +154,21 @@ async def remove(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
     who = f"user:{current_user.user_id}"
     clean_path = validate_path(body.path)
 
     if body.permanent:
         result = await ops.permanent_delete(project_id, clean_path, who=who)
         return ApiResponse.success(data={
-            "version": result.version,
+            "commit_id": result.commit_id,
             "path": clean_path,
         })
     else:
         result = await ops.trash(project_id, clean_path, who=who)
         trash_path = [p for p in result.paths if p.startswith(".trash/")]
         return ApiResponse.success(data={
-            "version": result.version,
+            "commit_id": result.commit_id,
             "path": clean_path,
             "old_path": clean_path,
             "new_path": trash_path[0] if trash_path else "",
@@ -170,7 +186,7 @@ async def restore(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
     who = f"user:{current_user.user_id}"
 
     result = await ops.restore(
@@ -178,7 +194,7 @@ async def restore(
     )
 
     return ApiResponse.success(data={
-        "version": result.version,
+        "commit_id": result.commit_id,
         "old_path": validate_path(body.trash_path),
         "new_path": validate_path(body.original_path),
     })
@@ -195,13 +211,18 @@ async def bulk_write(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
 
     modified: dict[str, bytes] = {}
     for item in body.files:
         path, data = _serialize_content(
             validate_path(item.path), item.content, item.node_type,
         )
+        if len(data) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File '{path}' size {len(data)} exceeds limit of {MAX_FILE_SIZE} bytes",
+            )
         modified[path] = data
 
     who = f"user:{current_user.user_id}"
@@ -211,7 +232,7 @@ async def bulk_write(
     )
 
     return ApiResponse.success(data={
-        "version": result.version,
+        "commit_id": result.commit_id,
         "total": len(modified),
         "merged": result.merged,
     })

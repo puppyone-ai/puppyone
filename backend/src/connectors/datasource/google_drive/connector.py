@@ -4,6 +4,11 @@ Google Drive Connector - Process Google Drive file imports.
 Imports files from Google Drive into content nodes.
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+
 import hashlib
 import json
 from typing import Any, Optional

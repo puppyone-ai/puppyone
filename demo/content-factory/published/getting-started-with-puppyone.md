@@ -27,8 +27,8 @@ In the PuppyOne dashboard, create two access points:
 
 You'll get two access keys:
 ```
-Writer:   https://api.puppyone.ai/mut/ap/ak_writer_xxx/
-Reviewer: https://api.puppyone.ai/mut/ap/ak_reviewer_xxx/
+Writer:   https://api.puppyone.ai/api/v1/mut/ap/ak_writer_xxx/
+Reviewer: https://api.puppyone.ai/api/v1/mut/ap/ak_reviewer_xxx/
 ```
 
 ### 3. Writer Agent Pushes Content
@@ -37,7 +37,7 @@ Reviewer: https://api.puppyone.ai/mut/ap/ak_reviewer_xxx/
 import requests
 import json
 
-WRITER_URL = "https://api.puppyone.ai/mut/ap/ak_writer_xxx"
+WRITER_URL = "https://api.puppyone.ai/api/v1/mut/ap/ak_writer_xxx"
 
 # Clone current state
 state = requests.post(f"{WRITER_URL}/clone", json={}).json()
@@ -55,7 +55,7 @@ requests.post(f"{WRITER_URL}/push", json={
 ### 4. Reviewer Agent Reads Content
 
 ```python
-REVIEWER_URL = "https://api.puppyone.ai/mut/ap/ak_reviewer_xxx"
+REVIEWER_URL = "https://api.puppyone.ai/api/v1/mut/ap/ak_reviewer_xxx"
 
 # Pull latest changes
 changes = requests.post(f"{REVIEWER_URL}/pull", json={

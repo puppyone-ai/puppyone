@@ -67,6 +67,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
   const [activeNodeId, setActiveNodeId] = useState<string>('');
   const [activeNodeType, setActiveNodeType] = useState<string>('');
   const [activePreviewType, setActivePreviewType] = useState<string | null>(null);
+  const [activeMimeType, setActiveMimeType] = useState<string | null>(null);
 
   const [markdownContent, setMarkdownContent] = useState<string>('');
   const [isLoadingMarkdown, setIsLoadingMarkdown] = useState(false);
@@ -95,6 +96,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
         setActiveNodeId('');
         setActiveNodeType('');
         setActivePreviewType(null);
+        setActiveMimeType(null);
         setMarkdownContent('');
         return;
       }
@@ -116,12 +118,14 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
       // On error we fall back to the type hint or file-name heuristic
       // so the UI never gets stuck at root.
       let resolvedType: string;
+      let resolvedMime: string | null = null;
       let exists = true;
       try {
         const statResult = await stat(projectId, fullPath);
         if (cancelled) return;
         exists = statResult.exists;
         resolvedType = statResult.type || typeHint || inferTypeFromName(path[path.length - 1]);
+        resolvedMime = statResult.mime_type ?? null;
       } catch (err) {
         if (cancelled) return;
         console.error('[usePathResolver] stat failed:', fullPath, err);
@@ -135,16 +139,20 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
         setActiveNodeId('');
         setActiveNodeType('');
         setActivePreviewType(null);
+        setActiveMimeType(null);
         setMarkdownContent('');
         setIsResolvingPath(false);
         return;
       }
 
       applyFileState(fullPath, resolvedType, path, breadcrumbs, setters);
+      setActiveMimeType(resolvedMime);
       setPendingActiveId(null);
 
-      // Load markdown body if applicable
-      if (getNodeTypeConfig(resolvedType).renderAs === 'markdown') {
+      const renderAs = getNodeTypeConfig(resolvedType).renderAs;
+      const isTextMime = resolvedMime?.startsWith('text/') && resolvedMime !== 'text/markdown';
+
+      if (renderAs === 'markdown' || isTextMime) {
         setIsLoadingMarkdown(true);
         try {
           const content = await readFile(projectId, fullPath);
@@ -152,7 +160,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
           setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
         } catch (readErr) {
           if (cancelled) return;
-          console.error('[usePathResolver] Failed to load markdown:', readErr);
+          console.error('[usePathResolver] Failed to load text content:', readErr);
           setMarkdownContent('');
         } finally {
           if (!cancelled) setIsLoadingMarkdown(false);
@@ -188,6 +196,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
     activeNodeId,
     activeNodeType,
     activePreviewType,
+    activeMimeType,
     markdownContent,
     setMarkdownContent,
     isLoadingMarkdown,

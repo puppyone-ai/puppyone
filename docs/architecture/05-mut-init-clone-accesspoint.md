@@ -35,7 +35,7 @@
 
 - `mut init` 只在本地创建 `.mut/` 目录，标记当前目录为 MUT repo
 - `mut init` **不创建 server**，不产生 SoT
-- 必须后续通过 `mut add access-point` 绑定到 server，才能进行 sync 操作
+- 必须后续通过 `mut link access` 绑定到 server，才能进行 sync 操作
 
 ---
 
@@ -91,7 +91,7 @@
              │
              ▼
 ┌─────────────────────────────────┐
-│  Step 2: mut add access-point   │
+│  Step 2: mut link access   │
 │          <url> <root_dir_name>   │
 │                                  │
 │  本地端：                         │
@@ -148,7 +148,7 @@
              │
              ▼
 ┌─────────────────────────────────┐
-│  Step 3: mut add access-point   │
+│  Step 3: mut link access   │
 │          <url>                   │
 │                                  │
 │  → 绑定到已有数据的 server        │
@@ -163,7 +163,7 @@
 - 本地的 SoT 先通过 Filesystem Connector 传到 PuppyOne
 - 传输完成后，Server 端拥有完整数据，成为 SoT
 - 之后的流程等同于场景 A（从 PuppyOne clone），相当于反向clone
-- `mut add access-point <url>` 不指定 `root_dir_name`，直接绑定到已有 repo
+- `mut link access <url>` 不指定 `root_dir_name`，直接绑定到已有 repo
 - 如果指定了 `root_dir_name`，只是额外添加一个子文件夹 scope，不会替换内容
 
 ---
@@ -176,24 +176,26 @@
 mut init
 ```
 
-| 行为                | 说明                                   |
-| ------------------- | -------------------------------------- |
-| 创建 `.mut/` 目录 | 包含 `config.json`（空 server 配置） |
-| 不创建 server       | 纯本地操作                             |
-| 不产生 SoT          | 只是标记，不做任何数据承诺             |
-| 幂等                | 重复运行不报错                         |
+| 行为                | 说明                                                                 |
+| ------------------- | -------------------------------------------------------------------- |
+| 创建 `.mut/` 目录 | 包含 `config.json`（`{"version": 1, "server": null}`）            |
+| 初始化对象存储      | 创建 `objects/`、`snapshots/` 等子目录                              |
+| 不创建 server       | 纯本地操作                                                           |
+| 不产生 SoT          | 只是标记，不做任何数据承诺                                           |
+| 幂等                | `.mut/` 已存在时不报错，保留已有配置                                |
+| 向后兼容            | 保持已有的 init 逻辑（创建 object store + snapshot chain），在此基础上扩展 config 结构 |
 
-### `mut add access-point`
+### `mut link access`
 
 ```bash
 # 场景 B：本地空目录，需要指定 root_dir_name 创建 scope
-mut add access-point <access_point_url> <root_dir_name>
+mut link access <access_point_url> <root_dir_name>
 
 # 场景 C：本地非空目录，已通过 connector 同步
-mut add access-point <access_point_url>
+mut link access <access_point_url>
 
 # 场景 C：额外添加子文件夹 scope
-mut add access-point <access_point_url> <sub_dir_name>
+mut link access <access_point_url> <sub_dir_name>
 ```
 
 | 参数                      | 说明                                                   |
@@ -201,11 +203,12 @@ mut add access-point <access_point_url> <sub_dir_name>
 | `access_point_url`      | PuppyOne Access Point 的 URL                           |
 | `root_dir_name`（可选） | 在 client 和 server 同时创建的根文件夹名称，作为 scope |
 
-| 行为                      | 说明                                   |
-| ------------------------- | -------------------------------------- |
-| 写入 `.mut/config.json` | 保存 server URL 和 credential          |
-| 验证连接                  | 确认 server 可达且 access_key 有效     |
-| 同步 scope                | 如指定 root_dir_name，在双端创建文件夹 |
+| 行为                      | 说明                                                              |
+| ------------------------- | ----------------------------------------------------------------- |
+| 写入 `.mut/config.json` | 保存 server URL 和 credential                                     |
+| 验证连接                  | 确认 server 可达且 access_key 有效（发送 clone 请求测试）          |
+| 同步 scope                | 如指定 root_dir_name，在 client 创建文件夹并 push 到 server       |
+| 前提条件                  | 必须先执行 `mut init`（`.mut/` 目录必须存在）                    |
 
 ### `mut clone`（保持不变）
 
@@ -249,7 +252,7 @@ mut clone <access_point_url>
 │          │                                            │
 │          └─ 用户不希望被覆盖？                         │
 │             → 创建新的 MUT Repo + 新的 Server           │
-│             → 重新 mut init + mut add access-point     │
+│             → 重新 mut init + mut link access     │
 │             → Client 端内容成为新 server 的 SoT         │
 │             → 新 repo 中不存在其他 client 的干扰        │
 │                                                       │
@@ -278,7 +281,7 @@ MUT Server
 cd /my-important-project
 mut init
 # 通过 filesystem connector 上传到 PuppyOne → 创建新 repo + server
-mut add access-point <new_access_point_url>
+mut link access <new_access_point_url>
 # 此时 client A 的内容是新 server 唯一的 SoT
 # 没有其他 client 会推送到这个 server
 ```
@@ -298,7 +301,7 @@ mut add access-point <new_access_point_url>
 
 ### 初始化策略
 
-当通过 `mut add access-point <url> <root_dir_name>` 创建新 server 时：
+当通过 `mut link access <url> <root_dir_name>` 创建新 server 时：
 
 ```python
 # Server 端初始化逻辑
@@ -346,7 +349,7 @@ def create_server_with_root(root_dir_name: str):
 ```json
 {
   "version": 1,
-  "server": "https://api.puppyone.com/mut/ap/cli_abc123def456",
+  "server": "https://api.puppyone.com/api/v1/mut/ap/cli_abc123def456",
   "credential": "cli_abc123def456"
 }
 ```
@@ -366,10 +369,10 @@ def create_server_with_root(root_dir_name: str):
 ```bash
 # 1. 用户在 PuppyOne 创建项目，导入 GitHub repo
 #    → 自动创建 MUT Server，数据成为 SoT
-#    → 生成 Access Point: https://api.puppyone.com/mut/ap/cli_xxx
+#    → 生成 Access Point: https://api.puppyone.com/api/v1/mut/ap/cli_xxx
 
 # 2. 本地 clone
-mut clone https://api.puppyone.com/mut/ap/cli_xxx
+mut clone https://api.puppyone.com/api/v1/mut/ap/cli_xxx
 cd my-project
 
 # 3. 正常开发
@@ -389,7 +392,7 @@ mkdir my-project && cd my-project
 mut init
 
 # 2. 绑定到 PuppyOne（创建新 server + scope）
-mut add access-point https://api.puppyone.com/mut/ap/cli_xxx research
+mut link access https://api.puppyone.com/api/v1/mut/ap/cli_xxx research
 
 # 3. 开始在 research/ 下工作
 echo "# Research Notes" > research/notes.md
@@ -413,7 +416,7 @@ mut init
 #    → 生成 Access Point
 
 # 4. 绑定
-mut add access-point https://api.puppyone.com/mut/ap/cli_xxx
+mut link access https://api.puppyone.com/api/v1/mut/ap/cli_xxx
 
 # 5. 正常使用
 mut status
@@ -429,7 +432,7 @@ mut push
 | --------------------------------- | ------------------------- | ------------------------------------------- |
 | 同 scope 多 client SoT 冲突       | ⚠️ 设计方案已定，待验证 | 通过 scope 隔离 + 新 repo 隔离解决          |
 | Filesystem Connector 大文件上传   | ⚠️ 待测试               | 场景 C 中大目录的初始同步性能               |
-| `mut add access-point` 的原子性 | ⚠️ 待实现               | client 和 server 同时创建文件夹需要事务保证 |
+| `mut link access` 的原子性 | ⚠️ 待实现               | client 和 server 同时创建文件夹需要事务保证 |
 | 离线 init 后的首次绑定            | ⚠️ 待测试               | init 后长时间离线，再绑定时的状态同步       |
 | LWW 场景下的用户预期管理          | ⚠️ 待 UX 设计           | 用户可能不理解为什么自己的修改被覆盖        |
 
@@ -441,5 +444,5 @@ mut push
 | ------------ | ---------------------------------- | --------------------------------------- |
 | MUT Engine   | Server 初始化、scope 注册          | [01-mut-engine.md](01-mut-engine.md)       |
 | Access Point | URL 格式、credential 解析          | [02-access-points.md](02-access-points.md) |
-| CLI          | init、add access-point、clone 命令 | [03-cli.md](03-cli.md)                     |
+| CLI          | init、link access、clone 命令      | [03-cli.md](03-cli.md)                     |
 | Connectors   | Filesystem Connector（场景 C）     | [04-connectors.md](04-connectors.md)       |

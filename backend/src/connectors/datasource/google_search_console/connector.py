@@ -7,6 +7,11 @@ clicks, impressions, CTR, and position data for a given site.
 API docs: https://developers.google.com/webmaster-tools/v1/searchanalytics
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+
 import hashlib
 import json
 from datetime import datetime, timedelta

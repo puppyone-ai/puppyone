@@ -36,7 +36,7 @@ class FallbackWorkspaceProvider(WorkspaceProvider):
         return os.path.join(self._lower_dir, project_id)
 
     async def create_workspace(
-        self, agent_id: str, project_id: str, base_snapshot_id: int | None = None
+        self, agent_id: str, project_id: str, base_commit_id: str | None = None
     ) -> WorkspaceInfo:
         """Create workspace via full copy"""
         lower_path = self.get_lower_path(project_id)
@@ -59,7 +59,7 @@ class FallbackWorkspaceProvider(WorkspaceProvider):
             path=workspace_path,
             agent_id=agent_id,
             project_id=project_id,
-            base_snapshot_id=base_snapshot_id,
+            base_commit_id=base_commit_id,
             lower_path=lower_path,
         )
         self._registry[agent_id] = info
@@ -77,7 +77,7 @@ class FallbackWorkspaceProvider(WorkspaceProvider):
         log_info(f"[Fallback] Changes for {agent_id}: {len(modified)} modified, {len(deleted)} deleted")
         return WorkspaceChanges(
             agent_id=agent_id,
-            base_snapshot_id=info.base_snapshot_id,
+            base_commit_id=info.base_commit_id,
             modified=modified,
             deleted=deleted,
         )

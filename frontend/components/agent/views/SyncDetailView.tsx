@@ -126,7 +126,7 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; co
 // ============================================================
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Folder',
+  filesystem: 'Machine Folder',
   github: 'GitHub', notion: 'Notion', gmail: 'Gmail',
   google_calendar: 'Google Calendar', google_sheets: 'Google Sheets',
   google_drive: 'Google Drive', google_docs: 'Google Docs',

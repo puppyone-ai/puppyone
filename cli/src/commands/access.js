@@ -374,6 +374,7 @@ export function registerAccess(program) {
     .option("--type <subtype>", "sub-type: chat | devbox (agent), e2b | docker (sandbox)")
     .option("--set <kv...>", "config key=value (repeatable)")
     .option("--config <json>", "provider-specific config as JSON (merged, lower priority than --set)")
+    .option("--gateway <id>", "Gateway ID (required for datasource providers, auto-detected if only one)")
     .action(withErrors(async (type, source, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createClient(cmd);
@@ -510,6 +511,28 @@ export function registerAccess(program) {
         return;
       }
 
+      // Resolve gateway for datasource providers
+      let gatewayId = opts.gateway || null;
+      if (!gatewayId) {
+        // Auto-detect: if user has exactly one gateway for this provider, use it
+        try {
+          const gateways = await client.get("/gateways", { params: { provider } });
+          const gwList = gateways?.data || gateways || [];
+          if (Array.isArray(gwList) && gwList.length === 1) {
+            gatewayId = gwList[0].id;
+            out.info(`  Using gateway: ${gwList[0].name || gwList[0].id}`);
+          } else if (Array.isArray(gwList) && gwList.length > 1) {
+            out.info(`  Multiple ${provider} gateways found. Use --gateway <id> to specify:`);
+            for (const gw of gwList) {
+              out.info(`    ${gw.id}  ${gw.name || "—"}`);
+            }
+            return;
+          }
+        } catch {
+          // Gateway API not available yet, proceed without
+        }
+      }
+
       const body = {
         project_id: projectId,
         provider,
@@ -517,6 +540,7 @@ export function registerAccess(program) {
         path: targetPath,
         config,
         sync_mode: opts.mode || "import_once",
+        gateway_id: gatewayId,
       };
 
       out.step(`Adding ${spec.display_name} sync...`);
@@ -797,7 +821,9 @@ export function registerAccess(program) {
       if (data && data.synced > 0 && data.results?.length > 0) {
         const r = data.results[0];
         out.info(`  Provider: ${r.provider}`);
-        out.info(`  Version:  ${r.version}`);
+        if (r.commit_id) {
+          out.info(`  Commit:   @${String(r.commit_id).slice(0, 8)}`);
+        }
         out.info(`  Summary:  ${r.summary || "\u2014"}`);
         if (r.run_id) {
           out.info(`  Run ID:   ${r.run_id}`);
@@ -853,7 +879,7 @@ function _showProviderGuidance(out, connection, baseUrl) {
   } else if (provider === "sandbox") {
     out.info("  \u2500 Execute via Agent or API.\n");
   } else if (provider === "filesystem" && key) {
-    const apBase = connection.ap_base || `/mut/ap/${key}`;
+    const apBase = connection.ap_base || `/api/v1/mut/ap/${key}`;
     out.info("  \u2500 Sync with MUT:");
     out.info(`    mut clone ${baseUrl}${apBase} --credential ${key} --dir <folder>`);
     out.info("");

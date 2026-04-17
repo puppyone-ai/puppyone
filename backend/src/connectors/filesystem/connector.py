@@ -6,6 +6,11 @@ Data sync is driven by the CLI daemon using MUT access_point
 registry; fetch()/push() are not used.
 """
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.connectors.datasource._base import ConnectorDeps, ConnectorSetup
+
 from typing import Any, List
 
 from src.connectors.datasource._base import (
@@ -21,7 +26,7 @@ class FilesystemConnector(BaseConnector):
     def spec(self) -> ConnectorSpec:
         return ConnectorSpec(
             provider="filesystem",
-            display_name="Desktop Folder",
+            display_name="Machine Folder",
             capabilities=(
                 Capability.PULL | Capability.PUSH
                 | Capability.REALTIME | Capability.BOOTSTRAP
@@ -31,7 +36,7 @@ class FilesystemConnector(BaseConnector):
             default_node_type="folder",
             auth=AuthRequirement.ACCESS_KEY,
             creation_mode="bootstrap",
-            description="Sync a local folder with PuppyOne via CLI daemon",
+            description="Sync any folder on your machine via terminal (laptop, server, VPS)",
             accept_types=("folder",),
             icon="🦞",
         )

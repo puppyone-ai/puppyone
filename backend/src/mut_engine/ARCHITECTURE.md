@@ -116,7 +116,7 @@ POST /rollback       → handle_rollback(repo, auth, body)
 POST /pull-version   → handle_pull_version(repo, auth, body)
 ```
 
-### Access Point Router — `/mut/ap/{access_key}`
+### Access Point Router — `/api/v1/mut/ap/{access_key}`
 
 认证：access_key 路径参数 → 解析 access_points 表获取 project_id + scope
 
@@ -159,11 +159,12 @@ MutEphemeralClient (进程内模拟 MUT 协议)
 PuppyOneServerRepo
   │  1. ObjectStore → S3 写入新 blob
   │  2. Merkle tree 更新 → S3 写入新 tree node
-  │  3. HistoryManager → PG 记录 mut_commits
-  │  4. AuditManager → PG 记录 audit_logs
-  │  5. projects.mut_version / mut_root_hash 更新
+  │  3. HistoryManager → PG 记录 mut_commits (commit_id = 16-hex hash)
+  │  4. AuditManager → PG 记录 audit_logs (commit_id 放在 metadata JSONB)
+  │  5. CAS 原子更新 mut_scope_state.(scope_hash, head_commit_id) +
+  │     graft 更新 projects.mut_root_hash
   ▼
-返回 WriteResult(version, merged, conflicts)
+返回 WriteResult(commit_id, merged, conflicts)
 ```
 
 ### 4.2 CLI 客户端推送
@@ -171,7 +172,7 @@ PuppyOneServerRepo
 ```
 CLI daemon (本地文件变更)
   │  POST /api/v1/mut/{project_id}/push
-  │  Body: { base_version, objects, tree, ... }
+  │  Body: { base_commit_id, objects, tree, ... }
   │  Header: Authorization: Bearer <access_key>
   ▼
 protocol_router.py
@@ -197,8 +198,8 @@ protocol_router.py
 
 ```
 任意 MUT 客户端
-  │  POST /mut/ap/{access_key}/push
-  │  Body: { base_version, objects, tree, ... }
+  │  POST /api/v1/mut/ap/{access_key}/push
+  │  Body: { base_commit_id, objects, tree, ... }
   ▼
 access_point.py
   │  1. resolve_access_point(access_key)

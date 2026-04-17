@@ -40,7 +40,7 @@ puppyone access add filesystem docs
   Creating filesystem access point for scope "docs"... done
 
   ─ Sync with MUT:
-    mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
+    mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
 
   ─ Then commit and push:
     mut commit -m "message" && mut push
@@ -54,7 +54,7 @@ puppyone access add filesystem docs
 复制输出中的 `mut clone` 命令：
 
 ```bash
-mut clone http://api.puppyone.ai/mut/ap/cli_xxx --credential cli_xxx
+mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
 ```
 
 这会在当前目录下自动创建以 scope 路径命名的文件夹（如 `./docs/`），并拉取云端已有的内容。

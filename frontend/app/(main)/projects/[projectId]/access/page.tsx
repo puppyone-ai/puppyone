@@ -45,7 +45,7 @@ interface ProjectSyncStatus {
    ================================================================ */
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
+  filesystem: 'Machine Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
   google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
   supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
   agent: 'Agent', mcp: 'MCP Server', sandbox: 'Sandbox',
@@ -581,9 +581,9 @@ function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; 
           <div style={cmdStyle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
-              <code style={codeStyle}>pip install mut</code>
+              <code style={codeStyle}>pip install mutai</code>
             </div>
-            <CopyBtn copied={copied === 'install'} onCopy={() => copy('pip install mut', 'install')} />
+            <CopyBtn copied={copied === 'install'} onCopy={() => copy('pip install mutai', 'install')} />
           </div>
           <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
@@ -890,11 +890,16 @@ function HistoryTab({ connectionPath, projectId }: { connectionPath: string | nu
         )}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {commits.map((c, i) => (
-            <div key={c.version} style={{
+            <div key={c.commit_id} style={{
               display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px',
               borderBottom: i < commits.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
             }}>
-              <span style={{ fontSize: 11, color: '#52525b', fontFamily: 'monospace', width: 28, flexShrink: 0 }}>v{c.version}</span>
+              <span
+                title={c.commit_id}
+                style={{ fontSize: 11, color: '#52525b', fontFamily: 'monospace', width: 64, flexShrink: 0 }}
+              >
+                {c.commit_id.slice(0, 8)}
+              </span>
               <span style={{ flex: 1, fontSize: 13, color: '#d4d4d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                 {c.message || '(no message)'}
               </span>

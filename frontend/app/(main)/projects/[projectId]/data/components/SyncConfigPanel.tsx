@@ -61,16 +61,12 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
   { id: 'sandbox', label: 'Sandbox', description: 'Isolated script execution environment', icon: <SandboxMini /> },
 ];
 
-interface SyncOptionDef {
-  id: string;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-}
-
-const SYNC_OPTIONS: SyncOptionDef[] = [
-  { id: 'filesystem', label: 'Local Folder', description: 'Two-way sync with a folder on your device', icon: <FilesystemMini /> },
-];
+// Providers whose backend code exists but isn't production-ready yet.
+// Rendered as disabled "Coming soon" rows; remove an id here to re-enable.
+const COMING_SOON_PROVIDERS: ReadonlySet<string> = new Set([
+  'github',
+  'google_search_console',
+]);
 
 /* ================================================================
    Mini Icon Components
@@ -96,7 +92,7 @@ function SandboxMini() {
   );
 }
 
-function FilesystemMini() {
+function FolderMini() {
   return (
     <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -159,9 +155,11 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     id: spec.provider,
     label: spec.display_name,
     description: spec.description || '',
-    icon: spec.icon_url
-      ? <ProviderImg src={spec.icon_url} />
-      : <span style={{ fontSize: 14 }}>{spec.icon || '📄'}</span>,
+    icon: spec.provider === 'filesystem'
+      ? <FolderMini />
+      : spec.icon_url
+        ? <ProviderImg src={spec.icon_url} />
+        : <span style={{ fontSize: 14 }}>{spec.icon || '📄'}</span>,
     oauthType: spec.oauth_ui_type ? spec.oauth_ui_type as SaasType : undefined,
     requiresAuth: spec.auth !== 'none',
     creationMode: spec.creation_mode,
@@ -306,11 +304,21 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   const handleSyncDeploy = useCallback(async () => {
     if (!selectedSyncProvider || deploying) return;
     const providerDef = syncProviders.find(p => p.id === selectedSyncProvider);
-    if (!providerDef) return;
 
-    const missingRequired = providerDef.configFields
-      .filter(f => f.required && !syncConfigValues[f.key]?.trim());
-    if (missingRequired.length > 0) return;
+    const BOOTSTRAP_PROVIDERS: Record<string, { direction: 'inbound' | 'outbound' | 'bidirectional' }> = {
+      filesystem: { direction: 'bidirectional' },
+    };
+    const bootstrapFallback = BOOTSTRAP_PROVIDERS[selectedSyncProvider];
+
+    if (!providerDef && !bootstrapFallback) return;
+
+    const creationMode = providerDef?.creationMode ?? (bootstrapFallback ? 'bootstrap' : 'direct');
+
+    if (providerDef) {
+      const missingRequired = providerDef.configFields
+        .filter(f => f.required && !syncConfigValues[f.key]?.trim());
+      if (missingRequired.length > 0) return;
+    }
 
     setDeploying(true);
     setDeployError(null);
@@ -321,15 +329,16 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       const config: Record<string, unknown> = { ...syncConfigValues };
       let createdNodeId: string | null = null;
 
-      if (providerDef.creationMode === 'bootstrap') {
+      if (creationMode === 'bootstrap') {
         await deploySyncEndpoint({
-          provider: providerDef.id,
-          direction: providerDef.direction,
+          provider: providerDef?.id ?? selectedSyncProvider,
+          direction: providerDef?.direction ?? bootstrapFallback?.direction ?? 'bidirectional',
           config,
           uiMode: 'inline',
         });
         createdNodeId = target.path;
       } else {
+        if (!providerDef) return;
         const result = await createSyncConnection({
           project_id: projectId,
           provider: providerDef.id,
@@ -511,12 +520,12 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   if (selectedSyncProvider) {
     if (selectedSyncProvider === 'filesystem') {
       return (
-        <PanelShell title="Local Folder" onClose={onClose} onBack={handleBack}>
+        <PanelShell title="Machine Folder" onClose={onClose} onBack={handleBack}>
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
               <SyncPreview
                 provider="filesystem"
-                providerLabel="Desktop Folder"
+                providerLabel="Machine Folder"
                 direction="bidirectional"
                 targetName={draftResources[0]?.nodeName || null}
                 targetType="folder"
@@ -604,8 +613,12 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     );
   }
 
-  const inboundProviders = syncProviders.filter(p => p.direction === 'inbound');
-  const bidirectionalProviders = syncProviders.filter(p => p.direction === 'bidirectional');
+  // Push "Coming soon" providers to the bottom of each section so they sit
+  // visually beneath the active ones rather than mixed in.
+  const sinkComingSoon = (a: { id: string }, b: { id: string }) =>
+    Number(COMING_SOON_PROVIDERS.has(a.id)) - Number(COMING_SOON_PROVIDERS.has(b.id));
+  const inboundProviders = syncProviders.filter(p => p.direction === 'inbound').sort(sinkComingSoon);
+  const bidirectionalProviders = syncProviders.filter(p => p.direction === 'bidirectional').sort(sinkComingSoon);
 
   // Default: show provider picker
   return (
@@ -613,11 +626,11 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           
-          {/* 1. Import Data Sources */}
+          {/* 1. Sync data from a source */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
               type="inbound" 
-              title="Import Data Sources" 
+              title="Sync data from a source" 
               hint="Gmail, Notion, GitHub..."
               isExpanded={expandedSections.inbound}
               onClick={() => toggleSection('inbound')}
@@ -630,20 +643,29 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                 paddingBottom: 12,
                 paddingTop: 4
               }}>
-                {inboundProviders.map(p => (
-                  <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
-                    onClick={() => handleSelectSyncProvider(p.id)} />
-                ))}
+                {inboundProviders.map(p => {
+                  const comingSoon = COMING_SOON_PROVIDERS.has(p.id);
+                  return (
+                    <ProviderRow
+                      key={p.id}
+                      icon={p.icon}
+                      label={p.label}
+                      description={comingSoon ? 'Coming soon' : p.description}
+                      onClick={comingSoon ? () => {} : () => handleSelectSyncProvider(p.id)}
+                      disabled={comingSoon}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* 2. Two-Way Workspace Sync */}
+          {/* 2. Sync data with a folder */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
               type="sync" 
-              title="Two-Way Workspace Sync" 
-              hint="local dev, OpenClaw"
+              title="Sync data with a folder" 
+              hint="OpenClaw, Hermes Agent"
               isExpanded={expandedSections.sync}
               onClick={() => toggleSection('sync')}
             />
@@ -655,15 +677,6 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                 paddingBottom: 12,
                 paddingTop: 4
               }}>
-                {SYNC_OPTIONS.map(opt => (
-                  <ProviderRow
-                    key={opt.id}
-                    icon={opt.icon}
-                    label={opt.label}
-                    description={opt.description}
-                    onClick={() => handleSelectSyncProvider(opt.id)}
-                  />
-                ))}
                 {bidirectionalProviders.map(p => (
                   <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
                     onClick={() => handleSelectSyncProvider(p.id)} />
@@ -672,11 +685,11 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             )}
           </div>
 
-          {/* 3. Cursor, Claude Code & Terminal */}
+          {/* 3. Connect via terminal */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
               type="tools" 
-              title="Terminal & SSH" 
+              title="Connect via terminal" 
               hint="Cursor, Claude Code, Codex"
               isExpanded={expandedSections.tools}
               onClick={() => toggleSection('tools')}
@@ -700,11 +713,11 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
             )}
           </div>
 
-          {/* 4. PuppyOne AI Agent */}
+          {/* 4. Share data with an AI Agent */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
               type="agent" 
-              title="PuppyOne AI Agent" 
+              title="Share data with an AI Agent" 
               hint="built-in assistants"
               isExpanded={expandedSections.agent}
               onClick={() => toggleSection('agent')}
@@ -722,19 +735,20 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                     key={opt.id}
                     icon={opt.icon}
                     label={opt.label}
-                    description={opt.description}
-                    onClick={() => handleSelectAgentType(opt.id)}
+                    description="Coming soon"
+                    onClick={() => {}}
+                    disabled
                   />
                 ))}
               </div>
             )}
           </div>
 
-          {/* 5. Build Custom Integrations */}
+          {/* 5. Expose data */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <DirectionalSectionLabel 
               type="build" 
-              title="Build Custom Integrations" 
+              title="Expose data" 
               hint="MCP, Sandbox"
               isExpanded={expandedSections.build}
               onClick={() => toggleSection('build')}
@@ -752,8 +766,9 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                     key={opt.id}
                     icon={opt.icon}
                     label={opt.label}
-                    description={opt.description}
-                    onClick={() => handleSelectEndpointType(opt.id)}
+                    description="Coming soon"
+                    onClick={() => {}}
+                    disabled
                   />
                 ))}
               </div>
@@ -887,18 +902,27 @@ function ProviderRow({ icon, label, description, onClick, disabled }: {
         borderColor: hovered && !disabled ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
         borderRadius: 8, cursor: disabled ? 'default' : 'pointer', width: '100%',
         textAlign: 'left', transition: 'all 0.15s',
-        opacity: disabled ? 0.5 : 1,
+        opacity: disabled ? 0.45 : 1,
       }}
     >
       <div style={{
         width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(255,255,255,0.05)', flexShrink: 0,
+        background: disabled ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)', flexShrink: 0,
+        filter: disabled ? 'grayscale(1)' : undefined,
       }}>
         {icon}
       </div>
       <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: hovered && !disabled ? '#ffffff' : '#e4e4e7', transition: 'all 0.15s', lineHeight: 1.3 }}>{label}</div>
-        <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <div style={{
+          fontSize: 13, fontWeight: 500,
+          color: disabled ? '#52525b' : (hovered ? '#ffffff' : '#e4e4e7'),
+          transition: 'all 0.15s', lineHeight: 1.3,
+        }}>{label}</div>
+        <div style={{
+          fontSize: 12,
+          color: disabled ? '#52525b' : '#71717a',
+          lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
           {description}
         </div>
       </div>
