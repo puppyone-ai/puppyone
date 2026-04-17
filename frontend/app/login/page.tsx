@@ -10,7 +10,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signInWithProvider, signInWithEmail, signUpWithEmail, resetPassword } = useAuth();
+  const { signInWithProvider, signInWithEmail, signUpWithEmail, resendConfirmation, resetPassword } = useAuth();
 
   const [view, setView] = useState<AuthView>('main');
   const [email, setEmail] = useState('');
@@ -18,6 +18,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showResend, setShowResend] = useState(false);
 
   const clearFeedback = useCallback(() => {
     setError(null);
@@ -67,12 +68,31 @@ export default function LoginPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     clearFeedback();
+    setShowResend(false);
     setLoading('password');
     try {
       await signInWithEmail(email, password);
       router.push('/home');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Sign-in failed');
+      const msg = e instanceof Error ? e.message : 'Sign-in failed';
+      setError(msg);
+      if (msg.toLowerCase().includes('email not confirmed')) {
+        setShowResend(true);
+      }
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    clearFeedback();
+    setShowResend(false);
+    setLoading('resend');
+    try {
+      await resendConfirmation(email);
+      setMessage('Confirmation email sent! Please check your inbox.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to resend confirmation email');
     } finally {
       setLoading(null);
     }
@@ -210,6 +230,18 @@ export default function LoginPage() {
               </form>
 
               <Feedback error={error} message={message} />
+
+              {showResend && (
+                <div className="mt-3">
+                  <button
+                    onClick={handleResendConfirmation}
+                    disabled={disabled}
+                    className="w-full h-10 px-4 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1f1f1f] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading === 'resend' ? 'Sending...' : 'Resend confirmation email'}
+                  </button>
+                </div>
+              )}
 
               <div className="mt-4 text-center">
                 <button

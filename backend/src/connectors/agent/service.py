@@ -380,13 +380,19 @@ class AgentService:
                             }
                             client = MutEphemeralClient(repo_manager, agent.project_id, mut_auth)
                             await asyncio.to_thread(client.clone)
-                            push_result = await asyncio.to_thread(
-                                client.push,
+                            from src.mut_engine.services.hooks import push_and_finalize
+                            push_result = await push_and_finalize(
+                                client,
+                                agent.project_id,
+                                repo_manager=repo_manager,
                                 modified=modified_files,
                                 message="Schedule Agent write-back",
                                 who=agent_identity,
                             )
-                            logger.info(f"[ScheduleAgent] MUT push: v={push_result.get('version')} files={len(modified_files)}")
+                            logger.info(
+                                f"[ScheduleAgent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
+                                f"files={len(modified_files)}"
+                            )
                             for path in modified_files:
                                 result["updated_nodes"].append({
                                     "nodeId": path,
@@ -629,7 +635,7 @@ class AgentService:
                                     "path": f.path,
                                     "node_type": f.node_type,
                                     "readonly": tool["readonly"],
-                                    "base_version": f.base_version,
+                                    "base_commit_id": f.base_commit_id,
                                     "base_content": f.content,  # record original content at the time Agent reads it
                                 }
                         # Also record the folder itself (for display)
@@ -646,7 +652,7 @@ class AgentService:
                             "path": main_file.path,
                             "node_type": data.node_type,
                             "readonly": tool["readonly"],
-                            "base_version": main_file.base_version,
+                            "base_commit_id": main_file.base_commit_id,
                             "base_content": main_file.content,
                         }
                     else:
@@ -1195,15 +1201,17 @@ class AgentService:
                         live_session.scope_path,
                     )
                     if modified:
-                        push_result = await asyncio.to_thread(
-                            live_session.mut_client.push,
+                        from src.mut_engine.services.hooks import push_and_finalize
+                        push_result = await push_and_finalize(
+                            live_session.mut_client,
+                            live_session.project_id,
                             modified=modified,
                             message=f"Agent chat write-back ({len(modified)} files)",
                             who=f"agent:{request.agent_id}",
                         )
                         live_session.cloned_files.update(modified)
                         logger.info(
-                            f"[Agent] MUT push: v={push_result.get('version')} "
+                            f"[Agent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
                             f"merged={push_result.get('merged', False)} files={len(modified)}"
                         )
                         for path in modified:

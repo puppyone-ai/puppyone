@@ -1,4 +1,15 @@
-"""Content History API — versions, version-content, diff, rollback."""
+"""Commit history API — commits, commit-content, diff, rollback.
+
+All commit identity is hash-based (16-hex ``commit_id``). Commits are
+returned ordered by ``(created_at ASC, commit_id ASC)`` — matching the
+``mut.server.history`` filesystem backend contract. The frontend
+history page reverses in-place to show newest-first; the ASC order
+keeps the linear-catch-up semantics usable by the MUT protocol's
+clone/pull response fields.
+
+The tuple tiebreaker on ``commit_id`` keeps the order deterministic
+even if two commits land in the same microsecond on the server.
+"""
 
 from __future__ import annotations
 
@@ -9,8 +20,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.common_schemas import ApiResponse
 from src.mut_engine.dependencies import get_mut_admin_service, get_mut_ops, get_repo_manager
-from src.mut_engine.routers._content_helpers import ensure_project_access
+from src.mut_engine.routers._content_helpers import ensure_project_access, ensure_write_access
 from src.mut_engine.schemas import (
+    DiffResponse,
     FileVersionInfo,
     RollbackRequest,
     RollbackResponse,
@@ -29,15 +41,22 @@ history_router = APIRouter()
 
 
 @history_router.get(
-    "/{project_id}/versions",
+    "/{project_id}/commits",
     response_model=ApiResponse[VersionHistoryResponse],
-    summary="Version history",
+    summary="Commit history",
 )
-async def get_versions(
+async def get_commits(
     project_id: str,
     path: str = Query(None, description="File path (omit for project-level history)"),
     limit: int = Query(50, description="Maximum number of results"),
-    since_version: int = Query(0, description="Start from after this version"),
+    since_commit_id: str = Query(
+        "",
+        description=(
+            "Exclusive anchor — only commits strictly newer than this one "
+            "are returned. Leave empty to fetch the most recent ``limit`` "
+            "commits (the default)."
+        ),
+    ),
     mut_admin: MutAdminService = Depends(get_mut_admin_service),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
@@ -45,18 +64,17 @@ async def get_versions(
 ):
     ensure_project_access(project_service, current_user, project_id)
 
-    entries = await mut_admin.get_version_history(
+    entries = await mut_admin.get_commit_history(
         project_id=project_id,
         path=validate_path(path) if path else None,
         limit=limit,
-        since_version=since_version,
+        since_commit_id=since_commit_id,
     )
-    current_version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
-    versions = []
-    for e in entries:
-        versions.append(FileVersionInfo(
-            version=e.get("version", 0),
+    commits = [
+        FileVersionInfo(
+            commit_id=e.get("commit_id", ""),
             who=e.get("who", ""),
             message=e.get("message", ""),
             changes=e.get("changes") or [],
@@ -64,28 +82,30 @@ async def get_versions(
             root_hash=e.get("root_hash", ""),
             scope_path=e.get("scope_path", ""),
             created_at=e.get("created_at"),
-        ))
+        )
+        for e in entries
+    ]
 
     root_hash = ops.get_root_hash(project_id) or ""
 
     return ApiResponse.success(data=VersionHistoryResponse(
         project_id=project_id,
         path=path,
-        current_version=current_version,
+        head_commit_id=head_commit_id,
         root_hash=root_hash,
-        commits=versions,
-        total=len(versions),
+        commits=commits,
+        total=len(commits),
     ))
 
 
 @history_router.get(
-    "/{project_id}/version-content",
-    summary="Get file contents at a specific version",
+    "/{project_id}/commit-content",
+    summary="Get file contents at a specific commit",
 )
-async def get_version_content(
+async def get_commit_content(
     project_id: str,
     path: str = Query(..., description="File path"),
-    version: int = Query(..., description="Version number"),
+    commit_id: str = Query(..., description="Commit id (16-hex hash)"),
     mut_admin: MutAdminService = Depends(get_mut_admin_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -94,7 +114,7 @@ async def get_version_content(
 
     clean_path = validate_path(path)
     try:
-        content = await mut_admin.get_version_content(project_id, clean_path, version)
+        content = await mut_admin.get_commit_content(project_id, clean_path, commit_id)
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -105,7 +125,7 @@ async def get_version_content(
         try:
             return ApiResponse.success(data={
                 "path": clean_path,
-                "version": version,
+                "commit_id": commit_id,
                 "type": "json",
                 "content": _json.loads(content.decode("utf-8")),
             })
@@ -114,7 +134,7 @@ async def get_version_content(
 
     return ApiResponse.success(data={
         "path": clean_path,
-        "version": version,
+        "commit_id": commit_id,
         "type": node_type,
         "content_text": content.decode("utf-8", errors="replace"),
     })
@@ -122,12 +142,13 @@ async def get_version_content(
 
 @history_router.get(
     "/{project_id}/diff",
-    summary="Compare two versions",
+    response_model=ApiResponse[DiffResponse],
+    summary="Compare two commits",
 )
-async def diff_versions(
+async def diff_commits(
     project_id: str,
-    v1: int = Query(..., description="Version 1"),
-    v2: int = Query(..., description="Version 2"),
+    from_commit_id: str = Query(..., description="Source commit id"),
+    to_commit_id: str = Query(..., description="Target commit id"),
     mut_admin: MutAdminService = Depends(get_mut_admin_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -135,22 +156,22 @@ async def diff_versions(
     ensure_project_access(project_service, current_user, project_id)
 
     try:
-        changes = await mut_admin.compute_diff(project_id, v1, v2)
+        changes = await mut_admin.compute_diff(project_id, from_commit_id, to_commit_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    return ApiResponse.success(data={
-        "project_id": project_id,
-        "v1": v1,
-        "v2": v2,
-        "changes": changes,
-    })
+    return ApiResponse.success(data=DiffResponse(
+        project_id=project_id,
+        from_commit_id=from_commit_id,
+        to_commit_id=to_commit_id,
+        changes=changes,
+    ))
 
 
 @history_router.post(
     "/{project_id}/rollback",
     response_model=ApiResponse[RollbackResponse],
-    summary="Rollback to a specific version",
+    summary="Rollback to a specific commit",
 )
 async def rollback(
     project_id: str,
@@ -159,36 +180,48 @@ async def rollback(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    ensure_project_access(project_service, current_user, project_id)
+    ensure_write_access(project_service, current_user, project_id)
 
+    from mut.core.protocol import PROTOCOL_VERSION
+    from mut.foundation.error import (
+        ClientTooOldError,
+        LockError,
+        ObjectNotFoundError,
+        PermissionDenied,
+    )
     from mut.server.handlers import handle_rollback
+    from src.mut_engine.services.hooks import run_post_push_hook
 
-    # Rollback creates a NEW version whose tree content matches the target
-    # version.  It does NOT rewind the version counter.  The mut handler
-    # reads the target version's scope_hash/root, reconstructs the full
-    # file set, applies it to the current tree, and records a new commit
-    # with the resulting root_hash.  If "cat" after rollback still shows
-    # the old content, check that:
-    #   1. The target version's history entry has a valid root/scope_hash
-    #   2. The S3 blobs referenced by that hash still exist
-    #   3. The new root_hash was written to the projects row (set_root_hash)
     who = f"user:{current_user.user_id}"
     auth = {
         "agent": who,
         "_scope": {"id": who, "path": "", "exclude": [], "mode": "rw"},
     }
-    mut_body = {"target_version": body.target_version}
+    mut_body = {
+        "protocol_version": PROTOCOL_VERSION,
+        "target_commit_id": body.target_commit_id,
+    }
 
     try:
         repo = repo_manager.get_server_repo(project_id)
         result = await asyncio.to_thread(
             handle_rollback, repo, auth, mut_body,
         )
+    except ClientTooOldError as e:
+        raise HTTPException(status_code=426, detail=str(e))
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except (ValueError, ObjectNotFoundError) as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except LockError as e:
+        raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
+
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     return ApiResponse.success(data=RollbackResponse(
         project_id=project_id,
-        new_version=result.get("new_version", 0),
-        rolled_back_to=body.target_version,
+        new_commit_id=result.get("new_commit_id", ""),
+        rolled_back_to=body.target_commit_id,
     ))

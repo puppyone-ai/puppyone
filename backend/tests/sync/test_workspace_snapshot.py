@@ -26,8 +26,8 @@ class _FakeOps:
             return b'{\n  "ok": true\n}'
         raise FileNotFoundError(path)
 
-    def get_version(self, project_id: str) -> int:
-        return 7
+    def get_head_commit_id(self, project_id: str) -> str:
+        return "deadbeefcafebabe"
 
 
 class _FakeOpsWithBinary:
@@ -50,8 +50,8 @@ class _FakeOpsWithBinary:
             }).encode()
         raise FileNotFoundError(path)
 
-    def get_version(self, project_id: str) -> int:
-        return 12
+    def get_head_commit_id(self, project_id: str) -> str:
+        return "feedface12345678"
 
 
 @pytest.mark.asyncio
@@ -61,12 +61,12 @@ async def test_sync_worker_materializes_lower_snapshot(tmp_path: Path):
     result = await worker.sync_project("proj-1")
 
     assert result["status"] == "ok"
-    assert result["version"] == 7
+    assert result["head_commit_id"] == "deadbeefcafebabe"
     assert (tmp_path / "lower" / "proj-1" / "docs" / "readme.md").read_text() == "# Hello\n"
     assert json.loads((tmp_path / "lower" / "proj-1" / "data.json").read_text()) == {"ok": True}
 
     metadata = json.loads((tmp_path / "lower" / "proj-1" / ".metadata.json").read_text())
-    assert metadata["version"] == 7
+    assert metadata["head_commit_id"] == "deadbeefcafebabe"
     assert metadata["file_count"] == 2
 
 

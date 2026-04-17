@@ -17,4 +17,14 @@ restartPolicyMaxRetries = 10
 nixPkgs = ["python312"]
 
 [phases.build]
-cmds = ["pip install --upgrade pip && pip install -e ."]
+# Install dependencies from uv.lock (frozen) so the deployed image matches
+# what CI tests. Without --frozen the build would re-resolve pyproject.toml
+# and could pick up a newer patch (e.g. a future mutai 0.1.7) that CI never tested.
+# We export the lock to requirements format because Nixpacks' Python pipeline
+# already provisions a venv on PATH, so plain pip install slots in cleanly.
+cmds = [
+    "pip install --upgrade pip uv",
+    "uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
+    "pip install -r requirements.lock.txt",
+    "pip install -e . --no-deps",
+]

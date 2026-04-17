@@ -27,14 +27,18 @@ from src.mut_engine.services.ephemeral_client import MutEphemeralClient
 
 @dataclass
 class SandboxFile:
-    """A file to mount in a sandbox container."""
+    """A file to mount in a sandbox container.
+
+    ``base_commit_id`` snapshots the MUT commit this file was cloned at
+    so write-back can be traced to a specific point-in-time snapshot.
+    """
     path: str
     content: str | None = None
     s3_key: str | None = None
     content_type: str = "application/octet-stream"
     mut_path: str | None = None
     node_type: str | None = None
-    base_version: int = 0
+    base_commit_id: str = ""
 
 
 @dataclass
@@ -208,14 +212,16 @@ async def writeback_and_destroy(
                 session.scope_path,
             )
             if modified:
-                push_result = await asyncio.to_thread(
-                    session.mut_client.push,
+                from src.mut_engine.services.hooks import push_and_finalize
+                push_result = await push_and_finalize(
+                    session.mut_client,
+                    session.project_id,
                     modified=modified,
                     message=f"Agent write-back ({len(modified)} files)",
                     who=f"agent:{session.agent_id}",
                 )
                 logger.info(
-                    f"[AgentSandbox] MUT push: v={push_result.get('version')} "
+                    f"[AgentSandbox] MUT push: commit={push_result.get('commit_id')} "
                     f"merged={push_result.get('merged', False)} files={len(modified)}"
                 )
                 for path in modified:

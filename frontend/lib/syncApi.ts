@@ -50,14 +50,14 @@ export interface CreateSyncResult {
     provider: string;
     config: Record<string, unknown>;
     status: string;
-    last_sync_version: number;
+    last_sync_commit_id: string;
     error_message?: string | null;
   };
   execution_result?: {
     access_point_id: string;
     path: string;
     provider: string;
-    version: number;
+    commit_id: string;
     status: string;
     summary?: string;
     run_id?: string | null;

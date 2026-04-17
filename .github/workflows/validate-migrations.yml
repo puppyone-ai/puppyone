@@ -6,6 +6,56 @@ on:
       - "supabase/migrations/**"
 
 jobs:
+  lint-rpc-signatures:
+    name: Lint RPC parameter types (new migrations)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Catch the exact class of bug from 2026-04-17: CAS RPCs were declared
+      # with p_project_id UUID while projects.id / mut_*.project_id are TEXT,
+      # producing PostgreSQL error 42883 ("operator does not exist: text = uuid")
+      # at runtime. Only newly added migrations are checked so historical bug
+      # fixes (which keep both the original and the fix migration) still pass.
+      - name: Enforce p_project_id TEXT in new migrations
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          git fetch origin "$BASE_REF" --depth=1
+          NEW_MIGRATIONS=$(git diff --diff-filter=A --name-only "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql' || true)
+
+          if [ -z "$NEW_MIGRATIONS" ]; then
+            echo "No new migrations in this PR; skipping RPC signature lint."
+            exit 0
+          fi
+
+          echo "Scanning new migrations:"
+          echo "$NEW_MIGRATIONS"
+          echo ""
+
+          VIOLATIONS=""
+          for f in $NEW_MIGRATIONS; do
+            [ -f "$f" ] || continue
+            # Flag any p_project_id parameter declared as a non-TEXT type.
+            MATCH=$(grep -niE 'p_project_id[[:space:]]+(UUID|INT|BIGINT|BIGSERIAL|SERIAL|VARCHAR|CHAR)\b' "$f" || true)
+            if [ -n "$MATCH" ]; then
+              VIOLATIONS="${VIOLATIONS}${f}:${MATCH}"$'\n'
+            fi
+          done
+
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::error::New migration(s) declare p_project_id with a non-TEXT type."
+            echo "project_id columns in this repo are TEXT (values are UUID strings)."
+            echo "See docs/design/mut-scope-concurrency.md for the type convention."
+            echo ""
+            echo "$VIOLATIONS"
+            exit 1
+          fi
+
+          echo "OK: all new migrations use TEXT for p_project_id."
+
   validate-staging:
     name: Dry-run against Staging DB
     runs-on: ubuntu-latest
@@ -26,6 +76,14 @@ jobs:
       - name: Validate migrations (dry-run)
         run: supabase db push --dry-run
 
+      - name: Check for schema drift
+        run: |
+          DIFF=$(supabase db diff --linked 2>&1) || true
+          if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
+            echo "::warning::Staging DB has schema drift — manual changes exist that are not in migrations"
+            echo "$DIFF"
+          fi
+
   validate-production:
     name: Dry-run against Production DB
     runs-on: ubuntu-latest
@@ -45,3 +103,12 @@ jobs:
 
       - name: Validate migrations (dry-run)
         run: supabase db push --dry-run
+
+      - name: Check for schema drift
+        run: |
+          DIFF=$(supabase db diff --linked 2>&1) || true
+          if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
+            echo "::error::Production DB has schema drift — manual changes exist that are not in migrations"
+            echo "$DIFF"
+            exit 1
+          fi

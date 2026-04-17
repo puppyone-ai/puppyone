@@ -3,7 +3,14 @@ Mut Engine — Data models
 
 All data types used by the PuppyOne platform layer:
 1. Tree API request/response schemas
-2. Version history, diff, and rollback schemas
+2. Commit history, diff, and rollback schemas
+
+Identity model (as of 20260418):
+    Commits are identified by a 16-hex commit_id (SHA256 over
+    scope_path | scope_hash | created_at_iso | who).
+    The old integer `version` columns / fields are gone.
+    Clients that need to represent "no prior state" send an
+    empty string "" as the base_commit_id.
 """
 
 from __future__ import annotations
@@ -18,11 +25,16 @@ from pydantic import BaseModel
 # ============================================================
 
 class WriteFileRequest(BaseModel):
-    """Write file request"""
+    """Write file request.
+
+    `base_commit_id` is the client's expectation of the current
+    scope head. Empty string means "I have no base / this is the
+    first write". Mismatches trigger server-side three-way merge.
+    """
     path: str
     content: Any
     message: str = ""
-    base_version: int = 0
+    base_commit_id: str = ""
     node_type: str = "json"  # json | markdown | file
 
 
@@ -82,7 +94,7 @@ class ListDirResponse(BaseModel):
     """Response for listing directory contents"""
     path: str
     entries: list[MutEntryResponse]
-    version: int = 0
+    head_commit_id: str = ""
 
 
 class ReadFileResponse(BaseModel):
@@ -92,7 +104,7 @@ class ReadFileResponse(BaseModel):
     content: Any = None
     content_text: str | None = None
     content_hash: str | None = None
-    version: int = 0
+    head_commit_id: str = ""
 
 
 class StatResponse(BaseModel):
@@ -111,7 +123,7 @@ class TreeResponse(BaseModel):
     """Full directory tree response"""
     path: str
     entries: list[MutEntryResponse]
-    version: int = 0
+    head_commit_id: str = ""
 
 
 class TrashListResponse(BaseModel):
@@ -120,36 +132,37 @@ class TrashListResponse(BaseModel):
 
 
 # ============================================================
-# Version history schemas
+# Commit history schemas
 # ============================================================
 
 class FileVersionInfo(BaseModel):
-    """Version list item"""
-    version: int
+    """History list item for a single commit."""
+    commit_id: str
     who: str = ""
     message: str = ""
     changes: list[dict] = []
     conflicts: list[dict] = []
     root_hash: str = ""
+    scope_hash: str = ""
     scope_path: str = ""
     created_at: datetime | None = None
 
 
 class VersionHistoryResponse(BaseModel):
-    """Version history response"""
+    """Commit history response (kept name for API compat)."""
     project_id: str
     path: str | None = None
-    current_version: int
+    head_commit_id: str = ""
     root_hash: str = ""
     commits: list[FileVersionInfo]
     total: int
 
 
 class RollbackResponse(BaseModel):
-    """Rollback response"""
+    """Rollback creates a new forward-commit reverting content."""
     project_id: str
-    new_version: int
-    rolled_back_to: int
+    new_commit_id: str = ""
+    rolled_back_to: str = ""
 
 
 class DiffItem(BaseModel):
@@ -161,16 +174,17 @@ class DiffItem(BaseModel):
 
 
 class DiffResponse(BaseModel):
-    """Diff result between two versions"""
+    """Diff result between two commits"""
     project_id: str = ""
-    v1: int
-    v2: int
+    from_commit_id: str = ""
+    to_commit_id: str = ""
     changes: list[DiffItem]
 
 
 class RollbackRequest(BaseModel):
-    """Rollback request"""
-    target_version: int
+    """Rollback request — restore the scope to the state at
+    target_commit_id by creating a new forward commit."""
+    target_commit_id: str
 
 
 # ============================================================
@@ -192,9 +206,10 @@ class MutCommitConflict(BaseModel):
 
 
 class MutCommitInfo(BaseModel):
-    """Project-level commit record"""
-    version: int
+    """Project-level commit record."""
+    commit_id: str
     root_hash: str = ""
+    scope_hash: str = ""
     scope_path: str = ""
     who: str
     message: str = ""
@@ -206,7 +221,7 @@ class MutCommitInfo(BaseModel):
 class MutProjectHistoryResponse(BaseModel):
     """Project-level Mut commit history"""
     project_id: str
-    current_version: int
+    head_commit_id: str = ""
     root_hash: str = ""
     commits: list[MutCommitInfo]
     total: int

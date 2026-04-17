@@ -43,11 +43,15 @@ class PuppyOneAuthenticator:
             {"agent": str, "_scope": {"id", "path", "exclude", "mode"}}
         """
         if settings.SKIP_AUTH:
-            log_warning("SKIP_AUTH enabled — MUT auth returning mock user")
-            return {
-                "agent": "user:mock",
-                "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
-            }
+            env = getattr(settings, "ENVIRONMENT", getattr(settings, "ENV", ""))
+            if env and env.lower() not in ("local", "test", "development"):
+                log_error(f"[Auth] SKIP_AUTH is set but ENVIRONMENT={env} — refusing to skip auth in non-dev environment")
+            else:
+                log_warning("SKIP_AUTH enabled — MUT auth returning mock user")
+                return {
+                    "agent": "user:mock",
+                    "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
+                }
 
         user = self._try_jwt(token)
         if user:
@@ -64,13 +68,18 @@ class PuppyOneAuthenticator:
                     status_code=401, detail="Access key has been revoked"
                 )
 
-            # Check user identity binding
             bound_identity = conn.get("config", {}).get("user_identity", "")
-            if bound_identity and user_identity and user_identity != bound_identity:
-                raise HTTPException(
-                    status_code=401,
-                    detail="User identity mismatch: key is bound to a different user",
-                )
+            if bound_identity:
+                if not user_identity:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="X-Mut-User header required: key is bound to a specific user",
+                    )
+                if user_identity != bound_identity:
+                    raise HTTPException(
+                        status_code=401,
+                        detail="User identity mismatch: key is bound to a different user",
+                    )
 
             scope = self._resolve_scope(conn, project_id)
             return {
@@ -81,20 +90,44 @@ class PuppyOneAuthenticator:
         raise HTTPException(status_code=401, detail="Invalid MUT credentials")
 
     def _resolve_scope(self, conn: dict, project_id: str) -> dict:
-        """Read scope through ScopeManager (SupabaseScopeBackend)."""
+        """Read scope through ScopeManager (SupabaseScopeBackend).
+
+        Fails closed: if scope lookup fails or returns nothing, the request
+        is rejected rather than silently granting full project access.
+        """
         from mut.server.scope_manager import ScopeManager
 
         from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
 
-        backend = SupabaseScopeBackend(SupabaseClient(), project_id)
-        manager = ScopeManager(backend)
-        scope = manager.get_by_id(conn["id"])
+        try:
+            backend = SupabaseScopeBackend(SupabaseClient(), project_id)
+            manager = ScopeManager(backend)
+            scope = manager.get_by_id(conn["id"])
+        except Exception as e:
+            log_error(f"[Auth] Scope lookup failed for {conn['id']}: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="Scope resolution unavailable, try again later",
+            )
 
         if scope:
             scope.setdefault("mode", "rw")
             return scope
 
-        return {"id": conn["id"], "path": "", "exclude": [], "mode": "rw"}
+        config = conn.get("config") or {}
+        raw_scope = config.get("scope")
+        if isinstance(raw_scope, dict) and raw_scope.get("path") is not None:
+            return {
+                "id": conn["id"],
+                "path": raw_scope.get("path", ""),
+                "exclude": raw_scope.get("exclude", []),
+                "mode": raw_scope.get("mode", "rw"),
+            }
+
+        raise HTTPException(
+            status_code=403,
+            detail="No scope configured for this access point",
+        )
 
     def _try_jwt(self, token: str) -> dict | None:
         try:
@@ -113,7 +146,7 @@ class PuppyOneAuthenticator:
         try:
             resp = (
                 self._client.table("access_points")
-                .select("id, project_id, provider, config, revoked_at")
+                .select("id, project_id, provider, config, revoked_at, status")
                 .eq("access_key", key)
                 .limit(1)
                 .execute()
@@ -123,6 +156,8 @@ class PuppyOneAuthenticator:
                 return None
             conn = rows[0]
             if conn.get("project_id") != project_id:
+                return None
+            if conn.get("status") not in (None, "active", "syncing"):
                 return None
             return conn
         except Exception as e:

@@ -28,7 +28,7 @@ from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
 
 @dataclass
 class WriteResult:
-    version: int = 0
+    commit_id: str = ""
     status: str = "ok"
     merged: bool = False
     conflicts: int = 0
@@ -72,7 +72,7 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Delete one or more files."""
-        paths = [p.strip("/") for p in paths]
+        paths = [validate_path(p) for p in paths]
         return await self._do_push(
             project_id, who, scope,
             deleted=paths,
@@ -106,8 +106,8 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Move / rename a file or folder."""
-        old_path = old_path.strip("/")
-        new_path = new_path.strip("/")
+        old_path = validate_path(old_path)
+        new_path = validate_path(new_path)
 
         client = self._make_client(project_id, who, scope)
         files = await asyncio.to_thread(client.clone)
@@ -157,8 +157,8 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Batch write + optional batch delete in a single push."""
-        clean = {k.strip("/"): v for k, v in files.items()}
-        clean_del = [p.strip("/") for p in (deleted or [])]
+        clean = {validate_path(k): v for k, v in files.items()}
+        clean_del = [validate_path(p) for p in (deleted or [])]
         return await self._do_push(
             project_id, who, scope,
             modified=clean,
@@ -194,7 +194,10 @@ class MutOps:
                     modified[trash_path + suffix] = content
                     deleted.append(p)
         else:
-            modified[trash_path] = files.get(path, b"")
+            content = files.get(path)
+            if content is None:
+                raise FileNotFoundError(f"Path not found: {path}")
+            modified[trash_path] = content
             deleted.append(path)
 
         result = await asyncio.to_thread(
@@ -216,8 +219,8 @@ class MutOps:
         message: str = "",
     ) -> WriteResult:
         """Restore from .trash back to original path."""
-        trash_path = trash_path.strip("/")
-        original_path = original_path.strip("/")
+        trash_path = validate_path(trash_path)
+        original_path = validate_path(original_path)
 
         client = self._make_client(project_id, who, scope)
         files = await asyncio.to_thread(client.clone)
@@ -234,7 +237,10 @@ class MutOps:
                     modified[original_path + suffix] = content
                     deleted.append(p)
         else:
-            modified[original_path] = files.get(trash_path, b"")
+            content = files.get(trash_path)
+            if content is None:
+                raise FileNotFoundError(f"Trash item not found: {trash_path}")
+            modified[original_path] = content
             deleted.append(trash_path)
 
         result = await asyncio.to_thread(
@@ -296,8 +302,8 @@ class MutOps:
     def stat(self, project_id: str, path: str) -> MutEntry | None:
         return self._reader.stat(project_id, path.strip("/"))
 
-    def get_version(self, project_id: str) -> int:
-        return self._reader.get_version(project_id)
+    def get_head_commit_id(self, project_id: str) -> str:
+        return self._reader.get_head_commit_id(project_id)
 
     def get_root_hash(self, project_id: str) -> str:
         return self._reader.get_root_hash(project_id)
@@ -347,13 +353,17 @@ class MutOps:
         try:
             from src.mut_engine.services.hooks import run_post_push_hook
             run_post_push_hook(project_id, self._repos, push_result)
-        except Exception:
-            pass
+        except Exception as e:
+            from src.utils.logger import log_warning
+            log_warning(
+                f"[MutOps] post-push hook failed for project={project_id} "
+                f"commit={push_result.get('commit_id') or push_result.get('new_commit_id')}: {e}"
+            )
 
     @staticmethod
     def _to_result(raw: dict, paths: list[str] | None = None) -> WriteResult:
         return WriteResult(
-            version=raw.get("version", 0),
+            commit_id=raw.get("commit_id") or raw.get("new_commit_id") or "",
             status=raw.get("status", "ok"),
             merged=raw.get("merged", False),
             conflicts=raw.get("conflicts", 0),

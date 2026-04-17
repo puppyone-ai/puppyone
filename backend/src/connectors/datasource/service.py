@@ -301,19 +301,21 @@ class SyncService:
     async def push_node(
         self,
         path: str,
-        version: int,
+        commit_id: str,
         content: Any,
         node_type: str,
     ) -> List[dict]:
         """
         Called after a write completes.
         Push changes to the external system bound to this path.
+        Idempotency is by ``commit_id`` equality — we skip only if
+        the same commit was already pushed.
         """
         sync = self.sync_repo.find_owner_by_path(path)
         if not sync:
             return []
 
-        if sync.last_sync_version >= version:
+        if commit_id and sync.last_sync_commit_id == commit_id:
             return []
 
         if sync.status != "active" or sync.direction == "inbound":
@@ -329,12 +331,12 @@ class SyncService:
             if push_result.success:
                 self.sync_repo.update_sync_point(
                     sync_id=sync.id,
-                    last_sync_version=version,
+                    last_sync_commit_id=commit_id,
                     remote_hash=push_result.remote_hash,
                 )
                 external_resource_id = sync.config.get("external_resource_id", "")
                 log_info(
-                    f"[L2.5] PUSH {path} v{version} → "
+                    f"[L2.5] PUSH {path} commit={commit_id} → "
                     f"{sync.provider}:{external_resource_id}"
                 )
                 return [{

@@ -25,7 +25,7 @@ def _sync_resp(s):
         "provider": s.provider,
         "config": s.config,
         "status": s.status,
-        "last_sync_version": s.last_sync_version,
+        "last_sync_commit_id": s.last_sync_commit_id,
         "error_message": s.error_message,
     }
 
@@ -58,7 +58,7 @@ async def process_push_file(
                 "path": existing.path,
                 "external_resource_id": body.external_resource_id,
                 "action": "skipped",
-                "version": existing.last_sync_version,
+                "commit_id": existing.last_sync_commit_id,
             }
 
         # Update existing file
@@ -73,18 +73,18 @@ async def process_push_file(
             who=f"sync:cli:{body.external_resource_id}",
             message=f"push update {body.external_resource_id}",
         )
-        version = write_result.version
+        commit_id = write_result.commit_id
 
         sync_svc.sync_repo.update_sync_point(
             sync_id=existing.id,
-            last_sync_version=version,
+            last_sync_commit_id=commit_id,
             remote_hash=body.content_hash,
         )
         return {
             "path": existing.path,
             "external_resource_id": body.external_resource_id,
             "action": "updated",
-            "version": version,
+            "commit_id": commit_id,
         }
 
     # Create new file
@@ -111,13 +111,13 @@ async def process_push_file(
         who=f"sync:cli:{body.external_resource_id}",
         message=f"push create {body.external_resource_id}",
     )
-    version = write_result.version
+    commit_id = write_result.commit_id
 
     return {
         "path": file_path,
         "external_resource_id": body.external_resource_id,
         "action": "created",
-        "version": version,
+        "commit_id": commit_id,
     }
 
 
@@ -133,7 +133,12 @@ def process_pull_files(
     Core logic for pulling files that changed on the server since last sync.
 
     Returns a list of dicts, each with keys:
-    path, external_resource_id, content_json, content_md, node_type, current_version.
+    path, external_resource_id, content_json, content_md, node_type, head_commit_id.
+
+    ``head_commit_id`` identifies the project-wide MUT commit snapshot
+    these files were read at. Skipping logic is equality-based: a sync
+    whose ``last_sync_commit_id`` already equals the current head gets
+    filtered out.
     """
     files: list[dict] = []
 
@@ -141,13 +146,13 @@ def process_pull_files(
         parent_sync.project_id, parent_sync.provider,
     )
 
-    current_version = ops.get_version(project_id)
+    head_commit_id = ops.get_head_commit_id(project_id)
 
     for s in syncs:
         if not s.path:
             continue
 
-        if current_version <= s.last_sync_version:
+        if head_commit_id and s.last_sync_commit_id == head_commit_id:
             continue
 
         ext_resource_id = s.config.get("external_resource_id", "")
@@ -179,7 +184,7 @@ def process_pull_files(
             "content_json": json_content if is_json else None,
             "content_md": text_content if not is_json else None,
             "node_type": "json" if is_json else "markdown",
-            "current_version": current_version,
+            "head_commit_id": head_commit_id,
         })
 
     return files

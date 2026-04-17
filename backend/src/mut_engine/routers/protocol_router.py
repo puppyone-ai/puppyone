@@ -15,7 +15,8 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from mut.foundation.error import LockError, PermissionDenied
+from mut.core.protocol import require_supported_protocol
+from mut.foundation.error import ClientTooOldError, LockError, PermissionDenied
 from mut.server.handlers import (
     handle_clone,
     handle_negotiate,
@@ -38,6 +39,18 @@ def _invoke(handler_fn, repo_manager: MutRepoManager, project_id: str, auth: dic
     return handler_fn(repo, auth, body)
 
 
+def _raise_too_old(e: ClientTooOldError):
+    """Lift a protocol-version rejection out of handler threads as an
+    HTTP 426 Upgrade Required.
+
+    The generic ``except Exception`` arms further down would otherwise
+    flatten this to a 500 and strip the semantic cue the client's
+    transport layer needs to print "please upgrade" instead of the
+    default "server error" / "cannot reach server" message.
+    """
+    raise HTTPException(status_code=e.http_status, detail=str(e))
+
+
 @router.post("/{project_id}/clone")
 async def mut_clone(
     project_id: str,
@@ -52,6 +65,8 @@ async def mut_clone(
         result = await asyncio.to_thread(
             _invoke, handle_clone, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -72,23 +87,36 @@ async def mut_push(
     """Push changes to server (like `git push`). Includes server-side merge."""
     body = await request.json()
 
+    # Protocol-version gate runs *before* size validation so an outdated
+    # client gets a clear 426 ("upgrade your client") instead of a
+    # misleading 413 ("payload too large") when it ships a fat push.
+    try:
+        require_supported_protocol(body)
+    except ClientTooOldError as e:
+        _raise_too_old(e)
+
+    from src.mut_engine.server.validation import validate_push_objects
+    validate_push_objects(body)
+
     try:
         result = await asyncio.to_thread(
             _invoke, handle_push, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
-        raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         log_error(f"[MUT] push failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
-    run_post_push_hook(project_id, repo_manager, result)
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(
         f"[MUT] push project={project_id} agent={auth['agent']} "
-        f"v={result.get('version')} merged={result.get('merged', False)}"
+        f"commit={result.get('commit_id')} merged={result.get('merged', False)}"
     )
     return JSONResponse(result)
 
@@ -107,6 +135,8 @@ async def mut_pull(
         result = await asyncio.to_thread(
             _invoke, handle_pull, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -134,6 +164,10 @@ async def mut_negotiate(
         result = await asyncio.to_thread(
             _invoke, handle_negotiate, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         log_error(f"[MUT] negotiate failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
@@ -148,7 +182,7 @@ async def mut_rollback(
     auth: dict = Depends(get_mut_auth),
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
-    """Rollback to a historical version (creates a revert commit)."""
+    """Rollback to a historical commit (creates a revert commit)."""
     from mut.server.handlers import handle_rollback
 
     body = await request.json()
@@ -157,6 +191,8 @@ async def mut_rollback(
         result = await asyncio.to_thread(
             _invoke, handle_rollback, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
@@ -165,37 +201,41 @@ async def mut_rollback(
         log_error(f"[MUT] rollback failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
 
+    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
+
     log_info(
         f"[MUT] rollback project={project_id} agent={auth['agent']} "
-        f"target_v={result.get('target_version')} new_v={result.get('new_version')}"
+        f"target={result.get('target_commit_id')} new={result.get('new_commit_id')}"
     )
     return JSONResponse(result)
 
 
-@router.post("/{project_id}/pull-version")
-async def mut_pull_version(
+@router.post("/{project_id}/pull-commit")
+async def mut_pull_commit(
     project_id: str,
     request: Request,
     auth: dict = Depends(get_mut_auth),
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
-    """Pull files at a specific historical version (not just latest)."""
-    from mut.server.handlers import handle_pull_version
+    """Pull files at a specific historical commit (not just latest)."""
+    from mut.server.handlers import handle_pull_commit
 
     body = await request.json()
 
     try:
         result = await asyncio.to_thread(
-            _invoke, handle_pull_version, repo_manager, project_id, auth, body,
+            _invoke, handle_pull_commit, repo_manager, project_id, auth, body,
         )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        log_error(f"[MUT] pull-version failed for project {project_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Pull version failed: {e}")
+        log_error(f"[MUT] pull-commit failed for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Pull commit failed: {e}")
 
     log_info(
-        f"[MUT] pull-version project={project_id} agent={auth['agent']} "
-        f"version={result.get('version')}"
+        f"[MUT] pull-commit project={project_id} agent={auth['agent']} "
+        f"commit={result.get('commit_id')}"
     )
     return JSONResponse(result)

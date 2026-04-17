@@ -3,19 +3,22 @@ MutAdminService — Server-level admin and history operations for MUT tree.
 
 Handles:
   - Tree initialization (init_tree)
-  - Version history queries (get_version_history, get_version_content)
-  - Version diff (compute_diff)
+  - Commit history queries (get_commit_history, get_commit_content)
+  - Commit diff (compute_diff)
 
 All writes (including rollback) go through MutOps → MUT protocol handlers.
+Commits are identified by hash-based ``commit_id`` strings (16 hex chars);
+the old integer ``version`` is no longer used at any layer.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from mut.core.diff import diff_trees
 from mut.core.object_store import ObjectStore
-from mut.core.tree import tree_to_flat
+from mut.core.tree import read_tree
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_info, log_warning
@@ -61,75 +64,89 @@ class MutAdminService:
             await asyncio.to_thread(repo.store.put, empty_tree)
 
         repo.history.set_root_hash(root_hash)
-        if not existing:
-            repo.history.set_latest_version(0)
 
         log_info(f"[MutAdmin] Initialized empty tree for project {project_id}")
         return root_hash
 
     # ================================================================
-    # Version history queries
+    # Commit history queries (hash-identity)
     # ================================================================
 
-    async def get_version_history(
+    async def get_commit_history(
         self,
         project_id: str,
         path: str | None = None,
         limit: int = 50,
-        since_version: int = 0,
+        since_commit_id: str = "",
     ) -> list[dict]:
-        """Get version history.
+        """Get commit history ordered by ``(created_at ASC, commit_id ASC)``.
 
-        When *path* is specified we need to fetch a larger batch from the DB
-        because the SQL query returns all commits (not just those touching the
-        file) and we filter in Python.  We cap the post-filter result at
-        *limit* so callers always get at most the requested number of entries.
+        Contract matches ``mut.server.history`` backends: linear ASC
+        order (oldest first). When ``limit > 0`` we return the
+        *newest* ``limit`` commits (the tail of the ASC list), not the
+        oldest — so callers asking for "latest 50" actually get the
+        most recent 50.
+
+        When *path* is specified we need to fetch a larger batch from
+        the DB because the SQL query returns all commits (not just
+        those touching the file) and we filter in Python. We cap the
+        post-filter result at *limit* so callers always get at most
+        the requested number of entries.
+
+        ``since_commit_id`` is an exclusive anchor — commits strictly
+        newer than this one are returned. Leave empty to fetch from
+        the head (latest).
         """
         repo = self._repos.get_repo(project_id)
         fetch_limit = limit * 10 if path else limit
-        entries = repo.history.get_since(since_version, limit=fetch_limit)
+        entries = repo.history.get_since(since_commit_id, limit=fetch_limit)
 
         if path:
             entries = [
                 e for e in entries
                 if any(c.get("path") == path for c in e.get("changes", []))
             ]
-            entries = entries[:limit]
+            # entries is ASC (oldest first) — keep the *tail* so callers
+            # asking for "latest 50 touching this file" see the most
+            # recent changes, not the oldest.
+            entries = entries[-limit:]
 
         return entries
 
-    async def get_version_content(
+    async def get_commit_content(
         self,
         project_id: str,
         path: str,
-        version: int,
+        commit_id: str,
     ) -> bytes:
-        """Get file content at a specific version."""
+        """Get file content at a specific commit."""
         repo = self._repos.get_repo(project_id)
-        entry = repo.history.get_entry(version)
+        entry = await asyncio.to_thread(repo.history.get_entry, commit_id)
         if not entry:
-            raise ValueError(f"Version {version} not found")
+            raise ValueError(f"Commit {commit_id} not found")
 
         root = _resolve_entry_root(entry)
         if not root:
-            raise ValueError(f"Version {version} has no root hash")
+            raise ValueError(f"Commit {commit_id} has no root hash")
 
-        blob_hash = _resolve_path_hash(repo.store, root, path)
+        blob_hash = await asyncio.to_thread(
+            _resolve_path_hash, repo.store, root, path,
+        )
         if not blob_hash:
-            raise FileNotFoundError(f"File {path} not found at v{version}")
+            raise FileNotFoundError(f"File {path} not found at {commit_id}")
 
-        return repo.store.get(blob_hash)
+        return await asyncio.to_thread(repo.store.get, blob_hash)
 
     async def compute_diff(
-        self, project_id: str, v1: int, v2: int
+        self, project_id: str, from_commit_id: str, to_commit_id: str
     ) -> list[dict]:
-        """Compute the diff between two versions."""
+        """Compute the diff between two commits."""
         repo = self._repos.get_repo(project_id)
 
-        entry1 = repo.history.get_entry(v1)
-        entry2 = repo.history.get_entry(v2)
+        entry1 = await asyncio.to_thread(repo.history.get_entry, from_commit_id)
+        entry2 = await asyncio.to_thread(repo.history.get_entry, to_commit_id)
         if not entry1 or not entry2:
-            raise ValueError(f"Version {v1} or {v2} not found")
+            raise ValueError(f"Commit {from_commit_id} or {to_commit_id} not found")
 
         root1 = _resolve_entry_root(entry1)
         root2 = _resolve_entry_root(entry2)
@@ -137,7 +154,7 @@ class MutAdminService:
         if not root1 or not root2:
             return []
 
-        return diff_trees(repo.store, root1, root2)
+        return await asyncio.to_thread(diff_trees, repo.store, root1, root2)
 
 
 def _resolve_entry_root(entry: dict) -> str:
@@ -153,11 +170,27 @@ def _resolve_entry_root(entry: dict) -> str:
 
 
 def _resolve_path_hash(store: ObjectStore, root_hash: str, path: str) -> str:
-    """Resolve a file path to its blob hash within a Merkle tree."""
-    if not root_hash:
+    """Resolve a file path to its blob hash by navigating the tree — O(depth)."""
+    if not root_hash or not path:
+        return ""
+    parts = [p for p in path.split("/") if p]
+    if not parts:
         return ""
     try:
-        flat = tree_to_flat(store, root_hash)
-        return flat.get(path, "")
+        current = root_hash
+        for part in parts[:-1]:
+            entries = read_tree(store, current)
+            if part not in entries:
+                return ""
+            typ, h = entries[part]
+            if typ != "T":
+                return ""
+            current = h
+        entries = read_tree(store, current)
+        leaf = parts[-1]
+        if leaf not in entries:
+            return ""
+        typ, h = entries[leaf]
+        return h if typ != "T" else ""
     except Exception:
         return ""

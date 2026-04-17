@@ -5,11 +5,57 @@ These hooks update the access_points table when files are deleted or moved
 in the MUT tree, ensuring access point paths and scope paths stay consistent.
 
 Best-effort: failures are logged, not propagated to the caller.
+
+Also provides `push_and_finalize` — the canonical async helper that ensures
+every push (regardless of call site) triggers the post-push hook.
 """
 
 from __future__ import annotations
 
+import asyncio
+
 from src.utils.logger import log_error, log_info, log_warning
+
+
+async def push_and_finalize(
+    client,
+    project_id: str,
+    *,
+    repo_manager=None,
+    modified: dict[str, bytes] | None = None,
+    deleted: list[str] | None = None,
+    message: str = "",
+    who: str | None = None,
+) -> dict:
+    """Push changes via MutEphemeralClient and run the post-push hook.
+
+    This is the canonical way to push from any async context (agent,
+    sandbox, connector). Using this instead of bare client.push()
+    guarantees root_hash is grafted after every successful write.
+    """
+    result = await asyncio.to_thread(
+        client.push,
+        modified=modified,
+        deleted=deleted,
+        message=message,
+        who=who,
+    )
+
+    if result.get("status") == "ok":
+        if repo_manager is None:
+            from src.mut_engine.dependencies import get_repo_manager_standalone
+            repo_manager = get_repo_manager_standalone()
+        try:
+            await asyncio.to_thread(
+                run_post_push_hook, project_id, repo_manager, result,
+            )
+        except Exception as e:
+            log_warning(f"[PostCommit] hook failed after push: {e}")
+
+    return result
+
+
+_SUCCESS_STATUSES = frozenset({"ok", "rolled-back"})
 
 
 def run_post_push_hook(
@@ -17,22 +63,32 @@ def run_post_push_hook(
     repo_manager,
     push_result: dict,
 ) -> None:
-    """Inspect a push result and trigger relevant post-commit hooks.
+    """Inspect a push/rollback result and trigger relevant post-commit hooks.
 
-    Called by protocol_router and access_point after a successful MUT push.
+    Called by protocol_router and access_point after a successful MUT
+    push or rollback.  Accepts both formats:
+      - push:     {"status": "ok",         "commit_id": "…", "root": "..."}
+      - rollback: {"status": "rolled-back","new_commit_id": "…", "root": "..."}
+
     1. Grafts scope tree into the global root hash so tree_reader can see it
     2. Extracts deleted paths from the commit entry and runs post_commit_delete
     """
-    version = push_result.get("version")
-    if not version or push_result.get("status") != "ok":
+    status = push_result.get("status", "")
+    if status not in _SUCCESS_STATUSES:
         return
+
+    commit_id = push_result.get("commit_id") or push_result.get("new_commit_id") or ""
+    if not commit_id:
+        return
+
+    result_for_graft = {**push_result, "commit_id": commit_id}
 
     try:
         repo = repo_manager.get_repo(project_id)
 
-        _update_global_root(repo, push_result)
+        _update_global_root(repo, result_for_graft)
 
-        entry = repo.history.get_entry(version)
+        entry = repo.history.get_entry(commit_id)
         if not entry:
             return
 
@@ -54,36 +110,65 @@ def run_post_push_hook(
 
 
 def _update_global_root(repo, push_result: dict) -> None:
-    """Graft the pushed scope tree into the global root hash.
+    """Graft the pushed scope tree into the global root hash with CAS protection.
 
-    This keeps the global root hash in sync so that tree_reader (which reads
-    from root_hash) can see files pushed via scoped access points.
-    repo is a ProjectRepo (dataclass with .store, .history).
+    Uses conflict-aware grafting: if another scope modified the same subtree
+    concurrently, performs a three-way merge instead of blind replacement.
     """
+    from mut.server.graft import graft_or_merge_subtree
+
     scope_hash = push_result.get("root", "")
     if not scope_hash:
         return
 
+    commit_id = push_result["commit_id"]
+    entry = repo.history.get_entry(commit_id)
+    if not entry:
+        log_error(f"[PostCommit] No history entry for commit {commit_id}")
+        return
+
+    scope_path = (entry.get("scope_path") or "").strip("/")
+    old_scope_hash = _get_previous_scope_hash(repo, commit_id, scope_path)
+
+    MAX_GRAFT_RETRIES = 5
+    for attempt in range(MAX_GRAFT_RETRIES):
+        try:
+            db_root = repo.history.get_root_hash() or ""
+
+            if db_root:
+                graft_base = db_root
+            else:
+                import json
+                graft_base = repo.store.put(json.dumps({}, sort_keys=True).encode())
+
+            new_root = graft_or_merge_subtree(
+                repo.store, graft_base, scope_path, old_scope_hash, scope_hash,
+            )
+
+            if repo.history.cas_update_root_hash(db_root, new_root):
+                log_info(f"[PostCommit] Updated global root: scope='{scope_path}' hash={new_root[:16]} (attempt {attempt + 1})")
+                return
+
+            log_info(f"[PostCommit] Graft CAS retry {attempt + 1} for scope='{scope_path}'")
+
+        except Exception as e:
+            log_warning(f"[PostCommit] Graft attempt {attempt + 1} failed (will retry): {e}")
+            continue
+
+    log_error(f"[PostCommit] Graft failed after {MAX_GRAFT_RETRIES} retries for scope='{scope_path}'")
+
+
+def _get_previous_scope_hash(repo, current_commit_id: str, scope_path: str) -> str:
+    """Get the scope hash from the commit BEFORE the current one.
+
+    Used for conflict detection in graft: if the subtree has changed
+    from this hash, another scope modified files in our path.
+    """
     try:
-        from mut.server.graft import graft_subtree
-
-        entry = repo.history.get_entry(push_result["version"])
-        if not entry:
-            log_error(f"[PostCommit] No history entry for version {push_result['version']}")
-            return
-
-        scope_path = (entry.get("scope_path") or "").strip("/")
-
-        old_root = repo.history.get_root_hash() or ""
-        if not old_root:
-            import json
-            old_root = repo.store.put(json.dumps({}, sort_keys=True).encode())
-
-        new_root = graft_subtree(repo.store, old_root, scope_path, scope_hash)
-        repo.history.set_root_hash(new_root)
-        log_info(f"[PostCommit] Updated global root: scope='{scope_path}' hash={new_root[:16]}")
+        return repo.history.get_previous_scope_hash(scope_path, current_commit_id)
     except Exception as e:
-        log_error(f"[PostCommit] Failed to update global root hash: {e}")
+        log_warning(f"[PostCommit] Failed to get previous scope hash: {e}")
+        return ""
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:

@@ -370,15 +370,17 @@ async def exec_command(
                 sandbox_service, session_id, original_files, mount_target, scope_path,
             )
             if modified:
-                push_result = await asyncio.to_thread(
-                    client.push,
+                from src.mut_engine.services.hooks import push_and_finalize
+                push_result = await push_and_finalize(
+                    client,
+                    project_id,
                     modified=modified,
                     message=f"Sandbox exec: {command[:80]}",
                 )
                 writeback_results.append({
                     "scope": scope_path,
                     "files_written": len(modified),
-                    "version": push_result.get("version"),
+                    "commit_id": push_result.get("commit_id"),
                 })
 
         if writeback_results:

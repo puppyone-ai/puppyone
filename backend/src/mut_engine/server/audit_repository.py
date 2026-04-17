@@ -24,14 +24,18 @@ class AuditRepository:
         project_id: str | None = None,
         operator_type: str = "user",
         operator_id: str | None = None,
-        old_version: int | None = None,
-        new_version: int | None = None,
         status: str | None = None,
         strategy: str | None = None,
         conflict_details: str | None = None,
         metadata: dict | None = None,
     ) -> None:
-        """Insert an audit log entry"""
+        """Insert an audit log entry.
+
+        Commit identity (before/after commit_id) is not promoted into
+        dedicated columns — callers should include it in ``metadata``
+        (e.g. ``{"commit_id": ..., "target_commit_id": ...}``). This
+        keeps the audit schema agnostic to the version identity model.
+        """
         data: dict[str, Any] = {
             "action": action,
             "path": path,
@@ -41,10 +45,6 @@ class AuditRepository:
             data["project_id"] = project_id
         if operator_id is not None:
             data["operator_id"] = operator_id
-        if old_version is not None:
-            data["old_version"] = old_version
-        if new_version is not None:
-            data["new_version"] = new_version
         if status is not None:
             data["status"] = status
         if strategy is not None:

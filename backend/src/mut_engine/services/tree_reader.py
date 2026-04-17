@@ -220,14 +220,17 @@ class MutTreeReader:
             log_error(f"[MutTreeReader] Failed to get root hash: {e}")
             return ""
 
-    def get_version(self, project_id: str) -> int:
-        """Get the current version number of the project."""
+    def get_head_commit_id(self, project_id: str) -> str:
+        """Get the project's current global head commit_id (may be empty).
+
+        Returns the commit_id of the most recent commit across all scopes.
+        """
         try:
             repo = self._repos.get_repo(project_id)
-            return repo.history.get_latest_version()
+            return repo.history.get_head_commit_id() or ""
         except Exception as e:
-            log_error(f"[MutTreeReader] Failed to get version: {e}")
-            return 0
+            log_error(f"[MutTreeReader] Failed to get head commit_id: {e}")
+            return ""
 
     # ── Internal helpers ──
 
@@ -252,11 +255,30 @@ class MutTreeReader:
     def _resolve_blob(
         self, store: ObjectStore, root_hash: str, path: str
     ) -> str | None:
+        """Navigate directly to a blob by path — O(depth) not O(total files)."""
         if not root_hash:
             return None
+        parts = [p for p in path.split("/") if p]
+        if not parts:
+            return None
         try:
-            flat = tree_to_flat(store, root_hash)
-            return flat.get(path)
+            current = root_hash
+            for part in parts[:-1]:
+                entries = read_tree(store, current)
+                if part not in entries:
+                    return None
+                typ, h = entries[part]
+                if typ != "T":
+                    return None
+                current = h
+            entries = read_tree(store, current)
+            leaf = parts[-1]
+            if leaf not in entries:
+                return None
+            typ, h = entries[leaf]
+            if typ == "T":
+                return None
+            return h
         except Exception:
             return None
 
