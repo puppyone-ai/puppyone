@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../supabase/SupabaseAuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -20,7 +20,36 @@ type AuthView = 'main' | 'signin' | 'signup' | 'verify-otp' | 'forgot';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 const RESEND_COOLDOWN_SECONDS = 300; // 5 minutes
 
+/**
+ * Default export wraps the inner page in <Suspense> because
+ * useSearchParams() forces client-side rendering and Next.js 15
+ * requires an explicit Suspense boundary during prerender.
+ * Without this wrapper the production build fails with:
+ *   "useSearchParams() should be wrapped in a suspense boundary at page /login"
+ */
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginPageFallback />}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+      <img
+        src="/puppyone-logo.svg"
+        alt="PuppyOne"
+        width={48}
+        height={48}
+        className="opacity-50 animate-pulse"
+      />
+    </div>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const {
