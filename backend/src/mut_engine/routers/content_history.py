@@ -182,7 +182,13 @@ async def rollback(
 ):
     ensure_write_access(project_service, current_user, project_id)
 
-    from mut.foundation.error import LockError, ObjectNotFoundError, PermissionDenied
+    from mut.core.protocol import PROTOCOL_VERSION
+    from mut.foundation.error import (
+        ClientTooOldError,
+        LockError,
+        ObjectNotFoundError,
+        PermissionDenied,
+    )
     from mut.server.handlers import handle_rollback
     from src.mut_engine.services.hooks import run_post_push_hook
 
@@ -191,13 +197,18 @@ async def rollback(
         "agent": who,
         "_scope": {"id": who, "path": "", "exclude": [], "mode": "rw"},
     }
-    mut_body = {"target_commit_id": body.target_commit_id}
+    mut_body = {
+        "protocol_version": PROTOCOL_VERSION,
+        "target_commit_id": body.target_commit_id,
+    }
 
     try:
         repo = repo_manager.get_server_repo(project_id)
         result = await asyncio.to_thread(
             handle_rollback, repo, auth, mut_body,
         )
+    except ClientTooOldError as e:
+        raise HTTPException(status_code=426, detail=str(e))
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
     except (ValueError, ObjectNotFoundError) as e:

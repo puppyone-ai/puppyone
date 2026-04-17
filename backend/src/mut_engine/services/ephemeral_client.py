@@ -142,7 +142,8 @@ class MutEphemeralClient:
             who: override agent identity
 
         Returns:
-            Push result dict with status, version, merged, conflicts.
+            Push result dict with ``status``, ``commit_id`` (16-hex hash),
+            ``merged``, and ``conflicts``.
         """
         modified = modified or {}
         deleted = deleted or []

@@ -15,6 +15,7 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from mut.core.protocol import require_supported_protocol
 from mut.foundation.error import ClientTooOldError, LockError, PermissionDenied
 from mut.server.handlers import (
     handle_clone,
@@ -85,6 +86,14 @@ async def mut_push(
 ):
     """Push changes to server (like `git push`). Includes server-side merge."""
     body = await request.json()
+
+    # Protocol-version gate runs *before* size validation so an outdated
+    # client gets a clear 426 ("upgrade your client") instead of a
+    # misleading 413 ("payload too large") when it ships a fat push.
+    try:
+        require_supported_protocol(body)
+    except ClientTooOldError as e:
+        _raise_too_old(e)
 
     from src.mut_engine.server.validation import validate_push_objects
     validate_push_objects(body)

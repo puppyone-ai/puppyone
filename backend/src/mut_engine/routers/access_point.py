@@ -24,6 +24,7 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from mut.core.protocol import require_supported_protocol
 from mut.foundation.error import ClientTooOldError, LockError, PermissionDenied
 from mut.server.handlers import (
     handle_clone,
@@ -176,6 +177,10 @@ async def ap_push(access_key: str, request: Request):
     try:
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
         body = await request.json()
+
+        # Reject outdated clients up-front so the size validation below
+        # cannot mask a 426 with a confusing 413 ("payload too large").
+        require_supported_protocol(body)
 
         from src.mut_engine.server.validation import validate_push_objects
         validate_push_objects(body)

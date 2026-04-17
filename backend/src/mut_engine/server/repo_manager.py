@@ -122,11 +122,3 @@ class MutRepoManager:
         except Exception as e:
             log_error(f"[RepoManager] Failed to lookup project name: {e}")
             return "project"
-
-    def init_repo(self, project_id: str) -> ProjectRepo:
-        """Initialize the Mut repo state for a new project"""
-        repo = self.get_repo(project_id)
-        if repo.history.get_latest_version() == 0:
-            repo.history.set_latest_version(0)
-            repo.history.set_root_hash("")
-        return repo

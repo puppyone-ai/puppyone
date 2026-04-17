@@ -389,7 +389,10 @@ class AgentService:
                                 message="Schedule Agent write-back",
                                 who=agent_identity,
                             )
-                            logger.info(f"[ScheduleAgent] MUT push: v={push_result.get('version')} files={len(modified_files)}")
+                            logger.info(
+                                f"[ScheduleAgent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
+                                f"files={len(modified_files)}"
+                            )
                             for path in modified_files:
                                 result["updated_nodes"].append({
                                     "nodeId": path,
@@ -1208,7 +1211,7 @@ class AgentService:
                         )
                         live_session.cloned_files.update(modified)
                         logger.info(
-                            f"[Agent] MUT push: v={push_result.get('version')} "
+                            f"[Agent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
                             f"merged={push_result.get('merged', False)} files={len(modified)}"
                         )
                         for path in modified:

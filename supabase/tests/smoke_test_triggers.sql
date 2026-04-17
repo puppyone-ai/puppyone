@@ -80,6 +80,12 @@ $$;
 -- ensures the fix holds and prevents any regression (e.g. someone re-creating
 -- a UUID overload in a future migration).
 --
+-- After 20260418000000_mut_commit_id_identity.sql the integer counter
+-- ``atomic_next_version`` is gone (commit identity is now hash-based) and
+-- ``cas_update_scope_state`` gained a 5th argument (p_head_commit_id with
+-- default ''). The smoke test only asserts on what still exists, so the
+-- function inventory check now expects exactly 2 RPCs.
+--
 -- Wrapped in BEGIN/ROLLBACK because the RPC probe may INSERT a ghost row
 -- via the first-push branch of cas_update_scope_state.
 -- ============================================================================
@@ -99,13 +105,14 @@ BEGIN
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.proname IN ('cas_update_scope_state', 'cas_update_root_hash', 'atomic_next_version')
+      AND p.proname IN ('cas_update_scope_state', 'cas_update_root_hash')
       AND pg_get_function_arguments(p.oid) LIKE 'p_project_id text%';
 
-    IF text_sig_count <> 3 THEN
+    IF text_sig_count <> 2 THEN
         RAISE EXCEPTION
-            'SMOKE TEST FAILED: expected 3 CAS RPCs with p_project_id TEXT signature, found %. '
-            'Check that 20260416200000_fix_cas_rpc_project_id_type.sql was applied.',
+            'SMOKE TEST FAILED: expected 2 CAS RPCs with p_project_id TEXT signature, found %. '
+            'Check that 20260416200000_fix_cas_rpc_project_id_type.sql and '
+            '20260418000000_mut_commit_id_identity.sql were both applied.',
             text_sig_count;
     END IF;
 
@@ -113,7 +120,7 @@ BEGIN
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.proname IN ('cas_update_scope_state', 'cas_update_root_hash', 'atomic_next_version')
+      AND p.proname IN ('cas_update_scope_state', 'cas_update_root_hash')
       AND pg_get_function_arguments(p.oid) LIKE 'p_project_id uuid%';
 
     IF uuid_sig_count > 0 THEN
@@ -124,6 +131,24 @@ BEGIN
             uuid_sig_count;
     END IF;
 
+    -- Verify the integer-counter RPC is fully gone after the commit_id
+    -- migration. A leftover ``atomic_next_version`` would mean the
+    -- migration never ran (or was rolled back), and any code path that
+    -- still calls it would silently produce stale linear versions.
+    IF EXISTS (
+        SELECT 1 FROM pg_proc p
+        JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+          AND p.proname = 'atomic_next_version'
+    ) THEN
+        RAISE EXCEPTION
+            'SMOKE TEST FAILED: atomic_next_version still exists. '
+            '20260418000000_mut_commit_id_identity.sql should have dropped it.';
+    END IF;
+
+    -- 4-arg call exercises the default for p_head_commit_id (5th arg).
+    -- After the commit_id migration cas_update_scope_state has 5 params,
+    -- the 5th defaulting to '' so this call still resolves.
     BEGIN
         SELECT cas_update_scope_state(probe_project_id, probe_scope, '', 'smoke_dummy_hash') INTO result_scope;
     EXCEPTION
@@ -145,16 +170,6 @@ BEGIN
     IF result_root IS NULL THEN
         RAISE EXCEPTION 'SMOKE TEST FAILED: cas_update_root_hash returned NULL (expected boolean)';
     END IF;
-
-    BEGIN
-        PERFORM atomic_next_version(probe_project_id);
-    EXCEPTION
-        WHEN SQLSTATE '42883' THEN
-            RAISE EXCEPTION
-                'SMOKE TEST FAILED: atomic_next_version hit operator error 42883 — type mismatch on p_project_id.';
-        WHEN OTHERS THEN
-            NULL;
-    END;
 
     RAISE NOTICE 'SMOKE TEST PASSED: CAS RPCs have correct TEXT signatures and invoke without type errors';
 END;
