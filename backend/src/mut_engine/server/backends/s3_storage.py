@@ -23,7 +23,7 @@ import threading
 import cachetools
 
 from mut.core.object_store import StorageBackend
-from mut.foundation.error import ObjectNotFoundError
+from mut.foundation.error import ObjectNotFoundError, StorageWriteError
 
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
@@ -161,7 +161,7 @@ class S3StorageBackend(StorageBackend):
             _run_async(self._do_put(self._key_for(h), data))
         except Exception as e:
             log_error(f"[MutS3] Failed to put {h}: {e}")
-            raise
+            raise StorageWriteError(f"failed to write object {h} to S3: {e}") from e
 
     def exists(self, h: str) -> bool:
         try:
@@ -204,8 +204,12 @@ class S3StorageBackend(StorageBackend):
         key = self._key_for(h)
         try:
             return await self._s3.download_file(key)
-        except Exception:
-            raise ObjectNotFoundError(f"object not found in S3: {h}")
+        except ObjectNotFoundError:
+            raise
+        except Exception as e:
+            if _is_not_found_error(e):
+                raise ObjectNotFoundError(f"object not found in S3: {h}") from e
+            raise
 
     async def async_put(self, h: str, data: bytes) -> None:
         await self._do_put(self._key_for(h), data)

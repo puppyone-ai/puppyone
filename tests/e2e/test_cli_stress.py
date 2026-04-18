@@ -165,8 +165,8 @@ def test_clone_push_pull_lifecycle(t: T, ctx: Ctx):
     result = push_op.push(repo)
     t.check("Push succeeds", result.get("status") in ("ok", "pushed"),
             f"status={result.get('status')}")
-    v1 = result.get("version", result.get("server_version", 0))
-    t.check("Push returns version or succeeds", result.get("status") in ("ok", "pushed"), f"v={v1}")
+    v1_commit = result.get("commit_id", result.get("server_commit_id", ""))
+    t.check("Push returns commit_id or succeeds", result.get("status") in ("ok", "pushed"), f"commit_id={v1_commit}")
 
     # Modify and push again
     (Path(workdir) / "readme.md").write_text("# Stress Test\n\nVersion 2 - updated")
@@ -258,10 +258,10 @@ def test_multi_agent_concurrent(t: T, ctx: Ctx):
 
     server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
 
-    # Get current version
+    # Get current state
     client = MutClient(server, credential="")
     clone_data = client.clone()
-    base_v = clone_data.get("version", 0)
+    base_commit = clone_data.get("head_commit_id", "")
 
     # Agent A pushes
     workdir_a = os.path.join(ctx.base_dir, "agent-a")
@@ -270,7 +270,7 @@ def test_multi_agent_concurrent(t: T, ctx: Ctx):
     commit_op.commit(repo_a, message="Agent A commit", who="agent-A")
     result_a = push_op.push(repo_a)
     t.check("Agent A push succeeds", result_a.get("status") in ("ok", "pushed"))
-    v_a = result_a.get("version", 0)
+    v_a_commit = result_a.get("commit_id", "")
 
     # Agent B pushes (based on old version — triggers merge)
     workdir_b = os.path.join(ctx.base_dir, "agent-b")
@@ -303,26 +303,26 @@ def test_rollback_stress(t: T, ctx: Ctx):
 
     # Get current state
     clone_data = client.clone()
-    base_v = clone_data.get("version", 0)
+    base_commit_id = clone_data.get("head_commit_id", "")
 
     # Push 5 versions
     workdir = os.path.join(ctx.base_dir, "rollback")
     repo = clone_op.clone(server, credential="", workdir=workdir)
-    versions = []
+    commit_ids = []
     for i in range(5):
         (Path(workdir) / f"rollback_{i}.txt").write_text(f"Rollback test {i}")
         commit_op.commit(repo, message=f"rollback-prep-{i}", who="rollback-test")
         result = push_op.push(repo)
-        versions.append(result.get("version", 0))
+        commit_ids.append(result.get("commit_id", result.get("server_commit_id", "")))
 
-    t.check("5 prep pushes done", len(versions) == 5)
+    t.check("5 prep pushes done", len(commit_ids) == 5)
 
-    # Rollback to base_v
-    rb_result = client.rollback(base_v)
+    # Rollback to base
+    rb_result = client.rollback(base_commit_id)
     t.check("Rollback to base succeeds", rb_result.get("status") == "rolled-back",
             f"result={json.dumps(rb_result)[:200]}")
-    new_v = rb_result.get("new_version", 0)
-    t.check("Rollback creates new version", new_v > versions[-1])
+    new_commit = rb_result.get("new_commit_id", "")
+    t.check("Rollback creates new commit", bool(new_commit) and new_commit != commit_ids[-1])
 
     # Clone should not have rollback files
     post_rb = client.clone()
@@ -330,13 +330,13 @@ def test_rollback_stress(t: T, ctx: Ctx):
     t.check("Rollback files removed", not any(f.startswith("rollback_") for f in files),
             f"files={[f for f in files if 'rollback' in f]}")
 
-    # Pull-version may fail for versions without root_hash (known limitation)
-    for v in versions[:2]:
+    # Pull-commit may fail for commits without root_hash (known limitation)
+    for cid in commit_ids[:2]:
         try:
-            pv = client.pull_version(v)
-            t.check(f"Pull-version v{v} accessible", len(pv.get("files", {})) > 0)
+            pv = client.pull_commit(cid)
+            t.check(f"Pull-commit {cid[:8]} accessible", len(pv.get("files", {})) > 0)
         except Exception:
-            t.skip(f"Pull-version v{v}", "version may lack root_hash")
+            t.skip(f"Pull-commit {cid[:8]}", "commit may lack root_hash")
 
 
 def test_status_and_log(t: T, ctx: Ctx):
@@ -422,11 +422,11 @@ def test_error_handling(t: T, ctx: Ctx):
 
     try:
         result = client.push(
-            base_version=999999,
+            base_commit_id="ff" * 8,
             snapshots=[{"id": 1, "root": tree_hash, "message": "bad base", "who": "test", "time": ""}],
             objects={
-                dummy_hash: base64.b64encode(dummy_data).decode(),
-                tree_hash: base64.b64encode(tree).decode(),
+                dummy_hash: dummy_data,
+                tree_hash: tree,
             },
         )
         # May succeed with merge or fail
@@ -435,21 +435,21 @@ def test_error_handling(t: T, ctx: Ctx):
     except Exception as e:
         t.check("Push with stale base raises error", True, str(e)[:100])
 
-    # Rollback to future version
+    # Rollback to future/non-existent commit
     try:
-        result = client.rollback(999999)
-        t.check("Rollback to future version fails gracefully",
+        result = client.rollback("ff" * 8)
+        t.check("Rollback to non-existent commit fails gracefully",
                 result.get("status") != "rolled-back", json.dumps(result)[:100])
     except Exception as e:
-        t.check("Rollback to future version raises error", True)
+        t.check("Rollback to non-existent commit raises error", True)
 
-    # Pull-version for non-existent version
+    # Pull-commit for non-existent commit
     try:
-        result = client.pull_version(999999)
-        t.check("Pull-version 999999 fails gracefully",
+        result = client.pull_commit("ff" * 8)
+        t.check("Pull-commit non-existent fails gracefully",
                 not result.get("files"), json.dumps(result)[:100])
     except Exception as e:
-        t.check("Pull-version 999999 raises error", True)
+        t.check("Pull-commit non-existent raises error", True)
 
 
 def test_cleanup(t: T, ctx: Ctx):

@@ -383,9 +383,9 @@ def test_sandbox_mut_sync(t: T, ctx: Ctx):
         return
 
     # Clone current state
-    code, body = t.ap_post(ap_key, "clone")
-    base_version = body.get("version", 0)
-    t.check("Clone base version", base_version >= 0, f"v={base_version}")
+    code, body = t.ap_post(ap_key, "clone", {"protocol_version": 2})
+    base_commit = body.get("head_commit_id", "")
+    t.check("Clone base commit", isinstance(base_commit, str), f"head_commit_id={base_commit}")
 
     # Push new content via MUT
     root, objs = build_tree({
@@ -396,27 +396,29 @@ def test_sandbox_mut_sync(t: T, ctx: Ctx):
         "docs/readme.md": b"# Sandbox Test Project v2",
     })
     code, body = t.ap_post(ap_key, "push", {
-        "base_version": base_version,
+        "protocol_version": 2,
+        "base_commit_id": base_commit,
         "snapshots": [{"id": 1, "root": root, "message": "v2: update for sandbox test", "who": "test", "time": ""}],
         "objects": objs,
     })
-    v2 = body.get("version", 0)
-    t.check("MUT push v2 succeeds", body.get("status") == "ok", f"v={v2}")
+    v2_commit = body.get("commit_id", "")
+    t.check("MUT push v2 succeeds", body.get("status") == "ok", f"commit_id={v2_commit}")
 
     # Rollback to base
-    if base_version > 0:
-        code, body = t.ap_post(ap_key, "rollback", {"target_version": base_version})
+    if base_commit:
+        code, body = t.ap_post(ap_key, "rollback", {"protocol_version": 2, "target_commit_id": base_commit})
         t.check("Rollback to base", body.get("status") == "rolled-back")
-        v_rb = body.get("new_version", 0)
+        v_rb_commit = body.get("new_commit_id", "")
 
-        # Pull-version to check v2 still accessible
-        code, body = t.ap_post(ap_key, "pull-version", {"version": v2})
-        t.check("Pull-version v2 after rollback", code == 200)
+        # Pull-commit to check v2 still accessible
+        code, body = t.ap_post(ap_key, "pull-commit", {"protocol_version": 2, "commit_id": v2_commit})
+        t.check("Pull-commit v2 after rollback", code == 200)
         t.check("v2 files accessible", len(body.get("files", {})) > 0)
 
         # Push again to restore v2 content
         code, body = t.ap_post(ap_key, "push", {
-            "base_version": v_rb,
+            "protocol_version": 2,
+            "base_commit_id": v_rb_commit,
             "snapshots": [{"id": 2, "root": root, "message": "restore v2", "who": "test", "time": ""}],
             "objects": objs,
         })
