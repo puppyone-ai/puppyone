@@ -133,7 +133,12 @@ def _update_global_root(repo, push_result: dict) -> None:
     MAX_GRAFT_RETRIES = 5
     for attempt in range(MAX_GRAFT_RETRIES):
         try:
-            db_root = repo.get_root_hash() or ""
+            # get_root_hash / cas_update_root_hash may not exist on older
+            # mutai PyPI releases (<0.1.7). Fall back to history-based lookup.
+            if hasattr(repo, "get_root_hash"):
+                db_root = repo.get_root_hash() or ""
+            else:
+                db_root = repo.history.get_root_hash() if hasattr(repo.history, "get_root_hash") else ""
 
             if db_root:
                 graft_base = db_root
@@ -145,7 +150,14 @@ def _update_global_root(repo, push_result: dict) -> None:
                 repo.store, graft_base, scope_path, old_scope_hash, scope_hash,
             )
 
-            if repo.cas_update_root_hash(db_root, new_root):
+            if hasattr(repo, "cas_update_root_hash"):
+                success = repo.cas_update_root_hash(db_root, new_root)
+            else:
+                # Fallback: direct set (no CAS protection, but better than failing)
+                repo.history.set_root_hash(new_root)
+                success = True
+
+            if success:
                 log_info(f"[PostCommit] Updated global root: scope='{scope_path}' hash={new_root[:16]} (attempt {attempt + 1})")
                 return
 
