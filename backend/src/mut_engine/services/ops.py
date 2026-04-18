@@ -143,8 +143,9 @@ class MutOps:
         try:
             from src.mut_engine.services.hooks import post_commit_move
             post_commit_move(project_id, old_path, new_path)
-        except Exception:
-            pass
+        except Exception as e:
+            from src.utils.logger import log_error
+            log_error(f"[MutOps] post-commit move hook failed for project={project_id}: {e}")
         return self._to_result(result, list(modified.keys()) + deleted)
 
     async def bulk_write(
@@ -347,6 +348,13 @@ class MutOps:
         self._run_post_push_hook(project_id, result)
         all_paths = list((modified or {}).keys()) + (deleted or [])
         return self._to_result(result, all_paths)
+
+    def push_and_finalize(self, project_id: str, push_result: dict) -> dict:
+        """Run post-push hooks after any push. All push callers must use this."""
+        from src.mut_engine.services.hooks import run_post_push_hook
+        repo_manager = self._repos
+        run_post_push_hook(project_id, repo_manager, push_result)
+        return push_result
 
     def _run_post_push_hook(self, project_id: str, push_result: dict) -> None:
         """Best-effort post-push hook to maintain access_points table consistency."""

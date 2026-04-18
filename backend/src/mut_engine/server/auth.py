@@ -44,8 +44,8 @@ class PuppyOneAuthenticator:
         """
         if settings.SKIP_AUTH:
             env = getattr(settings, "ENVIRONMENT", getattr(settings, "ENV", ""))
-            if env and env.lower() not in ("local", "test", "development"):
-                log_error(f"[Auth] SKIP_AUTH is set but ENVIRONMENT={env} — refusing to skip auth in non-dev environment")
+            if not env or env.lower() not in ("local", "test", "development"):
+                log_error(f"[Auth] SKIP_AUTH is set but ENVIRONMENT={env!r} — refusing to skip auth in non-dev environment")
             else:
                 log_warning("SKIP_AUTH enabled — MUT auth returning mock user")
                 return {

@@ -133,7 +133,7 @@ def _update_global_root(repo, push_result: dict) -> None:
     MAX_GRAFT_RETRIES = 5
     for attempt in range(MAX_GRAFT_RETRIES):
         try:
-            db_root = repo.history.get_root_hash() or ""
+            db_root = repo.get_root_hash() or ""
 
             if db_root:
                 graft_base = db_root
@@ -145,7 +145,7 @@ def _update_global_root(repo, push_result: dict) -> None:
                 repo.store, graft_base, scope_path, old_scope_hash, scope_hash,
             )
 
-            if repo.history.cas_update_root_hash(db_root, new_root):
+            if repo.cas_update_root_hash(db_root, new_root):
                 log_info(f"[PostCommit] Updated global root: scope='{scope_path}' hash={new_root[:16]} (attempt {attempt + 1})")
                 return
 

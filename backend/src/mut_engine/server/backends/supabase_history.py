@@ -257,8 +257,8 @@ class SupabaseHistoryManager:
             rows = _safe_data(resp) or []
             if rows and rows[0].get("scope_hash"):
                 return rows[0]["scope_hash"]
-        except Exception:  # noqa: BLE001 — defensive on optional lookup
-            pass
+        except Exception as e:  # noqa: BLE001 — defensive on optional lookup
+            log_error(f"[MutHistory] get_previous_scope_hash failed for scope='{scope_path}': {e}")
         return ""
 
     # ── Record ──

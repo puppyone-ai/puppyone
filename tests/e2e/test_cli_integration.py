@@ -367,21 +367,21 @@ def test_rollback_across_clis(t: T, ctx: Ctx):
 
     workdir = os.path.join(ctx.base_dir, "rollback")
     repo = clone_op.clone(ctx.ap_root_url, credential=ctx.ap_root_key, workdir=workdir)
-    base_version = int((Path(workdir) / ".mut" / "REMOTE_HEAD").read_text().strip())
+    base_commit_id = (Path(workdir) / ".mut" / "REMOTE_HEAD").read_text().strip()
 
     # Push 3 versions
-    versions = []
+    commit_ids = []
     for i in range(3):
         (Path(workdir) / f"rollback-v{i}.txt").write_text(f"Version {i}")
         commit_op.commit(repo, message=f"rollback prep v{i}", who="rollback-test")
         result = push_op.push(repo)
-        versions.append(result.get("server_version", result.get("version", 0)))
+        commit_ids.append(result.get("commit_id", result.get("server_commit_id", "")))
 
-    t.check("3 versions pushed", len(versions) == 3)
+    t.check("3 versions pushed", len(commit_ids) == 3)
 
     # Rollback via MUT client
     client = MutClient(ctx.ap_root_url, ctx.ap_root_key)
-    rb_result = client.rollback(base_version)
+    rb_result = client.rollback(base_commit_id)
     t.check("Rollback succeeds", rb_result.get("status") == "rolled-back",
             json.dumps(rb_result)[:150])
 

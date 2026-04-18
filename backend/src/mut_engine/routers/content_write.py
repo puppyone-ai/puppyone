@@ -17,7 +17,7 @@ from src.mut_engine.schemas import (
     RestoreRequest,
     WriteFileRequest,
 )
-from src.mut_engine.server.validation import MAX_FILE_SIZE, validate_path
+from src.mut_engine.server.validation import validate_content_size, validate_path
 from src.mut_engine.services.ops import MutOps
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -76,11 +76,7 @@ async def write_file_endpoint(
     clean_path, content_bytes = _serialize_content(
         validate_path(body.path), body.content, body.node_type,
     )
-    if len(content_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File size {len(content_bytes)} exceeds limit of {MAX_FILE_SIZE} bytes",
-        )
+    validate_content_size(content_bytes)
     who = f"user:{current_user.user_id}"
     result = await ops.write_file(
         project_id, clean_path, content_bytes,
@@ -187,16 +183,18 @@ async def restore(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     ensure_write_access(project_service, current_user, project_id)
+    clean_trash = validate_path(body.trash_path)
+    clean_original = validate_path(body.original_path)
     who = f"user:{current_user.user_id}"
 
     result = await ops.restore(
-        project_id, body.trash_path, body.original_path, who=who,
+        project_id, clean_trash, clean_original, who=who,
     )
 
     return ApiResponse.success(data={
         "commit_id": result.commit_id,
-        "old_path": validate_path(body.trash_path),
-        "new_path": validate_path(body.original_path),
+        "old_path": clean_trash,
+        "new_path": clean_original,
     })
 
 
@@ -218,11 +216,7 @@ async def bulk_write(
         path, data = _serialize_content(
             validate_path(item.path), item.content, item.node_type,
         )
-        if len(data) > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File '{path}' size {len(data)} exceeds limit of {MAX_FILE_SIZE} bytes",
-            )
+        validate_content_size(data)
         modified[path] = data
 
     who = f"user:{current_user.user_id}"
