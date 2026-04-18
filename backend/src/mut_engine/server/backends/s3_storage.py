@@ -23,7 +23,13 @@ import threading
 import cachetools
 
 from mut.core.object_store import StorageBackend
-from mut.foundation.error import ObjectNotFoundError, StorageWriteError
+from mut.foundation.error import ObjectNotFoundError
+
+try:
+    from mut.foundation.error import StorageWriteError
+except ImportError:
+    class StorageWriteError(Exception):
+        """S3 write failure. Fallback for mutai < 0.1.7."""
 
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
