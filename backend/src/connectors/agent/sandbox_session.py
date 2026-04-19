@@ -263,6 +263,9 @@ async def _read_modified_files(
         {mut_path: content_bytes} for files that changed vs original_files.
     """
     scan_path = mount_path or "/workspace"
+    # Normalize scope_path: strip slashes to match MUT clone key format
+    scope_path = scope_path.strip("/") if scope_path else ""
+
     hash_result = await sandbox_service.exec(
         sandbox_session_id,
         f"find {scan_path} -type f -exec sha256sum {{}} \\; 2>/dev/null"

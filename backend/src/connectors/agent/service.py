@@ -741,10 +741,10 @@ class AgentService:
                         if root_entry:
                             if root_entry.type == "folder":
                                 sandbox_parent_path = root_path
-                                scope_path = root_path
+                                scope_path = root_path.strip("/")
                             else:
                                 sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
-                                scope_path = sandbox_parent_path
+                                scope_path = sandbox_parent_path.strip("/")
 
                     mut_client = None
                     cloned_files = {}
