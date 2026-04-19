@@ -213,7 +213,7 @@ def test_setup(t, ctx):
     if ctx.agent_id:
         code, body = t.post(f"/api/v1/agent-config/{ctx.agent_id}/bash", {
             "path": "/",
-            "permissions": ["read", "write", "exec"],
+            "readonly": False,
         })
         t.check("Bash access bound", code in (200, 201), json.dumps(body)[:200])
 
@@ -401,9 +401,11 @@ def test_error_handling(t, ctx):
     t.check("A37: Invalid agent_id → error", r.get("error") is True or r.get("success") is not True,
             str(r)[:200])
 
-    # A40: Unicode content
-    r = t.chat("Create a file called docs/unicode.md with this content: '你好世界 🌍 こんにちは 한국어'")
-    t.check("A40: Unicode acknowledged", r.get("success") is True)
+    # A40: Unicode content — use fresh session to avoid stale sandbox
+    r = _sse_chat(ctx.api, ctx.jwt, ctx.agent_id, ctx.project_id,
+                  "Create a file called docs/unicode.md with this content: '你好世界 🌍 こんにちは 한국어'", timeout=90)
+    t.check("A40: Unicode acknowledged", r.get("success") is True,
+            f"events={len(r.get('events', []))} err={r.get('error_msg', r.get('error', ''))}")
 
     # Verify unicode roundtrip
     code, body = t.get(f"/api/v1/content/{ctx.project_id}/cat?path=docs/unicode.md")
@@ -431,13 +433,18 @@ def test_agent_content_sync(t, ctx):
         "message": "api write",
     })
 
-    r = t.chat("Read the file from-api.txt and tell me the secret code in it.")
+    # Use fresh session so sandbox clones latest MUT state (including API-written file)
+    r = _sse_chat(ctx.api, ctx.jwt, ctx.agent_id, ctx.project_id,
+                  "Read the file from-api.txt and tell me the secret code in it.", timeout=90)
     t.check("Agent reads API-written file",
             "ALPHA" in r.get("text", "").upper() or "BRAVO" in r.get("text", "").upper() or "42" in r.get("text", ""),
             r.get("text", "")[:200])
+    sync_sid = r.get("session_id", "")
 
     # Agent writes → Content API reads
-    r = t.chat("Create a file called agent-output.md with exactly this text: 'Agent verification: SUCCESS-789'")
+    r = _sse_chat(ctx.api, ctx.jwt, ctx.agent_id, ctx.project_id,
+                  "Create a file called agent-output.md with exactly this text: 'Agent verification: SUCCESS-789'",
+                  session_id=sync_sid, timeout=90)
     t.check("Agent write acknowledged", r.get("success") is True)
 
     # Read back via Content API (may have .json suffix)
@@ -459,28 +466,32 @@ def test_agent_content_sync(t, ctx):
 def test_session_management(t, ctx):
     t.section("6. Session Management")
 
-    # Session A: multi-turn
-    r1 = t.chat("Remember: the project name is 'Phoenix'. Confirm.")
+    # Session A: multi-turn — explicitly pass empty session_id to force new session
+    r1 = _sse_chat(ctx.api, ctx.jwt, ctx.agent_id, ctx.project_id,
+                   "Remember: the project name is 'Phoenix'. Confirm.", session_id=None)
     sid_a = r1.get("session_id", "")
     t.check("Session A started", bool(sid_a))
 
-    # Session B: independent
-    r2 = t.chat("Remember: the project name is 'Dragon'. Confirm.")
+    # Session B: independent — also force new session
+    r2 = _sse_chat(ctx.api, ctx.jwt, ctx.agent_id, ctx.project_id,
+                   "Remember: the project name is 'Dragon'. Confirm.", session_id=None)
     sid_b = r2.get("session_id", "")
     t.check("Session B started", bool(sid_b) and sid_b != sid_a,
             f"A={sid_a[:8]} B={sid_b[:8]}")
 
     # Session A recall
-    r = t.chat("What project name did I tell you?", session_id=sid_a)
+    r = _sse_chat(ctx.api, ctx.jwt, ctx.agent_id, ctx.project_id,
+                  "What project name did I tell you?", session_id=sid_a, timeout=60)
     t.check("Session A recalls Phoenix",
             "phoenix" in r.get("text", "").lower(),
-            r.get("text", "")[:100])
+            f"text={r.get('text', '')[:100]} events={len(r.get('events', []))} err={r.get('error_msg', r.get('error', ''))}")
 
     # Session B recall
-    r = t.chat("What project name did I tell you?", session_id=sid_b)
+    r = _sse_chat(ctx.api, ctx.jwt, ctx.agent_id, ctx.project_id,
+                  "What project name did I tell you?", session_id=sid_b, timeout=60)
     t.check("Session B recalls Dragon",
             "dragon" in r.get("text", "").lower(),
-            r.get("text", "")[:100])
+            f"text={r.get('text', '')[:100]} events={len(r.get('events', []))} err={r.get('error_msg', r.get('error', ''))}")
 
     # List sessions
     code, body = t.get(f"/api/v1/chat/sessions?agent_id={ctx.agent_id}")
