@@ -128,7 +128,7 @@ class T:
         return _req("DELETE", f"{self.ctx.api}{path}", headers=_headers(self.ctx.jwt))
 
     def ap_post(self, key, op, data=None):
-        return _req("POST", f"{self.ctx.api}/api/v1/mut/ap/{key}/{op}",
+        return _req("POST", f"{self.ctx.api}/mut/ap/{key}/{op}",
                      data=data or {}, headers={"Content-Type": "application/json"})
 
 

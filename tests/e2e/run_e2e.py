@@ -130,7 +130,7 @@ def _patch(ctx, path, data=None):
 def _ap_post(ctx, key, op, data=None):
     """POST to access point endpoint."""
     import urllib.request
-    url = f"{ctx.api}/api/v1/mut/ap/{key}/{op}"
+    url = f"{ctx.api}/mut/ap/{key}/{op}"
     body = json.dumps(data or {}).encode()
     req = urllib.request.Request(url, data=body,
                                  headers={"Content-Type": "application/json"},
@@ -479,9 +479,11 @@ def test_access_points_api(t: Test, ctx: Ctx):
     code, body = _get(ctx, f"/api/v1/access/?project_id={pid}")
     t.check("List APs returns 200", code == 200)
 
-    # Create root AP via Supabase directly (API /access/ POST returns 500, known issue)
-    from supabase import create_client
-    sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+    # Create root AP via Supabase directly (service_role client, NOT the
+    # signed-in client — sign_in_with_password changes role to 'authenticated'
+    # which doesn't have RLS access to access_points).
+    from supabase import create_client as _sc
+    sb = _sc(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
     import secrets
     ctx.ap_root_key = f"e2e_{secrets.token_urlsafe(16)}"
     r = sb.table("access_points").insert({
