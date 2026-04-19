@@ -84,7 +84,7 @@ def run_post_push_hook(
     result_for_graft = {**push_result, "commit_id": commit_id}
 
     try:
-        repo = repo_manager.get_repo(project_id)
+        repo = repo_manager.get_server_repo(project_id)
 
         _update_global_root(repo, result_for_graft)
 

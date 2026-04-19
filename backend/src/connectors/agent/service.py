@@ -467,6 +467,12 @@ class AgentService:
                     logger.info(f"[Agent] Total bash accesses collected: {len(bash_tools)}")
                 else:
                     logger.warning(f"[Agent] Agent not found or unauthorized: agent_id={request.agent_id}, has_access={has_access}")
+                    if not agent:
+                        raise ValueError(f"Agent not found: {request.agent_id}")
+                    if not has_access:
+                        raise PermissionError(f"Not authorized to use agent: {request.agent_id}")
+            except (ValueError, PermissionError):
+                raise  # Let these propagate to the SSE error handler
             except Exception as e:
                 logger.warning(f"[Agent] Failed to get agent config: {e}", exc_info=True)
 
@@ -617,7 +623,7 @@ class AgentService:
                     all_files.extend(data.files)
 
                     # Log context access (data egress tracking)
-                    await log_context_access(
+                    log_context_access(
                         path=tool["path"],
                         node_type=data.node_type,
                         node_name=data.root_node_name,
