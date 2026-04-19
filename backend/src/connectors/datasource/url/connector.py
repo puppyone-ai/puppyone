@@ -82,22 +82,36 @@ class UrlConnector(BaseConnector):
             crawl_options = config.get("crawl_options")
             result = await url_parser.parse(source_url, crawl_options)
 
+            if not result:
+                raise ValueError(f"Failed to parse content from {source_url}")
+
             data = result.get("data", [])
             title = result.get("title", source_url)
 
-            markdown_parts = []
-            for item in data:
-                item_title = item.get("title", "")
-                item_content = item.get("content", "")
-                if item_title:
-                    markdown_parts.append(f"## {item_title}\n\n{item_content}")
-                elif item_content:
-                    markdown_parts.append(item_content)
+            # Build markdown: use raw markdown from Firecrawl if available,
+            # otherwise reconstruct from parsed sections
+            raw_markdown = result.get("raw_markdown", "")
+            if raw_markdown:
+                markdown_content = raw_markdown
+            else:
+                markdown_parts = []
+                for item in data:
+                    item_title = item.get("title", "")
+                    # Support multiple field names from different parsers
+                    item_content = item.get("content", "") or item.get("item", "") or item.get("value", "")
+                    if item_title and item_content:
+                        markdown_parts.append(f"## {item_title}\n\n{item_content}")
+                    elif item_title:
+                        markdown_parts.append(f"## {item_title}")
+                    elif item_content:
+                        markdown_parts.append(item_content)
+                markdown_content = "\n\n".join(markdown_parts)
 
-            markdown_content = "\n\n".join(markdown_parts)
+            if not markdown_content.strip():
+                markdown_content = f"# {title}\n\nNo content could be extracted from {source_url}."
 
             content_hash = hashlib.sha256(
-                json.dumps(markdown_content, sort_keys=True, ensure_ascii=False).encode()
+                markdown_content.encode("utf-8")
             ).hexdigest()[:16]
 
             return FetchResult(

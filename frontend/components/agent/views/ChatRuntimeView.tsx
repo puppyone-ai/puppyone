@@ -476,8 +476,8 @@ export function ChatRuntimeView({
                   break;
                 }
                 case 'result':
-                  if (event.updatedData && onDataUpdate) {
-                    onDataUpdate(event.updatedData);
+                  if ((event.updatedNodes || event.updatedData) && onDataUpdate) {
+                    onDataUpdate(event.updatedNodes || event.updatedData);
                   }
                   break;
                 case 'error':

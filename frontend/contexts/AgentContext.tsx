@@ -499,9 +499,11 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
       setSelectedCapabilities(new Set(draftResources.map(r => `resource:${r.path}`)));
       setSidebarMode('deployed');
       setEditingAgentId(null);
+      return agentId;
     } catch (error) {
       console.error('Failed to save agent:', error);
       alert('Failed to save agent. Please try again.');
+      return null;
     }
   }, [draftType, draftCapabilities, draftResources, editingAgentId, draftTriggerType, draftTriggerConfig, draftTaskContent, draftTaskNodeId, draftExternalConfig, projectId]);
 

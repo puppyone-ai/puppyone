@@ -548,7 +548,7 @@ function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
 function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; nodeName: string | null }) {
   const [copied, setCopied] = useState<string | null>(null);
   const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
-  const cloneUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
+  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);

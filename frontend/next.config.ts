@@ -21,6 +21,24 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: loadVersion(),
   },
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'framer-motion',
+      '@milkdown/core',
+      '@milkdown/preset-commonmark',
+      '@milkdown/react',
+      'react-syntax-highlighter',
+    ],
+  },
+  images: {
+    formats: ['image/avif', 'image/webp'],
+  },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production'
+      ? { exclude: ['error', 'warn'] }
+      : false,
+  },
 };
 
 export default nextConfig;

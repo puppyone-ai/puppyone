@@ -8,9 +8,14 @@ import {
   type TableInfo,
   type ProjectInfo,
 } from '../lib/projectsApi';
+import dynamic from 'next/dynamic';
 import { EditorSkeleton } from './Skeleton';
-import TableDiscreteEditor from './editors/table/TableDiscreteEditor';
-import MonacoJsonEditor from './editors/code/MonacoJsonEditor';
+const TableDiscreteEditor = dynamic(() => import('./editors/table/TableDiscreteEditor'), {
+  ssr: false, loading: () => <EditorSkeleton />,
+});
+const MonacoJsonEditor = dynamic(() => import('./editors/code/MonacoJsonEditor'), {
+  ssr: false, loading: () => <EditorSkeleton />,
+});
 import type { EditorType } from './ProjectsHeader';
 import type { ProjectTableJSON } from '../lib/projectData';
 import { type McpToolPermissions } from '../lib/mcpApi';
