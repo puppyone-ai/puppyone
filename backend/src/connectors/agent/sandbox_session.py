@@ -120,6 +120,7 @@ class AgentSandboxSession:
     readonly: bool = False
     project_id: str = ""
     parent_path: str = ""
+    repo_manager: Any = None
 
 
 class AgentSandboxRegistry:
@@ -145,6 +146,7 @@ class AgentSandboxRegistry:
         readonly: bool = False,
         project_id: str = "",
         parent_path: str = "",
+        repo_manager=None,
     ) -> AgentSandboxSession:
         now = time.time()
         session = AgentSandboxSession(
@@ -159,6 +161,7 @@ class AgentSandboxRegistry:
             readonly=readonly,
             project_id=project_id,
             parent_path=parent_path,
+            repo_manager=repo_manager,
         )
         self._sessions[chat_session_id] = session
         logger.info(
@@ -216,6 +219,7 @@ async def writeback_and_destroy(
                 push_result = await push_and_finalize(
                     session.mut_client,
                     session.project_id,
+                    repo_manager=session.repo_manager,
                     modified=modified,
                     message=f"Agent write-back ({len(modified)} files)",
                     who=f"agent:{session.agent_id}",

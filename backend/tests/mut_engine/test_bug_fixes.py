@@ -711,11 +711,13 @@ class TestRollbackHookIntegration:
         mock_repo.history.get_entry.return_value = {
             "scope_path": "", "changes": [],
         }
-        mock_repo.history.get_root_hash.return_value = "old_root"
-        mock_repo.history.cas_update_root_hash.return_value = True
+        # hasattr on MagicMock is always True, so _update_global_root calls
+        # repo.get_root_hash() and repo.cas_update_root_hash() directly
+        mock_repo.get_root_hash.return_value = "old_root"
+        mock_repo.cas_update_root_hash.return_value = True
 
         mock_rm = MagicMock()
-        mock_rm.get_repo.return_value = mock_repo
+        mock_rm.get_server_repo.return_value = mock_repo
 
         rollback_result = {
             "status": "rolled-back",
@@ -727,7 +729,7 @@ class TestRollbackHookIntegration:
         with patch("mut.server.graft.graft_or_merge_subtree", return_value="new_global_root"):
             run_post_push_hook("proj-1", mock_rm, rollback_result)
 
-        mock_repo.history.cas_update_root_hash.assert_called_once()
+        mock_repo.cas_update_root_hash.assert_called_once()
 
     def test_hook_uses_new_commit_id_field(self):
         """Hook must read new_commit_id (not version) from rollback results."""
@@ -737,11 +739,11 @@ class TestRollbackHookIntegration:
         mock_repo.history.get_entry.return_value = {
             "scope_path": "docs", "changes": [],
         }
-        mock_repo.history.get_root_hash.return_value = "old"
-        mock_repo.history.cas_update_root_hash.return_value = True
+        mock_repo.get_root_hash.return_value = "old"
+        mock_repo.cas_update_root_hash.return_value = True
 
         mock_rm = MagicMock()
-        mock_rm.get_repo.return_value = mock_repo
+        mock_rm.get_server_repo.return_value = mock_repo
 
         rollback_result = {
             "status": "rolled-back",
@@ -773,9 +775,9 @@ class TestGraftEmptyRootCAS:
         from src.mut_engine.services.hooks import _update_global_root
 
         mock_repo = MagicMock()
-        mock_repo.history.get_root_hash.return_value = ""
+        mock_repo.get_root_hash.return_value = ""
         mock_repo.store.put.return_value = "empty_tree_hash"
-        mock_repo.history.cas_update_root_hash.return_value = True
+        mock_repo.cas_update_root_hash.return_value = True
 
         push_result = {"commit_id": "cafe000000000001", "root": "scope_hash"}
         mock_repo.history.get_entry.return_value = {
@@ -786,15 +788,15 @@ class TestGraftEmptyRootCAS:
             with patch("mut.server.graft.graft_or_merge_subtree", return_value="new_root"):
                 _update_global_root(mock_repo, push_result)
 
-        mock_repo.history.cas_update_root_hash.assert_called_once_with("", "new_root")
+        mock_repo.cas_update_root_hash.assert_called_once_with("", "new_root")
 
     def test_cas_against_existing_hash(self):
         """When root already exists, CAS should use that existing hash."""
         from src.mut_engine.services.hooks import _update_global_root
 
         mock_repo = MagicMock()
-        mock_repo.history.get_root_hash.return_value = "existing_root"
-        mock_repo.history.cas_update_root_hash.return_value = True
+        mock_repo.get_root_hash.return_value = "existing_root"
+        mock_repo.cas_update_root_hash.return_value = True
 
         push_result = {"commit_id": "cafe000000000001", "root": "scope_hash"}
         mock_repo.history.get_entry.return_value = {
@@ -805,7 +807,7 @@ class TestGraftEmptyRootCAS:
             with patch("mut.server.graft.graft_or_merge_subtree", return_value="new_root"):
                 _update_global_root(mock_repo, push_result)
 
-        mock_repo.history.cas_update_root_hash.assert_called_once_with(
+        mock_repo.cas_update_root_hash.assert_called_once_with(
             "existing_root", "new_root",
         )
 
@@ -818,7 +820,7 @@ class TestRollbackEndToEnd:
         from src.mut_engine.server.repo_manager import MutRepoManager
 
         mock_rm = MagicMock(spec=MutRepoManager)
-        mock_rm.get_repo.return_value = server_repo
+        mock_rm.get_server_repo.return_value = server_repo
 
         auth = _rw_auth()
 
@@ -923,7 +925,12 @@ class TestScopePathTraversal:
 
     def test_dotdot_escape_blocked(self):
         scope = {"path": "src", "exclude": [], "mode": "rw"}
-        assert check_path_permission(scope, "src/../secrets/key") is False
+        # normalize_path raises ValueError for '..' segments (P2-8 fix)
+        try:
+            result = check_path_permission(scope, "src/../secrets/key")
+            assert result is False
+        except ValueError:
+            pass  # ValueError from normalize_path is also acceptable
 
     def test_within_scope_allowed(self):
         scope = {"path": "src", "exclude": [], "mode": "rw"}
@@ -935,7 +942,11 @@ class TestScopePathTraversal:
 
     def test_exclude_with_dotdot(self):
         scope = {"path": "", "exclude": ["secrets"], "mode": "rw"}
-        assert check_path_permission(scope, "public/../secrets/key") is False
+        try:
+            result = check_path_permission(scope, "public/../secrets/key")
+            assert result is False
+        except ValueError:
+            pass  # ValueError from normalize_path is also acceptable
 
 
 # ══════════════════════════════════════════════════

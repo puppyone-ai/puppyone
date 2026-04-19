@@ -545,7 +545,7 @@ class AgentService:
                     mode="agent",
                 )
                 logger.info(f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}")
-                # If this is a newly created session, set the title first, then notify the frontend
+                # If this is a newly created session, set the title first
                 if created_session and persisted_session_id:
                     try:
                         chat_service.maybe_set_title_on_first_message(
@@ -556,6 +556,8 @@ class AgentService:
                         logger.info(f"[Chat Persist] Session title set for {persisted_session_id}")
                     except Exception as e:
                         logger.warning(f"[Chat Persist] Failed to set session title: {e}")
+                # Always emit session event so client can track session_id across calls
+                if persisted_session_id:
                     yield {"type": "session", "sessionId": persisted_session_id}
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to ensure session: {e}")
@@ -746,6 +748,7 @@ class AgentService:
 
                     mut_client = None
                     cloned_files = {}
+                    repo_manager = None
                     if _agent_project_id and not sandbox_readonly:
                         from src.mut_engine.dependencies import get_repo_manager_standalone
                         from src.mut_engine.services.ephemeral_client import MutEphemeralClient
@@ -772,6 +775,7 @@ class AgentService:
                         readonly=sandbox_readonly,
                         project_id=_agent_project_id,
                         parent_path=sandbox_parent_path,
+                        repo_manager=repo_manager,
                     )
 
             if not start_result.get("success"):
@@ -1211,6 +1215,7 @@ class AgentService:
                         push_result = await push_and_finalize(
                             live_session.mut_client,
                             live_session.project_id,
+                            repo_manager=live_session.repo_manager,
                             modified=modified,
                             message=f"Agent chat write-back ({len(modified)} files)",
                             who=f"agent:{request.agent_id}",
@@ -1228,7 +1233,7 @@ class AgentService:
                                 "mergeStrategy": "mut_push",
                             })
                 except Exception as e:
-                    logger.warning(f"[Agent] Write-back failed: {e}")
+                    logger.error(f"[Agent] Write-back failed: {e}", exc_info=True)
 
             if updated_nodes:
                 yield {
