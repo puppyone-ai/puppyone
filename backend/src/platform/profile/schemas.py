@@ -19,6 +19,6 @@ class ProfileResponse(BaseModel):
     default_org_id: str | None = None
     has_onboarded: bool
     onboarded_at: datetime | None = None
-    demo_project_id: int | None = None
+    demo_project_id: str | None = None
     created_at: datetime
     updated_at: datetime

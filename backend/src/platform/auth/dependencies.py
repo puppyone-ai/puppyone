@@ -29,9 +29,11 @@ def get_initialization_service() -> UserInitializationService:
     if _initialization_service is None:
         from src.platform.organization.repository import OrganizationRepository
         from src.platform.profile.repository import ProfileRepositorySupabase
+        from src.platform.project.dependencies import get_project_service
         _initialization_service = UserInitializationService(
             profile_repo=ProfileRepositorySupabase(),
             org_repo=OrganizationRepository(),
+            project_service=get_project_service(),
         )
     return _initialization_service
 

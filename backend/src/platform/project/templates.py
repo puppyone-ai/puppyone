@@ -322,6 +322,41 @@ def get_template(template_id: str) -> Optional[ProjectTemplate]:
     return TEMPLATES.get(template_id)
 
 
+def _infer_node_type(path: str) -> str:
+    """Infer rendering node type for the preview grid (folder/markdown/json/file)."""
+    if path.endswith("/"):
+        return "folder"
+    if path.endswith(".md"):
+        return "markdown"
+    if path.endswith(".json"):
+        return "json"
+    return "file"
+
+
+def _build_preview(files: dict[str, str], limit: int = 6) -> list[dict]:
+    """
+    Build a top-level preview of a template's structure.
+
+    We surface folders (collapsed) and root-level files so the frontend can
+    render a faithful mini file-grid without downloading the full content.
+    """
+    seen: list[tuple[str, str]] = []  # preserves insertion order (Py3.7+)
+    seen_set: set[str] = set()
+
+    for path in files.keys():
+        head = path.split("/", 1)[0]
+        is_folder = "/" in path
+        display = head + ("/" if is_folder else "")
+        if display in seen_set:
+            continue
+        seen_set.add(display)
+        seen.append((display, "folder" if is_folder else _infer_node_type(path)))
+        if len(seen) >= limit:
+            break
+
+    return [{"name": name, "type": ntype} for name, ntype in seen]
+
+
 def list_templates() -> list[dict]:
     """Return template metadata (without file contents) for the frontend."""
     return [
@@ -330,6 +365,7 @@ def list_templates() -> list[dict]:
             "name": t.name,
             "description": t.description,
             "icon": t.icon,
+            "preview": _build_preview(t.files),
         }
         for t in TEMPLATES.values()
     ]

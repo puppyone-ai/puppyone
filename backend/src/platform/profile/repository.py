@@ -35,7 +35,7 @@ class ProfileRepositoryBase(ABC):
 
     @abstractmethod
     def mark_onboarded(
-        self, user_id: str, demo_project_id: int | None = None
+        self, user_id: str, demo_project_id: str | None = None
     ) -> Profile | None:
         """Mark user as having completed Onboarding"""
 
@@ -154,7 +154,7 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
             return None
 
     def mark_onboarded(
-        self, user_id: str, demo_project_id: int | None = None
+        self, user_id: str, demo_project_id: str | None = None
     ) -> Profile | None:
         """Mark user as having completed Onboarding"""
         try:

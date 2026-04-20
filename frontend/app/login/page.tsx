@@ -317,8 +317,27 @@ function LoginPageInner() {
         goToVerifyOtp(`We sent a 6-digit code to ${email}.`);
         setPassword('');
       } else {
+        // Auto-confirmed signup (rare in our default config) — initialize
+        // and go straight to the seeded demo project so first-time UX
+        // mirrors the OTP / OAuth paths.
+        let demoProjectId: string | null = null;
+        try {
+          const token = await getAccessToken();
+          if (token) {
+            const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const json = await res.json();
+              demoProjectId = json?.data?.demo_project_id ?? null;
+            }
+          }
+        } catch (initErr) {
+          console.error('Auth initialization failed:', initErr);
+        }
         setRedirecting(true);
-        router.push('/home');
+        router.push(demoProjectId ? `/projects/${demoProjectId}` : '/home');
         return;
       }
     } catch (e: unknown) {
@@ -339,19 +358,26 @@ function LoginPageInner() {
     try {
       await verifyEmailOtp(email, code);
       // Initialize profile + org (idempotent — same as OAuth callback).
+      // On first sign-in this also seeds a "Get Started" demo project so
+      // we can land the user inside it instead of an empty dashboard.
+      let demoProjectId: string | null = null;
       try {
         const token = await getAccessToken();
         if (token) {
-          await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+          const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
+          if (res.ok) {
+            const json = await res.json();
+            demoProjectId = json?.data?.demo_project_id ?? null;
+          }
         }
       } catch (initErr) {
         console.error('Auth initialization failed:', initErr);
       }
       setRedirecting(true);
-      router.push('/home');
+      router.push(demoProjectId ? `/projects/${demoProjectId}` : '/home');
       return;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Invalid or expired code';
