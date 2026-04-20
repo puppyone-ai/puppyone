@@ -39,10 +39,6 @@ class ProfileRepositoryBase(ABC):
     ) -> Profile | None:
         """Mark user as having completed Onboarding"""
 
-    @abstractmethod
-    def reset_onboarding(self, user_id: str) -> Profile | None:
-        """Reset user Onboarding status (for testing)"""
-
 
 class ProfileRepositorySupabase(ProfileRepositoryBase):
     """Supabase-based Profile repository implementation"""
@@ -187,33 +183,3 @@ class ProfileRepositorySupabase(ProfileRepositoryBase):
         except Exception as e:
             log_error(f"Failed to mark user {user_id} as onboarded: {e}")
             return None
-
-    def reset_onboarding(self, user_id: str) -> Profile | None:
-        """Reset user Onboarding status (for testing)"""
-        try:
-            now = datetime.now(UTC).isoformat()
-            update_data = {
-                "has_onboarded": False,
-                "onboarded_at": None,
-                "demo_project_id": None,
-                "updated_at": now,
-            }
-
-            response = (
-                self._client.table(self.TABLE_NAME)
-                .update(update_data)
-                .eq("user_id", user_id)
-                .execute()
-            )
-
-            if response.data and len(response.data) > 0:
-                log_info(f"User {user_id} onboarding status reset")
-                return self._row_to_model(response.data[0])
-            return None
-
-        except Exception as e:
-            log_error(f"Failed to reset onboarding for user {user_id}: {e}")
-            return None
-
-
-

@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { ProjectInfo } from '../lib/projectsApi';
+import type { ProjectInfo, ProjectTemplateInfo } from '../lib/projectsApi';
 import {
   createProject,
   updateProject,
   deleteProject,
+  getProjectTemplates,
 } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -34,22 +35,39 @@ export function ProjectManageDialog({
   const [description] = useState(project?.description || '');
   const [loading, setLoading] = useState(false);
 
+  const [templates, setTemplates] = useState<ProjectTemplateInfo[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('blank');
+
   useEffect(() => {
     if (project) {
       setName(project.name);
     }
   }, [project]);
 
+  useEffect(() => {
+    if (mode === 'create') {
+      getProjectTemplates().then(setTemplates).catch(console.error);
+    }
+  }, [mode]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    
+    // Auto-generate name if blank
+    const finalName = name.trim() || 'Untitled Project';
 
     try {
       setLoading(true);
       if (mode === 'edit' && projectId) {
-        await updateProject(projectId, name.trim(), description);
+        await updateProject(projectId, finalName, description);
       } else {
-        await createProject(name.trim(), '', currentOrg?.id, false);
+        await createProject(
+          finalName, 
+          '', 
+          currentOrg?.id, 
+          false, 
+          selectedTemplate === 'blank' ? undefined : selectedTemplate
+        );
       }
       await refreshProjects(currentOrg?.id);
       onClose();
@@ -101,7 +119,7 @@ export function ProjectManageDialog({
           background: '#202020',
           border: '1px solid #333',
           borderRadius: 12,
-          width: 480,
+          width: 520,
           maxWidth: '90vw',
           boxShadow: '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
           display: 'flex',
@@ -207,35 +225,105 @@ export function ProjectManageDialog({
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            <div style={{ padding: '24px 32px 32px' }}>
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: '#666',
-                  marginBottom: 8,
-                }}
-              >
-                Project Name
+            <div style={{ padding: '24px 32px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+              
+              {mode === 'create' && (
+                <div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: '#666',
+                      marginBottom: 12,
+                    }}
+                  >
+                    Start from a template
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                    <div
+                      onClick={() => setSelectedTemplate('blank')}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 8,
+                        border: selectedTemplate === 'blank' ? '1px solid #555' : '1px solid #333',
+                        background: selectedTemplate === 'blank' ? 'rgba(255,255,255,0.05)' : 'transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12
+                      }}
+                    >
+                      <div style={{ fontSize: 20, opacity: selectedTemplate === 'blank' ? 1 : 0.5 }}>⬜</div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 500, color: selectedTemplate === 'blank' ? '#eee' : '#999' }}>Blank Project</div>
+                        <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>Start from scratch</div>
+                      </div>
+                    </div>
+                    {templates.map(t => (
+                      <div
+                        key={t.id}
+                        onClick={() => setSelectedTemplate(t.id)}
+                        style={{
+                          padding: '12px 16px',
+                          borderRadius: 8,
+                          border: selectedTemplate === t.id ? '1px solid #555' : '1px solid #333',
+                          background: selectedTemplate === t.id ? 'rgba(255,255,255,0.05)' : 'transparent',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12
+                        }}
+                      >
+                        <div style={{ fontSize: 20, opacity: selectedTemplate === t.id ? 1 : 0.5 }}>{t.icon || '📄'}</div>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: selectedTemplate === t.id ? '#eee' : '#999' }}>{t.name}</div>
+                          <div style={{ fontSize: 12, color: '#666', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>{t.description}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: '#666',
+                    marginBottom: 8,
+                    display: 'flex',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <span>Project Name</span>
+                  <span style={{ color: '#555', fontWeight: 400 }}>Optional</span>
+                </div>
+                <input
+                  type='text'
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder={
+                    selectedTemplate !== 'blank' 
+                      ? templates.find(t => t.id === selectedTemplate)?.name || 'Untitled Project'
+                      : 'Untitled Project'
+                  }
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: '#1a1a1a',
+                    border: '1px solid #333',
+                    borderRadius: 6,
+                    fontSize: 16,
+                    color: '#EDEDED',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  autoFocus
+                />
               </div>
-              <input
-                type='text'
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder='Enter project name'
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  background: '#1a1a1a',
-                  border: '1px solid #333',
-                  borderRadius: 6,
-                  fontSize: 16,
-                  color: '#EDEDED',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-                autoFocus
-              />
             </div>
 
             <div
@@ -257,7 +345,7 @@ export function ProjectManageDialog({
               </button>
               <button
                 type='submit'
-                disabled={loading || !name.trim()}
+                disabled={loading}
                 style={buttonStyle(true)}
               >
                 {loading
