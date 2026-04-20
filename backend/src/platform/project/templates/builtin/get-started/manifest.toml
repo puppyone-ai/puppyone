@@ -1,0 +1,8 @@
+id = "get-started"
+name = "Get Started"
+description = "A guided walkthrough — connect data sources, set up agents, and learn how PuppyOne works."
+icon = "🐕"
+version = "1.0.0"
+author = "PuppyOne"
+tags = ["onboarding", "tutorial"]
+order = 0
