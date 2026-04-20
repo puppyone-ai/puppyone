@@ -6,20 +6,47 @@ import { useRouter } from 'next/navigation';
 
 type PageState = 'loading' | 'ready' | 'success' | 'no-session';
 
+const SUCCESS_REDIRECT_DELAY_MS = 3000;
+
 export default function ResetPasswordPage() {
   const router = useRouter();
-  const { session, isAuthReady, updatePassword } = useAuth();
+  const { session, isAuthReady, updatePassword, signOut } = useAuth();
 
   const [pageState, setPageState] = useState<PageState>('loading');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [redirectIn, setRedirectIn] = useState(SUCCESS_REDIRECT_DELAY_MS / 1000);
 
   useEffect(() => {
     if (!isAuthReady) return;
-    setPageState(session ? 'ready' : 'no-session');
+    // Once we've reached a terminal state (success), Supabase auth events
+    // (USER_UPDATED / SIGNED_OUT triggered by the password update + signOut
+    // below) MUST NOT flip the UI back to the form — otherwise the user
+    // sees an empty form and assumes the change failed.
+    setPageState(prev => {
+      if (prev === 'success') return prev;
+      return session ? 'ready' : 'no-session';
+    });
   }, [isAuthReady, session]);
+
+  // Auto-redirect to /login a few seconds after success so the user is never
+  // left wondering whether the change went through.
+  useEffect(() => {
+    if (pageState !== 'success') return;
+    setRedirectIn(SUCCESS_REDIRECT_DELAY_MS / 1000);
+    const tick = setInterval(() => {
+      setRedirectIn(prev => Math.max(prev - 1, 0));
+    }, 1000);
+    const redirect = setTimeout(() => {
+      router.push('/login?reset=success');
+    }, SUCCESS_REDIRECT_DELAY_MS);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(redirect);
+    };
+  }, [pageState, router]);
 
   const validate = (): string | null => {
     if (password.length < 6) return 'Password must be at least 6 characters.';
@@ -37,10 +64,35 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    // Capture the user's email NOW, before signOut wipes the session — we
+    // hand it off to /login below so the email field can be pre-filled.
+    const userEmail = session?.user?.email ?? null;
+
     setSubmitting(true);
     try {
       await updatePassword(password);
+      // Mark success BEFORE signing out so the auth-state listener doesn't
+      // flip the UI to 'no-session' and hide the confirmation card.
       setPageState('success');
+
+      // Stash the email so /login?reset=success can pre-fill the form and
+      // jump straight to the password step (avoids the email-first hop).
+      if (userEmail && typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem('puppyone:reset-email', userEmail);
+        } catch {
+          // sessionStorage may be unavailable (private mode, quota, etc.) —
+          // non-fatal; the user just has to retype their email on /login.
+        }
+      }
+
+      // Invalidate the recovery session — force the user to sign in fresh
+      // with the new password (defends against shared/public devices).
+      try {
+        await signOut();
+      } catch {
+        // Non-fatal: password is already changed; user can still sign in.
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update password';
       setFormError(msg);
@@ -97,15 +149,16 @@ export default function ResetPasswordPage() {
               Password Updated
             </div>
             <div style={{ fontSize: 13, color: '#888', marginBottom: 20, lineHeight: 1.5 }}>
-              Your password has been successfully changed. You can now sign in with your new password.
+              Your password has been changed and you have been signed out.
+              Please sign in with your new password.
             </div>
             <button
-              onClick={() => router.push('/login')}
+              onClick={() => router.push('/login?reset=success')}
               style={primaryBtnStyle}
               onMouseEnter={primaryHoverIn}
               onMouseLeave={primaryHoverOut}
             >
-              Continue to Sign In
+              {redirectIn > 0 ? `Continue to Sign In (${redirectIn})` : 'Continue to Sign In'}
             </button>
           </div>
         </div>

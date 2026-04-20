@@ -15,6 +15,10 @@ const URL_ERROR_MESSAGES: Record<string, string> = {
     'Sign-in failed. Please try again.',
 };
 
+const URL_SUCCESS_MESSAGES: Record<string, string> = {
+  reset: 'Password updated. Please sign in with your new password.',
+};
+
 type AuthView = 'main' | 'signin' | 'signup' | 'verify-otp' | 'forgot';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
@@ -102,12 +106,40 @@ function LoginPageInner() {
     };
   }, []);
 
-  // Surface errors carried over from server-side redirects (e.g. /auth/confirm).
+  // Surface errors / success notices carried over from server-side redirects
+  // (e.g. /auth/confirm, /reset-password).
   useEffect(() => {
-    const code = searchParams?.get('error');
-    if (!code) return;
-    setError(URL_ERROR_MESSAGES[code] ?? 'Something went wrong. Please try again.');
-    // Clean up the URL so the message doesn't reappear on every navigation.
+    const errorCode = searchParams?.get('error');
+    const resetFlag = searchParams?.get('reset');
+    if (!errorCode && !resetFlag) return;
+    if (errorCode) {
+      setError(URL_ERROR_MESSAGES[errorCode] ?? 'Something went wrong. Please try again.');
+    }
+    if (resetFlag && URL_SUCCESS_MESSAGES.reset) {
+      setMessage(URL_SUCCESS_MESSAGES.reset);
+
+      // /reset-password stashes the user's email in sessionStorage right
+      // before signing out. If we have it, pre-fill the form and jump
+      // straight to the password step so the user doesn't have to retype
+      // their email (and never sees the empty "missing email" state).
+      let storedEmail: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          storedEmail = window.sessionStorage.getItem('puppyone:reset-email');
+          if (storedEmail) {
+            window.sessionStorage.removeItem('puppyone:reset-email');
+          }
+        } catch {
+          // sessionStorage unavailable — fall back to the email-first view.
+        }
+      }
+      if (storedEmail) {
+        setEmail(storedEmail);
+        setView('signin');
+      }
+      // If no stored email, leave view as 'main' so the user can type it in.
+    }
+    // Clean up the URL so the banner doesn't reappear on every navigation.
     router.replace('/login');
   }, [searchParams, router]);
 

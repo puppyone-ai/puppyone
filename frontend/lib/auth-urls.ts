@@ -32,9 +32,17 @@ export function getEmailConfirmUrl(): string {
   return `${getAppOrigin()}/auth/confirm`;
 }
 
-/** Where Supabase should redirect after password-reset email link click. */
+/**
+ * Where Supabase should redirect after password-reset email link click.
+ *
+ * IMPORTANT: returns a clean URL with NO query string. The Supabase email
+ * template appends `?token_hash=...&type=recovery&next=/reset-password`
+ * itself (via `{{ .RedirectTo }}?...` in the template), so this URL must
+ * end without a `?` to keep the resulting link well-formed across both
+ * localhost dev and production.
+ */
 export function getPasswordResetRedirectUrl(): string {
-  return `${getAppOrigin()}/auth/confirm?next=/reset-password`;
+  return `${getAppOrigin()}/auth/confirm`;
 }
 
 /** Where Supabase should redirect after OAuth provider authorization. */
