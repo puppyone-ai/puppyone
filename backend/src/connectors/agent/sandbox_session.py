@@ -207,26 +207,27 @@ async def writeback_and_destroy(
 
     if not session.readonly and session.project_id:
         try:
-            modified = await _read_modified_files(
+            modified, deleted = await _read_modified_files(
                 sandbox_service,
                 session.sandbox_session_id,
                 session.cloned_files,
                 "/workspace",
                 session.scope_path,
             )
-            if modified:
+            if modified or deleted:
                 from src.mut_engine.services.hooks import push_and_finalize
                 push_result = await push_and_finalize(
                     session.mut_client,
                     session.project_id,
                     repo_manager=session.repo_manager,
                     modified=modified,
-                    message=f"Agent write-back ({len(modified)} files)",
+                    deleted=deleted,
+                    message=f"Agent write-back ({len(modified)} modified, {len(deleted)} deleted)",
                     who=f"agent:{session.agent_id}",
                 )
                 logger.info(
                     f"[AgentSandbox] MUT push: commit={push_result.get('commit_id')} "
-                    f"merged={push_result.get('merged', False)} files={len(modified)}"
+                    f"merged={push_result.get('merged', False)} modified={len(modified)} deleted={len(deleted)}"
                 )
                 for path in modified:
                     node_name = path.rsplit("/", 1)[-1] if "/" in path else path
@@ -252,15 +253,16 @@ async def _read_modified_files(
     original_files: dict[str, bytes],
     mount_path: str,
     scope_path: str,
-) -> dict[str, bytes]:
-    """Read files from sandbox container, return only changed ones.
+) -> tuple[dict[str, bytes], list[str]]:
+    """Read files from sandbox container, detect changes and deletions.
 
     Args:
         mount_path: Container path to scan (e.g. "/workspace" or "/workspace/data").
         scope_path: MUT tree prefix to prepend to relative paths.
 
     Returns:
-        {mut_path: content_bytes} for files that changed vs original_files.
+        (modified, deleted) — modified is {mut_path: content_bytes},
+        deleted is [mut_path, ...] for files removed from sandbox.
     """
     scan_path = mount_path or "/workspace"
     # Normalize scope_path: strip slashes to match MUT clone key format
@@ -271,13 +273,15 @@ async def _read_modified_files(
         f"find {scan_path} -type f -exec sha256sum {{}} \\; 2>/dev/null"
     )
     if not hash_result.get("success"):
-        return {}
+        return {}, []
 
     original_hashes: dict[str, str] = {}
     for mut_path, content in original_files.items():
         original_hashes[mut_path] = hashlib.sha256(content).hexdigest()
 
     modified: dict[str, bytes] = {}
+    seen_mut_paths: set[str] = set()
+
     for line in (hash_result.get("output") or "").strip().split("\n"):
         line = line.strip()
         if not line:
@@ -295,6 +299,7 @@ async def _read_modified_files(
             continue
 
         mut_path = f"{scope_path}/{relative}" if scope_path else relative
+        seen_mut_paths.add(mut_path)
 
         if mut_path in original_hashes and original_hashes[mut_path] == current_hash:
             continue
@@ -313,7 +318,10 @@ async def _read_modified_files(
 
         modified[mut_path] = content_bytes
 
-    return modified
+    # Detect deleted files: in original but no longer in sandbox
+    deleted = [p for p in original_files if p not in seen_mut_paths]
+
+    return modified, deleted
 
 
 # ── Singleton ─────────────────────────────────────────────

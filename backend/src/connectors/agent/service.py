@@ -702,7 +702,7 @@ class AgentService:
                 agent_sandbox_registry.touch(chat_key)
 
                 status = await sandbox_service.status(sandbox_session_id)
-                if status.get("success") and status.get("status") != "stopped":
+                if status.get("active"):
                     start_result = {"success": True}
                     logger.info(f"[Agent] Reusing sandbox {sandbox_session_id} for session {chat_key}")
                 else:
@@ -1203,27 +1203,30 @@ class AgentService:
             updated_nodes = []
             if live_session and live_session.mut_client and not live_session.readonly:
                 try:
-                    modified = await _read_modified_files(
+                    modified, deleted = await _read_modified_files(
                         sandbox_service,
                         live_session.sandbox_session_id,
                         live_session.cloned_files,
                         "/workspace",
                         live_session.scope_path,
                     )
-                    if modified:
+                    if modified or deleted:
                         from src.mut_engine.services.hooks import push_and_finalize
                         push_result = await push_and_finalize(
                             live_session.mut_client,
                             live_session.project_id,
                             repo_manager=live_session.repo_manager,
                             modified=modified,
-                            message=f"Agent chat write-back ({len(modified)} files)",
+                            deleted=deleted,
+                            message=f"Agent chat write-back ({len(modified)} modified, {len(deleted)} deleted)",
                             who=f"agent:{request.agent_id}",
                         )
                         live_session.cloned_files.update(modified)
+                        for dp in deleted:
+                            live_session.cloned_files.pop(dp, None)
                         logger.info(
                             f"[Agent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
-                            f"merged={push_result.get('merged', False)} files={len(modified)}"
+                            f"merged={push_result.get('merged', False)} modified={len(modified)} deleted={len(deleted)}"
                         )
                         for path in modified:
                             node_name = path.rsplit("/", 1)[-1] if "/" in path else path

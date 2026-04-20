@@ -297,18 +297,21 @@ async def create_sync(
             detail=f"Connector {body.provider} must be created via bootstrap",
         )
 
-    sync = await sync_svc.create_sync(
-        project_id=body.project_id,
-        provider=body.provider,
-        config=body.config,
-        target_folder_path=body.target_folder_path,
-        credentials_ref=body.credentials_ref,
-        direction=body.direction,
-        conflict_strategy=body.conflict_strategy,
-        sync_mode=body.sync_mode,
-        trigger=body.trigger,
-        user_id=current_user.user_id,
-    )
+    try:
+        sync = await sync_svc.create_sync(
+            project_id=body.project_id,
+            provider=body.provider,
+            config=body.config,
+            target_folder_path=body.target_folder_path,
+            credentials_ref=body.credentials_ref,
+            direction=body.direction,
+            conflict_strategy=body.conflict_strategy,
+            sync_mode=body.sync_mode,
+            trigger=body.trigger,
+            user_id=current_user.user_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
     if body.sync_mode == "scheduled" and body.trigger:
         try:

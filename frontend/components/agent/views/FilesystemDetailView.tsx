@@ -102,7 +102,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
 
   const accessKey = sync.access_key || '';
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  const cloneUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
+  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
 
   return (
     <PanelShell
