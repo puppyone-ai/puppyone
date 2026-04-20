@@ -104,7 +104,7 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
 
 # ── Access Point Router ──────────────────────────────────────
 
-ap_router = APIRouter(prefix="/api/v1/mut/ap")
+ap_router = APIRouter(prefix="/mut/ap")
 
 
 def _get_repo_manager() -> MutRepoManager:

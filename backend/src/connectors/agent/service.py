@@ -467,6 +467,12 @@ class AgentService:
                     logger.info(f"[Agent] Total bash accesses collected: {len(bash_tools)}")
                 else:
                     logger.warning(f"[Agent] Agent not found or unauthorized: agent_id={request.agent_id}, has_access={has_access}")
+                    if not agent:
+                        raise ValueError(f"Agent not found: {request.agent_id}")
+                    if not has_access:
+                        raise PermissionError(f"Not authorized to use agent: {request.agent_id}")
+            except (ValueError, PermissionError):
+                raise  # Let these propagate to the SSE error handler
             except Exception as e:
                 logger.warning(f"[Agent] Failed to get agent config: {e}", exc_info=True)
 
@@ -539,7 +545,7 @@ class AgentService:
                     mode="agent",
                 )
                 logger.info(f"[Chat Persist] Session ready: id={persisted_session_id}, created={created_session}")
-                # If this is a newly created session, set the title first, then notify the frontend
+                # If this is a newly created session, set the title first
                 if created_session and persisted_session_id:
                     try:
                         chat_service.maybe_set_title_on_first_message(
@@ -550,6 +556,8 @@ class AgentService:
                         logger.info(f"[Chat Persist] Session title set for {persisted_session_id}")
                     except Exception as e:
                         logger.warning(f"[Chat Persist] Failed to set session title: {e}")
+                # Always emit session event so client can track session_id across calls
+                if persisted_session_id:
                     yield {"type": "session", "sessionId": persisted_session_id}
             except Exception as e:
                 logger.error(f"[Chat Persist] Failed to ensure session: {e}")
@@ -617,7 +625,7 @@ class AgentService:
                     all_files.extend(data.files)
 
                     # Log context access (data egress tracking)
-                    await log_context_access(
+                    log_context_access(
                         path=tool["path"],
                         node_type=data.node_type,
                         node_name=data.root_node_name,
@@ -694,7 +702,7 @@ class AgentService:
                 agent_sandbox_registry.touch(chat_key)
 
                 status = await sandbox_service.status(sandbox_session_id)
-                if status.get("success") and status.get("status") != "stopped":
+                if status.get("active"):
                     start_result = {"success": True}
                     logger.info(f"[Agent] Reusing sandbox {sandbox_session_id} for session {chat_key}")
                 else:
@@ -733,13 +741,14 @@ class AgentService:
                         if root_entry:
                             if root_entry.type == "folder":
                                 sandbox_parent_path = root_path
-                                scope_path = root_path
+                                scope_path = root_path.strip("/")
                             else:
                                 sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
-                                scope_path = sandbox_parent_path
+                                scope_path = sandbox_parent_path.strip("/")
 
                     mut_client = None
                     cloned_files = {}
+                    repo_manager = None
                     if _agent_project_id and not sandbox_readonly:
                         from src.mut_engine.dependencies import get_repo_manager_standalone
                         from src.mut_engine.services.ephemeral_client import MutEphemeralClient
@@ -766,6 +775,7 @@ class AgentService:
                         readonly=sandbox_readonly,
                         project_id=_agent_project_id,
                         parent_path=sandbox_parent_path,
+                        repo_manager=repo_manager,
                     )
 
             if not start_result.get("success"):
@@ -1193,26 +1203,30 @@ class AgentService:
             updated_nodes = []
             if live_session and live_session.mut_client and not live_session.readonly:
                 try:
-                    modified = await _read_modified_files(
+                    modified, deleted = await _read_modified_files(
                         sandbox_service,
                         live_session.sandbox_session_id,
                         live_session.cloned_files,
                         "/workspace",
                         live_session.scope_path,
                     )
-                    if modified:
+                    if modified or deleted:
                         from src.mut_engine.services.hooks import push_and_finalize
                         push_result = await push_and_finalize(
                             live_session.mut_client,
                             live_session.project_id,
+                            repo_manager=live_session.repo_manager,
                             modified=modified,
-                            message=f"Agent chat write-back ({len(modified)} files)",
+                            deleted=deleted,
+                            message=f"Agent chat write-back ({len(modified)} modified, {len(deleted)} deleted)",
                             who=f"agent:{request.agent_id}",
                         )
                         live_session.cloned_files.update(modified)
+                        for dp in deleted:
+                            live_session.cloned_files.pop(dp, None)
                         logger.info(
                             f"[Agent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
-                            f"merged={push_result.get('merged', False)} files={len(modified)}"
+                            f"merged={push_result.get('merged', False)} modified={len(modified)} deleted={len(deleted)}"
                         )
                         for path in modified:
                             node_name = path.rsplit("/", 1)[-1] if "/" in path else path
@@ -1222,7 +1236,7 @@ class AgentService:
                                 "mergeStrategy": "mut_push",
                             })
                 except Exception as e:
-                    logger.warning(f"[Agent] Write-back failed: {e}")
+                    logger.error(f"[Agent] Write-back failed: {e}", exc_info=True)
 
             if updated_nodes:
                 yield {

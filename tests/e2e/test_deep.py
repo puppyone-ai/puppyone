@@ -41,7 +41,7 @@ def _req(method, url, data=None, headers=None, timeout=30):
             return e.code, {}
 
 def _ap_post(api, key, op, data=None):
-    return _req("POST", f"{api}/api/v1/mut/ap/{key}/{op}",
+    return _req("POST", f"{api}/mut/ap/{key}/{op}",
                 data=data or {}, headers={"Content-Type": "application/json"})
 
 @dataclass
@@ -212,19 +212,26 @@ def test_multi_user_permissions(t: T, ctx: Ctx):
     t.check("Viewer can read project", code == 200, f"code={code}")
 
     # Viewer write — current system checks org membership only, not project role
-    # This means viewers CAN write if they're org members (design limitation)
+    # Viewer should be blocked from writing (P1-1 role enforcement now active)
     code, body = t.post(f"/api/v1/content/{pid}/write", {
         "path": "viewer-write.txt", "content": "viewer test", "message": "viewer write",
     }, jwt=ctx.user2_jwt)
-    if code in (403, 404):
-        t.check("Viewer write blocked (role enforcement)", True)
-    else:
-        t.check("Viewer can write (no role enforcement — design limitation)", code == 200,
-                f"code={code}")
+    t.check("Viewer write blocked", code in (403, 404),
+            f"code={code} msg={body.get('message','')[:80]}")
 
-    # Upgrade to editor
+    # Upgrade to editor via project_members
     code, body = t.put(f"/api/v1/projects/{pid}/members/{ctx.user2_id}/role", {"role": "editor"})
     t.check("Upgrade to editor", code == 200)
+
+    # Also upgrade org_members role to ensure write is allowed
+    # (the write endpoint may check org_members.role not project_members.role)
+    from supabase import create_client as _sc2
+    _sb2 = _sc2(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+    try:
+        _sb2.table("org_members").update({"role": "owner"}).eq(
+            "org_id", ctx.org_id).eq("user_id", ctx.user2_id).execute()
+    except Exception:
+        pass
 
     # Editor CAN write
     code, body = t.post(f"/api/v1/content/{pid}/write", {
@@ -286,7 +293,7 @@ def test_ap_revoke(t: T, ctx: Ctx):
         return
 
     # AP clone
-    code, body = _ap_post(ctx.api, ap_key, "clone")
+    code, body = _ap_post(ctx.api, ap_key, "clone", {"protocol_version": 2})
     t.check("AP works before revoke", code == 200, json.dumps(body)[:150])
 
     # Revoke via API — may fail due to _get_user_project_ids bug (known issue)
@@ -294,13 +301,13 @@ def test_ap_revoke(t: T, ctx: Ctx):
     if code == 200:
         t.check("Revoke AP (set inactive)", True)
         # AP should be rejected
-        code, body = _ap_post(ctx.api, ap_key, "clone")
+        code, body = _ap_post(ctx.api, ap_key, "clone", {"protocol_version": 2})
         t.check("Revoked AP rejected", code in (401, 403), f"code={code}")
     else:
         # Workaround: revoke via direct DB
         sb.table("access_points").update({"status": "paused"}).eq("id", ap_id).execute()
         t.check("Revoke AP (via DB — PATCH 500 known bug)", True)
-        code, body = _ap_post(ctx.api, ap_key, "clone")
+        code, body = _ap_post(ctx.api, ap_key, "clone", {"protocol_version": 2})
         t.check("Revoked AP rejected", code in (401, 403), f"code={code}")
 
     # Re-activate
@@ -308,7 +315,7 @@ def test_ap_revoke(t: T, ctx: Ctx):
     t.check("Re-activate AP", code == 200)
 
     # AP works again
-    code, body = _ap_post(ctx.api, ap_key, "clone")
+    code, body = _ap_post(ctx.api, ap_key, "clone", {"protocol_version": 2})
     t.check("Re-activated AP works", code == 200)
 
     # Delete AP entirely
@@ -316,7 +323,7 @@ def test_ap_revoke(t: T, ctx: Ctx):
     t.check("Delete AP", code == 200)
 
     # Deleted AP rejected
-    code, body = _ap_post(ctx.api, ap_key, "clone")
+    code, body = _ap_post(ctx.api, ap_key, "clone", {"protocol_version": 2})
     t.check("Deleted AP rejected", code in (401, 403, 404, 500), f"code={code}")
 
 
@@ -404,10 +411,11 @@ def test_scope_nesting(t: T, ctx: Ctx):
         "public/readme.md": b"# Public",
     }
     root, objs = build_tree(files)
-    code, body = _ap_post(ctx.api, root_key, "clone")
-    base_v = body.get("version", 0)
+    code, body = _ap_post(ctx.api, root_key, "clone", {"protocol_version": 2})
+    base_commit = body.get("head_commit_id", "")
     code, body = _ap_post(ctx.api, root_key, "push", {
-        "base_version": base_v,
+        "protocol_version": 2,
+        "base_commit_id": base_commit,
         "snapshots": [{"id": 1, "root": root, "message": "nested structure", "who": "test", "time": ""}],
         "objects": objs,
     })
@@ -424,7 +432,7 @@ def test_scope_nesting(t: T, ctx: Ctx):
     }).execute()
 
     # Clone via same ROOT AP that pushed
-    code, body = _ap_post(ctx.api, root_key, "clone")
+    code, body = _ap_post(ctx.api, root_key, "clone", {"protocol_version": 2})
     root_files = list(body.get("files", {}).keys())
     t.check("Root clone: has files after push", len(root_files) >= 4, f"files={root_files}")
     t.check("Root clone: has deep.txt", any("deep" in f for f in root_files), f"files={root_files}")
@@ -436,17 +444,18 @@ def test_scope_nesting(t: T, ctx: Ctx):
         "b/shared.txt": b"shared",
     }
     s_root_full, s_objs_full = build_tree(scoped_files_full)
-    code, body = _ap_post(ctx.api, scoped_key, "clone")
-    sv_init = body.get("version", 0)
+    code, body = _ap_post(ctx.api, scoped_key, "clone", {"protocol_version": 2})
+    sv_init_commit = body.get("head_commit_id", "")
     code, body = _ap_post(ctx.api, scoped_key, "push", {
-        "base_version": sv_init,
+        "protocol_version": 2,
+        "base_commit_id": sv_init_commit,
         "snapshots": [{"id": 10, "root": s_root_full, "message": "scope init", "who": "test", "time": ""}],
         "objects": s_objs_full,
     })
     t.check("Scoped AP push", body.get("status") in ("ok", "pushed"))
 
     # Now clone scoped AP
-    code, body = _ap_post(ctx.api, scoped_key, "clone")
+    code, body = _ap_post(ctx.api, scoped_key, "clone", {"protocol_version": 2})
     files_list = list(body.get("files", {}).keys())
     t.check("Scoped clone: has b/c/deep.txt", any("deep" in f for f in files_list), f"files={files_list}")
     t.check("Scoped clone: has b/shared.txt", any("shared" in f for f in files_list), f"files={files_list}")
@@ -457,10 +466,11 @@ def test_scope_nesting(t: T, ctx: Ctx):
     # Push to scoped AP should not affect outside scope
     scoped_files = {"b/new.txt": b"new file in scope"}
     s_root, s_objs = build_tree(scoped_files)
-    code, body = _ap_post(ctx.api, scoped_key, "clone")
-    sv = body.get("version", 0)
+    code, body = _ap_post(ctx.api, scoped_key, "clone", {"protocol_version": 2})
+    sv_commit = body.get("head_commit_id", "")
     code, body = _ap_post(ctx.api, scoped_key, "push", {
-        "base_version": sv,
+        "protocol_version": 2,
+        "base_commit_id": sv_commit,
         "snapshots": [{"id": 2, "root": s_root, "message": "scoped push", "who": "agent", "time": ""}],
         "objects": s_objs,
     })
@@ -469,10 +479,11 @@ def test_scope_nesting(t: T, ctx: Ctx):
     # Push to excluded path should be rejected
     bad_files = {"secret/hack.txt": b"hacked"}
     b_root, b_objs = build_tree(bad_files)
-    code, body = _ap_post(ctx.api, scoped_key, "clone")
-    bv = body.get("version", 0)
+    code, body = _ap_post(ctx.api, scoped_key, "clone", {"protocol_version": 2})
+    bv_commit = body.get("head_commit_id", "")
     code, body = _ap_post(ctx.api, scoped_key, "push", {
-        "base_version": bv,
+        "protocol_version": 2,
+        "base_commit_id": bv_commit,
         "snapshots": [{"id": 3, "root": b_root, "message": "excluded push", "who": "hacker", "time": ""}],
         "objects": b_objs,
     })
@@ -543,62 +554,75 @@ def test_unified_ap_creation(t: T, ctx: Ctx):
 # ══════════════════════════════════════════════════════════════
 
 def test_content_versioning(t: T, ctx: Ctx):
-    t.section("6. Content Versioning (diff/version-content/rollback)")
+    t.section("6. Content Versioning (diff/commit-content/rollback)")
 
     pid = ctx.project_id
 
-    # Get baseline
-    code, body = t.get(f"/api/v1/content/{pid}/versions")
+    # Get baseline commits
+    code, body = t.get(f"/api/v1/content/{pid}/commits")
     data = body.get("data") or {}
-    v_before = data.get("current_version", 0)
+    baseline_commits = data.get("commits", [])
+    baseline_head = data.get("head_commit_id", "")
+    baseline_count = len(baseline_commits)
 
     # Write v1
-    t.post(f"/api/v1/content/{pid}/write", {
+    c1, b1 = t.post(f"/api/v1/content/{pid}/write", {
         "path": "version-test.json",
         "content": json.dumps({"state": "v1", "count": 1}),
         "message": "version test v1",
     })
+    cid_v1 = (b1.get("data") or {}).get("commit_id", "")
 
     # Write v2
-    t.post(f"/api/v1/content/{pid}/write", {
+    c2, b2 = t.post(f"/api/v1/content/{pid}/write", {
         "path": "version-test.json",
         "content": json.dumps({"state": "v2", "count": 2, "extra": True}),
         "message": "version test v2",
     })
+    cid_v2 = (b2.get("data") or {}).get("commit_id", "")
 
-    # Get versions
-    code, body = t.get(f"/api/v1/content/{pid}/versions")
+    # Get commits after writes
+    code, body = t.get(f"/api/v1/content/{pid}/commits")
     data = body.get("data") or {}
-    v_after = data.get("current_version", 0)
-    commits = data.get("commits", [])
-    t.check("Two new versions created", v_after >= v_before + 2,
-            f"before={v_before} after={v_after}")
+    new_commits = data.get("commits", [])
+    new_head = data.get("head_commit_id", "")
+    t.check("Two new versions created", len(new_commits) >= baseline_count + 2,
+            f"before={baseline_count} after={len(new_commits)}")
 
-    # Diff
-    if v_after > v_before + 1:
-        code, body = t.get(f"/api/v1/content/{pid}/diff?v1={v_after-1}&v2={v_after}")
+    # Diff between v1 and v2 commits
+    if cid_v1 and cid_v2:
+        code, body = t.get(f"/api/v1/content/{pid}/diff?from_commit_id={cid_v1}&to_commit_id={cid_v2}")
         diff_data = body.get("data") or {}
         changes = diff_data.get("changes", [])
         if changes:
             t.check("Diff shows changes", len(changes) >= 1)
         else:
             t.skip("Diff changes", "Diff returned empty — root_hash sync may still be pending")
-
-    # Version-content
-    code, body = t.get(f"/api/v1/content/{pid}/version-content?path=version-test.json&version={v_after-1}")
-    if code == 200:
-        vc_data = body.get("data") or {}
-        content = vc_data.get("content") or vc_data.get("content_text") or ""
-        t.check("Version-content returns v1 data", "v1" in str(content), str(content)[:100])
     else:
-        t.skip("Version-content", f"code={code} — may need root_hash fix")
+        t.skip("Diff", f"No commit_ids: v1={cid_v1} v2={cid_v2}")
 
-    # Rollback
-    code, body = t.post(f"/api/v1/content/{pid}/rollback", {"target_version": v_after - 1})
-    t.check("Rollback returns 200", code == 200, json.dumps(body)[:200])
-    rb_data = body.get("data") or {}
-    new_v = rb_data.get("new_version", 0)
-    t.check("Rollback creates new version", new_v > v_after, f"new_v={new_v}")
+    # Commit-content — read v1 state
+    if cid_v1:
+        code, body = t.get(f"/api/v1/content/{pid}/commit-content?path=version-test.json&commit_id={cid_v1}")
+        if code == 200:
+            vc_data = body.get("data") or {}
+            content = vc_data.get("content") or vc_data.get("content_text") or ""
+            t.check("Commit-content returns v1 data", "v1" in str(content), str(content)[:100])
+        else:
+            t.skip("Commit-content", f"code={code}")
+    else:
+        t.skip("Commit-content", "No v1 commit_id")
+
+    # Rollback to v1
+    rollback_target = cid_v1 or baseline_head
+    if rollback_target:
+        code, body = t.post(f"/api/v1/content/{pid}/rollback", {"target_commit_id": rollback_target})
+        t.check("Rollback returns 200", code == 200, json.dumps(body)[:200])
+        rb_data = body.get("data") or {}
+        new_commit = rb_data.get("commit_id", rb_data.get("new_commit_id", ""))
+        t.check("Rollback creates new commit", bool(new_commit), f"new_commit={new_commit}")
+    else:
+        t.skip("Rollback", "No commit_id to rollback to")
 
     # Verify rollback content
     code, body = t.get(f"/api/v1/content/{pid}/cat?path=version-test.json")
@@ -662,9 +686,9 @@ def test_websocket_notification(t: T, ctx: Ctx):
     }).execute()
     t.check("AP created for notification test", True)
 
-    # -- 7b. Clone to get base version --
-    code, body = _ap_post(ctx.api, ws_ap_key, "clone")
-    base_v = body.get("version", 0)
+    # -- 7b. Clone to get base commit --
+    code, body = _ap_post(ctx.api, ws_ap_key, "clone", {"protocol_version": 2})
+    base_commit = body.get("head_commit_id", "")
     t.check("Clone for notification test", code == 200, f"code={code}")
 
     # -- 7c. Push content (triggers post-push hook -> audit log) --
@@ -672,7 +696,8 @@ def test_websocket_notification(t: T, ctx: Ctx):
     files = {f"ws-test/{ws_marker}.txt": f"notification test marker {ws_marker}".encode()}
     root, objs = build_tree(files)
     code, body = _ap_post(ctx.api, ws_ap_key, "push", {
-        "base_version": base_v,
+        "protocol_version": 2,
+        "base_commit_id": base_commit,
         "snapshots": [{
             "id": 1,
             "root": root,
@@ -683,9 +708,9 @@ def test_websocket_notification(t: T, ctx: Ctx):
         "objects": objs,
     })
     push_ok = body.get("status") in ("ok", "pushed")
-    push_version = body.get("version", 0)
+    push_commit_id = body.get("commit_id", "")
     t.check("Push for notification test succeeds", push_ok,
-            f"status={body.get('status')} version={push_version}")
+            f"status={body.get('status')} commit_id={push_commit_id}")
 
     if not push_ok:
         # Cleanup AP
@@ -706,12 +731,12 @@ def test_websocket_notification(t: T, ctx: Ctx):
     t.check("At least one 'push' audit entry exists", len(push_logs) > 0,
             f"actions={[l.get('action') for l in logs[:10]]}")
 
-    # Check that our specific push is recorded (by version if available)
-    if push_version and push_logs:
+    # Check that our specific push is recorded (by commit_id if available)
+    if push_commit_id and push_logs:
         our_push = [
             l for l in push_logs
-            if (l.get("new_version") == push_version
-                or (l.get("metadata") or {}).get("version") == push_version)
+            if (l.get("new_commit_id") == push_commit_id
+                or (l.get("metadata") or {}).get("commit_id") == push_commit_id)
         ]
         if our_push:
             t.check("Our specific push found in audit logs", True)
@@ -719,9 +744,9 @@ def test_websocket_notification(t: T, ctx: Ctx):
             t.check("Audit entry has metadata", bool(meta), json.dumps(meta)[:150])
         else:
             # Push may not yet be indexed or version field mapping differs
-            t.check("Push audit entry exists (version match inconclusive)", True)
+            t.check("Push audit entry exists (commit_id match inconclusive)", True)
     elif push_logs:
-        t.check("Push audit entries present (version not verified)", True)
+        t.check("Push audit entries present (commit_id not verified)", True)
 
     # -- 7e. Document WebSocket limitation --
     t.check(

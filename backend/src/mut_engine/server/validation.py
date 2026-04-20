@@ -64,6 +64,18 @@ def validate_limit(limit: int, default: int = 100, maximum: int = 1000) -> int:
     return min(limit, maximum)
 
 
+def validate_content_size(content: bytes, max_size: int = MAX_FILE_SIZE) -> None:
+    """Reject content that exceeds the file size limit.
+
+    Raises HTTPException 413 if content is too large.
+    """
+    if len(content) > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File size {len(content)} bytes exceeds limit of {max_size} bytes",
+        )
+
+
 def validate_push_objects(body: dict) -> None:
     """Validate object sizes in a MUT push request body.
 

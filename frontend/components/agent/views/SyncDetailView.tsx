@@ -816,7 +816,7 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
   const [copied, setCopied] = React.useState<string | null>(null);
   const masked = accessKey.slice(0, 8) + '...' + accessKey.slice(-4);
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  const cloneUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
+  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
   const cloneCmd = `mut clone ${cloneUrl} --credential ${accessKey}`;
 
   const handleCopy = (text: string, label: string) => {

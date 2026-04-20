@@ -152,8 +152,9 @@ class E2BSandbox(SandboxBase):
             content = f["content"]
 
             # Security check: prevent path traversal attacks
-            # Normalize path and check if it attempts to escape /workspace
-            normalized_path = os.path.normpath(path)
+            # Normalize path using posixpath (not os.path which uses backslashes on Windows)
+            import posixpath
+            normalized_path = posixpath.normpath(path)
             # Only allow paths under /workspace
             if not normalized_path.startswith("/workspace/") and normalized_path != "/workspace":
                 # If path doesn't start with /workspace, automatically add the prefix
@@ -177,7 +178,7 @@ class E2BSandbox(SandboxBase):
             # Create parent directories (use shlex.quote to prevent command injection)
             # Since /workspace was already created with sudo and set to 777, subdirectories shouldn't need sudo
             # But as a safety measure, try sudo if regular mkdir fails
-            dir_path = os.path.dirname(path)
+            dir_path = posixpath.dirname(path)
             if dir_path and dir_path not in created_dirs:
                 try:
                     safe_dir_path = shlex.quote(dir_path)
@@ -253,7 +254,12 @@ class E2BSandbox(SandboxBase):
         # Execute in sandbox and normalize output to text.
         try:
             result = await _call_maybe_async(session.sandbox.commands.run, command)
-            output = getattr(result, "text", str(result))
+            # E2B SDK v1+ uses .stdout/.stderr; older versions use .text
+            output = getattr(result, "text", None)
+            if output is None:
+                stdout = getattr(result, "stdout", "")
+                stderr = getattr(result, "stderr", "")
+                output = stdout if stdout else stderr if stderr else str(result)
 
             # Check for error output (E2B may return errors in stderr)
             stderr = getattr(result, "stderr", None)

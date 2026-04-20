@@ -83,7 +83,13 @@ class SyncRepository:
             "conflict_strategy": conflict_strategy,
             "status": status,
         }
-        response = self.client.table(self.TABLE).insert(data).execute()
+        from postgrest.exceptions import APIError
+        try:
+            response = self.client.table(self.TABLE).insert(data).execute()
+        except APIError as e:
+            if "23505" in str(e):
+                raise ValueError(f"A sync already exists for path '{path}'. Remove it first or use a different path.")
+            raise
         return self._to_model(response.data[0])
 
     # ============================================================

@@ -9,6 +9,7 @@ import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/co
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
 import { SyncPreview } from '@/components/agent/views/configs/SyncPreview';
 import { PanelShell } from './PanelShell';
+import { usePanelStore } from '../usePanelStore';
 import type { SaasType } from '@/lib/oauthApi';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { createSyncConnection } from '@/lib/syncApi';
@@ -262,17 +263,20 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
   };
 
   // Deploy agent
+  const { openPanel } = usePanelStore();
   const handleAgentDeploy = useCallback(async () => {
     if (!selectedAgentType || deploying) return;
     setDeploying(true);
     try {
       const name = displayName.trim() || 'Chat Agent';
-      deployAgent(name, '💬');
-      onClose();
+      const agentId = await deployAgent(name, '💬');
+      if (agentId) {
+        openPanel({ type: 'agent_chat', agentId });
+      }
     } finally {
       setDeploying(false);
     }
-  }, [selectedAgentType, displayName, deploying, deployAgent, onClose]);
+  }, [selectedAgentType, displayName, deploying, deployAgent, openPanel]);
 
   // Deploy endpoint (MCP / Sandbox)
   const handleEndpointDeploy = useCallback(async () => {
@@ -735,9 +739,8 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
                     key={opt.id}
                     icon={opt.icon}
                     label={opt.label}
-                    description="Coming soon"
-                    onClick={() => {}}
-                    disabled
+                    description={opt.description}
+                    onClick={() => handleSelectAgentType(opt.id)}
                   />
                 ))}
               </div>

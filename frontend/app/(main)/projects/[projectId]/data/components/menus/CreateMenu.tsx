@@ -418,7 +418,7 @@ export function CreateMenu({
             <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Share data with an AI Agent
             </div>
-            <MenuItem icon={<ChatAgentIcon />} label="Chat Agent" sublabel="Coming soon" disabled />
+            <MenuItem icon={<ChatAgentIcon />} label="Chat Agent" onClick={() => { onCreateAgent?.(); onClose(); }} />
 
             <Divider />
 

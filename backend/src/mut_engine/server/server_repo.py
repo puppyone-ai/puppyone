@@ -113,6 +113,10 @@ class PuppyOneServerRepo:
             head_commit_id=head_commit_id,
         )
 
+    def cas_update_root_hash(self, old_root: str, new_root: str) -> bool:
+        """Atomic CAS on root_hash via Postgres RPC."""
+        return self.history.cas_update_root_hash(old_root, new_root)
+
     # ── History ──
 
     def record_history(

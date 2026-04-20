@@ -113,7 +113,7 @@ class UrlParser:
         if not self._is_safe_url(url):
             raise ValueError("Internal network addresses are not allowed")
 
-            source_type = detect_source_type(url)
+        source_type = detect_source_type(url)
 
         try:
             log_info(f"Parsing URL: {url}")
@@ -216,6 +216,7 @@ class UrlParser:
             "data": data,
             "source_type": source_type,
             "title": title,
+            "raw_markdown": markdown_content,
         }
 
     def _process_crawl_result(
