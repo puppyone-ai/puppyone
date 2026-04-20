@@ -37,47 +37,19 @@ export function DashboardView({
   if (projects.length === 0) {
     return (
       <div className='flex-1 flex flex-col items-center justify-center p-8'>
-        <div 
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center',
-            maxWidth: 400
-          }}
-        >
-          <div style={{ fontSize: 48, marginBottom: 24 }}>🐕</div>
-          <h1 className='text-2xl font-semibold text-[#eee] tracking-tight mb-3'>
-            Create your first project
-          </h1>
-          <p className='text-[15px] text-[#888] mb-8 leading-relaxed'>
-            A project is a context space where you connect data sources and give AI agents access. Pick a template to start, or begin blank.
-          </p>
+        <div className="flex flex-col items-center text-center">
           <button
             onClick={onCreateClick}
-            style={{
-              padding: '12px 24px',
-              background: '#EDEDED',
-              color: '#0a0a0a',
-              border: 'none',
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: '0 4px 12px rgba(255,255,255,0.1)'
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = '#fff';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = '#EDEDED';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
+            className="w-24 h-24 mb-6 rounded-xl border-2 border-dashed border-[#333] hover:border-[#666] bg-transparent hover:bg-[#1a1a1a] transition-all flex items-center justify-center group cursor-pointer"
           >
-            New Project
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#666] group-hover:text-[#eee] transition-colors">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+              <line x1="12" y1="11" x2="12" y2="17"></line>
+              <line x1="9" y1="14" x2="15" y2="14"></line>
+            </svg>
           </button>
+          <h2 className="text-lg font-medium text-[#eee] mb-2">Project is empty</h2>
+          <p className="text-sm text-[#888]">Click the folder above to create a new project.</p>
         </div>
       </div>
     );
