@@ -7,7 +7,8 @@
  * Clicking an access point opens its detail view.
  */
 
-import React, { use, useState, useMemo, useCallback } from 'react';
+import React, { use, useState, useMemo, useCallback, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
 import { get, post, del } from '@/lib/apiClient';
 import { getProviderDisplayLabel, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
@@ -207,7 +208,31 @@ function groupConnections(connections: SyncStatusItem[]) {
 
 export default function AccessPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // `?ap=<id>` is the deep-link entry point — Home's AP cards push that URL
+  // when clicked, and we treat the query string as the source-of-truth for
+  // selection so back/forward and shared links round-trip cleanly.  Local
+  // state is kept in sync via `useEffect` (one-way: URL → state); user clicks
+  // in the sidebar go through `selectAp()` which sets state AND patches the
+  // URL with `router.replace` (so reload preserves the selection without
+  // polluting browser history).
+  const queryAp = searchParams.get('ap');
+  const [selectedId, setSelectedIdState] = useState<string | null>(queryAp);
+  useEffect(() => {
+    if (queryAp && queryAp !== selectedId) setSelectedIdState(queryAp);
+  }, [queryAp]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectAp = useCallback((id: string | null) => {
+    setSelectedIdState(id);
+    const next = new URLSearchParams(searchParams.toString());
+    if (id) next.set('ap', id);
+    else next.delete('ap');
+    const qs = next.toString();
+    router.replace(qs ? `?${qs}` : '?');
+  }, [router, searchParams]);
+
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const { data: syncData, mutate: mutateSyncs } = useSWR<ProjectSyncStatus>(
@@ -311,7 +336,7 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
                   key={conn.id}
                   connection={conn}
                   isSelected={conn.id === effectiveSelectedId}
-                  onClick={() => setSelectedId(conn.id)}
+                  onClick={() => selectAp(conn.id)}
                 />
               ))
             )}
