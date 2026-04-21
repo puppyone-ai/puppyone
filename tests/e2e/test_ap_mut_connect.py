@@ -8,10 +8,11 @@ can be created via PuppyOne CLI/API and connected via MUT.
 For each non-gateway provider:
 1. Create AP via PuppyOne API
 2. Verify AP has access_key
-3. MUT clone via AP URL
-4. MUT push content
-5. MUT pull to verify
-6. Cleanup
+3. MUT clone via AP URL (cloud-first onboarding)
+4. MUT connect via AP URL (local-first one-shot, mutai >= 0.1.7)
+5. MUT push content
+6. MUT pull to verify
+7. Cleanup
 
 Usage:
     export SUPABASE_URL=... SUPABASE_KEY=...
@@ -34,6 +35,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "mut"))
 
 from mut.ops import clone_op, commit_op, push_op, pull_op, init_op
 from mut.ops import link_access_op
+try:
+    from mut.ops import connect_op  # mutai >= 0.1.7 (one-shot init+link+commit+push)
+except ImportError:  # pragma: no cover — older mutai checkouts
+    connect_op = None
 from mut.ops.repo import MutRepo
 from mut.foundation.transport import MutClient
 
@@ -175,7 +180,11 @@ def _test_mut_connection(t, ctx, provider, ap_key, ap_url, workdir, can_push=Tru
 
 
 def _test_mut_link(t, ctx, provider, ap_key, ap_url, workdir):
-    """Test mut init → mut link access cycle."""
+    """Test the legacy primitive cycle: mut init → mut link access → push.
+
+    These primitives are still supported but the canonical user-facing
+    flow is `mut connect <ap_url>` (see _test_mut_connect).
+    """
     os.makedirs(workdir, exist_ok=True)
 
     repo = init_op.init(workdir)
@@ -199,6 +208,68 @@ def _test_mut_link(t, ctx, provider, ap_key, ap_url, workdir):
             f"status={result.get('status')}")
 
 
+def _test_mut_connect(t, ctx, provider, ap_key, ap_url, workdir):
+    """Test the canonical one-shot flow: `mut connect <ap_url>`.
+
+    Pre-populates the workdir with user content, runs `connect_op.connect`
+    (init + link + commit + push in one call), and verifies that:
+    - status == "connected"
+    - imported == True (we had local content)
+    - the file shows up via a fresh clone from the same AP
+    """
+    if connect_op is None:
+        t.skip(f"{provider}: mut connect", "mutai < 0.1.7 — connect_op unavailable")
+        return
+
+    os.makedirs(workdir, exist_ok=True)
+    (Path(workdir) / f"{provider}-connect.txt").write_text(f"Connected via {provider}")
+    (Path(workdir) / "nested").mkdir(exist_ok=True)
+    (Path(workdir) / "nested" / "deep.md").write_text(f"# {provider} deep file")
+
+    result = connect_op.connect(
+        access_point_url=ap_url,
+        credential=ap_key,
+        workdir=workdir,
+        message=f"{provider}: connect existing folder",
+        who=f"{provider}-connect",
+    )
+    t.check(f"{provider}: connect status=connected",
+            result.get("status") == "connected",
+            f"result={json.dumps(result)[:150]}")
+    t.check(f"{provider}: connect imported=True",
+            result.get("imported") is True,
+            f"result={json.dumps(result)[:150]}")
+    t.check(f"{provider}: .mut/ created",
+            (Path(workdir) / ".mut").is_dir())
+    t.check(f"{provider}: .mut/config.json present",
+            (Path(workdir) / ".mut" / "config.json").is_file())
+
+    # Idempotent re-run on the same workdir → no new commit
+    result2 = connect_op.connect(
+        access_point_url=ap_url,
+        credential=ap_key,
+        workdir=workdir,
+        message=f"{provider}: connect rerun",
+        who=f"{provider}-connect",
+    )
+    t.check(f"{provider}: connect re-run is idempotent",
+            result2.get("status") == "connected"
+            and result2.get("imported") is False,
+            f"result2={json.dumps(result2)[:150]}")
+
+    # Verify via a fresh clone that the connected files are on the server
+    workdir_verify = workdir + "-verify"
+    try:
+        clone_op.clone(ap_url, credential=ap_key, workdir=workdir_verify)
+        files = [f.name for f in Path(workdir_verify).rglob("*")
+                 if f.is_file() and ".mut" not in str(f)]
+        t.check(f"{provider}: connected file visible in fresh clone",
+                any(f"{provider}-connect" in f for f in files),
+                f"files={files}")
+    except Exception as e:
+        t.check(f"{provider}: verify clone after connect", False, str(e)[:120])
+
+
 # ══════════════════════════════════════════════════════════════
 
 def test_setup(t, ctx):
@@ -216,7 +287,7 @@ def test_filesystem_ap(t, ctx):
     t.section("1. Filesystem AP → MUT Clone + Push + Pull")
 
     ap_id, key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("filesystem: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "filesystem", key, url,
@@ -224,13 +295,24 @@ def test_filesystem_ap(t, ctx):
 
 
 def test_filesystem_link(t, ctx):
-    t.section("2. Filesystem AP → MUT Init + Link")
+    t.section("2. Filesystem AP → MUT Init + Link (legacy primitives)")
 
     ap_id, key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
 
     _test_mut_link(t, ctx, "filesystem-link", key, url,
                    os.path.join(ctx.base_dir, "fs-link"))
+
+
+def test_filesystem_connect(t, ctx):
+    """Canonical local-first onboarding: `mut connect <ap_url>` (one-shot)."""
+    t.section("2b. Filesystem AP → MUT Connect (one-shot, existing folder)")
+
+    ap_id, key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
+
+    _test_mut_connect(t, ctx, "filesystem-connect", key, url,
+                      os.path.join(ctx.base_dir, "fs-connect"))
 
 
 def test_agent_ap(t, ctx):
@@ -245,7 +327,7 @@ def test_agent_ap(t, ctx):
         # Fallback to DB
         ap_id, key = _create_ap_via_db(ctx, "agent", scope_path="", mode="rw")
 
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("agent: AP created with key", bool(key))
 
     _test_mut_connection(t, ctx, "agent", key, url,
@@ -256,7 +338,7 @@ def test_sandbox_ap(t, ctx):
     t.section("4. Sandbox AP → MUT Clone + Push + Pull")
 
     ap_id, key = _create_ap_via_db(ctx, "sandbox", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("sandbox: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "sandbox", key, url,
@@ -267,7 +349,7 @@ def test_direct_ap(t, ctx):
     t.section("5. Direct AP → MUT Clone + Push + Pull")
 
     ap_id, key = _create_ap_via_db(ctx, "direct", scope_path="", mode="rw")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("direct: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "direct", key, url,
@@ -278,7 +360,7 @@ def test_direct_readonly(t, ctx):
     t.section("6. Direct AP (Readonly) → MUT Clone (push blocked)")
 
     ap_id, key = _create_ap_via_db(ctx, "direct", scope_path="", mode="r")
-    url = f"{ctx.api}/mut/ap/{key}"
+    url = f"{ctx.api}/api/v1/mut/ap/{key}"
     t.check("direct-ro: AP created", bool(key))
 
     _test_mut_connection(t, ctx, "direct-ro", key, url,
@@ -290,7 +372,7 @@ def test_scoped_agent(t, ctx):
 
     # Push some content first via root AP
     root_id, root_key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
-    root_url = f"{ctx.api}/mut/ap/{root_key}"
+    root_url = f"{ctx.api}/api/v1/mut/ap/{root_key}"
     root_dir = os.path.join(ctx.base_dir, "scoped-root")
     repo = clone_op.clone(root_url, credential=root_key, workdir=root_dir)
     (Path(root_dir) / "global.txt").write_text("global file")
@@ -301,7 +383,7 @@ def test_scoped_agent(t, ctx):
 
     # Create scoped agent AP for /agent-data/
     agent_id, agent_key = _create_ap_via_db(ctx, "agent", scope_path="/agent-data/", mode="rw")
-    agent_url = f"{ctx.api}/mut/ap/{agent_key}"
+    agent_url = f"{ctx.api}/api/v1/mut/ap/{agent_key}"
 
     # Clone via scoped AP
     agent_dir = os.path.join(ctx.base_dir, "scoped-agent")
@@ -362,7 +444,7 @@ def test_multi_provider_concurrent(t, ctx):
     aps = []
     for i, provider in enumerate(["filesystem", "agent", "direct"]):
         ap_id, key = _create_ap_via_db(ctx, provider, scope_path="", mode="rw")
-        aps.append((provider, key, f"{ctx.api}/mut/ap/{key}"))
+        aps.append((provider, key, f"{ctx.api}/api/v1/mut/ap/{key}"))
 
     # Each AP clones, writes, pushes
     for provider, key, url in aps:
@@ -380,7 +462,7 @@ def test_multi_provider_concurrent(t, ctx):
     # Verify all files visible via one AP
     verify_dir = os.path.join(ctx.base_dir, "concurrent-verify")
     _, verify_key = _create_ap_via_db(ctx, "direct", scope_path="", mode="r")
-    client = MutClient(f"{ctx.api}/mut/ap/{verify_key}", verify_key)
+    client = MutClient(f"{ctx.api}/api/v1/mut/ap/{verify_key}", verify_key)
     clone_data = client.clone()
     files = list(clone_data.get("files", {}).keys())
     for provider in ["filesystem", "agent", "direct"]:
@@ -433,6 +515,7 @@ def main():
         test_setup,
         test_filesystem_ap,
         test_filesystem_link,
+        test_filesystem_connect,
         test_agent_ap,
         test_sandbox_ap,
         test_direct_ap,

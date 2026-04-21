@@ -53,7 +53,7 @@ backend/
 │   │   ├── routers/           # HTTP 路由层
 │   │   │   ├── content_router.py  # Content API (/api/v1/content/*)
 │   │   │   ├── protocol_router.py # MUT 线协议 (/api/v1/mut/*)
-│   │   │   ├── access_point.py    # Access Point (/mut/ap/*)
+│   │   │   ├── access_point.py    # Access Point (/api/v1/mut/ap/*)
 │   │   │   └── audit_router.py    # 审计日志
 │   │   ├── services/          # 业务服务层
 │   │   │   ├── ops.py         # MutOps — 统一操作入口

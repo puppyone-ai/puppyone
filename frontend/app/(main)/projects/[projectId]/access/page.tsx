@@ -545,10 +545,13 @@ function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
    FilesystemGettingStarted
    ================================================================ */
 
+type SetupMode = 'clone' | 'connect';
+
 function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; nodeName: string | null }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [mode, setMode] = useState<SetupMode>('clone');
   const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  const cloneUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -577,6 +580,27 @@ function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; 
         <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
           Setup
         </div>
+
+        {/* ── Path picker ── */}
+        <div style={{
+          display: 'flex', gap: 0, marginBottom: 12,
+          background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)',
+          borderRadius: 6, padding: 3,
+        }}>
+          <ModeTab
+            active={mode === 'clone'}
+            label="Clone to new folder"
+            hint="No local files yet"
+            onClick={() => setMode('clone')}
+          />
+          <ModeTab
+            active={mode === 'connect'}
+            label="Connect existing folder"
+            hint="Already have files locally"
+            onClick={() => setMode('connect')}
+          />
+        </div>
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={cmdStyle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
@@ -585,19 +609,42 @@ function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; 
             </div>
             <CopyBtn copied={copied === 'install'} onCopy={() => copy('pip install mutai', 'install')} />
           </div>
-          <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0, marginTop: 2 }}>$</span>
-              <code style={{ ...codeStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                {`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
-              </code>
+
+          {mode === 'clone' ? (
+            <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0, marginTop: 2 }}>$</span>
+                <code style={{ ...codeStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                  {`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
+                </code>
+              </div>
+              <CopyBtn copied={copied === 'clone'} onCopy={() => copy(`mut clone ${cloneUrl} --credential ${accessKey}`, 'clone')} />
             </div>
-            <CopyBtn copied={copied === 'clone'} onCopy={() => copy(`mut clone ${cloneUrl} --credential ${accessKey}`, 'clone')} />
+          ) : (
+            <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0, marginTop: 2 }}>$</span>
+                <code style={{ ...codeStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                  {`cd /path/to/your/folder\nmut connect ${cloneUrl} \\\n  --credential ${accessKey}`}
+                </code>
+              </div>
+              <CopyBtn copied={copied === 'connect'} onCopy={() => copy(`mut connect ${cloneUrl} --credential ${accessKey}`, 'connect')} />
+            </div>
+          )}
+        </div>
+
+        {mode === 'clone' ? (
+          <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
+            Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#71717a' }}>./{nodeName || 'project'}/</code> folder
+            with whatever is already in this context.
           </div>
-        </div>
-        <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
-          Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#71717a' }}>./{nodeName || 'project'}/</code> folder linked to this context.
-        </div>
+        ) : (
+          <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
+            Run inside an existing folder. Pulls cloud state, three-way merges with your local files,
+            then pushes the result. Files only on disk get uploaded; files only in cloud get downloaded.
+            <span style={{ color: '#facc15', fontWeight: 500 }}> No data loss.</span>
+          </div>
+        )}
       </div>
 
       {/* Usage */}
@@ -636,10 +683,31 @@ function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; 
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <CopyField value={accessKey} label="Access Key" masked copied={copied === 'key'} onCopy={() => copy(accessKey, 'key')} />
-          <CopyField value={cloneUrl} label="Clone URL" copied={copied === 'url'} onCopy={() => copy(cloneUrl, 'url')} />
+          <CopyField value={cloneUrl} label="Endpoint URL" copied={copied === 'url'} onCopy={() => copy(cloneUrl, 'url')} />
         </div>
       </div>
     </div>
+  );
+}
+
+function ModeTab({ active, label, hint, onClick }: { active: boolean; label: string; hint: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1, padding: '8px 12px', borderRadius: 4, border: 'none',
+        background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: active ? '#e5e5e5' : '#71717a',
+        cursor: 'pointer', textAlign: 'left',
+        transition: 'all 0.15s',
+        display: 'flex', flexDirection: 'column', gap: 2,
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.color = '#a3a3a3'; }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#71717a'; }}
+    >
+      <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 11, color: active ? '#a3a3a3' : '#525252' }}>{hint}</span>
+    </button>
   );
 }
 

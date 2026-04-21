@@ -44,7 +44,7 @@ def _h(jwt):
     return {"Authorization": f"Bearer {jwt}", "Content-Type": "application/json"}
 
 def _ap(api, key, op, data=None):
-    return _req("POST", f"{api}/mut/ap/{key}/{op}",
+    return _req("POST", f"{api}/api/v1/mut/ap/{key}/{op}",
                 data=data or {}, headers={"Content-Type": "application/json"})
 
 def sha16(data: bytes) -> str:

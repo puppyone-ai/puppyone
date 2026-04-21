@@ -179,6 +179,9 @@ fi
 # ── 3. Access ─────────────────────────────────────────────────
 if section "access"; then
   assert_exit 0 "access providers --help" $CLI access providers --help
+  assert_exit 0 "access add --help" $CLI access add --help
+  assert_output_contains " --link" "access add --help advertises --link option" $CLI access add --help
+  assert_output_contains "mut connect" "access add --help mentions mut connect (one-shot link)" $CLI access add --help
 
   if $LOGGED_IN; then
     assert_exit 0 "access providers lists providers" $CLI access providers
