@@ -343,9 +343,11 @@ function TemplateCard({
       ? 'rgba(255, 255, 255, 0.06)'
       : 'transparent';
 
-  // Reveal the preview only when *selected* — hover stays calm.
-  const leftWidthPct = selected ? `${(1 - REVEAL_RATIO) * 100}%` : '100%';
-  const rightWidthPct = selected ? `${REVEAL_RATIO * 100}%` : '0%';
+  // Reveal the preview only when *selected* — and Blank has nothing meaningful
+  // to show, so we keep it as a single calm panel (description stays visible).
+  const showPreview = selected && !isBlank;
+  const leftWidthPct = showPreview ? `${(1 - REVEAL_RATIO) * 100}%` : '100%';
+  const rightWidthPct = showPreview ? `${REVEAL_RATIO * 100}%` : '0%';
 
   return (
     <div
@@ -379,7 +381,7 @@ function TemplateCard({
             'background-color 180ms ease, border-color 180ms ease',
         }}
       >
-        {/* Left panel: name + description (description fades when selected) */}
+        {/* Left panel: name + description (description fades when preview opens) */}
         <div
           style={{
             position: 'absolute',
@@ -388,7 +390,7 @@ function TemplateCard({
             left: 0,
             width: leftWidthPct,
             padding: '10px 12px',
-            paddingRight: selected ? 10 : 12,
+            paddingRight: showPreview ? 10 : 12,
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -441,7 +443,7 @@ function TemplateCard({
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
               overflow: 'hidden',
-              opacity: selected ? 0 : 1,
+              opacity: showPreview ? 0 : 1,
               transition: 'opacity 160ms ease',
             }}
           >
@@ -449,48 +451,47 @@ function TemplateCard({
           </div>
         </div>
 
-        {/* Right panel: file preview — reveals when this template is selected */}
-        <div
-          aria-hidden
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            right: 0,
-            width: rightWidthPct,
-            borderLeft: selected
-              ? '1px dashed rgba(50,153,85,0.28)'
-              : '1px dashed transparent',
-            overflow: 'hidden',
-            transition:
-              'width 280ms cubic-bezier(0.4, 0, 0.2, 1), border-color 220ms ease',
-            pointerEvents: 'none',
-          }}
-        >
-          {/* Inner wrapper keeps preview at constant width while right panel grows */}
+        {/* Right panel: file preview — reveals when this template is selected.
+            Skipped entirely for Blank (nothing meaningful to preview). */}
+        {!isBlank && (
           <div
+            aria-hidden
             style={{
               position: 'absolute',
               top: 0,
               bottom: 0,
               right: 0,
-              width: `${REVEAL_RATIO * 100}%`,
-              minWidth: 110,
-              padding: '8px 10px',
-              boxSizing: 'border-box',
-              opacity: selected ? 1 : 0,
-              transform: selected ? 'translateX(0)' : 'translateX(8px)',
+              width: rightWidthPct,
+              borderLeft: showPreview
+                ? '1px dashed rgba(50,153,85,0.28)'
+                : '1px dashed transparent',
+              overflow: 'hidden',
               transition:
-                'opacity 200ms ease 60ms, transform 280ms cubic-bezier(0.4, 0, 0.2, 1) 60ms',
+                'width 280ms cubic-bezier(0.4, 0, 0.2, 1), border-color 220ms ease',
+              pointerEvents: 'none',
             }}
           >
-            {isBlank ? (
-              <BlankPreview />
-            ) : (
+            {/* Inner wrapper keeps preview at constant width while right panel grows */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                right: 0,
+                width: `${REVEAL_RATIO * 100}%`,
+                minWidth: 110,
+                padding: '8px 10px',
+                boxSizing: 'border-box',
+                opacity: showPreview ? 1 : 0,
+                transform: showPreview ? 'translateX(0)' : 'translateX(8px)',
+                transition:
+                  'opacity 200ms ease 60ms, transform 280ms cubic-bezier(0.4, 0, 0.2, 1) 60ms',
+              }}
+            >
               <FilePreviewGrid nodes={preview} compact />
-            )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

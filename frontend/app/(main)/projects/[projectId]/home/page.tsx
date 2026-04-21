@@ -354,6 +354,73 @@ function TreeRows({
   );
 }
 
+// ================= Access Point Row =================
+// Each row owns its own `copied` state so we don't need a Map in the parent.
+// Copy-key button hover-reveals so the resting state stays calm.
+
+function AccessPointRow({ conn, onSelect }: { conn: DashboardConnection; onSelect: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!conn.access_key) return;
+    navigator.clipboard.writeText(conn.access_key).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  const statusColor = conn.status === 'error' ? '#ef4444'
+    : conn.status === 'paused' ? '#eab308'
+    : conn.status === 'syncing' ? '#3b82f6' : '#22c55e';
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '-6px -8px', borderRadius: 8 }}
+      className="hover:bg-[#1a1a1a] transition-colors group"
+    >
+      <div className="opacity-80 group-hover:opacity-100 transition-opacity">
+        <ProviderAvatar provider={conn.provider} size={28} icon={(conn as any).icon} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: '#888', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="group-hover:text-[#ccc] transition-colors">
+          {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
+        </div>
+        <div style={{ fontSize: 11, color: '#555' }} className="group-hover:text-[#666] transition-colors">
+          {PROVIDER_LABELS[conn.provider] || conn.provider}
+        </div>
+      </div>
+      {conn.access_key && (
+        <button
+          onClick={handleCopy}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{
+            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 4, padding: '3px 7px', color: copied ? '#22c55e' : '#71717a',
+            fontSize: 11, cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 4,
+          }}
+          title={copied ? 'Copied!' : 'Copy access key'}
+        >
+          {copied ? (
+            <>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path></svg>
+              Copied
+            </>
+          ) : (
+            <>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
+              Copy key
+            </>
+          )}
+        </button>
+      )}
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0, boxShadow: `0 0 8px ${statusColor}40` }} />
+    </div>
+  );
+}
+
 // ================= Main Page =================
 
 export default function HomePage({ params }: { params: Promise<{ projectId: string }> }) {
@@ -522,7 +589,7 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
               )}
             </div>
             
-            {/* Project ID */}
+            {/* Project ID + ghost Connect link (project-level wire endpoints) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
               <span style={{ fontSize: 12, color: '#555', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{projectId}</span>
               <button
@@ -532,94 +599,57 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
               >
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
               </button>
+              <span style={{ color: '#333', fontSize: 12, marginLeft: 4, marginRight: 2 }}>·</span>
+              <div style={{ position: 'relative', display: 'inline-flex' }} ref={connectDropdownRef}>
+                <button
+                  onClick={() => setConnectOpen(!connectOpen)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    padding: '0 2px', display: 'inline-flex', alignItems: 'center', gap: 5,
+                    fontSize: 12, fontFamily: 'inherit', color: connectOpen ? '#a1a1aa' : '#666',
+                    transition: 'color 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#a1a1aa'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = connectOpen ? '#a1a1aa' : '#666'; }}
+                  title="Project endpoints (CLI / MUT)"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="m11.28 3.22 4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.749.749 0 0 1-1.275-.326.749.749 0 0 1 .215-.734L13.94 8l-3.72-3.72a.749.749 0 0 1 .326-1.275.749.749 0 0 1 .734.215Zm-6.56 0a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042L2.06 8l3.72 3.72a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L.47 8.53a.75.75 0 0 1 0-1.06Z"></path></svg>
+                  Connect
+                </button>
+                {connectOpen && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, width: 380, background: '#161618', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
+                    <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 12, fontWeight: 500, color: '#71717a', letterSpacing: '0.02em' }}>
+                      Project endpoints
+                    </div>
+                    <div style={{ padding: '8px 0' }}>
+                      {connectMethods.map(m => (
+                        <div
+                          key={m.label}
+                          style={{ padding: '8px 16px', cursor: 'pointer' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                          onClick={() => navigator.clipboard.writeText(m.cmd)}
+                        >
+                          <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>{m.label}</div>
+                          <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
+                            borderRadius: 4, padding: '6px 10px',
+                          }}>
+                            <code style={{ fontSize: 12, color: '#c9d1d9', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {m.cmd}
+                            </code>
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="#52525b" style={{ flexShrink: 0 }}><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Connect dropdown (Unchanged, just moved up) */}
-          <div style={{ position: 'relative', flexShrink: 0 }} ref={connectDropdownRef}>
-            <button
-              onClick={() => setConnectOpen(!connectOpen)}
-              style={{
-                background: '#22c55e', border: 'none', borderRadius: 6,
-                padding: '8px 16px', cursor: 'pointer', color: '#fff',
-                fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              Connect <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg>
-            </button>
-            {connectOpen && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, width: 400, background: '#161618', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>
-                  Connect to this ContextBase
-                </div>
-                {/* Access points first */}
-                <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ padding: '4px 16px 6px', fontSize: 11, color: '#52525b', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}>Access Points</div>
-                  {connections.length > 0 ? connections.map(conn => (
-                    <div
-                      key={conn.id}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
-                    >
-                      <ProviderAvatar provider={conn.provider} size={22} icon={(conn as any).icon} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: '#c9d1d9', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
-                        </div>
-                      </div>
-                      {conn.access_key && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(conn.access_key!); }}
-                          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 6px', color: '#52525b', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
-                          title="Copy access key"
-                        >
-                          Copy key
-                        </button>
-                      )}
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: conn.status === 'error' ? '#ef4444' : '#22c55e', flexShrink: 0 }} />
-                    </div>
-                  )) : (
-                    <div style={{ padding: '8px 16px', fontSize: 13, color: '#3f3f46' }}>No access points yet</div>
-                  )}
-                </div>
-                {/* CLI + MUT Protocol */}
-                <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {connectMethods.map(m => (
-                    <div
-                      key={m.label}
-                      style={{ padding: '8px 16px', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      onClick={() => navigator.clipboard.writeText(m.cmd)}
-                    >
-                      <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>{m.label}</div>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 4, padding: '6px 10px',
-                      }}>
-                        <code style={{ fontSize: 12, color: '#c9d1d9', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {m.cmd}
-                        </code>
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="#52525b" style={{ flexShrink: 0 }}><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div
-                  style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#58a6ff', fontSize: 13, fontWeight: 500 }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
-                  Create new access point
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Two-column Layout Below Header */}
@@ -727,7 +757,17 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
               <div className="text-[13px] font-medium text-[#71717a] m-0 flex items-center gap-2">
                 Access Points <span className="bg-[#1c1c1c] text-[#71717a] rounded px-1.5 py-0.5 text-[10px] font-bold border border-[#333] leading-none">{connections.length}</span>
               </div>
-              <span onClick={() => router.push(`/projects/${projectId}/access`)} className="text-[12px] text-[#71717a] cursor-pointer font-medium hover:text-[#a1a1aa] transition-colors">Manage</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => router.push(`/projects/${projectId}/access`)}
+                  className="text-[#71717a] hover:text-[#a1a1aa] transition-colors p-0 bg-transparent border-0 cursor-pointer flex items-center"
+                  title="Add access point"
+                  aria-label="Add access point"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
+                </button>
+                <span onClick={() => router.push(`/projects/${projectId}/access`)} className="text-[12px] text-[#71717a] cursor-pointer font-medium hover:text-[#a1a1aa] transition-colors">Manage</span>
+              </div>
             </div>
             
             <div className="p-5">
@@ -735,25 +775,13 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
               <div style={{ fontSize: 13, color: '#555' }}>No access points configured.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {connections.map(conn => {
-                  const statusColor = conn.status === 'error' ? '#ef4444' : conn.status === 'paused' ? '#eab308' : conn.status === 'syncing' ? '#3b82f6' : '#22c55e';
-                  return (
-                    <div key={conn.id} onClick={() => router.push(`/projects/${projectId}/access`)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '-6px -8px', borderRadius: 8 }} className="hover:bg-[#1a1a1a] transition-colors group">
-                      <div className="opacity-80 group-hover:opacity-100 transition-opacity">
-                        <ProviderAvatar provider={conn.provider} size={28} icon={(conn as any).icon} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: '#888', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="group-hover:text-[#ccc] transition-colors">
-                          {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#555' }} className="group-hover:text-[#666] transition-colors">
-                          {PROVIDER_LABELS[conn.provider] || conn.provider}
-                        </div>
-                      </div>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0, boxShadow: `0 0 8px ${statusColor}40` }} />
-                    </div>
-                  );
-                })}
+                {connections.map(conn => (
+                  <AccessPointRow
+                    key={conn.id}
+                    conn={conn}
+                    onSelect={() => router.push(`/projects/${projectId}/access`)}
+                  />
+                ))}
               </div>
             )}
             </div>

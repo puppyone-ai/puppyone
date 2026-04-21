@@ -58,7 +58,6 @@ export function DashboardView({
             gridTemplateColumns: `repeat(auto-fill, minmax(${PROJECT_CARD_WIDTH}px, 1fr))`,
           }}
         >
-          <NewProjectCard onClick={onCreateClick} />
           {projects.map(project => (
             <ProjectCard
               key={project.id}
@@ -66,6 +65,7 @@ export function DashboardView({
               onClick={() => onProjectClick(project.id)}
             />
           ))}
+          <NewProjectCard onClick={onCreateClick} />
         </div>
       </div>
     </div>
@@ -83,21 +83,9 @@ function EmptyDashboard({ onCreateClick }: { onCreateClick: () => void }) {
         style={{
           textAlign: 'center',
           marginBottom: 36,
-          maxWidth: 480,
+          maxWidth: 520,
         }}
       >
-        <h1
-          style={{
-            fontSize: 22,
-            fontWeight: 600,
-            color: '#ededed',
-            letterSpacing: -0.3,
-            margin: 0,
-            marginBottom: 10,
-          }}
-        >
-          Your context base for AI agents
-        </h1>
         <p
           style={{
             fontSize: 13,
@@ -106,8 +94,9 @@ function EmptyDashboard({ onCreateClick }: { onCreateClick: () => void }) {
             lineHeight: 1.6,
           }}
         >
-          Connect data from anywhere. Give agents structured access. Start with
-          a project.
+          PuppyOne is your file workspace for multi-agent collaboration.
+          <br />
+          Click below to start your first project.
         </p>
       </div>
 
