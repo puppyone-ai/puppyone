@@ -82,4 +82,14 @@ uv run pytest -v -m "not e2e"
 
 ## License
 
-By contributing, you agree your contributions may be used under the project license.
+Puppyone is licensed under the [Apache License 2.0](LICENSE).
+
+By submitting a contribution (pull request, patch, or otherwise), you agree
+that your contribution is licensed to the project and its users under the
+Apache License 2.0, including the patent grant described in Section 3 of the
+license. You also confirm that you have the right to make the contribution
+under those terms (for example, that it is your own work, or that your
+employer has authorized it).
+
+No separate Contributor License Agreement (CLA) is required at this time —
+Section 5 of the Apache 2.0 license governs all inbound contributions.
