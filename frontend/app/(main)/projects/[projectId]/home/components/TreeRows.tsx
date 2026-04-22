@@ -26,9 +26,32 @@ import { FileIcon } from './FileIcon';
 //   Both of these stay per-row because they're not scope-anchored
 //   affordances — they belong to the row itself, not to a parent's scope.
 
+// Per-row visual variants used by ConnectionsCanvas to render
+// "context-only" rows alongside AP-attached rows:
+//   ─ 'muted'       — a real file/folder kept around as a sibling
+//                     example so the user can see what else lives at
+//                     that level.  Renders dim + italic but stays
+//                     clickable (it IS a real file).
+//   ─ 'placeholder' — a synthetic "… N more" stand-in for siblings
+//                     we chose not to render.  Renders dim + italic
+//                     + non-navigable (no real path to route to).
+// Default callers (the Data card) pass no variants → every row
+// renders at full strength like before.
+export type RowVariant = 'muted' | 'placeholder';
+
+// Single source of truth for tree row height in CSS pixels.
+// Exported so callers that need to position artifacts vertically
+// against a row (e.g. ConnectionsCanvas centers an xyflow Handle
+// at ROW_HEIGHT / 2 on each AP-attached row) can stay locked to
+// this value instead of duplicating the magic number.  Drifted
+// once already (handle was hardcoded to 18 from the old 36 row);
+// the export makes that class of bug impossible going forward.
+export const ROW_HEIGHT = 32;
+
 export function TreeRows({
   nodes, depth, projectId, router, accessByPath,
-  highlightedPaths, highlightAnchorDepth,
+  highlightedPaths, highlightAnchorDepth, highlightRootDepth,
+  renderRowExtras, rowVariants,
 }: {
   nodes: TreeNode[];
   depth: number;
@@ -39,6 +62,25 @@ export function TreeRows({
   // Depth of the hovered AP's scope-root row.  -1 means "whole tree
   // scope" (filesystem at root) — band starts flush at row x=0.
   highlightAnchorDepth: number;
+  // Depth at which a highlighted row should be rendered as the SCOPE
+  // ROOT (using `T.rowHighlightRoot`, the brighter tint) rather than a
+  // descendant.  Always ≥ 0:
+  //   ─ scoped AP    → equals `highlightAnchorDepth` (the AP's own row)
+  //   ─ whole-tree   → 0 (every root-level highlighted row is "a root")
+  // Falsy / undefined falls back to `highlightAnchorDepth`-or-0 so older
+  // callers keep working.
+  highlightRootDepth?: number;
+  // Optional per-row render slot — receives the row's full path,
+  // returns extra DOM to inject INSIDE the row container (which is
+  // `position: relative`, so absolute positioning works).  Used by
+  // ConnectionsCanvas to attach an xyflow `<Handle>` per row so
+  // edges can target a specific tree row by path.  Default no-op
+  // keeps the Data card's TreeRows usage unchanged.
+  renderRowExtras?: (path: string) => React.ReactNode;
+  // Optional per-row variant map (path → variant).  When supplied,
+  // rows whose path is in the map render in the corresponding muted
+  // visual style — see RowVariant docs above.
+  rowVariants?: Map<string, RowVariant>;
 }) {
   // Single shared left edge for every highlighted row's cyan band.
   // Computed once per render outside the row loop because it's identical
@@ -67,6 +109,10 @@ export function TreeRows({
         ? 8
         : 16 + (highlightAnchorDepth - 1) * 20 + 10 + 8;
 
+  // Resolve the scope-root depth used to pick the brighter tint.
+  // See prop docs above for the fallback rationale.
+  const rootDepth = highlightRootDepth ?? (highlightAnchorDepth >= 0 ? highlightAnchorDepth : 0);
+
   return (
     <>
       {nodes.map((node, idx) => {
@@ -76,8 +122,17 @@ export function TreeRows({
         const attachedAccess = accessByPath.get(entry.path) || [];
         const encodedPath = entry.path.split('/').map(s => encodeURIComponent(s)).join('/');
 
+        const variant = rowVariants?.get(entry.path);
+        const isMuted = variant === 'muted';
+        const isPlaceholder = variant === 'placeholder';
+
         const hasAP = attachedAccess.length > 0;
         const isHighlighted = highlightedPaths?.has(entry.path) ?? false;
+        // The "root" of the hovered AP's scope: same depth as `rootDepth`
+        // AND in the highlight set.  Painted with `rowHighlightRoot` (the
+        // brighter cyan) so the user can pick out which row the AP is
+        // pinned to when its scope spans many descendants.
+        const isHighlightRoot = isHighlighted && depth === rootDepth;
         // Right-column rest bg: passive `attached` whisper, or transparent.
         // The cyan scope highlight does NOT live here — it's painted by the
         // absolute layer below so the band's left edge can be anchored.
@@ -87,14 +142,22 @@ export function TreeRows({
           <React.Fragment key={entry.path}>
             <div
               data-row-path={entry.path}
-              className="flex items-center cursor-pointer"
+              className={`flex items-center ${isPlaceholder ? '' : 'cursor-pointer'}`}
               style={{
-                height: 36,
+                height: ROW_HEIGHT,
                 position: 'relative',
               }}
-              onClick={() => router.push(
-                `/projects/${projectId}/data/${encodedPath}${entry.type ? `?type=${encodeURIComponent(entry.type)}` : ''}`
-              )}
+              onClick={
+                // Placeholder rows are synthetic ("… N more") — no real
+                // path to route to.  Muted siblings ARE real files,
+                // they just render dim, so click stays active.
+                isPlaceholder
+                  ? undefined
+                  : () =>
+                      router.push(
+                        `/projects/${projectId}/data/${encodedPath}${entry.type ? `?type=${encodeURIComponent(entry.type)}` : ''}`,
+                      )
+              }
             >
               {/* Scope-highlight band — absolute, anchored to the scope
                   root's content-col start.  Shared `left` across every
@@ -115,9 +178,10 @@ export function TreeRows({
                   style={{
                     position: 'absolute',
                     left: highlightLeft, top: 0, bottom: 0, right: 0,
-                    background: T.rowHighlight,
+                    background: isHighlightRoot ? T.rowHighlightRoot : T.rowHighlight,
                     pointerEvents: 'none',
                     zIndex: 0,
+                    transition: `background-color 200ms ${T.ease}`,
                   }}
                 />
               )}
@@ -143,17 +207,18 @@ export function TreeRows({
                   // <rect> respects integer pixel coords, lining up
                   // perfectly with the absolute delegate-line below.
                   <svg
-                    width={20} height={36}
+                    width={20} height={ROW_HEIGHT}
                     style={{ position: 'absolute', right: 0, top: 0 }}
-                    viewBox="0 0 20 36"
+                    viewBox={`0 0 20 ${ROW_HEIGHT}`}
                     shapeRendering="crispEdges"
                   >
                     <rect
-                      x={10} y={0} width={1} height={isLast ? 18 : 36}
+                      x={10} y={0} width={1}
+                      height={isLast ? ROW_HEIGHT / 2 : ROW_HEIGHT}
                       fill={T.text4}
                     />
                     <rect
-                      x={10} y={18} width={10} height={1}
+                      x={10} y={ROW_HEIGHT / 2} width={10} height={1}
                       fill={T.text4}
                     />
                   </svg>
@@ -187,16 +252,28 @@ export function TreeRows({
 
                 {/* Name. Highlighted rows lift to text1 regardless of file
                     vs folder — when an AP scope is on, the whole subtree
-                    should read as "fully present", not muted. */}
+                    should read as "fully present", not muted.
+                    
+                    Muted / placeholder rows render in italic + text3 to
+                    signal "context only, not the focus" — these are the
+                    sibling examples (and "… N more" stand-in) that
+                    ConnectionsCanvas inserts so the user can read each
+                    AP's surrounding social context without us cluttering
+                    the canvas with every irrelevant file. */}
                 <span
                   style={{
                     fontSize: 13, fontFamily: T.fontSans,
-                    color: isHighlighted ? T.text1 : (isFolder ? T.text1 : T.text2),
-                    fontWeight: isFolder ? 500 : 400,
+                    color: isMuted || isPlaceholder
+                      ? T.text3
+                      : isHighlighted
+                        ? T.text1
+                        : (isFolder ? T.text1 : T.text2),
+                    fontWeight: isMuted || isPlaceholder ? 400 : (isFolder ? 500 : 400),
+                    fontStyle: isMuted || isPlaceholder ? 'italic' : 'normal',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     transition: `color 200ms ${T.ease}`,
                   }}
-                  className="group-hover/row:!text-[#fafafa]"
+                  className={isPlaceholder ? '' : 'group-hover/row:!text-[#fafafa]'}
                 >
                   {entry.name}
                 </span>
@@ -215,6 +292,8 @@ export function TreeRows({
                     this empty area to the right of the name. */}
                 <div style={{ flex: 1 }} />
               </div>
+
+              {renderRowExtras?.(entry.path)}
             </div>
 
             {/* Children — the absolute 1px column is a STRUCTURAL guide
@@ -237,6 +316,9 @@ export function TreeRows({
                   accessByPath={accessByPath}
                   highlightedPaths={highlightedPaths}
                   highlightAnchorDepth={highlightAnchorDepth}
+                  highlightRootDepth={rootDepth}
+                  renderRowExtras={renderRowExtras}
+                  rowVariants={rowVariants}
                 />
               </div>
             )}

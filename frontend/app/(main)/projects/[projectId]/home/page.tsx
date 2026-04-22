@@ -1,163 +1,118 @@
 'use client';
 
-import { use, useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import { use, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Reorder } from 'framer-motion';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
 import { treeList, getProjectHistory } from '@/lib/contentTreeApi';
 
 import { T } from './lib/tokens';
-import { getApDirection } from './lib/constants';
 import { formatRelative } from './lib/format';
 import type {
   ProjectDashboard,
   DashboardConnection,
-  ApDirection,
   TreeNode,
 } from './lib/types';
 
-import { HeaderSparkline } from './components/HeaderSparkline';
-import { APCard } from './components/APCard';
-import { TreeRows } from './components/TreeRows';
+import { TreeRows, type RowVariant } from './components/TreeRows';
+import { HistoryCard } from './components/HistoryCard';
+import { AccessPointsCard } from './components/AccessPointsCard';
+import { ConnectionsCanvas } from './components/ConnectionsCanvas';
+import { GetStartedPanel } from './components/GetStartedPanel';
 
-// localStorage-backed manual ordering for the AP column.  Kept inline (vs a
-// real hook file) because (a) it's only ~30 lines and (b) it's coupled to
-// the page's input/output split — moving it would invent a generality that
-// doesn't pay off until a second consumer exists.
-type APOrder = { input: string[]; output: string[] };
-const EMPTY_ORDER: APOrder = { input: [], output: [] };
-
-function readApOrder(projectId: string): APOrder {
-  if (typeof window === 'undefined') return EMPTY_ORDER;
-  try {
-    const raw = window.localStorage.getItem(`home-ap-order:${projectId}`);
-    if (!raw) return EMPTY_ORDER;
-    const parsed = JSON.parse(raw);
-    return {
-      input: Array.isArray(parsed?.input) ? parsed.input.filter((x: unknown) => typeof x === 'string') : [],
-      output: Array.isArray(parsed?.output) ? parsed.output.filter((x: unknown) => typeof x === 'string') : [],
-    };
-  } catch {
-    return EMPTY_ORDER;
-  }
-}
-
-function writeApOrder(projectId: string, order: APOrder) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(`home-ap-order:${projectId}`, JSON.stringify(order));
-  } catch {
-    /* QuotaExceeded etc — silent, ordering is non-critical */
-  }
-}
-
-// Apply a saved ID order on top of a fresh server list.  IDs in `order` get
-// their items first (in that order); items not in `order` (newly created
-// APs) are appended at the end so they don't disappear; IDs in `order` that
-// no longer exist (deleted APs) are silently dropped.
-function applyOrder<T extends { id: string }>(items: T[], order: string[]): T[] {
-  const remaining = new Map(items.map(i => [i.id, i]));
-  const out: T[] = [];
-  for (const id of order) {
-    const item = remaining.get(id);
-    if (item) {
-      out.push(item);
-      remaining.delete(id);
-    }
-  }
-  remaining.forEach(item => out.push(item));
-  return out;
-}
-
-// One TS line per drawn manhattan curve.  `(x1,y1)` is the AP card's
-// left edge midpoint; `(x2,y2)` is the file row's right edge midpoint.
-// `d` is a pre-baked SVG `d` attribute for an HVH path with rounded
-// (12px) corners.  Lines render as a single neutral hairline at rest;
-// provider color is intentionally NOT carried — hover lifts the entire
-// line to `T.live` cyan, and that's the only chromatic state.
-//
-// `direction` drives the flow pellet (only mounted on hover):
-//   • `inbound`        — pellet runs AP → vault   (path 0 → 1)
-//   • `outbound`       — pellet runs vault → AP   (path 1 → 0)
-//   • `bidirectional`  — two pellets, opposing, half-cycle phase shift
-type LineSpec = {
-  id: string;
-  d: string;
-  x1: number; y1: number;
-  x2: number; y2: number;
-  direction: ApDirection;
-};
-
-// Build an HVH manhattan path with rounded corners.  Two corners
-// (`midX,y1` and `midX,y2`) get a quadratic-bezier `Q` shoulder of
-// radius `r`, clamped so the curve never overruns its straight runs.
-//
-// Geometry note: in this layout `x1` is the AP card on the right and
-// `x2` is the vault box on the left, so `midX < x1` and `x2 < midX`
-// (both horizontal segments travel leftward).  `sx*` capture that
-// direction so the same code handles future right-flowing layouts.
-function buildLinePath(
-  x1: number, y1: number,
-  midX: number, y2: number,
-  x2: number,
-  radius = 12,
-): string {
-  // Degenerate: AP roughly on the same y as the row → skip the corners,
-  // just one straight line.  Avoids a path that visually buckles into a
-  // tiny S-curve when |dy| ≈ 0.
-  const dy = y2 - y1;
-  if (Math.abs(dy) < 1) {
-    return `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`;
-  }
-
-  const sx1 = Math.sign(midX - x1);    // AP-side horizontal direction
-  const sx2 = Math.sign(x2 - midX);    // vault-side horizontal direction
-  const sy = Math.sign(dy);
-
-  const r = Math.min(
-    radius,
-    Math.abs(midX - x1) / 2,
-    Math.abs(dy) / 2,
-    Math.abs(x2 - midX) / 2,
+// Vitals-strip interpunct separator.  A single `·` glyph rendered in
+// the faint `text4` token with a small horizontal rhythm so the strip
+// reads as one inline sentence ("Active · 59bc58e5 · 6 commits · …")
+// rather than five disconnected tokens.  Local helper because the
+// strip is the only consumer.
+function Sep() {
+  return (
+    <span
+      aria-hidden
+      style={{
+        margin: '0 8px',
+        color: T.text3,
+        fontSize: 13,
+        lineHeight: 1,
+        userSelect: 'none',
+      }}
+    >
+      ·
+    </span>
   );
-
-  return [
-    `M ${x1.toFixed(1)} ${y1.toFixed(1)}`,
-    `L ${(midX - sx1 * r).toFixed(1)} ${y1.toFixed(1)}`,
-    `Q ${midX.toFixed(1)} ${y1.toFixed(1)} ${midX.toFixed(1)} ${(y1 + sy * r).toFixed(1)}`,
-    `L ${midX.toFixed(1)} ${(y2 - sy * r).toFixed(1)}`,
-    `Q ${midX.toFixed(1)} ${y2.toFixed(1)} ${(midX + sx2 * r).toFixed(1)} ${y2.toFixed(1)}`,
-    `L ${x2.toFixed(1)} ${y2.toFixed(1)}`,
-  ].join(' ');
 }
 
-export default function HomePage({ params }: { params: Promise<{ projectId: string }> }) {
+// HomePage layout — two structural bands, deliberately not jumbled
+// together into a single multitasking surface.
+//
+//   1.  HEADER          : project identity + at-a-glance vitals.
+//                         Title, project ID, status dot, commit
+//                         count, AP count, last-updated relative
+//                         time.  Just enough to answer "what is this
+//                         project, is it healthy, and is anyone
+//                         touching it?" — no charts, no commit list,
+//                         no AP cards.
+//
+//   2.  TWO-COLUMN BAND : the project's contents + activity.
+//                         LEFT  — Data card (file tree, the
+//                                 project's actual payload) STACKED
+//                                 over the ConnectionsCanvas (xyflow
+//                                 wiring board showing which APs
+//                                 attach to which scopes).  Both
+//                                 share the wide left column because
+//                                 they're two complementary views of
+//                                 the same thing — the Data card
+//                                 answers "what files exist", the
+//                                 canvas answers "and which APs are
+//                                 wired to those files".  Stacking
+//                                 them keeps the relationship local
+//                                 instead of forcing a long visual
+//                                 leap to a separate band.
+//                         RIGHT — stacked HistoryCard +
+//                                 AccessPointsCard.  The right rail
+//                                 is the "who cares about this
+//                                 project" column: history = past
+//                                 activity, APs = active hooks.
+//
+// The shape mirrors GitHub's repo home (header / contents) — a
+// layout users have an eight-year mental model for — while the
+// canvas adds the one piece GitHub doesn't have: a manipulable
+// system-level view of how data and access points wire together,
+// nestled directly under its parent Data card so the relationship
+// reads as "supplementary" not "separate band".
+
+export default function HomePage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
   const { projectId } = use(params);
   const router = useRouter();
 
-  // ---------- Data ----------
+  // ── Data ─────────────────────────────────────────────────────────
 
-  const { data: dashboard } = useSWR<ProjectDashboard>(
+  const { data: dashboard, mutate: mutateDashboard } = useSWR<ProjectDashboard>(
     projectId ? `/api/v1/projects/${projectId}/dashboard` : null,
     (url: string) => get<ProjectDashboard>(url),
-    { refreshInterval: 30000 }
+    { refreshInterval: 30000 },
   );
 
-  const { data: treeEntries } = useSWR(
+  const { data: treeEntries, mutate: mutateTree } = useSWR(
     projectId ? ['home-tree', projectId] : null,
-    () => treeList(projectId, '', 3)
+    () => treeList(projectId, '', 3),
   );
 
   const { data: historyData } = useSWR(
     projectId ? ['project-history-overview', projectId] : null,
-    () => getProjectHistory(projectId, 50)
+    () => getProjectHistory(projectId, 50),
   );
 
   const commits = historyData?.commits || [];
   const latestCommit = commits.length > 0 ? commits[commits.length - 1] : null;
 
-  // 30-day commit timeline for the header sparkline.
+  // 30-day commit cadence for the HistoryCard sparkline.  Bucket dates
+  // are right-anchored at today so the sparkline always reads "what's
+  // happened in the last month, ending now".
   const commitBuckets = useMemo(() => {
     const buckets: { date: string; count: number }[] = [];
     const now = new Date();
@@ -166,10 +121,10 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
       d.setDate(d.getDate() - i);
       buckets.push({ date: d.toISOString().slice(0, 10), count: 0 });
     }
-    commits.forEach(c => {
+    commits.forEach((c) => {
       if (!c.created_at) return;
       const day = c.created_at.slice(0, 10);
-      const bucket = buckets.find(b => b.date === day);
+      const bucket = buckets.find((b) => b.date === day);
       if (bucket) bucket.count++;
     });
     return buckets;
@@ -177,13 +132,9 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
 
   const connections = dashboard?.access_points || [];
 
-  // No project-level "Connect" affordance: connecting always happens against
-  // a specific access point (each AP card carries its own commands), never
-  // the project root. Surfacing one here mis-trains users into thinking the
-  // project itself has a generic ingest endpoint.
-
-  // ---------- Tree + access path index ----------
-
+  // Tree shaped from the flat treeList response.  Folders sort first,
+  // then alphabetical — same order the data explorer uses, so a user
+  // jumping between Home and Data sees the same arrangement.
   const tree = useMemo<TreeNode[]>(() => {
     const entries = treeEntries || [];
     const sorted = [...entries].sort((a, b) => {
@@ -198,7 +149,6 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
     for (const entry of sorted) {
       nodeMap.set(entry.path, { entry, children: [] });
     }
-
     for (const entry of sorted) {
       const node = nodeMap.get(entry.path)!;
       const slashIdx = entry.path.lastIndexOf('/');
@@ -207,18 +157,21 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
       } else {
         const parentPath = entry.path.substring(0, slashIdx);
         const parent = nodeMap.get(parentPath);
-        if (parent) {
-          parent.children.push(node);
-        } else {
-          roots.push(node);
-        }
+        if (parent) parent.children.push(node);
+        else roots.push(node);
       }
     }
     return roots;
   }, [treeEntries]);
 
-  // path → APs that target it.  Used by TreeRows to flag attached rows
-  // with the soft `T.rowAttached` tint.
+  // path → APs that target it.  TreeRows uses this to render the soft
+  // `T.rowAttached` whisper-tint on rows that any AP touches, so the
+  // tree itself silently flags "external systems care about this row"
+  // even when nothing is hovered.  No cross-section hover sync (hover
+  // an AP → cyan-band the tree) in this layout — APs and the tree
+  // live in different bands now, so a coordinated highlight would
+  // require a long visual leap that the TopologyCanvas already
+  // serves more directly.
   const accessByPath = useMemo(() => {
     const map = new Map<string, DashboardConnection[]>();
     for (const conn of connections) {
@@ -229,433 +182,576 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
     return map;
   }, [connections]);
 
-  // ---------- Floating canvas layout ----------
-  // Inputs flow IN from the right column → Vault on the left.
-  // Outputs flow OUT from the same column. Each AP renders as a card; an
-  // SVG overlay paints a fan-out HVH manhattan line from the card's left
-  // edge to its scope target row's right edge.
+  // Data card view — every top-level entry, plus a 1-level preview
+  // of each top-level folder's children, capped to a soft total
+  // budget so the card doesn't grow unbounded on dense projects.
+  //
+  // Knob choices, with rationale:
+  //   ─ Depth = 1.   Two reasons.  (a) anything deeper duplicates
+  //                  the data explorer + ConnectionsCanvas below
+  //                  (which exists specifically for relational
+  //                  drill-down).  (b) 1 level is the minimum that
+  //                  meaningfully answers "what's actually inside
+  //                  this folder?" without becoming a tree browser.
+  //
+  //   ─ Per-folder cap = 6.  Sized to the screenshot case (a folder
+  //                  with exactly 6 children) so it shows ALL of
+  //                  them, no awkward "… 1 more" tail.  Past 6 we
+  //                  collapse to 6 + "… N more" — same placeholder
+  //                  mechanism ConnectionsCanvas uses for sibling
+  //                  sampling, so users see the same visual
+  //                  contract twice on the page.
+  //
+  //   ─ Total cap = 14 rows.  At ROW_HEIGHT 32 that's ~448px,
+  //                  comfortably above the card's 280px minHeight
+  //                  but well short of the page becoming a wall of
+  //                  tree.  Treated as a budget (see allocation
+  //                  below) — not a hard truncation.
+  //
+  //   ─ Top-level rows are NEVER truncated.  The Data card's job
+  //                  is "what's in this project at a glance"; the
+  //                  one thing it must not do is silently hide a
+  //                  top-level entry.  If a project has 50
+  //                  top-level entries, the card grows to 50 rows
+  //                  and the page-level scroller takes over — the
+  //                  cap only governs how much we expand.
+  //
+  //   ─ Budget walks top-down.  Top-level folders earlier in the
+  //                  tree get their full 6-child preview first;
+  //                  later folders take whatever's left.  This
+  //                  mirrors how readers consume top-down — the
+  //                  first folder is what their eye lands on, so a
+  //                  rich preview there carries the most weight,
+  //                  and a thin or no preview later just leaves
+  //                  those folders as collapsed rows (still
+  //                  clickable to drill in).
+  //
+  //   ─ Grandchildren stay hidden.  Folders previewed under a top-
+  //                  level folder render as collapsed rows (children
+  //                  = []) and don't get their own count chip — the
+  //                  count would invite the eye to drill, which is
+  //                  the explorer's job.  Top-level folders DO keep
+  //                  their count chip ("New Folder · 6") because
+  //                  it's the GitHub-style "this folder contains 6
+  //                  things" cue users expect.
+  const dataCardView = useMemo<{
+    tree: TreeNode[];
+    variants: Map<string, RowVariant>;
+  }>(() => {
+    const CHILDREN_PER_FOLDER = 6;
+    const SOFT_TOTAL_CAP = 14;
+    const variants = new Map<string, RowVariant>();
 
-  // Group by backend `direction`. Bidirectional APs (filesystem MUT) join the
-  // input column at the top — they're functionally a primary data source.
-  // Within each group, user-defined order from localStorage takes priority;
-  // new APs (never reordered) drop in at the end of their group.
-  const [apOrder, setApOrder] = useState<APOrder>(EMPTY_ORDER);
-  useEffect(() => {
-    if (projectId) setApOrder(readApOrder(projectId));
-  }, [projectId]);
+    // Seed every top-level entry as a collapsed row first, so the
+    // baseline "what's in this project" surface is always present
+    // regardless of how the expansion budget shakes out.
+    const result = tree.map<TreeNode>((top) => ({
+      entry: top.entry,
+      children: [],
+    }));
+    let used = result.length;
 
-  const inputAPs = useMemo(
-    () => applyOrder(connections.filter(c => getApDirection(c) !== 'outbound'), apOrder.input),
-    [connections, apOrder.input]
-  );
-  const outputAPs = useMemo(
-    () => applyOrder(connections.filter(c => getApDirection(c) === 'outbound'), apOrder.output),
-    [connections, apOrder.output]
-  );
-  const inputCount = inputAPs.length;
-  const outputCount = outputAPs.length;
-
-  const reorderInputs = useCallback((next: DashboardConnection[]) => {
-    const nextOrder = { ...apOrder, input: next.map(c => c.id) };
-    setApOrder(nextOrder);
-    writeApOrder(projectId, nextOrder);
-  }, [apOrder, projectId]);
-
-  const reorderOutputs = useCallback((next: DashboardConnection[]) => {
-    const nextOrder = { ...apOrder, output: next.map(c => c.id) };
-    setApOrder(nextOrder);
-    writeApOrder(projectId, nextOrder);
-  }, [apOrder, projectId]);
-
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const dataBoxRef = useRef<HTMLDivElement>(null);
-  const apRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const setApRef = (id: string) => (el: HTMLDivElement | null) => {
-    if (el) apRefs.current.set(id, el);
-    else apRefs.current.delete(id);
-  };
-
-  const [lines, setLines] = useState<LineSpec[]>([]);
-  // When an AP card is hovered, brighten its line + endpoint with the cyan
-  // "live" accent. Tracked here at the page level because the SVG overlay
-  // is a sibling of both the AP cards and the data box.
-  const [hoveredAp, setHoveredAp] = useState<string | null>(null);
-
-  // When an AP is hovered, the scope payload TreeRows needs to render the
-  // unified highlight band:
-  //   - paths:       every row inside the AP's scope (path + all descendants)
-  //   - anchorDepth: depth of the scope's root row in the tree.  TreeRows
-  //                  uses this to align all highlighted rows' cyan band to
-  //                  ONE shared left edge (the scope-root's content column
-  //                  start), instead of staircase-stepping by per-row depth
-  //                  — the staircase is what makes the highlight read
-  //                  ragged.
-  // `anchorDepth: -1` means "whole-tree scope" (filesystem at root): the
-  // band starts flush at row x=0, since there is no scope-root row to
-  // align to.
-  // Empty/`/`/`.` sentinels mean "whole tree".  Walk-up fallback handles
-  // APs pointing at paths that aren't currently rendered (depth pruning).
-  const hoveredApScope = useMemo<{ paths: Set<string>; anchorDepth: number } | null>(() => {
-    if (!hoveredAp) return null;
-    const conn = connections.find(c => c.id === hoveredAp);
-    if (!conn) return null;
-
-    const result = new Set<string>();
-    const collectSubtree = (n: TreeNode) => {
-      result.add(n.entry.path);
-      n.children.forEach(collectSubtree);
-    };
-
-    const apPath = conn.path ?? '';
-    if (!apPath || apPath === '/' || apPath === '.') {
-      tree.forEach(collectSubtree);
-      return { paths: result, anchorDepth: -1 };
-    }
-
-    let p = apPath;
-    while (p) {
-      const findIn = (nodes: TreeNode[]): TreeNode | null => {
-        for (const n of nodes) {
-          if (n.entry.path === p) return n;
-          const c = findIn(n.children);
-          if (c) return c;
-        }
-        return null;
-      };
-      const found = findIn(tree);
-      if (found) {
-        collectSubtree(found);
-        // Depth of `p` in the tree, zero-indexed at root level: a path like
-        // "New Folder/2026-4-7" has 2 segments → depth 1 (root entries are
-        // depth 0).  This is the depth of the visible scope root — possibly
-        // `apPath` itself, or the closest rendered ancestor if `apPath`'s
-        // descendants were pruned by tree depth.
-        const anchorDepth = p.split('/').filter(Boolean).length - 1;
-        return { paths: result, anchorDepth };
-      }
-      const idx = p.lastIndexOf('/');
-      if (idx === -1) break;
-      p = p.substring(0, idx);
-    }
-
-    return { paths: result, anchorDepth: -1 };
-  }, [hoveredAp, connections, tree]);
-
-  // True for the entire "card is moving" window — both while the user is
-  // actively dragging AND for the ~700ms FLIP/spring animation framer-motion
-  // runs after release to slot the card into its new home.  We can't watch
-  // just the dragging window because framer-motion drives the post-release
-  // motion via CSS `transform`, which neither React nor ResizeObserver sees;
-  // if we stopped the RAF loop on `onDragEnd`, the line would freeze the
-  // moment your finger lifted while the card kept gliding underneath.
-  const [animActive, setAnimActive] = useState(false);
-  const settleTimerRef = useRef<number | null>(null);
-
-  const handleDragStart = useCallback(() => {
-    if (settleTimerRef.current != null) {
-      window.clearTimeout(settleTimerRef.current);
-      settleTimerRef.current = null;
-    }
-    setAnimActive(true);
-  }, []);
-
-  const handleDragEnd = useCallback(() => {
-    if (settleTimerRef.current != null) {
-      window.clearTimeout(settleTimerRef.current);
-    }
-    // 700ms = framer-motion's default layout spring (~300-500ms) + buffer.
-    // Erring long is cheap (RAF idle when nothing is moving still costs
-    // ~one boundingClientRect read per card per frame); erring short
-    // brings back the "line lags behind card" tearing the user reported.
-    settleTimerRef.current = window.setTimeout(() => {
-      setAnimActive(false);
-      settleTimerRef.current = null;
-    }, 700);
-  }, []);
-
-  useEffect(() => () => {
-    if (settleTimerRef.current != null) {
-      window.clearTimeout(settleTimerRef.current);
-      settleTimerRef.current = null;
-    }
-  }, []);
-
-  // Position-of-AP-cards is read fresh inside `update`; we re-run on layout
-  // changes (ResizeObserver) and on AP order changes (orderedConnections in
-  // the deps).  Wrapped in useCallback so the drag RAF loop can call it
-  // without creating a stale closure.
-  const orderedConnections = useMemo(
-    () => [...inputAPs, ...outputAPs],
-    [inputAPs, outputAPs]
-  );
-
-  const updateLines = useCallback(() => {
-    const canvas = canvasRef.current;
-    const dataBox = dataBoxRef.current;
-    if (!canvas || !dataBox) return;
-    const cb = canvas.getBoundingClientRect();
-    const dbRect = dataBox.getBoundingClientRect();
-
-    const next: LineSpec[] = [];
-    const total = orderedConnections.length;
-    for (let idx = 0; idx < total; idx++) {
-      const conn = orderedConnections[idx];
-      const apEl = apRefs.current.get(conn.id);
-      if (!apEl) continue;
-      const apRect = apEl.getBoundingClientRect();
-      const x1 = apRect.left - cb.left;
-      const y1 = apRect.top + apRect.height / 2 - cb.top;
-
-      // Walk up the path until we find a row that exists in the DOM.
-      let targetEl: HTMLElement | null = null;
-      let p = conn.path || '';
-      while (p && !targetEl) {
-        try {
-          targetEl = dataBox.querySelector(`[data-row-path="${CSS.escape(p)}"]`) as HTMLElement | null;
-        } catch { /* ignore selector errors for exotic paths */ }
-        const i = p.lastIndexOf('/');
-        if (i === -1) break;
-        p = p.substring(0, i);
+    // Walk top-level folders in order, expanding each within
+    // whatever budget remains.  Once budget is exhausted, all
+    // subsequent folders stay collapsed.
+    for (let i = 0; i < tree.length; i++) {
+      const top = tree[i];
+      if (top.entry.type !== 'folder' || top.children.length === 0) {
+        continue;
       }
 
-      const fallbackY = dbRect.top + dbRect.height / 2 - cb.top;
-      const tRect = targetEl?.getBoundingClientRect();
-      const x2 = dbRect.right - cb.left;
-      const y2 = tRect ? tRect.top + tRect.height / 2 - cb.top : fallbackY;
+      const budget = SOFT_TOTAL_CAP - used;
+      if (budget <= 0) break;
 
-      // Fan-out: distribute turn-X across [0.40, 0.78] of the corridor.
-      // Earlier APs in the stack turn closer to the data box (left), later
-      // APs turn closer to the card column (right). Visual result: lines
-      // splay rather than running parallel.
-      const t = total > 1 ? idx / (total - 1) : 0.5;
-      const ratio = 0.40 + t * 0.38;
-      const midX = x2 + (x1 - x2) * ratio;
+      // Natural plan, ignoring the budget: show min(K, cap)
+      // children, plus a "… N more" placeholder if K > cap.
+      const naturalShown = Math.min(top.children.length, CHILDREN_PER_FOLDER);
+      const naturalPlaceholder = top.children.length > naturalShown;
+      const naturalRows = naturalShown + (naturalPlaceholder ? 1 : 0);
 
-      const d = buildLinePath(x1, y1, midX, y2, x2);
-      next.push({ id: conn.id, d, x1, y1, x2, y2, direction: getApDirection(conn) });
+      let numChildren: number;
+      let hasPlaceholder: boolean;
+
+      if (naturalRows <= budget) {
+        numChildren = naturalShown;
+        hasPlaceholder = naturalPlaceholder;
+      } else if (budget >= 2) {
+        // Budget too tight for the natural plan but at least 2 rows
+        // available — reserve 1 for the placeholder so the user
+        // still sees "this folder has more, click to drill in".
+        numChildren = budget - 1;
+        hasPlaceholder = top.children.length - numChildren > 0;
+      } else {
+        // Budget = 1.  Prefer surfacing one real child over a lone
+        // placeholder — at least the user sees an example of what
+        // lives inside.
+        numChildren = 1;
+        hasPlaceholder = false;
+      }
+
+      const sampled = top.children.slice(0, numChildren);
+      const childNodes: TreeNode[] = sampled.map<TreeNode>((c) => ({
+        // Strip grandchild count so previewed sub-rows don't
+        // suggest "you can drill in here" — we deliberately don't
+        // let the user expand level-2 from the Data card.
+        entry: { ...c.entry, children_count: null },
+        children: [],
+      }));
+
+      if (hasPlaceholder) {
+        const remaining = top.children.length - numChildren;
+        const placeholderPath = `__more__:${top.entry.path}`;
+        variants.set(placeholderPath, 'placeholder');
+        childNodes.push({
+          entry: {
+            name: `… and ${remaining} more`,
+            path: placeholderPath,
+            type: 'file',
+            content_hash: null,
+            size_bytes: 0,
+            mime_type: null,
+            children_count: null,
+          },
+          children: [],
+        });
+      }
+
+      result[i] = { entry: top.entry, children: childNodes };
+      used += childNodes.length;
     }
-    setLines(next);
-  }, [orderedConnections]);
 
-  useLayoutEffect(() => {
-    updateLines();
-    const ro = new ResizeObserver(() => updateLines());
-    if (canvasRef.current) ro.observe(canvasRef.current);
-    if (dataBoxRef.current) ro.observe(dataBoxRef.current);
-    window.addEventListener('resize', updateLines);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener('resize', updateLines);
-    };
-  }, [updateLines, tree]);
+    return { tree: result, variants };
+  }, [tree]);
 
-  // RAF loop for the "card is moving" window.  Mount path is intentionally
-  // `if (!animActive) return;` rather than starting a one-shot — initial
-  // line layout is handled by the ResizeObserver useLayoutEffect above, no
-  // need to spin RAF on every page load.
-  useEffect(() => {
-    if (!animActive) return;
-    let raf = requestAnimationFrame(function tick() {
-      updateLines();
-      raf = requestAnimationFrame(tick);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [animActive, updateLines]);
-
-  // ---------- Render ----------
+  // ── Render ───────────────────────────────────────────────────────
 
   if (!dashboard) {
     return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100%', color: T.text3, fontSize: 13,
-        fontFamily: T.fontSans,
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: T.text3,
+          fontSize: 13,
+          fontFamily: T.fontSans,
+        }}
+      >
         Loading…
       </div>
     );
   }
 
-  const hasErr = connections.some(c => c.status === 'error');
+  const hasErr = connections.some((c) => c.status === 'error');
 
   return (
-    // No `background` on this root — `(main)/layout.tsx` already paints
-    // the rounded `#0e0e0e` pane.  Painting again here would (a) break the
-    // 12px corner radius, (b) drift visually if layout ever changes its
-    // surface color.
-    <div style={{
-      display: 'flex', flexDirection: 'column', height: '100%',
-      color: T.text2, fontFamily: T.fontSans,
-    }}>
-
-      {/* Top bar — kept minimal, hairline divider only */}
-      <div style={{
-        height: 40, minHeight: 40, flexShrink: 0,
-        display: 'flex', alignItems: 'center', padding: '0 20px',
-        borderBottom: `1px solid ${T.border}`,
-        fontSize: 12, fontWeight: 500, color: T.text2,
-        letterSpacing: '0.01em',
-      }}>
-        Home
+    // No `background` here — `(main)/layout.tsx` already paints the
+    // rounded #0e0e0e pane.  Painting again would (a) cover the corner
+    // radius, (b) drift if the layout's surface color ever changes.
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        color: T.text2,
+        fontFamily: T.fontSans,
+      }}
+    >
+      {/* Top bar — minimal label + hairline divider, matches every
+          other top-level page in /(main). */}
+      <div
+        style={{
+          height: 40,
+          minHeight: 40,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 20px',
+          borderBottom: `1px solid ${T.border}`,
+          fontSize: 12,
+          fontWeight: 500,
+          color: T.text2,
+          letterSpacing: '0.01em',
+        }}
+      >
+        <span>Home</span>
       </div>
 
-      {/* Scrollable content */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          maxWidth: 1080, margin: '0 auto', width: '100%',
-          padding: '64px 32px 96px',
-        }}>
-
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            // 1200 (was 1080) gives the Data card more breathing room
+            // while keeping line lengths readable.  Matches the
+            // GitHub-style reference's overall horizontal spread.
+            maxWidth: 1200,
+            margin: '0 auto',
+            width: '100%',
+            // Title sits ~32px below the top bar (was 64px).  Reference
+            // anchors the title close to the top, not centered in
+            // a "poster" margin.
+            padding: '32px 32px 96px',
+          }}
+        >
           {/* ============================================================
-              HEADER — single column. Title row, then a meta row of status
-              chips, then the project ID on its own faint line below.
-              No project-level Connect button: connecting is always done
-              from a specific AP card.
+              BAND 1 — HEADER.  Pixel-borrowed from the OLD GitHub-style
+              page so users carry over their existing mental model:
+                Row 1   : title (compact 28px, top-anchored — not a
+                          poster-sized headline)
+                Row 2   : vitals strip — status dot + Active, short
+                          commit hash, N commits, N access points, last
+                          updated relative time, all separated by `·`
+                          interpuncts (not the wide 28px column gaps the
+                          previous draft used)
+                Row 3   : full project UUID + copy button on its own
+                          line, mono + faint — visually subordinate to
+                          the title and vitals because most users will
+                          glance at it once for `cli login --project=…`
+                          and never look again
+              No green Connect button (the old version had one, but
+              project-level "Connect" is a misleading affordance: the
+              actual connect-flow always targets a specific access
+              point, never the project root).
               ============================================================ */}
 
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0,
-          }}>
-            {/* Title row */}
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, minWidth: 0 }}>
-              <h1 style={{
-                fontSize: 36, fontWeight: 600,
-                letterSpacing: '-0.022em',
-                color: T.text1, margin: 0, lineHeight: 1.1,
-                flexShrink: 0,
-              }}>
-                {dashboard.project.name}
-              </h1>
-              {/* Header history sparkline — temporarily hidden while we
-                  reconsider the visual.  Component, data plumbing, and
-                  `commitBuckets` useMemo are intentionally kept so we can
-                  drop it back in by uncommenting this block.
-              <HeaderSparkline
-                buckets={commitBuckets}
-                hasHistory={commits.length > 0}
-                onClick={() => router.push(`/projects/${projectId}/history`)}
-              />
-              */}
-            </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              minWidth: 0,
+            }}
+          >
+            {/* Row 1 — title.  24px, weight 600, tight letter-spacing.
+                Trimmed from 28px because the previous size read as
+                "page poster" rather than the GitHub-style "this is
+                the project, here's its identity strip below" the
+                reference uses.  No inline ID alongside it — the ID
+                gets its own row below the vitals. */}
+            <h1
+              style={{
+                fontSize: 24,
+                fontWeight: 600,
+                letterSpacing: '-0.015em',
+                color: T.text1,
+                margin: 0,
+                lineHeight: 1.2,
+              }}
+            >
+              {dashboard.project.name}
+            </h1>
 
-            {/* Meta row — wide gaps replace `·`. Only ONE line. */}
-            <div style={{
-              display: 'flex', alignItems: 'center', flexWrap: 'wrap',
-              rowGap: 8, columnGap: 28,
-              fontSize: 13, color: T.text2,
-            }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: hasErr ? T.err : T.live,
-                  boxShadow: hasErr ? 'none' : `0 0 0 4px ${T.liveSoft}`,
-                }} />
-                {hasErr ? 'Unhealthy' : 'Active'}
+            {/* Row 2 — vitals strip.  `·` interpuncts between cells
+                (not column-gap whitespace) so the strip reads as a
+                single inline sentence.  All cells share one font
+                size (13px) so the strip reads as a coherent line of
+                metadata rather than a jumble of mismatched type. */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                rowGap: 4,
+                fontSize: 13,
+                color: T.text3,
+                marginTop: 2,
+              }}
+            >
+              <span
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: hasErr ? T.err : T.live,
+                    boxShadow: hasErr ? 'none' : `0 0 0 3px ${T.liveSoft}`,
+                  }}
+                />
+                <span style={{ color: T.text2 }}>
+                  {hasErr ? 'Unhealthy' : 'Active'}
+                </span>
               </span>
 
-              {/* AP count — single number.  We used to break it down as
-                  "N in / M out", but the AP column on the right already
-                  separates the two visually, so calling it out here is
-                  noise.  One word, one number. */}
+              {/* Short commit hash — same idea as `git log --oneline`'s
+                  abbreviated SHA.  Falls back to "—" when there is
+                  no history yet so the strip's rhythm doesn't
+                  collapse to two cells. */}
+              <Sep />
               <span
-                style={{ cursor: 'pointer', color: T.text2 }}
-                onClick={() => router.push(`/projects/${projectId}/access`)}
+                style={{
+                  fontFamily: T.fontMono,
+                  fontSize: 13,
+                  color: latestCommit ? T.text2 : T.text3,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+                title={latestCommit?.commit_id || 'No commits yet'}
               >
-                <span style={{ color: T.text1, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>
+                {latestCommit?.commit_id?.slice(0, 8) ?? '—'}
+              </span>
+
+              <Sep />
+              <button
+                onClick={() => router.push(`/projects/${projectId}/history`)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: T.fontSans,
+                  color: T.text3,
+                  fontSize: 13,
+                  display: 'inline-flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                }}
+              >
+                <span
+                  style={{
+                    color: commits.length > 0 ? T.text2 : T.text3,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 500,
+                  }}
+                >
+                  {commits.length}
+                </span>
+                <span>
+                  {commits.length === 1 ? 'commit' : 'commits'}
+                </span>
+              </button>
+
+              <Sep />
+              <button
+                onClick={() => router.push(`/projects/${projectId}/access`)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: T.fontSans,
+                  color: T.text3,
+                  fontSize: 13,
+                  display: 'inline-flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                }}
+              >
+                <span
+                  style={{
+                    color: connections.length > 0 ? T.text2 : T.text3,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 500,
+                  }}
+                >
                   {connections.length}
                 </span>
-                <span style={{ color: T.text3, marginLeft: 6 }}>
+                <span>
                   access {connections.length === 1 ? 'point' : 'points'}
                 </span>
-              </span>
+              </button>
 
               {latestCommit && (
-                <span style={{ color: T.text2 }}>
-                  Updated <span style={{ color: T.text1 }}>{formatRelative(latestCommit.created_at)}</span>
-                </span>
+                <>
+                  <Sep />
+                  <span>
+                    {formatRelative(latestCommit.created_at)}
+                  </span>
+                </>
               )}
             </div>
 
-            {/* Project ID — lives on its own muted line below the meta row.
-                Used to be tucked into the meta row's right edge, which
-                competed with the status chips for attention; pushing it
-                down a level lets the eye skip past it unless you want it. */}
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              fontFamily: T.fontMono, fontSize: 12, color: T.text3,
-              alignSelf: 'flex-start',
-            }}>
-              {projectId.slice(0, 8)}…{projectId.slice(-4)}
+            {/* Row 3 — full project UUID with copy button, mono and
+                faint.  Visually demoted vs the title + vitals so it
+                doesn't compete for attention but stays glanceable
+                when a user needs the literal ID for the CLI.  12px
+                (was 11px) so it sits one notch below the vitals
+                strip without dropping into "footnote" territory. */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 4,
+                fontFamily: T.fontMono,
+                fontSize: 12,
+                color: T.text3,
+              }}
+            >
+              <span style={{ userSelect: 'all' }}>{projectId}</span>
               <button
                 onClick={() => navigator.clipboard.writeText(projectId)}
                 style={{
-                  background: 'none', border: 'none', color: T.text3,
-                  cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center',
+                  background: 'none',
+                  border: 'none',
+                  color: T.text3,
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
                   transition: `color 200ms ${T.ease}`,
                 }}
-                onMouseEnter={e => { e.currentTarget.style.color = T.text1; }}
-                onMouseLeave={e => { e.currentTarget.style.color = T.text3; }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = T.text1;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = T.text3;
+                }}
                 title="Copy project ID"
               >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z" />
+                  <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z" />
+                </svg>
               </button>
             </div>
           </div>
 
           {/* ============================================================
-              CANVAS — Vault on the LEFT, AP cards on the RIGHT, SVG
-              overlay between them paints fan-out manhattan lines.
-              Section sits 80px below header.
+              EMPTY-STATE BRANCH.  Trigger is "no DATA" — we deliberately
+              do NOT include `connections.length === 0` in the test.
+              Reason: the CLI flow creates an access point BEFORE any
+              files arrive (sometimes minutes-to-hours before, while the
+              user installs `mutai`, runs `mut clone`, edits files, and
+              eventually `mut push`es).  The previous condition collapsed
+              the panel the instant the AP was minted, ripping the very
+              `mut clone …` command out from under the user — onboarding
+              failing at the moment of perceived success.
+
+              "Project is empty in any user-meaningful sense" = nodes
+              total is 0.  An AP without data behind it is setup-in-
+              progress, not completion.  The panel sticks around until
+              actual content lands (drop → upload, or `mut push` → sync),
+              then retires automatically via SWR revalidation.
+
+              Connections are passed in so the CLI card inside the panel
+              can derive its `access_key` from server truth (the
+              existing root filesystem AP, if any) instead of relying on
+              local React state that vanishes on refresh.
+              ============================================================ */}
+
+          {(dashboard?.nodes?.total ?? 0) === 0 ? (
+            <GetStartedPanel
+              projectId={projectId}
+              connections={connections}
+              onChanged={() => {
+                void mutateDashboard();
+                void mutateTree();
+              }}
+            />
+          ) : (
+            <>
+          {/* ============================================================
+              BAND 2 — TWO-COLUMN.
+                LEFT  (flex 1) — Data card stacked over the
+                                ConnectionsCanvas (xyflow wiring
+                                board).  Both sit in the same wide
+                                column because they're complementary
+                                views of the same data: "what files"
+                                + "which APs are wired to them".
+                RIGHT (280px) — History + Access Points stacked.
+                                Fixed-width so the rail reads at a
+                                consistent width regardless of
+                                viewport.
+              32px gap between columns; 16px gap between stacked
+              cards within each column.
               ============================================================ */}
 
           <div
-            ref={canvasRef}
             style={{
-              position: 'relative',
               display: 'flex',
+              // 32px gap (was 24) gives the right rail a clear breathing
+              // room from the Data card — at 24px the two sections
+              // visually fused into one wide block.
+              gap: 32,
               alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: 0,
-              width: '100%',
-              marginTop: 80,
+              marginTop: 48,
             }}
           >
-            {/* LEFT: Vault — wrapped in the same card frame as APCard /
-                ProviderRow (cardBg + 1px cardBorder + radius 8) so visual
-                weight stays balanced with the AP cards on the right.
-                Width 500 (down from 600) so the AP column on the right
-                gets more breathing room for drag-to-reorder. */}
+            {/* LEFT COLUMN — Data card stacked over the
+                ConnectionsCanvas.  Both share this column because
+                they're complementary views of the same thing: the
+                Data card answers "what files exist?", the canvas
+                answers "and which APs are wired to them?".  16px
+                gap matches the right rail's stack rhythm. */}
             <div
-              ref={dataBoxRef}
               style={{
-                width: 500, flexShrink: 0, position: 'relative', zIndex: 2,
-                background: T.cardBg,
-                border: `1px solid ${T.cardBorder}`,
-                borderRadius: 8,
+                flex: 1,
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                // Wider vertical gap between the Data card and the
+                // Connections canvas below.  16 read as "stacked
+                // siblings" — same band, two rows; 24 reads as
+                // "primary card, then supplementary band" which is
+                // the actual hierarchy: Data IS the page, Connections
+                // is a relational annotation hanging off the bottom.
+                gap: 24,
+              }}
+            >
+              {/* Data card — inlined here because (a) it composes a
+                  fairly local use of TreeRows + accessByPath + the
+                  existing project store, and (b) pulling it into
+                  its own file would be more indirection than the
+                  ~50 lines justify. */}
+            <div
+              style={{
+                background: T.sectionBg,
+                border: `2px solid ${T.sectionBorder}`,
+                borderRadius: T.sectionRadius,
                 overflow: 'hidden',
               }}
             >
-              {/* Section header — uppercase letter-spaced label.  Hairline
-                  below separates header from tree, mirroring how AP cards
-                  separate their icon row from any subordinate content. */}
-              <div style={{
-                display: 'flex', alignItems: 'baseline', justifyContent: 'space-between',
-                padding: '10px 14px',
-                borderBottom: `1px solid ${T.cardBorder}`,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: 500, color: T.text3,
-                    letterSpacing: '0.10em', textTransform: 'uppercase',
-                  }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  background: T.sectionHeaderBg,
+                  borderBottom: `1px solid ${T.sectionDivider}`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {/* Title-case label, no letter-spacing.  The previous
+                      `DATA` (uppercase 11px letter-spaced) read as a
+                      "tech enterprise dashboard" header; the GitHub
+                      reference uses normal-case 13px which feels like
+                      a sentence-fragment tag instead. */}
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: T.text2,
+                    }}
+                  >
                     Data
                   </span>
                   {dashboard?.nodes?.total != null && (
-                    <span style={{
-                      fontSize: 13, color: T.text1, fontWeight: 500,
-                      fontVariantNumeric: 'tabular-nums',
-                    }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 20,
+                        height: 18,
+                        padding: '0 6px',
+                        borderRadius: 9,
+                        background: 'rgba(255,255,255,0.08)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        // Dimmed from text1 → text2 so the chip number
+                        // doesn't glare brighter than the label next
+                        // to it (chip read like a beacon in the
+                        // previous draft).
+                        color: dashboard.nodes.total > 0 ? T.text2 : T.text3,
+                        fontVariantNumeric: 'tabular-nums',
+                        lineHeight: 1,
+                      }}
+                    >
                       {dashboard.nodes.total}
                     </span>
                   )}
@@ -663,294 +759,142 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
                 <button
                   onClick={() => router.push(`/projects/${projectId}/data`)}
                   style={{
-                    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                    fontSize: 12, color: T.text2, fontFamily: T.fontSans,
-                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: 12,
+                    color: T.text2,
+                    fontFamily: T.fontSans,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
                     transition: `color 200ms ${T.ease}`,
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.color = T.text1; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = T.text2; }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = T.text1;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = T.text2;
+                  }}
                 >
                   Browse
                   <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                    <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path
+                      d="M4 2l4 4-4 4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
                   </svg>
                 </button>
               </div>
 
-              {/* File tree */}
-              <div style={{ padding: '6px 0' }}>
-                {tree.length === 0 ? (
-                  <div style={{
-                    padding: '64px 0', textAlign: 'center',
-                    color: T.text3, fontSize: 13,
-                  }}>
+              {/* `minHeight` so the Data card doesn't visually
+                  collapse when the project only has 1-2 top-level
+                  entries — even with the 1-level expansion above,
+                  some projects (all-files-no-folders) won't pick
+                  up extra rows from auto-expand and would still
+                  look thin without this floor.  320px ≈ 10 rows
+                  at ROW_HEIGHT 32 — enough that the card always
+                  reads as the page's primary content well, and
+                  in turn lets the Connections canvas below grow
+                  to a comparable height without breaking the rule
+                  that Connections must stay shorter than Data
+                  (see ConnectionsCanvas's height comment). */}
+              <div style={{ padding: '6px 0', minHeight: 320 }}>
+                {dataCardView.tree.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '64px 0',
+                      textAlign: 'center',
+                      color: T.text3,
+                      fontSize: 13,
+                    }}
+                  >
                     Empty project
                   </div>
                 ) : (
+                  // GitHub-style "what's in this repo at a glance" —
+                  // every top-level entry shown, plus a 6-child
+                  // preview under each top-level folder (with
+                  // "… N more" for the rest).  Drilling deeper is
+                  // one click on any row, which routes into the
+                  // data explorer's recursive view.
+                  //
+                  // No cross-section hover sync — `highlightedPaths`
+                  // is null so TreeRows renders only its quiet rest
+                  // state (rowAttached tint where APs touch, no cyan
+                  // band).  ConnectionsCanvas below carries the
+                  // "which AP touches what" job, freeing the tree
+                  // to stay a quiet file listing.
                   <TreeRows
-                    nodes={tree} depth={0}
-                    projectId={projectId} router={router}
+                    nodes={dataCardView.tree}
+                    depth={0}
+                    projectId={projectId}
+                    router={router}
                     accessByPath={accessByPath}
-                    highlightedPaths={hoveredApScope?.paths ?? null}
-                    highlightAnchorDepth={hoveredApScope?.anchorDepth ?? -1}
+                    highlightedPaths={null}
+                    highlightAnchorDepth={-1}
+                    rowVariants={dataCardView.variants}
                   />
                 )}
               </div>
             </div>
 
-            {/* RIGHT: AP column — drag-to-reorder via framer-motion's
-                `<Reorder.Group>`. Two independent vertical lists (input
-                then output) with an 8px divider, so dragging stays within
-                a semantic group (mixing inbound/outbound across the gap
-                would visually contradict the direction the line pellets
-                announce on hover).  Width tuned to 320: cards stay
-                readable while the middle corridor gets ~60px back for
-                the topology lines to splay into. */}
-            <div style={{
-              width: 320, flexShrink: 0,
-              display: 'flex', flexDirection: 'column', gap: 12,
-              paddingTop: 0, paddingBottom: 24,
-              alignItems: 'stretch',
-              position: 'relative', zIndex: 2,
-            }}>
-              {connections.length === 0 ? (
-                <button
-                  onClick={() => router.push(`/projects/${projectId}/access`)}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 10,
-                    background: 'transparent',
-                    border: `1px dashed ${T.border}`,
-                    borderRadius: 6,
-                    color: T.text3, fontSize: 12, fontFamily: T.fontSans,
-                    cursor: 'pointer', padding: '10px 14px',
-                    transition: `border-color 200ms ${T.ease}, color 200ms ${T.ease}`,
-                  }}
-                  title="Add access point"
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = T.borderH;
-                    e.currentTarget.style.color = T.text1;
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = T.border;
-                    e.currentTarget.style.color = T.text3;
-                  }}
-                >
-                  <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-                  Add access point
-                </button>
-              ) : (
-                <>
-                  {inputCount > 0 && (
-                    <Reorder.Group
-                      axis="y"
-                      values={inputAPs}
-                      onReorder={reorderInputs}
-                      style={{
-                        listStyle: 'none', margin: 0, padding: 0,
-                        display: 'flex', flexDirection: 'column', gap: 12,
-                      }}
-                    >
-                      {inputAPs.map(conn => (
-                        <Reorder.Item
-                          key={conn.id}
-                          value={conn}
-                          onDragStart={handleDragStart}
-                          onDragEnd={handleDragEnd}
-                          // Reorder.Item defaults to <li>; <div> avoids
-                          // accidental list semantics inside a flex column.
-                          as="div"
-                          style={{
-                            listStyle: 'none', cursor: 'grab',
-                          }}
-                          whileDrag={{
-                            cursor: 'grabbing',
-                            scale: 1.02,
-                            zIndex: 5,
-                            boxShadow: '0 12px 28px rgba(0,0,0,0.45)',
-                          }}
-                        >
-                          <APCard
-                            conn={conn}
-                            registerRef={setApRef(conn.id)}
-                            onHoverChange={(h) => setHoveredAp(h ? conn.id : null)}
-                            onClick={() => router.push(`/projects/${projectId}/access?ap=${conn.id}`)}
-                          />
-                        </Reorder.Item>
-                      ))}
-                    </Reorder.Group>
-                  )}
-                  {inputCount > 0 && outputCount > 0 && (
-                    <div style={{ height: 8 }} />
-                  )}
-                  {outputCount > 0 && (
-                    <Reorder.Group
-                      axis="y"
-                      values={outputAPs}
-                      onReorder={reorderOutputs}
-                      style={{
-                        listStyle: 'none', margin: 0, padding: 0,
-                        display: 'flex', flexDirection: 'column', gap: 12,
-                      }}
-                    >
-                      {outputAPs.map(conn => (
-                        <Reorder.Item
-                          key={conn.id}
-                          value={conn}
-                          onDragStart={handleDragStart}
-                          onDragEnd={handleDragEnd}
-                          as="div"
-                          style={{
-                            listStyle: 'none', cursor: 'grab',
-                          }}
-                          whileDrag={{
-                            cursor: 'grabbing',
-                            scale: 1.02,
-                            zIndex: 5,
-                            boxShadow: '0 12px 28px rgba(0,0,0,0.45)',
-                          }}
-                        >
-                          <APCard
-                            conn={conn}
-                            registerRef={setApRef(conn.id)}
-                            onHoverChange={(h) => setHoveredAp(h ? conn.id : null)}
-                            onClick={() => router.push(`/projects/${projectId}/access?ap=${conn.id}`)}
-                          />
-                        </Reorder.Item>
-                      ))}
-                    </Reorder.Group>
-                  )}
-                </>
-              )}
+              {/* Connections canvas — xyflow-powered wiring board
+                  that re-renders the same file tree INSIDE the
+                  canvas as a single big node, with AP cards on the
+                  right wired to the SPECIFIC tree row each one is
+                  scoped to.  Inherits the OLD TopologyCanvas's
+                  spine (tree-as-block + APs-as-leaves + per-row
+                  edges) and adds pan / zoom / dotted background
+                  via xyflow.  Same width as the Data card above
+                  (both inside this flex-column wrapper) so it
+                  reads as a SUPPLEMENT — "the same data, viewed
+                  structurally" — not a separate band. */}
+              <ConnectionsCanvas
+                connections={connections}
+                tree={tree}
+                accessByPath={accessByPath}
+                projectId={projectId}
+                router={router}
+                nodesTotal={dashboard?.nodes?.total ?? null}
+              />
             </div>
 
-            {/* SVG overlay — manhattan lines with rounded corners.
-                Three layers, gated by `active` (hover state):
-                ─ Base path: ALWAYS rendered.  Rest = T.borderH (a faint
-                  white hairline that just barely registers); hover = T.live
-                  cyan, slightly thicker.  A slow `<animate>` drifts the
-                  dashoffset so the dash pattern crawls toward the data
-                  sink (or AP for outbound) — visually a whisper, but
-                  enough to say "this line is alive" even at rest.
-                ─ Endpoint at the vault row: ALWAYS rendered.  Rest is a
-                  hollow 2.5px ring (stroke = T.borderH, fill = T.bg so it
-                  reads as empty); hover swells into a solid cyan dot
-                  (r=4) with a r=8 cyan halo behind it.  All transitions
-                  are CSS so the swap is smooth.
-                ─ Flow pellet: ONLY mounted on hover.  Single circle on
-                  unidirectional lines, two phase-shifted circles on
-                  bidirectional.  When hover ends the circles unmount
-                  cleanly so the rest state is genuinely silent. */}
-            <svg
+            {/* RIGHT — stacked rail.  280px so HistoryCard's vertical
+                timeline + commit messages have enough room to read,
+                while still leaving the Data card the dominant share
+                of width (~2:1 ratio from the GitHub-style reference).
+                Was 320 (too wide → Data crowded), then 260 (too
+                narrow → History card crushed); 280 splits the
+                difference. */}
+            <div
               style={{
-                position: 'absolute',
-                top: 0, left: 0,
-                width: '100%', height: '100%',
-                pointerEvents: 'none',
-                zIndex: 1,
-                overflow: 'visible',
+                width: 280,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
               }}
-              aria-hidden="true"
             >
-              {lines.map(line => {
-                const active = hoveredAp === line.id;
-                const pathId = `home-line-${line.id}`;
-                const isOut = line.direction === 'outbound';
-                const isBoth = line.direction === 'bidirectional';
-
-                return (
-                  <g key={line.id}>
-                    {/* Base rounded-corner path */}
-                    <path
-                      id={pathId}
-                      d={line.d}
-                      stroke={active ? T.live : T.borderH}
-                      strokeWidth={active ? 1.5 : 1}
-                      strokeDasharray="2 6"
-                      strokeLinecap="round"
-                      fill="none"
-                      opacity={active ? 0.95 : 1}
-                      style={{ transition: `stroke 200ms ${T.ease}, stroke-width 200ms ${T.ease}, opacity 200ms ${T.ease}` }}
-                    >
-                      {!isBoth && (
-                        <animate
-                          attributeName="stroke-dashoffset"
-                          from="0"
-                          to={isOut ? '8' : '-8'}
-                          dur="6s"
-                          repeatCount="indefinite"
-                        />
-                      )}
-                    </path>
-
-                    {/* Halo behind the vault endpoint, hover only.
-                        Always-mounted so opacity transition fades smoothly. */}
-                    <circle
-                      cx={line.x2} cy={line.y2} r={8}
-                      fill={T.live}
-                      opacity={active ? 0.22 : 0}
-                      style={{ transition: `opacity 240ms ${T.ease}` }}
-                    />
-                    {/* Endpoint dot — hollow ring at rest, solid on hover.
-                        `fill={T.bg}` (matches page surface) gives the empty
-                        center its illusion-of-emptiness while keeping `fill`
-                        a real color so it can transition. */}
-                    <circle
-                      cx={line.x2} cy={line.y2}
-                      r={active ? 4 : 2.5}
-                      fill={active ? T.live : T.bg}
-                      stroke={active ? T.live : T.borderH}
-                      strokeWidth={1}
-                      style={{ transition: `r 200ms ${T.ease}, fill 200ms ${T.ease}, stroke 200ms ${T.ease}` }}
-                    />
-
-                    {/* Flow pellet(s) — hover only. Direction carried by
-                        `keyPoints`, color always cyan. */}
-                    {active && !isBoth && (
-                      <circle r={2.5} fill={T.live}>
-                        <animateMotion
-                          dur="3s"
-                          repeatCount="indefinite"
-                          keyPoints={isOut ? '1;0' : '0;1'}
-                          keyTimes="0;1"
-                          calcMode="linear"
-                        >
-                          <mpath href={`#${pathId}`} />
-                        </animateMotion>
-                      </circle>
-                    )}
-                    {active && isBoth && (
-                      <>
-                        <circle r={2.5} fill={T.live}>
-                          <animateMotion
-                            dur="3s"
-                            repeatCount="indefinite"
-                            keyPoints="0;1"
-                            keyTimes="0;1"
-                            calcMode="linear"
-                          >
-                            <mpath href={`#${pathId}`} />
-                          </animateMotion>
-                        </circle>
-                        <circle r={2.5} fill={T.live}>
-                          <animateMotion
-                            dur="3s"
-                            begin="-1.5s"
-                            repeatCount="indefinite"
-                            keyPoints="1;0"
-                            keyTimes="0;1"
-                            calcMode="linear"
-                          >
-                            <mpath href={`#${pathId}`} />
-                          </animateMotion>
-                        </circle>
-                      </>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
+              <HistoryCard
+                projectId={projectId}
+                router={router}
+                commits={commits}
+                buckets={commitBuckets}
+              />
+              <AccessPointsCard
+                projectId={projectId}
+                router={router}
+                connections={connections}
+              />
+            </div>
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>
