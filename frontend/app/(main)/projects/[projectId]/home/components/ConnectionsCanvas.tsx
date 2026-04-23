@@ -772,7 +772,7 @@ export function ConnectionsCanvas({
   // through naturally because we always overwrite `data` from the
   // latest build.
   useEffect(() => {
-    setNodes((prev) => {
+    setNodes((prev: Node[]) => {
       const prevPositions = new Map(prev.map((n) => [n.id, n.position]));
       return built.nodes.map((n) => ({
         ...n,
