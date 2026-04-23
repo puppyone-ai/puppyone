@@ -205,17 +205,32 @@ uv run pytest           # 运行测试
 ### 即使 Root Directory 设对了，`[phases.*]` 也不能写在 railway.toml 里
 
 `railway.toml` 的 schema 只认 `[build]` / `[deploy]` / `[environments.*]`。`[phases.setup]`
-和 `[phases.build]` 这种 Nixpacks 自定义阶段写在 railway.toml 里会被**静默忽略**，
-Railway 仍然会跑 Nixpacks 默认 Python 流水线，并出现：
+和 `[phases.build]` 这种 Nixpacks 自定义阶段写在 railway.toml 里会被**静默忽略**。
+
+所有 Nixpacks 自定义阶段必须放到独立的 `backend/nixpacks.toml`。
+
+### 必须覆盖的是 `[phases.install]`，不只是 `[phases.build]`
+
+Nixpacks 默认 Python+uv provider 把建 venv + 装依赖塞在 **install** 阶段，
+渲染出来大概是：
+
+```
+python -m venv --copies /opt/venv \
+  && . /opt/venv/bin/activate \
+  && pip install uv==$NIXPACKS_UV_VERSION \
+  && uv sync --no-dev --frozen
+```
+
+当 provider 没注入 `NIXPACKS_UV_VERSION` 时（最近 uv 升级后会偶发），渲染结果变成
+`pip install uv==`，整个 build 直接挂：
 
 ```
 ERROR: Invalid requirement: 'uv==': Expected end or semicolon
 ```
 
-（因为默认流水线那条 `pip install uv==$NIXPACKS_UV_VERSION` 在某些 Nixpacks 版本里
-env var 不会注入。）
-
-所有 Nixpacks 自定义阶段必须放到独立的 `backend/nixpacks.toml`。
+`[phases.build]` 在 install 之后才跑，光覆盖 build 没用 —— **必须覆盖 `[phases.install]`**，
+我们的 `nixpacks.toml` 就是这么写的（自己建 venv，pip 装一个 pinned 的 uv，再 uv export →
+pip install requirements）。
 
 ### 不要在仓库根目录放 Python 项目文件
 

@@ -1,25 +1,46 @@
 # Nixpacks build plan for the backend service.
 #
 # IMPORTANT: This file is only honored when Railway's service `Root Directory`
-# is set to `backend`. Putting `[phases.*]` inside railway.toml does NOT work —
-# Railway's railway.toml schema only knows `[build]` / `[deploy]`, so the
-# `[phases.*]` blocks were silently dropped and Railway fell back to the
-# default Nixpacks Python pipeline (`pip install uv==$NIXPACKS_UV_VERSION`),
-# which fails when the env var is unset.
+# is set to `backend` (or `/backend`). Putting `[phases.*]` inside railway.toml
+# does NOT work — railway.toml only knows `[build]` / `[deploy]`, those phase
+# blocks are silently dropped.
 #
-# Build strategy: export the uv lock to requirements format and install with
-# pip into the venv Nixpacks already provisions. Using `--frozen` guarantees
-# the deployed image matches what CI tested (no surprise patch upgrades).
+# Why we override `[phases.install]` (not just `[phases.build]`):
+# Nixpacks' default Python+uv provider renders the install phase as something
+# like:
+#   python -m venv --copies /opt/venv && . /opt/venv/bin/activate \
+#     && pip install uv==$NIXPACKS_UV_VERSION \
+#     && uv sync --no-dev --frozen
+# When the provider fails to set $NIXPACKS_UV_VERSION (it does, intermittently,
+# after recent uv releases) the rendered command becomes `pip install uv==`
+# and the whole build dies with:
+#   ERROR: Invalid requirement: 'uv==': Expected end or semicolon
+# By overriding the install phase we take full control of venv + uv install,
+# pin uv to a known version via $UV_VERSION, and never rely on the provider's
+# magic env vars.
 
 providers = ["python"]
+
+[variables]
+# Pinned because the previous default-pipeline failure was caused by Nixpacks
+# not injecting NIXPACKS_UV_VERSION. Bump when you intentionally want a newer
+# uv. Any uv >= 0.5 supports `uv export --format requirements-txt`.
+UV_VERSION = "0.5.11"
 
 [phases.setup]
 nixPkgs = ["python312"]
 
-[phases.build]
+[phases.install]
+# Replace the default Python provider install phase entirely. We:
+#   1. create the venv Nixpacks expects at /opt/venv
+#   2. install a pinned uv into it
+#   3. export the lockfile to a hash-pinned requirements.txt (--frozen ensures
+#      the deployed image matches what CI tested — no surprise patch upgrades)
+#   4. install requirements + the project itself (editable, no deps)
 cmds = [
-    "pip install --upgrade pip uv",
-    "uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
-    "pip install -r requirements.lock.txt",
-    "pip install -e . --no-deps",
+    "python -m venv --copies /opt/venv",
+    ". /opt/venv/bin/activate && pip install --upgrade pip 'uv==${UV_VERSION}'",
+    ". /opt/venv/bin/activate && uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
+    ". /opt/venv/bin/activate && pip install -r requirements.lock.txt",
+    ". /opt/venv/bin/activate && pip install -e . --no-deps",
 ]
