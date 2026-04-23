@@ -39,7 +39,13 @@ nixPkgs = ["python312"]
 #   4. install requirements + the project itself (editable, no deps)
 cmds = [
     "python -m venv --copies /opt/venv",
-    ". /opt/venv/bin/activate && pip install --upgrade pip uv==0.5.11",
+    # Don't `pip install --upgrade pip` here. Stock venv ships pip 24.2 which
+    # is plenty for installing uv, and skipping the upgrade halves the number
+    # of PyPI simple-index requests this RUN makes. PyPI's JSON simple index
+    # has been occasionally returning truncated responses
+    # (`json.decoder.JSONDecodeError: Unterminated string`), so every extra
+    # request is one more chance to hit the transient failure.
+    ". /opt/venv/bin/activate && pip install uv==0.5.11",
     ". /opt/venv/bin/activate && uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
     ". /opt/venv/bin/activate && pip install -r requirements.lock.txt",
     ". /opt/venv/bin/activate && pip install -e . --no-deps",
