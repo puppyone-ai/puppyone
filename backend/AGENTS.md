@@ -185,6 +185,57 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info
 uv run pytest           # 运行测试
 ```
 
+## 部署 (Railway / Nixpacks)
+
+后端用 **Railway + Nixpacks** 构建，配置文件全部在 `backend/`：
+
+- `backend/railway.toml` — `[build]` / `[deploy]`，定义 builder 与 startCommand
+- `backend/nixpacks.toml` — `[phases.setup]` / `[phases.build]`，覆盖 Nixpacks 默认 Python 流水线，改成 `uv export` → `pip install -r requirements.lock.txt`
+
+### Railway 控制台必须设置的项
+
+每个共享本仓库的 service（`api` / `file_worker` / `mcp_server`）都必须把
+`Settings -> Service -> Source -> Root Directory` 设成 `backend`（写 `/backend` 也等价）。
+
+否则：
+
+- Railway 把整个 monorepo 根当成构建上下文，根本看不到 `backend/railway.toml` 和 `backend/nixpacks.toml`
+- Nixpacks 会用默认 Python 流水线
+
+### 即使 Root Directory 设对了，`[phases.*]` 也不能写在 railway.toml 里
+
+`railway.toml` 的 schema 只认 `[build]` / `[deploy]` / `[environments.*]`。`[phases.setup]`
+和 `[phases.build]` 这种 Nixpacks 自定义阶段写在 railway.toml 里会被**静默忽略**，
+Railway 仍然会跑 Nixpacks 默认 Python 流水线，并出现：
+
+```
+ERROR: Invalid requirement: 'uv==': Expected end or semicolon
+```
+
+（因为默认流水线那条 `pip install uv==$NIXPACKS_UV_VERSION` 在某些 Nixpacks 版本里
+env var 不会注入。）
+
+所有 Nixpacks 自定义阶段必须放到独立的 `backend/nixpacks.toml`。
+
+### 不要在仓库根目录放 Python 项目文件
+
+`pyproject.toml` / `uv.lock` / `.python-version` **只能放在 `backend/`**。
+
+哪怕只是放一个空的 `uv.lock` 或者只写 `[tool.black]` 的 `pyproject.toml` 在根目录，
+Nixpacks 也会触发 Python 检测并尝试默认安装流程，把上面的 build 弄挂。
+
+### 多 service 用同一份代码
+
+`startCommand` 通过 `SERVICE_ROLE` 环境变量切换：
+
+| `SERVICE_ROLE` | 进程 |
+|----------------|------|
+| 未设置 / `api` | `uvicorn src.main:app` (FastAPI) |
+| `file_worker` | `arq src.ingest.file.jobs.worker.WorkerSettings` |
+| `mcp_server` | `uvicorn mcp_service.server:app` |
+
+每个 Railway service 在 Variables 里设 `SERVICE_ROLE` 即可，不需要复制代码。
+
 ## 开发约定
 
 - **分层架构**: Router → Service → MutWriteService/MutTreeReader
