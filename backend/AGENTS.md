@@ -190,7 +190,7 @@ uv run pytest           # 运行测试
 后端用 **Railway + Nixpacks** 构建，配置文件全部在 `backend/`：
 
 - `backend/railway.toml` — `[build]` / `[deploy]`，定义 builder 与 startCommand
-- `backend/nixpacks.toml` — `[phases.setup]` / `[phases.build]`，覆盖 Nixpacks 默认 Python 流水线，改成 `uv export` → `pip install -r requirements.lock.txt`
+- `backend/nixpacks.toml` — `[phases.setup]` / `[phases.install]`，覆盖 Nixpacks 默认 Python 流水线，自己建 venv → pin uv → `uv export` → `pip install -r requirements.lock.txt`
 
 ### Railway 控制台必须设置的项
 
@@ -231,6 +231,18 @@ ERROR: Invalid requirement: 'uv==': Expected end or semicolon
 `[phases.build]` 在 install 之后才跑，光覆盖 build 没用 —— **必须覆盖 `[phases.install]`**，
 我们的 `nixpacks.toml` 就是这么写的（自己建 venv，pip 装一个 pinned 的 uv，再 uv export →
 pip install requirements）。
+
+### uv 版本要硬编码，不要用 `${UV_VERSION}` 这种变量展开
+
+中间踩过一次：在 `[variables]` 里定义 `UV_VERSION = "0.5.11"`，cmd 里写
+`pip install --upgrade pip 'uv==${UV_VERSION}'`。看起来很优雅，实际整套 build 直接挂：
+
+- TOML 字符串里的单引号会**原样**进入 Dockerfile 的 `RUN` 行
+- bash 在单引号里**不会**展开 `${UV_VERSION}`
+- pip 拿到字面字符串 `uv==${UV_VERSION}`，再次报 `Invalid requirement: 'uv==${UV_VERSION}'`
+
+跟原来的 `pip install uv==` 是同类失败。结论：直接在 cmd 里硬编码 `uv==0.5.11`，
+不要叠加 TOML + bash 两层 escape 规则。要升级 uv 就改 `nixpacks.toml` 里那一行字面量。
 
 ### 不要在仓库根目录放 Python 项目文件
 
