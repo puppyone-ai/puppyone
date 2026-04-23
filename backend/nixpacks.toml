@@ -1,0 +1,25 @@
+# Nixpacks build plan for the backend service.
+#
+# IMPORTANT: This file is only honored when Railway's service `Root Directory`
+# is set to `backend`. Putting `[phases.*]` inside railway.toml does NOT work —
+# Railway's railway.toml schema only knows `[build]` / `[deploy]`, so the
+# `[phases.*]` blocks were silently dropped and Railway fell back to the
+# default Nixpacks Python pipeline (`pip install uv==$NIXPACKS_UV_VERSION`),
+# which fails when the env var is unset.
+#
+# Build strategy: export the uv lock to requirements format and install with
+# pip into the venv Nixpacks already provisions. Using `--frozen` guarantees
+# the deployed image matches what CI tested (no surprise patch upgrades).
+
+providers = ["python"]
+
+[phases.setup]
+nixPkgs = ["python312"]
+
+[phases.build]
+cmds = [
+    "pip install --upgrade pip uv",
+    "uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
+    "pip install -r requirements.lock.txt",
+    "pip install -e . --no-deps",
+]
