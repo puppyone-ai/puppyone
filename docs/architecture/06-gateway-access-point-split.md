@@ -349,16 +349,21 @@ Gateway 列显示关联的 gateway 名称，非第三方类型显示 `—`。
 
 ---
 
-## 7. 与 MUT init/clone/link 的衔接
+## 7. 与 MUT clone/connect 的衔接
 
 | 场景 | Gateway 层 | Access Point 层 | MUT Client |
 |------|-----------|-----------------|------------|
-| **A: PuppyOne 导入数据** | `puppyone gateway connect notion` | `puppyone access add notion --gateway <id> --scope /notes` → AP 创建，数据同步到 MUT tree | `mut clone <ap_url>` |
-| **B: 本地空目录** | 不需要 gateway | `puppyone access add filesystem --scope /` → AP 创建 | `mut init` → `mut link access <ap_url>` |
-| **C: 本地已有文件** | 不需要 gateway | `puppyone access add filesystem --scope /` → AP 创建 | `mut init` → `mut link access <ap_url>` → `mut push` |
+| **A: PuppyOne 导入数据 → 拉到本地** | `puppyone gateway connect notion` | `puppyone access add notion --gateway <id> --scope /notes` → AP 创建，数据同步到 MUT tree | `mut clone <ap_url>`（云端→新本地目录） |
+| **B: 本地空目录 → 创建一份新 SoT** | 不需要 gateway | `puppyone access add filesystem --scope /` → AP 创建 | `mut connect <ap_url>`（一步：init + link + push 空树） |
+| **C: 本地已有文件 → 接入云端** | 不需要 gateway | `puppyone access add filesystem --scope / [--link <local-path>]` → AP 创建 | `mut connect <ap_url>`（一步：init + link + commit + push）。<br/>或 `puppyone access add filesystem --link <path>` 一键完成 |
 | **D: AI Agent** | 不需要 gateway | `puppyone access add agent "Bot" --scope /data` | Agent 内部用 MutEphemeralClient |
 | **E: MCP 端点** | 不需要 gateway | `puppyone access add mcp "API" --scope /` | 外部 MCP client 调用 |
 | **F: 沙盒** | 不需要 gateway | `puppyone access add sandbox "Runner"` | 沙盒内用 MutEphemeralClient |
+
+> **命令选择速查**：
+> - **新建本地工作副本**（云端是真理之源）→ `mut clone <ap_url>`
+> - **接入已有本地文件夹**（本地是真理之源 / 双向同步） → `mut connect <ap_url>`
+> - 旧版 `mut init` + `mut link access <ap_url>` 仍受支持（mutai ≥ 0.1.6），新代码请直接用 `mut connect`（mutai ≥ 0.1.7）。
 
 ---
 

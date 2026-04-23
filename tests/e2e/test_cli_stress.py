@@ -138,7 +138,7 @@ def test_setup(t: T, ctx: Ctx):
 def test_clone_push_pull_lifecycle(t: T, ctx: Ctx):
     t.section("1. Clone → Write → Commit → Push → Pull Lifecycle")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
     workdir = os.path.join(ctx.base_dir, "lifecycle")
 
     # Clone
@@ -192,7 +192,7 @@ def test_clone_push_pull_lifecycle(t: T, ctx: Ctx):
 def test_rapid_commits(t: T, ctx: Ctx):
     t.section("2. Rapid Commit/Push Cycles (20 iterations)")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
     workdir = os.path.join(ctx.base_dir, "rapid")
     repo = clone_op.clone(server, credential="", workdir=workdir)
 
@@ -220,7 +220,7 @@ def test_rapid_commits(t: T, ctx: Ctx):
 def test_large_files(t: T, ctx: Ctx):
     t.section("3. Large File Handling")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
     workdir = os.path.join(ctx.base_dir, "large")
     repo = clone_op.clone(server, credential="", workdir=workdir)
 
@@ -256,7 +256,7 @@ def test_large_files(t: T, ctx: Ctx):
 def test_multi_agent_concurrent(t: T, ctx: Ctx):
     t.section("4. Multi-Agent Concurrent Push/Pull")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
 
     # Get current state
     client = MutClient(server, credential="")
@@ -298,7 +298,7 @@ def test_multi_agent_concurrent(t: T, ctx: Ctx):
 def test_rollback_stress(t: T, ctx: Ctx):
     t.section("5. Rollback Under Load")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
     client = MutClient(server, credential="")
 
     # Get current state
@@ -342,7 +342,7 @@ def test_rollback_stress(t: T, ctx: Ctx):
 def test_status_and_log(t: T, ctx: Ctx):
     t.section("6. Status & Log Accuracy")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
     workdir = os.path.join(ctx.base_dir, "status-log")
     repo = clone_op.clone(server, credential="", workdir=workdir)
 
@@ -381,7 +381,7 @@ def test_status_and_log(t: T, ctx: Ctx):
 def test_negotiate(t: T, ctx: Ctx):
     t.section("7. Hash Negotiation")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
     client = MutClient(server, credential="")
 
     # Negotiate with no known hashes
@@ -410,7 +410,7 @@ def test_negotiate(t: T, ctx: Ctx):
 def test_error_handling(t: T, ctx: Ctx):
     t.section("8. Error Handling & Edge Cases")
 
-    server = f"{ctx.api}/mut/ap/{ctx.ap_key}"
+    server = f"{ctx.api}/api/v1/mut/ap/{ctx.ap_key}"
     client = MutClient(server, credential="")
 
     # Push with wrong base version

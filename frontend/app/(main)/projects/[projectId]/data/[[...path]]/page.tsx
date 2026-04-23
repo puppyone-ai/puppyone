@@ -336,9 +336,6 @@ export default function DataPage({ params }: DataPageProps) {
   const { session } = useAuth();
   const { currentOrg } = useOrganization();
 
-  // Onboarding state
-  const [showOnboardingGuide, setShowOnboardingGuide] = useState(false);
-
   // Workspace context
   const {
     setTableData,
@@ -383,10 +380,6 @@ export default function DataPage({ params }: DataPageProps) {
       router.replace(`/projects/${projectId}/data`);
     }
   }, [hasWelcomeParam, projectId, router]);
-
-  const handleOnboardingComplete = () => {
-    sessionStorage.setItem(`onboarding-completed-${projectId}`, 'true');
-  };
 
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
@@ -788,10 +781,6 @@ export default function DataPage({ params }: DataPageProps) {
         currentFolderId={currentFolderId}
         projects={projects}
         activeProject={activeProject}
-        showOnboardingGuide={showOnboardingGuide}
-        onCloseOnboarding={() => setShowOnboardingGuide(false)}
-        onOnboardingComplete={handleOnboardingComplete}
-        userName={session?.user?.email?.split('@')[0]}
         renameDialogOpen={nodeActions.renameDialogOpen}
         renameTargetName={nodeActions.renameTarget?.name ?? ''}
         renameError={nodeActions.renameError}

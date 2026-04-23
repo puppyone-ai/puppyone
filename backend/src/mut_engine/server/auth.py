@@ -43,15 +43,23 @@ class PuppyOneAuthenticator:
             {"agent": str, "_scope": {"id", "path", "exclude", "mode"}}
         """
         if settings.SKIP_AUTH:
-            env = getattr(settings, "ENVIRONMENT", getattr(settings, "ENV", ""))
-            if not env or env.lower() not in ("local", "test", "development"):
-                log_error(f"[Auth] SKIP_AUTH is set but ENVIRONMENT={env!r} — refusing to skip auth in non-dev environment")
-            else:
-                log_warning("SKIP_AUTH enabled — MUT auth returning mock user")
-                return {
-                    "agent": "user:mock",
-                    "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
-                }
+            # config.py.enforce_skip_auth_safety guarantees APP_ENV is
+            # dev/test if SKIP_AUTH is True; this assert is deep-defense in
+            # case the validator is ever bypassed (mock, monkey-patched test).
+            if settings.APP_ENV not in {"development", "test"}:
+                log_error(
+                    f"[Auth] SKIP_AUTH=True with APP_ENV={settings.APP_ENV!r}: "
+                    f"config validator was bypassed; refusing to skip auth"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail="Server misconfigured: SKIP_AUTH must not be active in this environment",
+                )
+            log_warning("SKIP_AUTH enabled — MUT auth returning mock user")
+            return {
+                "agent": "user:mock",
+                "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
+            }
 
         user = self._try_jwt(token)
         if user:

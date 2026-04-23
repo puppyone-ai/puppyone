@@ -1,0 +1,8 @@
+id = "seo-management"
+name = "SEO Content Management"
+description = "Brand guidelines, keyword lists, and a content pipeline ready for an SEO agent."
+icon = "📈"
+version = "1.0.0"
+author = "PuppyOne"
+tags = ["marketing", "seo"]
+order = 20

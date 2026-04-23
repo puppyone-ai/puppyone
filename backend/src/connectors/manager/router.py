@@ -383,6 +383,7 @@ class UnifiedConnectionOut(BaseModel):
     status: str = "active"
     gateway_id: str | None = None
     access_key: str | None = None
+    ap_base: str | None = None
 
 
 DATASOURCE_PROVIDERS: set[str] = set()
@@ -585,6 +586,8 @@ async def _create_filesystem(
         provider="filesystem",
         name=payload.name or "Filesystem Sync",
         status=sync.status or "active",
+        access_key=sync.access_key,
+        ap_base=f"/api/v1/mut/ap/{sync.access_key}" if sync.access_key else None,
     )
 
 
@@ -615,6 +618,7 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         name=payload.name or "Direct Access",
         status="active",
         access_key=key,
+        ap_base=f"/api/v1/mut/ap/{key}",
     )
 
 

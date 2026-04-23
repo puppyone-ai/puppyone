@@ -41,7 +41,7 @@ def _req(method, url, data=None, headers=None, timeout=30):
             return e.code, {}
 
 def _ap_post(api, key, op, data=None):
-    return _req("POST", f"{api}/mut/ap/{key}/{op}",
+    return _req("POST", f"{api}/api/v1/mut/ap/{key}/{op}",
                 data=data or {}, headers={"Content-Type": "application/json"})
 
 @dataclass

@@ -44,6 +44,9 @@ class FakeHistoryManager:
     def set_scope_hash(self, scope_path: str, h: str) -> None:
         self._scope_hashes[scope_path.strip("/")] = h
 
+    def get_all_scope_hashes(self) -> dict[str, str]:
+        return {p: h for p, h in self._scope_hashes.items() if h}
+
     def get_scope_head_commit_id(self, scope_path: str) -> str:
         return self._scope_head_commit_ids.get(scope_path.strip("/"), "")
 
@@ -181,9 +184,14 @@ def server_repo(memory_store):
 
 
 class TestScopeState:
+    """Scope-hash setters live on ``history``, not the ``ServerRepo`` façade
+    (P3-4): exposing a non-CAS setter on the façade invites lost-update
+    bugs. These tests reach into ``history`` directly to mimic the boot /
+    rollback paths that legitimately need the unchecked setter."""
+
     def test_get_set_scope_hash(self, server_repo):
         assert server_repo.get_scope_hash("docs") == ""
-        server_repo.set_scope_hash("docs", "abc123")
+        server_repo.history.set_scope_hash("docs", "abc123")
         assert server_repo.get_scope_hash("docs") == "abc123"
 
     def test_get_set_scope_head_commit_id(self, server_repo):
@@ -192,10 +200,15 @@ class TestScopeState:
         assert server_repo.get_scope_head_commit_id("docs") == "deadbeef12345678"
 
     def test_scopes_independent(self, server_repo):
-        server_repo.set_scope_hash("docs", "aaa")
-        server_repo.set_scope_hash("src", "bbb")
+        server_repo.history.set_scope_hash("docs", "aaa")
+        server_repo.history.set_scope_hash("src", "bbb")
         assert server_repo.get_scope_hash("docs") == "aaa"
         assert server_repo.get_scope_hash("src") == "bbb"
+
+    def test_unchecked_setters_not_on_facade(self, server_repo):
+        """Regression guard for P3-4 — keep the non-CAS setters off the façade."""
+        assert not hasattr(server_repo, "set_root_hash")
+        assert not hasattr(server_repo, "set_scope_hash")
 
 
 class TestGlobalRootHash:
@@ -203,16 +216,16 @@ class TestGlobalRootHash:
         assert server_repo.get_root_hash() == ""
 
     def test_set_and_read(self, server_repo):
-        server_repo.set_root_hash("root-abc")
+        server_repo.history.set_root_hash("root-abc")
         assert server_repo.get_root_hash() == "root-abc"
 
     def test_cas_success(self, server_repo):
-        server_repo.set_root_hash("old")
+        server_repo.history.set_root_hash("old")
         assert server_repo.history.cas_update_root_hash("old", "new") is True
         assert server_repo.get_root_hash() == "new"
 
     def test_cas_failure_keeps_old(self, server_repo):
-        server_repo.set_root_hash("old")
+        server_repo.history.set_root_hash("old")
         assert server_repo.history.cas_update_root_hash("stale", "new") is False
         assert server_repo.get_root_hash() == "old"
 
@@ -280,7 +293,7 @@ class TestListScopeFiles:
         tree = json.dumps({"readme.md": ["B", blob_hash]}, sort_keys=True).encode()
         tree_hash = memory_store.put(tree)
 
-        server_repo.set_scope_hash("docs", tree_hash)
+        server_repo.history.set_scope_hash("docs", tree_hash)
 
         scope = {"id": "s1", "path": "/docs/", "exclude": [], "mode": "rw"}
         files = server_repo.list_scope_files(scope)
