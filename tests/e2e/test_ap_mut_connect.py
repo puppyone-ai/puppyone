@@ -309,7 +309,7 @@ def test_filesystem_connect(t, ctx):
     t.section("2b. Filesystem AP → MUT Connect (one-shot, existing folder)")
 
     ap_id, key = _create_ap_via_db(ctx, "filesystem", scope_path="", mode="rw")
-    url = f"{ctx.api}/api/v1/mut/ap/{key}"
+    url = f"{ctx.api}/mut/ap/{key}"
 
     _test_mut_connect(t, ctx, "filesystem-connect", key, url,
                       os.path.join(ctx.base_dir, "fs-connect"))
