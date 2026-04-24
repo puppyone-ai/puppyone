@@ -576,7 +576,7 @@ function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; 
   const [copied, setCopied] = useState<string | null>(null);
   const [mode, setMode] = useState<SetupMode>('clone');
   const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
-  const cloneUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
+  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
 
   const copy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);

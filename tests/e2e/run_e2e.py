@@ -130,7 +130,7 @@ def _patch(ctx, path, data=None):
 def _ap_post(ctx, key, op, data=None):
     """POST to access point endpoint."""
     import urllib.request
-    url = f"{ctx.api}/api/v1/mut/ap/{key}/{op}"
+    url = f"{ctx.api}/mut/ap/{key}/{op}"
     body = json.dumps(data or {}).encode()
     req = urllib.request.Request(url, data=body,
                                  headers={"Content-Type": "application/json"},

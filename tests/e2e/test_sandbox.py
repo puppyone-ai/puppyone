@@ -105,7 +105,7 @@ class T:
                      timeout=60)
 
     def ap_post(self, key, op, data=None):
-        return _req("POST", f"{self.ctx.api}/api/v1/mut/ap/{key}/{op}",
+        return _req("POST", f"{self.ctx.api}/mut/ap/{key}/{op}",
                      data=data or {},
                      headers={"Content-Type": "application/json"})
 
