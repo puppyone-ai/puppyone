@@ -53,7 +53,7 @@ backend/
 │   │   ├── routers/           # HTTP 路由层
 │   │   │   ├── content_router.py  # Content API (/api/v1/content/*)
 │   │   │   ├── protocol_router.py # MUT 线协议 (/api/v1/mut/*)
-│   │   │   ├── access_point.py    # Access Point (/mut/ap/*)
+│   │   │   ├── access_point.py    # Access Point (/api/v1/mut/ap/*)
 │   │   │   └── audit_router.py    # 审计日志
 │   │   ├── services/          # 业务服务层
 │   │   │   ├── ops.py         # MutOps — 统一操作入口
@@ -184,6 +184,84 @@ uv sync                 # 安装依赖
 uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log
 uv run pytest           # 运行测试
 ```
+
+## 部署 (Railway / Nixpacks)
+
+后端用 **Railway + Nixpacks** 构建，配置文件全部在 `backend/`：
+
+- `backend/railway.toml` — `[build]` / `[deploy]`，定义 builder 与 startCommand
+- `backend/nixpacks.toml` — `[phases.setup]` / `[phases.install]`，覆盖 Nixpacks 默认 Python 流水线，自己建 venv → pin uv → `uv export` → `pip install -r requirements.lock.txt`
+
+### Railway 控制台必须设置的项
+
+每个共享本仓库的 service（`api` / `file_worker` / `mcp_server`）都必须把
+`Settings -> Service -> Source -> Root Directory` 设成 `backend`（写 `/backend` 也等价）。
+
+否则：
+
+- Railway 把整个 monorepo 根当成构建上下文，根本看不到 `backend/railway.toml` 和 `backend/nixpacks.toml`
+- Nixpacks 会用默认 Python 流水线
+
+### 即使 Root Directory 设对了，`[phases.*]` 也不能写在 railway.toml 里
+
+`railway.toml` 的 schema 只认 `[build]` / `[deploy]` / `[environments.*]`。`[phases.setup]`
+和 `[phases.build]` 这种 Nixpacks 自定义阶段写在 railway.toml 里会被**静默忽略**。
+
+所有 Nixpacks 自定义阶段必须放到独立的 `backend/nixpacks.toml`。
+
+### 必须覆盖的是 `[phases.install]`，不只是 `[phases.build]`
+
+Nixpacks 默认 Python+uv provider 把建 venv + 装依赖塞在 **install** 阶段，
+渲染出来大概是：
+
+```
+python -m venv --copies /opt/venv \
+  && . /opt/venv/bin/activate \
+  && pip install uv==$NIXPACKS_UV_VERSION \
+  && uv sync --no-dev --frozen
+```
+
+当 provider 没注入 `NIXPACKS_UV_VERSION` 时（最近 uv 升级后会偶发），渲染结果变成
+`pip install uv==`，整个 build 直接挂：
+
+```
+ERROR: Invalid requirement: 'uv==': Expected end or semicolon
+```
+
+`[phases.build]` 在 install 之后才跑，光覆盖 build 没用 —— **必须覆盖 `[phases.install]`**，
+我们的 `nixpacks.toml` 就是这么写的（自己建 venv，pip 装一个 pinned 的 uv，再 uv export →
+pip install requirements）。
+
+### uv 版本要硬编码，不要用 `${UV_VERSION}` 这种变量展开
+
+中间踩过一次：在 `[variables]` 里定义 `UV_VERSION = "0.5.11"`，cmd 里写
+`pip install --upgrade pip 'uv==${UV_VERSION}'`。看起来很优雅，实际整套 build 直接挂：
+
+- TOML 字符串里的单引号会**原样**进入 Dockerfile 的 `RUN` 行
+- bash 在单引号里**不会**展开 `${UV_VERSION}`
+- pip 拿到字面字符串 `uv==${UV_VERSION}`，再次报 `Invalid requirement: 'uv==${UV_VERSION}'`
+
+跟原来的 `pip install uv==` 是同类失败。结论：直接在 cmd 里硬编码 `uv==0.5.11`，
+不要叠加 TOML + bash 两层 escape 规则。要升级 uv 就改 `nixpacks.toml` 里那一行字面量。
+
+### 不要在仓库根目录放 Python 项目文件
+
+`pyproject.toml` / `uv.lock` / `.python-version` **只能放在 `backend/`**。
+
+哪怕只是放一个空的 `uv.lock` 或者只写 `[tool.black]` 的 `pyproject.toml` 在根目录，
+Nixpacks 也会触发 Python 检测并尝试默认安装流程，把上面的 build 弄挂。
+
+### 多 service 用同一份代码
+
+`startCommand` 通过 `SERVICE_ROLE` 环境变量切换：
+
+| `SERVICE_ROLE` | 进程 |
+|----------------|------|
+| 未设置 / `api` | `uvicorn src.main:app` (FastAPI) |
+| `file_worker` | `arq src.ingest.file.jobs.worker.WorkerSettings` |
+| `mcp_server` | `uvicorn mcp_service.server:app` |
+
+每个 Railway service 在 Variables 里设 `SERVICE_ROLE` 即可，不需要复制代码。
 
 ## 开发约定
 

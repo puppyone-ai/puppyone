@@ -110,13 +110,42 @@ def run_post_push_hook(
 
 
 def _update_global_root(repo, push_result: dict) -> None:
-    """Graft the pushed scope tree into the global root hash with CAS protection.
+    """Rebuild ``projects.mut_root_hash`` from DB-authoritative scope state.
 
-    Uses conflict-aware grafting: if another scope modified the same subtree
-    concurrently, performs a three-way merge instead of blind replacement.
+    Architecture: "DB-Authoritative Registry + Materialized Root"
+    (see ``docs/design/mut-scope-concurrency.md`` and
+    ``mut-bug-checklist.md`` P0-5).
+
+    Why we don't read the previous root tree from S3:
+        The old graft path read ``projects.mut_root_hash`` → fetched the
+        corresponding tree from S3 → spliced in the pushed scope → wrote
+        a new root tree → CAS. That made S3 *both* the SoT and the input
+        for deriving the next SoT. Any silent partial read inside the
+        graft (e.g. ``_safe_flatten`` returning ``{}`` on a transient S3
+        error) produced a structurally valid but data-losing root which
+        CAS happily accepted.
+
+    What we do instead:
+        ``mut_scope_state`` is already the SoT for "where does each
+        scope point right now". We:
+          1. SELECT every scope's current hash from DB (cheap, ~1 ms).
+          2. Patch in the freshly pushed scope's hash.
+          3. Start from the root scope's tree (which carries any
+             non-scope files like a top-level README.md) or an empty
+             tree if root scope has never been pushed.
+          4. Overlay each non-root scope by path-length order so
+             parents land before children.
+          5. CAS-update ``projects.mut_root_hash``.
+
+    Concurrent pushes are naturally idempotent: any attempt that reads
+    the latest DB snapshot produces the same new root, so CAS retries
+    converge on the canonical state.
+
+    Failure mode: any S3 read/write raises; the retry loop handles
+    transients, then ``log_error`` flags persistent issues. We do NOT
+    silently fall back to an empty/partial tree — that's the entire
+    bug class we're closing.
     """
-    from mut.server.graft import graft_or_merge_subtree
-
     scope_hash = push_result.get("root", "")
     if not scope_hash:
         return
@@ -128,7 +157,6 @@ def _update_global_root(repo, push_result: dict) -> None:
         return
 
     scope_path = (entry.get("scope_path") or "").strip("/")
-    old_scope_hash = _get_previous_scope_hash(repo, commit_id, scope_path)
 
     MAX_GRAFT_RETRIES = 5
     for attempt in range(MAX_GRAFT_RETRIES):
@@ -140,14 +168,8 @@ def _update_global_root(repo, push_result: dict) -> None:
             else:
                 db_root = repo.history.get_root_hash() if hasattr(repo.history, "get_root_hash") else ""
 
-            if db_root:
-                graft_base = db_root
-            else:
-                import json
-                graft_base = repo.store.put(json.dumps({}, sort_keys=True).encode())
-
-            new_root = graft_or_merge_subtree(
-                repo.store, graft_base, scope_path, old_scope_hash, scope_hash,
+            new_root = _build_root_from_scope_state(
+                repo, scope_path, scope_hash,
             )
 
             if hasattr(repo, "cas_update_root_hash"):
@@ -158,29 +180,86 @@ def _update_global_root(repo, push_result: dict) -> None:
                 success = True
 
             if success:
-                log_info(f"[PostCommit] Updated global root: scope='{scope_path}' hash={new_root[:16]} (attempt {attempt + 1})")
+                log_info(
+                    f"[PostCommit] Rebuilt global root from DB state: "
+                    f"scope='{scope_path}' root={new_root[:16]} "
+                    f"(attempt {attempt + 1})"
+                )
                 return
 
-            log_info(f"[PostCommit] Graft CAS retry {attempt + 1} for scope='{scope_path}'")
+            log_info(
+                f"[PostCommit] Root CAS lost — retrying "
+                f"(attempt {attempt + 1}, scope='{scope_path}')"
+            )
 
         except Exception as e:
-            log_warning(f"[PostCommit] Graft attempt {attempt + 1} failed (will retry): {e}")
+            log_warning(
+                f"[PostCommit] Graft attempt {attempt + 1} failed "
+                f"(will retry): {e}"
+            )
             continue
 
-    log_error(f"[PostCommit] Graft failed after {MAX_GRAFT_RETRIES} retries for scope='{scope_path}'")
+    log_error(
+        f"[PostCommit] Graft failed after {MAX_GRAFT_RETRIES} retries "
+        f"for scope='{scope_path}' — root_hash may lag behind scope state. "
+        f"Investigate S3 / DB connectivity."
+    )
 
 
-def _get_previous_scope_hash(repo, current_commit_id: str, scope_path: str) -> str:
-    """Get the scope hash from the commit BEFORE the current one.
+def _build_root_from_scope_state(
+    repo,
+    just_pushed_scope: str,
+    just_pushed_hash: str,
+) -> str:
+    """Build a complete root tree from DB scope state + the just-pushed hash.
 
-    Used for conflict detection in graft: if the subtree has changed
-    from this hash, another scope modified files in our path.
+    Steps:
+        1. Read all ``(scope_path → scope_hash)`` from
+           ``mut_scope_state`` (DB SoT).
+        2. Overwrite the just-pushed scope's entry with the value the
+           push handler returned. The CAS in handle_push has already
+           written it, so this is normally a no-op; the explicit
+           override exists so retries inside this function still see
+           a consistent input even if a sibling's CAS races between
+           our SELECT and our build.
+        3. Use the root scope's tree as the base. It carries any
+           non-scope files (e.g. a top-level README.md the root scope
+           manages directly). If root scope has never been pushed,
+           start from an empty tree.
+        4. Overlay each non-root scope using ``graft_subtree``. Sort
+           by path depth (then alphabetically) so parents are grafted
+           before their children — a child overlay would otherwise
+           splice into a parent that hasn't been refreshed yet.
+
+    Raises on any S3 read/write failure (no silent fallback). Callers
+    decide whether to retry.
     """
-    try:
-        return repo.history.get_previous_scope_hash(scope_path, current_commit_id)
-    except Exception as e:
-        log_warning(f"[PostCommit] Failed to get previous scope hash: {e}")
-        return ""
+    import json
+
+    from mut.server.graft import graft_subtree
+
+    scopes = repo.get_all_scope_hashes()
+    if just_pushed_hash:
+        scopes[just_pushed_scope] = just_pushed_hash
+
+    root_scope_hash = scopes.get("", "")
+    if root_scope_hash:
+        current_root = root_scope_hash
+    else:
+        empty_tree = json.dumps({}, sort_keys=True).encode()
+        current_root = repo.store.put(empty_tree)
+
+    other_scopes = sorted(
+        ((p, h) for p, h in scopes.items() if p and h),
+        key=lambda item: (item[0].count("/"), item[0]),
+    )
+
+    for scope_path, scope_hash in other_scopes:
+        current_root = graft_subtree(
+            repo.store, current_root, scope_path, scope_hash,
+        )
+
+    return current_root
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:

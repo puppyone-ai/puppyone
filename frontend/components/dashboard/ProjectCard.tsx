@@ -92,7 +92,7 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
                       className="opacity-60 group-hover:opacity-90 transition-opacity"
                     />
                   </div>
-                  <span className="text-[9px] text-center truncate w-full text-[#555] group-hover:text-[#888] transition-colors leading-tight">
+                  <span className="text-[10px] text-center truncate w-full text-[#555] group-hover:text-[#888] transition-colors leading-tight">
                     {node.name}
                   </span>
                 </div>
@@ -139,11 +139,10 @@ export function NewProjectCard({ onClick }: { onClick: () => void }) {
       className="group relative w-full flex flex-col cursor-pointer aspect-square"
       style={{ maxWidth: PROJECT_CARD_WIDTH, maxHeight: PROJECT_CARD_WIDTH }}
     >
-      <div className="h-6 px-3 flex items-center rounded-t-md border-2 border-b-0 border-dashed border-[#333] group-hover:border-[#555] self-start bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors relative z-10">
-        <span className="text-[12px] font-medium text-[#444] group-hover:text-[#888] transition-colors">
-          New
-        </span>
-      </div>
+      <div
+        className="h-7 w-16 rounded-t-md border-2 border-b-0 border-dashed border-[#333] group-hover:border-[#555] self-start bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors relative z-10"
+        aria-hidden
+      />
 
       <div className="flex-1 border-2 border-dashed border-[#333] group-hover:border-[#555] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col items-center justify-center bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors duration-150">
         <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#111] group-hover:bg-[#1a1a1a] transition-colors">

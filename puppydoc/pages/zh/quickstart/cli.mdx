@@ -104,19 +104,65 @@ puppyone access add mcp "My API"
 通过 MUT 协议将本地文件夹同步到云端，支持版本控制。
 
 ```bash
-# 创建文件夹同步连接（scope 为 docs）
-puppyone access add filesystem docs
-# 输出会显示 mut clone 命令，复制执行：
-mut clone <url> --credential <key> --dir ~/my-docs
+# 已经有想同步的本地文件夹？一步到位：
+puppyone access add filesystem docs --link ~/my-docs
 
-# 编辑文件后提交推送
+# 或者先建 AP，再二选一：clone 全新 / connect 已有
+puppyone access add filesystem docs
+# 输出会同时给出两条路径，挑你的场景：
+mut clone <url> --credential <key>                       # A) 新建文件夹
+cd ~/my-docs && mut connect <url> --credential <key>     # B) 已有文件夹
+
+# 然后编辑、提交、推送
 cd ~/my-docs
 echo "# Hello" > readme.md
 mut commit -m "init"
 mut push
 ```
 
-需要先安装 MUT CLI：`pip install mut`
+### 安装 MUT CLI
+
+最常见的方式：
+
+```bash
+pip install mutai
+```
+
+#### Ubuntu 24.04 / Debian 12+ —「找不到 pip」或「externally-managed-environment」
+
+新版 Ubuntu/Debian 默认没装 `pip`，并且按 PEP 668 规则禁止用系统 pip 全局装包。任选其一：
+
+```bash
+# 推荐：用 pipx 装 CLI 工具，自动隔离环境
+sudo apt update && sudo apt install -y pipx
+pipx ensurepath
+pipx install mut
+
+# 或者：装 pip 然后用 venv 隔离
+sudo apt install -y python3-pip python3-venv
+python3 -m venv ~/.venvs/mut
+source ~/.venvs/mut/bin/activate
+pip install mutai
+
+# 不推荐：强行突破 PEP 668（会污染系统 Python）
+pip install --break-system-packages mut
+```
+
+> 装完用 `mut --version` 验证。如果 `which mut` 找不到，把 `~/.local/bin` 加进 PATH：`export PATH="$HOME/.local/bin:$PATH"`。
+
+### 大文件 / 慢网络：调高 MUT_TIMEOUT
+
+`mut push` 默认 socket 超时是 60 秒。如果是大 commit（比如几十 MB 的 PDF / 视频）或者慢网络，会被吊死并报「cannot reach server」。把超时调大：
+
+```bash
+# 单次 push（5 分钟）
+MUT_TIMEOUT=300 mut push
+
+# 当前 shell 都生效
+export MUT_TIMEOUT=300
+```
+
+> 服务器单次 push 上限是 200 MB（单文件 50 MB）。超过会返回 413，附带怎么拆 commit 的提示。
 
 ---
 
@@ -169,9 +215,9 @@ puppyone access add notion https://notion.so/db-id --folder /docs/notion
 # 为 Agent 创建 MCP 端点
 puppyone access add mcp "Production API"
 
-# 同步本地文件夹
-puppyone access add filesystem workspace
-# 复制输出中的 mut clone 命令执行
+# 同步本地文件夹（一步到位 —— 把已有文件夹接入云端）
+puppyone access add filesystem workspace --link ~/workspace
+# 如果本地还没有该文件夹，跟着输出里的 `mut clone` 命令跑
 
 # 检查结果
 puppyone access ls

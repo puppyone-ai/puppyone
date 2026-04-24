@@ -109,6 +109,15 @@ function hasFileExtension(name: string): boolean {
 interface ExplorerTreeRowProps {
   item: MillerColumnItem;
   depth: number;
+  // True when this row is the LAST among its siblings at this
+  // depth.  Drives the L-shape elbow:
+  //   ─ last  → vertical stops at the hook level (closing ╰─).
+  //   ─ !last → vertical runs full row height so it visually
+  //             merges with the next sibling's elbow below.
+  // Also gates the ancestor continuation line drawn by THIS
+  // row's children-wrapper: only non-last rows thread their
+  // column down through their subtree.
+  isLastSibling: boolean;
   projectId: string;
   activeId: string | null;
   onNavigate: (item: MillerColumnItem) => void;
@@ -124,6 +133,7 @@ interface ExplorerTreeRowProps {
 export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   item,
   depth,
+  isLastSibling,
   projectId,
   activeId,
   onNavigate,
@@ -249,22 +259,60 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           position: 'relative',
         }}
       >
-        {depth > 1 &&
-          Array.from({ length: depth - 1 }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                top: 0,
-                bottom: 0,
-                left: 32 + i * 16,
-                width: 1,
-                background: 'rgba(255, 255, 255, 0.08)',
-                pointerEvents: 'none',
-                zIndex: 0,
-              }}
+        {/* Tree-line elbow for THIS depth.  Same visual grammar as
+            the home page's `TreeRows`, just sized for the sidebar's
+            tighter 16px-per-level indent (vs home's 20px):
+
+              ─ vertical stub at row-local x = depth*16 (one indent
+                step left of the icon).
+              ─ horizontal hook 8px to the icon's left edge.
+              ─ vertical stops at y=15 (hook level) when this is the
+                last sibling — that's the closing ╰─ shape.  Otherwise
+                it spans the full row height so it visually merges
+                with the next sibling's elbow below.
+
+            `<rect>` not `<line>`: stroke-1 lines paint a center stroke
+            that straddles two pixels, which subpixel-misaligns with
+            the integer-bound continuation `<div>` drawn in the
+            children-wrapper below — looks crisp on retina with rect.
+
+            Ancestor continuation lines are NOT drawn here.  Each
+            ancestor's children-wrapper draws its own (see {expanded}
+            block), which is what makes the tree visually CLOSE at
+            the right depth (last sibling = no continuation through
+            subtree) instead of the old behavior where every per-depth
+            line ran full row height regardless of whether the
+            ancestor still had siblings below. */}
+        {depth > 0 && (
+          <svg
+            width={depth * 16 + 8}
+            height={30}
+            viewBox={`0 0 ${depth * 16 + 8} 30`}
+            shapeRendering="crispEdges"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              pointerEvents: 'none',
+              zIndex: 0,
+            }}
+          >
+            <rect
+              x={depth * 16}
+              y={0}
+              width={1}
+              height={isLastSibling ? 15 : 30}
+              fill="#27272a"
             />
-          ))}
+            <rect
+              x={depth * 16}
+              y={15}
+              width={8}
+              height={1}
+              fill="#27272a"
+            />
+          </svg>
+        )}
 
         <div
           style={{
@@ -401,17 +449,55 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       </div>
 
       {expanded && (
-        <div>
+        // `position: relative` so the continuation line below can
+        // absolute-position itself against the wrapper's full
+        // height, threading my elbow column down through every
+        // descendant row (and their sub-subtree wrappers).
+        <div style={{ position: 'relative' }}>
+          {/* Continuation line — the structural complement to the
+              per-row elbow above.  When *I* am not the last sibling,
+              my elbow column needs to keep going down through my
+              entire subtree so the next sibling's elbow visually
+              connects.  Drawn at MY depth's column in OUTER coords:
+              the row's 6px left margin + row-local elbow x (depth*16)
+              = 6 + depth*16.  The wrapper has no margin so wrapper-x
+              == outer-x, no further offset needed.
+
+              Skipped when last sibling so the tree visually CLOSES
+              at the right depth instead of running every line off
+              the bottom of the subtree.
+
+              Also drawn when there are NO real children (loading /
+              empty placeholder): the parent's "more siblings below"
+              signal still needs to thread through whatever the
+              wrapper renders, otherwise an expanded-but-empty
+              parent would visually break the sibling chain. */}
+          {depth > 0 && !isLastSibling && (
+            <div
+              aria-hidden
+              style={{
+                position: 'absolute',
+                left: 6 + depth * 16,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                background: '#27272a',
+                pointerEvents: 'none',
+                zIndex: 0,
+              }}
+            />
+          )}
           {loading && children.length === 0 ? (
             <div style={{ paddingLeft: childTextPadding, paddingTop: 4, paddingBottom: 4, color: '#666', fontSize: 12 }}>
               Loading...
             </div>
           ) : childItems.length > 0 ? (
-            childItems.map((child) => (
+            childItems.map((child, idx) => (
               <ExplorerTreeRow
                 key={child.id}
                 item={child}
                 depth={depth + 1}
+                isLastSibling={idx === childItems.length - 1}
                 projectId={projectId}
                 activeId={activeId}
                 onNavigate={onNavigate}

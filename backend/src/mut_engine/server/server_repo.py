@@ -72,14 +72,22 @@ class PuppyOneServerRepo:
         self.history.set_head_commit_id(cid)
 
     # ── Global Root Hash ──
+    #
+    # Note: only ``cas_update_root_hash`` is exposed on this façade. The
+    # unchecked ``set_root_hash`` lives on ``self.history`` and is reserved
+    # for the bootstrap path (``MutAdmin.initialize_empty_tree``) and the
+    # graft fallback (``services/hooks.py``). Application code MUST go
+    # through CAS — exposing a non-CAS setter on ServerRepo invites
+    # lost-update bugs (see mut-bug-checklist.md P3-4).
 
     def get_root_hash(self) -> str:
         return self.history.get_root_hash()
 
-    def set_root_hash(self, h: str) -> None:
-        self.history.set_root_hash(h)
-
     # ── Per-Scope Head + Hash ──
+    #
+    # Same contract: only the CAS path (``cas_update_scope``) is exposed
+    # for the scope hash. ``history.set_scope_hash`` exists for tests and
+    # the legacy rollback fallback, and is intentionally not re-exported.
 
     def get_scope_head_commit_id(self, scope_path: str) -> str:
         return self.history.get_scope_head_commit_id(scope_path)
@@ -90,8 +98,17 @@ class PuppyOneServerRepo:
     def get_scope_hash(self, scope_path: str) -> str:
         return self.history.get_scope_hash(scope_path)
 
-    def set_scope_hash(self, scope_path: str, h: str) -> None:
-        self.history.set_scope_hash(scope_path, h)
+    def get_all_scope_hashes(self) -> dict[str, str]:
+        """Snapshot of every scope's current hash for this project.
+
+        Returned as ``{scope_path: scope_hash}``. Used by the post-push
+        graft (``services/hooks.py``) to rebuild ``mut_root_hash`` from
+        DB state — the canonical source of truth for "where does each
+        scope point right now" — instead of reading the previous root
+        tree from S3 (a derived artifact). See ``mut-bug-checklist.md``
+        P0-5 for the silent-overwrite incident this design closes.
+        """
+        return self.history.get_all_scope_hashes()
 
     def cas_update_scope(
         self,

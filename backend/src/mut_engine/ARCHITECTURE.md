@@ -246,8 +246,39 @@ admin = create_mut_admin_service()
 
 | Hook | 触发条件 | 动作 |
 |------|---------|------|
+| `_update_global_root` | 每次 push / rollback 成功 | 从 DB scope state 重建 `projects.mut_root_hash`（CAS + retry） |
 | `post_commit_delete` | push 中包含文件删除 | 清理 `access_points` 表中引用已删除路径的记录 |
 | `post_commit_move` | 文件/目录移动/重命名 | 重写 `access_points` 表中受影响的路径 |
+
+### 6.1 `_update_global_root` —— DB-Authoritative Graft
+
+> **架构**：`mut_scope_state` 是"每个 scope 当前指向哪个 hash"的唯一 SoT；
+> `projects.mut_root_hash` 是从这些 scope 派生出来的 materialized view。
+> 嫁接 = 从 SoT 重建 view。
+
+每次 push/rollback 成功后，hook 调 `_build_root_from_scope_state(repo,
+just_pushed_scope, just_pushed_hash)`，按下列步骤重建 root tree：
+
+1. `SELECT scope_path, scope_hash FROM mut_scope_state WHERE project_id=P`
+   —— 拿到所有 scope 的最新 hash 快照。
+2. 用刚 push 的新 hash 显式覆盖 just_pushed_scope 的 entry（让重试逻辑幂等）。
+3. base = root scope 的 tree（承载根目录非-scope 文件，如 README.md），
+   或空 tree object（若 root scope 从未 push 过）。
+4. 按 `scope_path` 深度从浅到深排序，依次 `graft_subtree(base, scope_path,
+   scope_hash)`，父 scope 先落地，子 scope 才能 splice 到刚生成的父树上。
+5. `cas_update_root_hash(old_root, new_root)`，失败则重试（最多 5 次）。
+
+为什么这么设计 —— **不读派生数据作为派生输入**：旧版本嫁接读
+`projects.mut_root_hash` 指向的 root tree 作为 splice base，使得 S3 上一份
+派生产物同时充当了下一版的输入。任何静默的 S3 部分读失败（旧
+`_safe_flatten` 的 bug 类）都会构造出"结构合法但数据丢失"的新 root，CAS
+还是会接受它（P0-5）。
+
+新版完全切断了这条数据流：嫁接的输入只有 DB 行 + 各 scope 自己 push 时
+写入 S3 的 immutable tree object。任何读失败立即抛异常 → retry → 仍失败
+则 ERROR 日志 + 不污染 DB。
+
+详见 `docs/design/mut-scope-concurrency.md` §3.2、§5.4。
 
 ---
 

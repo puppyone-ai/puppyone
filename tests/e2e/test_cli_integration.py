@@ -7,8 +7,11 @@ MUT CLI uses those access points to clone/push/pull/link.
 
 Validates that config flows correctly between the two CLIs:
 - puppyone access add filesystem → generates access_key + AP URL
-- mut clone <AP URL> → clones via MUT protocol
-- mut init + mut link access <AP URL> → links existing dir
+- mut clone <AP URL> → clones into a fresh empty dir (cloud is SoT)
+- mut connect <AP URL> → one-shot init + link + commit + push for an existing
+  local folder (local is SoT). Verified end-to-end against connect_op.
+- Legacy primitive path: mut init + link_access (still supported, kept for
+  regression coverage of the building blocks underneath `mut connect`).
 - Scope isolation across multiple APs
 - Concurrent multi-agent simulation
 - Rollback + pull-version across CLIs
@@ -58,6 +61,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "mut"))
 
 from mut.ops import init_op, clone_op, commit_op, push_op, pull_op, status_op, log_op
 from mut.ops import link_access_op
+try:
+    from mut.ops import connect_op  # mutai >= 0.1.7
+except ImportError:  # pragma: no cover — fallback for older mutai checkouts
+    connect_op = None
 from mut.ops.repo import MutRepo
 from mut.foundation.transport import MutClient
 
@@ -206,7 +213,12 @@ def test_scenario_a_clone(t: T, ctx: Ctx):
 
 
 def test_scenario_b_init_link(t: T, ctx: Ctx):
-    """Scenario B: mut init + mut link access — empty dir."""
+    """Scenario B (legacy primitives): mut init + mut link access — empty dir.
+
+    Kept as regression coverage for the underlying primitives that
+    `mut connect` orchestrates. New user-facing flow is exercised in
+    test_scenario_d_connect_existing.
+    """
     t.section("2. Scenario B: mut init + mut link access (empty dir)")
 
     workdir = os.path.join(ctx.base_dir, "scenario-b")
@@ -246,7 +258,11 @@ def test_scenario_b_init_link(t: T, ctx: Ctx):
 
 
 def test_scenario_c_init_link_existing(t: T, ctx: Ctx):
-    """Scenario C: mut init + mut link access — non-empty dir."""
+    """Scenario C (legacy primitives): mut init + mut link access — non-empty dir.
+
+    Kept as regression coverage for the underlying primitives. The user-facing
+    one-shot equivalent is `mut connect <ap_url>` (test_scenario_d_connect_existing).
+    """
     t.section("3. Scenario C: mut init + link (non-empty dir)")
 
     workdir = os.path.join(ctx.base_dir, "scenario-c")
@@ -276,6 +292,86 @@ def test_scenario_c_init_link_existing(t: T, ctx: Ctx):
     repo = MutRepo(workdir)
     result = push_op.push(repo)
     t.check("Push existing files", result.get("status") in ("ok", "pushed", "merged"))
+
+
+def test_scenario_d_connect_existing(t: T, ctx: Ctx):
+    """Scenario D (canonical local-first onboarding): `mut connect <ap_url>`.
+
+    Verifies the one-shot orchestration: init + link + commit + push, on
+    a workdir that already contains user files. This is the path advertised
+    in the UI ("Connect existing folder") and CLI (`puppyone access add
+    filesystem --link <path>`).
+    """
+    t.section("3b. Scenario D: mut connect (existing folder, one-shot)")
+
+    if connect_op is None:
+        t.skip("mut connect", "mutai < 0.1.7 — connect_op not available")
+        return
+
+    workdir = os.path.join(ctx.base_dir, "scenario-d")
+    os.makedirs(workdir)
+    (Path(workdir) / "existing.md").write_text("# Pre-existing local content")
+    (Path(workdir) / "src").mkdir()
+    (Path(workdir) / "src" / "app.py").write_text("print('hello from local')")
+
+    result = connect_op.connect(
+        access_point_url=ctx.ap_root_url,
+        credential=ctx.ap_root_key,
+        workdir=workdir,
+        message="connect: import existing files",
+        who="connect-test",
+    )
+
+    t.check("connect status=connected", result.get("status") == "connected",
+            f"result={result}")
+    t.check("connect imported=True (workdir was non-empty)",
+            result.get("imported") is True, f"result={result}")
+    t.check("connect initialized=True (fresh dir)",
+            result.get("initialized") is True, f"result={result}")
+    t.check(".mut/ created", (Path(workdir) / ".mut").is_dir())
+    t.check("config.json points at AP",
+            (Path(workdir) / ".mut" / "config.json").is_file())
+
+    # Idempotency: running connect again on the now-clean repo should not
+    # double-commit (no new local content) and should leave the repo healthy.
+    result2 = connect_op.connect(
+        access_point_url=ctx.ap_root_url,
+        credential=ctx.ap_root_key,
+        workdir=workdir,
+        message="connect: idempotent re-run",
+        who="connect-test",
+    )
+    t.check("connect re-run status=connected",
+            result2.get("status") == "connected", f"result2={result2}")
+    t.check("connect re-run initialized=False (.mut/ already there)",
+            result2.get("initialized") is False, f"result2={result2}")
+    t.check("connect re-run imported=False (nothing new locally)",
+            result2.get("imported") is False, f"result2={result2}")
+
+    # Verify the imported files surfaced via the API.
+    code, body = _req("GET", f"{ctx.api}/api/v1/content/{ctx.project_id}/ls",
+                       headers=_h(ctx.jwt))
+    entries = (body.get("data") or {}).get("entries", [])
+    names = [e.get("name", "") for e in entries]
+    t.check("connect-imported file visible via API",
+            any("existing" in n for n in names), f"names={names}")
+
+    # Connect on a truly empty workdir must NOT push an empty tree.
+    workdir_empty = os.path.join(ctx.base_dir, "scenario-d-empty")
+    os.makedirs(workdir_empty)
+    result3 = connect_op.connect(
+        access_point_url=ctx.ap_root_url,
+        credential=ctx.ap_root_key,
+        workdir=workdir_empty,
+        message="connect: empty workdir",
+        who="connect-test",
+    )
+    t.check("connect on empty dir: status=connected",
+            result3.get("status") == "connected", f"result3={result3}")
+    t.check("connect on empty dir: imported=False (no commit/push)",
+            result3.get("imported") is False, f"result3={result3}")
+    t.check("connect on empty dir: pushed=0",
+            result3.get("pushed", 0) == 0, f"result3={result3}")
 
 
 def test_scope_isolation(t: T, ctx: Ctx):
@@ -511,6 +607,7 @@ def main():
         test_scenario_a_clone,
         test_scenario_b_init_link,
         test_scenario_c_init_link_existing,
+        test_scenario_d_connect_existing,
         test_scope_isolation,
         test_cross_cli_push_pull,
         test_rollback_across_clis,

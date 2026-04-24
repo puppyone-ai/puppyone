@@ -110,14 +110,22 @@ puppyone access add sandbox "Runner" --type e2b
 
 ### 本地文件夹同步
 
-将本地目录通过 MUT 协议同步到云端：
+将本地目录通过 MUT 协议同步到云端，两种典型场景：
 
 ```bash
-# 创建 filesystem 连接（指定 scope 路径）
+# A) 一站式 —— 已有本地文件夹，直接接入
+puppyone access add filesystem docs --link ~/my-docs
+
+# B) 仅创建云端 access point，事后再接入
 puppyone access add filesystem docs
 
-# 按照输出的 mut clone 命令克隆到本地
+# 然后从 access add 的输出里挑一条命令跑：
+#   云端有内容、本地还没目录 → 新建文件夹拉一份
 mut clone <url> --credential <key>
+
+#   本地已经有内容 → 接入，三路合并不覆盖
+cd ~/my-docs
+mut connect <url> --credential <key>
 ```
 
 详见 [本地文件夹同步](/zh/cli/access) 文档。

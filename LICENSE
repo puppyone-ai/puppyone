@@ -1,66 +1,201 @@
-PuppyOne Sustainable Use License (SUL)
-Version 1.0 (English)
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
 
-Summary (for convenience only; non-binding)
-In case of any inconsistency, the binding terms are those set out below under this License.
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
-Summary of permitted and prohibited uses:
-1) Personal use (individual): Allowed, free. No additional rights required.
-2) Internal business use (single-tenant, per organization): Allowed, free. No additional rights required.
-3) Self-hosted multi-tenant: Please obtain rights, acquire a commercial license: guantum@puppyone.ai.
-4) Managed/hosted service offered to third parties: Not allowed. To obtain rights, subscribe to the official hosted service at https://www.puppyone.ai or acquire a commercial license.
-5) Commercial redistribution (paid distribution): Not allowed. To obtain rights, acquire a commercial license: guantum@puppyone.ai.
-6) Use of PuppyOne trademarks/logos: Not granted. To obtain rights, prior written permission is required.
+   1. Definitions.
 
-Acceptance
-By using, copying, accessing, or distributing the Software, you agree to all the terms and conditions of this License.
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
 
-Copyright License
-Subject to the limitations below, the Licensor grants you a non-exclusive, royalty-free, worldwide, non-sublicensable, non-transferable license to use, copy, distribute, and prepare derivative works of the Software.
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
 
-Permitted Use (Free of Charge)
-1. Personal Use: Any natural person may use the Software free of charge.
-2. Internal Business Use (Single-tenant): Any organization may deploy and use the Software internally free of charge, provided the deployment is single-tenant and not provided as a service to third parties.
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
 
-Limitations (Prohibited Without a Separate Commercial License)
-1. Managed/Hosted/Multi-tenant Service: You may not offer, host, provide, or make available the Software, or any substantial part thereof, as a managed, hosted, or multi-tenant service to third parties. Operating a deployment that serves multiple independent organizations, tenants, workspaces, or accounts from a single instance is prohibited.
-2. Commercial Redistribution: You may not distribute the Software or derivative works for a fee or other commercial consideration.
-3. Removal or Obfuscation of Notices: You may not remove, alter, or obscure any licensing, copyright, attribution, or trademark/brand notices of the Licensor within the Software or associated user interfaces.
-4. Trademarks: This License does not grant any rights to use the Licensor’s trademarks, service marks, or logos.
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
 
-Patents
-The Licensor grants you a license, under any patent claims the Licensor can license, to make, have made, use, sell, offer for sale, import, and have imported the Software, subject to the limitations herein. If you or your company asserts in writing that the Software infringes or contributes to infringement of any patent, your patent license for the Software granted under these terms terminates immediately.
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
 
-Notices and Redistribution
-You must ensure that anyone who receives any part of the Software from you also receives a copy of this License. If you modify the Software, you must include in any modified copies a prominent notice stating that you have modified the Software and the date of the modification.
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
 
-No Other Rights
-Except as expressly granted in this License, all rights are reserved. No implied licenses are granted.
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
 
-Termination
-If you use the Software in violation of these terms, your rights under this License automatically terminate. If the Licensor provides notice of violation and you cease all violations within 30 days of receipt, your License may be reinstated retroactively. However, repeated violations will cause automatic and permanent termination.
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
 
-No Warranty; Limitation of Liability
-As far as permitted by law, the Software is provided "AS IS", without warranties or conditions of any kind. The Licensor will not be liable to you for any damages arising out of these terms or the use of the Software, under any legal theory.
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
 
-Definitions
-- "Licensor" means the copyright holder or entity offering this License.
-- "Software" means the software made available under this License, including any part of it.
-- "You" means the individual or entity agreeing to these terms.
-- "Your company" means any organization you work for and its affiliates under common control.
-- "Tenant" means an isolated workspace with separated data and configuration for an organization or independent group.
-- "Multi-tenant" means serving more than one Tenant from a single deployment or instance.
-- "Managed/Hosted service" means providing access to the Software to third parties over a network as a service.
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
 
-Commercial License
-Rights to operate multi-tenant, hosted, or managed services, or to redistribute commercially, are available under a separate commercial license from the Licensor.
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
 
-Commercial Licensing and Hosted Service
-To operate the Software as a multi-tenant, hosted, or managed service, or to redistribute it commercially, you must obtain a separate commercial license from the Licensor.
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
 
-Options:
-- Self-hosted multi-tenant: Contact us to obtain a commercial license: guantum@puppyone.ai.
-- Official hosted service: Subscribe to our hosted offering at https://www.puppyone.ai. Use of the hosted service is governed by its own Terms of Service and does not grant rights to self-host multi-tenant deployments.
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
 
-Copyright (c) 2025 PuppyOne authors.
-All rights reserved.
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2025 PuppyOne authors
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.

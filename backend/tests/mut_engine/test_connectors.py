@@ -178,6 +178,85 @@ class TestSyncEngineDecoupling:
         assert "mut_engine" not in source
 
 
+# ── Unified API Filesystem Output Contract ─────────────────────
+
+class TestUnifiedFilesystemOutput:
+    """`_create_filesystem` must surface access_key + ap_base.
+
+    These are required so the frontend `Add Filesystem` UI and the
+    `puppyone access add filesystem ... --link` flow can construct
+    the `mut connect` command from a single API response — without
+    a follow-up call to `/access/{id}/key`.
+    """
+
+    @pytest.mark.asyncio
+    async def test_returns_access_key_and_ap_base(self):
+        from src.connectors.manager.router import (
+            UnifiedConnectionCreate,
+            _create_filesystem,
+        )
+
+        @dataclass
+        class FakeSync:
+            id: str = "ap_42"
+            project_id: str = "proj_1"
+            status: str = "active"
+            access_key: str = "cli_secret_xyz"
+
+        fake_sync = FakeSync()
+
+        with patch("src.connectors.filesystem.service.FilesystemService") as svc_cls, \
+             patch("src.connectors.datasource.repository.SyncRepository"), \
+             patch("src.infra.supabase.client.SupabaseClient"):
+            svc_cls.return_value.bootstrap.return_value = fake_sync
+
+            payload = UnifiedConnectionCreate(
+                project_id="proj_1",
+                provider="filesystem",
+                name="My Folder",
+                config={"scope": {"path": "docs"}},
+            )
+
+            out = await _create_filesystem(payload, _user_id="user_1")
+
+        assert out.access_key == "cli_secret_xyz", \
+            "access_key must be returned so UI can render the mut connect command"
+        assert out.ap_base == "/api/v1/mut/ap/cli_secret_xyz", \
+            "ap_base must point to the MUT protocol endpoint for this access key"
+        assert out.id == "ap_42"
+        assert out.provider == "filesystem"
+
+    @pytest.mark.asyncio
+    async def test_ap_base_is_none_when_no_access_key(self):
+        """Defensive: if bootstrap somehow returned no key, ap_base stays None."""
+        from src.connectors.manager.router import (
+            UnifiedConnectionCreate,
+            _create_filesystem,
+        )
+
+        @dataclass
+        class KeylessSync:
+            id: str = "ap_x"
+            project_id: str = "proj_1"
+            status: str = "active"
+            access_key: str | None = None
+
+        with patch("src.connectors.filesystem.service.FilesystemService") as svc_cls, \
+             patch("src.connectors.datasource.repository.SyncRepository"), \
+             patch("src.infra.supabase.client.SupabaseClient"):
+            svc_cls.return_value.bootstrap.return_value = KeylessSync()
+
+            payload = UnifiedConnectionCreate(
+                project_id="proj_1",
+                provider="filesystem",
+                config={"scope": {"path": "/"}},
+            )
+            out = await _create_filesystem(payload, _user_id="user_1")
+
+        assert out.access_key is None
+        assert out.ap_base is None
+
+
 # ── Plugin Auto-Discovery Tests ────────────────────────────────
 
 class TestPluginDiscovery:

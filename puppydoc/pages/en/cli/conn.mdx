@@ -110,14 +110,22 @@ puppyone access add sandbox "Runner" --type e2b
 
 ### Local folder sync
 
-Sync a local directory to the cloud via the MUT protocol:
+Sync a local directory to the cloud via the MUT protocol. Two common shapes:
 
 ```bash
-# Create a filesystem connection (specify scope path)
+# A) One-shot — folder already on disk, attach it now
+puppyone access add filesystem docs --link ~/my-docs
+
+# B) Cloud-side only, attach later
 puppyone access add filesystem docs
 
-# Follow the output's mut clone command to clone locally
+# Then pick the command printed in the output that matches your case:
+#   cloud has content, no local folder yet → fresh checkout
 mut clone <url> --credential <key>
+
+#   local folder already has files → attach (three-way merge, no overwrite)
+cd ~/my-docs
+mut connect <url> --credential <key>
 ```
 
 See the [Local Folder Sync](/en/cli/access) docs for the full workflow.

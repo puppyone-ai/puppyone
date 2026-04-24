@@ -304,19 +304,11 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
         {/* ── Setup (one-time) ── */}
         {accessKey && (
           <CollapsibleSection title="Manual Setup" defaultOpen={false}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <CommandBlock
-                command="pip install mutai"
-                label="Install"
-              />
-              <CommandBlock
-                command={`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
-                label="Clone"
-              />
-            </div>
-            <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
-              Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: '#71717a' }}>./{sync.node_name || 'project'}/</code> folder linked to this context.
-            </div>
+            <SetupTabs
+              cloneUrl={cloneUrl}
+              accessKey={accessKey}
+              scopeName={sync.node_name || 'project'}
+            />
           </CollapsibleSection>
         )}
 
@@ -341,22 +333,112 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
    Sub-components
    ================================================================ */
 
+type SetupMode = 'clone' | 'connect';
+
+function SetupTabs({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; accessKey: string; scopeName: string }) {
+  const [mode, setMode] = useState<SetupMode>('clone');
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* ── Path picker ── */}
+      <div style={{
+        display: 'flex', gap: 0,
+        background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)',
+        borderRadius: 6, padding: 3,
+      }}>
+        <SetupModeTab
+          active={mode === 'clone'}
+          label="Clone fresh"
+          hint="No local files"
+          onClick={() => setMode('clone')}
+        />
+        <SetupModeTab
+          active={mode === 'connect'}
+          label="Connect existing"
+          hint="Use my files"
+          onClick={() => setMode('connect')}
+        />
+      </div>
+
+      <CommandBlock command="pip install mutai" label="Install" />
+
+      {mode === 'clone' ? (
+        <>
+          <CommandBlock
+            command={`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
+            label="Clone"
+          />
+          <div style={{ fontSize: 12, color: '#525252', marginTop: 4, lineHeight: 1.5 }}>
+            Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: '#71717a' }}>./{scopeName}/</code> folder
+            populated from this context.
+          </div>
+        </>
+      ) : (
+        <>
+          <CommandBlock
+            command={`cd /path/to/your/folder\nmut connect ${cloneUrl} \\\n  --credential ${accessKey}`}
+            label="Connect"
+          />
+          <div style={{ fontSize: 12, color: '#525252', marginTop: 4, lineHeight: 1.5 }}>
+            Run inside an existing folder. Three-way merges your local files with cloud state and pushes
+            the result. Files only on disk get uploaded; files only in cloud get downloaded.
+            <span style={{ color: '#facc15', fontWeight: 500 }}> No overwrite, no data loss.</span>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SetupModeTab({ active, label, hint, onClick }: { active: boolean; label: string; hint: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1, padding: '8px 12px', borderRadius: 4, border: 'none',
+        background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: active ? '#e5e5e5' : '#71717a',
+        cursor: 'pointer', textAlign: 'left',
+        transition: 'all 0.15s',
+        display: 'flex', flexDirection: 'column', gap: 2,
+      }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.color = '#a3a3a3'; }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#71717a'; }}
+    >
+      <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 11, color: active ? '#a3a3a3' : '#525252' }}>{hint}</span>
+    </button>
+  );
+}
+
 function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; accessKey: string; scopeName: string }) {
   const [copied, setCopied] = useState(false);
 
   const prompt = [
     `Sync my local folder with PuppyOne cloud using the \`mut\` CLI.`,
     ``,
-    `## Setup (run once if not already cloned)`,
+    `## Install (one-time)`,
     `\`\`\`bash`,
     `pip install mutai`,
-    `mut clone ${cloneUrl} --credential ${accessKey}`,
     `\`\`\``,
-    `This creates a \`./${scopeName}/\` folder.`,
+    ``,
+    `## Setup — choose one path`,
+    ``,
+    `**A. Clone to a new folder** (no local files yet):`,
+    `\`\`\`bash`,
+    `mut clone ${cloneUrl} --credential ${accessKey}`,
+    `cd ${scopeName}`,
+    `\`\`\``,
+    ``,
+    `**B. Connect an existing folder** (already have files locally):`,
+    `\`\`\`bash`,
+    `cd /path/to/your/existing/folder`,
+    `mut connect ${cloneUrl} --credential ${accessKey}`,
+    `\`\`\``,
+    `Three-way merges with whatever is on disk — no overwrite, no data loss.`,
     ``,
     `## Sync workflow`,
     `\`\`\`bash`,
-    `cd ${scopeName}`,
     `mut pull                          # get latest from cloud`,
     `# ... make your edits ...`,
     `mut commit -m "describe changes"  # snapshot locally`,
