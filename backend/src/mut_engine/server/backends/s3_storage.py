@@ -223,6 +223,54 @@ class S3StorageBackend(StorageBackend):
     async def async_exists(self, h: str) -> bool:
         return await self._s3.file_exists(self._key_for(h))
 
+    async def async_get_many(self, hashes: list[str], concurrency: int = 20) -> dict[str, bytes]:
+        """Fetch multiple objects in parallel. Returns {hash: bytes}."""
+        import asyncio
+        sem = asyncio.Semaphore(concurrency)
+        results: dict[str, bytes] = {}
+
+        async def _fetch(h: str):
+            async with sem:
+                results[h] = await self.async_get(h)
+
+        await asyncio.gather(*[_fetch(h) for h in hashes], return_exceptions=True)
+        return results
+
+    async def async_put_many(self, objects: dict[str, bytes], concurrency: int = 20, skip_exists: bool = False) -> None:
+        """Upload multiple objects in parallel.
+
+        Args:
+            skip_exists: If True, skip the HEAD existence check before PUT.
+                Use when the caller already knows these objects don't exist
+                (e.g. negotiate confirmed them as missing).
+        """
+        import asyncio
+        sem = asyncio.Semaphore(concurrency)
+
+        async def _upload(h: str, data: bytes):
+            async with sem:
+                key = self._key_for(h)
+                if skip_exists:
+                    await self._s3.upload_file(key, data, content_type="application/octet-stream")
+                else:
+                    await self._do_put(key, data)
+
+        await asyncio.gather(*[_upload(h, d) for h, d in objects.items()], return_exceptions=True)
+
+    async def async_exists_many(self, hashes: list[str], concurrency: int = 20) -> set[str]:
+        """Check existence of multiple objects in parallel. Returns set of existing hashes."""
+        import asyncio
+        sem = asyncio.Semaphore(concurrency)
+        existing: set[str] = set()
+
+        async def _check(h: str):
+            async with sem:
+                if await self.async_exists(h):
+                    existing.add(h)
+
+        await asyncio.gather(*[_check(h) for h in hashes], return_exceptions=True)
+        return existing
+
     async def _do_put(self, key: str, data: bytes) -> None:
         if not await self._s3.file_exists(key):
             await self._s3.upload_file(key, data, content_type="application/octet-stream")

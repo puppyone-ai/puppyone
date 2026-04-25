@@ -63,6 +63,11 @@ class SupabaseHistoryManager:
     # recently recorded commit across all scopes.
 
     def get_head_commit_id(self) -> str:
+        # 2-second cache: prevents repeated ORDER BY DESC scans within same request
+        import time as _time
+        now = _time.monotonic()
+        if hasattr(self, "_head_cid_cache") and now - self._head_cid_ts < 2.0:
+            return self._head_cid_val
         resp = (
             self._client.table(self.TABLE)
             .select("commit_id")
@@ -73,7 +78,10 @@ class SupabaseHistoryManager:
             .execute()
         )
         rows = _safe_data(resp) or []
-        return rows[0]["commit_id"] if rows else ""
+        val = rows[0]["commit_id"] if rows else ""
+        self._head_cid_val = val
+        self._head_cid_ts = now
+        return val
 
     def set_head_commit_id(self, _cid: str) -> None:
         """No-op: project-level head is derived from mut_commits.
@@ -87,6 +95,10 @@ class SupabaseHistoryManager:
     # ── Global Root Hash (used by root-hash CAS path) ──
 
     def get_root_hash(self) -> str:
+        import time as _time
+        now = _time.monotonic()
+        if hasattr(self, "_root_hash_cache") and now - self._root_hash_ts < 2.0:
+            return self._root_hash_val
         resp = (
             self._client.table("projects")
             .select("mut_root_hash")
@@ -95,12 +107,19 @@ class SupabaseHistoryManager:
             .execute()
         )
         data = _safe_data(resp)
-        return data.get("mut_root_hash", "") if data else ""
+        val = data.get("mut_root_hash", "") if data else ""
+        self._root_hash_val = val
+        self._root_hash_ts = now
+        self._root_hash_cache = True
+        return val
 
     def set_root_hash(self, h: str) -> None:
         self._client.table("projects").update(
             {"mut_root_hash": h}
         ).eq("id", self._project_id).execute()
+        # Invalidate cache after write
+        if hasattr(self, "_root_hash_cache"):
+            del self._root_hash_cache
 
     # ── Per-Scope Head & Hash ──
 
@@ -229,11 +248,14 @@ class SupabaseHistoryManager:
                 "p_new_hash": new_hash,
             }).execute()
             data = resp.data
+            success = False
             if isinstance(data, bool):
-                return data
-            if isinstance(data, list) and len(data) > 0:
-                return bool(data[0])
-            return False
+                success = data
+            elif isinstance(data, list) and len(data) > 0:
+                success = bool(data[0])
+            if success and hasattr(self, "_root_hash_cache"):
+                del self._root_hash_cache  # Invalidate cache after CAS write
+            return success
         except Exception as e:
             log_error(
                 f"[CAS] cas_update_root_hash RPC failed: {e}. "
