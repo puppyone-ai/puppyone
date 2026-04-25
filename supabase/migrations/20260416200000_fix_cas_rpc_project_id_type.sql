@@ -18,8 +18,6 @@
 -- Fix: redeclare ``p_project_id`` as TEXT, matching the column type.
 -- ============================================================
 
-BEGIN;
-
 -- Drop the UUID overloads first. PostgreSQL treats (uuid) and (text)
 -- as distinct signatures, so CREATE OR REPLACE alone would leave the
 -- old overloads behind and PostgREST could resolve to the wrong one.
@@ -109,6 +107,3 @@ BEGIN
     RETURN new_version;
 END;
 $$;
-
-
-COMMIT;
