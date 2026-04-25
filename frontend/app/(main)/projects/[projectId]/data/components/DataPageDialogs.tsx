@@ -6,19 +6,12 @@ import { SupabaseConnectDialog } from '@/components/SupabaseConnectDialog';
 import { SupabaseSQLEditorDialog } from '@/components/SupabaseSQLEditorDialog';
 import { NodeRenameDialog } from '@/components/NodeRenameDialog';
 import { MoveToDialog } from '@/components/MoveToDialog';
-import { OnboardingGuide } from '@/components/onboarding/OnboardingGuide';
 
 export interface DataPageDialogsProps {
   projectId: string;
   currentFolderId: string | null;
   projects: any[];
   activeProject: any;
-
-  // Onboarding
-  showOnboardingGuide: boolean;
-  onCloseOnboarding: () => void;
-  onOnboardingComplete: () => void;
-  userName?: string;
 
   // Rename
   renameDialogOpen: boolean;
@@ -61,7 +54,6 @@ export interface DataPageDialogsProps {
 export function DataPageDialogs(props: DataPageDialogsProps) {
   const {
     projectId, currentFolderId, projects, activeProject,
-    showOnboardingGuide, onCloseOnboarding, onOnboardingComplete, userName,
     renameDialogOpen, renameTargetName, renameError, onCloseRename, onRenameConfirm,
     moveDialogTarget, onMoveConfirm, onCloseMove,
     createTableOpen, onCloseCreateTable, defaultStartOption,
@@ -73,14 +65,6 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
 
   return (
     <>
-      {/* Onboarding */}
-      <OnboardingGuide
-        isOpen={showOnboardingGuide}
-        onClose={onCloseOnboarding}
-        onComplete={onOnboardingComplete}
-        userName={userName}
-      />
-
       {/* Rename Dialog */}
       <NodeRenameDialog
         isOpen={renameDialogOpen}

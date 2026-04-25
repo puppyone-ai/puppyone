@@ -138,6 +138,32 @@ class SupabaseHistoryManager:
         scope_path = _normalize(scope_path)
         self._upsert_scope_state(scope_path, scope_hash=h)
 
+    def get_all_scope_hashes(self) -> dict[str, str]:
+        """Return ``{scope_path: scope_hash}`` for every scope in this project.
+
+        Used by the post-push graft path in ``services/hooks.py`` to rebuild
+        ``projects.mut_root_hash`` from authoritative DB state instead of
+        reading the previous root tree from S3 (which is itself a derived
+        artifact and the silent-overwrite vector that motivated the
+        DB-authoritative refactor — see ``mut-bug-checklist.md`` P0-5).
+
+        Empty ``scope_hash`` rows are skipped: a scope that has never been
+        pushed contributes nothing to the root tree. ``scope_path`` is the
+        canonical (already-normalized) form stored in the table.
+        """
+        resp = (
+            self._client.table(self.SCOPE_STATE_TABLE)
+            .select("scope_path, scope_hash")
+            .eq("project_id", self._project_id)
+            .execute()
+        )
+        rows = _safe_data(resp) or []
+        return {
+            row["scope_path"]: row["scope_hash"]
+            for row in rows
+            if row.get("scope_hash")
+        }
+
     def _upsert_scope_state(self, scope_path: str, *,
                             scope_hash: str | None = None,
                             head_commit_id: str | None = None) -> None:

@@ -421,7 +421,15 @@ def create_app() -> FastAPI:
     from src.mut_engine.routers.protocol_router import router as mut_protocol_router
     app.include_router(mut_protocol_router, tags=["mut-protocol"])
     from src.mut_engine.routers.access_point import ap_router
-    app.include_router(ap_router, tags=["access-point"])
+    # Canonical public URL: /api/v1/mut/ap/{access_key}/{clone|push|pull|negotiate|...}
+    # See backend/src/mut_engine/_routes.py for the contract.
+    app.include_router(ap_router, prefix="/api/v1", tags=["access-point"])
+    # Backward-compat: mut clients <= v0.1.6 hit /mut/ap/* directly. Mounting
+    # the same router again under the legacy prefix keeps them working without
+    # a forced upgrade. Remove once telemetry shows < 1% legacy traffic.
+    app.include_router(
+        ap_router, tags=["access-point-legacy"], include_in_schema=False
+    )
     from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.connectors.datasource.router import router as sync_router
