@@ -428,8 +428,10 @@ class TestP1_6_AccessKeyStatusCheck:
             "config": {},
         })
 
-        with pytest.raises(HTTPException) as exc_info:
-            authenticator.authenticate("some-key", "proj-1")
+        with patch("src.mut_engine.server.auth.settings") as mock_settings:
+            mock_settings.SKIP_AUTH = False
+            with pytest.raises(HTTPException) as exc_info:
+                authenticator.authenticate("some-key", "proj-1")
         assert exc_info.value.status_code == 401
         assert "revoked" in exc_info.value.detail.lower()
 
@@ -445,7 +447,7 @@ class TestP1_7_SkipAuthGuard:
 
         with patch("src.mut_engine.server.auth.settings") as mock_settings:
             mock_settings.SKIP_AUTH = True
-            mock_settings.ENVIRONMENT = "development"
+            mock_settings.APP_ENV = "development"
             result = authenticator.authenticate("any", "proj-1")
             assert result["agent"] == "user:mock"
             assert result["_scope"]["mode"] == "rw"
@@ -642,11 +644,11 @@ class TestP2_10_HookExceptionLogging:
             "src.mut_engine.services.hooks.run_post_push_hook",
             side_effect=RuntimeError("graft failed"),
         ):
-            with patch("src.utils.logger.log_warning") as mock_log:
+            with patch("src.utils.logger.log_error") as mock_log:
                 ops._run_post_push_hook("proj-1", push_result)
                 assert any(
                     "graft failed" in str(call) for call in mock_log.call_args_list
-                ), "Should log warning containing the error message"
+                ), "Should log error containing the error message"
 
 
 # ══════════════════════════════════════════════════
@@ -776,7 +778,6 @@ class TestGraftEmptyRootCAS:
 
         mock_repo = MagicMock()
         mock_repo.get_root_hash.return_value = ""
-        mock_repo.store.put.return_value = "empty_tree_hash"
         mock_repo.cas_update_root_hash.return_value = True
 
         push_result = {"commit_id": "cafe000000000001", "root": "scope_hash"}
@@ -784,9 +785,8 @@ class TestGraftEmptyRootCAS:
             "scope_path": "", "changes": [],
         }
 
-        with patch("src.mut_engine.services.hooks._get_previous_scope_hash", return_value=""):
-            with patch("mut.server.graft.graft_or_merge_subtree", return_value="new_root"):
-                _update_global_root(mock_repo, push_result)
+        with patch("src.mut_engine.services.hooks._build_root_from_scope_state", return_value="new_root"):
+            _update_global_root(mock_repo, push_result)
 
         mock_repo.cas_update_root_hash.assert_called_once_with("", "new_root")
 
@@ -803,9 +803,8 @@ class TestGraftEmptyRootCAS:
             "scope_path": "docs", "changes": [],
         }
 
-        with patch("src.mut_engine.services.hooks._get_previous_scope_hash", return_value=""):
-            with patch("mut.server.graft.graft_or_merge_subtree", return_value="new_root"):
-                _update_global_root(mock_repo, push_result)
+        with patch("src.mut_engine.services.hooks._build_root_from_scope_state", return_value="new_root"):
+            _update_global_root(mock_repo, push_result)
 
         mock_repo.cas_update_root_hash.assert_called_once_with(
             "existing_root", "new_root",
