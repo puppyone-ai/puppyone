@@ -11,13 +11,15 @@ https://github.com/puppyone-ai/puppyone/blob/main/CONTRIBUTING.md
 ## Target branch
 
 <!--
-Default target should be `qubits` (staging). Only release PRs from `qubits` to
-`main` should target `main`. If you opened this PR against `main` from any
-other branch, please change the base to `qubits` — the "Check PR Target" CI
-job will block the merge otherwise.
+Default target should be `qubits` (staging). Only two PR types should target
+`main`:
+- release PRs from `qubits`
+- same-repo urgent hotfix PRs from `hotfix/*`
+
+All other PRs targeting `main` are blocked by the "Main Release Gate" CI job.
 -->
 
-- [ ] Base branch is **`qubits`** (or this is a `qubits` → `main` release PR)
+- [ ] Base branch is **`qubits`** (or this is a `qubits` → `main` release PR / same-repo `hotfix/*` → `main` hotfix PR)
 
 ## Type of change
 
