@@ -94,7 +94,7 @@ rules (PR + required reviews + required status checks).
 | **Frontend Build**   | PRs that touch `frontend/**`             | `main`, `qubits`                    |
 | **Run Gitleaks**     | All PRs, push to `main`, weekly schedule | `main`, `qubits`                    |
 | **Main Release Gate** | PRs targeting `main`                    | `main` (release/hotfix source + owner gate) |
-| **E2E Visual Tests** | PRs touching `frontend/**`/`backend/**`/`e2e/**` | (advisory, not blocking)    |
+| **E2E Visual Tests** | Manual (`workflow_dispatch`)            | (manual release/debug check)        |
 | **Supabase Preview** | All PRs                                  | (advisory, not blocking)            |
 | **Branch housekeeping** | Weekly schedule                       | n/a (cleanup job)                   |
 
