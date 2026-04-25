@@ -502,10 +502,18 @@ async def _build_readiness_report(mcp_service) -> dict:
     if not settings.DEBUG and not env_status["internal_api_secret_configured"]:
         config_errors.append("INTERNAL_API_SECRET is empty while DEBUG is False")
 
-    try:
-        mcp_status = await mcp_service.check_mcp_server_health()
-    except Exception as e:
-        mcp_status = {"status": "unhealthy", "error": str(e)}
+    # Cache MCP health check to avoid blocking every /health call (~12s timeout)
+    import time as _time
+    _now = _time.time()
+    if not hasattr(_build_readiness_report, "_mcp_cache") or _now - _build_readiness_report._mcp_cache_time > 60:
+        try:
+            mcp_status = await mcp_service.check_mcp_server_health()
+        except Exception as e:
+            mcp_status = {"status": "unhealthy", "error": str(e)}
+        _build_readiness_report._mcp_cache = mcp_status
+        _build_readiness_report._mcp_cache_time = _now
+    else:
+        mcp_status = _build_readiness_report._mcp_cache
 
     mcp_state = str(mcp_status.get("status", "")).strip().lower()
     if mcp_state in {"", "unhealthy", "error", "down", "unavailable"}:
