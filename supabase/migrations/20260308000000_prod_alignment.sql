@@ -319,6 +319,7 @@ CREATE TABLE IF NOT EXISTS "public"."org_invitations" (
 );
 
 -- Add org_id FK to profiles (after organizations exists)
+ALTER TABLE "public"."profiles" DROP CONSTRAINT IF EXISTS "profiles_default_org_id_fkey";
 ALTER TABLE "public"."profiles" ADD CONSTRAINT "profiles_default_org_id_fkey"
     FOREIGN KEY ("default_org_id") REFERENCES "public"."organizations"("id") ON DELETE SET NULL;
 
@@ -384,6 +385,7 @@ CREATE TABLE IF NOT EXISTS "public"."folder_snapshots" (
 );
 
 -- Add FK from file_versions to folder_snapshots
+ALTER TABLE "public"."file_versions" DROP CONSTRAINT IF EXISTS "fk_file_versions_snapshot";
 ALTER TABLE "public"."file_versions" ADD CONSTRAINT "fk_file_versions_snapshot"
     FOREIGN KEY ("snapshot_id") REFERENCES "public"."folder_snapshots"("id") ON DELETE SET NULL;
 
