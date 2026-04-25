@@ -158,14 +158,15 @@ ALTER TABLE access_points
 --    it no longer references the dropped ``version`` column and
 --    atomically updates both ``scope_hash`` and ``head_commit_id``.
 -- ------------------------------------------------------------
-DROP FUNCTION IF EXISTS atomic_next_version(text);
-DROP FUNCTION IF EXISTS atomic_next_version(uuid);
-
--- Drop the old 4-arg signature before redefining with 5 args —
--- PostgreSQL treats different arities as distinct overloads, so
--- CREATE OR REPLACE alone would leave the old one behind.
-DROP FUNCTION IF EXISTS cas_update_scope_state(text, text, text, text);
-DROP FUNCTION IF EXISTS cas_update_scope_state(uuid, text, text, text);
+DO $do$ BEGIN
+  DROP FUNCTION IF EXISTS atomic_next_version(text);
+  DROP FUNCTION IF EXISTS atomic_next_version(uuid);
+  -- Drop the old 4-arg signature before redefining with 5 args —
+  -- PostgreSQL treats different arities as distinct overloads, so
+  -- CREATE OR REPLACE alone would leave the old one behind.
+  DROP FUNCTION IF EXISTS cas_update_scope_state(text, text, text, text);
+  DROP FUNCTION IF EXISTS cas_update_scope_state(uuid, text, text, text);
+END $do$;
 
 CREATE OR REPLACE FUNCTION cas_update_scope_state(
     p_project_id      TEXT,
@@ -222,6 +223,3 @@ BEGIN
     RETURN rows_affected > 0;
 END;
 $$;
-
-
-COMMIT;
