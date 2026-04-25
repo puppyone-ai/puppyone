@@ -45,7 +45,7 @@ cmds = [
     # has been occasionally returning truncated responses
     # (`json.decoder.JSONDecodeError: Unterminated string`), so every extra
     # request is one more chance to hit the transient failure.
-    ". /opt/venv/bin/activate && pip install uv==0.5.11",
+    ". /opt/venv/bin/activate && pip install --upgrade pip && pip install uv==0.5.11 || pip install uv==0.5.11",
     ". /opt/venv/bin/activate && uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
     ". /opt/venv/bin/activate && pip install -r requirements.lock.txt",
     ". /opt/venv/bin/activate && pip install -e . --no-deps",

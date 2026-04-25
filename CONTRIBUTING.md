@@ -23,11 +23,11 @@ Thanks for considering contributing to PuppyOne!
 
 We use a three-branch promotion model:
 
-| Branch   | Environment | Who pushes here          | How code arrives                       |
-|----------|-------------|--------------------------|----------------------------------------|
-| `main`   | production  | nobody directly          | merge from `qubits` only               |
-| `qubits` | staging     | nobody directly          | merge from `newmu` or external forks   |
-| `newmu`  | dev         | core team (PRs welcome)  | direct push or PR from feature branch  |
+| Branch   | Environment | Who pushes here          | How code arrives                         |
+|----------|-------------|--------------------------|------------------------------------------|
+| `main`   | production  | nobody directly          | merge from `qubits` or same-repo `hotfix/*` |
+| `qubits` | staging     | nobody directly          | merge from `newmu` or external forks     |
+| `newmu`  | dev         | core team (PRs welcome)  | direct push or PR from feature branch    |
 
 `main` and `qubits` are protected: no direct pushes (not even by admins). Every
 change reaches them through a Pull Request that satisfies branch protection
@@ -57,7 +57,7 @@ rules (PR + required reviews + required status checks).
    ```
 3. Commit, push to your fork, then open a Pull Request:
    - **Base repository**: `puppyone-ai/puppyone`
-   - **Base branch**: `qubits` (not `main` — `main` only accepts PRs from `qubits`)
+   - **Base branch**: `qubits` (not `main` — `main` is reserved for releases and hotfixes)
    - **Compare**: `your-fork:feat/my-change`
 4. CI does not run automatically on first-time external PRs. A maintainer will
    click "Approve and run workflows" after a quick safety review.
@@ -69,14 +69,23 @@ rules (PR + required reviews + required status checks).
 1. **Default (features, refactors, non-urgent fixes)**: branch from `newmu`,
    open PR into `qubits`. After validation in staging, open the next release
    PR `qubits` → `main`.
-2. **Hotfix (production-only urgent fix)**: branch from `main`, open PR into
+2. **Release to production**: open PR `qubits` → `main`.
+3. **Hotfix (production-only urgent fix)**: create a same-repo branch from
+   `main` named `hotfix/<short-slug>`, then open PR `hotfix/<short-slug>` →
    `main`. After release, immediately back-merge `main` → `qubits` → `newmu`
    to keep all branches in sync.
 
-> Why back-merge after every hotfix: `main` and `qubits` use squash merges,
-> which creates new commits that break Git ancestry. Without an explicit
-> back-merge, the next regular `qubits` → `main` PR will see "phantom
-> conflicts" on the same file.
+`main` PRs are guarded by **Main Release Gate**:
+
+- `qubits` → `main` is allowed as the normal release path.
+- same-repo `hotfix/*` → `main` is allowed for urgent production fixes.
+- all other sources targeting `main` are blocked.
+- if the PR author is not `realGuantum`, `realGuantum` must approve the PR.
+
+> Why back-merge after every hotfix: `main`, `qubits`, and `newmu` are
+> long-lived branches. A production-only fix must be propagated back into the
+> staging and dev branches immediately, otherwise the next regular
+> `qubits` → `main` release may re-open the same file conflicts.
 
 ## CI Checks
 
@@ -84,8 +93,8 @@ rules (PR + required reviews + required status checks).
 |----------------------|------------------------------------------|-------------------------------------|
 | **Frontend Build**   | PRs that touch `frontend/**`             | `main`, `qubits`                    |
 | **Run Gitleaks**     | All PRs, push to `main`, weekly schedule | `main`, `qubits`                    |
-| **Check PR Target**  | Every PR                                 | `main` (blocks non-`qubits` source) |
-| **E2E Visual Tests** | PRs touching `frontend/**`/`backend/**`/`e2e/**` | (advisory, not blocking)    |
+| **Main Release Gate** | PRs targeting `main`                    | `main` (release/hotfix source + owner gate) |
+| **E2E Visual Tests** | Manual (`workflow_dispatch`)            | (manual release/debug check)        |
 | **Supabase Preview** | All PRs                                  | (advisory, not blocking)            |
 | **Branch housekeeping** | Weekly schedule                       | n/a (cleanup job)                   |
 
@@ -114,7 +123,7 @@ uv run pytest -v -m "not e2e"
 ## Commit & PR Guidelines
 
 - Use concise commit messages with conventional prefixes: `feat`, `fix`, `chore`, `perf`, `docs`
-- **Default PR target is `qubits`** (staging). Only the maintainers open PRs to `main`, and only with `qubits` as the source branch.
+- **Default PR target is `qubits`** (staging). Only release PRs (`qubits` → `main`) and same-repo production hotfix PRs (`hotfix/*` → `main`) should target `main`.
 - Include a clear description and test plan in PRs (the PR template will prompt you).
 - Link related issues with `Fixes #123` or `Refs #123`.
 - Do not include unrelated changes in the same PR — keep PRs focused so review and rollback stay easy.

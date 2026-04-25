@@ -8,10 +8,11 @@ name: Frontend Build
 # on whether `next build` still succeeds.
 
 on:
+  # This workflow is a required status check on protected branches. It must run
+  # for every PR, not only PRs that touch frontend paths; otherwise docs/CI-only
+  # PRs would be blocked forever waiting for a check that never reports.
   pull_request:
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-build.yml'
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main, qubits, newmu]
     paths:

@@ -1,0 +1,83 @@
+name: Main Release Gate
+
+# Enforces the production branch policy:
+#   - normal releases must be `qubits` -> `main`
+#   - urgent production fixes may be same-repo `hotfix/*` -> `main`
+#   - if the PR author is not realGuantum, realGuantum must approve it
+#
+# This intentionally uses pull_request_target for metadata-only checks on PRs
+# into `main`. We do not check out or execute untrusted PR code here.
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  main-release-gate:
+    name: Main Release Gate
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.base.ref == 'main'
+    steps:
+      - name: Validate main release policy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const OWNER = 'realGuantum';
+            const pr = context.payload.pull_request;
+            const headRef = pr.head.ref;
+            const headRepo = pr.head.repo.full_name;
+            const baseRepo = pr.base.repo.full_name;
+            const author = pr.user.login;
+            const sameRepo = headRepo === baseRepo;
+
+            const isRelease = sameRepo && headRef === 'qubits';
+            const isHotfix = sameRepo && headRef.startsWith('hotfix/');
+
+            if (!isRelease && !isHotfix) {
+              core.setFailed(
+                [
+                  'PRs targeting main must come from one of:',
+                  '- same-repo `qubits` (normal release)',
+                  '- same-repo `hotfix/*` (urgent production fix)',
+                  '',
+                  `Got head=${headRepo}:${headRef}.`,
+                  'For regular contributions, retarget the PR to `qubits`.',
+                ].join('\n')
+              );
+              return;
+            }
+
+            if (author === OWNER) {
+              core.info(`PR author is ${OWNER}; owner gate passed.`);
+              return;
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const ownerReviews = reviews
+              .filter(review => review.user?.login === OWNER)
+              .sort((a, b) => new Date(a.submitted_at || 0) - new Date(b.submitted_at || 0));
+            const latestOwnerReview = ownerReviews[ownerReviews.length - 1];
+
+            if (latestOwnerReview?.state === 'APPROVED') {
+              core.info(`Latest ${OWNER} review is APPROVED; owner gate passed.`);
+              return;
+            }
+
+            core.setFailed(
+              [
+                `PRs targeting main that are not authored by ${OWNER} require ${OWNER}'s approval.`,
+                `Latest ${OWNER} review state: ${latestOwnerReview?.state || 'none'}.`,
+              ].join('\n')
+            );
