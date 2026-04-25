@@ -291,45 +291,68 @@ src/  push:  CAS 更新 src/  行 ──→ 嫁接: CAS 更新 root_hash
 > 因为嫁接只涉及树操作 + 一次 CAS DB 调用（~1-2ms），对 client 延迟影响极小。
 > 未来可改为真正异步（`asyncio.create_task`），但需要权衡复杂度。
 
-**嫁接不是盲替换，而是有冲突检测的合并**
+**嫁接 = 从 DB 权威 scope state 物化 root tree**
 
-嫁接时，scope 的新子树是基于 push 开始时的 root_hash 构建的。但在 push 执行期间，
-其他 scope（包括父 scope）可能已经修改了同一子树路径下的文件。
+> **2026-04-21 重构（P0-5 修复）**：嫁接不再读取上一版 root tree 作为派生
+> 输入。详见下方 §3.2.1。
 
-如果嫁接只是简单地"把新子树替换进全局树"，就会丢失其他 scope 在嫁接期间做的改动。
+旧实现的核心问题：嫁接读 `projects.mut_root_hash` → 从 S3 拉对应的 root tree
+→ 在该 tree 上 splice 子 scope → 写新 tree → CAS。这意味着 **S3 上的 root
+tree 既是 SoT 又是派生下一版 SoT 的输入**。任何静默的 S3 部分读失败
+（例如旧版 `_safe_flatten` 在异常时返回 `{}`）都会构造出"结构合法但数据丢失"
+的新 root，CAS 还是会接受它。
 
-正确的嫁接流程：
+新实现把"当前每个 scope 指向哪里"这件事的 SoT 锁死在 `mut_scope_state`
+表上 — 那本就是它的归宿。嫁接变成一个**纯派生**：
 
 ```
-异步嫁接:
-1. 读当前 root_hash → 提取 scope 子树 hash = current_subtree_hash
-2. 比较 current_subtree_hash 和 push 前的 old_scope_hash:
-   a. 相等 → 无人改过 → 安全替换（快速路径，绝大多数情况）
-   b. 不等 → 有人在 push 期间改了这个子树的文件
-            → 三方合并: base=old_scope_hash, ours=current_subtree_hash, theirs=new_scope_hash
-            → 嫁接合并结果
-3. 构建新 root
-4. CAS: UPDATE projects SET mut_root_hash = new_root WHERE mut_root_hash = old_root
+DB-Authoritative Graft（hooks.py::_build_root_from_scope_state）:
+1. SELECT scope_path, scope_hash FROM mut_scope_state WHERE project_id=P
+   → 拿到所有 scope 的当前 hash 快照
+2. 用刚 push 完成的新 hash 覆盖 just_pushed_scope 的 entry
+   （CAS 已经写进去了，这步通常是 no-op；但在重试场景下保证幂等）
+3. base = root_scope_hash 指向的 tree（如果 root scope 推过的话；否则空 tree）
+   → root scope 自己管理的非-scope 文件（如根目录 README.md）会保留
+4. 按 path 深度从浅到深排序，依次 graft_subtree(base, scope_path, scope_hash)
+   → 父 scope 先落地，子 scope 才能 splice 到刚生成的父树上
+5. CAS: UPDATE projects SET mut_root_hash=new_root WHERE mut_root_hash=old_root
    → 失败则重试（回到步骤 1）
 ```
 
-- **非重叠 scope**（docs/ 和 src/）：永远走快速路径（步骤 2a），因为不同 scope 不会修改同一子树
-- **重叠 scope**（root 改了 docs/ 下的文件，docs/ scope 也在 push）：走合并路径（步骤 2b），确保两边改动都保留
+为什么这是对的：
 
-这样：
-- 嫁接虽然串行，但快速路径只是树操作（无文件 I/O），每次 ~1-2ms
-- 当前同步实现：嫁接时间包含在 push 响应中，但因为极快，client 几乎无感知
-- 父 scope 在 push 返回后立刻可见子 scope 的改动（强一致）
+- **不读派生数据作为派生输入**：不再依赖上一版 root tree 的可读性。
+  即使 S3 上的 root tree 损坏或丢失，下一次 push 的嫁接仍能从 DB scope
+  state 恢复出完整 root。
+- **天然幂等**：所有重试都从同一份 DB 快照重建，结果只取决于输入；CAS
+  失败时再读一次 DB 即可，不会"基于错误的旧值往下衍生"。
+- **失败大声**：任何 S3 读写失败立即抛异常，触发外层 retry；不会用空 tree
+  顶替继续往下走。
 
-当前实现（同步嫁接）是**全面强一致**的模型：
+旧路径里的"三方合并 graft_or_merge_subtree"也下线了。它的存在是为了
+处理"在我嫁接期间别人也改了这个 subtree"的并发，但在新模型里这种并发被
+DB 快照天然吸收：兄弟 scope 的最新 hash 已经在我的 SELECT 结果里。
 
 | 保证 | 一致性级别 | 说明 |
 |------|-----------|------|
-| 子 scope 的数据不丢 | **强一致** | CAS 成功才返回 client |
-| 父 scope 看到子 scope 改动 | **强一致** | 嫁接在返回前同步完成 |
-| 同 scope 的并发合并 | **强一致** | CAS + 三方合并 |
+| 子 scope 数据不丢 | **强一致** | CAS 成功才返回 client |
+| 父 scope 看到子 scope 改动 | **强一致** | 嫁接在 push 响应前同步完成 |
+| 同 scope 并发合并 | **强一致** | CAS + 三方合并（在 push handler 里完成，与嫁接无关） |
+| root_hash 与 scope state 同步 | **最终一致（毫秒级）** | DB 快照可能比某个 scope 的 CAS 略晚 1 个 tick；下一次任何 push 的嫁接会再次同步 |
 
-> 如果未来改为异步嫁接，"父 scope 可见性"会降级为最终一致（毫秒级延迟）。
+> 异步嫁接：改成 `asyncio.create_task` 时，"父 scope 可见性"会降级为
+> 最终一致（毫秒级延迟），但 root_hash 仍能从 DB 收敛到正确状态。
+
+**Root scope 的特殊性**
+
+Root scope（scope_path=""）的 scope_hash 在概念上等于 root_hash，
+但实现上保持分离：
+
+- Root scope push 时，CAS 检查 `mut_scope_state[scope_path=""]` 行 — 和其他 scope 一样
+- 嫁接时，**它的 tree 被用作 base**（而不是被当成"也要 graft 进去"的子 scope），
+  因为它管理的是"非任何子 scope 的根级文件"
+- Root scope 和子 scope 并发 push：CAS 在不同行互不阻塞；嫁接时由于
+  base 重建是确定性的，并发只在最后一步 root_hash CAS 上排队
 
 **Root scope 的特殊性**
 
@@ -502,28 +525,37 @@ Push 涉及合并时，响应中返回 merged_changes 清单，client 据此 pul
 
 ### 4.3 对比 3.2 嫁接
 
-**理想**：子 scope 提交成功后立刻返回 client，嫁接异步完成。
-嫁接用 CAS 保护 + 冲突检测 + 必要时三方合并。
+> **2026-04-21 状态：本节描述的所有问题已在 P0-5 修复中关闭**。新嫁接路径
+> 见 §3.2 末尾"嫁接 = 从 DB 权威 scope state 物化 root tree"和 §5.4。
+> 下面保留旧问题的描述作为历史记录。
 
-**现状**：嫁接确实在 push 返回后执行（方向对了），但有两个问题：
+**理想**：子 scope 提交成功后立刻返回 client，嫁接同步用 CAS + 冲突感知完成。
+
+**旧实现的两个问题（已修复）**：
 
 **问题 A：嫁接操作没有任何并发保护**
 
-嫁接是"读取当前 root_hash → 插入子 scope 的新树 → 写回"。
-这个读-改-写操作没有 CAS 也没有锁。两个子 scope 同时嫁接，后者覆盖前者的结果。
+旧版嫁接是"读取当前 root_hash → 插入子 scope 的新树 → 写回"。
+这个读-改-写操作没有 CAS 也没有锁，两个子 scope 同时嫁接，后者覆盖前者。
+
+→ 修复：2026-03 引入 `cas_update_root_hash` RPC + retry。
 
 **问题 B：嫁接是盲替换，不做冲突检测**
 
-即使加了 CAS，当前的 `graft_subtree` 只是简单替换子树。
+即使加了 CAS，旧版 `graft_subtree` 只是简单替换子树。
 如果父 scope 在 push 期间修改了子 scope 路径下的文件，嫁接会丢失父 scope 的改动。
 
-**后果**：
+→ 修复：2026-04 引入 `graft_or_merge_subtree`（三方合并版）。
 
-| 场景 | 会发生什么 |
-|------|----------|
-| S5: `docs/` 和 `src/` 同时 push | 两个嫁接竞争，可能丢失一个 scope 的嫁接结果 |
-| S6: root scope 改了 `docs/readme.md`，docs/ scope 同时 push | 嫁接替换 docs/ 子树，root scope 对 readme.md 的改动丢失 |
-| S8: 子 scope push 后，父 scope 读取 | 嫁接成功则可见，嫁接被覆盖则不可见 |
+**问题 C（P0-5）：嫁接以派生数据为输入**
+
+`graft_or_merge_subtree` 内部需要读上一版 root tree 才能算 splice 位置。
+任何 S3 部分读失败会让嫁接基于"看起来合法但实则空"的 base 重建一个
+缺失大量 scope 的"新 root"，CAS 还是会写进去。
+
+→ 修复（2026-04-21）：嫁接彻底不再读 root tree，改为**完全从 DB
+`mut_scope_state` 派生**（详见 §3.2 末尾 + §5.4）。`graft_or_merge_subtree`
+不再被调用；`_get_previous_scope_hash` 已删除。
 
 ### 4.4 对比 3.3/3.4 Server 端流程 + Client 版本一致性
 
@@ -691,34 +723,65 @@ def _push_attempt(repo, scope, auth, req):
     ).to_dict()
 ```
 
-### 5.4 异步嫁接流程（伪代码）
+### 5.4 嫁接流程（DB-Authoritative，伪代码）
+
+> 同步在 `services/hooks.py::_update_global_root` 里执行，
+> 内部调 `_build_root_from_scope_state`。
+>
+> 旧的"读 old_root → 三方合并 → splice"模型已下线（P0-5 修复）。
 
 ```python
-def graft_to_root(repo, project_id, scope_path, old_scope_hash, new_scope_hash):
-    """嫁接：把 scope 的新树合并到全局 root_hash（同步执行，在返回 client 前完成）。"""
+def update_global_root(repo, push_result):
+    """重建并 CAS root_hash —— 完全由 DB scope state 派生，不读 old root tree。"""
+    just_pushed_scope = push_result["scope_path"]
+    just_pushed_hash  = push_result["root"]
+
     MAX_RETRIES = 5
     for _ in range(MAX_RETRIES):
-        old_root = repo.history.get_root_hash()
-        if not old_root:
-            old_root = empty_tree_hash
+        old_root = repo.get_root_hash() or ""
 
-        # 提取当前全局树中该 scope 的子树
-        current_subtree = navigate_to_subtree(repo.store, old_root, scope_path)
+        new_root = build_root_from_scope_state(
+            repo, just_pushed_scope, just_pushed_hash,
+        )
 
-        if current_subtree == old_scope_hash:
-            # 快速路径：无人改过，直接替换
-            new_root = graft_subtree(repo.store, old_root, scope_path, new_scope_hash)
-        else:
-            # 合并路径：有人改了这个子树（父 scope 或其他并发嫁接）
-            merged_hash = merge_subtrees(repo.store, old_scope_hash, current_subtree, new_scope_hash)
-            new_root = graft_subtree(repo.store, old_root, scope_path, merged_hash)
-
-        # CAS 更新 root_hash
-        if repo.history.cas_update_root_hash(old_root, new_root):
+        if repo.cas_update_root_hash(old_root, new_root):
             return  # 成功
+        # CAS 失败 → 兄弟嫁接已经赢；下一轮重新 SELECT DB 得到新快照
+    log_error("graft failed after max retries — root may lag behind scope state")
 
-    log_error("graft failed after max retries")
+
+def build_root_from_scope_state(repo, just_pushed_scope, just_pushed_hash):
+    """完全从 DB scope state 派生 root tree（纯函数式：相同输入 → 相同输出）。"""
+    # 1. SELECT 所有 scope 当前 hash（DB 是唯一权威源）
+    scopes = repo.get_all_scope_hashes()  # {"": "...", "docs": "...", "src": "..."}
+    # 2. 用刚 push 的新 hash 显式覆盖（CAS 已写，但显式覆盖让重试逻辑幂等）
+    if just_pushed_hash:
+        scopes[just_pushed_scope] = just_pushed_hash
+
+    # 3. base = root scope 的 tree，承载根目录下的非-scope 文件（如 README.md）
+    root_scope_hash = scopes.get("", "")
+    if root_scope_hash:
+        current = root_scope_hash
+    else:
+        current = repo.store.put(b'{}')  # 项目里还没有 root scope
+
+    # 4. 父 scope 先落地，子 scope 才能 splice 到刚生成的父树上
+    other_scopes = sorted(
+        ((p, h) for p, h in scopes.items() if p and h),
+        key=lambda x: (x[0].count("/"), x[0]),
+    )
+    for scope_path, scope_hash in other_scopes:
+        current = graft_subtree(repo.store, current, scope_path, scope_hash)
+
+    return current  # 返回新 root_hash；S3 失败会抛异常，由外层 retry 处理
 ```
+
+**为什么不再需要 graft_or_merge_subtree？**
+
+旧的三方合并是为了解决"我读了 old_root，等我 splice 完时别人已经改了同一
+路径"。在新模型里，每次重试都从 DB SELECT 取最新快照，没有"老 root"
+的概念，自然就没有需要合并的"中间状态"。所有兄弟 scope 的最新 hash
+都被一次性收纳进 `scopes` 字典，按确定性顺序 graft 后产生唯一结果。
 
 ---
 

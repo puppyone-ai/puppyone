@@ -252,8 +252,9 @@ class E2BSandbox(SandboxBase):
         session.last_activity = time.time()
 
         # Execute in sandbox and normalize output to text.
+        # Always run commands in /workspace so agent file operations land in the right place.
         try:
-            result = await _call_maybe_async(session.sandbox.commands.run, command)
+            result = await _call_maybe_async(session.sandbox.commands.run, command, cwd="/workspace")
             # E2B SDK v1+ uses .stdout/.stderr; older versions use .text
             output = getattr(result, "text", None)
             if output is None:

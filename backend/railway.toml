@@ -1,3 +1,20 @@
+# Railway service config for the backend.
+#
+# Build phases / Nixpacks customization live in `nixpacks.toml` next to this
+# file (railway.toml only understands `[build]` and `[deploy]`).
+#
+# REQUIRED Railway dashboard setting for every service that uses this repo:
+#   Settings -> Service -> Source -> Root Directory = `backend` (or `/backend`)
+#
+# Same Root Directory rule applies to the file_worker / mcp_server services
+# that share this repo — they switch behavior via the SERVICE_ROLE env var.
+#
+# DO NOT move build phases into this file. railway.toml's schema only knows
+# `[build]` / `[deploy]` — any `[phases.*]` section here is silently ignored
+# and Railway falls back to the default Nixpacks Python pipeline (which then
+# fails with `pip install uv==` because $NIXPACKS_UV_VERSION isn't set).
+# All Nixpacks customization belongs in `nixpacks.toml`.
+
 [build]
 builder = "NIXPACKS"
 
@@ -9,22 +26,6 @@ builder = "NIXPACKS"
 #
 # Environment variables:
 # - SERVICE_ROLE: api | file_worker | mcp_server
-startCommand = "sh -c 'case \"${SERVICE_ROLE:-api}\" in file_worker) arq src.ingest.file.jobs.worker.WorkerSettings ;; mcp_server) uvicorn mcp_service.server:app --host 0.0.0.0 --port ${PORT} --no-access-log ;; *) uvicorn src.main:app --host 0.0.0.0 --port ${PORT} --no-access-log ;; esac'"
+startCommand = "sh -c 'case \"${SERVICE_ROLE:-api}\" in file_worker) arq src.ingest.file.jobs.worker.WorkerSettings ;; mcp_server) uvicorn mcp_service.server:app --host 0.0.0.0 --port ${PORT} --no-access-log ;; *) uvicorn src.main:app --host 0.0.0.0 --port ${PORT} --workers ${WEB_CONCURRENCY:-2} --no-access-log ;; esac'"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
-
-[phases.setup]
-nixPkgs = ["python312"]
-
-[phases.build]
-# Install dependencies from uv.lock (frozen) so the deployed image matches
-# what CI tests. Without --frozen the build would re-resolve pyproject.toml
-# and could pick up a newer patch (e.g. a future mutai 0.1.7) that CI never tested.
-# We export the lock to requirements format because Nixpacks' Python pipeline
-# already provisions a venv on PATH, so plain pip install slots in cleanly.
-cmds = [
-    "pip install --upgrade pip uv",
-    "uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
-    "pip install -r requirements.lock.txt",
-    "pip install -e . --no-deps",
-]

@@ -1,0 +1,60 @@
+name: Frontend Build
+
+# Verifies that `frontend/` compiles cleanly. Required status check on `main`
+# and `qubits` so no PR can land code that breaks the production build.
+#
+# This is intentionally lightweight (no tests, no e2e) — those run separately
+# in the `E2E Visual Tests` workflow. The point of this job is fast PR feedback
+# on whether `next build` still succeeds.
+
+on:
+  # This workflow is a required status check on protected branches. It must run
+  # for every PR, not only PRs that touch frontend paths; otherwise docs/CI-only
+  # PRs would be blocked forever waiting for a check that never reports.
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main, qubits, newmu]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-build.yml'
+  workflow_dispatch:
+
+# Avoid duplicate runs across push and PR for the same ref.
+concurrency:
+  group: frontend-build-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # `next build` does TypeScript type-checking and webpack compilation, so
+      # this single step catches both type errors and missing dependencies.
+      - name: Build (next build)
+        working-directory: frontend
+        run: npm run build
+        env:
+          # Provide harmless placeholder values for required env so the build
+          # doesn't fail at config load. The build does not connect to these.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key-for-build-only
+          NEXT_PUBLIC_API_URL: http://localhost:9090

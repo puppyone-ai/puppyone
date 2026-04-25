@@ -134,19 +134,65 @@ After creation, PuppyOne returns an MCP Server URL and API key that you can add 
 Sync a local folder to the cloud using the MUT protocol with version control.
 
 ```bash
-# Create a filesystem sync connection (scope = docs)
-puppyone access add filesystem docs
-# The output shows a mut clone command — copy and run it:
-mut clone <url> --credential <key> --dir ~/my-docs
+# Already have a folder you want to sync? One shot:
+puppyone access add filesystem docs --link ~/my-docs
 
-# Edit files, then commit and push
+# Or create the AP first, then choose: clone fresh or connect existing
+puppyone access add filesystem docs
+# Output shows two paths — pick whichever fits:
+mut clone <url> --credential <key>                       # A) new folder
+cd ~/my-docs && mut connect <url> --credential <key>     # B) existing folder
+
+# Then edit, commit, push
 cd ~/my-docs
 echo "# Hello" > readme.md
 mut commit -m "init"
 mut push
 ```
 
-Requires the MUT CLI: `pip install mut`
+### Install the MUT CLI
+
+The simple way:
+
+```bash
+pip install mutai
+```
+
+#### Ubuntu 24.04 / Debian 12+ — "pip not found" or "externally-managed-environment"
+
+Recent Ubuntu/Debian releases ship without `pip` and forbid global installs through the system Python (PEP 668). Pick one of these:
+
+```bash
+# Recommended: install CLI tools with pipx into an isolated environment
+sudo apt update && sudo apt install -y pipx
+pipx ensurepath
+pipx install mut
+
+# Alternative: install pip and use a venv
+sudo apt install -y python3-pip python3-venv
+python3 -m venv ~/.venvs/mut
+source ~/.venvs/mut/bin/activate
+pip install mutai
+
+# Not recommended: bypass PEP 668 (pollutes system Python)
+pip install --break-system-packages mut
+```
+
+> Verify with `mut --version`. If `which mut` returns nothing, add `~/.local/bin` to PATH: `export PATH="$HOME/.local/bin:$PATH"`.
+
+### Large files / slow networks: bump MUT_TIMEOUT
+
+`mut push` uses a 60-second socket timeout by default. Large commits (multi-MB PDFs/videos) or a slow link will hit the wall and report "cannot reach server". Raise the limit:
+
+```bash
+# One-shot push (5 minutes)
+MUT_TIMEOUT=300 mut push
+
+# Or persist for the current shell
+export MUT_TIMEOUT=300
+```
+
+> Server-side limits: 200 MB per push, 50 MB per file. Exceeding either returns 413 with a hint on how to split the commit.
 
 ---
 
@@ -200,9 +246,9 @@ puppyone access add notion https://notion.so/db-id --folder /docs/notion
 # Create an MCP endpoint for an agent
 puppyone access add mcp "Production API"
 
-# Sync a local folder
-puppyone access add filesystem workspace
-# Copy and run the mut clone command from the output
+# Sync a local folder (one-shot — links an existing folder)
+puppyone access add filesystem workspace --link ~/workspace
+# Or, if you don't have it locally yet, run `mut clone` from the printed output
 
 # Check the results
 puppyone access ls

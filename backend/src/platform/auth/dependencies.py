@@ -12,10 +12,39 @@ from src.infra.supabase.dependencies import get_supabase_client
 from src.platform.auth.initialization import UserInitializationService
 from src.platform.auth.models import CurrentUser
 from src.platform.auth.service import AuthService
-from src.utils.logger import log_warning
+from src.utils.logger import log_error, log_warning
 
-# Define HTTPBearer security scheme
 security = HTTPBearer(auto_error=False)
+
+
+def _assert_skip_auth_safe() -> None:
+    """Refuse to honor SKIP_AUTH if APP_ENV is not dev/test.
+
+    config.py.enforce_skip_auth_safety should already have crashed startup
+    in this case. This runtime check is deep-defense in case the validator
+    is bypassed (mocks, monkey-patches, settings hot-reload). Returning a
+    mock user in production would expose every endpoint as anonymous.
+    """
+    if settings.APP_ENV not in {"development", "test"}:
+        log_error(
+            f"[Auth] SKIP_AUTH=True with APP_ENV={settings.APP_ENV!r}: "
+            f"refusing to bypass authentication"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfigured: SKIP_AUTH must not be active in this environment",
+        )
+
+
+_MOCK_TEST_USER = {
+    "user_id": "c389d596-e7c1-4fd7-900b-f760a0f1c89f",
+    "email": "cagurzhan@gmail.com",
+    "phone": None,
+    "role": "authenticated",
+    "is_anonymous": False,
+    "app_metadata": {},
+    "user_metadata": {},
+}
 
 
 # Use global variables for singletons instead of lru_cache
@@ -29,9 +58,11 @@ def get_initialization_service() -> UserInitializationService:
     if _initialization_service is None:
         from src.platform.organization.repository import OrganizationRepository
         from src.platform.profile.repository import ProfileRepositorySupabase
+        from src.platform.project.dependencies import get_project_service
         _initialization_service = UserInitializationService(
             profile_repo=ProfileRepositorySupabase(),
             org_repo=OrganizationRepository(),
+            project_service=get_project_service(),
         )
     return _initialization_service
 
@@ -70,20 +101,11 @@ def get_current_user(
     Raises:
         HTTPException: Raises 401 error on authentication failure (only when SKIP_AUTH=False)
     """
-    # If skip-auth is enabled, return a mock test user
     if settings.SKIP_AUTH:
+        _assert_skip_auth_safe()
         log_warning("SKIP_AUTH is enabled - returning mock test user")
-        return CurrentUser(
-            user_id="c389d596-e7c1-4fd7-900b-f760a0f1c89f",
-            email="cagurzhan@gmail.com",
-            phone=None,
-            role="authenticated",
-            is_anonymous=False,
-            app_metadata={},
-            user_metadata={},
-        )
+        return CurrentUser(**_MOCK_TEST_USER)
 
-    # Check if authentication credentials are provided
     if not credentials:
         raise HTTPException(
             status_code=401,
@@ -129,20 +151,11 @@ def get_current_user_optional(
     Returns:
         Optional[CurrentUser]: Current user info, or None if not authenticated (when SKIP_AUTH=False)
     """
-    # If skip-auth is enabled, return a mock test user
     if settings.SKIP_AUTH:
+        _assert_skip_auth_safe()
         log_warning("SKIP_AUTH is enabled - returning mock test user")
-        return CurrentUser(
-            user_id="c389d596-e7c1-4fd7-900b-f760a0f1c89f",
-            email="cagurzhan@gmail.com",
-            phone=None,
-            role="authenticated",
-            is_anonymous=False,
-            app_metadata={},
-            user_metadata={},
-        )
+        return CurrentUser(**_MOCK_TEST_USER)
 
-    # If no authentication credentials are provided, return None
     if not credentials:
         return None
 

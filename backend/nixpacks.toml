@@ -1,0 +1,52 @@
+# Nixpacks build plan for the backend service.
+#
+# IMPORTANT: This file is only honored when Railway's service `Root Directory`
+# is set to `backend` (or `/backend`). Putting `[phases.*]` inside railway.toml
+# does NOT work — railway.toml only knows `[build]` / `[deploy]`, those phase
+# blocks are silently dropped.
+#
+# Why we override `[phases.install]` (not just `[phases.build]`):
+# Nixpacks' default Python+uv provider renders the install phase as
+#   python -m venv --copies /opt/venv && . /opt/venv/bin/activate \
+#     && pip install uv==$NIXPACKS_UV_VERSION \
+#     && uv sync --no-dev --frozen
+# If $NIXPACKS_UV_VERSION isn't injected (it isn't, intermittently) the
+# command becomes `pip install uv==` and the build dies with:
+#   ERROR: Invalid requirement: 'uv==': Expected end or semicolon
+# Overriding the install phase lets us pin uv and skip the magic env var.
+#
+# Why uv is hardcoded instead of pulled from `[variables]`:
+# Earlier we tried `[variables] UV_VERSION = "0.5.11"` + `'uv==${UV_VERSION}'`
+# in the cmd. That broke too — TOML's single quotes survive into the rendered
+# Dockerfile RUN line, bash then refuses to expand `${UV_VERSION}` inside
+# single quotes, and pip got the literal string `uv==${UV_VERSION}` (same
+# class of "Invalid requirement" failure). Hardcoding the version is one
+# obvious place to bump and removes a layer of TOML/bash quoting that has
+# now bitten us twice. Bump the literal below when you want a newer uv;
+# any uv >= 0.5 supports `uv export --format requirements-txt`.
+
+providers = ["python"]
+
+[phases.setup]
+nixPkgs = ["python312"]
+
+[phases.install]
+# Replace the default Python provider install phase entirely. We:
+#   1. create the venv Nixpacks expects at /opt/venv
+#   2. install a pinned uv into it
+#   3. export the lockfile to a hash-pinned requirements.txt (--frozen ensures
+#      the deployed image matches what CI tested — no surprise patch upgrades)
+#   4. install requirements + the project itself (editable, no deps)
+cmds = [
+    "python -m venv --copies /opt/venv",
+    # Don't `pip install --upgrade pip` here. Stock venv ships pip 24.2 which
+    # is plenty for installing uv, and skipping the upgrade halves the number
+    # of PyPI simple-index requests this RUN makes. PyPI's JSON simple index
+    # has been occasionally returning truncated responses
+    # (`json.decoder.JSONDecodeError: Unterminated string`), so every extra
+    # request is one more chance to hit the transient failure.
+    ". /opt/venv/bin/activate && pip install --upgrade pip && pip install uv==0.5.11 || pip install uv==0.5.11",
+    ". /opt/venv/bin/activate && uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
+    ". /opt/venv/bin/activate && pip install -r requirements.lock.txt",
+    ". /opt/venv/bin/activate && pip install -e . --no-deps",
+]

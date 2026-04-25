@@ -27,8 +27,8 @@ class Profile(BaseModel):
     onboarded_at: datetime | None = Field(
         None, description="Time when Onboarding was completed"
     )
-    demo_project_id: int | None = Field(
-        None, description="Auto-created Demo Project ID"
+    demo_project_id: str | None = Field(
+        None, description="Auto-created demo project ID (UUID)"
     )
 
     model_config = ConfigDict(from_attributes=True)
@@ -42,7 +42,7 @@ class ProfileUpdate(BaseModel):
     default_org_id: str | None = None
     has_onboarded: bool | None = None
     onboarded_at: datetime | None = None
-    demo_project_id: int | None = None
+    demo_project_id: str | None = None
 
 
 

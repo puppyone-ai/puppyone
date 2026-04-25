@@ -204,13 +204,21 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
 ## License
 
-This repository uses the Puppyone Sustainable Use License (SUL).
+Puppyone is open source under the [Apache License 2.0](LICENSE).
 
-| Use case | Allowed |
-|----------|---------|
-| Personal use (individual) | Yes, free |
-| Internal business use (single-tenant) | Yes, free |
-| Self-hosted multi-tenant | No |
-| Commercial redistribution | No |
+You can use, modify, and distribute Puppyone freely — for personal projects,
+internal company tools, self-hosted deployments (single- or multi-tenant),
+commercial products, and managed services — subject to the standard Apache 2.0
+terms (preserve copyright and `NOTICE`, document significant modifications, and
+note that no trademark rights are granted).
 
-See [`LICENSE`](LICENSE) for full terms.
+See [`LICENSE`](LICENSE) for the full license text and [`NOTICE`](NOTICE) for
+attribution of bundled third-party components.
+
+> **Trademarks.** "Puppyone", "PuppyOne", and the Puppyone logo are trademarks
+> of PuppyOne authors and are **not** licensed under Apache 2.0. If you fork or
+> redistribute, please use a different name and logo for your distribution.
+
+> **Hosted service.** [puppyone.ai](https://www.puppyone.ai) is the official
+> managed offering operated by the PuppyOne team. The hosted service is governed
+> by its own Terms of Service.

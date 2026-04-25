@@ -814,16 +814,33 @@ function ActionButton({ label, icon, variant = 'default', onClick }: {
 
 function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: string }) {
   const [copied, setCopied] = React.useState<string | null>(null);
+  const [mode, setMode] = React.useState<'clone' | 'connect'>('clone');
   const masked = accessKey.slice(0, 8) + '...' + accessKey.slice(-4);
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
-  const cloneCmd = `mut clone ${cloneUrl} --credential ${accessKey}`;
+  const endpointUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
+  const cloneCmd = `mut clone ${endpointUrl} --credential ${accessKey}`;
+  const connectCmd = `mut connect ${endpointUrl} --credential ${accessKey}`;
+  const activeCmd = mode === 'clone' ? cloneCmd : connectCmd;
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopied(label);
     setTimeout(() => setCopied(null), 2000);
   };
+
+  const tabBtnStyle = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: '5px 8px',
+    fontSize: 10,
+    fontWeight: active ? 600 : 500,
+    color: active ? '#e5e5e5' : '#737373',
+    background: active ? 'rgba(255,255,255,0.05)' : 'transparent',
+    border: '1px solid',
+    borderColor: active ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+    borderRadius: 5,
+    cursor: 'pointer',
+    transition: 'all 0.12s',
+  });
 
   return (
     <div style={{ padding: '0 4px' }}>
@@ -848,16 +865,29 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
         <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Quick Start
         </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={() => setMode('clone')} style={tabBtnStyle(mode === 'clone')}>
+            Clone (new folder)
+          </button>
+          <button onClick={() => setMode('connect')} style={tabBtnStyle(mode === 'connect')}>
+            Connect (existing)
+          </button>
+        </div>
+        {mode === 'connect' && (
+          <div style={{ fontSize: 10, color: '#525252', lineHeight: 1.5 }}>
+            <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#737373' }}>cd /path/to/your/folder</code> first, then run:
+          </div>
+        )}
         <div style={{
           padding: '8px 10px', borderRadius: 6,
           background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
           <code style={{ flex: 1, fontSize: 10, color: '#a3a3a3', fontFamily: "'JetBrains Mono', monospace", wordBreak: 'break-all', lineHeight: 1.5 }}>
-            {cloneCmd}
+            {activeCmd}
           </code>
           <button
-            onClick={() => handleCopy(cloneCmd, 'cmd')}
+            onClick={() => handleCopy(activeCmd, 'cmd')}
             style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'cmd' ? '#4ade80' : '#525252', padding: 4, display: 'flex', flexShrink: 0 }}
           >
             {copied === 'cmd' ? (
@@ -868,7 +898,9 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
           </button>
         </div>
         <div style={{ fontSize: 10, color: '#525252', lineHeight: 1.5 }}>
-          Then: <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#737373' }}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code>
+          {mode === 'clone'
+            ? <>Then: <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#737373' }}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code></>
+            : <>One-shot: init + link + commit + push. Server runs three-way merge — nothing overwritten.</>}
         </div>
       </div>
     </div>

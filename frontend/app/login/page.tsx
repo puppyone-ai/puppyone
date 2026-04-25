@@ -53,6 +53,53 @@ function LoginPageFallback() {
   );
 }
 
+/**
+ * Full-screen overlay shown after a successful sign-in / sign-up / OTP
+ * verification, while the client-side router loads the (main) layout
+ * and home page chunks. Sits on top of the form so the UI doesn't
+ * snap back to an idle "Sign In" button during the navigation gap.
+ */
+function PostAuthRedirectingScreen({ message }: { message: string }) {
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: '#0a0a0a',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 24,
+      }}
+    >
+      <img
+        src="/puppyone-logo.svg"
+        alt="PuppyOne"
+        width={48}
+        height={48}
+        className="opacity-95"
+      />
+      <div style={{ position: 'relative', width: 40, height: 40 }}>
+        <div
+          className="animate-spin"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            border: '3px solid rgba(255,255,255,0.08)',
+            borderTopColor: 'rgba(255,255,255,0.55)',
+          }}
+        />
+      </div>
+      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
+        {message}
+      </div>
+    </div>
+  );
+}
+
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,6 +122,14 @@ function LoginPageInner() {
   const [message, setMessage] = useState<string | null>(null);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // True the moment auth succeeds and we trigger router.push('/home').
+  // Until the new page chunks load + (main)/layout mounts, Next.js keeps
+  // the old login page on screen. Without a dedicated overlay the user
+  // sees the form "snap back" to its idle state and thinks nothing
+  // happened. We render a full-screen "Signing you in..." overlay until
+  // this component unmounts.
+  const [redirecting, setRedirecting] = useState(false);
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSubmittedRef = useRef(false);
 
@@ -201,7 +256,14 @@ function LoginPageInner() {
     setLoading('password');
     try {
       await signInWithEmail(email, password);
+      // Show full-screen overlay BEFORE router.push — the navigation is
+      // async (chunk load + (main) layout init + projects fetch) and we
+      // need a continuous loading UI for the entire gap. Don't reset
+      // `loading` either; we want to stay in a non-interactive state
+      // until this component unmounts.
+      setRedirecting(true);
       router.push('/home');
+      return;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Sign-in failed';
       setError(msg);
@@ -255,7 +317,28 @@ function LoginPageInner() {
         goToVerifyOtp(`We sent a 6-digit code to ${email}.`);
         setPassword('');
       } else {
-        router.push('/home');
+        // Auto-confirmed signup (rare in our default config) — initialize
+        // and go straight to the seeded demo project so first-time UX
+        // mirrors the OTP / OAuth paths.
+        let demoProjectId: string | null = null;
+        try {
+          const token = await getAccessToken();
+          if (token) {
+            const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const json = await res.json();
+              demoProjectId = json?.data?.demo_project_id ?? null;
+            }
+          }
+        } catch (initErr) {
+          console.error('Auth initialization failed:', initErr);
+        }
+        setRedirecting(true);
+        router.push(demoProjectId ? `/projects/${demoProjectId}` : '/home');
+        return;
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Sign-up failed');
@@ -275,18 +358,27 @@ function LoginPageInner() {
     try {
       await verifyEmailOtp(email, code);
       // Initialize profile + org (idempotent — same as OAuth callback).
+      // On first sign-in this also seeds a "Get Started" demo project so
+      // we can land the user inside it instead of an empty dashboard.
+      let demoProjectId: string | null = null;
       try {
         const token = await getAccessToken();
         if (token) {
-          await fetch(`${API_BASE}/api/v1/auth/initialize`, {
+          const res = await fetch(`${API_BASE}/api/v1/auth/initialize`, {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
           });
+          if (res.ok) {
+            const json = await res.json();
+            demoProjectId = json?.data?.demo_project_id ?? null;
+          }
         }
       } catch (initErr) {
         console.error('Auth initialization failed:', initErr);
       }
-      router.push('/home');
+      setRedirecting(true);
+      router.push(demoProjectId ? `/projects/${demoProjectId}` : '/home');
+      return;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Invalid or expired code';
       setError(msg);
@@ -324,7 +416,11 @@ function LoginPageInner() {
     }
   };
 
-  const disabled = loading !== null;
+  const disabled = loading !== null || redirecting;
+
+  if (redirecting) {
+    return <PostAuthRedirectingScreen message="Signing you in..." />;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-[#ddd] p-6 font-sans">

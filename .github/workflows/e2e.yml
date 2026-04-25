@@ -1,18 +1,11 @@
 name: E2E Visual Tests
 
 on:
-  push:
-    branches: [main, newmu]
-    paths:
-      - 'frontend/**'
-      - 'backend/**'
-      - 'e2e/**'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'frontend/**'
-      - 'backend/**'
-      - 'e2e/**'
+  # Full-stack e2e is intentionally manual. It depends on live Supabase
+  # secrets, a pre-baked E2E auth session, browser installation, backend boot,
+  # frontend build/start, and external service availability, so it is too
+  # fragile/noisy as an automatic PR signal. Keep it available for release
+  # verification or focused debugging without blocking normal PRs.
   workflow_dispatch:
 
 env:

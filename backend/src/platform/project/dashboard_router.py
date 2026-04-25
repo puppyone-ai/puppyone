@@ -6,6 +6,8 @@ project info, node counts, all access points, tools, and active uploads.
 """
 
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, status
 from loguru import logger
 from pydantic import BaseModel
@@ -48,6 +50,12 @@ class DashboardConnection(BaseModel):
     last_synced_at: str | None = None
     error_message: str | None = None
     created_at: str | None = None
+    # Per-day invocation count for the last N days (oldest → newest).
+    # Currently sourced from ``sync_runs`` (covers sync-style providers:
+    # gmail, google_sheets, notion, github, supabase, ...).  Output-style
+    # APs (agent / mcp / sandbox) don't write to ``sync_runs`` yet, so they
+    # get zero buckets until we wire in their usage table(s).
+    usage_buckets: list[int] = []
 
 
 class DashboardTool(BaseModel):
@@ -138,6 +146,9 @@ def _compute_node_counts(ops: MutOps, project_id: str) -> DashboardNodeCounts:
     )
 
 
+USAGE_BUCKET_DAYS = 14
+
+
 def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
     conn_rows = (
         sb.table("access_points")
@@ -147,7 +158,7 @@ def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
         .execute()
     ).data
 
-    connections = []
+    connections: list[DashboardConnection] = []
     for r in conn_rows:
         cfg = r.get("config") or {}
         name = cfg.get("name") or cfg.get("sync_url") or r["provider"]
@@ -164,7 +175,65 @@ def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
             error_message=r.get("error_message"),
             created_at=r.get("created_at"),
         ))
+
+    if connections:
+        usage_map = _fetch_usage_buckets(
+            sb, [c.id for c in connections], days=USAGE_BUCKET_DAYS,
+        )
+        for c in connections:
+            c.usage_buckets = usage_map.get(c.id, [0] * USAGE_BUCKET_DAYS)
+
     return connections
+
+
+def _fetch_usage_buckets(
+    sb, ap_ids: list[str], days: int = USAGE_BUCKET_DAYS,
+) -> dict[str, list[int]]:
+    """Return per-AP daily invocation counts for the last ``days`` days.
+
+    Source: ``sync_runs.access_point_id`` + ``started_at``.  Buckets are aligned
+    oldest → newest (index 0 = ``today - (days-1)``, last index = today) in UTC.
+    APs with no runs in the window get a zero-filled list.
+    """
+    buckets: dict[str, list[int]] = {ap_id: [0] * days for ap_id in ap_ids}
+    if not ap_ids:
+        return buckets
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=days - 1)
+    cutoff_day = cutoff.date()
+    today = now.date()
+
+    try:
+        rows = (
+            sb.table("sync_runs")
+            .select("access_point_id, started_at")
+            .in_("access_point_id", ap_ids)
+            .gte("started_at", cutoff.isoformat())
+            .execute()
+        ).data or []
+    except Exception:
+        logger.exception("[Dashboard] sync_runs aggregation failed; returning zero buckets")
+        return buckets
+
+    for r in rows:
+        ap_id = r.get("access_point_id")
+        started = r.get("started_at")
+        if not ap_id or not started or ap_id not in buckets:
+            continue
+        try:
+            # Supabase returns ISO8601 with either "Z" or "+00:00"
+            run_dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            continue
+        run_day = run_dt.astimezone(timezone.utc).date()
+        if run_day < cutoff_day or run_day > today:
+            continue
+        idx = (run_day - cutoff_day).days
+        if 0 <= idx < days:
+            buckets[ap_id][idx] += 1
+
+    return buckets
 
 
 def _fetch_tools(sb, project_id: str) -> list[DashboardTool]:

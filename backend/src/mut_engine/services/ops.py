@@ -357,15 +357,29 @@ class MutOps:
         return push_result
 
     def _run_post_push_hook(self, project_id: str, push_result: dict) -> None:
-        """Best-effort post-push hook to maintain access_points table consistency."""
+        """Best-effort post-push hook to maintain access_points table consistency.
+
+        Failures here used to be silently swallowed (``except: pass``), which
+        meant grafting failures — root_hash drifting away from scope_hash —
+        were invisible. Now we log at ERROR with a stack trace so the
+        consistency drift can be diagnosed from logs alone. We still don't
+        re-raise because the commit itself already succeeded; the hook is a
+        best-effort secondary index update.
+        """
         try:
             from src.mut_engine.services.hooks import run_post_push_hook
             run_post_push_hook(project_id, self._repos, push_result)
         except Exception as e:
-            from src.utils.logger import log_warning
-            log_warning(
+            import traceback
+
+            from src.utils.logger import log_error
+            commit_id = push_result.get("commit_id") or push_result.get("new_commit_id")
+            log_error(
                 f"[MutOps] post-push hook failed for project={project_id} "
-                f"commit={push_result.get('commit_id') or push_result.get('new_commit_id')}: {e}"
+                f"commit={commit_id} "
+                f"scope={push_result.get('scope_path', '?')} "
+                f"status={push_result.get('status', '?')} "
+                f"error={type(e).__name__}: {e}\n{traceback.format_exc()}"
             )
 
     @staticmethod

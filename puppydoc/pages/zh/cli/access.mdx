@@ -11,7 +11,7 @@
 npm install -g puppyone
 
 # 安装 mut CLI（Python）
-pip install mut
+pip install mutai
 ```
 
 ---
@@ -34,13 +34,22 @@ puppyone access add filesystem docs
 
 `docs` 是云端的 scope 路径——本地文件夹的内容会同步到项目树的 `/docs` 下。
 
-命令成功后会输出：
+命令成功后会同时输出两条接入路径：
 
 ```
   Creating filesystem access point for scope "docs"... done
 
-  ─ Sync with MUT:
-    mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+  ─ Pick one: clone fresh or connect existing
+
+    A. New folder (no local files yet):
+       mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+
+    B. Existing folder (use the files you already have):
+       cd /path/to/your/folder
+       mut connect http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+
+  ─ Or have us run option B for you next time:
+    puppyone access add filesystem docs --link /path/to/your/folder
 
   ─ Then commit and push:
     mut commit -m "message" && mut push
@@ -49,15 +58,32 @@ puppyone access add filesystem docs
     puppyone access key <id>
 ```
 
-### 3. Clone 到本地
+### 3. 选一种接入方式
 
-复制输出中的 `mut clone` 命令：
+接下来有两条路：**Clone 全新文件夹** 还是 **接入已有文件夹**。挑你的实际场景。
+
+**A. Clone 全新文件夹**（本地还没有文件）：
 
 ```bash
 mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
 ```
 
-这会在当前目录下自动创建以 scope 路径命名的文件夹（如 `./docs/`），并拉取云端已有的内容。
+会在当前目录创建 `./docs/`，并拉取云端已有内容。
+
+**B. 接入已有文件夹**（本地已经有内容）：
+
+```bash
+cd /path/to/your/existing/folder
+mut connect http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+```
+
+`mut connect` 拉云端状态、和本地文件做三路合并，然后把结果推回去。**不覆盖、不丢数据。**
+
+> 一步到位的快捷方式：跳过第 2、3 步，让 PuppyOne CLI 帮你跑 `mut connect`。
+>
+> ```bash
+> puppyone access add filesystem docs --link /path/to/your/folder
+> ```
 
 ### 4. 本地编辑，然后提交推送
 
@@ -89,13 +115,14 @@ mut pull
 你可以将多个本地文件夹同步到同一项目的不同路径下：
 
 ```bash
-# 创建两个 scope
-puppyone access add filesystem docs
-puppyone access add filesystem code
+# 一步到位 —— 创建 AP 并把已有本地文件夹一起接入
+puppyone access add filesystem docs --link ~/my-docs
+puppyone access add filesystem code --link ~/my-code
 
-# 分别 clone
-mut clone <docs-url> --credential <docs-key>
-mut clone <code-url> --credential <code-key>
+# 或者拆两步：先建 AP，再 clone（全新）/ connect（已有）
+puppyone access add filesystem docs
+mut clone   <docs-url> --credential <docs-key>           # 全新拉一份
+cd ~/existing-code && mut connect <code-url> --credential <code-key>
 ```
 
 在云端，项目树结构为：
@@ -146,7 +173,8 @@ puppyone access rm <connection-id>
 
 | 命令 | 说明 |
 |------|------|
-| `mut clone <url> --credential <key>` | 克隆远程仓库到本地 |
+| `mut clone <url> --credential <key>` | 克隆 access point 到一个**新建**文件夹 |
+| `mut connect <url> --credential <key>` | 把**已有**文件夹接入 access point；三路合并、不覆盖 |
 | `mut commit -m "message"` | 提交本地变更 |
 | `mut push` | 推送到云端 |
 | `mut pull` | 拉取云端变更 |
@@ -157,16 +185,24 @@ puppyone access rm <connection-id>
 
 ## 与 Claude Code / Cursor 配合
 
-本地文件夹同步是将 PuppyOne 数据交给 AI 编程工具处理的最佳方式：
+本地文件夹同步是将 PuppyOne 数据交给 AI 编程工具处理的最佳方式。三种场景，按你的情况挑：
 
 ```bash
-# 创建连接并 clone
+# A) 本地已经有 workspace 文件夹 → 一站式
+puppyone access add filesystem workspace --link ~/ai-workspace
+
+# B) 本地还没有这个目录 → 创建 AP，再 clone 一份
 puppyone access add filesystem workspace
 mut clone <url> --credential <key>
-
-# 用 Claude Code 或 Cursor 打开 ./workspace/ 目录进行编辑
-# AI 修改完成后，提交推送
 cd workspace
+
+# C) 已经创建了 AP 但忘了带 --link，本地又有现成目录 → 事后接入
+puppyone access add filesystem workspace
+cd ~/ai-workspace
+mut connect <url> --credential <key>
+
+# 用 Claude Code 或 Cursor 打开目录编辑
+# AI 修改完成后，提交推送：
 mut commit -m "AI updates"
 mut push
 ```
@@ -180,7 +216,7 @@ mut push
 ### mut 命令未找到
 
 ```bash
-pip install mut
+pip install mutai
 ```
 
 确保 `mut` 在 PATH 中。

@@ -180,11 +180,12 @@ export function ExplorerSidebar({
           {loading && rootItems.length === 0 ? (
             <div style={{ padding: '0 16px', color: '#666', fontSize: 13 }}>Loading...</div>
           ) : (
-            rootItems.map((item) => (
+            rootItems.map((item, idx) => (
               <ExplorerTreeRow
                 key={item.id}
                 item={item}
                 depth={1}
+                isLastSibling={idx === rootItems.length - 1}
                 projectId={projectId}
                 activeId={activeId}
                 onNavigate={onNavigate}

@@ -67,11 +67,17 @@ export async function createProject(
   });
 }
 
+export interface ProjectTemplatePreviewNode {
+  name: string;
+  type: 'folder' | 'json' | 'markdown' | 'file';
+}
+
 export interface ProjectTemplateInfo {
   id: string;
   name: string;
   description: string;
   icon: string;
+  preview?: ProjectTemplatePreviewNode[];
 }
 
 export async function getProjectTemplates(): Promise<ProjectTemplateInfo[]> {

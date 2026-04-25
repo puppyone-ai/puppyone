@@ -1,0 +1,39 @@
+PuppyOne
+Copyright 2025 PuppyOne authors
+
+This product includes software developed at PuppyOne (https://www.puppyone.ai/).
+
+Licensed under the Apache License, Version 2.0 (the "License").
+You may obtain a copy of the License in the LICENSE file in this repository
+or at http://www.apache.org/licenses/LICENSE-2.0.
+
+---
+
+Third-party software
+
+This product bundles, depends on, or is built with software from third
+parties. Each such component is distributed under its own license. Notable
+third-party components include, but are not limited to:
+
+  - PostgreSQL                         (PostgreSQL License)
+  - Supabase (supabase/supabase)       (Apache License 2.0)
+  - PostgREST                          (MIT License)
+  - GoTrue / supabase-auth             (MIT License)
+  - Kong                               (Apache License 2.0)
+  - Redis                              (BSD-3-Clause / RSALv2-SSPLv1, see upstream)
+  - MinIO                              (GNU AGPL v3)
+  - FastAPI                            (MIT License)
+  - Starlette                          (BSD-3-Clause)
+  - Pydantic                           (MIT License)
+  - SQLAlchemy                         (MIT License)
+  - ARQ                                (MIT License)
+  - Next.js                            (MIT License)
+  - React                              (MIT License)
+  - Tailwind CSS                       (MIT License)
+  - Commander.js                       (MIT License)
+  - Docker                             (Apache License 2.0)
+  - E2B                                (Apache License 2.0)
+
+For the full text of each component's license, please refer to the
+upstream project. Inclusion of a component in this list does not imply
+endorsement by, or affiliation with, its authors.

@@ -199,17 +199,29 @@ def refresh_token(body: RefreshRequest):
 class InitializeResponse(BaseModel):
     org_id: str
     is_new_org: bool
+    demo_project_id: str | None = None
 
 
 @router.post("/initialize", response_model=ApiResponse[InitializeResponse])
-def initialize_user(
+async def initialize_user(
     current_user: CurrentUser = Depends(get_current_user),
     init_service: UserInitializationService = Depends(get_initialization_service),
 ):
-    """Idempotent user initialization: ensures profile + default org + membership exist."""
+    """Idempotent user initialization: ensures profile + default org +
+    membership exist, and on first sign-in seeds a "Get Started" demo
+    project so the post-login redirect can land the user inside it
+    instead of an empty dashboard."""
     result = init_service.ensure_initialized(
         user_id=current_user.user_id,
         email=current_user.email,
         display_name=current_user.user_metadata.get("full_name") if current_user.user_metadata else None,
     )
-    return ApiResponse.success(data=InitializeResponse(**result))
+    demo_project_id = await init_service.maybe_seed_demo_project(
+        user_id=current_user.user_id,
+        org_id=result["org_id"],
+    )
+    return ApiResponse.success(data=InitializeResponse(
+        org_id=result["org_id"],
+        is_new_org=result["is_new_org"],
+        demo_project_id=demo_project_id,
+    ))

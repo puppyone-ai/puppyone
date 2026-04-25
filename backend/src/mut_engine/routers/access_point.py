@@ -7,6 +7,11 @@ types, or platform concepts — just a URL and a key.
 
 URL format: /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-commit
 
+The /api/v1 prefix is added by main.py via include_router(); this module's
+APIRouter only knows the relative "/mut/ap" prefix. The single source of
+truth for the composed public URL lives in src/mut_engine/_routes.py
+(MUT_AP_PREFIX) — change that constant to break every client at once.
+
 The access_key maps to an access_points row which contains:
   - project_id: which MUT tree to operate on
   - config.scope: path-based permission (path, exclude, mode)

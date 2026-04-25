@@ -11,7 +11,7 @@
 npm install -g puppyone
 
 # Install mut CLI (Python)
-pip install mut
+pip install mutai
 ```
 
 ---
@@ -34,13 +34,22 @@ puppyone access add filesystem docs
 
 `docs` is the cloud scope path — your local folder's contents sync to `/docs` in the project tree.
 
-On success, the command outputs:
+On success, the command prints both setup paths:
 
 ```
   Creating filesystem access point for scope "docs"... done
 
-  ─ Sync with MUT:
-    mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+  ─ Pick one: clone fresh or connect existing
+
+    A. New folder (no local files yet):
+       mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+
+    B. Existing folder (use the files you already have):
+       cd /path/to/your/folder
+       mut connect http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+
+  ─ Or have us run option B for you next time:
+    puppyone access add filesystem docs --link /path/to/your/folder
 
   ─ Then commit and push:
     mut commit -m "message" && mut push
@@ -49,15 +58,32 @@ On success, the command outputs:
     puppyone access key <id>
 ```
 
-### 3. Clone to local
+### 3. Pick a setup path
 
-Copy the `mut clone` command from the output:
+Two options. Pick whichever matches your situation.
+
+**A. Clone to a fresh folder** (no local files yet):
 
 ```bash
 mut clone http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
 ```
 
-This automatically creates a folder named after the scope path (e.g. `./docs/`) in the current directory and pulls any existing cloud content.
+This creates `./docs/` in the current directory and pulls any existing cloud content.
+
+**B. Connect an existing folder** (you already have files locally):
+
+```bash
+cd /path/to/your/existing/folder
+mut connect http://api.puppyone.ai/api/v1/mut/ap/cli_xxx --credential cli_xxx
+```
+
+`mut connect` pulls cloud state, three-way merges with whatever is on disk, then pushes the result. **No overwrite, no data loss.**
+
+> One-shot shortcut: skip steps 2 and 3 and let PuppyOne CLI run `mut connect` for you.
+>
+> ```bash
+> puppyone access add filesystem docs --link /path/to/your/folder
+> ```
 
 ### 4. Edit locally, then commit and push
 
@@ -89,13 +115,14 @@ mut pull
 You can sync multiple local folders to different paths within the same project:
 
 ```bash
-# Create two scopes
-puppyone access add filesystem docs
-puppyone access add filesystem code
+# One-shot — create the AP and link an existing folder in one step
+puppyone access add filesystem docs --link ~/my-docs
+puppyone access add filesystem code --link ~/my-code
 
-# Clone each
-mut clone <docs-url> --credential <docs-key>
-mut clone <code-url> --credential <code-key>
+# Or split it: create the AP, then clone (fresh) or connect (existing)
+puppyone access add filesystem docs
+mut clone   <docs-url> --credential <docs-key>           # fresh checkout
+cd ~/existing-code && mut connect <code-url> --credential <code-key>
 ```
 
 The cloud project tree becomes:
@@ -146,7 +173,8 @@ puppyone access rm <connection-id>
 
 | Command | Description |
 |------|------|
-| `mut clone <url> --credential <key>` | Clone remote repo to local |
+| `mut clone <url> --credential <key>` | Clone the access point into a **new** local folder |
+| `mut connect <url> --credential <key>` | Connect an **existing** local folder; three-way merges, no overwrite |
 | `mut commit -m "message"` | Commit local changes |
 | `mut push` | Push to cloud |
 | `mut pull` | Pull cloud changes |
@@ -157,16 +185,24 @@ puppyone access rm <connection-id>
 
 ## Using with Claude Code / Cursor
 
-Local folder sync is the best way to give AI coding tools access to PuppyOne data:
+Local folder sync is the best way to give AI coding tools access to PuppyOne data. Three flavours, pick the one that matches your situation:
 
 ```bash
-# Create connection and clone
+# A) Local folder already exists → one-shot
+puppyone access add filesystem workspace --link ~/ai-workspace
+
+# B) Local folder doesn't exist yet → create AP, then clone
 puppyone access add filesystem workspace
 mut clone <url> --credential <key>
-
-# Open the ./workspace/ directory in Claude Code or Cursor
-# After AI finishes editing, commit and push
 cd workspace
+
+# C) Forgot --link, but the folder is already on disk → connect after the fact
+puppyone access add filesystem workspace
+cd ~/ai-workspace
+mut connect <url> --credential <key>
+
+# Open the directory in Claude Code or Cursor.
+# After AI finishes editing, commit and push:
 mut commit -m "AI updates"
 mut push
 ```
@@ -180,7 +216,7 @@ All changes have version history and can be compared or rolled back at any time.
 ### mut command not found
 
 ```bash
-pip install mut
+pip install mutai
 ```
 
 Make sure `mut` is in your PATH.

@@ -60,14 +60,14 @@
 | **Consequence** | If the server merged in files from another agent, the client's `_files` doesn't know about them. On the **next push** from the same client instance, the snapshot omits those files → server interprets as deletion. Affects long-lived agent sessions (`service.py` streaming) that reuse one `MutEphemeralClient` across multiple turns. `MutOps` is safe (creates new client per push). |
 | **Fix** | After successful push, either (a) call `pull()` to refresh `_files` from server state, or (b) parse the push response's merged file list and patch `_files` accordingly. |
 
-### P0-5: `_safe_flatten` in graft swallows S3 errors → silent data overwrite
+### P0-5: `_safe_flatten` in graft swallows S3 errors → silent data overwrite — FIXED 2026-04-21
 
 | Key | Value |
 |-----|-------|
-| **File** | `mut/server/graft.py` (`_safe_flatten`, line ~160) |
-| **Root cause** | `_safe_flatten()` catches all exceptions and returns `{}` (empty dict). |
-| **Consequence** | If S3 is temporarily unreachable during graft, the existing tree is read as "empty". The graft then overwrites the real root tree with only the scope's changes, effectively deleting everything outside that scope. |
-| **Fix** | Remove the blanket `except`. Let S3/object-store errors propagate so the graft fails explicitly rather than silently corrupting the tree. |
+| **File** | `mut/server/graft.py` (`_safe_flatten`, original; replaced by `puppyone/backend/src/mut_engine/services/hooks.py::_build_root_from_scope_state`) |
+| **Root cause** | `_safe_flatten()` caught all exceptions and returned `{}`. The graft path was `read projects.mut_root_hash → fetch root tree from S3 → splice → write`, which made an S3 derived artifact both the SoT and the input for deriving the next SoT. Any silent partial S3 read produced a "structurally valid but data-losing" new root that CAS happily wrote. |
+| **Consequence** | If S3 was temporarily unreachable during graft, the existing tree was read as "empty". The graft then overwrote the real root tree with only the just-pushed scope's changes, effectively deleting everything outside that scope. |
+| **Fix** | Architectural: graft no longer reads the previous root tree from S3. Instead, `mut_scope_state` (the DB SoT for "where does each scope point") is the only input. `_build_root_from_scope_state` rebuilds root by SELECTing every scope hash from DB, starting from the root scope's tree as base, and overlaying child scopes via `graft_subtree` in path-depth order. Failures are loud (re-raise → retry → ERROR log); no silent fallback. See `docs/design/mut-scope-concurrency.md` §3.2 + §5.4 and `mut_engine/ARCHITECTURE.md` §6.1. Tests: `tests/mut_engine/test_bug_fixes.py::TestGraftFromDBState` (6 cases incl. nested scopes + corrupt-root-tree regression). |
 
 ### P0-6: CAS RPCs declared `p_project_id` as UUID while tables use TEXT — FIXED 2026-04-17
 
@@ -330,7 +330,7 @@ Phase 1 — Data Safety (P0)
   P0-2  S3 put must re-raise
   P0-3  Agent/Sandbox push → hook helper
   P0-4  EphemeralClient consume merge result
-  P0-5  _safe_flatten must throw
+  P0-5  graft from DB scope state (NOT old root tree from S3) — DONE 2026-04-21
 
 Phase 2 — Security (P1)
   P1-1  Viewer role enforcement

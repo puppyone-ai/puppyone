@@ -108,6 +108,30 @@ class Settings(BaseSettings):
 
         return self
 
+    @model_validator(mode="after")
+    def enforce_skip_auth_safety(self):
+        """Refuse to boot if SKIP_AUTH=True outside development/test.
+
+        SKIP_AUTH bypasses ALL authentication and returns a hardcoded mock
+        user, both for the platform JWT pipeline (`platform/auth/dependencies`)
+        and the MUT access-key pipeline (`mut_engine/server/auth`). Leaving it
+        on in staging/production would expose every endpoint as anonymous.
+
+        Failing fast here means the application crashes at startup instead of
+        silently serving an open-door API. There is no legitimate reason to
+        ever enable SKIP_AUTH in a non-dev environment, so we refuse to start
+        rather than degrade silently.
+        """
+        if self.SKIP_AUTH and self.APP_ENV not in {"development", "test"}:
+            raise ValueError(
+                f"SKIP_AUTH=True is only permitted when APP_ENV is "
+                f"'development' or 'test'. Got APP_ENV={self.APP_ENV!r}. "
+                f"Refusing to start with authentication disabled in "
+                f"{self.APP_ENV} — this would expose every endpoint as "
+                f"anonymous. Unset SKIP_AUTH or set APP_ENV=development."
+            )
+        return self
+
     # JWT configuration
     JWT_SECRET: str = "ContextBase-256-bit-secret"
     JWT_ALGORITHM: str = "HS256"

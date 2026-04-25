@@ -122,7 +122,7 @@ interface AgentContextValue {
   editAgent: (agentId: string) => void;
   editingAgentId: string | null;
   cancelSetting: () => void;
-  deployAgent: (name: string, icon: string) => void;
+  deployAgent: (name: string, icon: string) => Promise<string | null>;
   deploySyncEndpoint: (params: {
     provider: string;
     direction: string;

@@ -31,7 +31,7 @@
 
 ```bash
 npm install -g puppyone    # PuppyOne CLI
-pip install mut            # MUT CLI
+pip install mutai          # MUT CLI
 ```
 
 ### 第一步：创建同步连接
@@ -42,18 +42,41 @@ puppyone project use "My Project"
 puppyone access add filesystem docs
 ```
 
-命令会输出 `mut clone` 命令和 Access Key。
+命令会输出 access endpoint URL 和 Access Key，并提示两种接入方式。
 
-### 第二步：Clone 到本地
+### 第二步：选一种接入方式
+
+接下来有两条路：**Clone 全新文件夹** 还是 **接入已有文件夹**。挑你的实际场景。
+
+#### A. Clone 全新文件夹（本地还没有文件）
 
 ```bash
-mut clone <输出的URL> --credential <access-key> --dir ~/my-docs
+mut clone <endpoint-url> --credential <access-key>
+cd docs
 ```
+
+会创建一个新的 `./docs/` 文件夹，把云端 scope 的内容拉下来。
+
+#### B. 接入已有文件夹（本地已经有内容）
+
+```bash
+cd /path/to/your/existing/folder
+mut connect <endpoint-url> --credential <access-key>
+```
+
+`mut connect` 会拉云端状态、和本地文件做三路合并，然后把结果推回去。**只在硬盘上的文件被上传；只在云端的文件被下载。不覆盖、不丢数据。**
+
+> 想让 PuppyOne CLI 一步到位？用 `--link`：
+>
+> ```bash
+> puppyone access add filesystem docs --link /path/to/your/folder
+> ```
+>
+> 等于 `puppyone access add filesystem docs && cd <link> && mut connect ...` 一气呵成。
 
 ### 第三步：编辑、提交、推送
 
 ```bash
-cd ~/my-docs
 echo "# Welcome" > readme.md
 mut commit -m "init docs"
 mut push
@@ -126,11 +149,19 @@ mut log
 
 本地文件夹同步是将 PuppyOne 数据交给 AI 编程工具处理的最佳方式：
 
-1. **创建连接并 Clone**：
+1. **创建连接并接入本地文件夹**，按场景挑一种：
 
 ```bash
+# A) 本地文件夹已经存在 → 一站式
+puppyone access add filesystem workspace --link ~/ai-workspace
+
+# B) 本地还没有这个目录 → 先创建 AP，再 clone 一份
 puppyone access add filesystem workspace
 mut clone <url> --credential <key> --dir ~/ai-workspace
+
+# C) 本地有目录但当时忘了带 --link
+cd ~/ai-workspace
+mut connect <url> --credential <key>
 ```
 
 2. **用 Claude Code 编辑** `~/ai-workspace` 中的文件
@@ -172,12 +203,28 @@ puppyone access rm <id>
 每个文件夹创建独立的 scope 连接：
 
 ```bash
-puppyone access add filesystem project-a
-puppyone access add filesystem project-b
-
-mut clone <url-a> --credential <key-a> --dir ~/project-a
-mut clone <url-b> --credential <key-b> --dir ~/project-b
+puppyone access add filesystem project-a --link ~/project-a
+puppyone access add filesystem project-b --link ~/project-b
 ```
+
+或者分两步：
+
+```bash
+puppyone access add filesystem project-a
+mut clone   <url-a> --credential <key-a>           # 全新拉一份
+# 或
+cd ~/existing-project-b
+mut connect <url-b> --credential <key-b>           # 接入已有文件夹
+```
+
+### Clone 还是 Connect？
+
+| 场景 | 用什么 |
+|------|--------|
+| 本地还没有这个文件夹 | `mut clone` — 创建新目录，拉下云端内容 |
+| 本地已经有内容，想接入云端 | `mut connect` — 三路合并，不覆盖 |
+| 已有云端内容 + 本地内容，想合并 | `mut connect` — 同上，自动 merge |
+| 想清空云端、推本地 | 先 `puppyone access rm <id>`，重建后用 `mut connect` |
 
 ### 推送时提示冲突怎么办？
 
