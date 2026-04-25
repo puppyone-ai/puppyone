@@ -30,7 +30,7 @@
     "cli"
   ],
   "author": "PuppyOne AI <team@puppyone.ai>",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/puppyone-ai/puppyone.git",

@@ -1,384 +1,118 @@
 'use client';
 
-import React, { use, useState, useRef, useEffect, useMemo } from 'react';
+import { use, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
-import { treeList, getProjectHistory, type TreeEntry } from '@/lib/contentTreeApi';
+import { treeList, getProjectHistory } from '@/lib/contentTreeApi';
 
-// ================= Types =================
+import { T } from './lib/tokens';
+import { formatRelative } from './lib/format';
+import type {
+  ProjectDashboard,
+  DashboardConnection,
+  TreeNode,
+} from './lib/types';
 
-interface DashboardProject {
-  id: string;
-  name: string;
-  description: string | null;
-}
+import { TreeRows, type RowVariant } from './components/TreeRows';
+import { HistoryCard } from './components/HistoryCard';
+import { AccessPointsCard } from './components/AccessPointsCard';
+import { ConnectionsCanvas } from './components/ConnectionsCanvas';
+import { GetStartedPanel } from './components/GetStartedPanel';
 
-interface DashboardNodeCounts {
-  total: number;
-  folders: number;
-  files: number;
-}
-
-interface DashboardConnection {
-  id: string;
-  provider: string;
-  name: string | null;
-  path: string | null;
-  direction: string | null;
-  status: string;
-  access_key: string | null;
-  trigger: any;
-  last_synced_at: string | null;
-  error_message: string | null;
-  created_at: string | null;
-}
-
-interface DashboardTool {
-  id: string;
-  name: string;
-  type: string | null;
-  index_status: string | null;
-}
-
-interface ProjectDashboard {
-  project: DashboardProject;
-  nodes: DashboardNodeCounts;
-  access_points: DashboardConnection[];
-  tools: DashboardTool[];
-  uploads: { id: string; status: string }[];
-}
-
-// ================= Constants =================
-
-const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Desktop Sync', gmail: 'Gmail', google_sheets: 'Google Sheets',
-  google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
-  supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
-  hackernews: 'Hacker News', posthog: 'PostHog',
-  google_search_console: 'GSC', script: 'Script',
-  agent: 'Agent', mcp: 'MCP Server', sandbox: 'Sandbox', url: 'Web Page',
-};
-
-const PROVIDER_COLORS: Record<string, string> = {
-  agent: '#a78bfa', mcp: '#60a5fa', sandbox: '#f59e0b', filesystem: '#4ade80',
-  gmail: '#ef4444', github: '#e4e4e7', google_sheets: '#22c55e', google_docs: '#3b82f6',
-  notion: '#e4e4e7', supabase: '#3ECF8E', url: '#71717a',
-};
-
-const AGENT_ICONS = ['🐗', '🐙', '🐷', '🦄', '🐧', '🦉', '🐼', '🐝', '🐸', '🐱'];
-function parseAgentIcon(icon: string | null) {
-  if (!icon) return '🤖';
-  if (/^\d+$/.test(icon)) return AGENT_ICONS[parseInt(icon, 10) % AGENT_ICONS.length];
-  return icon;
-}
-
-// ================= Helpers =================
-
-function formatRelative(isoString: string | null | undefined): string {
-  if (!isoString) return '';
-  const diffMs = Date.now() - new Date(isoString).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  const hours = Math.floor(diffMs / 3600000);
-  const days = Math.floor(diffMs / 86400000);
-  const weeks = Math.floor(days / 7);
-  const months = Math.floor(days / 30);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins} minutes ago`;
-  if (hours < 24) return `${hours} hours ago`;
-  if (days < 7) return `${days} days ago`;
-  if (weeks < 5) return `${weeks} weeks ago`;
-  return `${months} months ago`;
-}
-
-// ================= Sub-Components =================
-
-function FileIcon({ type }: { type: string }) {
-  if (type === 'folder') {
-    return (
-      <svg aria-label="Directory" color="#79c0ff" fill="currentColor" width="16" height="16" viewBox="0 0 16 16">
-        <path d="M1.75 1A1.75 1.75 0 0 0 0 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0 0 16 13.25v-8.5A1.75 1.75 0 0 0 14.25 3H7.5a.25.25 0 0 1-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75Z"></path>
-      </svg>
-    );
-  }
+// Vitals-strip interpunct separator.  A single `·` glyph rendered in
+// the faint `text4` token with a small horizontal rhythm so the strip
+// reads as one inline sentence ("Active · 59bc58e5 · 6 commits · …")
+// rather than five disconnected tokens.  Local helper because the
+// strip is the only consumer.
+function Sep() {
   return (
-    <svg aria-label="File" color="#8b949e" fill="currentColor" width="16" height="16" viewBox="0 0 16 16">
-      <path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0 1 13.25 16h-9.5A1.75 1.75 0 0 1 2 14.25Zm1.75-.25a.25.25 0 0 0-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 0 0 .25-.25V6h-2.75A1.75 1.75 0 0 1 9 4.25V1.5Zm6.75.062V4.25c0 .138.112.25.25.25h2.688l-.011-.013-2.914-2.914-.013-.011Z"></path>
-    </svg>
+    <span
+      aria-hidden
+      style={{
+        margin: '0 8px',
+        color: T.text3,
+        fontSize: 13,
+        lineHeight: 1,
+        userSelect: 'none',
+      }}
+    >
+      ·
+    </span>
   );
 }
 
-function ProviderAvatar({ provider, size = 20, icon }: { provider: string; size?: number; icon?: string | null }) {
-  const logos: Record<string, string> = {
-    gmail: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
-    google_sheets: 'https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png',
-    google_calendar: 'https://www.gstatic.com/images/branding/product/1x/calendar_2020q4_32dp.png',
-    google_docs: 'https://www.gstatic.com/images/branding/product/1x/docs_2020q4_32dp.png',
-    github: 'https://github.githubassets.com/favicons/favicon-dark.svg',
-    notion: 'https://www.notion.so/images/favicon.ico',
-  };
-  
-  if (provider === 'agent') {
-    return (
-      <div style={{ width: size, height: size, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.6 }}>
-        {parseAgentIcon(icon || null)}
-      </div>
-    );
-  }
+// HomePage layout — two structural bands, deliberately not jumbled
+// together into a single multitasking surface.
+//
+//   1.  HEADER          : project identity + at-a-glance vitals.
+//                         Title, project ID, status dot, commit
+//                         count, AP count, last-updated relative
+//                         time.  Just enough to answer "what is this
+//                         project, is it healthy, and is anyone
+//                         touching it?" — no charts, no commit list,
+//                         no AP cards.
+//
+//   2.  TWO-COLUMN BAND : the project's contents + activity.
+//                         LEFT  — Data card (file tree, the
+//                                 project's actual payload) STACKED
+//                                 over the ConnectionsCanvas (xyflow
+//                                 wiring board showing which APs
+//                                 attach to which scopes).  Both
+//                                 share the wide left column because
+//                                 they're two complementary views of
+//                                 the same thing — the Data card
+//                                 answers "what files exist", the
+//                                 canvas answers "and which APs are
+//                                 wired to those files".  Stacking
+//                                 them keeps the relationship local
+//                                 instead of forcing a long visual
+//                                 leap to a separate band.
+//                         RIGHT — stacked HistoryCard +
+//                                 AccessPointsCard.  The right rail
+//                                 is the "who cares about this
+//                                 project" column: history = past
+//                                 activity, APs = active hooks.
+//
+// The shape mirrors GitHub's repo home (header / contents) — a
+// layout users have an eight-year mental model for — while the
+// canvas adds the one piece GitHub doesn't have: a manipulable
+// system-level view of how data and access points wire together,
+// nestled directly under its parent Data card so the relationship
+// reads as "supplementary" not "separate band".
 
-  if (logos[provider]) {
-    return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.15)', background: '#fff' }} />;
-  }
-  
-  const color = PROVIDER_COLORS[provider] || '#8b949e';
-  const label = (PROVIDER_LABELS[provider] || provider).charAt(0).toUpperCase();
-  return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.55, fontWeight: 600 }}>
-      {label}
-    </div>
-  );
-}
-
-// ================= Activity Chart =================
-
-function ActivityChart({ buckets }: { buckets: { date: string; count: number }[] }) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  const cW = 296, cH = 48, pY = 4;
-  const mx = Math.max(...buckets.map(b => b.count), 1);
-  const pts = buckets.map((b, i) => ({
-    x: (i / (buckets.length - 1)) * cW,
-    y: pY + (1 - b.count / mx) * (cH - pY * 2),
-    ...b,
-  }));
-  const ln = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-  const ar = `${ln} L${pts[pts.length - 1].x},${cH} L${pts[0].x},${cH} Z`;
-  const total = buckets.reduce((s, b) => s + b.count, 0);
-
-  const dateLabels = useMemo(() => {
-    const len = buckets.length;
-    if (len < 2) return [];
-    const step = len <= 10 ? 3 : len <= 20 ? 5 : 7;
-    const labels: { idx: number; label: string }[] = [];
-    for (let i = 0; i < len; i += step) {
-      const d = buckets[i].date;
-      labels.push({ idx: i, label: d.slice(5).replace('-', '/') });
-    }
-    return labels;
-  }, [buckets]);
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const relX = e.clientX - rect.left;
-    const ratio = relX / rect.width;
-    const idx = Math.round(ratio * (buckets.length - 1));
-    setHoverIdx(Math.max(0, Math.min(buckets.length - 1, idx)));
-  };
-
-  const hp = hoverIdx !== null ? pts[hoverIdx] : null;
-
-  return (
-    <div style={{ marginBottom: 24 }}>
-      <div style={{ position: 'relative' }}>
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${cW} ${cH}`}
-          style={{ width: '100%', height: 48, display: 'block', cursor: 'crosshair' }}
-          preserveAspectRatio="none"
-          onMouseMove={handleMouseMove}
-          onMouseLeave={() => setHoverIdx(null)}
-        >
-          <defs>
-            <linearGradient id="sbGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#22c55e" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          <path d={ar} fill="url(#sbGrad)" />
-          <path d={ln} fill="none" stroke="#22c55e" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-          {pts.filter(p => p.count > 0).map(p => (
-            <circle key={p.date} cx={p.x} cy={p.y} r="2" fill="#22c55e" vectorEffect="non-scaling-stroke" />
-          ))}
-          {hp && (
-            <>
-              <line x1={hp.x} y1={0} x2={hp.x} y2={cH} stroke="rgba(255,255,255,0.15)" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeDasharray="2,2" />
-              <circle cx={hp.x} cy={hp.y} r="3.5" fill="#22c55e" stroke="#0e0e0e" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-            </>
-          )}
-        </svg>
-        {/* Tooltip */}
-        {hp && (
-          <div style={{
-            position: 'absolute', top: -32,
-            left: Math.min(Math.max(hp.x / cW * 100, 10), 90) + '%',
-            transform: 'translateX(-50%)',
-            background: '#1c1c1e', border: '1px solid rgba(255,255,255,0.15)',
-            borderRadius: 6, padding: '4px 8px', pointerEvents: 'none',
-            fontSize: 12, whiteSpace: 'nowrap', zIndex: 10,
-          }}>
-            <span style={{ color: '#c9d1d9', fontWeight: 500 }}>{hp.count} commit{hp.count !== 1 ? 's' : ''}</span>
-            <span style={{ color: '#52525b', marginLeft: 6 }}>{hp.date.slice(5).replace('-', '/')}</span>
-          </div>
-        )}
-      </div>
-      {/* X-axis date labels */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, position: 'relative', height: 14 }}>
-        {dateLabels.map(dl => (
-          <span
-            key={dl.idx}
-            style={{
-              position: 'absolute',
-              left: `${(dl.idx / (buckets.length - 1)) * 100}%`,
-              transform: 'translateX(-50%)',
-              fontSize: 10, color: '#3f3f46',
-            }}
-          >
-            {dl.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ================= Data Tree =================
-
-interface TreeNode {
-  entry: TreeEntry;
-  children: TreeNode[];
-}
-
-function TreeRows({
-  nodes, depth, projectId, router, accessByPath,
+export default function HomePage({
+  params,
 }: {
-  nodes: TreeNode[];
-  depth: number;
-  projectId: string;
-  router: ReturnType<typeof useRouter>;
-  accessByPath: Map<string, DashboardConnection[]>;
+  params: Promise<{ projectId: string }>;
 }) {
-  return (
-    <>
-      {nodes.map((node, idx) => {
-        const { entry, children } = node;
-        const isFolder = entry.type === 'folder';
-        const isLast = idx === nodes.length - 1;
-        const attachedAccess = accessByPath.get(entry.path) || [];
-        const encodedPath = entry.path.split('/').map(s => encodeURIComponent(s)).join('/');
-
-        return (
-          <React.Fragment key={entry.path}>
-            <div
-              className="group/row flex items-center gap-0 cursor-pointer hover:bg-[rgba(255,255,255,0.03)] transition-colors"
-              style={{ height: 32, paddingRight: 12 }}
-              onClick={() => router.push(`/projects/${projectId}/data/${encodedPath}${entry.type ? `?type=${encodeURIComponent(entry.type)}` : ''}`)}
-            >
-              {/* Tree guides */}
-              <div style={{ width: 16 + depth * 20, flexShrink: 0, height: '100%', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 0 }}>
-                {depth > 0 && (
-                  <svg width={20} height={32} style={{ position: 'absolute', right: 0, top: 0 }} viewBox="0 0 20 32" fill="none">
-                    <line x1="10" y1="0" x2="10" y2={isLast ? 16 : 32} stroke="#2a2a2a" strokeWidth="1" />
-                    <line x1="10" y1="16" x2="20" y2="16" stroke="#2a2a2a" strokeWidth="1" />
-                  </svg>
-                )}
-              </div>
-
-              {/* Icon */}
-              <div style={{ width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 6 }}>
-                <FileIcon type={entry.type} />
-              </div>
-
-              {/* Name */}
-              <span className="text-[13px] truncate group-hover/row:text-[#e4e4e7] transition-colors" style={{ color: isFolder ? '#c9d1d9' : '#8b949e', fontWeight: isFolder ? 500 : 400 }}>
-                {entry.name}
-              </span>
-
-              {/* Folder item count */}
-              {isFolder && entry.children_count != null && entry.children_count > 0 && (
-                <span className="text-[11px] ml-2 flex-shrink-0" style={{ color: '#52525b' }}>
-                  {entry.children_count}
-                </span>
-              )}
-
-              {/* Spacer */}
-              <div style={{ flex: 1 }} />
-
-              {/* Access point badges */}
-              {attachedAccess.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                  {attachedAccess.map(conn => (
-                    <div
-                      key={conn.id}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 5,
-                        padding: '2px 8px 2px 5px',
-                        borderRadius: 10,
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                      }}
-                      title={`${conn.name || PROVIDER_LABELS[conn.provider] || conn.provider} — ${conn.status}`}
-                    >
-                      <ProviderAvatar provider={conn.provider} size={14} icon={(conn as any).icon} />
-                      <span style={{ fontSize: 11, color: '#71717a', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                        {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
-                      </span>
-                      <div style={{
-                        width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                        background: conn.status === 'error' ? '#ef4444' : conn.status === 'paused' ? '#eab308' : '#22c55e',
-                      }} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Render children */}
-            {children.length > 0 && (
-              <div style={{ position: 'relative' }}>
-                {/* Vertical continuation line for parent */}
-                {depth > 0 && !isLast && (
-                  <div style={{
-                    position: 'absolute', left: 16 + (depth - 1) * 20 + 10, top: 0, bottom: 0,
-                    width: 1, background: '#2a2a2a',
-                  }} />
-                )}
-                <TreeRows nodes={children} depth={depth + 1} projectId={projectId} router={router} accessByPath={accessByPath} />
-              </div>
-            )}
-          </React.Fragment>
-        );
-      })}
-    </>
-  );
-}
-
-// ================= Main Page =================
-
-export default function HomePage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
   const router = useRouter();
 
-  const { data: dashboard } = useSWR<ProjectDashboard>(
+  // ── Data ─────────────────────────────────────────────────────────
+
+  const { data: dashboard, mutate: mutateDashboard } = useSWR<ProjectDashboard>(
     projectId ? `/api/v1/projects/${projectId}/dashboard` : null,
     (url: string) => get<ProjectDashboard>(url),
-    { refreshInterval: 30000 }
+    { refreshInterval: 30000 },
   );
 
-  const { data: treeEntries } = useSWR(
+  const { data: treeEntries, mutate: mutateTree } = useSWR(
     projectId ? ['home-tree', projectId] : null,
-    () => treeList(projectId, '', 3)
+    () => treeList(projectId, '', 3),
   );
 
   const { data: historyData } = useSWR(
     projectId ? ['project-history-overview', projectId] : null,
-    () => getProjectHistory(projectId, 50)
+    () => getProjectHistory(projectId, 50),
   );
 
   const commits = historyData?.commits || [];
   const latestCommit = commits.length > 0 ? commits[commits.length - 1] : null;
 
+  // 30-day commit cadence for the HistoryCard sparkline.  Bucket dates
+  // are right-anchored at today so the sparkline always reads "what's
+  // happened in the last month, ending now".
   const commitBuckets = useMemo(() => {
     const buckets: { date: string; count: number }[] = [];
     const now = new Date();
@@ -387,38 +121,21 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
       d.setDate(d.getDate() - i);
       buckets.push({ date: d.toISOString().slice(0, 10), count: 0 });
     }
-    commits.forEach(c => {
+    commits.forEach((c) => {
       if (!c.created_at) return;
       const day = c.created_at.slice(0, 10);
-      const bucket = buckets.find(b => b.date === day);
+      const bucket = buckets.find((b) => b.date === day);
       if (bucket) bucket.count++;
     });
     return buckets;
   }, [commits]);
+
   const connections = dashboard?.access_points || [];
 
-  const [connectOpen, setConnectOpen] = useState(false);
-  const connectDropdownRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!connectOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (connectDropdownRef.current && !connectDropdownRef.current.contains(e.target as Node)) {
-        setConnectOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [connectOpen]);
-
-  const apiBase = typeof window !== 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
-    : '';
-  const connectMethods = [
-    { label: 'CLI', cmd: `puppyone project use ${projectId}` },
-    { label: 'MUT Protocol', cmd: `${apiBase}/api/v1/mut/${projectId}` },
-  ];
-  
-  const tree = useMemo(() => {
+  // Tree shaped from the flat treeList response.  Folders sort first,
+  // then alphabetical — same order the data explorer uses, so a user
+  // jumping between Home and Data sees the same arrangement.
+  const tree = useMemo<TreeNode[]>(() => {
     const entries = treeEntries || [];
     const sorted = [...entries].sort((a, b) => {
       if (a.type === 'folder' && b.type !== 'folder') return -1;
@@ -432,7 +149,6 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
     for (const entry of sorted) {
       nodeMap.set(entry.path, { entry, children: [] });
     }
-
     for (const entry of sorted) {
       const node = nodeMap.get(entry.path)!;
       const slashIdx = entry.path.lastIndexOf('/');
@@ -441,16 +157,21 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
       } else {
         const parentPath = entry.path.substring(0, slashIdx);
         const parent = nodeMap.get(parentPath);
-        if (parent) {
-          parent.children.push(node);
-        } else {
-          roots.push(node);
-        }
+        if (parent) parent.children.push(node);
+        else roots.push(node);
       }
     }
     return roots;
   }, [treeEntries]);
 
+  // path → APs that target it.  TreeRows uses this to render the soft
+  // `T.rowAttached` whisper-tint on rows that any AP touches, so the
+  // tree itself silently flags "external systems care about this row"
+  // even when nothing is hovered.  No cross-section hover sync (hover
+  // an AP → cyan-band the tree) in this layout — APs and the tree
+  // live in different bands now, so a coordinated highlight would
+  // require a long visual leap that the TopologyCanvas already
+  // serves more directly.
   const accessByPath = useMemo(() => {
     const map = new Map<string, DashboardConnection[]>();
     for (const conn of connections) {
@@ -461,307 +182,720 @@ export default function HomePage({ params }: { params: Promise<{ projectId: stri
     return map;
   }, [connections]);
 
+  // Data card view — every top-level entry, plus a 1-level preview
+  // of each top-level folder's children, capped to a soft total
+  // budget so the card doesn't grow unbounded on dense projects.
+  //
+  // Knob choices, with rationale:
+  //   ─ Depth = 1.   Two reasons.  (a) anything deeper duplicates
+  //                  the data explorer + ConnectionsCanvas below
+  //                  (which exists specifically for relational
+  //                  drill-down).  (b) 1 level is the minimum that
+  //                  meaningfully answers "what's actually inside
+  //                  this folder?" without becoming a tree browser.
+  //
+  //   ─ Per-folder cap = 6.  Sized to the screenshot case (a folder
+  //                  with exactly 6 children) so it shows ALL of
+  //                  them, no awkward "… 1 more" tail.  Past 6 we
+  //                  collapse to 6 + "… N more" — same placeholder
+  //                  mechanism ConnectionsCanvas uses for sibling
+  //                  sampling, so users see the same visual
+  //                  contract twice on the page.
+  //
+  //   ─ Total cap = 14 rows.  At ROW_HEIGHT 32 that's ~448px,
+  //                  comfortably above the card's 280px minHeight
+  //                  but well short of the page becoming a wall of
+  //                  tree.  Treated as a budget (see allocation
+  //                  below) — not a hard truncation.
+  //
+  //   ─ Top-level rows are NEVER truncated.  The Data card's job
+  //                  is "what's in this project at a glance"; the
+  //                  one thing it must not do is silently hide a
+  //                  top-level entry.  If a project has 50
+  //                  top-level entries, the card grows to 50 rows
+  //                  and the page-level scroller takes over — the
+  //                  cap only governs how much we expand.
+  //
+  //   ─ Budget walks top-down.  Top-level folders earlier in the
+  //                  tree get their full 6-child preview first;
+  //                  later folders take whatever's left.  This
+  //                  mirrors how readers consume top-down — the
+  //                  first folder is what their eye lands on, so a
+  //                  rich preview there carries the most weight,
+  //                  and a thin or no preview later just leaves
+  //                  those folders as collapsed rows (still
+  //                  clickable to drill in).
+  //
+  //   ─ Grandchildren stay hidden.  Folders previewed under a top-
+  //                  level folder render as collapsed rows (children
+  //                  = []) and don't get their own count chip — the
+  //                  count would invite the eye to drill, which is
+  //                  the explorer's job.  Top-level folders DO keep
+  //                  their count chip ("New Folder · 6") because
+  //                  it's the GitHub-style "this folder contains 6
+  //                  things" cue users expect.
+  const dataCardView = useMemo<{
+    tree: TreeNode[];
+    variants: Map<string, RowVariant>;
+  }>(() => {
+    const CHILDREN_PER_FOLDER = 6;
+    const SOFT_TOTAL_CAP = 14;
+    const variants = new Map<string, RowVariant>();
+
+    // Seed every top-level entry as a collapsed row first, so the
+    // baseline "what's in this project" surface is always present
+    // regardless of how the expansion budget shakes out.
+    const result = tree.map<TreeNode>((top) => ({
+      entry: top.entry,
+      children: [],
+    }));
+    let used = result.length;
+
+    // Walk top-level folders in order, expanding each within
+    // whatever budget remains.  Once budget is exhausted, all
+    // subsequent folders stay collapsed.
+    for (let i = 0; i < tree.length; i++) {
+      const top = tree[i];
+      if (top.entry.type !== 'folder' || top.children.length === 0) {
+        continue;
+      }
+
+      const budget = SOFT_TOTAL_CAP - used;
+      if (budget <= 0) break;
+
+      // Natural plan, ignoring the budget: show min(K, cap)
+      // children, plus a "… N more" placeholder if K > cap.
+      const naturalShown = Math.min(top.children.length, CHILDREN_PER_FOLDER);
+      const naturalPlaceholder = top.children.length > naturalShown;
+      const naturalRows = naturalShown + (naturalPlaceholder ? 1 : 0);
+
+      let numChildren: number;
+      let hasPlaceholder: boolean;
+
+      if (naturalRows <= budget) {
+        numChildren = naturalShown;
+        hasPlaceholder = naturalPlaceholder;
+      } else if (budget >= 2) {
+        // Budget too tight for the natural plan but at least 2 rows
+        // available — reserve 1 for the placeholder so the user
+        // still sees "this folder has more, click to drill in".
+        numChildren = budget - 1;
+        hasPlaceholder = top.children.length - numChildren > 0;
+      } else {
+        // Budget = 1.  Prefer surfacing one real child over a lone
+        // placeholder — at least the user sees an example of what
+        // lives inside.
+        numChildren = 1;
+        hasPlaceholder = false;
+      }
+
+      const sampled = top.children.slice(0, numChildren);
+      const childNodes: TreeNode[] = sampled.map<TreeNode>((c) => ({
+        // Strip grandchild count so previewed sub-rows don't
+        // suggest "you can drill in here" — we deliberately don't
+        // let the user expand level-2 from the Data card.
+        entry: { ...c.entry, children_count: null },
+        children: [],
+      }));
+
+      if (hasPlaceholder) {
+        const remaining = top.children.length - numChildren;
+        const placeholderPath = `__more__:${top.entry.path}`;
+        variants.set(placeholderPath, 'placeholder');
+        childNodes.push({
+          entry: {
+            name: `… and ${remaining} more`,
+            path: placeholderPath,
+            type: 'file',
+            content_hash: null,
+            size_bytes: 0,
+            mime_type: null,
+            children_count: null,
+          },
+          children: [],
+        });
+      }
+
+      result[i] = { entry: top.entry, children: childNodes };
+      used += childNodes.length;
+    }
+
+    return { tree: result, variants };
+  }, [tree]);
+
+  // ── Render ───────────────────────────────────────────────────────
+
   if (!dashboard) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#8b949e', fontSize: 14, background: '#0e0e0e' }}>
-        Loading...
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: T.text3,
+          fontSize: 13,
+          fontFamily: T.fontSans,
+        }}
+      >
+        Loading…
       </div>
     );
   }
 
+  const hasErr = connections.some((c) => c.status === 'error');
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e', color: '#c9d1d9', fontFamily: '-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"' }}>
-      
-      {/* Header */}
-      <div style={{
-        height: 40, minHeight: 40, flexShrink: 0,
-        display: 'flex', alignItems: 'center', padding: '0 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        background: '#0e0e0e', fontSize: 13, fontWeight: 500, color: '#e4e4e7',
-      }}>
-        Home
+    // No `background` here — `(main)/layout.tsx` already paints the
+    // rounded #0e0e0e pane.  Painting again would (a) cover the corner
+    // radius, (b) drift if the layout's surface color ever changes.
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        color: T.text2,
+        fontFamily: T.fontSans,
+      }}
+    >
+      {/* Top bar — minimal label + hairline divider, matches every
+          other top-level page in /(main). */}
+      <div
+        style={{
+          height: 40,
+          minHeight: 40,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 20px',
+          borderBottom: `1px solid ${T.border}`,
+          fontSize: 12,
+          fontWeight: 500,
+          color: T.text2,
+          letterSpacing: '0.01em',
+        }}
+      >
+        <span>Home</span>
       </div>
 
-      {/* Main Content Area */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', maxWidth: 1160, margin: '0 auto', width: '100%', padding: '24px 24px' }}>
-        
-        {/* Header - Spans full width */}
-        <div style={{ marginBottom: 32, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', paddingBottom: 0 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 600, color: '#e4e4e7', margin: 0, lineHeight: 1 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            // 1200 (was 1080) gives the Data card more breathing room
+            // while keeping line lengths readable.  Matches the
+            // GitHub-style reference's overall horizontal spread.
+            maxWidth: 1200,
+            margin: '0 auto',
+            width: '100%',
+            // Title sits ~32px below the top bar (was 64px).  Reference
+            // anchors the title close to the top, not centered in
+            // a "poster" margin.
+            padding: '32px 32px 96px',
+          }}
+        >
+          {/* ============================================================
+              BAND 1 — HEADER.  Pixel-borrowed from the OLD GitHub-style
+              page so users carry over their existing mental model:
+                Row 1   : title (compact 28px, top-anchored — not a
+                          poster-sized headline)
+                Row 2   : vitals strip — status dot + Active, short
+                          commit hash, N commits, N access points, last
+                          updated relative time, all separated by `·`
+                          interpuncts (not the wide 28px column gaps the
+                          previous draft used)
+                Row 3   : full project UUID + copy button on its own
+                          line, mono + faint — visually subordinate to
+                          the title and vitals because most users will
+                          glance at it once for `cli login --project=…`
+                          and never look again
+              No green Connect button (the old version had one, but
+              project-level "Connect" is a misleading affordance: the
+              actual connect-flow always targets a specific access
+              point, never the project root).
+              ============================================================ */}
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              minWidth: 0,
+            }}
+          >
+            {/* Row 1 — title.  24px, weight 600, tight letter-spacing.
+                Trimmed from 28px because the previous size read as
+                "page poster" rather than the GitHub-style "this is
+                the project, here's its identity strip below" the
+                reference uses.  No inline ID alongside it — the ID
+                gets its own row below the vitals. */}
+            <h1
+              style={{
+                fontSize: 24,
+                fontWeight: 600,
+                letterSpacing: '-0.015em',
+                color: T.text1,
+                margin: 0,
+                lineHeight: 1.2,
+              }}
+            >
               {dashboard.project.name}
             </h1>
-            {/* Inline status text moved to Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: '#666' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: connections.some(c => c.status === 'error') ? '#ef4444' : '#22c55e', display: 'inline-block' }} />
-                {connections.some(c => c.status === 'error') ? 'Unhealthy' : 'Active'}
-              </span>
-              <span style={{ color: '#333' }}>·</span>
-              <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => router.push(`/projects/${projectId}/history`)}>
+
+            {/* Row 2 — vitals strip.  `·` interpuncts between cells
+                (not column-gap whitespace) so the strip reads as a
+                single inline sentence.  All cells share one font
+                size (13px) so the strip reads as a coherent line of
+                metadata rather than a jumble of mismatched type. */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                rowGap: 4,
+                fontSize: 13,
+                color: T.text3,
+                marginTop: 2,
+              }}
+            >
+              <span
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
                 <span
-                  style={{ color: '#888', fontFamily: 'ui-monospace,SFMono-Regular,SF Mono,Menlo,Consolas,Liberation Mono,monospace' }}
-                  title={latestCommit?.commit_id}
-                >
-                  {latestCommit ? latestCommit.commit_id.slice(0, 8) : '—'}
+                  aria-hidden
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: hasErr ? T.err : T.live,
+                    boxShadow: hasErr ? 'none' : `0 0 0 3px ${T.liveSoft}`,
+                  }}
+                />
+                <span style={{ color: T.text2 }}>
+                  {hasErr ? 'Unhealthy' : 'Active'}
                 </span>
-                <span>·</span>
-                <span>{historyData?.total || 0} commits</span>
               </span>
-              <span style={{ color: '#333' }}>·</span>
-              <span style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => router.push(`/projects/${projectId}/access`)}>
-                <span style={{ color: '#888' }}>{connections.length}</span>
-                <span>access points</span>
+
+              {/* Short commit hash — same idea as `git log --oneline`'s
+                  abbreviated SHA.  Falls back to "—" when there is
+                  no history yet so the strip's rhythm doesn't
+                  collapse to two cells. */}
+              <Sep />
+              <span
+                style={{
+                  fontFamily: T.fontMono,
+                  fontSize: 13,
+                  color: latestCommit ? T.text2 : T.text3,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+                title={latestCommit?.commit_id || 'No commits yet'}
+              >
+                {latestCommit?.commit_id?.slice(0, 8) ?? '—'}
               </span>
+
+              <Sep />
+              <button
+                onClick={() => router.push(`/projects/${projectId}/history`)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: T.fontSans,
+                  color: T.text3,
+                  fontSize: 13,
+                  display: 'inline-flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                }}
+              >
+                <span
+                  style={{
+                    color: commits.length > 0 ? T.text2 : T.text3,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 500,
+                  }}
+                >
+                  {commits.length}
+                </span>
+                <span>
+                  {commits.length === 1 ? 'commit' : 'commits'}
+                </span>
+              </button>
+
+              <Sep />
+              <button
+                onClick={() => router.push(`/projects/${projectId}/access`)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: T.fontSans,
+                  color: T.text3,
+                  fontSize: 13,
+                  display: 'inline-flex',
+                  alignItems: 'baseline',
+                  gap: 4,
+                }}
+              >
+                <span
+                  style={{
+                    color: connections.length > 0 ? T.text2 : T.text3,
+                    fontVariantNumeric: 'tabular-nums',
+                    fontWeight: 500,
+                  }}
+                >
+                  {connections.length}
+                </span>
+                <span>
+                  access {connections.length === 1 ? 'point' : 'points'}
+                </span>
+              </button>
+
               {latestCommit && (
                 <>
-                  <span style={{ color: '#333' }}>·</span>
-                  <span>{formatRelative(latestCommit.created_at)}</span>
+                  <Sep />
+                  <span>
+                    {formatRelative(latestCommit.created_at)}
+                  </span>
                 </>
               )}
             </div>
-            
-            {/* Project ID */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-              <span style={{ fontSize: 12, color: '#555', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>{projectId}</span>
+
+            {/* Row 3 — full project UUID with copy button, mono and
+                faint.  Visually demoted vs the title + vitals so it
+                doesn't compete for attention but stays glanceable
+                when a user needs the literal ID for the CLI.  12px
+                (was 11px) so it sits one notch below the vitals
+                strip without dropping into "footnote" territory. */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                marginTop: 4,
+                fontFamily: T.fontMono,
+                fontSize: 12,
+                color: T.text3,
+              }}
+            >
+              <span style={{ userSelect: 'all' }}>{projectId}</span>
               <button
                 onClick={() => navigator.clipboard.writeText(projectId)}
-                style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: T.text3,
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  transition: `color 200ms ${T.ease}`,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = T.text1;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = T.text3;
+                }}
                 title="Copy project ID"
               >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z" />
+                  <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z" />
+                </svg>
               </button>
             </div>
           </div>
 
-          {/* Connect dropdown (Unchanged, just moved up) */}
-          <div style={{ position: 'relative', flexShrink: 0 }} ref={connectDropdownRef}>
-            <button
-              onClick={() => setConnectOpen(!connectOpen)}
+          {/* ============================================================
+              EMPTY-STATE BRANCH.  Trigger is "no DATA" — we deliberately
+              do NOT include `connections.length === 0` in the test.
+              Reason: the CLI flow creates an access point BEFORE any
+              files arrive (sometimes minutes-to-hours before, while the
+              user installs `mutai`, runs `mut clone`, edits files, and
+              eventually `mut push`es).  The previous condition collapsed
+              the panel the instant the AP was minted, ripping the very
+              `mut clone …` command out from under the user — onboarding
+              failing at the moment of perceived success.
+
+              "Project is empty in any user-meaningful sense" = nodes
+              total is 0.  An AP without data behind it is setup-in-
+              progress, not completion.  The panel sticks around until
+              actual content lands (drop → upload, or `mut push` → sync),
+              then retires automatically via SWR revalidation.
+
+              Connections are passed in so the CLI card inside the panel
+              can derive its `access_key` from server truth (the
+              existing root filesystem AP, if any) instead of relying on
+              local React state that vanishes on refresh.
+              ============================================================ */}
+
+          {(dashboard?.nodes?.total ?? 0) === 0 ? (
+            <GetStartedPanel
+              projectId={projectId}
+              connections={connections}
+              onChanged={() => {
+                void mutateDashboard();
+                void mutateTree();
+              }}
+            />
+          ) : (
+            <>
+          {/* ============================================================
+              BAND 2 — TWO-COLUMN.
+                LEFT  (flex 1) — Data card stacked over the
+                                ConnectionsCanvas (xyflow wiring
+                                board).  Both sit in the same wide
+                                column because they're complementary
+                                views of the same data: "what files"
+                                + "which APs are wired to them".
+                RIGHT (280px) — History + Access Points stacked.
+                                Fixed-width so the rail reads at a
+                                consistent width regardless of
+                                viewport.
+              32px gap between columns; 16px gap between stacked
+              cards within each column.
+              ============================================================ */}
+
+          <div
+            style={{
+              display: 'flex',
+              // 32px gap (was 24) gives the right rail a clear breathing
+              // room from the Data card — at 24px the two sections
+              // visually fused into one wide block.
+              gap: 32,
+              alignItems: 'flex-start',
+              marginTop: 48,
+            }}
+          >
+            {/* LEFT COLUMN — Data card stacked over the
+                ConnectionsCanvas.  Both share this column because
+                they're complementary views of the same thing: the
+                Data card answers "what files exist?", the canvas
+                answers "and which APs are wired to them?".  16px
+                gap matches the right rail's stack rhythm. */}
+            <div
               style={{
-                background: '#22c55e', border: 'none', borderRadius: 6,
-                padding: '8px 16px', cursor: 'pointer', color: '#fff',
-                fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
+                flex: 1,
+                minWidth: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                // Wider vertical gap between the Data card and the
+                // Connections canvas below.  16 read as "stacked
+                // siblings" — same band, two rows; 24 reads as
+                // "primary card, then supplementary band" which is
+                // the actual hierarchy: Data IS the page, Connections
+                // is a relational annotation hanging off the bottom.
+                gap: 24,
               }}
             >
-              Connect <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="m4.427 7.427 3.396 3.396a.25.25 0 0 0 .354 0l3.396-3.396A.25.25 0 0 0 11.396 7H4.604a.25.25 0 0 0-.177.427Z"></path></svg>
-            </button>
-            {connectOpen && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 4, width: 400, background: '#161618', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 13, fontWeight: 600, color: '#c9d1d9' }}>
-                  Connect to this ContextBase
-                </div>
-                {/* Access points first */}
-                <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ padding: '4px 16px 6px', fontSize: 11, color: '#52525b', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' as const }}>Access Points</div>
-                  {connections.length > 0 ? connections.map(conn => (
-                    <div
-                      key={conn.id}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
+              {/* Data card — inlined here because (a) it composes a
+                  fairly local use of TreeRows + accessByPath + the
+                  existing project store, and (b) pulling it into
+                  its own file would be more indirection than the
+                  ~50 lines justify. */}
+            <div
+              style={{
+                background: T.sectionBg,
+                border: `2px solid ${T.sectionBorder}`,
+                borderRadius: T.sectionRadius,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  background: T.sectionHeaderBg,
+                  borderBottom: `1px solid ${T.sectionDivider}`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {/* Title-case label, no letter-spacing.  The previous
+                      `DATA` (uppercase 11px letter-spaced) read as a
+                      "tech enterprise dashboard" header; the GitHub
+                      reference uses normal-case 13px which feels like
+                      a sentence-fragment tag instead. */}
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: T.text2,
+                    }}
+                  >
+                    Data
+                  </span>
+                  {dashboard?.nodes?.total != null && (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 20,
+                        height: 18,
+                        padding: '0 6px',
+                        borderRadius: 9,
+                        background: 'rgba(255,255,255,0.08)',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        // Dimmed from text1 → text2 so the chip number
+                        // doesn't glare brighter than the label next
+                        // to it (chip read like a beacon in the
+                        // previous draft).
+                        color: dashboard.nodes.total > 0 ? T.text2 : T.text3,
+                        fontVariantNumeric: 'tabular-nums',
+                        lineHeight: 1,
+                      }}
                     >
-                      <ProviderAvatar provider={conn.provider} size={22} icon={(conn as any).icon} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: '#c9d1d9', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
-                        </div>
-                      </div>
-                      {conn.access_key && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(conn.access_key!); }}
-                          style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 4, padding: '2px 6px', color: '#52525b', fontSize: 11, cursor: 'pointer', flexShrink: 0 }}
-                          title="Copy access key"
-                        >
-                          Copy key
-                        </button>
-                      )}
-                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: conn.status === 'error' ? '#ef4444' : '#22c55e', flexShrink: 0 }} />
-                    </div>
-                  )) : (
-                    <div style={{ padding: '8px 16px', fontSize: 13, color: '#3f3f46' }}>No access points yet</div>
+                      {dashboard.nodes.total}
+                    </span>
                   )}
                 </div>
-                {/* CLI + MUT Protocol */}
-                <div style={{ padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {connectMethods.map(m => (
-                    <div
-                      key={m.label}
-                      style={{ padding: '8px 16px', cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      onClick={() => navigator.clipboard.writeText(m.cmd)}
-                    >
-                      <div style={{ fontSize: 12, color: '#8b949e', marginBottom: 4 }}>{m.label}</div>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                        background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                        borderRadius: 4, padding: '6px 10px',
-                      }}>
-                        <code style={{ fontSize: 12, color: '#c9d1d9', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {m.cmd}
-                        </code>
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="#52525b" style={{ flexShrink: 0 }}><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25v-7.5Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25v-7.5Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25h-7.5Z"></path></svg>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div
-                  style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: '#58a6ff', fontSize: 13, fontWeight: 500 }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  onClick={() => { setConnectOpen(false); router.push(`/projects/${projectId}/access`); }}
+                <button
+                  onClick={() => router.push(`/projects/${projectId}/data`)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    fontSize: 12,
+                    color: T.text2,
+                    fontFamily: T.fontSans,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    transition: `color 200ms ${T.ease}`,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = T.text1;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = T.text2;
+                  }}
                 >
-                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
-                  Create new access point
-                </div>
+                  Browse
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                    <path
+                      d="M4 2l4 4-4 4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
               </div>
-            )}
-          </div>
-        </div>
 
-        {/* Two-column Layout Below Header */}
-        <div style={{ display: 'flex', gap: 40, width: '100%' }}>
-          
-          {/* Left Column: Files */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {/* File Box */}
-            <div className="mb-24 w-full bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl relative overflow-hidden">
-              {/* Subtle top glare line */}
-              <div className="absolute top-0 left-0 right-0 h-px bg-[linear-gradient(to_right,transparent_0%,rgba(255,255,255,0.05)_10%,rgba(255,255,255,0.05)_90%,transparent_100%)] pointer-events-none z-20" />
-              
-              {/* Data Header */}
-              <div className="h-[40px] min-h-[40px] shrink-0 flex items-center justify-between px-4 border-b border-white/[0.06] bg-[#0e0e0e] relative z-10">
-                <div className="text-[13px] font-medium text-[#71717a] m-0 flex items-center gap-2">Data</div>
-                
-                {latestCommit && (
-                  <div 
-                    className="flex items-center gap-3 min-w-0 cursor-pointer group"
-                    onClick={() => router.push(`/projects/${projectId}/history`)}
+              {/* `minHeight` so the Data card doesn't visually
+                  collapse when the project only has 1-2 top-level
+                  entries — even with the 1-level expansion above,
+                  some projects (all-files-no-folders) won't pick
+                  up extra rows from auto-expand and would still
+                  look thin without this floor.  320px ≈ 10 rows
+                  at ROW_HEIGHT 32 — enough that the card always
+                  reads as the page's primary content well, and
+                  in turn lets the Connections canvas below grow
+                  to a comparable height without breaking the rule
+                  that Connections must stay shorter than Data
+                  (see ConnectionsCanvas's height comment). */}
+              <div style={{ padding: '6px 0', minHeight: 320 }}>
+                {dataCardView.tree.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '64px 0',
+                      textAlign: 'center',
+                      color: T.text3,
+                      fontSize: 13,
+                    }}
                   >
-                    <span className="text-[12px] text-[#71717a] truncate max-w-[400px] text-right group-hover:text-[#a1a1aa] transition-colors">
-                      {latestCommit.message || latestCommit.commit_id.slice(0, 8)}
-                    </span>
-                    <div className="w-px h-3 bg-[#333] mx-1" />
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-4 h-4 rounded-full bg-[#222] border border-[#333] flex items-center justify-center text-[9px] font-bold text-[#888] flex-shrink-0">
-                        {latestCommit.who?.[0]?.toUpperCase() || 'U'}
-                      </div>
-                      <span className="text-[12px] font-medium text-[#a1a1aa] whitespace-nowrap">{latestCommit.who || 'User'}</span>
-                    </div>
-                    <div className="w-px h-3 bg-[#333] mx-1" />
-                    <div className="text-[12px] text-[#71717a] whitespace-nowrap flex-shrink-0 font-mono group-hover:text-[#a1a1aa] transition-colors">
-                      {formatRelative(latestCommit.created_at)}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              {/* File Tree */}
-              <div className="py-1">
-                {tree.length === 0 ? (
-                  <div style={{ padding: '48px 32px', textAlign: 'center', color: '#555', fontSize: 14 }}>
                     Empty project
                   </div>
                 ) : (
-                  <TreeRows nodes={tree} depth={0} projectId={projectId} router={router} accessByPath={accessByPath} />
+                  // GitHub-style "what's in this repo at a glance" —
+                  // every top-level entry shown, plus a 6-child
+                  // preview under each top-level folder (with
+                  // "… N more" for the rest).  Drilling deeper is
+                  // one click on any row, which routes into the
+                  // data explorer's recursive view.
+                  //
+                  // No cross-section hover sync — `highlightedPaths`
+                  // is null so TreeRows renders only its quiet rest
+                  // state (rowAttached tint where APs touch, no cyan
+                  // band).  ConnectionsCanvas below carries the
+                  // "which AP touches what" job, freeing the tree
+                  // to stay a quiet file listing.
+                  <TreeRows
+                    nodes={dataCardView.tree}
+                    depth={0}
+                    projectId={projectId}
+                    router={router}
+                    accessByPath={accessByPath}
+                    highlightedPaths={null}
+                    highlightAnchorDepth={-1}
+                    rowVariants={dataCardView.variants}
+                  />
                 )}
               </div>
             </div>
 
-
-        </div>
-
-        {/* Right Sidebar */}
-        <div style={{ width: 296, flexShrink: 0 }}>
-          
-          {/* History Module */}
-          <div className="bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl mb-6 overflow-hidden">
-            <div className="h-[40px] min-h-[40px] shrink-0 flex items-center justify-between px-4 border-b border-white/[0.06] bg-[#0e0e0e] relative z-10">
-              <div className="text-[13px] font-medium text-[#71717a] m-0 flex items-center gap-2">
-                History <span className="bg-[#1c1c1c] text-[#71717a] rounded px-1.5 py-0.5 text-[10px] font-bold border border-[#333] leading-none">{historyData?.total || 0}</span>
-              </div>
-              <span onClick={() => router.push(`/projects/${projectId}/history`)} className="text-[12px] text-[#71717a] cursor-pointer font-medium hover:text-[#a1a1aa] transition-colors">View all</span>
-            </div>
-            <div className="p-6">
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {[...commits].reverse().slice(0, 5).map((commit, i) => {
-                const isLast = i === Math.min(commits.length, 5) - 1;
-                const isHead = i === 0;
-                return (
-                  <div key={commit.commit_id} style={{ display: 'flex', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '0 -8px', borderRadius: 8, position: 'relative' }} onClick={() => router.push(`/projects/${projectId}/history`)} className="group hover:bg-[#1a1a1a] transition-colors">
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 16, flexShrink: 0, marginTop: 4, position: 'relative', zIndex: 1 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: isHead ? '#22c55e' : '#1c1c1c', border: `2px solid ${isHead ? '#22c55e' : '#333'}`, zIndex: 2, flexShrink: 0 }} className="group-hover:border-[#555] transition-colors" />
-                      {!isLast && (
-                        <div style={{ position: 'absolute', top: 8, bottom: -20, width: 2, background: '#1c1c1c', zIndex: 1 }} className="group-hover:bg-[#333] transition-colors" />
-                      )}
-                    </div>
-                    <div style={{ flex: 1, paddingBottom: 6, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, color: isHead ? '#ccc' : '#888', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="group-hover:text-[#eee] transition-colors font-medium">
-                        {commit.message || commit.commit_id.slice(0, 8)}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#555', marginTop: 2 }} className="group-hover:text-[#888] transition-colors">{formatRelative(commit.created_at)}</div>
-                    </div>
-                  </div>
-                );
-              })}
-              {commits.length === 0 && (
-                <div style={{ fontSize: 13, color: '#555' }}>No commits yet</div>
-              )}
+              {/* Connections canvas — xyflow-powered wiring board
+                  that re-renders the same file tree INSIDE the
+                  canvas as a single big node, with AP cards on the
+                  right wired to the SPECIFIC tree row each one is
+                  scoped to.  Inherits the OLD TopologyCanvas's
+                  spine (tree-as-block + APs-as-leaves + per-row
+                  edges) and adds pan / zoom / dotted background
+                  via xyflow.  Same width as the Data card above
+                  (both inside this flex-column wrapper) so it
+                  reads as a SUPPLEMENT — "the same data, viewed
+                  structurally" — not a separate band. */}
+              <ConnectionsCanvas
+                connections={connections}
+                tree={tree}
+                accessByPath={accessByPath}
+                projectId={projectId}
+                router={router}
+                nodesTotal={dashboard?.nodes?.total ?? null}
+              />
             </div>
 
-            {/* Commit Activity Chart */}
-            {commitBuckets.length > 1 && (
-              <div className="mt-12">
-                <ActivityChart buckets={commitBuckets} />
-              </div>
-            )}
-            </div>
-          </div>
-
-          {/* Access Points Module */}
-          <div className="bg-[#0a0a0a] border-2 border-[#2a2a2a] rounded-xl overflow-hidden">
-            <div className="h-[40px] min-h-[40px] shrink-0 flex items-center justify-between px-4 border-b border-white/[0.06] bg-[#0e0e0e] relative z-10">
-              <div className="text-[13px] font-medium text-[#71717a] m-0 flex items-center gap-2">
-                Access Points <span className="bg-[#1c1c1c] text-[#71717a] rounded px-1.5 py-0.5 text-[10px] font-bold border border-[#333] leading-none">{connections.length}</span>
-              </div>
-              <span onClick={() => router.push(`/projects/${projectId}/access`)} className="text-[12px] text-[#71717a] cursor-pointer font-medium hover:text-[#a1a1aa] transition-colors">Manage</span>
-            </div>
-            
-            <div className="p-5">
-            {connections.length === 0 ? (
-              <div style={{ fontSize: 13, color: '#555' }}>No access points configured.</div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {connections.map(conn => {
-                  const statusColor = conn.status === 'error' ? '#ef4444' : conn.status === 'paused' ? '#eab308' : conn.status === 'syncing' ? '#3b82f6' : '#22c55e';
-                  return (
-                    <div key={conn.id} onClick={() => router.push(`/projects/${projectId}/access`)} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '6px 8px', margin: '-6px -8px', borderRadius: 8 }} className="hover:bg-[#1a1a1a] transition-colors group">
-                      <div className="opacity-80 group-hover:opacity-100 transition-opacity">
-                        <ProviderAvatar provider={conn.provider} size={28} icon={(conn as any).icon} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, color: '#888', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} className="group-hover:text-[#ccc] transition-colors">
-                          {conn.name || PROVIDER_LABELS[conn.provider] || conn.provider}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#555' }} className="group-hover:text-[#666] transition-colors">
-                          {PROVIDER_LABELS[conn.provider] || conn.provider}
-                        </div>
-                      </div>
-                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: statusColor, flexShrink: 0, boxShadow: `0 0 8px ${statusColor}40` }} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            {/* RIGHT — stacked rail.  280px so HistoryCard's vertical
+                timeline + commit messages have enough room to read,
+                while still leaving the Data card the dominant share
+                of width (~2:1 ratio from the GitHub-style reference).
+                Was 320 (too wide → Data crowded), then 260 (too
+                narrow → History card crushed); 280 splits the
+                difference. */}
+            <div
+              style={{
+                width: 280,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              <HistoryCard
+                projectId={projectId}
+                router={router}
+                commits={commits}
+                buckets={commitBuckets}
+              />
+              <AccessPointsCard
+                projectId={projectId}
+                router={router}
+                connections={connections}
+              />
             </div>
           </div>
-
+            </>
+          )}
         </div>
-      </div>
-      </div>
       </div>
     </div>
   );

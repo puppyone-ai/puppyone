@@ -18,7 +18,6 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const origin = getRequestOrigin(request);
   const code = requestUrl.searchParams.get('code');
-  const next = requestUrl.searchParams.get('next') ?? '/home';
   const apiUrl = getServerApiBaseUrl();
 
   if (!code) {
@@ -52,18 +51,32 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=auth_callback_failed`);
   }
 
+  // First-time sign-in seeds a "Get Started" demo project; if the backend
+  // returns its id we land the user inside it instead of an empty dashboard.
+  let demoProjectId: string | null = null;
   try {
     const token = data.session.access_token;
-
-    // Idempotent initialization: ensures profile + org + membership exist
-    await fetch(`${apiUrl}/api/v1/auth/initialize`, {
+    const initRes = await fetch(`${apiUrl}/api/v1/auth/initialize`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     });
+    if (initRes.ok) {
+      const initJson = await initRes.json();
+      demoProjectId = initJson?.data?.demo_project_id ?? null;
+    }
   } catch (e) {
     console.error('Auth initialization failed:', e);
   }
 
-  // Always redirect to /home — template-based onboarding handles first-time UX
-  return NextResponse.redirect(`${origin}${next}`);
+  // If the caller explicitly passed ?next=, honour it. Otherwise prefer
+  // the demo project so first-time users see populated content; fall back
+  // to /home for returning users (or if seeding failed).
+  const explicitNext = requestUrl.searchParams.get('next');
+  const target = explicitNext
+    ? explicitNext
+    : demoProjectId
+      ? `/projects/${demoProjectId}`
+      : '/home';
+
+  return NextResponse.redirect(`${origin}${target}`);
 }
