@@ -146,12 +146,26 @@ ALTER TABLE IF EXISTS "public"."connection_tool" RENAME TO "connection_tools";
 -- PHASE 3: RENAME COLUMNS (user_id → created_by where needed)
 -- ============================================================
 
-ALTER TABLE "public"."context_publish" RENAME COLUMN "user_id" TO "created_by";
-ALTER TABLE "public"."db_connections" RENAME COLUMN "user_id" TO "created_by";
-ALTER TABLE "public"."mcp" RENAME COLUMN "user_id" TO "created_by";
-ALTER TABLE "public"."tools" RENAME COLUMN "user_id" TO "created_by";
-ALTER TABLE "public"."etl_rules" RENAME COLUMN "user_id" TO "created_by";
-ALTER TABLE "public"."projects" RENAME COLUMN "user_id" TO "created_by";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='context_publish' AND column_name='user_id') THEN
+    ALTER TABLE "public"."context_publish" RENAME COLUMN "user_id" TO "created_by";
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='db_connections' AND column_name='user_id') THEN
+    ALTER TABLE "public"."db_connections" RENAME COLUMN "user_id" TO "created_by";
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='mcp' AND column_name='user_id') THEN
+    ALTER TABLE "public"."mcp" RENAME COLUMN "user_id" TO "created_by";
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='tools' AND column_name='user_id') THEN
+    ALTER TABLE "public"."tools" RENAME COLUMN "user_id" TO "created_by";
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='etl_rules' AND column_name='user_id') THEN
+    ALTER TABLE "public"."etl_rules" RENAME COLUMN "user_id" TO "created_by";
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='projects' AND column_name='user_id') THEN
+    ALTER TABLE "public"."projects" RENAME COLUMN "user_id" TO "created_by";
+  END IF;
+END $$;
 
 
 -- ============================================================

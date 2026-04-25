@@ -1,0 +1,2 @@
+-- Empty migration: applied directly on remote to reconcile legacy drift.
+-- No schema changes; version record only.
