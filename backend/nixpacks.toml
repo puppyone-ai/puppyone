@@ -49,4 +49,6 @@ cmds = [
     ". /opt/venv/bin/activate && uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.lock.txt",
     ". /opt/venv/bin/activate && pip install -r requirements.lock.txt",
     ". /opt/venv/bin/activate && pip install -e . --no-deps",
+    # Override mut with latest branch build (remove after mutai 0.1.8 is on PyPI)
+    ". /opt/venv/bin/activate && pip install --no-deps git+https://github.com/puppyone-ai/mut.git@fix/mut-scope-design-bug",
 ]
