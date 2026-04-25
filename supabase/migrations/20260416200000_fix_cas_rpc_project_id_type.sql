@@ -21,9 +21,11 @@
 -- Drop the UUID overloads first. PostgreSQL treats (uuid) and (text)
 -- as distinct signatures, so CREATE OR REPLACE alone would leave the
 -- old overloads behind and PostgREST could resolve to the wrong one.
-DROP FUNCTION IF EXISTS cas_update_scope_state(uuid, text, text, text);
-DROP FUNCTION IF EXISTS cas_update_root_hash(uuid, text, text);
-DROP FUNCTION IF EXISTS atomic_next_version(uuid);
+DO $do$ BEGIN
+  DROP FUNCTION IF EXISTS cas_update_scope_state(uuid, text, text, text);
+  DROP FUNCTION IF EXISTS cas_update_root_hash(uuid, text, text);
+  DROP FUNCTION IF EXISTS atomic_next_version(uuid);
+END $do$;
 
 CREATE OR REPLACE FUNCTION cas_update_scope_state(
     p_project_id TEXT,
@@ -64,7 +66,6 @@ BEGIN
 END;
 $$;
 
-
 CREATE OR REPLACE FUNCTION cas_update_root_hash(
     p_project_id TEXT,
     p_old_hash TEXT,
@@ -85,7 +86,6 @@ BEGIN
     RETURN rows_affected > 0;
 END;
 $$;
-
 
 CREATE OR REPLACE FUNCTION atomic_next_version(
     p_project_id TEXT
