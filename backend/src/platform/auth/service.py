@@ -93,24 +93,25 @@ class AuthService:
         """
         claims_dict = None
 
+        # Method 1: Local JWT_SECRET verification (fast, no network call).
+        # Supabase JWTs are standard HS256 tokens — verify locally first.
         try:
-            # Method 1: Verify token via Supabase auth API (JWKS)
-            response = self.supabase.auth.get_claims(jwt=token)
-
-            if response:
-                claims_dict = response.get("claims")
-
-        except Exception as e:
-            error_msg = str(e)
-            if "JWKS is empty" in error_msg or "JWKS" in error_msg:
-                log_info(f"Supabase JWKS unavailable ({error_msg}), falling back to local JWT_SECRET verification")
-            else:
-                log_error(f"Unexpected error during JWKS token verification: {e}")
-
-        # Method 2: Fall back to local JWT_SECRET verification when JWKS fails or is empty
-        if not claims_dict:
-            log_debug("JWKS verification returned no claims, trying local JWT_SECRET")
             claims_dict = self._verify_token_local(token)
+        except AuthException:
+            pass  # Fall through to JWKS if local fails (key rotation etc.)
+
+        # Method 2: Supabase JWKS verification — only if local failed.
+        if not claims_dict:
+            try:
+                response = self.supabase.auth.get_claims(jwt=token)
+                if response:
+                    claims_dict = response.get("claims")
+            except Exception as e:
+                error_msg = str(e)
+                if "JWKS is empty" in error_msg or "JWKS" in error_msg:
+                    log_info(f"Supabase JWKS unavailable ({error_msg})")
+                else:
+                    log_error(f"JWKS token verification error: {e}")
 
         # Parse claims
         try:

@@ -72,12 +72,14 @@ def _convert_to_project_out(
     response_description="Returns all projects of the organization",
     status_code=status.HTTP_200_OK,
 )
-def list_projects(
+async def list_projects(
     org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
     ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    import asyncio
+
     oids = resolve_org_ids(org_id, current_user.user_id)
 
     all_projects = []
@@ -99,12 +101,19 @@ def list_projects(
             pid = row["project_id"]
             conn_counts[pid] = conn_counts.get(pid, 0) + 1
 
-    result = []
-    for p in all_projects:
-        entries = ops.list_dir(str(p.id), "")
-        result.append(_convert_to_project_out(
-            p, entries, access_point_count=conn_counts.get(str(p.id), 0)
-        ))
+    # Fetch root directory entries for all projects in parallel
+    async def _get_entries(pid: str):
+        try:
+            return await asyncio.to_thread(ops.list_dir, pid, "")
+        except Exception:
+            return []
+
+    entries_list = await asyncio.gather(*[_get_entries(str(p.id)) for p in all_projects])
+
+    result = [
+        _convert_to_project_out(p, entries, access_point_count=conn_counts.get(str(p.id), 0))
+        for p, entries in zip(all_projects, entries_list)
+    ]
     return ApiResponse.success(data=result, message="Project list retrieved successfully")
 
 
