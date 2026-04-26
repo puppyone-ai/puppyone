@@ -271,6 +271,17 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         
         setSavedAgents(loadedAgents);
         console.log('Loaded agents from database:', loadedAgents.length, 'for project:', projectId);
+        // Auto-complete onboarding step when agents exist
+        if (loadedAgents.length > 0 && typeof window !== 'undefined') {
+          try {
+            const KEY = 'puppyone_onboarding_v1';
+            const state = JSON.parse(localStorage.getItem(KEY) || '{"hasSeenWelcome":true,"completedSteps":[],"dismissedChecklist":false}');
+            if (!state.completedSteps.includes('agent')) {
+              state.completedSteps.push('agent');
+              localStorage.setItem(KEY, JSON.stringify(state));
+            }
+          } catch {}
+        }
       } catch (error) {
         console.error('Failed to load agents:', error);
       }
@@ -584,9 +595,9 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
       }
       setDraftResources([]);
       setEditingAgentId(null);
-    } catch (error) {
-      console.error('Failed to create sync endpoint:', error);
-      alert('Failed to create sync endpoint. Please try again.');
+    } catch (error: any) {
+      // Rethrow so the caller (SyncConfigPanel) can show inline UI
+      throw error;
     }
   }, [projectId, draftResources]);
 

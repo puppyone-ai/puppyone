@@ -2,6 +2,7 @@
 
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import UserMenuPanel from '../UserMenuPanel';
 import { type NodeInfo } from '../../lib/contentTreeApi';
 import { ProjectSwitcher, type ProjectOption } from './ProjectSwitcher';
@@ -30,12 +31,15 @@ export type SidebarLayoutProps = {
   activeView?: string;
   navItems: NavItem[];
   onNavigate: (viewId: string) => void;
+  onHoverNavItem?: (viewId: string) => void; // prefetch on hover
+  onHoverProject?: (projectId: string) => void; // prefetch on hover
   onBack?: () => void; // Only for project context
 
   // User Info
   userInitial: string;
   userAvatarUrl?: string;
   environmentLabel?: string;
+  onOpenGuide?: () => void; // Open getting-started guide
 
   // Layout State
   isCollapsed?: boolean;
@@ -58,6 +62,8 @@ export function SidebarLayout({
   activeView,
   navItems,
   onNavigate,
+  onHoverNavItem,
+  onHoverProject,
   onBack,
   userInitial,
   userAvatarUrl,
@@ -66,7 +72,9 @@ export function SidebarLayout({
   onCollapsedChange,
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
+  onOpenGuide,
 }: SidebarLayoutProps) {
+  const t = useTranslations('sidebar');
   const resolvedEnvLabel = environmentLabel ?? getEnvironmentLabel();
 
   // 内部 collapsed 状态（非受控模式时使用）
@@ -171,8 +179,8 @@ export function SidebarLayout({
             type='button'
             className='group relative flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
             onClick={() => handleCollapsedChange(false)}
-            title='Expand sidebar'
-            aria-label='Expand sidebar'
+            title={t('expand')}
+            aria-label={t('expand')}
           >
             <img
               className='block group-hover:hidden rounded-[4px]'
@@ -212,6 +220,7 @@ export function SidebarLayout({
                 projects={projects}
                 onSelectProject={onSelectProject}
                 onGoHome={onGoHome}
+                onHoverProject={onHoverProject}
               />
             ) : (
               // Fallback: simple title display
@@ -233,8 +242,8 @@ export function SidebarLayout({
               type='button'
               className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] transition-colors duration-150 hover:bg-white/8 hover:text-[#9ca3af]'
               onClick={() => handleCollapsedChange(true)}
-              title='Collapse sidebar'
-              aria-label='Collapse sidebar'
+              title={t('collapse')}
+              aria-label={t('collapse')}
             >
               <svg
                 width='14'
@@ -264,6 +273,7 @@ export function SidebarLayout({
                   type='button'
                   className={navButtonClass(activeView === item.id)}
                   onClick={() => onNavigate(item.id)}
+                  onMouseEnter={() => onHoverNavItem?.(item.id)}
                 >
                   <span className={navIconClass(activeView === item.id)}>
                     {item.icon}
@@ -295,6 +305,7 @@ export function SidebarLayout({
                   type='button'
                   className={collapsedBtnClass(activeView === item.id)}
                   onClick={() => onNavigate(item.id)}
+                  onMouseEnter={() => onHoverNavItem?.(item.id)}
                   title={item.label}
                   aria-label={item.label}
                 >
@@ -327,12 +338,29 @@ export function SidebarLayout({
           </span>
         )}
 
+        {/* Guide button */}
+        {onOpenGuide && !effectiveCollapsed && (
+          <button
+            type='button'
+            onClick={onOpenGuide}
+            title={t('guide')}
+            aria-label={t('guide')}
+            className='mr-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[#555] transition-colors hover:bg-white/5 hover:text-[#a1a1aa]'
+          >
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
+              <circle cx='12' cy='12' r='10' />
+              <path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' />
+              <line x1='12' y1='17' x2='12.01' y2='17' />
+            </svg>
+          </button>
+        )}
+
         <button
           type='button'
           className='flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[12px] font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
           onClick={() => setUserMenuOpen(true)}
-          title='Account settings'
-          aria-label='Account settings'
+          title={t('accountSettings')}
+          aria-label={t('accountSettings')}
         >
           {userAvatarUrl ? (
             <img

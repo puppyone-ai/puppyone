@@ -243,6 +243,21 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
 
   const connections = useMemo(() => syncData?.syncs || [], [syncData]);
   const allGroups = useMemo(() => groupConnections(connections), [connections]);
+
+  // Auto-complete onboarding steps based on access point data
+  useEffect(() => {
+    if (!connections.length) return;
+    try {
+      const KEY = 'puppyone_onboarding_v1';
+      const state = JSON.parse(localStorage.getItem(KEY) || '{"hasSeenWelcome":true,"completedSteps":[],"dismissedChecklist":false}');
+      let changed = false;
+      if (!state.completedSteps.includes('access_point')) { state.completedSteps.push('access_point'); changed = true; }
+      if (!state.completedSteps.includes('local_sync') && connections.some((c: SyncStatusItem) => c.provider === 'filesystem')) {
+        state.completedSteps.push('local_sync'); changed = true;
+      }
+      if (changed) localStorage.setItem(KEY, JSON.stringify(state));
+    } catch {}
+  }, [connections]);
   const filteredConnections = useMemo(() => {
     if (!activeFilter) return connections;
     return connections.filter(c => {
@@ -413,10 +428,32 @@ function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
 }) {
   const [syncing, setSyncing] = useState(false);
   const [pausing, setPausing] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [savingName, setSavingName] = useState(false);
   const { specs } = useConnectorSpecs();
 
   const label = getProviderDisplayLabel(c.provider, specs) || PROVIDER_LABELS[c.provider] || c.provider;
   const name = c.name || c.node_name || label;
+
+  const startRename = () => { setNameInput(name); setEditingName(true); };
+  const cancelRename = () => setEditingName(false);
+  const saveRename = async () => {
+    const trimmed = nameInput.trim();
+    if (!trimmed || trimmed === name) { setEditingName(false); return; }
+    setSavingName(true);
+    try {
+      await fetch(`/api/v1/access/${c.id}/rename`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      onRefresh();
+      setEditingName(false);
+    } catch { /* ignore */ } finally {
+      setSavingName(false);
+    }
+  };
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
@@ -462,7 +499,36 @@ function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
               <ProviderIcon provider={c.provider} size={16} />
             </div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: '#e4e4e7', lineHeight: 1.2 }}>{name}</div>
+              {editingName ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input
+                    autoFocus
+                    value={nameInput}
+                    onChange={e => setNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') cancelRename(); }}
+                    style={{
+                      fontSize: 14, fontWeight: 600, color: '#e4e4e7', background: '#1a1a1a',
+                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '2px 8px',
+                      outline: 'none', width: 200,
+                    }}
+                  />
+                  <button onClick={saveRename} disabled={savingName} style={{ fontSize: 11, color: '#4ade80', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+                    {savingName ? '…' : 'Save'}
+                  </button>
+                  <button onClick={cancelRename} style={{ fontSize: 11, color: '#71717a', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Cancel</button>
+                </div>
+              ) : (
+                <div
+                  style={{ fontSize: 15, fontWeight: 600, color: '#e4e4e7', lineHeight: 1.2, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
+                  title="Click to rename"
+                  onClick={startRename}
+                >
+                  {name}
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#52525b" strokeWidth="1.5" style={{ opacity: 0.6 }}>
+                    <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z"/>
+                  </svg>
+                </div>
+              )}
               <div style={{ fontSize: 12, color: '#52525b', marginTop: 2 }}>{label}</div>
             </div>
           </div>

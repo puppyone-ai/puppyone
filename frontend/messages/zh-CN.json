@@ -1,0 +1,194 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "save": "保存",
+    "cancel": "取消",
+    "delete": "删除",
+    "copy": "复制",
+    "copied": "已复制！",
+    "close": "关闭",
+    "edit": "编辑",
+    "justNow": "刚刚",
+    "minutesAgo": "{n} 分钟前",
+    "hoursAgo": "{n} 小时前",
+    "daysAgo": "{n} 天前",
+    "never": "从未"
+  },
+  "nav": {
+    "home": "主页",
+    "context": "数据",
+    "access": "接入",
+    "history": "历史",
+    "monitor": "监控",
+    "settings": "设置",
+    "team": "团队",
+    "billing": "账单"
+  },
+  "sidebar": {
+    "collapse": "收起侧边栏",
+    "expand": "展开侧边栏",
+    "guide": "入门指南",
+    "accountSettings": "账号设置"
+  },
+  "home": {
+    "title": "项目",
+    "subtitle": "你的工作区有 {count} 个项目",
+    "emptyDescription": "PuppyOne 是你的 AI 多智能体协作文件底座，点击下方创建第一个项目。",
+    "newProject": "新建项目",
+    "emptyProject": "空项目",
+    "copyId": "复制项目 ID"
+  },
+  "onboarding": {
+    "guide": "入门指南",
+    "dismiss": "已经熟悉了，不再显示",
+    "collapseBtn": "收起",
+    "replayIntro": "重新查看介绍",
+    "steps": {
+      "project": {
+        "label": "创建第一个项目",
+        "description": "项目是数据的容器。点击右上角「+ 新建项目」开始。",
+        "action": "去创建项目"
+      },
+      "file": {
+        "label": "上传第一个文件",
+        "description": "进入项目的 Context 页面，拖拽文件或使用 mut push 同步本地文件夹。",
+        "action": "去上传文件"
+      },
+      "access_point": {
+        "label": "创建 Access Point",
+        "description": "Access Point 是对外暴露数据的接口，让 Claude、Cursor 等工具能访问你的数据。",
+        "action": "去创建 Access Point"
+      },
+      "local_sync": {
+        "label": "用 mut CLI 同步本地文件夹",
+        "description": "安装 mut CLI 后运行 mut push，实现本地与 PuppyOne 的双向实时同步。",
+        "action": "查看接入方式"
+      },
+      "agent": {
+        "label": "创建 AI Agent",
+        "description": "在 Context 页面的右侧栏点击「+ 新建 Agent」，绑定数据资源后即可使用。",
+        "action": "去创建 Agent"
+      },
+      "chat": {
+        "label": "和 Agent 对话",
+        "description": "选中一个 Agent 后点击「开始对话」，让 AI 帮你处理数据。",
+        "action": "开始对话"
+      },
+      "invite": {
+        "label": "邀请团队成员",
+        "description": "在团队页面邀请成员，共同管理项目和 Agent。",
+        "action": "去邀请"
+      }
+    },
+    "welcome": {
+      "slide0Title": "AI Agent 的上下文底座",
+      "slide0Subtitle": "把你的数据存在 PuppyOne，让 AI Agent 随时调用，永远知道在做什么。",
+      "slide0Caption": "从散乱文件到统一上下文",
+      "slide1Title": "连接任何数据源",
+      "slide1Subtitle": "本地文件夹、Google Drive、GitHub、网页……一键同步，所有数据自动版本化。",
+      "slide1Caption": "拖拽即连接",
+      "slide2Title": "精细的访问控制",
+      "slide2Subtitle": "每个 Agent、每个工具只能访问你授权的范围，数据安全可控。",
+      "slide2Caption": "文件级别的安全边界",
+      "skip": "跳过",
+      "next": "下一步 →",
+      "start": "开始使用"
+    }
+  },
+  "userMenu": {
+    "account": "账号",
+    "integrations": "集成",
+    "about": "关于",
+    "logout": "退出登录",
+    "plan": "套餐",
+    "planFree": "免费版",
+    "manageBilling": "管理你的订阅和账单设置。",
+    "integrationsDescription": "连接你的账号以从外部服务导入数据。",
+    "loading": "加载中...",
+    "notConnected": "未连接",
+    "connectedTo": "已连接 {name}",
+    "authError": "授权失败",
+    "disconnect": "断开连接",
+    "disconnectTitle": "断开 {platform} 的连接？",
+    "disconnectWarning": "你需要重新授权才能再次从该服务导入数据。",
+    "version": "版本",
+    "connectWith": "联系我们",
+    "language": "语言"
+  },
+  "projectDialog": {
+    "newTitle": "新建项目",
+    "template": "模板",
+    "blank": "空白",
+    "blankDescription": "空工作区",
+    "nameLabel": "项目名称",
+    "descriptionLabel": "描述",
+    "creating": "创建中…",
+    "create": "创建项目",
+    "saving": "保存中…",
+    "saveChanges": "保存更改",
+    "cancel": "取消",
+    "deleteTitle": "删除「{name}」？",
+    "deleteWarning": "这将永久删除该项目及其中的所有数据节点，此操作不可撤销。",
+    "deleting": "删除中…",
+    "deleteConfirm": "确认删除"
+  },
+  "team": {
+    "title": "团队",
+    "subtitle": "管理 {org} 的成员及其访问权限。",
+    "orgMembers": "组织成员",
+    "seatsUsed": "{plan} 计划已使用 {used} / {limit} 个席位。",
+    "inviteMember": "邀请成员",
+    "emailPlaceholder": "邮箱地址",
+    "sendInvite": "发送邀请",
+    "sending": "发送中...",
+    "cancel": "取消",
+    "roleOwner": "所有者",
+    "roleMember": "成员",
+    "roleViewer": "只读",
+    "inviteSent": "已发送邀请至 {email}",
+    "roleUpdated": "角色更新成功",
+    "memberRemoved": "成员移除成功",
+    "inviteFailed": "发送邀请失败",
+    "roleFailed": "更新角色失败",
+    "removeFailed": "移除成员失败",
+    "confirmRemove": "将 {name} 从组织中移除？"
+  },
+  "access": {
+    "title": "接入管理",
+    "all": "全部",
+    "noPoints": "暂无接入点",
+    "selectPoint": "选择一个接入点",
+    "dangerZone": "危险操作",
+    "deletePoint": "删除接入点",
+    "deleteWarning": "此操作不可撤销。",
+    "recentActivity": "近期活动",
+    "configuration": "配置",
+    "credentials": "凭证",
+    "status": {
+      "active": "运行中",
+      "syncing": "同步中",
+      "error": "错误",
+      "paused": "已暂停",
+      "waiting": "等待中",
+      "notConnected": "未连接"
+    },
+    "actions": {
+      "pause": "暂停",
+      "resume": "恢复",
+      "syncNow": "立即同步",
+      "syncing": "同步中...",
+      "save": "保存",
+      "cancel": "取消"
+    }
+  },
+  "projectHome": {
+    "status": {
+      "active": "运行中",
+      "unhealthy": "异常"
+    },
+    "commits": "{count} 次提交",
+    "accessPoints": "{count} 个接入点",
+    "copyId": "复制项目 ID",
+    "emptyProject": "空项目"
+  }
+}

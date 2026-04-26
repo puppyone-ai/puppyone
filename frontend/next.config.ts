@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import createNextIntlPlugin from 'next-intl/plugin';
+
+const withNextIntl = createNextIntlPlugin('./i18n/request.ts');
 
 function loadVersion(): string {
   const candidates = [
@@ -41,4 +44,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

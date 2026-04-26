@@ -47,7 +47,7 @@ export function useProjects(orgId?: string | null) {
   } = useSWR<ProjectInfo[]>(
     key,
     () => getProjects(orgId ?? undefined),
-    defaultConfig
+    { ...defaultConfig, keepPreviousData: true }
   );
 
   return {
@@ -273,6 +273,7 @@ export function useToolsByPath(path: string | undefined) {
     {
       ...defaultConfig,
       dedupingInterval: 10000,
+      keepPreviousData: true,
     }
   );
 
@@ -306,6 +307,7 @@ export function useProjectTools(projectId: string | undefined) {
     {
       ...defaultConfig,
       dedupingInterval: 30000,
+      keepPreviousData: true,
     }
   );
 

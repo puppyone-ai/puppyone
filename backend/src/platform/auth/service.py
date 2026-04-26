@@ -70,7 +70,8 @@ class AuthService:
                 code=ErrorCode.TOKEN_EXPIRED,
             )
         except pyjwt.InvalidTokenError as e:
-            log_error(f"Local JWT verification failed: {e}")
+            # Local verification fails when algorithm/key doesn't match (expected fallback)
+            log_debug(f"Local JWT verification not applicable: {e}")
             raise AuthException(
                 message=f"Token verification failed: {e!s}",
                 code=ErrorCode.INVALID_TOKEN,

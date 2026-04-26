@@ -13,6 +13,7 @@ export type ProjectSwitcherProps = {
   projects: ProjectOption[];
   onSelectProject: (projectId: string) => void;
   onGoHome: () => void;
+  onHoverProject?: (projectId: string) => void;
   isCollapsed?: boolean;
 };
 
@@ -21,6 +22,7 @@ export function ProjectSwitcher({
   projects,
   onSelectProject,
   onGoHome,
+  onHoverProject,
   isCollapsed = false,
 }: ProjectSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -201,6 +203,7 @@ export function ProjectSwitcher({
                   <button
                     key={project.id}
                     type='button'
+                    onMouseEnter={() => onHoverProject?.(project.id)}
                     onClick={() => {
                       onSelectProject(project.id);
                       setIsOpen(false);

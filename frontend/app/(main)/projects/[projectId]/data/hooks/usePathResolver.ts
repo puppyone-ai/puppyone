@@ -114,22 +114,34 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
         setIsResolvingPath(true);
       }
 
-      // Stat to determine (or confirm) the node type.
-      // On error we fall back to the type hint or file-name heuristic
-      // so the UI never gets stuck at root.
+      // When typeHint is available, start readFile in parallel with stat
+      // so the user sees content as fast as possible.
+      const inferredType = typeHint || inferTypeFromName(path[path.length - 1]);
+      const inferredRenderAs = getNodeTypeConfig(inferredType).renderAs;
+      const shouldReadFile = inferredRenderAs === 'markdown';
+
+      // Fire stat and (if likely needed) readFile in parallel
+      const statPromise = stat(projectId, fullPath).catch((err) => {
+        console.error('[usePathResolver] stat failed:', fullPath, err);
+        return null;
+      });
+      const readFilePromise = shouldReadFile
+        ? readFile(projectId, fullPath).catch(() => null)
+        : Promise.resolve(null);
+
+      const [statResult, fileContent] = await Promise.all([statPromise, readFilePromise]);
+      if (cancelled) return;
+
       let resolvedType: string;
       let resolvedMime: string | null = null;
       let exists = true;
-      try {
-        const statResult = await stat(projectId, fullPath);
-        if (cancelled) return;
+
+      if (statResult) {
         exists = statResult.exists;
-        resolvedType = statResult.type || typeHint || inferTypeFromName(path[path.length - 1]);
+        resolvedType = statResult.type || inferredType;
         resolvedMime = statResult.mime_type ?? null;
-      } catch (err) {
-        if (cancelled) return;
-        console.error('[usePathResolver] stat failed:', fullPath, err);
-        resolvedType = typeHint || inferTypeFromName(path[path.length - 1]);
+      } else {
+        resolvedType = inferredType;
       }
 
       if (!exists) {
@@ -153,17 +165,23 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
       const isTextMime = resolvedMime?.startsWith('text/') && resolvedMime !== 'text/markdown';
 
       if (renderAs === 'markdown' || isTextMime) {
-        setIsLoadingMarkdown(true);
-        try {
-          const content = await readFile(projectId, fullPath);
-          if (cancelled) return;
-          setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
-        } catch (readErr) {
-          if (cancelled) return;
-          console.error('[usePathResolver] Failed to load text content:', readErr);
-          setMarkdownContent('');
-        } finally {
-          if (!cancelled) setIsLoadingMarkdown(false);
+        // If we already fetched in parallel, use that result
+        if (fileContent !== null) {
+          setMarkdownContent(typeof fileContent.content_text === 'string' ? fileContent.content_text : '');
+        } else {
+          // Fallback: fetch now (e.g. mime turned out to be text after stat)
+          setIsLoadingMarkdown(true);
+          try {
+            const content = await readFile(projectId, fullPath);
+            if (cancelled) return;
+            setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
+          } catch (readErr) {
+            if (cancelled) return;
+            console.error('[usePathResolver] Failed to load text content:', readErr);
+            setMarkdownContent('');
+          } finally {
+            if (!cancelled) setIsLoadingMarkdown(false);
+          }
         }
       } else {
         setMarkdownContent('');

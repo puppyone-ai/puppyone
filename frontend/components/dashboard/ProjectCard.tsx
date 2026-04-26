@@ -2,12 +2,12 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import { useTranslations, useFormatter } from 'next-intl';
 import type { ProjectInfo } from '@/lib/projectsApi';
 
 export const PROJECT_CARD_WIDTH = 210;
 
 const ACCENT = '#329955';
-const BORDER = '#222';
 
 const FILE_ICON_MAP: Record<string, string> = {
   folder: '/icons/folder.svg',
@@ -25,8 +25,11 @@ export interface ProjectCardProps {
   onClick: () => void;
 }
 
-export function ProjectCard({ project, onClick }: ProjectCardProps) {
+export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
   const [copied, setCopied] = useState(false);
+  const t = useTranslations('home');
+  const tc = useTranslations('common');
+  const format = useFormatter();
 
   const handleCopyId = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -37,20 +40,20 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
   };
 
   const lastUpdated = project.updated_at
-    ? formatRelativeTime(project.updated_at)
+    ? format.relativeTime(new Date(project.updated_at), new Date())
     : '—';
   const connectionCount = project.access_point_count ?? 0;
-
   const nodes = project.nodes ?? [];
   const displayNodes = nodes.slice(0, 8);
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
     <div
       onClick={onClick}
       className="group relative w-full flex flex-col cursor-pointer aspect-square"
       style={{ maxWidth: PROJECT_CARD_WIDTH, maxHeight: PROJECT_CARD_WIDTH }}
     >
-      {/* ── Tab ── */}
+      {/* Tab */}
       <div className="h-7 px-3 flex items-center rounded-t-md border-2 border-b-0 border-[#2a2a2a] group-hover:border-[#329955] self-start relative z-10 bg-[#1c1c1c] group-hover:bg-[#252525] transition-colors duration-150" style={{ maxWidth: '75%' }}>
         <span className="text-[13px] font-medium truncate text-[#888] group-hover:text-[#329955] transition-colors">
           {project.name}
@@ -58,7 +61,7 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
         <button
           className="ml-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5"
           onClick={handleCopyId}
-          title={copied ? 'Copied!' : 'Copy Project ID'}
+          title={copied ? tc('copied') : t('copyId')}
         >
           {copied ? (
             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke={ACCENT} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -73,11 +76,9 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
         </button>
       </div>
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div className="flex-1 bg-[#0a0a0a] border-2 border-[#2a2a2a] group-hover:border-[#329955] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col group-hover:bg-[#111111] transition-colors duration-150">
-        {/* Separator line simulating the front flap of a physical folder */}
         <div className="absolute top-0 left-0 right-0 h-px bg-[linear-gradient(to_right,transparent_0%,rgba(255,255,255,0.05)_10%,rgba(255,255,255,0.05)_90%,transparent_100%)] pointer-events-none z-20" />
-        {/* File grid or description */}
         <div className="absolute inset-0 p-3 pb-7">
           {displayNodes.length > 0 ? (
             <div className="grid grid-cols-4 gap-x-2 gap-y-3 w-full content-start">
@@ -106,14 +107,14 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
                 </p>
               ) : (
                 <p className="text-[12px] text-[#444] italic">
-                  Empty project
+                  {t('emptyProject')}
                 </p>
               )}
             </div>
           )}
         </div>
 
-        {/* ── Commit bar ── */}
+        {/* Commit bar */}
         <div className="absolute bottom-0 left-0 right-0 border-t border-[#2a2a2a] bg-transparent px-3 py-1.5 h-[26px] flex items-center z-10 transition-colors duration-150">
           <div className="flex items-center gap-2 text-[10px] w-full">
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: connectionCount > 0 ? '#4ECDC4' : '#333' }} />
@@ -132,7 +133,8 @@ export function ProjectCard({ project, onClick }: ProjectCardProps) {
   );
 }
 
-export function NewProjectCard({ onClick }: { onClick: () => void }) {
+export function NewProjectCard({ onClick }: Readonly<{ onClick: () => void }>) {
+  const t = useTranslations('home');
   return (
     <button
       onClick={onClick}
@@ -143,7 +145,6 @@ export function NewProjectCard({ onClick }: { onClick: () => void }) {
         className="h-7 w-16 rounded-t-md border-2 border-b-0 border-dashed border-[#333] group-hover:border-[#555] self-start bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors relative z-10"
         aria-hidden
       />
-
       <div className="flex-1 border-2 border-dashed border-[#333] group-hover:border-[#555] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col items-center justify-center bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors duration-150">
         <div className="w-10 h-10 rounded-full flex items-center justify-center bg-[#111] group-hover:bg-[#1a1a1a] transition-colors">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[#555] group-hover:text-[#eee] transition-colors">
@@ -152,21 +153,9 @@ export function NewProjectCard({ onClick }: { onClick: () => void }) {
           </svg>
         </div>
         <span className="text-[13px] text-[#555] group-hover:text-[#ccc] font-medium transition-colors mt-2.5">
-          New Project
+          {t('newProject')}
         </span>
       </div>
     </button>
   );
-}
-
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
 }

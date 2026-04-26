@@ -83,6 +83,51 @@ export async function apiRequest<T>(
     throw error;
   }
 
+  // Handle HTTP error status codes (4xx/5xx) — FastAPI HTTPException returns {"detail": ...}
+  if (!response.ok) {
+    let body: any = null;
+    try { body = JSON.parse(await response.text()); } catch {}
+
+    // PuppyOne custom format: {"code": N, "message": "...", "data": null}
+    // FastAPI standard format: {"detail": "..." | {...}}
+    const puppyoneMsg: string | undefined = body?.message;
+    const fastApiDetail = body?.detail;
+
+    // Extract the human-readable message
+    let errorMsg = `HTTP ${response.status}`;
+    if (puppyoneMsg) {
+      errorMsg = puppyoneMsg;
+    } else if (typeof fastApiDetail === 'string') {
+      errorMsg = fastApiDetail;
+    } else if (fastApiDetail?.message) {
+      errorMsg = fastApiDetail.message;
+    }
+
+    // Detect duplicate: check multiple signals
+    const isDuplicate = response.status === 409 && (
+      fastApiDetail?.error === 'duplicate_access_point' ||
+      (typeof puppyoneMsg === 'string' && (
+        puppyoneMsg.includes('duplicate_access_point') ||
+        puppyoneMsg.includes('already exists')
+      ))
+    );
+
+    // If it's a dup, extract the inner message from Python dict string
+    // e.g. "{'error': '...', 'message': 'A sync already exists...'}"
+    let cleanMsg = errorMsg;
+    if (isDuplicate && puppyoneMsg) {
+      const m = puppyoneMsg.match(/['"]message['"]\s*:\s*['"](.*?)['"]\s*[,}]/s);
+      if (m) cleanMsg = m[1];
+    }
+
+    const error: any = new Error(cleanMsg);
+    error.status = response.status;
+    error.code = body?.code ?? response.status;
+    error.detail = fastApiDetail ?? body;
+    error.isDuplicate = isDuplicate;
+    throw error;
+  }
+
   const data: ApiResponse<T> = await response.json();
 
   if (data.code !== 0) {

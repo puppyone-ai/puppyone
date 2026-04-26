@@ -12,7 +12,7 @@ import secrets
 from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
 
 from src.common_schemas import ApiResponse
@@ -59,27 +59,63 @@ def _get_client():
 
 
 def _enrich(rows: list[dict], sb_client) -> list[ConnectionOut]:
-    """Resolve node names from paths and extract config.name for display."""
-    out: list[ConnectionOut] = []
+    """Resolve node names from paths and extract config.name for display.
+
+    Auto-disambiguates duplicate display names by appending path or a counter,
+    so users can tell apart multiple access points of the same provider type.
+    """
+    # First pass: build raw entries
+    entries = []
     for r in rows:
         cfg = r.get("config") or {}
-        name = cfg.get("name") or cfg.get("sync_url") or r.get("provider", "")
+        base_name = cfg.get("name") or cfg.get("sync_url") or r.get("provider", "")
         node_path = r.get("path") or ""
         node_name = node_path.rsplit("/", 1)[-1] if node_path else None
+        entries.append({
+            "row": r,
+            "cfg": cfg,
+            "base_name": base_name,
+            "node_path": node_path,
+            "node_name": node_name,
+        })
+
+    # Second pass: detect duplicates and disambiguate names
+    from collections import Counter
+    name_counts = Counter(e["base_name"] for e in entries)
+    name_seen: dict[str, int] = {}
+
+    out: list[ConnectionOut] = []
+    for e in entries:
+        r = e["row"]
+        base_name = e["base_name"]
+        node_path = e["node_path"]
+
+        if name_counts[base_name] > 1:
+            # Disambiguate: prefer path suffix, fall back to counter
+            if node_path:
+                display_path = node_path.strip("/")
+                disambig = display_path if display_path else "root"
+                name = f"{base_name} ({disambig})"
+            else:
+                name_seen[base_name] = name_seen.get(base_name, 0) + 1
+                name = f"{base_name} #{name_seen[base_name]}"
+        else:
+            name = base_name
+
         out.append(ConnectionOut(
             id=r["id"],
             project_id=r["project_id"],
             provider=r["provider"],
             name=name,
             path=node_path or None,
-            node_name=node_name,
+            node_name=e["node_name"],
             direction=r.get("direction"),
             status=r.get("status", "active"),
             access_key=r.get("access_key"),
             trigger=r.get("trigger"),
             last_synced_at=r.get("last_synced_at"),
             error_message=r.get("error_message"),
-            config=cfg,
+            config=e["cfg"],
             created_at=r.get("created_at"),
             updated_at=r.get("updated_at"),
         ))
@@ -256,6 +292,41 @@ async def delete_connection(
 
     sb.table("access_points").delete().eq("id", connection_id).execute()
     return ApiResponse.success(message="Access point deleted")
+
+
+@router.patch(
+    "/{connection_id}/rename",
+    response_model=ApiResponse[ConnectionOut],
+    summary="Rename an access point display name",
+    status_code=status.HTTP_200_OK,
+)
+def rename_connection(
+    connection_id: str = Path(...),
+    body: dict = Body(...),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Update only the display name stored in config.name."""
+    new_name = (body.get("name") or "").strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="name must not be empty")
+
+    sb = _get_client()
+    resp = sb.table("access_points").select("*").eq("id", connection_id).execute()
+    if not resp.data:
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
+
+    row = resp.data[0]
+    org_ids = resolve_org_ids(None, current_user.user_id)
+    pids = _get_user_project_ids(sb, org_ids)
+    if row["project_id"] not in pids:
+        raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
+
+    cfg = dict(row.get("config") or {})
+    cfg["name"] = new_name
+    sb.table("access_points").update({"config": cfg}).eq("id", connection_id).execute()
+
+    updated = sb.table("access_points").select("*").eq("id", connection_id).execute()
+    return ApiResponse.success(data=_enrich(updated.data, sb)[0], message="Access point renamed")
 
 
 @router.post(
@@ -647,6 +718,48 @@ async def create_connection(
         raise HTTPException(status_code=403, detail="Access denied to this project")
 
     provider = payload.provider.lower()
+
+    # ── Duplicate detection ────────────────────────────────────────
+    # Block creation if an identical access point already exists.
+    # "Identical" = same project + provider + path + key config fields.
+    sb = _get_client()
+    existing = (
+        sb.table("access_points")
+        .select("id, config, path")
+        .eq("project_id", payload.project_id)
+        .eq("provider", provider)
+        .execute()
+    ).data or []
+
+    for ex in existing:
+        ex_path = (ex.get("path") or "").strip("/")
+        new_path = (payload.path or "").strip("/")
+        if ex_path != new_path:
+            continue
+        # Same path — compare key config fields per provider
+        ex_cfg = ex.get("config") or {}
+        new_cfg = payload.config or {}
+        is_dup = False
+        if provider in ("agent", "mcp", "sandbox", "filesystem", "direct"):
+            # For structural access points, same path = duplicate
+            is_dup = True
+        elif provider == "url":
+            is_dup = ex_cfg.get("source_url") == new_cfg.get("source_url")
+        else:
+            # Datasource: same external_resource_id / source URL
+            is_dup = (
+                ex_cfg.get("external_resource_id") == new_cfg.get("external_resource_id")
+                and new_cfg.get("external_resource_id")
+            ) or ex_cfg.get("source_url") == new_cfg.get("source_url")
+        if is_dup:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "duplicate_access_point",
+                    "message": "An access point with the same configuration already exists.",
+                    "existing_id": ex["id"],
+                },
+            )
 
     try:
         if provider == "agent":
