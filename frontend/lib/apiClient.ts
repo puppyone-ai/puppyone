@@ -28,11 +28,61 @@ function getSupabase() {
 }
 
 /**
- * 获取当前 access token
+ * Cached access token + expiry — kept in sync with auth state changes.
+ *
+ * PERFORMANCE (P-6): 10 concurrent SWR requests previously caused 10
+ * sequential `getSession()` calls. We now subscribe to onAuthStateChange
+ * so the cached token is updated proactively, and getAuthToken() returns
+ * synchronously while the cache is fresh.
  */
+let _cachedToken: string | null = null;
+let _cacheValidUntilMs = 0;
+let _authSubscribed = false;
+let _inflightFetch: Promise<string | null> | null = null;
+
+function _setCacheFromSession(session: { access_token?: string; expires_at?: number } | null | undefined) {
+  if (session?.access_token) {
+    _cachedToken = session.access_token;
+    // expires_at is in seconds (epoch). Refresh 60s before actual expiry.
+    _cacheValidUntilMs = session.expires_at ? session.expires_at * 1000 : Date.now() + 30_000;
+  } else {
+    _cachedToken = null;
+    _cacheValidUntilMs = 0;
+  }
+}
+
+function _ensureAuthSubscription() {
+  if (_authSubscribed) return;
+  _authSubscribed = true;
+  try {
+    getSupabase().auth.onAuthStateChange((_event, session) => {
+      _setCacheFromSession(session as any);
+    });
+  } catch {
+    // ignore — fall back to per-call getSession()
+  }
+}
+
 async function getAuthToken(): Promise<string | null> {
-  const { data } = await getSupabase().auth.getSession();
-  return data.session?.access_token ?? null;
+  _ensureAuthSubscription();
+
+  // Fast path: cache fresh (60s buffer before expiry)
+  if (_cachedToken && Date.now() < _cacheValidUntilMs - 60_000) {
+    return _cachedToken;
+  }
+
+  // Coalesce: concurrent callers share a single in-flight getSession().
+  if (_inflightFetch) return _inflightFetch;
+  _inflightFetch = (async () => {
+    try {
+      const { data } = await getSupabase().auth.getSession();
+      _setCacheFromSession(data.session as any);
+      return _cachedToken;
+    } finally {
+      _inflightFetch = null;
+    }
+  })();
+  return _inflightFetch;
 }
 
 /**

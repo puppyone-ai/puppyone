@@ -95,7 +95,17 @@ export default function HomePage({
   const { data: dashboard, mutate: mutateDashboard } = useSWR<ProjectDashboard>(
     projectId ? `/api/v1/projects/${projectId}/dashboard` : null,
     (url: string) => get<ProjectDashboard>(url),
-    { refreshInterval: 30000, keepPreviousData: true },
+    {
+      // PERFORMANCE (P-7): aggressive 30s polling re-issued the
+      // ~4-7s endpoint on every idle home tab. Switch to event-driven
+      // revalidation: refresh when the user returns to the tab or
+      // reconnects, and only fall back to polling at a much lower rate.
+      refreshInterval: 120_000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      keepPreviousData: true,
+      dedupingInterval: 5_000,
+    },
   );
 
   const { data: treeEntries, mutate: mutateTree } = useSWR(

@@ -32,6 +32,7 @@ class FsToolImplementation:
         project_id: str,
         accesses: List[Dict[str, Any]],
         path: str = "/",
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         path = (path or "/").strip() or "/"
         normalized = path.lstrip("/")
@@ -40,7 +41,7 @@ class FsToolImplementation:
         if scope and normalized and not self._path_in_scope(normalized, scope):
             return {"error": f"Access denied: {path}"}
 
-        result = await self.rpc.list_dir(project_id, normalized)
+        result = await self.rpc.list_dir(project_id, normalized, acting_user_id=acting_user_id)
         entries = result.get("entries", [])
 
         if scope:
@@ -57,16 +58,17 @@ class FsToolImplementation:
         project_id: str,
         accesses: List[Dict[str, Any]],
         path: str,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         normalized = path.strip().lstrip("/")
         if not normalized:
-            return await self.ls(project_id, accesses, "/")
+            return await self.ls(project_id, accesses, "/", acting_user_id=acting_user_id)
 
         scope = self._extract_scope(accesses)
         if scope and not self._path_in_scope(normalized, scope):
             return {"error": f"Access denied: {path}"}
 
-        result = await self.rpc.read_file(project_id, normalized)
+        result = await self.rpc.read_file(project_id, normalized, acting_user_id=acting_user_id)
         result["path"] = path
         return result
 
@@ -80,6 +82,7 @@ class FsToolImplementation:
         accesses: List[Dict[str, Any]],
         path: str,
         content: Any,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         normalized = path.strip().lstrip("/")
         if not normalized:
@@ -101,6 +104,7 @@ class FsToolImplementation:
             path=normalized,
             content=content_str,
             file_type=file_type,
+            acting_user_id=acting_user_id,
         )
         result["path"] = path
         return result
@@ -114,6 +118,7 @@ class FsToolImplementation:
         project_id: str,
         accesses: List[Dict[str, Any]],
         path: str,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         normalized = path.strip().lstrip("/").rstrip("/")
         if not normalized:
@@ -125,7 +130,7 @@ class FsToolImplementation:
         if scope and self._is_readonly(accesses):
             return {"error": f"Read-only access: {path}"}
 
-        result = await self.rpc.mkdir(project_id, normalized)
+        result = await self.rpc.mkdir(project_id, normalized, acting_user_id=acting_user_id)
         result["path"] = path
         return result
 
@@ -139,6 +144,7 @@ class FsToolImplementation:
         accesses: List[Dict[str, Any]],
         path: str,
         user_id: str = "system",
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         normalized = path.strip().lstrip("/")
         if not normalized:
@@ -150,7 +156,7 @@ class FsToolImplementation:
         if scope and self._is_readonly(accesses):
             return {"error": f"Read-only access: {path}"}
 
-        result = await self.rpc.trash(project_id, normalized)
+        result = await self.rpc.trash(project_id, normalized, acting_user_id=acting_user_id)
         result["path"] = path
         return result
 

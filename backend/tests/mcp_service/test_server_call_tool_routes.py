@@ -188,6 +188,7 @@ async def test_call_tool_routes_rm_and_uses_agent_id_as_user_id(server_env, monk
         [{"path": "n1", "node_name": "docs", "node_type": "folder", "bash_readonly": False}],
         "/docs/a.md",
         user_id="agent-abc",
+        acting_user_id=None,
     )
 
 

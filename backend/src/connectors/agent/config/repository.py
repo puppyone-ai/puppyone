@@ -169,22 +169,40 @@ class AgentRepository:
         )
         return [_row_to_agent(row) for row in response.data]
 
-    def get_by_project_id_with_accesses(self, project_id: str) -> List[Agent]:
-        """Load agents with scope-derived bash_accesses and tool bindings."""
+    def get_by_project_id_with_accesses(
+        self, project_id: str, viewer_user_id: Optional[str] = None,
+    ) -> List[Agent]:
+        """Load agents with scope-derived bash_accesses and tool bindings.
+
+        Visibility filter (security: M-1):
+        Agents whose config.visibility == 'private' are only returned if
+        viewer_user_id matches the agent's owner (access_points.user_id).
+        Pass viewer_user_id=None for internal callers that already gated
+        access; pass the JWT user id from request handlers.
+        """
         response = (
             self._query()
             .eq("project_id", project_id)
             .order("created_at", desc=True)
             .execute()
         )
-        agents = [_row_to_agent(row) for row in response.data]
+        rows = response.data or []
+
+        if viewer_user_id is not None:
+            rows = [
+                r for r in rows
+                if (r.get("config") or {}).get("visibility", "org").lower() != "private"
+                or r.get("user_id") == viewer_user_id
+            ]
+
+        agents = [_row_to_agent(row) for row in rows]
         if not agents:
             return agents
 
         agent_ids = [a.id for a in agents]
 
         # Derive bash_accesses from connections.config.scope
-        config_by_id = {row["id"]: (row.get("config") or {}) for row in response.data}
+        config_by_id = {row["id"]: (row.get("config") or {}) for row in rows}
         bash_by_agent: dict[str, list[AgentBash]] = {}
         for aid, cfg in config_by_id.items():
             bash_by_agent[aid] = _scope_to_bash(aid, cfg)
@@ -365,24 +383,56 @@ class AgentRepository:
         return len(response.data) > 0
 
     def verify_access(self, agent_id: str, user_id: str) -> bool:
-        agent = self.get_by_id(agent_id)
-        if not agent:
-            return False
-        response = (
-            self._client.table("projects")
-            .select("org_id")
-            .eq("id", agent.project_id)
+        """Check whether `user_id` is allowed to access agent `agent_id`.
+
+        Two layers of checks (security: M-1):
+        1. Project membership — user must belong to the agent's project's org.
+        2. Visibility — if agent is marked private (config.visibility == 'private'),
+           only the agent's owner (access_points.user_id) may read it.
+
+        Defaults to org-visibility when the field is missing (backward compatible
+        with rows that pre-date the visibility flag).
+        """
+        # Pull both the row and the agent in one go to avoid N queries.
+        row_resp = (
+            self._client.table(self.TABLE)
+            .select("id, project_id, config, user_id")
+            .eq("id", agent_id)
+            .eq("provider", AGENT_PROVIDER)
+            .limit(1)
             .execute()
         )
-        if not response.data:
+        if not row_resp.data:
             return False
-        org_id = response.data[0].get("org_id")
+        row = row_resp.data[0]
+        config = row.get("config") or {}
+        project_id = row.get("project_id")
+
+        # Layer 1: org membership
+        proj_resp = (
+            self._client.table("projects")
+            .select("org_id")
+            .eq("id", project_id)
+            .execute()
+        )
+        if not proj_resp.data:
+            return False
+        org_id = proj_resp.data[0].get("org_id")
         if not org_id:
             return False
         from src.platform.organization.repository import OrganizationRepository
         org_repo = OrganizationRepository(supabase_client=self._client)
         member = org_repo.get_member(org_id, user_id)
-        return member is not None
+        if member is None:
+            return False
+
+        # Layer 2: visibility
+        visibility = (config.get("visibility") or "org").lower()
+        if visibility == "private":
+            owner = row.get("user_id")
+            if owner and owner != user_id:
+                return False
+        return True
 
     # ============================================
     # AgentBash CRUD — operates on access_points.config.scope (JSONB)

@@ -228,26 +228,40 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
             id: string;
             path: string;
             readonly: boolean;
+            // PERFORMANCE (P-5): backend now inlines node metadata to avoid a
+            // second round-trip. Older backends omit these fields, in which
+            // case we fall back to fetchNodeInfoBatch below.
+            node_name?: string;
+            node_type?: string;
           }>;
         }>>(`/api/v1/agent-config/?project_id=${projectId}`);
-        
-        const getNodeIds = (a: typeof agents[0]) => {
-          return (a.bash_accesses || []).map(b => b.path);
-        };
-        
-        const allNodeIds = agents.flatMap(getNodeIds);
-        
-        const nodeInfoMap = await fetchNodeInfoBatch(allNodeIds, projectId);
-        
+
+        const hasInlineNodeInfo = agents.every(a =>
+          (a.bash_accesses || []).every(b => b.node_name !== undefined)
+        );
+
+        // Only fall back to the legacy batch resolver when the server didn't
+        // inline node metadata (e.g. during a staged backend rollout).
+        let nodeInfoMap = new Map<string, NodeInfo>();
+        if (!hasInlineNodeInfo) {
+          const allNodeIds = agents.flatMap(a => (a.bash_accesses || []).map(b => b.path));
+          nodeInfoMap = await fetchNodeInfoBatch(allNodeIds, projectId);
+        }
+
         const loadedAgents: SavedAgent[] = agents.map(a => {
           const bashAccesses = a.bash_accesses || [];
-          
+
           const resources: AccessResource[] = bashAccesses.map(bash => {
+            // Prefer inline node metadata; fall back to the lookup map.
+            const inlineName = bash.node_name;
+            const inlineType = bash.node_type;
             const nodeInfo = nodeInfoMap.get(bash.path);
+            const name = inlineName ?? nodeInfo?.name;
+            const type = (inlineType ?? nodeInfo?.type) as NodeInfo['type'] | undefined;
             return {
               path: bash.path,
-              nodeName: nodeInfo?.name || bash.path.substring(0, 8) + '...',
-              nodeType: nodeInfo ? mapNodeType(nodeInfo.type) : 'folder',
+              nodeName: name || bash.path.substring(0, 8) + '...',
+              nodeType: type ? mapNodeType(type) : 'folder',
               readonly: bash.readonly,
             };
           });

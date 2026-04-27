@@ -466,6 +466,11 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                 fs_tool = FsToolImplementation(rpc_client)
                 project_id = config.get("agent", {}).get("project_id", "")
                 fs_accesses = config.get("accesses", [])
+                # SECURITY (C-3): the access_point owner is the principal we
+                # impersonate when calling /internal/nodes/*. Without this,
+                # the call gets rejected with HTTP 400 (X-Acting-User-Id
+                # required).
+                acting_user_id = config.get("agent", {}).get("user_id") or None
 
                 # Runtime permission check: write/mkdir/rm require at least one non-readonly access
                 if name in ("write", "mkdir", "rm"):
@@ -477,17 +482,30 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                         )]
 
                 if name == "ls":
-                    result = await fs_tool.ls(project_id, fs_accesses, arguments.get("path", "/"))
+                    result = await fs_tool.ls(
+                        project_id, fs_accesses,
+                        arguments.get("path", "/"),
+                        acting_user_id=acting_user_id,
+                    )
                 elif name == "cat":
-                    result = await fs_tool.cat(project_id, fs_accesses, arguments.get("path", "/"))
+                    result = await fs_tool.cat(
+                        project_id, fs_accesses,
+                        arguments.get("path", "/"),
+                        acting_user_id=acting_user_id,
+                    )
                 elif name == "write":
                     result = await fs_tool.write(
                         project_id, fs_accesses,
                         arguments.get("path", ""),
                         arguments.get("content"),
+                        acting_user_id=acting_user_id,
                     )
                 elif name == "mkdir":
-                    result = await fs_tool.mkdir(project_id, fs_accesses, arguments.get("path", ""))
+                    result = await fs_tool.mkdir(
+                        project_id, fs_accesses,
+                        arguments.get("path", ""),
+                        acting_user_id=acting_user_id,
+                    )
                 elif name == "rm":
                     # Use agent_id as user_id (for trash folder ownership)
                     agent_id = config.get("agent", {}).get("id", "system")
@@ -495,6 +513,7 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                         project_id, fs_accesses,
                         arguments.get("path", ""),
                         user_id=agent_id,
+                        acting_user_id=acting_user_id,
                     )
             else:
                 # ==========================================

@@ -63,6 +63,19 @@ class PuppyOneAuthenticator:
 
         user = self._try_jwt(token)
         if user:
+            # SECURITY (C-1): JWT alone is not sufficient — caller must also
+            # be a member of the target project. Without this check, ANY
+            # logged-in user could read/write the MUT tree of ANY project
+            # by changing project_id in the URL.
+            if not self._user_has_project_access(user["user_id"], project_id):
+                log_warning(
+                    f"[Auth] JWT user {user['user_id']} attempted MUT access "
+                    f"to project {project_id} without membership"
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Not a member of this project",
+                )
             return {
                 "agent": f"user:{user['user_id']}",
                 "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
@@ -149,6 +162,26 @@ class PuppyOneAuthenticator:
         except Exception as e:
             log_error(f"[Auth] Unexpected JWT auth error: {e}")
             return None
+
+    def _user_has_project_access(self, user_id: str, project_id: str) -> bool:
+        """Verify that user is a member of the project's organization.
+
+        Reused from ProjectRepositorySupabase.verify_project_access. We avoid
+        a full ProjectService instantiation here to keep MUT auth fast — we
+        only need a boolean, not the project model.
+        """
+        try:
+            from src.platform.project.repository import ProjectRepositorySupabase
+            repo = ProjectRepositorySupabase()
+            role = repo.verify_project_access(project_id, user_id)
+            return role is not None
+        except Exception as e:
+            # Fail closed: if the access check itself errors, deny access.
+            log_error(
+                f"[Auth] Project access check failed user={user_id} "
+                f"project={project_id}: {e}"
+            )
+            return False
 
     def _try_access_key(self, key: str, project_id: str) -> dict | None:
         try:
