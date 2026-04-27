@@ -5,7 +5,7 @@ Called by internal services (e.g., MCP Server), authenticated via SECRET
 
 import hmac
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from typing import Optional, Dict, Any
 from src.content.table.dependencies import get_table_service
 from src.config import settings
@@ -19,6 +19,8 @@ from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
 from src.mut_engine.dependencies import create_mut_ops, get_mut_ops
 from src.mut_engine.services.ops import MutOps
+from src.platform.project.repository import ProjectRepositorySupabase
+from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -33,6 +35,60 @@ async def verify_internal_secret(x_internal_secret: str = Header(...)) -> None:
 
     if not hmac.compare_digest(x_internal_secret, configured_secret):
         raise HTTPException(status_code=403, detail="Invalid internal secret")
+
+
+def _enforce_acting_user_project_access(request: Request, project_id: str) -> str:
+    """SECURITY (C-3): Internal endpoints that operate on a project must
+    declare WHICH user the call is being made on behalf of (via the
+    X-Acting-User-Id header), and that user must have access to project_id.
+
+    Without this check, anyone holding the internal secret (e.g. the mcp
+    service, or an attacker who exfiltrated it) could read/write the MUT
+    tree of ANY project by varying project_id.
+
+    Returns:
+        acting_user_id (str)
+
+    Raises:
+        400 if X-Acting-User-Id is missing
+        403 if the acting user has no access to project_id
+    """
+    if not project_id:
+        raise HTTPException(status_code=400, detail="project_id is required")
+
+    acting_user = request.headers.get("x-acting-user-id", "").strip()
+    if not acting_user:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Internal endpoints operating on a project must declare "
+                "X-Acting-User-Id header"
+            ),
+        )
+
+    try:
+        repo = ProjectRepositorySupabase()
+        role = repo.verify_project_access(project_id, acting_user)
+    except Exception as e:
+        log_warning(
+            f"[Internal] project access check error project={project_id} "
+            f"user={acting_user}: {e}"
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Project access check unavailable",
+        ) from e
+
+    if role is None:
+        log_warning(
+            f"[Internal] cross_tenant_denied project={project_id} "
+            f"acting_user={acting_user} caller={request.headers.get('x-internal-caller', 'unknown')}"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Acting user is not a member of this project",
+        )
+    return acting_user
 
 
 # ============================================================
@@ -282,10 +338,12 @@ async def search_tool(
 )
 async def resolve_node_path(
     payload: Dict[str, Any],
+    request: Request,
     ops: MutOps = Depends(get_mut_ops),
 ):
     try:
         project_id = payload.get("project_id", "")
+        _enforce_acting_user_project_access(request, project_id)
         path = payload.get("path", "")
 
         if not path or path == "/":
@@ -318,11 +376,13 @@ async def resolve_node_path(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def list_node_children(
+    request: Request,
     project_id: str = Query(..., description="Project ID"),
     path: str = Query("", description="Directory path"),
     ops: MutOps = Depends(get_mut_ops),
 ):
     try:
+        _enforce_acting_user_project_access(request, project_id)
         path = path.strip("/")
         entries = ops.list_dir(project_id, path)
         entries = [e for e in entries if e.name != ".trash"]
@@ -354,11 +414,13 @@ async def list_node_children(
     dependencies=[Depends(verify_internal_secret)],
 )
 async def read_node_content(
+    request: Request,
     project_id: str = Query(..., description="Project ID"),
     path: str = Query(..., description="File path"),
     ops: MutOps = Depends(get_mut_ops),
 ):
     try:
+        _enforce_acting_user_project_access(request, project_id)
         path = path.strip("/")
         entry = ops.stat(project_id, path)
         if not entry:
@@ -419,6 +481,7 @@ async def read_node_content(
 )
 async def write_node_content(
     payload: Dict[str, Any],
+    request: Request,
 ):
     """
     Write file content via MutOps.
@@ -431,6 +494,7 @@ async def write_node_content(
     """
     try:
         project_id = payload.get("project_id", "")
+        _enforce_acting_user_project_access(request, project_id)
         path = payload.get("path", "").strip("/")
         content = payload.get("content")
         operator_id = payload.get("operator_id", "mcp_agent")
@@ -477,6 +541,7 @@ async def write_node_content(
 )
 async def create_node(
     payload: Dict[str, Any],
+    request: Request,
 ):
     """
     Create file/directory via MutOps.
@@ -490,6 +555,7 @@ async def create_node(
     """
     try:
         project_id = payload.get("project_id", "")
+        _enforce_acting_user_project_access(request, project_id)
         path = payload.get("path", "").strip("/")
         node_type = payload.get("node_type", "")
         content = payload.get("content")
@@ -549,6 +615,7 @@ async def create_node(
 )
 async def trash_node(
     payload: Dict[str, Any],
+    request: Request,
 ):
     """
     Soft delete: move to .trash via MutOps.
@@ -560,6 +627,7 @@ async def trash_node(
     """
     try:
         project_id = payload.get("project_id", "")
+        _enforce_acting_user_project_access(request, project_id)
         path = payload.get("path", "").strip("/")
         user_id = payload.get("user_id", "mcp_agent")
 
@@ -596,9 +664,11 @@ async def trash_node(
 )
 async def rename_node(
     payload: Dict[str, Any],
+    request: Request,
 ):
     try:
         project_id = payload.get("project_id", "")
+        _enforce_acting_user_project_access(request, project_id)
         path = payload.get("path", "").strip("/")
         new_name = payload.get("new_name", "")
         if not new_name:
@@ -637,9 +707,11 @@ async def rename_node(
 )
 async def move_node_internal(
     payload: Dict[str, Any],
+    request: Request,
 ):
     try:
         project_id = payload.get("project_id", "")
+        _enforce_acting_user_project_access(request, project_id)
         path = payload.get("path", "").strip("/")
         new_parent_path = payload.get("new_parent_path", "").strip("/")
 
@@ -726,12 +798,31 @@ async def get_agent_by_mcp_key(
         }
         accesses_data.append(access_entry)
 
+    # Lookup the access_point creator (user_id) so the MCP service can pass
+    # X-Acting-User-Id on subsequent /internal/nodes/* calls (security: C-3).
+    owner_user_id = ""
+    try:
+        from src.infra.supabase.client import SupabaseClient
+        ap_row = (
+            SupabaseClient().get_client()
+            .table("access_points")
+            .select("user_id")
+            .eq("id", agent.id)
+            .limit(1)
+            .execute()
+        )
+        if ap_row.data:
+            owner_user_id = ap_row.data[0].get("user_id") or ""
+    except Exception:
+        pass
+
     return {
         "agent": {
             "id": agent.id,
             "name": agent.name,
             "project_id": agent.project_id,
             "type": agent.type,
+            "user_id": owner_user_id,
         },
         "accesses": accesses_data,
         "tools": tools_data,

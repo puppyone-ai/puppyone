@@ -1,8 +1,17 @@
 'use client';
 
-import React, { useRef, useState, useEffect, useCallback, Suspense } from 'react';
-import Editor, { OnMount, Monaco } from '@monaco-editor/react';
+import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+
+// Dynamically import Monaco — only loads when user switches to source mode (~2.1MB)
+const MonacoMarkdownEditor = dynamic(() => import('./MonacoMarkdownEditor'), {
+  ssr: false,
+  loading: () => (
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0e0e0e' }}>
+      Loading editor...
+    </div>
+  ),
+});
 
 // Dynamically import MilkdownEditor to avoid SSR issues
 const MilkdownEditor = dynamic(() => import('./MilkdownEditor'), {
@@ -20,6 +29,8 @@ const MilkdownEditor = dynamic(() => import('./MilkdownEditor'), {
     </div>
   ),
 });
+
+// Custom dark theme is now in MonacoMarkdownEditor.tsx
 
 export type MarkdownViewMode = 'wysiwyg' | 'source';
 
@@ -76,8 +87,6 @@ export function MarkdownEditor({
   viewMode: controlledViewMode,
   onViewModeChange,
 }: MarkdownEditorProps) {
-  const editorRef = useRef<any>(null);
-  const monacoRef = useRef<Monaco | null>(null);
   const [internalViewMode, setInternalViewMode] = useState<MarkdownViewMode>(defaultMode);
   const isControlled = controlledViewMode !== undefined;
   const viewMode = isControlled ? controlledViewMode : internalViewMode;
@@ -88,28 +97,6 @@ export function MarkdownEditor({
   useEffect(() => {
     setLocalContent(content);
   }, [content]);
-
-  const handleEditorMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
-
-    // Register custom dark theme
-    monaco.editor.defineTheme('markdown-dark', DARK_THEME_CONFIG);
-    monaco.editor.setTheme('markdown-dark');
-
-    // Configure markdown language
-    monaco.languages.setLanguageConfiguration('markdown', {
-      wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-    });
-  };
-
-  const handleEditorChange = useCallback((value: string | undefined) => {
-    const newContent = value || '';
-    setLocalContent(newContent);
-    if (onChange && !readOnly) {
-      onChange(newContent);
-    }
-  }, [onChange, readOnly]);
 
   const handleMilkdownChange = useCallback((newContent: string) => {
     setLocalContent(newContent);
@@ -136,69 +123,13 @@ export function MarkdownEditor({
         />
       )}
 
-      {/* Source Mode - Monaco Editor */}
+      {/* Source Mode - Monaco Editor (loaded dynamically on first use) */}
       {viewMode === 'source' && (
-        <div style={{ height: '100%', position: 'relative' }}>
-          {/* Placeholder when empty */}
-          {!localContent && (
-            <div
-              style={{
-                position: 'absolute',
-                top: 16,
-                left: 24,
-                color: '#525252',
-                fontStyle: 'italic',
-                fontSize: 13,
-                pointerEvents: 'none',
-                zIndex: 1,
-                fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
-              }}
-            >
-              Start writing...
-            </div>
-          )}
-          <Editor
-            height="100%"
-            defaultLanguage="markdown"
-            value={localContent}
-            onChange={handleEditorChange}
-            onMount={handleEditorMount}
-            theme="markdown-dark"
-            options={{
-              minimap: { enabled: false },
-              fontSize: 13,
-              fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
-              lineNumbers: 'off',
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              wordWrap: 'on',
-              lineHeight: 20,
-              padding: { top: 16, bottom: 40 },
-              readOnly,
-              renderLineHighlight: 'none',
-              overviewRulerBorder: false,
-              hideCursorInOverviewRuler: true,
-              scrollbar: {
-                vertical: 'auto',
-                horizontal: 'hidden',
-                verticalScrollbarSize: 8,
-              },
-              // Markdown-friendly settings
-              quickSuggestions: false,
-              suggestOnTriggerCharacters: false,
-              acceptSuggestionOnEnter: 'off',
-              tabCompletion: 'off',
-              wordBasedSuggestions: 'off',
-              folding: true,
-              foldingStrategy: 'indentation',
-              renderWhitespace: 'none',
-              guides: {
-                indentation: false,
-              },
-            }}
-          />
-        </div>
+        <MonacoMarkdownEditor
+          content={localContent}
+          onChange={(v) => { setLocalContent(v); if (onChange && !readOnly) onChange(v); }}
+          readOnly={readOnly}
+        />
       )}
 
       {/* View Mode Toggle - Bottom Right (hidden when externally controlled) */}

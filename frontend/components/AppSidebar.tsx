@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { memo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type { ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
@@ -18,9 +19,10 @@ type AppSidebarProps = {
   sidebarWidth?: number;
   onSidebarWidthChange?: (width: number) => void;
   currentOrg?: OrganizationInfo | null;
+  onOpenGuide?: () => void;
 };
 
-export function AppSidebar({
+export const AppSidebar = memo(function AppSidebar({
   projects,
   activeBaseId,
   activeView = 'projects',
@@ -32,8 +34,10 @@ export function AppSidebar({
   sidebarWidth,
   onSidebarWidthChange,
   currentOrg,
+  onOpenGuide,
 }: AppSidebarProps) {
   const router = useRouter();
+  const t = useTranslations('nav');
 
   const activeProject = activeBaseId
     ? projects.find(p => p.id === activeBaseId)
@@ -48,7 +52,7 @@ export function AppSidebar({
     const projectNavItems: NavItem[] = [
       {
         id: 'home',
-        label: 'Home',
+        label: t('home'),
         icon: (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -58,7 +62,7 @@ export function AppSidebar({
       },
       {
         id: 'data',
-        label: 'Context',
+        label: t('context'),
         groupEnd: true,
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap="round" strokeLinejoin="round">
@@ -68,7 +72,7 @@ export function AppSidebar({
       },
       {
         id: 'access',
-        label: 'Access',
+        label: t('access'),
         icon: (
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 22v-5" />
@@ -80,7 +84,7 @@ export function AppSidebar({
       },
       {
         id: 'history',
-        label: 'History',
+        label: t('history'),
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
             <circle cx="12" cy="12" r="10" />
@@ -90,7 +94,7 @@ export function AppSidebar({
       },
       {
         id: 'monitor',
-        label: 'Monitor',
+        label: t('monitor'),
         groupEnd: true,
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
@@ -110,7 +114,7 @@ export function AppSidebar({
       // },
       {
         id: 'settings',
-        label: 'Settings',
+        label: t('settings'),
         icon: (
           <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
             <circle cx='12' cy='12' r='3' />
@@ -127,6 +131,10 @@ export function AppSidebar({
         currentProjectId={activeProject.id}
         projects={projectOptions}
         onSelectProject={(projectId) => router.push(`/projects/${projectId}`)}
+        onHoverProject={(projectId) => {
+          router.prefetch(`/projects/${projectId}/home`);
+          router.prefetch(`/projects/${projectId}/data`);
+        }}
         onGoHome={() => router.push('/home')}
         activeView={activeView}
         navItems={projectNavItems}
@@ -147,6 +155,19 @@ export function AppSidebar({
             router.push(`/projects/${activeProject.id}/settings`);
           }
         }}
+        onHoverNavItem={(viewId) => {
+          const id = activeProject.id;
+          const pathMap: Record<string, string> = {
+            home: `/projects/${id}/home`,
+            data: `/projects/${id}/data`,
+            access: `/projects/${id}/access`,
+            history: `/projects/${id}/history`,
+            monitor: `/projects/${id}/monitor`,
+            toolkit: `/projects/${id}/toolkit`,
+            settings: `/projects/${id}/settings`,
+          };
+          if (pathMap[viewId]) router.prefetch(pathMap[viewId]);
+        }}
         onBack={() => router.push('/projects')}
         userInitial={userInitial}
         userAvatarUrl={userAvatarUrl}
@@ -155,6 +176,7 @@ export function AppSidebar({
         onCollapsedChange={onCollapsedChange}
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={onSidebarWidthChange}
+        onOpenGuide={onOpenGuide}
       />
     );
   }
@@ -162,7 +184,7 @@ export function AppSidebar({
   const globalNavItems: NavItem[] = [
     {
       id: 'home',
-      label: 'Home',
+      label: t('home'),
       icon: (
         <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
           <path d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z' stroke='currentColor' strokeWidth='1.2' strokeLinejoin='round' />
@@ -174,7 +196,7 @@ export function AppSidebar({
     },
     {
       id: 'team',
-      label: 'Team',
+      label: t('team'),
       icon: (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -186,7 +208,7 @@ export function AppSidebar({
     },
     {
       id: 'billing',
-      label: 'Billing',
+      label: t('billing'),
       icon: (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
@@ -224,6 +246,7 @@ export function AppSidebar({
       onCollapsedChange={onCollapsedChange}
       sidebarWidth={sidebarWidth}
       onSidebarWidthChange={onSidebarWidthChange}
+      onOpenGuide={onOpenGuide}
     />
   );
-}
+});

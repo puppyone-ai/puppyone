@@ -11,6 +11,16 @@ import httpx
 from typing import Any, Optional, Dict, List
 
 
+def _acting_user_header(acting_user_id: Optional[str]) -> Dict[str, str]:
+    """Build the X-Acting-User-Id header dict (empty if no user_id given).
+
+    The /internal/nodes/* endpoints REQUIRE this header (security: C-3) — any
+    call without it will fail at the server with HTTP 400. Pass-through
+    callers must thread the agent / access-key owner's user_id.
+    """
+    return {"X-Acting-User-Id": acting_user_id} if acting_user_id else {}
+
+
 class InternalApiClient:
     """
     Internal API客户端
@@ -292,12 +302,17 @@ class InternalApiClient:
         self,
         project_id: str,
         path: str = "",
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """List directory entries at the given path."""
         try:
             url = f"{self.base_url}/internal/nodes/list"
             params = {"project_id": project_id, "path": path}
-            response = await self._client.get(url, params=params)
+            response = await self._client.get(
+                url,
+                params=params,
+                headers=_acting_user_header(acting_user_id),
+            )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -312,12 +327,15 @@ class InternalApiClient:
         self,
         project_id: str,
         path: str,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Read file content at the given path."""
         try:
             url = f"{self.base_url}/internal/nodes/read"
             params = {"project_id": project_id, "path": path}
-            response = await self._client.get(url, params=params)
+            response = await self._client.get(
+                url, params=params, headers=_acting_user_header(acting_user_id),
+            )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -332,12 +350,15 @@ class InternalApiClient:
         self,
         project_id: str,
         path: str,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Get file/folder metadata at the given path."""
         try:
             url = f"{self.base_url}/internal/nodes/resolve-path"
             payload = {"project_id": project_id, "path": path}
-            response = await self._client.post(url, json=payload)
+            response = await self._client.post(
+                url, json=payload, headers=_acting_user_header(acting_user_id),
+            )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -355,6 +376,7 @@ class InternalApiClient:
         content: Any,
         file_type: Optional[str] = None,
         message: Optional[str] = None,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Write content to a file at the given path (creates if not exists)."""
         try:
@@ -366,7 +388,9 @@ class InternalApiClient:
             }
             if message:
                 payload["operator_id"] = "mcp_agent"
-            response = await self._client.put(url, json=payload)
+            response = await self._client.put(
+                url, json=payload, headers=_acting_user_header(acting_user_id),
+            )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -381,6 +405,7 @@ class InternalApiClient:
         self,
         project_id: str,
         path: str,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a directory at the given path."""
         try:
@@ -390,7 +415,9 @@ class InternalApiClient:
                 "path": path,
                 "node_type": "folder",
             }
-            response = await self._client.post(url, json=payload)
+            response = await self._client.post(
+                url, json=payload, headers=_acting_user_header(acting_user_id),
+            )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
@@ -406,6 +433,7 @@ class InternalApiClient:
         project_id: str,
         src: str,
         dst: str,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Move/rename a file or folder."""
         try:
@@ -421,7 +449,9 @@ class InternalApiClient:
                     "path": src,
                     "new_name": new_name,
                 }
-                response = await self._client.post(url, json=payload)
+                response = await self._client.post(
+                    url, json=payload, headers=_acting_user_header(acting_user_id),
+                )
                 response.raise_for_status()
                 return response.json()
             else:
@@ -431,7 +461,9 @@ class InternalApiClient:
                     "path": src,
                     "new_parent_path": new_parent_path,
                 }
-                response = await self._client.post(url, json=payload)
+                response = await self._client.post(
+                    url, json=payload, headers=_acting_user_header(acting_user_id),
+                )
                 response.raise_for_status()
                 return response.json()
         except httpx.HTTPStatusError as e:
@@ -446,12 +478,15 @@ class InternalApiClient:
         self,
         project_id: str,
         path: str,
+        acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Soft-delete a file or folder (move to .trash)."""
         try:
             url = f"{self.base_url}/internal/nodes/trash"
             payload = {"project_id": project_id, "path": path}
-            response = await self._client.post(url, json=payload)
+            response = await self._client.post(
+                url, json=payload, headers=_acting_user_header(acting_user_id),
+            )
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:

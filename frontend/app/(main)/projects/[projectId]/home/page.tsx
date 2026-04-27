@@ -1,7 +1,8 @@
 'use client';
 
-import { use, useMemo } from 'react';
+import { use, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
 import { treeList, getProjectHistory } from '@/lib/contentTreeApi';
@@ -94,17 +95,29 @@ export default function HomePage({
   const { data: dashboard, mutate: mutateDashboard } = useSWR<ProjectDashboard>(
     projectId ? `/api/v1/projects/${projectId}/dashboard` : null,
     (url: string) => get<ProjectDashboard>(url),
-    { refreshInterval: 30000 },
+    {
+      // PERFORMANCE (P-7): aggressive 30s polling re-issued the
+      // ~4-7s endpoint on every idle home tab. Switch to event-driven
+      // revalidation: refresh when the user returns to the tab or
+      // reconnects, and only fall back to polling at a much lower rate.
+      refreshInterval: 120_000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      keepPreviousData: true,
+      dedupingInterval: 5_000,
+    },
   );
 
   const { data: treeEntries, mutate: mutateTree } = useSWR(
     projectId ? ['home-tree', projectId] : null,
     () => treeList(projectId, '', 3),
+    { keepPreviousData: true },
   );
 
   const { data: historyData } = useSWR(
     projectId ? ['project-history-overview', projectId] : null,
     () => getProjectHistory(projectId, 50),
+    { keepPreviousData: true },
   );
 
   const commits = historyData?.commits || [];
@@ -131,6 +144,13 @@ export default function HomePage({
   }, [commits]);
 
   const connections = dashboard?.access_points || [];
+
+  // Auto-complete onboarding steps based on real data
+  const { completeStep } = useOnboarding();
+  useEffect(() => {
+    if ((dashboard?.nodes?.total ?? 0) > 0) completeStep('file');
+    if (connections.length > 0) completeStep('access_point');
+  }, [dashboard, connections.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tree shaped from the flat treeList response.  Folders sort first,
   // then alphabetical — same order the data explorer uses, so a user
@@ -327,18 +347,21 @@ export default function HomePage({
 
   if (!dashboard) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: T.text3,
-          fontSize: 13,
-          fontFamily: T.fontSans,
-        }}
-      >
-        Loading…
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, overflow: 'hidden' }}>
+        {/* Header skeleton */}
+        <div style={{ height: 48, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }} />
+        <div style={{ flex: 1, padding: '32px 40px', overflow: 'hidden' }}>
+          {/* Title skeleton */}
+          <div style={{ height: 22, width: '28%', background: 'rgba(255,255,255,0.06)', borderRadius: 4, marginBottom: 10 }} />
+          <div style={{ height: 13, width: '45%', background: 'rgba(255,255,255,0.03)', borderRadius: 3, marginBottom: 40 }} />
+          {/* Cards skeleton */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
+            {[1,2,3].map(i => (
+              <div key={i} style={{ height: 100, background: 'rgba(255,255,255,0.04)', borderRadius: 8 }} />
+            ))}
+          </div>
+          <div style={{ height: 300, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }} />
+        </div>
       </div>
     );
   }

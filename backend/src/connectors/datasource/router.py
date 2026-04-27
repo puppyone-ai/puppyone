@@ -311,7 +311,10 @@ async def create_sync(
             user_id=current_user.user_id,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "duplicate_access_point", "message": str(e)},
+        )
 
     if body.sync_mode == "scheduled" and body.trigger:
         try:

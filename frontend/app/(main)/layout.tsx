@@ -1,14 +1,27 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, memo } from 'react';
 import { usePathname } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { AppSidebar } from '@/components/AppSidebar';
 import { useProjects } from '@/lib/hooks/useData';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { OrganizationProvider, useOrganization } from '@/contexts/OrganizationContext';
+import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { getEnvironmentLabel } from '@/lib/env';
+import { useOnboarding } from '@/lib/hooks/useOnboarding';
 
-function MainLayoutInner({
+// Lazy-loaded — don't affect the initial app shell bundle
+const WelcomeModal = dynamic(
+  () => import('@/components/onboarding/WelcomeModal').then(m => ({ default: m.WelcomeModal })),
+  { ssr: false }
+);
+const GettingStartedPanel = dynamic(
+  () => import('@/components/onboarding/GettingStartedPanel').then(m => ({ default: m.GettingStartedPanel })),
+  { ssr: false }
+);
+
+const MainLayoutInner = memo(function MainLayoutInner({
   children,
 }: {
   children: React.ReactNode;
@@ -19,15 +32,17 @@ function MainLayoutInner({
   const { projects } = useProjects(currentOrg?.id);
 
   const [activeBaseId, setActiveBaseId] = useState('');
-
   useEffect(() => {
     if (!pathname) return;
-    const projectsMatch = pathname.match(/^\/projects\/([^\/]+)/);
-    setActiveBaseId(projectsMatch ? projectsMatch[1] : '');
+    const match = /^\/projects\/([^/]+)/.exec(pathname);
+    setActiveBaseId(match ? match[1] : '');
   }, [pathname]);
 
   const [isNavCollapsed, setIsNavCollapsed] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(240);
+
+  // Onboarding — lives here so the "?" button works from every page
+  const onboarding = useOnboarding();
 
   const activeView = useMemo(() => {
     if (!pathname) return 'data';
@@ -49,19 +64,27 @@ function MainLayoutInner({
   }, [pathname]);
 
   const userInitial = (session?.user?.email?.[0] || 'U').toUpperCase();
-  const userMetadata = session?.user?.user_metadata as Record<string, any> | undefined;
-  const userAvatarUrl = userMetadata?.avatar_url || userMetadata?.picture || userMetadata?.avatarUrl || undefined;
+  const userMetadata = session?.user?.user_metadata as Record<string, unknown> | undefined;
+  const userAvatarUrl =
+    (userMetadata?.avatar_url as string) ||
+    (userMetadata?.picture as string) ||
+    (userMetadata?.avatarUrl as string) ||
+    undefined;
   const environmentLabel = useMemo(() => getEnvironmentLabel(), []);
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        height: '100vh',
-        overflow: 'hidden',
-        backgroundColor: '#1c1c1c',
-      }}
-    >
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: '#1c1c1c' }}>
+
+      {/* Welcome modal — first-ever visit */}
+      {!onboarding.hasSeenWelcome && (
+        <WelcomeModal onDone={onboarding.completeWelcome} />
+      )}
+
+      {/* Getting-started checklist — always rendered after welcome so the mini-button stays accessible */}
+      {onboarding.hasSeenWelcome && (
+        <GettingStartedPanel projectId={activeBaseId || undefined} />
+      )}
+
       <AppSidebar
         projects={projects}
         activeBaseId={activeBaseId}
@@ -74,6 +97,7 @@ function MainLayoutInner({
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={setSidebarWidth}
         currentOrg={currentOrg}
+        onOpenGuide={onboarding.openChecklist}
       />
 
       <main
@@ -94,12 +118,14 @@ function MainLayoutInner({
       </main>
     </div>
   );
-}
+});
 
-export default function MainLayout({ children }: { children: React.ReactNode }) {
+export default function MainLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <OrganizationProvider>
-      <MainLayoutInner>{children}</MainLayoutInner>
+      <OnboardingProvider>
+        <MainLayoutInner>{children}</MainLayoutInner>
+      </OnboardingProvider>
     </OrganizationProvider>
   );
 }

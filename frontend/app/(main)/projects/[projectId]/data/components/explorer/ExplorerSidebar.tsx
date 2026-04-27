@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { memo, useEffect } from 'react';
 import { useShallowTree } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import type { ContentType } from '../views/GridView';
@@ -8,7 +8,7 @@ import { ensureExpandedBatch, usePendingActiveId } from './explorerState';
 import { ExplorerTreeRow, FolderIcon } from './ExplorerTreeRow';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 
-export function ExplorerSidebar({
+export const ExplorerSidebar = memo(function ExplorerSidebar({
   projectId,
   currentPath,
   activeNodeId,
@@ -203,4 +203,4 @@ export function ExplorerSidebar({
       </div>
     </div>
   );
-}
+});

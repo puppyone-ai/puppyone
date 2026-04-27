@@ -55,6 +55,9 @@ async def load_mcp_config(api_key: str, rpc_client: InternalApiClient) -> Option
             "name": agent_info.get("name"),
             "project_id": agent_info.get("project_id"),
             "type": agent_info.get("type"),
+            # Owner user_id — required for X-Acting-User-Id when calling
+            # /internal/nodes/* (security: C-3 multi-tenant hardening).
+            "user_id": agent_info.get("user_id", ""),
         },
         "accesses": [
             {

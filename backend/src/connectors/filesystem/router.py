@@ -96,7 +96,19 @@ def bootstrap(
     _ensure_project_access(project_service, current_user, project_id)
 
     svc, _ = _get_service()
-    sync = svc.bootstrap(project_id=project_id, path=path)
+    try:
+        sync = svc.bootstrap(project_id=project_id, path=path)
+    except ValueError as e:
+        if "already exists" in str(e):
+            from fastapi import HTTPException as _HTTP
+            raise _HTTP(
+                status_code=409,
+                detail={
+                    "error": "duplicate_access_point",
+                    "message": str(e),
+                },
+            )
+        raise
     return ApiResponse.success(data={
         "access_point_id": sync.id,
         "access_key": sync.access_key,

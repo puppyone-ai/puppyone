@@ -18,6 +18,7 @@ import {
 import { sendChatMessage } from '../../../lib/chatApi';
 import { useMention } from '../../../lib/hooks/useMention';
 import { useAgent } from '@/contexts/AgentContext';
+import { useOnboarding } from '@/lib/hooks/useOnboarding';
 
 // 时间格式化
 const getTimeAgo = (date: Date): string => {
@@ -159,6 +160,8 @@ export function ChatRuntimeView({
 
   const currentAgent = currentAgentId ? savedAgents.find(a => a.id === currentAgentId) : null;
   const agentName = currentAgent ? currentAgent.name : 'Agent';
+
+  const { completeStep } = useOnboarding();
 
   // --- Local State ---
   const [inputValue, setInputValue] = useState('');
@@ -359,6 +362,7 @@ export function ChatRuntimeView({
       timestamp: new Date(),
     };
     setMessages(prev => [...prev, userMessage]);
+    completeStep('chat');
 
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
@@ -395,6 +399,16 @@ export function ChatRuntimeView({
           activeToolIds.push(match[1]);
         }
       }
+
+      // Auto-complete 'chat' onboarding step on first message sent
+      try {
+        const KEY = 'puppyone_onboarding_v1';
+        const state = JSON.parse(localStorage.getItem(KEY) || '{"hasSeenWelcome":true,"completedSteps":[],"dismissedChecklist":false}');
+        if (!state.completedSteps.includes('chat')) {
+          state.completedSteps.push('chat');
+          localStorage.setItem(KEY, JSON.stringify(state));
+        }
+      } catch {}
 
       // Step 3: Send message via SSE (backend handles persistence)
       const response = await sendChatMessage(

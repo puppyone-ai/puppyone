@@ -5,8 +5,11 @@ REST API for Agent configuration.
 """
 
 import asyncio
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
+
+from src.mut_engine.dependencies import get_mut_ops
+from src.mut_engine.services.ops import MutOps
 
 from src.connectors.agent.config.service import AgentConfigService
 from src.infra.scheduler.service import get_scheduler_service
@@ -15,7 +18,11 @@ from src.utils.logger import log_info, log_error
 from src.connectors.agent.config.dependencies import (
     get_agent_config_service,
     get_verified_agent,
+    require_project_membership_query,
+    require_project_membership_body,
 )
+from src.platform.project.dependencies import get_project_service
+from src.platform.project.service import ProjectService
 from src.connectors.agent.config.models import Agent
 from src.connectors.agent.config.schemas import (
     AgentCreate,
@@ -40,13 +47,26 @@ router = APIRouter(
 )
 
 
-def _to_agent_out(agent: Agent) -> AgentOut:
+def _to_agent_out(
+    agent: Agent,
+    node_info: Optional[dict[str, dict]] = None,
+) -> AgentOut:
+    """Convert internal Agent → API AgentOut.
+
+    PERFORMANCE (P-5): node_name / node_type can be inlined here when the
+    caller has pre-resolved node metadata in batch (single MUT walk for all
+    agents in a project), instead of forcing the frontend to issue a
+    separate fetchNodeInfoBatch round-trip.
+    """
+    info = node_info or {}
     bash_out = [
         AgentBashOut(
             id=a.id,
             agent_id=a.agent_id,
             path=a.path,
             readonly=a.readonly,
+            node_name=info.get(a.path, {}).get("name"),
+            node_type=info.get(a.path, {}).get("type"),
         )
         for a in agent.bash_accesses
     ]
@@ -82,14 +102,32 @@ def _to_agent_out(agent: Agent) -> AgentOut:
     description="Get the list of Agents for a specified project",
 )
 def list_agents(
-    project_id: str = Query(..., description="Project ID (required)"),
+    project_id: str = Depends(require_project_membership_query),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
+    ops: MutOps = Depends(get_mut_ops),
 ):
-    # Access checks are handled by RLS or the service layer
-    agents = service.list_agents(project_id)
+    # SECURITY (C-2): require_project_membership_query verifies the JWT
+    # caller is a member of project_id BEFORE any agent data is read.
+    # SECURITY (M-1): pass viewer_user_id so private agents owned by other
+    # users in the same org are filtered out of the response.
+    agents = service.list_agents(project_id, viewer_user_id=current_user.user_id)
+
+    # PERFORMANCE (P-5): batch-resolve every bash_access path once instead of
+    # forcing the client to issue a second N-fan-out round trip
+    # (fetchNodeInfoBatch).
+    paths = {b.path for a in agents for b in a.bash_accesses if b.path}
+    node_info: dict[str, dict] = {}
+    for p in paths:
+        try:
+            entry = ops.stat(project_id, p)
+        except Exception:
+            entry = None
+        if entry:
+            node_info[p] = {"name": entry.name, "type": entry.type}
+
     return ApiResponse.success(
-        data=[_to_agent_out(a) for a in agents],
+        data=[_to_agent_out(a, node_info=node_info) for a in agents],
         message="Agent list retrieved successfully",
     )
 
@@ -101,10 +139,10 @@ def list_agents(
     description="Get the default Agent for a specified project",
 )
 def get_default_agent(
-    project_id: str = Query(..., description="Project ID"),
-    current_user: CurrentUser = Depends(get_current_user),
+    project_id: str = Depends(require_project_membership_query),
     service: AgentConfigService = Depends(get_agent_config_service),
 ):
+    # SECURITY (C-2): membership verified via dependency.
     agent = service.get_default_agent(project_id)
     if not agent:
         raise HTTPException(
@@ -180,12 +218,19 @@ def create_agent(
     background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
+    project_service: ProjectService = Depends(get_project_service),
 ):
     if not payload.project_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="project_id is required",
         )
+
+    # SECURITY (C-2): the project_id comes from the request body, so we
+    # verify membership manually instead of via Depends.
+    require_project_membership_body(
+        payload.project_id, current_user, project_service,
+    )
 
     agent = service.create_agent(
         project_id=payload.project_id,

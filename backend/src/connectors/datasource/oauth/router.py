@@ -30,6 +30,8 @@ from src.connectors.datasource.oauth.schemas import (
     OAuthStatusResponse,
     OAuthDisconnectResponse,
 )
+from src.connectors.datasource.oauth.state_repository import OAuthStateRepository
+from src.utils.logger import log_warning
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
 
@@ -81,7 +83,10 @@ def _register_oauth_provider(
         response_model=ApiResponse[OAuthAuthorizeResponse],
         name=f"{slug}_authorize",
     )
-    async def authorize(service=Depends(dep)):
+    async def authorize(
+        current_user=Depends(get_current_user),
+        service=Depends(dep),
+    ):
         f"""Get {name} OAuth authorization URL."""
         try:
             if not check():
@@ -90,7 +95,16 @@ def _register_oauth_provider(
                     detail=f"{name} OAuth is not configured. "
                            f"Please set the required environment variables.",
                 )
-            authorization_url, _ = await service.get_authorization_url()
+
+            # SECURITY (M-2): issue a server-side state nonce bound to the
+            # caller. The matching callback() must present this exact state,
+            # otherwise a malicious site could trick the user into linking
+            # the attacker's OAuth identity to the victim's account.
+            state_repo = OAuthStateRepository()
+            state = state_repo.issue(
+                user_id=current_user.user_id, provider=slug,
+            )
+            authorization_url, _ = await service.get_authorization_url(state=state)
             return ApiResponse.success(
                 data=OAuthAuthorizeResponse(authorization_url=authorization_url),
                 message=f"{name} authorization URL generated",
@@ -115,6 +129,24 @@ def _register_oauth_provider(
     ):
         f"""Handle {name} OAuth callback."""
         try:
+            # SECURITY (M-2): validate the state nonce server-side. Reject any
+            # callback that doesn't carry a state we issued to this user for
+            # this provider. consume() is single-use — replay impossible.
+            state_repo = OAuthStateRepository()
+            if not state_repo.consume(
+                state=request.state or "",
+                user_id=current_user.user_id,
+                provider=slug,
+            ):
+                log_warning(
+                    f"[OAuth] state validation failed user={current_user.user_id} "
+                    f"provider={slug}"
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid or expired OAuth state",
+                )
+
             success, message, connection_info = await service.handle_callback(
                 user_id=current_user.user_id, code=request.code,
             )

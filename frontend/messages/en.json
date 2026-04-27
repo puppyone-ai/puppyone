@@ -1,0 +1,194 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "close": "Close",
+    "edit": "Edit",
+    "justNow": "just now",
+    "minutesAgo": "{n}m ago",
+    "hoursAgo": "{n}h ago",
+    "daysAgo": "{n}d ago",
+    "never": "Never"
+  },
+  "nav": {
+    "home": "Home",
+    "context": "Context",
+    "access": "Access",
+    "history": "History",
+    "monitor": "Monitor",
+    "settings": "Settings",
+    "team": "Team",
+    "billing": "Billing"
+  },
+  "sidebar": {
+    "collapse": "Collapse sidebar",
+    "expand": "Expand sidebar",
+    "guide": "Getting started guide",
+    "accountSettings": "Account settings"
+  },
+  "home": {
+    "title": "Projects",
+    "subtitle": "{count, plural, one {# project} other {# projects}} in your workspace",
+    "emptyDescription": "PuppyOne is your file workspace for multi-agent collaboration. Click below to start your first project.",
+    "newProject": "New Project",
+    "emptyProject": "Empty project",
+    "copyId": "Copy Project ID"
+  },
+  "onboarding": {
+    "guide": "Getting started",
+    "dismiss": "Already familiar, don't show again",
+    "collapseBtn": "Collapse",
+    "replayIntro": "Watch intro again",
+    "steps": {
+      "project": {
+        "label": "Create your first project",
+        "description": "Projects are containers for your data. Click '+ New Project' to get started.",
+        "action": "Create project"
+      },
+      "file": {
+        "label": "Upload your first file",
+        "description": "Go to the Context page, drag files or use mut push to sync a local folder.",
+        "action": "Upload files"
+      },
+      "access_point": {
+        "label": "Create an Access Point",
+        "description": "Access Points let Claude, Cursor, and other tools access your data.",
+        "action": "Create Access Point"
+      },
+      "local_sync": {
+        "label": "Sync with mut CLI",
+        "description": "Install mut CLI and run mut push for bidirectional real-time sync with PuppyOne.",
+        "action": "View guide"
+      },
+      "agent": {
+        "label": "Create an AI Agent",
+        "description": "Click '+ New Agent' in the right panel of the Context page, then bind data resources.",
+        "action": "Create Agent"
+      },
+      "chat": {
+        "label": "Chat with your Agent",
+        "description": "Select an Agent and start chatting to let AI help you process data.",
+        "action": "Start chatting"
+      },
+      "invite": {
+        "label": "Invite team members",
+        "description": "Invite members on the team page to manage projects and Agents together.",
+        "action": "Invite"
+      }
+    },
+    "welcome": {
+      "slide0Title": "Context layer for AI Agents",
+      "slide0Subtitle": "Store your data in PuppyOne so AI Agents can access it anytime — always knowing what they're working on.",
+      "slide0Caption": "From scattered files to unified context",
+      "slide1Title": "Connect any data source",
+      "slide1Subtitle": "Local folders, Google Drive, GitHub, web pages… one-click sync with automatic versioning.",
+      "slide1Caption": "Drag and drop to connect",
+      "slide2Title": "Fine-grained access control",
+      "slide2Subtitle": "Every Agent and tool can only access the scope you authorize — secure and auditable.",
+      "slide2Caption": "File-level security boundaries",
+      "skip": "Skip",
+      "next": "Next →",
+      "start": "Get started"
+    }
+  },
+  "userMenu": {
+    "account": "Account",
+    "integrations": "Integrations",
+    "about": "About",
+    "logout": "Logout",
+    "plan": "Plan",
+    "planFree": "Free",
+    "manageBilling": "Manage your subscription and billing settings.",
+    "integrationsDescription": "Connect your accounts to import data from external services.",
+    "loading": "Loading...",
+    "notConnected": "Not connected",
+    "connectedTo": "Connected to {name}",
+    "authError": "Authorization error",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect {platform}?",
+    "disconnectWarning": "You will need to re-authorize to import data from this service again.",
+    "version": "Version",
+    "connectWith": "Connect with us",
+    "language": "Language"
+  },
+  "projectDialog": {
+    "newTitle": "New project",
+    "template": "Template",
+    "blank": "Blank",
+    "blankDescription": "Empty workspace",
+    "nameLabel": "Project name",
+    "descriptionLabel": "Description",
+    "creating": "Creating…",
+    "create": "Create Project",
+    "saving": "Saving…",
+    "saveChanges": "Save Changes",
+    "cancel": "Cancel",
+    "deleteTitle": "Delete {name}?",
+    "deleteWarning": "This permanently deletes the project and every context node inside it. This action cannot be undone.",
+    "deleting": "Deleting…",
+    "deleteConfirm": "Delete Project"
+  },
+  "team": {
+    "title": "Team",
+    "subtitle": "Manage members and their access to {org}.",
+    "orgMembers": "Organization Members",
+    "seatsUsed": "{used} / {limit} seats used in your {plan} plan.",
+    "inviteMember": "Invite Member",
+    "emailPlaceholder": "Email address",
+    "sendInvite": "Send Invite",
+    "sending": "Sending...",
+    "cancel": "Cancel",
+    "roleOwner": "Owner",
+    "roleMember": "Member",
+    "roleViewer": "Viewer",
+    "inviteSent": "Invitation sent to {email}",
+    "roleUpdated": "Role updated successfully",
+    "memberRemoved": "Member removed successfully",
+    "inviteFailed": "Failed to send invitation",
+    "roleFailed": "Failed to update role",
+    "removeFailed": "Failed to remove member",
+    "confirmRemove": "Remove {name} from the organization?"
+  },
+  "access": {
+    "title": "Access",
+    "all": "All",
+    "noPoints": "No access points yet",
+    "selectPoint": "Select an access point",
+    "dangerZone": "Danger Zone",
+    "deletePoint": "Delete Access Point",
+    "deleteWarning": "This action cannot be undone.",
+    "recentActivity": "Recent Activity",
+    "configuration": "Configuration",
+    "credentials": "Credentials",
+    "status": {
+      "active": "Active",
+      "syncing": "Syncing",
+      "error": "Error",
+      "paused": "Paused",
+      "waiting": "Waiting",
+      "notConnected": "Not connected"
+    },
+    "actions": {
+      "pause": "Pause",
+      "resume": "Resume",
+      "syncNow": "Sync now",
+      "syncing": "Syncing...",
+      "save": "Save",
+      "cancel": "Cancel"
+    }
+  },
+  "projectHome": {
+    "status": {
+      "active": "Active",
+      "unhealthy": "Unhealthy"
+    },
+    "commits": "{count, plural, one {# commit} other {# commits}}",
+    "accessPoints": "{count, plural, one {# access point} other {# access points}}",
+    "copyId": "Copy project ID",
+    "emptyProject": "Empty project"
+  }
+}

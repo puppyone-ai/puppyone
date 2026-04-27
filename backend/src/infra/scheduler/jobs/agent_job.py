@@ -43,7 +43,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
 
         agent_result = (
             db_client.table("access_points")
-            .select("*, project:project_id(created_by)")
+            .select("*, project:project_id(created_by, org_id)")
             .eq("id", agent_id)
             .eq("provider", "agent")
             .single()
@@ -57,10 +57,46 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
 
         config = agent.get("config") or {}
         project_data = agent.get("project")
-        user_id = project_data.get("created_by") if project_data else None
+        project_id = agent.get("project_id")
+        # SECURITY (M-3): Pick the principal in priority order:
+        #   1. The access_point owner (the user who CREATED the agent) —
+        #      this is the natural impersonation target.
+        #   2. The project creator — fallback for legacy rows where
+        #      access_points.user_id was never set.
+        # We then RE-VERIFY that this user still has project access at
+        # execution time. Persisted IDs are stale: the user may have been
+        # removed from the project / org since the job was scheduled.
+        user_id = (
+            agent.get("user_id")
+            or (project_data.get("created_by") if project_data else None)
+        )
         if not user_id:
-            log_error(f"Agent {agent_id} has no associated project or user")
-            return {"status": "failed", "error": "Agent has no associated project"}
+            log_error(f"Agent {agent_id} has no associated user")
+            return {"status": "failed", "error": "Agent has no associated user"}
+
+        try:
+            from src.platform.project.repository import ProjectRepositorySupabase
+            access_role = ProjectRepositorySupabase().verify_project_access(
+                project_id, user_id,
+            )
+        except Exception as verify_err:
+            log_error(
+                f"❌ Agent {agent_id}: principal access check failed for "
+                f"user={user_id} project={project_id}: {verify_err}"
+            )
+            return {
+                "status": "failed",
+                "error": "Principal access check failed",
+            }
+        if access_role is None:
+            log_error(
+                f"⛔ Agent {agent_id}: scheduled job principal user={user_id} "
+                f"is no longer a member of project={project_id} — refusing to run"
+            )
+            return {
+                "status": "failed",
+                "error": "principal_invalid: scheduled job creator no longer has project access",
+            }
 
         agent_name = config.get("name", "Unknown")
         task_content = config.get("task_content", "")
