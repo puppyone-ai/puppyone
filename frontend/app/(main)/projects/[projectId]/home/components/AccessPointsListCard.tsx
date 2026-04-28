@@ -323,7 +323,17 @@ export function AccessPointsListCard({
               const direction = getApDirection(conn);
               const label =
                 conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
-              const scope = conn.path || '';
+              // Normalize the three "root scope" representations the
+              // backend can produce ('/' for newer rows, null for
+              // legacy, '' for early hand-bootstrapped) into a single
+              // displayed string '/'.  Without this, a root AP would
+              // render as '//' here (the leading '/' we prepend below
+              // + the literal '/' coming out of conn.path) which reads
+              // as a typo.
+              const rawPath = conn.path;
+              const isRoot =
+                rawPath === null || rawPath === '' || rawPath === '/';
+              const displayScope = isRoot ? '/' : `/${rawPath}`;
               const isError = conn.status === 'error';
               const statusColor = isError
                 ? T.err
@@ -366,7 +376,7 @@ export function AccessPointsListCard({
                         `/projects/${projectId}/access?ap=${conn.id}`,
                       )
                     }
-                    title={`${label}${scope ? ` — /${scope}` : ''} (${conn.status})`}
+                    title={`${label} — ${displayScope} (${conn.status})`}
                     style={{
                       background: 'none',
                       border: 'none',
@@ -458,7 +468,7 @@ export function AccessPointsListCard({
                           maxWidth: 220,
                         }}
                       >
-                        {scope ? `/${scope}` : '/'}
+                        {displayScope}
                       </span>
                     </div>
                   </button>

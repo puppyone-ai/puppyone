@@ -205,7 +205,26 @@ export default function HomePage({
   const accessByPath = useMemo(() => {
     const map = new Map<string, DashboardConnection[]>();
     for (const conn of connections) {
-      const key = conn.path || '';
+      // Normalize the three "root scope" path representations the
+      // backend can produce into a single key — '' — so downstream
+      // consumers only have to look in one place:
+      //
+      //   path === '/'   — what `mut connect` bootstrap stores today
+      //                    (filesystem service.bootstrap is called
+      //                    with path='/' from the home onboarding
+      //                    panel and the access page's "root scope"
+      //                    button)
+      //   path === null  — legacy rows from before path-NOT-NULL was
+      //                    enforced; still in some long-lived projects
+      //   path === ''    — early hand-bootstrapped rows
+      //
+      // Without this, the root TreeRow's ApChip lookup
+      // (`accessByPath.get('')`) misses the AP entirely because its
+      // path was '/' under the previous `conn.path || ''` pass-through
+      // (truthy → key stays '/'), so the chip silently doesn't render
+      // even though a real root-scope AP is wired.
+      const raw = conn.path;
+      const key = raw === null || raw === '' || raw === '/' ? '' : raw;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(conn);
     }
