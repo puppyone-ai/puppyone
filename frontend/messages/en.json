@@ -38,63 +38,6 @@
     "emptyProject": "Empty project",
     "copyId": "Copy Project ID"
   },
-  "onboarding": {
-    "guide": "Getting started",
-    "dismiss": "Already familiar, don't show again",
-    "collapseBtn": "Collapse",
-    "replayIntro": "Watch intro again",
-    "steps": {
-      "project": {
-        "label": "Create your first project",
-        "description": "Projects are containers for your data. Click '+ New Project' to get started.",
-        "action": "Create project"
-      },
-      "file": {
-        "label": "Upload your first file",
-        "description": "Go to the Context page, drag files or use mut push to sync a local folder.",
-        "action": "Upload files"
-      },
-      "access_point": {
-        "label": "Create an Access Point",
-        "description": "Access Points let Claude, Cursor, and other tools access your data.",
-        "action": "Create Access Point"
-      },
-      "local_sync": {
-        "label": "Sync with mut CLI",
-        "description": "Install mut CLI and run mut push for bidirectional real-time sync with PuppyOne.",
-        "action": "View guide"
-      },
-      "agent": {
-        "label": "Create an AI Agent",
-        "description": "Click '+ New Agent' in the right panel of the Context page, then bind data resources.",
-        "action": "Create Agent"
-      },
-      "chat": {
-        "label": "Chat with your Agent",
-        "description": "Select an Agent and start chatting to let AI help you process data.",
-        "action": "Start chatting"
-      },
-      "invite": {
-        "label": "Invite team members",
-        "description": "Invite members on the team page to manage projects and Agents together.",
-        "action": "Invite"
-      }
-    },
-    "welcome": {
-      "slide0Title": "Context layer for AI Agents",
-      "slide0Subtitle": "Store your data in PuppyOne so AI Agents can access it anytime — always knowing what they're working on.",
-      "slide0Caption": "From scattered files to unified context",
-      "slide1Title": "Connect any data source",
-      "slide1Subtitle": "Local folders, Google Drive, GitHub, web pages… one-click sync with automatic versioning.",
-      "slide1Caption": "Drag and drop to connect",
-      "slide2Title": "Fine-grained access control",
-      "slide2Subtitle": "Every Agent and tool can only access the scope you authorize — secure and auditable.",
-      "slide2Caption": "File-level security boundaries",
-      "skip": "Skip",
-      "next": "Next →",
-      "start": "Get started"
-    }
-  },
   "userMenu": {
     "account": "Account",
     "integrations": "Integrations",

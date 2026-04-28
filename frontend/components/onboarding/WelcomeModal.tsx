@@ -2,21 +2,42 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { useTranslations } from 'next-intl';
 
 interface Props {
   onDone: () => void;
 }
 
-export function WelcomeModal({ onDone }: Readonly<Props>) {
-  const t = useTranslations('onboarding.welcome');
-  const [slide, setSlide] = useState(0);
+// English-only by product policy — PuppyOne does not ship UI in any other
+// language right now, so the welcome modal hardcodes its copy directly
+// instead of going through next-intl.  When/if multi-language support is
+// reintroduced, lift these strings back into messages/<locale>.json under
+// `onboarding.welcome`.
+const SLIDES = [
+  {
+    title: 'The File Workspace for all your agents',
+    subtitle:
+      "Store your data in PuppyOne so AI Agents can access it anytime — always knowing what they're working on.",
+    image: '/old-vs-new-world.png',
+    imageCaption: 'From scattered files to unified context',
+  },
+  {
+    title: 'Connect any data source',
+    subtitle:
+      'Local folders, Google Drive, GitHub, web pages… one-click sync with automatic versioning.',
+    image: '/connect-demo.gif',
+    imageCaption: 'Drag and drop to connect',
+  },
+  {
+    title: 'Fine-grained access control',
+    subtitle:
+      'Every Agent and tool can only access the scope you authorize — secure and auditable.',
+    image: '/auth-demo.gif',
+    imageCaption: 'File-level security boundaries',
+  },
+];
 
-  const SLIDES = [
-    { title: t('slide0Title'), subtitle: t('slide0Subtitle'), image: '/old-vs-new-world.png', imageAlt: t('slide0Title'), imageCaption: t('slide0Caption') },
-    { title: t('slide1Title'), subtitle: t('slide1Subtitle'), image: '/connect-demo.gif',      imageAlt: t('slide1Title'), imageCaption: t('slide1Caption') },
-    { title: t('slide2Title'), subtitle: t('slide2Subtitle'), image: '/auth-demo.gif',         imageAlt: t('slide2Title'), imageCaption: t('slide2Caption') },
-  ];
+export function WelcomeModal({ onDone }: Readonly<Props>) {
+  const [slide, setSlide] = useState(0);
 
   const isLast = slide === SLIDES.length - 1;
   const current = SLIDES[slide];
@@ -42,7 +63,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
         }}>
           <Image
             src={current.image}
-            alt={current.imageAlt}
+            alt={current.title}
             fill
             style={{ objectFit: 'contain', padding: 24 }}
             priority
@@ -77,10 +98,45 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
             ))}
           </div>
 
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#f4f4f5', marginBottom: 10, textAlign: 'center' }}>
+          {/* Title row reserves single-line height so a slide whose title
+              wraps doesn't bump the modal taller than its neighbors.  At
+              the 700px modal width and fontSize 22 bold, the longest current
+              title ("The File Workspace for all your agents", ~490px
+              rendered) fits comfortably; minHeight 32 just locks the row. */}
+          <h2
+            style={{
+              fontSize: 22,
+              fontWeight: 700,
+              color: '#f4f4f5',
+              marginBottom: 10,
+              textAlign: 'center',
+              minHeight: 32,
+            }}
+          >
             {current.title}
           </h2>
-          <p style={{ fontSize: 14, color: '#a1a1aa', lineHeight: 1.7, textAlign: 'center', marginBottom: 28 }}>
+          {/* Subtitle is the dominant source of slide-to-slide height
+              jitter: at fontSize 14 / lineHeight 1.7 each line is 23.8px,
+              and the three subtitles oscillate between 1 and 2 lines
+              depending on the user's effective font + viewport width.
+              Reserving 2 lines (48px) flat-lines that jitter so the modal
+              stays a single height across all three slides; pairing that
+              with flex centering keeps the 1-line case visually balanced
+              instead of top-aligning inside an over-sized box (which
+              would just shift the jitter into the gap above the buttons). */}
+          <p
+            style={{
+              fontSize: 14,
+              color: '#a1a1aa',
+              lineHeight: 1.7,
+              textAlign: 'center',
+              marginBottom: 28,
+              minHeight: 48,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
             {current.subtitle}
           </p>
 
@@ -93,7 +149,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
                 borderRadius: 8, cursor: 'pointer',
               }}
             >
-              {t('skip')}
+              Skip
             </button>
             <button
               onClick={() => { if (isLast) onDone(); else setSlide(s => s + 1); }}
@@ -105,7 +161,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
               onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
               onMouseLeave={e => (e.currentTarget.style.background = '#3b82f6')}
             >
-              {isLast ? t('start') : t('next')}
+              {isLast ? 'Get started' : 'Next →'}
             </button>
           </div>
         </div>

@@ -1,24 +1,70 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useTranslations } from 'next-intl';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import type { OnboardingStep } from '@/lib/hooks/useOnboarding';
 
 interface StepDef {
   id: OnboardingStep;
+  label: string;
+  description: string;
   actionLabel?: string;
   getHref?: (projectId?: string) => string;
 }
 
+// English-only by product policy — copy lives inline rather than under
+// `onboarding.steps` in messages/<locale>.json.  If multi-language support
+// is reintroduced, lift label/description/actionLabel back into i18n.
 const STEP_DEFS: StepDef[] = [
-  { id: 'project',      actionLabel: 'project.action',      getHref: () => '/home' },
-  { id: 'file',         actionLabel: 'file.action',         getHref: (pid) => pid ? `/projects/${pid}/data` : '/home' },
-  { id: 'access_point', actionLabel: 'access_point.action', getHref: (pid) => pid ? `/projects/${pid}/access` : '/home' },
-  { id: 'local_sync',   actionLabel: 'local_sync.action',   getHref: (pid) => pid ? `/projects/${pid}/access` : '/home' },
-  { id: 'agent',        actionLabel: 'agent.action',        getHref: (pid) => pid ? `/projects/${pid}/data` : '/home' },
-  { id: 'chat',         actionLabel: 'chat.action',         getHref: (pid) => pid ? `/projects/${pid}/data` : '/home' },
-  { id: 'invite',       actionLabel: 'invite.action',       getHref: () => '/team' },
+  {
+    id: 'project',
+    label: 'Create your first project',
+    description: "Projects are containers for your data. Click '+ New Project' to get started.",
+    actionLabel: 'Create project',
+    getHref: () => '/home',
+  },
+  {
+    id: 'file',
+    label: 'Upload your first file',
+    description: 'Go to the Context page, drag files or use mut push to sync a local folder.',
+    actionLabel: 'Upload files',
+    getHref: (pid) => (pid ? `/projects/${pid}/data` : '/home'),
+  },
+  {
+    id: 'access_point',
+    label: 'Create an Access Point',
+    description: 'Access Points let Claude, Cursor, and other tools access your data.',
+    actionLabel: 'Create Access Point',
+    getHref: (pid) => (pid ? `/projects/${pid}/access` : '/home'),
+  },
+  {
+    id: 'local_sync',
+    label: 'Sync with mut CLI',
+    description: 'Install mut CLI and run mut push for bidirectional real-time sync with PuppyOne.',
+    actionLabel: 'View guide',
+    getHref: (pid) => (pid ? `/projects/${pid}/access` : '/home'),
+  },
+  {
+    id: 'agent',
+    label: 'Create an AI Agent',
+    description: "Click '+ New Agent' in the right panel of the Context page, then bind data resources.",
+    actionLabel: 'Create Agent',
+    getHref: (pid) => (pid ? `/projects/${pid}/data` : '/home'),
+  },
+  {
+    id: 'chat',
+    label: 'Chat with your Agent',
+    description: 'Select an Agent and start chatting to let AI help you process data.',
+    actionLabel: 'Start chatting',
+    getHref: (pid) => (pid ? `/projects/${pid}/data` : '/home'),
+  },
+  {
+    id: 'invite',
+    label: 'Invite team members',
+    description: 'Invite members on the team page to manage projects and Agents together.',
+    actionLabel: 'Invite',
+    getHref: () => '/team',
+  },
 ];
 
 interface Props {
@@ -27,7 +73,6 @@ interface Props {
 
 export function GettingStartedPanel({ projectId }: Readonly<Props>) {
   const router = useRouter();
-  const t = useTranslations('onboarding');
   const { completedSteps, collapsedChecklist, dismissedChecklist, dismissChecklist, openChecklist, collapseChecklist, resetWelcome } = useOnboarding();
 
   const done = completedSteps.length;
@@ -55,7 +100,7 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
         }}>
           <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#1a1a1a' }} />
         </div>
-        {t('guide')} {done}/{total}
+        Getting started {done}/{total}
       </button>
     );
   }
@@ -75,7 +120,7 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
       }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#f4f4f5', marginBottom: 8 }}>
-            {t('guide')}
+            Getting started
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
@@ -87,7 +132,7 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
         <div style={{ display: 'flex', gap: 2, flexShrink: 0, marginTop: 2 }}>
           <button
             onClick={collapseChecklist}
-            title={t('collapseBtn')}
+            title="Collapse"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#71717a', padding: '2px 6px', borderRadius: 4 }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -96,7 +141,7 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
           </button>
           <button
             onClick={dismissChecklist}
-            title={t('dismiss')}
+            title="Already familiar, don't show again"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#71717a', padding: '2px 6px', borderRadius: 4, fontSize: 14, lineHeight: 1 }}
           >
             ✕
@@ -114,7 +159,6 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
           const labelColorActive = isNext ? '#f4f4f5' : '#71717a';
           const labelColor = completed ? '#3f3f46' : labelColorActive;
           const href = step.getHref?.(projectId);
-          const stepKey = `steps.${step.id}`;
           return (
             <div
               key={step.id}
@@ -147,12 +191,12 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
                   textDecoration: completed ? 'line-through' : 'none',
                   marginBottom: isNext ? 4 : 0,
                 }}>
-                  {t(`steps.${step.id}.label`)}
+                  {step.label}
                 </div>
                 {isNext && !completed && (
                   <>
                     <div style={{ fontSize: 11, color: '#a1a1aa', lineHeight: 1.6, marginBottom: 8 }}>
-                      {t(`${stepKey}.description`)}
+                      {step.description}
                     </div>
                     {step.actionLabel && href && (
                       <button
@@ -165,7 +209,7 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
                         onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
                         onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
                       >
-                        {t(`${stepKey}.action`)} →
+                        {step.actionLabel} →
                       </button>
                     )}
                   </>
@@ -182,13 +226,13 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
           onClick={dismissChecklist}
           style={{ fontSize: 11, color: '#3f3f46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
-          {t('dismiss')}
+          Already familiar, don&apos;t show again
         </button>
         <button
           onClick={resetWelcome}
           style={{ fontSize: 11, color: '#3f3f46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
-          {t('replayIntro')}
+          Watch intro again
         </button>
       </div>
     </div>
