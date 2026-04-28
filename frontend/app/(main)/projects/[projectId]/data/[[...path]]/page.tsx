@@ -377,7 +377,7 @@ export default function DataPage({ params }: DataPageProps) {
   const { syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
-  const { draftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
+  const { draftResources, setDraftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
 
   // Auto-complete onboarding steps
   const { completeStep } = useOnboarding();
@@ -484,6 +484,38 @@ export default function DataPage({ params }: DataPageProps) {
     setIsEditorFullScreen(false);
     openPanel({ type: 'sync_create' });
   }, [openPanel]);
+
+  // Same as openSyncCreatePanel, but with the target resource
+  // pre-filled to the user's current navigation context.  This is
+  // what the Sidebar's "+ New connection" button calls — the user's
+  // mental model is "I'm looking at folder X, I want to add an
+  // access point to it", and the panel landing with that folder
+  // already in the target list collapses a 4-step flow (jump to
+  // /access → click Create → drag the folder from sidebar → click
+  // Create) into a single click.
+  //
+  // currentFolderId is the path string of the user's current
+  // navigation focus (or `null` for the project root).  We
+  // normalise null → '' (root scope) and try to derive a
+  // human-readable name from the trailing path segment so the
+  // pre-filled chip in the panel reads as something other than
+  // an opaque blob.
+  const openSyncCreatePanelForCurrentFolder = useCallback(() => {
+    const targetPath = currentFolderId ?? '';
+    const segments = targetPath.split('/').filter(Boolean);
+    const nodeName = segments.length > 0 ? segments[segments.length - 1] : 'Root';
+    setDraftResources([
+      {
+        path: targetPath,
+        nodeName,
+        nodeType: 'folder',
+        readonly: false,
+      },
+    ]);
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    openPanel({ type: 'sync_create' });
+  }, [currentFolderId, openPanel, setDraftResources]);
 
   const handleSyncCreated = useCallback(async (nodeId: string) => {
     await mutateSyncStatus();
@@ -890,6 +922,7 @@ export default function DataPage({ params }: DataPageProps) {
             }
             onNavigate={handleMillerNavigate}
             onCreate={handleMillerCreateClick}
+            onCreateSync={openSyncCreatePanelForCurrentFolder}
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}

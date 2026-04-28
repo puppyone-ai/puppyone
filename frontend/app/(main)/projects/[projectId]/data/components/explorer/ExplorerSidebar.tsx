@@ -14,6 +14,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   activeNodeId,
   onNavigate,
   onCreate,
+  onCreateSync,
   onRename,
   onDelete,
   onMoveNode,
@@ -84,44 +85,105 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
           Workspace
         </div>
 
-        {onCreate && (
-          <button
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={isRootCreateMenuOpen}
-            onClick={(e) => onCreate(e, null)}
-            title="Add file/folder"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 24,
-              height: 24,
-              borderRadius: 4,
-              background: isRootCreateMenuOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: isRootCreateMenuOpen ? '#ddd' : '#888',
-              padding: 0,
-              transition: 'background 0.12s, color 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-              e.currentTarget.style.color = '#ddd';
-            }}
-            onMouseLeave={(e) => {
-              if (!isRootCreateMenuOpen) {
+        {/* Header actions cluster — file/folder + button, then a
+            separate "+ Connect" button for opening the sync_create
+            panel with the user's current folder pre-filled.  Two
+            buttons instead of one combined dropdown because the
+            two affordances ("create thing inside the workspace" vs
+            "expose the workspace to an external consumer") are
+            conceptually different — they shouldn't share a single
+            menu trigger. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {onCreateSync && (
+            <button
+              type="button"
+              onClick={onCreateSync}
+              title="Create access point for the current folder"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                height: 24,
+                padding: '0 8px',
+                borderRadius: 4,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#888',
+                fontSize: 12,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                transition: 'background 0.12s, color 0.12s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#ddd';
+              }}
+              onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
                 e.currentTarget.style.color = '#888';
-              }
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        )}
+              }}
+            >
+              {/* Plug-shaped link icon — communicates "external
+                  connection" without leaning on the same `+`
+                  glyph the file/folder button uses next to it. */}
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+                <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+              Connect
+            </button>
+          )}
+
+          {onCreate && (
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={isRootCreateMenuOpen}
+              onClick={(e) => onCreate(e, null)}
+              title="Add file/folder"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 24,
+                height: 24,
+                borderRadius: 4,
+                background: isRootCreateMenuOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: isRootCreateMenuOpen ? '#ddd' : '#888',
+                padding: 0,
+                transition: 'background 0.12s, color 0.12s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                e.currentTarget.style.color = '#ddd';
+              }}
+              onMouseLeave={(e) => {
+                if (!isRootCreateMenuOpen) {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = '#888';
+                }
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative', paddingTop: 6 }}>
