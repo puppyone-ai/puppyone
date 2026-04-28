@@ -536,6 +536,17 @@ function MutSyncBlock({
   // truth.  We accept either '/' or null path as "root scope" — older
   // rows in the wild have null.  This makes the block instantly ready
   // on refresh / tab switch / second-machine open.
+  //
+  // CRITICAL: the dashboard endpoint masks access_key for safety
+  // (see backend dashboard_router._mask_key — turns
+  // `cli_<43chars>` into `cli_<prefix>...<last4>`).  That masked
+  // string is fine to *display* but useless to *paste into a
+  // terminal*: the literal `...` makes the key look like
+  // `cli_...R6CA` which the backend can't resolve, so
+  // `mut connect` returns 401 / not found.  Treat the masked form
+  // as "no seed" so the bootstrap effect below fires and the
+  // bootstrap endpoint (idempotent — returns the existing AP's
+  // real, full access_key) gives us a paste-runnable command.
   const seededKey = useMemo(() => {
     const fs = connections.find(
       (c) =>
@@ -543,7 +554,9 @@ function MutSyncBlock({
         (c.path === '/' || c.path === null || c.path === '') &&
         !!c.access_key,
     );
-    return fs?.access_key ?? null;
+    const raw = fs?.access_key ?? null;
+    if (raw && raw.includes('...')) return null;
+    return raw;
   }, [connections]);
 
   const [accessKey, setAccessKey] = useState<string | null>(seededKey);
@@ -606,7 +619,20 @@ function MutSyncBlock({
     };
   }, [accessKey, projectId, onReady]);
 
-  const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
+  // The mut CLI talks to the backend API directly — `/api/v1/mut/ap/...`
+  // is a backend route, NOT a Next.js page or rewrite. Using
+  // `window.location.origin` (the frontend origin) here was a bug: in
+  // local dev it produced `http://localhost:3000/api/v1/mut/ap/...`,
+  // which Next.js doesn't serve and returns 404; in production it
+  // produced `https://app.puppyone.com/api/v1/mut/ap/...`, same 404.
+  // Match the pattern used by FilesystemDetailView / SyncDetailView:
+  // prefer the explicit `NEXT_PUBLIC_API_URL` (set at build time to the
+  // backend host) and only fall back to `window.location.origin` for
+  // single-host deployments where backend and frontend share an origin
+  // via a reverse proxy.
+  const apiBase = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
+    : '';
   const apUrl = accessKey ? `${apiBase}/api/v1/mut/ap/${accessKey}` : '';
 
   // The onboarding command for an EMPTY project is `mut connect`, NOT

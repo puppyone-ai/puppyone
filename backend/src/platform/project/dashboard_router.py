@@ -219,7 +219,7 @@ def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
             path=r.get("path"),
             direction=r.get("direction"),
             status=r.get("status", "active"),
-            access_key=_mask_key(r.get("access_key")),
+            access_key=_mask_key(r.get("access_key"), r.get("provider")),
             trigger=r.get("trigger"),
             last_synced_at=r.get("last_synced_at"),
             error_message=r.get("error_message"),
@@ -361,8 +361,22 @@ def _fetch_uploads(sb, project_id: str) -> list[DashboardUpload]:
     ]
 
 
-def _mask_key(key: str | None) -> str | None:
+def _mask_key(key: str | None, provider: str | None = None) -> str | None:
     if not key or len(key) < 8:
+        return key
+    # Filesystem access keys are paste-and-run credentials the project
+    # owner uses with their local `mut` CLI: the home-page onboarding
+    # block renders `mut connect <ap-url> --credential <key>`, the
+    # access page exposes a Copy button next to the key, and SyncDetail
+    # in the data canvas does the same. Masking those broke every one
+    # of those flows (the rendered command included literal `cli_...XXX`
+    # which the backend can't resolve, so `mut connect` returned 401 /
+    # not found). Dashboard is JWT-gated to project members already, so
+    # an owner seeing their own filesystem key is the right exposure
+    # level — the mask only made sense for keys we hand out to
+    # third-party callers (sandbox, mcp), where the dashboard is just
+    # an "is it configured" preview.
+    if provider == "filesystem":
         return key
     prefix_end = key.index("_") + 1 if "_" in key else 4
     return key[:prefix_end] + "..." + key[-4:]
