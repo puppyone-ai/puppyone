@@ -2,6 +2,7 @@
 
 import { use, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
@@ -18,8 +19,31 @@ import type {
 import { TreeRows, type RowVariant } from './components/TreeRows';
 import { HistoryCard } from './components/HistoryCard';
 import { AccessPointsCard } from './components/AccessPointsCard';
-import { ConnectionsCanvas } from './components/ConnectionsCanvas';
 import { GetStartedPanel } from './components/GetStartedPanel';
+
+const ConnectionsCanvas = dynamic(
+  () => import('./components/ConnectionsCanvas').then((mod) => mod.ConnectionsCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: 300,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: T.text3,
+          fontSize: 12,
+          background: T.sectionBg,
+          border: `2px solid ${T.sectionBorder}`,
+          borderRadius: T.sectionRadius,
+        }}
+      >
+        Loading connection graph...
+      </div>
+    ),
+  },
+);
 
 // Vitals-strip interpunct separator.  A single `·` glyph rendered in
 // the faint `text4` token with a small horizontal rhythm so the strip
@@ -825,8 +849,33 @@ export default function HomePage({
                   in turn lets the Connections canvas below grow
                   to a comparable height without breaking the rule
                   that Connections must stay shorter than Data
-                  (see ConnectionsCanvas's height comment). */}
-              <div style={{ padding: '6px 0', minHeight: 320 }}>
+                  (see ConnectionsCanvas's height comment).
+                  
+                  `maxHeight` caps the card so a heavy top-level
+                  ("39 .txt files at the project root") doesn't
+                  silently dwarf the right rail — the previous
+                  design relied on the page-level scroller, which
+                  works fine for a 50-entry tree where the right
+                  rail goes off-screen with it, but breaks down
+                  when the rail is ~300px and Data wants to be
+                  ~1200px (the rail flat-lines while Data marches
+                  on, breaking the two-column band's read).  480px
+                  ≈ 15 rows at ROW_HEIGHT 32 — sized JUST above
+                  SOFT_TOTAL_CAP (14 rows ≈ 460px) so the
+                  expansion budget still fits naturally without
+                  triggering an internal scroller in the common
+                  case; only the genuinely-overflowing case (this
+                  project, with 39 flat files) scrolls inside the
+                  card.  `overflowY: auto` keeps the bar invisible
+                  until the content actually overflows. */}
+              <div
+                style={{
+                  padding: '6px 0',
+                  minHeight: 320,
+                  maxHeight: 480,
+                  overflowY: 'auto',
+                }}
+              >
                 {dataCardView.tree.length === 0 ? (
                   <div
                     style={{
