@@ -221,7 +221,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 {onCreateSync && (
                   <button
                     type="button"
-                    onClick={() => onCreateSync('')}
+                    onClick={(e) => onCreateSync(e, '')}
                     title="Create access point at project root"
                     aria-label="Create access point at project root"
                     style={{

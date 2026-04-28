@@ -216,12 +216,24 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     }
   }, [pendingSyncProvider, syncProviders]);
 
+  // CRITICAL: handleSelect*/handleBack must NOT clear draftResources.
+  // The previous version called `setDraftResources([])` on every
+  // provider/agent/endpoint pick, which silently wiped any target
+  // pre-filled by an external caller (sidebar Connect button, per-row
+  // plug button, etc.).  Symptom: user clicked the plug on a folder
+  // row, panel opened with that folder set as target, user clicked a
+  // provider → target zone snapped back to "Drag a folder into this
+  // zone" and the panel looked broken.  Switching providers within
+  // the same panel session is NOT a "I want a different target" gesture
+  // — the user is just exploring sync options for the same folder.
+  // Only handleBack-then-explicit-cancel-and-reopen would justify
+  // clearing target, and that flow already runs through
+  // setDraftResources upstream from page.tsx.
   const handleSelectAgentType = (type: AgentTypeId) => {
     setSelectedAgentType(type);
     setSelectedEndpointType(null);
     setSelectedSyncProvider(null);
     setDraftType('chat');
-    setDraftResources([]);
     setDisplayName('');
     setDeployError(null);
   };
@@ -230,7 +242,6 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     setSelectedEndpointType(type);
     setSelectedAgentType(null);
     setSelectedSyncProvider(null);
-    setDraftResources([]);
     setDisplayName('');
     setDeployError(null);
   };
@@ -239,7 +250,6 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     setSelectedSyncProvider(id);
     setSelectedAgentType(null);
     setSelectedEndpointType(null);
-    setDraftResources([]);
     setDisplayName('');
     setDeployError(null);
     const provider = syncProviders.find(p => p.id === id);
@@ -256,7 +266,6 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
     setSelectedAgentType(null);
     setSelectedEndpointType(null);
     setSelectedSyncProvider(null);
-    setDraftResources([]);
     setSyncConfigValues({});
     setDisplayName('');
     setDeployError(null);

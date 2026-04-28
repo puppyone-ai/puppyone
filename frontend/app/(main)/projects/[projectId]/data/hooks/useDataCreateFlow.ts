@@ -64,6 +64,17 @@ export function useDataCreateFlow({
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [createMenuPosition, setCreateMenuPosition] = useState<CreateMenuPosition | null>(null);
   const [createInFolderId, setCreateInFolderId] = useState<string | null | undefined>(undefined);
+  // Two pieces of state for the per-folder plug-button flow.  When
+  // a user clicks the plug, we open the same CreateMenu instance
+  // but flip it into accessOnly mode (only renders the New Access
+  // submenu content, flat) and stash the folder path that should
+  // be pre-filled as the target on whichever provider the user
+  // picks from the menu.  Reusing the existing create-menu state
+  // machine — same position / outside-click-to-close /
+  // reposition-on-scroll behaviour — instead of standing up a
+  // second menu instance.
+  const [createMenuAccessOnly, setCreateMenuAccessOnly] = useState(false);
+  const [accessTargetPath, setAccessTargetPath] = useState<string | null>(null);
   const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const createMenuTriggerRef = useRef<HTMLElement | null>(null);
@@ -93,6 +104,8 @@ export function useDataCreateFlow({
 
   const closeCreateMenu = useCallback(() => {
     setCreateMenuOpen(false);
+    setCreateMenuAccessOnly(false);
+    setAccessTargetPath(null);
     createMenuTriggerRef.current = null;
   }, []);
 
@@ -136,7 +149,26 @@ export function useDataCreateFlow({
 
   const handleMillerCreateClick = useCallback(
     (event: ReactMouseEvent<Element>, parentId: string | null) => {
+      setCreateMenuAccessOnly(false);
+      setAccessTargetPath(null);
       openCreateMenu(event, parentId);
+    },
+    [openCreateMenu],
+  );
+
+  // Per-folder plug-button entry point.  Same menu, but accessOnly
+  // mode → flat list of providers/agents/endpoints, no Create-Blank
+  // / Upload sections.  Stashes `folderPath` so the picker callbacks
+  // below can pre-bind it as the target resource on whichever
+  // provider the user picks.  The folder path is normalised the
+  // same way as in page.tsx's openSyncCreatePanelForFolder ('' for
+  // project root, raw path otherwise) so AgentContext's
+  // `setDraftResources` keys line up with `accessByPath`.
+  const handleAccessMenuClick = useCallback(
+    (event: ReactMouseEvent<Element>, folderPath: string) => {
+      setCreateMenuAccessOnly(true);
+      setAccessTargetPath(folderPath);
+      openCreateMenu(event, folderPath || null);
     },
     [openCreateMenu],
   );
@@ -240,6 +272,45 @@ export function useDataCreateFlow({
       }
     },
     [currentFolderId, openSyncCreatePanel, openSyncSetting, projectId],
+  );
+
+  // Provider-pick handler that branches on which menu launched it:
+  //
+  //   - plug menu (accessTargetPath !== null) → the user already
+  //     picked a target by clicking the folder's plug, so skip the
+  //     "create a node + bind it" dance.  Build the AccessResource
+  //     directly from the prefilled folder path and seed it via
+  //     `openSyncSetting`'s `preBindResource` argument.  The panel
+  //     auto-jumps to the provider's config view (because
+  //     pendingSyncProvider is set) with the target chip already
+  //     populated (because draftResources[0] is set).
+  //
+  //   - + menu (accessTargetPath === null) → the user is starting
+  //     from "create something new under this folder", so go through
+  //     the existing handleCreateAndSync, which mints a new node
+  //     (Notion / Gmail / etc. parent folder) and binds it as the
+  //     target.
+  //
+  // Same provider id strings flow into both branches, so the panel's
+  // pendingSyncProvider effect lights up the right config view either
+  // way.
+  const handleAccessSelect = useCallback(
+    (provider: string) => {
+      if (accessTargetPath !== null) {
+        const segs = accessTargetPath.split('/').filter(Boolean);
+        const nodeName = segs.length > 0 ? segs[segs.length - 1] : 'Root';
+        openSyncSetting(provider, {
+          path: accessTargetPath,
+          nodeName,
+          nodeType: 'folder',
+          readonly: false,
+        });
+        openSyncCreatePanel();
+      } else {
+        void handleCreateAndSync(provider);
+      }
+    },
+    [accessTargetPath, handleCreateAndSync, openSyncCreatePanel, openSyncSetting],
   );
 
   const createMenuActions = useMemo<DataCreateMenuActions>(() => {
@@ -366,52 +437,28 @@ export function useDataCreateFlow({
         openSyncSetting('_generic');
         openSyncCreatePanel();
       },
-      onImportNotion: () => {
-        void handleCreateAndSync('notion');
-      },
-      onImportGitHub: () => {
-        void handleCreateAndSync('github');
-      },
-      onImportGmail: () => {
-        void handleCreateAndSync('gmail');
-      },
-      onImportDocs: () => {
-        void handleCreateAndSync('docs');
-      },
-      onImportCalendar: () => {
-        void handleCreateAndSync('calendar');
-      },
-      onImportSheets: () => {
-        void handleCreateAndSync('sheets');
-      },
-      onConnectSupabase: () => {
-        void handleCreateAndSync('supabase');
-      },
-      onImportSearchConsole: () => {
-        void handleCreateAndSync('google_search_console');
-      },
-      onImportLocalFolder: () => {
-        openSyncSetting('filesystem');
-        openSyncCreatePanel();
-      },
-      onCreateAgent: () => {
-        openSyncSetting('chat');
-        openSyncCreatePanel();
-      },
-      onCreateMcp: () => {
-        openSyncSetting('mcp');
-        openSyncCreatePanel();
-      },
-      onCreateSandbox: () => {
-        openSyncSetting('sandbox');
-        openSyncCreatePanel();
-      },
+      // All concrete-provider entries route through handleAccessSelect,
+      // which decides — based on whether the menu was opened by the
+      // plug button or by `+` — whether to prefill the user's target
+      // folder or to mint a new sync node first.
+      onImportNotion: () => handleAccessSelect('notion'),
+      onImportGitHub: () => handleAccessSelect('github'),
+      onImportGmail: () => handleAccessSelect('gmail'),
+      onImportDocs: () => handleAccessSelect('docs'),
+      onImportCalendar: () => handleAccessSelect('calendar'),
+      onImportSheets: () => handleAccessSelect('sheets'),
+      onConnectSupabase: () => handleAccessSelect('supabase'),
+      onImportSearchConsole: () => handleAccessSelect('google_search_console'),
+      onImportLocalFolder: () => handleAccessSelect('filesystem'),
+      onCreateAgent: () => handleAccessSelect('chat'),
+      onCreateMcp: () => handleAccessSelect('mcp'),
+      onCreateSandbox: () => handleAccessSelect('sandbox'),
     };
   }, [
     closeCreateMenu,
     createInFolderId,
     currentFolderId,
-    handleCreateAndSync,
+    handleAccessSelect,
     highlightCreatedNode,
     navigateTo,
     openSyncCreatePanel,
@@ -430,11 +477,13 @@ export function useDataCreateFlow({
     createMenuOpen,
     createMenuOpenForId,
     createMenuPosition,
+    createMenuAccessOnly,
     createMenuRef,
     createMenuActions,
     highlightNodeId,
     handleCreateClick,
     handleMillerCreateClick,
+    handleAccessMenuClick,
     closeCreateTable,
   };
 }

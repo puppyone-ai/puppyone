@@ -551,11 +551,13 @@ export default function DataPage({ params }: DataPageProps) {
     createMenuOpen,
     createMenuOpenForId,
     createMenuPosition,
+    createMenuAccessOnly,
     createMenuRef,
     createMenuActions,
     highlightNodeId,
     handleCreateClick,
     handleMillerCreateClick,
+    handleAccessMenuClick,
     closeCreateTable,
   } = useDataCreateFlow({
     projectId,
@@ -887,6 +889,7 @@ export default function DataPage({ params }: DataPageProps) {
         toast={nodeActions.toast}
         createMenuOpen={createMenuOpen}
         createMenuPosition={createMenuPosition}
+        createMenuAccessOnly={createMenuAccessOnly}
         createMenuRef={createMenuRef}
         createMenuActions={createMenuActions}
       />
@@ -927,7 +930,7 @@ export default function DataPage({ params }: DataPageProps) {
             }
             onNavigate={handleMillerNavigate}
             onCreate={handleMillerCreateClick}
-            onCreateSync={openSyncCreatePanelForFolder}
+            onCreateSync={handleAccessMenuClick}
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}

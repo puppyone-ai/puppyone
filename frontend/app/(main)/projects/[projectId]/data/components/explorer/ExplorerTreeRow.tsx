@@ -459,7 +459,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCreateSync(item.id);
+                    onCreateSync(e, item.id);
                   }}
                   title="Create access point for this folder"
                   aria-label="Create access point for this folder"
