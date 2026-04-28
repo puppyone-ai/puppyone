@@ -137,7 +137,11 @@ function CopyableLine({
           color: T.text3,
           letterSpacing: '0.05em',
           flexShrink: 0,
-          minWidth: 22,
+          // Wide enough to hold the longest label we ship today
+          // (`SETUP`).  All shorter labels (URL, $, etc.) align
+          // to the same right edge, which keeps the value column
+          // starting at the same x across rows.
+          minWidth: 40,
           textTransform: 'uppercase',
           fontFamily: T.fontMono,
         }}
@@ -410,21 +414,19 @@ function ApListRow({
           transition: `background 160ms ${T.ease}`,
         }}
       >
-        {/* Identity row — sidebar AccessPointsCard layout verbatim
-            so the same AP reads consistently across surfaces. */}
-        <button
-          type="button"
-          onClick={() =>
-            router.push(`/projects/${projectId}/access?ap=${conn.id}`)
-          }
+        {/* Identity row — used to be a clickable button that
+            navigated to /access?ap=<id>, but that meant any
+            mis-click on the avatar / name / scope path while
+            hovering Copy buttons below would yank the user off
+            the page mid-copy.  Now a plain div: nothing on the
+            row navigates by accident.  The explicit "Open" link
+            on the right is the single, deliberate management
+            entry point. */}
+        <div
           title={`${label} — ${displayScope} (${conn.status})`}
           style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
             padding: '4px 0',
             width: '100%',
-            textAlign: 'left',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
@@ -522,21 +524,73 @@ function ApListRow({
               {displayScope}
             </span>
           </div>
-        </button>
 
-        {/* URL + cmd nested rows.  Indented 42px to align with the
-            AP name (32px avatar + 10px gap), so they read as
-            belonging to this AP without needing extra background
-            chrome. */}
+          {/* Explicit "Open" link — the only deliberate entry to
+              /access?ap=<id> from this card.  Visually quiet
+              (text2 → text1 on hover) so it doesn't compete with
+              the AP name; semantically loud because it's the only
+              navigable element on the identity row. */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/projects/${projectId}/access?ap=${conn.id}`);
+            }}
+            title="Open access point details"
+            style={{
+              flexShrink: 0,
+              marginLeft: 8,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px 6px',
+              fontSize: 12,
+              color: T.text3,
+              fontFamily: T.fontSans,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              borderRadius: 4,
+              transition: `color 160ms ${T.ease}, background 160ms ${T.ease}`,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = T.text1;
+              e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = T.text3;
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            Open
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M4 2l4 4-4 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Endpoint detail rows.  Drawn flush-left with the AP
+            row's own padding (no 42px indent) so they read as
+            primary content of this card, not a hanging detail
+            block.  A 1px hairline along the top separates them
+            from the identity row above — the divider is the
+            structural cue ("identity vs endpoint info") that the
+            old indent was trying and failing to communicate. */}
         {(url || cmd) && (
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
               gap: 6,
-              marginTop: 8,
-              marginLeft: 42,
-              marginRight: 0,
+              marginTop: 10,
+              paddingTop: 10,
+              borderTop: `1px solid ${T.cardBorder}`,
             }}
           >
             {url && (
@@ -548,9 +602,20 @@ function ApListRow({
                 onCopy={onCopy}
               />
             )}
+            {/* `mut connect` is the *one-time setup* command, not a
+                command the user runs daily.  Once the local folder
+                is connected, day-to-day work happens via local
+                `mut push` / `mut pull` and the user never needs to
+                touch the URL again.  The `SETUP` label makes that
+                lifecycle explicit so users who already connected
+                don't try to re-paste this every time they revisit
+                the page.  When the dashboard later surfaces use-
+                case-specific commands (Claude / Cursor / Cline
+                config snippets), this row's label can become a
+                segmented control between them. */}
             {cmd && (
               <CopyableLine
-                label="$"
+                label="SETUP"
                 value={cmd}
                 copyKey={`cmd-${conn.id}`}
                 copiedKey={copiedKey}
