@@ -104,23 +104,19 @@ function buildCliCommand(conn: DashboardConnection, url: string | null): string 
   return `mut connect ${url} --credential ${conn.access_key}`;
 }
 
-// Vertical copyable block.  At the new 280px sidebar width a single-
-// row layout (label + value + Copy on one line) couldn't carry the
-// monospaced URL — it got truncated to "http://localho..." with no
-// useful information visible.  Two-row layout instead:
+// Single-line "label + Copy" row.  Earlier versions also rendered
+// the monospaced value below — but at 280px column width, a 50-char
+// access_key wraps to 3-4 lines and the AP card balloons vertically
+// without delivering any useful read.  The user pastes the value
+// into a terminal / config editor; they don't need to *see* it
+// inline.  The label ("URL" / "SETUP") already tells them what
+// they're copying, and the full string is on the /access detail
+// page if they ever want to inspect it.
 //
-//   ┌────────────────────────┐
-//   │ URL              [Copy]│   ← header strip: label + Copy
-//   │ http://localhost:9090/ │   ← value: monospaced, wrapped
-//   │   api/v1/mut/ap/cli_…  │     with break-all so even a long
-//   └────────────────────────┘     access_key never truncates
-//                                  invisibly
-//
-// `whiteSpace: pre-wrap` + `wordBreak: break-all` is the pair we use
-// elsewhere for "must-be-paste-runnable strings in a narrow column"
-// (see /access page's CopyField).  break-all lets us wrap *anywhere*
-// in a hash-like token; without it, the browser refuses to break a
-// 50-char access_key and the row pushes the column wider than 280px.
+// Net effect: an AP card with URL + SETUP rows is now ~80px tall
+// instead of ~280px, which is what 4 separate APs would have looked
+// like stacked.  Multi-AP scrolls reasonably; single-AP doesn't
+// dwarf the History card below it.
 function CopyableLine({
   label,
   value,
@@ -139,79 +135,55 @@ function CopyableLine({
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column',
-        gap: 4,
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
       }}
     >
-      <div
+      <span
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 600,
-            color: T.text3,
-            letterSpacing: '0.05em',
-            textTransform: 'uppercase',
-            fontFamily: T.fontMono,
-          }}
-        >
-          {label}
-        </span>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onCopy(value, copyKey);
-          }}
-          style={{
-            flexShrink: 0,
-            padding: '2px 10px',
-            fontSize: 10,
-            fontWeight: 500,
-            color: isCopied ? T.live : T.text3,
-            background: 'rgba(255,255,255,0.04)',
-            border: `1px solid ${T.cardBorder}`,
-            borderRadius: 3,
-            cursor: 'pointer',
-            fontFamily: T.fontSans,
-            transition: `color 160ms ${T.ease}, background 160ms ${T.ease}`,
-          }}
-          onMouseEnter={(e) => {
-            if (isCopied) return;
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-            e.currentTarget.style.color = T.text1;
-          }}
-          onMouseLeave={(e) => {
-            if (isCopied) return;
-            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-            e.currentTarget.style.color = T.text3;
-          }}
-        >
-          {isCopied ? 'Copied' : 'Copy'}
-        </button>
-      </div>
-      <code
-        style={{
-          fontSize: 11,
-          color: T.text2,
+          fontSize: 10,
+          fontWeight: 600,
+          color: T.text3,
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
           fontFamily: T.fontMono,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-          lineHeight: 1.5,
-          padding: '4px 6px',
-          background: 'rgba(0,0,0,0.25)',
-          borderRadius: 3,
-          border: `1px solid ${T.cardBorder}`,
         }}
       >
-        {value}
-      </code>
+        {label}
+      </span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onCopy(value, copyKey);
+        }}
+        style={{
+          flexShrink: 0,
+          padding: '2px 10px',
+          fontSize: 10,
+          fontWeight: 500,
+          color: isCopied ? T.live : T.text3,
+          background: 'rgba(255,255,255,0.04)',
+          border: `1px solid ${T.cardBorder}`,
+          borderRadius: 3,
+          cursor: 'pointer',
+          fontFamily: T.fontSans,
+          transition: `color 160ms ${T.ease}, background 160ms ${T.ease}`,
+        }}
+        onMouseEnter={(e) => {
+          if (isCopied) return;
+          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+          e.currentTarget.style.color = T.text1;
+        }}
+        onMouseLeave={(e) => {
+          if (isCopied) return;
+          e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+          e.currentTarget.style.color = T.text3;
+        }}
+      >
+        {isCopied ? 'Copied' : 'Copy'}
+      </button>
     </div>
   );
 }
