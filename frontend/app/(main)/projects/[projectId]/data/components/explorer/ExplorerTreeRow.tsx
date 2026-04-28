@@ -393,16 +393,67 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               className={`flex items-center gap-0.5 flex-shrink-0 ml-auto ${menuOpen || isCreateMenuOpen ? 'visible' : 'invisible group-hover/row:visible'}`}
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Plug-link icon: "create access point for this folder".
-                  Sits *before* the + button so the action cluster
-                  reads left-to-right as
-                    [external surface]  [add child]  [more]
-                  — the user's first scan for "expose this folder
-                  to an agent / tool" lands on the plug icon, and
-                  the existing + stays focused on its single
-                  responsibility ("add a thing inside this
-                  folder"), which review feedback explicitly
-                  flagged as the better grouping. */}
+              {/* Per-folder action cluster reads left → right:
+                    [+]  [link]  [⋮]
+                  + is the most-used action (add a child) so it
+                  takes the leftmost position in the user's eye
+                  scan; link (create access point for this folder)
+                  is one step less common; ⋮ catches the long-tail
+                  rename / delete / move actions.  Earlier draft
+                  put link first, but review feedback flagged that
+                  as the wrong grouping — `+` and the access-point
+                  link are conceptually peers (both "create"
+                  actions, just inside vs outside scopes), and
+                  putting + first matches the muscle memory the
+                  user already has from every other file manager. */}
+              {isFolder && onCreate && (
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={isCreateMenuOpen}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreate(e, item.id);
+                  }}
+                  title="New item"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 22,
+                    height: 22,
+                    borderRadius: 4,
+                    background: isCreateMenuOpen ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: isCreateMenuOpen ? '#ddd' : '#999',
+                    padding: 0,
+                    transition: 'background 0.1s, color 0.1s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                    e.currentTarget.style.color = '#ddd';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isCreateMenuOpen) {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = '#999';
+                    }
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Link icon: "create access point for this folder".
+                  Visually paired with the + button (both "create"
+                  actions, just for inside vs outside scopes).
+                  Same Lucide Link2 SVG used in the Home Data
+                  card's ApChip and elsewhere — keeping the icon
+                  consistent so users learn one shape, not three. */}
               {isFolder && onCreateSync && (
                 <button
                   type="button"
@@ -448,48 +499,6 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                     <path d="M9 17H7A5 5 0 0 1 7 7h2" />
                     <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
                     <line x1="8" y1="12" x2="16" y2="12" />
-                  </svg>
-                </button>
-              )}
-
-              {isFolder && onCreate && (
-                <button
-                  type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={isCreateMenuOpen}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCreate(e, item.id);
-                  }}
-                  title="New item"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 22,
-                    height: 22,
-                    borderRadius: 4,
-                    background: isCreateMenuOpen ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: isCreateMenuOpen ? '#ddd' : '#999',
-                    padding: 0,
-                    transition: 'background 0.1s, color 0.1s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.color = '#ddd';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isCreateMenuOpen) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#999';
-                    }
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
                   </svg>
                 </button>
               )}
