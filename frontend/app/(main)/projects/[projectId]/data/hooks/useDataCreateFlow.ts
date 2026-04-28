@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { mkdir, writeFile } from '@/lib/contentTreeApi';
+import { mkdir, writeFile, treeList } from '@/lib/contentTreeApi';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { ensureExpanded } from '../components/explorer';
@@ -246,13 +246,65 @@ export function useDataCreateFlow({
     const getTargetFolderPath = () =>
       createInFolderId === undefined ? currentFolderId : createInFolderId;
 
+    // Pick a name that doesn't collide with an existing entry at the
+    // target folder.  We need this because creating a folder /
+    // Untitled file with a literal hardcoded name would silently
+    // no-op on the backend the second time around: mkdir writes
+    // `<path>/.keep` (empty bytes) and writeFile writes the same
+    // empty content, so MUT computes an identical commit hash and
+    // skips it as a no-op.  The UI then refreshes the tree, sees
+    // exactly the same nodes as before, and the user thinks the
+    // click "did nothing" or "overwrote" the previous one.
+    //
+    // Convention: `Base`, `Base (2)`, `Base (3)`, … — same pattern
+    // every native file manager uses, so users don't have to learn
+    // anything new.  We probe up to 999 to keep the loop bounded;
+    // in practice nobody creates 999 New Folders in one directory.
+    //
+    // For files we keep the extension contract intact: `Untitled`
+    // (extension-less, JSON adds it server-side via writeFile's
+    // `kind` parameter) and `Untitled Note` (markdown) get the
+    // suffix appended *before* any extension, so collisions still
+    // dedupe against bare names.
+    const pickAvailableName = async (
+      targetFolderPath: string | null,
+      baseName: string,
+    ): Promise<string> => {
+      let siblings: Awaited<ReturnType<typeof treeList>>;
+      try {
+        siblings = await treeList(projectId, targetFolderPath ?? '', 1);
+      } catch (err) {
+        // If we can't reach the tree endpoint, fall back to the
+        // base name and let the create call surface its own error.
+        // Worse than the dedup-aware path but no worse than the
+        // pre-fix behaviour.
+        console.warn('treeList lookup failed, skipping dedup:', err);
+        return baseName;
+      }
+      const existing = new Set(siblings.map((e) => e.name));
+      if (!existing.has(baseName)) return baseName;
+      for (let n = 2; n < 1000; n++) {
+        const candidate = `${baseName} (${n})`;
+        if (!existing.has(candidate)) return candidate;
+      }
+      // Outrageously unlikely fallback — append a timestamp so the
+      // user gets a unique name rather than an infinite hang.
+      return `${baseName} (${Date.now()})`;
+    };
+
     return {
       onClose: closeCreateMenu,
       onCreateFolder: async () => {
         const targetFolderPath = getTargetFolderPath();
 
         try {
-          const folderPath = targetFolderPath ? `${targetFolderPath}/New Folder` : 'New Folder';
+          const folderName = await pickAvailableName(
+            targetFolderPath,
+            'New Folder',
+          );
+          const folderPath = targetFolderPath
+            ? `${targetFolderPath}/${folderName}`
+            : folderName;
           await mkdir(projectId, folderPath);
           if (targetFolderPath) ensureExpanded(targetFolderPath);
           await refreshAllContentNodes(projectId);
@@ -266,7 +318,13 @@ export function useDataCreateFlow({
         const targetFolderPath = getTargetFolderPath();
 
         try {
-          const filePath = targetFolderPath ? `${targetFolderPath}/Untitled` : 'Untitled';
+          const fileName = await pickAvailableName(
+            targetFolderPath,
+            'Untitled',
+          );
+          const filePath = targetFolderPath
+            ? `${targetFolderPath}/${fileName}`
+            : fileName;
           await writeFile(projectId, filePath, {}, 'json');
           if (targetFolderPath) ensureExpanded(targetFolderPath);
           await refreshAllContentNodes(projectId);
@@ -280,7 +338,13 @@ export function useDataCreateFlow({
         const targetFolderPath = getTargetFolderPath();
 
         try {
-          const filePath = targetFolderPath ? `${targetFolderPath}/Untitled Note` : 'Untitled Note';
+          const fileName = await pickAvailableName(
+            targetFolderPath,
+            'Untitled Note',
+          );
+          const filePath = targetFolderPath
+            ? `${targetFolderPath}/${fileName}`
+            : fileName;
           await writeFile(projectId, filePath, '', 'markdown');
           if (targetFolderPath) ensureExpanded(targetFolderPath);
           await refreshAllContentNodes(projectId);
