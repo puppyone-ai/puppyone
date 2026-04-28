@@ -100,9 +100,15 @@ function buildCliCommand(conn: DashboardConnection, url: string | null): string 
   return `mut connect ${url} --credential ${conn.access_key}`;
 }
 
-// Single-line copyable pill: monospaced text with a hover-only Copy
-// button on the right.  Used twice per AP row (URL + command) so the
-// horizontal rhythm stays predictable.
+// Single-line copyable row.  Renders inline (no inset background, no
+// border) so it reads as first-class content of the AP card rather
+// than a nested "sub-card" — the inset treatment we tried earlier
+// produced too much visual nesting (AP card → boxed URL row → boxed
+// cmd row) and made the URL/command feel demoted.  Now the AP card
+// is the only frame; URL and `$` are just labelled rows inside it.
+//
+// Used twice per AP row (URL + command) so the horizontal rhythm
+// stays predictable.
 function CopyableLine({
   label,
   value,
@@ -122,11 +128,8 @@ function CopyableLine({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        padding: '6px 10px',
-        background: 'rgba(0,0,0,0.25)',
-        border: `1px solid ${T.cardBorder}`,
-        borderRadius: 4,
+        gap: 12,
+        padding: 0,
       }}
     >
       <span
@@ -136,8 +139,12 @@ function CopyableLine({
           color: T.text3,
           letterSpacing: '0.05em',
           flexShrink: 0,
-          minWidth: 28,
+          // Fixed minWidth so URL and $ rows align column-wise — the
+          // value column starts at the same x in both lines, which
+          // makes "they're parallel things" read at a glance.
+          minWidth: 22,
           textTransform: 'uppercase',
+          fontFamily: T.fontMono,
         }}
       >
         {label}
@@ -145,7 +152,7 @@ function CopyableLine({
       <code
         style={{
           flex: 1,
-          fontSize: 11,
+          fontSize: 12,
           color: T.text2,
           fontFamily: T.fontMono,
           whiteSpace: 'nowrap',
@@ -164,7 +171,7 @@ function CopyableLine({
         }}
         style={{
           flexShrink: 0,
-          padding: '2px 8px',
+          padding: '2px 10px',
           fontSize: 10,
           fontWeight: 500,
           color: isCopied ? T.live : T.text3,
@@ -318,7 +325,7 @@ export function AccessPointsListCard({
             No access points configured.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {connections.map((conn) => {
               const direction = getApDirection(conn);
               const label =
@@ -349,11 +356,27 @@ export function AccessPointsListCard({
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 6,
-                    padding: 10,
+                    gap: 10,
+                    // Asymmetric padding leaves room for the cyan
+                    // stripe on the left without crowding the
+                    // identity strip's content.
+                    padding: '12px 14px 12px 16px',
                     borderRadius: 6,
                     background: T.cardBg,
                     border: `1px solid ${T.cardBorder}`,
+                    // Cyan stripe on the left edge — same hue as the
+                    // ApChip dot rendered next to AP-attached rows in
+                    // the Data card above.  The shared accent
+                    // is the visual handshake between the two views:
+                    // "this AP card and that tree-row chip are the
+                    // same thing."  A 3px stripe is wide enough to
+                    // register at scanning distance, narrow enough
+                    // to read as a left-edge accent rather than a
+                    // separate column.  Pinned to the cell-edge
+                    // background via box-shadow inset rather than
+                    // border-left so the rounded corners on
+                    // borderRadius stay clean.
+                    boxShadow: `inset 3px 0 0 0 ${T.live}`,
                     transition: `background 160ms ${T.ease}, border-color 160ms ${T.ease}`,
                   }}
                   onMouseEnter={(e) => {
