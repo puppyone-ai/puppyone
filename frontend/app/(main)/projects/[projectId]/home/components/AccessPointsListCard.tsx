@@ -46,13 +46,22 @@ function normalizeApPath(raw: string | null | undefined): string {
 //   ─ Both at once: self-hover wins; we don't double-paint.
 
 function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bidirectional' }) {
-  if (direction === 'outbound') {
-    return <ArrowLeft size={11} strokeWidth={2} style={{ color: T.live, flexShrink: 0 }} />;
-  }
-  if (direction === 'bidirectional') {
-    return <ArrowLeftRight size={11} strokeWidth={2} style={{ color: T.live, flexShrink: 0 }} />;
-  }
-  return <ArrowRight size={11} strokeWidth={2} style={{ color: T.text3, flexShrink: 0 }} />;
+  // All three glyphs render in the neutral T.text3 grey.  The earlier
+  // version used T.live cyan for outbound + bidirectional with the
+  // intent of "outbound is a live wire", but that intent collided
+  // with the page-wide rule that cyan is reserved for active live-
+  // data signals.  Direction is *metadata* (which way data flows
+  // when this AP is used), not a status — the colour was over-
+  // promising and contributed to the "everything is cyan" feel.
+  // Status freshness is communicated by the dot next to the AP
+  // name, which keeps its statusColor mapping (live / error / paused).
+  const Icon =
+    direction === 'outbound'
+      ? ArrowLeft
+      : direction === 'bidirectional'
+        ? ArrowLeftRight
+        : ArrowRight;
+  return <Icon size={11} strokeWidth={2} style={{ color: T.text3, flexShrink: 0 }} />;
 }
 
 // Compose the public-facing endpoint URL for an AP, picking the right
@@ -303,19 +312,27 @@ export function AccessPointsListCard({
             No access points configured.
           </div>
         ) : (
-          connections.map((conn, idx) => (
-            <ApListRow
-              key={conn.id}
-              conn={conn}
-              isLast={idx === connections.length - 1}
-              projectId={projectId}
-              router={router}
-              hoveredPath={hoveredPath}
-              onHoverPath={onHoverPath}
-              copiedKey={copiedKey}
-              onCopy={handleCopy}
-            />
-          ))
+          // Flex column with generous vertical gap rather than 1px
+          // dividers.  When every AP is its own card-shaped row
+          // (with bg/padding when interactive), the gap between
+          // them naturally communicates "these are independent
+          // items" without an explicit hairline.  Hairline + bg
+          // both fighting for the "row separator" job was making
+          // the list look noisy.
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {connections.map((conn) => (
+              <ApListRow
+                key={conn.id}
+                conn={conn}
+                projectId={projectId}
+                router={router}
+                hoveredPath={hoveredPath}
+                onHoverPath={onHoverPath}
+                copiedKey={copiedKey}
+                onCopy={handleCopy}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -329,7 +346,6 @@ export function AccessPointsListCard({
 // look different by design (see component-level comment).
 function ApListRow({
   conn,
-  isLast,
   projectId,
   router,
   hoveredPath,
@@ -338,7 +354,6 @@ function ApListRow({
   onCopy,
 }: {
   conn: DashboardConnection;
-  isLast: boolean;
   projectId: string;
   router: ReturnType<typeof useRouter>;
   hoveredPath: string | null;
@@ -417,21 +432,29 @@ function ApListRow({
             fontFamily: T.fontSans,
           }}
         >
+          {/* Provider avatar bumped 24 → 32 + radius 6 → 8 + icon
+              16 → 20.  Multi-AP differentiation now relies on
+              avatar shape (folder for filesystem, plug for mcp,
+              cube for sandbox) rather than colour, so the avatar
+              needs enough size to *be* the differentiator at
+              scanning distance.  Slightly stronger bg tint
+              (0.04 → 0.05) so the avatar reads as a plate the
+              icon sits on, not a flat dye behind it. */}
           <div
             style={{
-              width: 24,
-              height: 24,
-              borderRadius: 6,
+              width: 32,
+              height: 32,
+              borderRadius: 8,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(255,255,255,0.04)',
+              background: 'rgba(255,255,255,0.05)',
               flexShrink: 0,
             }}
           >
             <ProviderAvatar
               provider={conn.provider}
-              size={16}
+              size={20}
               icon={(conn as any).icon}
             />
           </div>
@@ -447,8 +470,12 @@ function ApListRow({
           >
             <span
               style={{
-                fontSize: 13,
-                fontWeight: 500,
+                // Name is the visual primary now (was a 13/500
+                // tertiary detail).  Multi-AP scan-the-list use
+                // case wants the name to be the column to read
+                // top-to-bottom, not the avatar or the URL row.
+                fontSize: 14,
+                fontWeight: 600,
                 color: T.text1,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
@@ -497,8 +524,8 @@ function ApListRow({
           </div>
         </button>
 
-        {/* URL + cmd nested rows.  Indented 34px to align with the
-            AP name (24px avatar + 10px gap), so they read as
+        {/* URL + cmd nested rows.  Indented 42px to align with the
+            AP name (32px avatar + 10px gap), so they read as
             belonging to this AP without needing extra background
             chrome. */}
         {(url || cmd) && (
@@ -508,7 +535,7 @@ function ApListRow({
               flexDirection: 'column',
               gap: 6,
               marginTop: 8,
-              marginLeft: 34,
+              marginLeft: 42,
               marginRight: 0,
             }}
           >
@@ -534,22 +561,6 @@ function ApListRow({
         )}
       </div>
 
-      {/* Divider between adjacent APs.  Lifted from T.sectionDivider
-          (very faint hairline) to T.border (the app's standard 1px
-          rule) — the previous opacity wasn't pulling enough weight
-          for users to read multiple APs as distinct list items.
-          Slightly more vertical breathing room (8px → 10px each side)
-          for the same reason. */}
-      {!isLast && (
-        <div
-          aria-hidden
-          style={{
-            height: 1,
-            background: T.border,
-            margin: '6px 8px',
-          }}
-        />
-      )}
     </React.Fragment>
   );
 }

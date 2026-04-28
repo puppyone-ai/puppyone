@@ -88,24 +88,23 @@ export function ApChip({
         marginRight: 12,
         padding: '3px 7px',
         borderRadius: 10,
-        // Default-state pill: faint cyan tint + a thin cyan border so
-        // the chip reads as a small "wired" badge instead of a naked
-        // dot.  The Link2 icon inside is the visual marker — a chain
-        // link communicates "connected to something external" the
-        // moment a user glances at the row, without forcing them to
-        // decode an abstract coloured shape.
+        // Rest state is grayscale on purpose.  The page-wide rule
+        // (T.live cyan reserved for *live data signals*) means a
+        // chip that's cyan-by-default while no interaction is
+        // happening dilutes the colour's job — multi-AP layouts
+        // ended up reading as a wash of cyan everywhere.  Default
+        // pill now uses the same neutral cardBg / cardBorder we
+        // use elsewhere for "this is a labeled chip", and the
+        // Link2 icon inside drops to T.text3.
         //
-        // Active state (hover-sync from chip itself or from the
-        // matching AP row in the card below) bumps the bg to
-        // `rowHighlightRoot` (the brighter cyan) and the border to
-        // saturated `T.live` — same handshake intensity as the AP
-        // row picks up so the user sees them light up together.
-        background: isActive
-          ? T.rowHighlightRoot
-          : 'rgba(34, 211, 238, 0.06)',
-        border: `1px solid ${
-          isActive ? T.live : 'rgba(34, 211, 238, 0.18)'
-        }`,
+        // Sync-active state (chip↔AP-row handshake firing) is the
+        // ONLY time the chip lights up cyan.  Switching from grey
+        // → saturated cyan against a still-grey rest is the
+        // strongest contrast we can buy without redesigning the
+        // palette, which is exactly what a transient highlight
+        // wants.
+        background: isActive ? T.rowHighlightRoot : T.cardBg,
+        border: `1px solid ${isActive ? T.live : T.cardBorder}`,
         color: T.text3,
         fontSize: 11,
         fontVariantNumeric: 'tabular-nums',
@@ -117,7 +116,11 @@ export function ApChip({
       <Link2
         size={11}
         strokeWidth={2.2}
-        style={{ color: T.live, flexShrink: 0 }}
+        style={{
+          color: isActive ? T.live : T.text3,
+          flexShrink: 0,
+          transition: `color 160ms ${T.ease}`,
+        }}
       />
       {aps.length > 1 && (
         <span style={{ color: T.text2, fontWeight: 500 }}>{aps.length}</span>
