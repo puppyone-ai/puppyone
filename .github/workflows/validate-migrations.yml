@@ -65,6 +65,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: supabase/setup-cli@v1
         with:
@@ -76,13 +78,44 @@ jobs:
       - name: Validate migrations (dry-run)
         run: supabase db push --dry-run
 
+      # If this PR adds new migration files, `supabase db diff --linked` will
+      # naturally output `drop` statements for the objects those migrations
+      # create (the linked DB hasn't run them yet). Recent supabase-cli
+      # versions exit non-zero on such drops, which would mis-flag a normal
+      # "PR adds a new table" as drift. Skip the drift check in that case;
+      # real drift is caught on the next PR that does NOT add migrations.
+      - name: Detect new migrations in this PR
+        id: new-migrations
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          git fetch origin "$BASE_REF" --depth=1
+          NEW=$(git diff --diff-filter=A --name-only "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql' || true)
+          if [ -z "$NEW" ]; then
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "No new migration files in this PR."
+          else
+            echo "$NEW" | wc -l | xargs -I{} echo "count={}" >> "$GITHUB_OUTPUT"
+            echo "New migration files in this PR:"
+            echo "$NEW"
+          fi
+
       - name: Check for schema drift
+        if: steps.new-migrations.outputs.count == '0'
         run: |
           DIFF=$(supabase db diff --linked 2>&1) || true
           if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
             echo "::warning::Staging DB has schema drift — manual changes exist that are not in migrations"
             echo "$DIFF"
           fi
+
+      - name: Drift check skipped (PR adds new migrations)
+        if: steps.new-migrations.outputs.count != '0'
+        run: |
+          echo "::notice::Drift check skipped because this PR adds new migration file(s)."
+          echo "New migrations naturally produce 'drop' statements in 'supabase db diff --linked'"
+          echo "until they are applied to the linked DB. The next PR with no new migrations"
+          echo "will re-run the drift check and catch any real manual drift."
 
   validate-production:
     name: Dry-run against Production DB
@@ -93,6 +126,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: supabase/setup-cli@v1
         with:
@@ -104,7 +139,25 @@ jobs:
       - name: Validate migrations (dry-run)
         run: supabase db push --dry-run
 
+      # See validate-staging block for the rationale on this guard.
+      - name: Detect new migrations in this PR
+        id: new-migrations
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          git fetch origin "$BASE_REF" --depth=1
+          NEW=$(git diff --diff-filter=A --name-only "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql' || true)
+          if [ -z "$NEW" ]; then
+            echo "count=0" >> "$GITHUB_OUTPUT"
+            echo "No new migration files in this PR."
+          else
+            echo "$NEW" | wc -l | xargs -I{} echo "count={}" >> "$GITHUB_OUTPUT"
+            echo "New migration files in this PR:"
+            echo "$NEW"
+          fi
+
       - name: Check for schema drift
+        if: steps.new-migrations.outputs.count == '0'
         run: |
           DIFF=$(supabase db diff --linked 2>&1) || true
           if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
@@ -112,3 +165,11 @@ jobs:
             echo "$DIFF"
             exit 1
           fi
+
+      - name: Drift check skipped (PR adds new migrations)
+        if: steps.new-migrations.outputs.count != '0'
+        run: |
+          echo "::notice::Drift check skipped because this PR adds new migration file(s)."
+          echo "New migrations naturally produce 'drop' statements in 'supabase db diff --linked'"
+          echo "until they are applied to the linked DB. The next PR with no new migrations"
+          echo "will re-run the drift check and catch any real manual drift."
