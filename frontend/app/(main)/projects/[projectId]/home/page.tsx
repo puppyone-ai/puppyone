@@ -2,7 +2,6 @@
 
 import { use, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
@@ -18,33 +17,19 @@ import type {
 
 import { TreeRows, type RowVariant } from './components/TreeRows';
 import { HistoryCard } from './components/HistoryCard';
-import { AccessPointsCard } from './components/AccessPointsCard';
 import { GetStartedPanel } from './components/GetStartedPanel';
 import { ApChip } from './components/ApChip';
+import { AccessPointsListCard } from './components/AccessPointsListCard';
 
-const ConnectionsCanvas = dynamic(
-  () => import('./components/ConnectionsCanvas').then((mod) => mod.ConnectionsCanvas),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        style={{
-          height: 300,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: T.text3,
-          fontSize: 12,
-          background: T.sectionBg,
-          border: `2px solid ${T.sectionBorder}`,
-          borderRadius: T.sectionRadius,
-        }}
-      >
-        Loading connection graph...
-      </div>
-    ),
-  },
-);
+// ConnectionsCanvas (the old xyflow wiring board) used to mount here.
+// Home now surfaces Access Points directly under the Data card via
+// AccessPointsListCard — that's a denser, copy-driven surface that
+// replaces the supplementary graph view (which was already collapsed
+// by default and rarely opened in practice).  ConnectionsCanvas.tsx
+// itself stays in the tree for now in case we want to bring the graph
+// back as a toggle on the AP card; this just stops importing it from
+// /home, so the bundle that ships for this route no longer pulls in
+// xyflow / @xyflow/react.
 
 // Vitals-strip interpunct separator.  A single `·` glyph rendered in
 // the faint `text4` token with a small horizontal rhythm so the strip
@@ -958,24 +943,23 @@ export default function HomePage({
               </div>
             </div>
 
-              {/* Connections canvas — xyflow-powered wiring board
-                  that re-renders the same file tree INSIDE the
-                  canvas as a single big node, with AP cards on the
-                  right wired to the SPECIFIC tree row each one is
-                  scoped to.  Inherits the OLD TopologyCanvas's
-                  spine (tree-as-block + APs-as-leaves + per-row
-                  edges) and adds pan / zoom / dotted background
-                  via xyflow.  Same width as the Data card above
-                  (both inside this flex-column wrapper) so it
-                  reads as a SUPPLEMENT — "the same data, viewed
-                  structurally" — not a separate band. */}
-              <ConnectionsCanvas
-                connections={connections}
-                tree={tree}
-                accessByPath={accessByPath}
+              {/* Access Points — primary operational surface.  Was a
+                  one-line-per-AP card on the right rail (sidebar
+                  width), but the operational read of an AP — its
+                  endpoint URL and the `mut connect` / similar CLI
+                  command — needed real horizontal budget for the
+                  monospaced strings + Copy buttons users hit
+                  constantly.  Moving the block to the left main
+                  column (replacing the old ConnectionsCanvas slot)
+                  gives each AP enough room for an Endpoint URL row
+                  + a CLI command row inline, removing the round
+                  trip to /access for the most common copy-paste
+                  flow.  See AccessPointsListCard for the per-row
+                  layout. */}
+              <AccessPointsListCard
                 projectId={projectId}
                 router={router}
-                nodesTotal={dashboard?.nodes?.total ?? null}
+                connections={connections}
               />
             </div>
 
@@ -1001,11 +985,14 @@ export default function HomePage({
                 commits={commits}
                 buckets={commitBuckets}
               />
-              <AccessPointsCard
-                projectId={projectId}
-                router={router}
-                connections={connections}
-              />
+              {/* AccessPointsCard used to live here as the sidebar
+                  one-liner.  Promoted to the main column under Data
+                  via AccessPointsListCard so it can carry the
+                  endpoint URL + CLI command + Copy buttons inline.
+                  The right rail is now History-only on /home; if a
+                  future right-rail consumer comes along (recent
+                  uploads, agent activity, etc.) it can slot in here
+                  without the AP block fighting it for space. */}
             </div>
           </div>
             </>
