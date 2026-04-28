@@ -943,7 +943,15 @@ export default function HomePage({
                     nodes={[
                       {
                         entry: {
-                          name: 'Project root',
+                          // Synthetic root row name kept in step with
+                          // /data's ExplorerSidebar root entry
+                          // ("Root").  Two renders of the same
+                          // semantic node should read with the same
+                          // word — earlier we rendered "Project root"
+                          // here while /data renders "Root", which
+                          // made users moving between the two pages
+                          // wonder if they were the same node.
+                          name: 'Root',
                           path: '',
                           type: 'folder',
                           content_hash: null,
