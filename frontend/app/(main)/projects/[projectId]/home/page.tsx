@@ -708,16 +708,23 @@ export default function HomePage({
             <>
           {/* ============================================================
               BAND 2 — TWO-COLUMN.
-                LEFT  (flex 1) — Data card stacked over the
-                                ConnectionsCanvas (xyflow wiring
-                                board).  Both sit in the same wide
-                                column because they're complementary
-                                views of the same data: "what files"
-                                + "which APs are wired to them".
-                RIGHT (280px) — History + Access Points stacked.
-                                Fixed-width so the rail reads at a
-                                consistent width regardless of
-                                viewport.
+                LEFT  (flex 1) — Data card.  Just the file tree;
+                                the AP / wiring view used to live
+                                here too but moved to the right rail
+                                so the page reads left → right as
+                                "data → external connections" (data
+                                is the project's *content*, AP is
+                                its external *exposure*; spatially
+                                pairing them across columns is the
+                                most direct visual representation of
+                                that "data flows out via these
+                                endpoints" relationship).
+                RIGHT (280px) — Access Points + History stacked.
+                                Access Points goes first because the
+                                user's typical work is "look at
+                                Data, then act on it via an AP";
+                                History sits below as supporting
+                                time-series context.
               32px gap between columns; 16px gap between stacked
               cards within each column.
               ============================================================ */}
@@ -1010,35 +1017,22 @@ export default function HomePage({
               </div>
             </div>
 
-              {/* Access Points — primary operational surface.  Was a
-                  one-line-per-AP card on the right rail (sidebar
-                  width), but the operational read of an AP — its
-                  endpoint URL and the `mut connect` / similar CLI
-                  command — needed real horizontal budget for the
-                  monospaced strings + Copy buttons users hit
-                  constantly.  Moving the block to the left main
-                  column (replacing the old ConnectionsCanvas slot)
-                  gives each AP enough room for an Endpoint URL row
-                  + a CLI command row inline, removing the round
-                  trip to /access for the most common copy-paste
-                  flow.  See AccessPointsListCard for the per-row
-                  layout. */}
-              <AccessPointsListCard
-                projectId={projectId}
-                router={router}
-                connections={connections}
-                hoveredPath={hoveredPath}
-                onHoverPath={setHoveredPath}
-              />
             </div>
 
-            {/* RIGHT — stacked rail.  280px so HistoryCard's vertical
-                timeline + commit messages have enough room to read,
-                while still leaving the Data card the dominant share
-                of width (~2:1 ratio from the GitHub-style reference).
-                Was 320 (too wide → Data crowded), then 260 (too
-                narrow → History card crushed); 280 splits the
-                difference. */}
+            {/* RIGHT — stacked rail.  Now hosts AccessPointsListCard
+                + HistoryCard, in that order.  The reorder is a
+                spatial-semantic move: the page reads left → right
+                as "data → external connections", so the AP block
+                has to sit *to the right of* Data, not below it.
+                With AP underneath Data the visual chain was broken
+                — the user had to scroll down + back up to map
+                which row maps to which AP — and the right rail
+                was busy holding History alone, which doesn't need
+                that much space.  Now: Data | (AP + History).
+                Width was 280 — kept, even though AP pulled in,
+                because AccessPointsListCard reflows internally to
+                a vertical CopyableLine layout when the parent is
+                narrow. */}
             <div
               style={{
                 width: 280,
@@ -1048,20 +1042,23 @@ export default function HomePage({
                 gap: 16,
               }}
             >
+              {/* Access Points first — top of the rail because the
+                  user's typical work is "look at Data, then act on
+                  it via an AP".  Putting AP above History honors
+                  that reading order. */}
+              <AccessPointsListCard
+                projectId={projectId}
+                router={router}
+                connections={connections}
+                hoveredPath={hoveredPath}
+                onHoverPath={setHoveredPath}
+              />
               <HistoryCard
                 projectId={projectId}
                 router={router}
                 commits={commits}
                 buckets={commitBuckets}
               />
-              {/* AccessPointsCard used to live here as the sidebar
-                  one-liner.  Promoted to the main column under Data
-                  via AccessPointsListCard so it can carry the
-                  endpoint URL + CLI command + Copy buttons inline.
-                  The right rail is now History-only on /home; if a
-                  future right-rail consumer comes along (recent
-                  uploads, agent activity, etc.) it can slot in here
-                  without the AP block fighting it for space. */}
             </div>
           </div>
             </>

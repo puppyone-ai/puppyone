@@ -104,9 +104,23 @@ function buildCliCommand(conn: DashboardConnection, url: string | null): string 
   return `mut connect ${url} --credential ${conn.access_key}`;
 }
 
-// Single-line copyable row.  Renders inline (no inset background, no
-// border) so it reads as first-class content of the AP body rather
-// than a nested "sub-card".  Label + value + Copy in a row.
+// Vertical copyable block.  At the new 280px sidebar width a single-
+// row layout (label + value + Copy on one line) couldn't carry the
+// monospaced URL — it got truncated to "http://localho..." with no
+// useful information visible.  Two-row layout instead:
+//
+//   ┌────────────────────────┐
+//   │ URL              [Copy]│   ← header strip: label + Copy
+//   │ http://localhost:9090/ │   ← value: monospaced, wrapped
+//   │   api/v1/mut/ap/cli_…  │     with break-all so even a long
+//   └────────────────────────┘     access_key never truncates
+//                                  invisibly
+//
+// `whiteSpace: pre-wrap` + `wordBreak: break-all` is the pair we use
+// elsewhere for "must-be-paste-runnable strings in a narrow column"
+// (see /access page's CopyField).  break-all lets us wrap *anywhere*
+// in a hash-like token; without it, the browser refuses to break a
+// 50-char access_key and the row pushes the column wider than 280px.
 function CopyableLine({
   label,
   value,
@@ -125,75 +139,79 @@ function CopyableLine({
     <div
       style={{
         display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: 0,
+        flexDirection: 'column',
+        gap: 4,
       }}
     >
-      <span
+      <div
         style={{
-          fontSize: 10,
-          fontWeight: 600,
-          color: T.text3,
-          letterSpacing: '0.05em',
-          flexShrink: 0,
-          // Wide enough to hold the longest label we ship today
-          // (`SETUP`).  All shorter labels (URL, $, etc.) align
-          // to the same right edge, which keeps the value column
-          // starting at the same x across rows.
-          minWidth: 40,
-          textTransform: 'uppercase',
-          fontFamily: T.fontMono,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
         }}
       >
-        {label}
-      </span>
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 600,
+            color: T.text3,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            fontFamily: T.fontMono,
+          }}
+        >
+          {label}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy(value, copyKey);
+          }}
+          style={{
+            flexShrink: 0,
+            padding: '2px 10px',
+            fontSize: 10,
+            fontWeight: 500,
+            color: isCopied ? T.live : T.text3,
+            background: 'rgba(255,255,255,0.04)',
+            border: `1px solid ${T.cardBorder}`,
+            borderRadius: 3,
+            cursor: 'pointer',
+            fontFamily: T.fontSans,
+            transition: `color 160ms ${T.ease}, background 160ms ${T.ease}`,
+          }}
+          onMouseEnter={(e) => {
+            if (isCopied) return;
+            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+            e.currentTarget.style.color = T.text1;
+          }}
+          onMouseLeave={(e) => {
+            if (isCopied) return;
+            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+            e.currentTarget.style.color = T.text3;
+          }}
+        >
+          {isCopied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
       <code
         style={{
-          flex: 1,
-          fontSize: 12,
+          fontSize: 11,
           color: T.text2,
           fontFamily: T.fontMono,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          minWidth: 0,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all',
+          lineHeight: 1.5,
+          padding: '4px 6px',
+          background: 'rgba(0,0,0,0.25)',
+          borderRadius: 3,
+          border: `1px solid ${T.cardBorder}`,
         }}
       >
         {value}
       </code>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onCopy(value, copyKey);
-        }}
-        style={{
-          flexShrink: 0,
-          padding: '2px 10px',
-          fontSize: 10,
-          fontWeight: 500,
-          color: isCopied ? T.live : T.text3,
-          background: 'rgba(255,255,255,0.04)',
-          border: `1px solid ${T.cardBorder}`,
-          borderRadius: 3,
-          cursor: 'pointer',
-          fontFamily: T.fontSans,
-          transition: `color 160ms ${T.ease}, background 160ms ${T.ease}`,
-        }}
-        onMouseEnter={(e) => {
-          if (isCopied) return;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-          e.currentTarget.style.color = T.text1;
-        }}
-        onMouseLeave={(e) => {
-          if (isCopied) return;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-          e.currentTarget.style.color = T.text3;
-        }}
-      >
-        {isCopied ? 'Copied' : 'Copy'}
-      </button>
     </div>
   );
 }
@@ -434,19 +452,17 @@ function ApListRow({
             fontFamily: T.fontSans,
           }}
         >
-          {/* Provider avatar bumped 24 → 32 + radius 6 → 8 + icon
-              16 → 20.  Multi-AP differentiation now relies on
-              avatar shape (folder for filesystem, plug for mcp,
-              cube for sandbox) rather than colour, so the avatar
-              needs enough size to *be* the differentiator at
-              scanning distance.  Slightly stronger bg tint
-              (0.04 → 0.05) so the avatar reads as a plate the
-              icon sits on, not a flat dye behind it. */}
+          {/* Provider avatar — 28 (was 32) to fit the 280px sidebar
+              width without crowding the name + Open button on the
+              same row.  Icon stays 18 (was 20) for the same reason.
+              Avatar shape is still the primary multi-AP
+              differentiator, but at this scale the name does more
+              of the work and the avatar plays a supporting role. */}
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
+              width: 28,
+              height: 28,
+              borderRadius: 7,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -456,7 +472,7 @@ function ApListRow({
           >
             <ProviderAvatar
               provider={conn.provider}
-              size={20}
+              size={18}
               icon={(conn as any).icon}
             />
           </div>
@@ -499,6 +515,12 @@ function ApListRow({
             />
           </div>
 
+          {/* Direction + scope — pinned to the right, with scope
+              capped at 90px so a long path can't push the Open
+              button off-screen.  Truncates with ellipsis when
+              that happens; the full path is still readable in
+              the row's `title` attribute (browser tooltip on
+              hover). */}
           <div
             style={{
               display: 'flex',
@@ -518,18 +540,21 @@ function ApListRow({
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                maxWidth: 220,
+                maxWidth: 90,
               }}
             >
               {displayScope}
             </span>
           </div>
 
-          {/* Explicit "Open" link — the only deliberate entry to
-              /access?ap=<id> from this card.  Visually quiet
-              (text2 → text1 on hover) so it doesn't compete with
-              the AP name; semantically loud because it's the only
-              navigable element on the identity row. */}
+          {/* Open — chevron-only at this width.  At 280px we don't
+              have horizontal budget for both the AP identity
+              (avatar + name + status + scope) AND a labelled "Open"
+              button.  The chevron alone reads as "go further" and
+              the title attribute provides the affordance text for
+              accessibility tooling.  Keeps the deliberate-only
+              navigation handle the previous "Open" labelled
+              button established. */}
           <button
             type="button"
             onClick={(e) => {
@@ -537,19 +562,17 @@ function ApListRow({
               router.push(`/projects/${projectId}/access?ap=${conn.id}`);
             }}
             title="Open access point details"
+            aria-label="Open access point details"
             style={{
               flexShrink: 0,
-              marginLeft: 8,
+              marginLeft: 4,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: '2px 6px',
-              fontSize: 12,
+              padding: '4px 6px',
               color: T.text3,
-              fontFamily: T.fontSans,
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 4,
               borderRadius: 4,
               transition: `color 160ms ${T.ease}, background 160ms ${T.ease}`,
             }}
@@ -562,7 +585,6 @@ function ApListRow({
               e.currentTarget.style.background = 'transparent';
             }}
           >
-            Open
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
               <path
                 d="M4 2l4 4-4 4"
