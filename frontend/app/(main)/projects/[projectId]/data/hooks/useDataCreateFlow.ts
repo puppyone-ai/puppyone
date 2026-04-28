@@ -429,11 +429,33 @@ export function useDataCreateFlow({
         setDefaultStartOption('documents');
         setCreateTableOpen(true);
       },
+      // From `+` menu (Upload → URL): open the createTable dialog
+      // for inline URL import.
+      // From plug menu (New Access → Web Page): same provider id
+      // ("url" on the backend), but go through handleAccessSelect
+      // so the panel lands on the URL connector's config view with
+      // the user's plug-clicked folder pre-bound as target.  Branch
+      // on accessTargetPath to pick which flow to run.
       onImportFromUrl: () => {
-        setDefaultStartOption('url');
-        setCreateTableOpen(true);
+        if (accessTargetPath !== null) {
+          handleAccessSelect('url');
+        } else {
+          setDefaultStartOption('url');
+          setCreateTableOpen(true);
+        }
       },
+      // From `+` menu (New Access → More Sources…): generic
+      // exploration entry, opens the panel on the picker view.
+      // From plug menu: this entry is suppressed at the menu level
+      // (see CreateMenu's accessOnly branch) — there's no
+      // sensible "I don't know what kind of access I want" path
+      // when the user already committed by clicking a specific
+      // folder's plug.  Keep the callback defined for the `+` menu
+      // path; the no-op-on-prefilled-target branch is just safety.
       onImportFromSaas: () => {
+        if (accessTargetPath !== null) {
+          return;
+        }
         openSyncSetting('_generic');
         openSyncCreatePanel();
       },
@@ -455,6 +477,7 @@ export function useDataCreateFlow({
       onCreateSandbox: () => handleAccessSelect('sandbox'),
     };
   }, [
+    accessTargetPath,
     closeCreateMenu,
     createInFolderId,
     currentFolderId,
