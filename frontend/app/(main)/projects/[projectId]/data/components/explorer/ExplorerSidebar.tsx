@@ -97,7 +97,19 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
           {onCreateSync && (
             <button
               type="button"
-              onClick={onCreateSync}
+              onClick={() => {
+                // Sidebar-header version of "Create access point":
+                // targets the user's current navigation focus
+                // (last breadcrumb segment), or the project root
+                // ('') when nothing's selected.  Per-row plug
+                // buttons in the tree call onCreateSync directly
+                // with their own item.id.
+                const focusId =
+                  currentPath.length > 0
+                    ? currentPath[currentPath.length - 1].id
+                    : '';
+                onCreateSync(focusId);
+              }}
               title="Create access point for the current folder"
               style={{
                 display: 'flex',
@@ -252,6 +264,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 activeId={activeId}
                 onNavigate={onNavigate}
                 onCreate={onCreate}
+                onCreateSync={onCreateSync}
                 onRename={onRename}
                 onDelete={onDelete}
                 onMoveNode={onMoveNode}

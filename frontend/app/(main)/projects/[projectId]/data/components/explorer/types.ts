@@ -27,14 +27,20 @@ export interface ExplorerSidebarProps {
     targetFolderId: string | null,
     sourceParentId?: string | null,
   ) => Promise<void>;
-  // Open the right-side sync_create panel with the user's current
-  // navigation context pre-filled as the target resource.  The
-  // sidebar surfaces this as a "+ Connect" button next to the
-  // file/folder + button, replacing the previous "click Create
-  // Access in the toolbar → drag the folder from the sidebar
-  // back into the panel" flow.  No-op fallback to nothing if
-  // omitted, so the prop stays additive.
-  onCreateSync?: () => void;
+  // Open the right-side sync_create panel with the given folder
+  // path pre-filled as the target resource.  Two surfaces invoke
+  // it:
+  //   - sidebar header "Connect" button → passes the user's
+  //     current navigation focus (or '' for project root) so the
+  //     panel lands targeting wherever the user is right now
+  //   - per-folder row plug button (hover-revealed, next to + and
+  //     the action menu) → passes that row's own folder id, so
+  //     the user doesn't have to navigate into a folder before
+  //     creating an AP for it
+  // Either entry collapses what used to be a 4-step flow ("toolbar
+  // Create Access → drag the folder from the sidebar → click
+  // Create") into one targeted click.
+  onCreateSync?: (folderPath: string) => void;
   activeSyncNodeId?: string | null;
   highlightNodeId?: string | null;
   createMenuOpenForId?: string | null;

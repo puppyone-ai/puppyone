@@ -122,6 +122,7 @@ interface ExplorerTreeRowProps {
   activeId: string | null;
   onNavigate: (item: MillerColumnItem) => void;
   onCreate?: ExplorerSidebarProps['onCreate'];
+  onCreateSync?: ExplorerSidebarProps['onCreateSync'];
   onRename?: ExplorerSidebarProps['onRename'];
   onDelete?: ExplorerSidebarProps['onDelete'];
   onMoveNode?: ExplorerSidebarProps['onMoveNode'];
@@ -138,6 +139,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   activeId,
   onNavigate,
   onCreate,
+  onCreateSync,
   onRename,
   onDelete,
   onMoveNode,
@@ -219,7 +221,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
     [children],
   );
 
-  const hasActions = !!(onCreate || onRename || onDelete);
+  const hasActions = !!(onCreate || onCreateSync || onRename || onDelete);
 
   return (
     <div>
@@ -391,6 +393,65 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               className={`flex items-center gap-0.5 flex-shrink-0 ml-auto ${menuOpen || isCreateMenuOpen ? 'visible' : 'invisible group-hover/row:visible'}`}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* Plug-link icon: "create access point for this folder".
+                  Sits *before* the + button so the action cluster
+                  reads left-to-right as
+                    [external surface]  [add child]  [more]
+                  — the user's first scan for "expose this folder
+                  to an agent / tool" lands on the plug icon, and
+                  the existing + stays focused on its single
+                  responsibility ("add a thing inside this
+                  folder"), which review feedback explicitly
+                  flagged as the better grouping. */}
+              {isFolder && onCreateSync && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCreateSync(item.id);
+                  }}
+                  title="Create access point for this folder"
+                  aria-label="Create access point for this folder"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 22,
+                    height: 22,
+                    borderRadius: 4,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#999',
+                    padding: 0,
+                    transition: 'background 0.1s, color 0.1s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                    e.currentTarget.style.color = '#ddd';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = '#999';
+                  }}
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+                    <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+                    <line x1="8" y1="12" x2="16" y2="12" />
+                  </svg>
+                </button>
+              )}
+
               {isFolder && onCreate && (
                 <button
                   type="button"
@@ -502,6 +563,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 activeId={activeId}
                 onNavigate={onNavigate}
                 onCreate={onCreate}
+                onCreateSync={onCreateSync}
                 onRename={onRename}
                 onDelete={onDelete}
                 onMoveNode={onMoveNode}
