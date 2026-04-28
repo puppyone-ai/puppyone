@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { LocaleSwitcher } from './LocaleSwitcher';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import {
   getGithubStatus,
@@ -695,9 +694,6 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   gap: '16px',
                 }}
               >
-                {/* Language switcher */}
-                <LocaleSwitcher />
-
                 {/* Account info card */}
                 <div
                   style={{
