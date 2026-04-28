@@ -2,6 +2,18 @@ import React from 'react';
 import { T } from '../lib/tokens';
 import type { DashboardConnection } from '../lib/types';
 
+// Same path-normalization rule used in page.tsx's `accessByPath`
+// builder and AccessPointsListCard.  The chip needs to broadcast its
+// row's path when hovered, but the row's path coming out of the
+// dataCardView is already normalized to '' for project root, so this
+// is just a defensive identity for chip's expected inputs.  Kept
+// here as a small named helper so hover-sync intent reads at the
+// callsite below.
+function normalizeChipPath(raw: string | null | undefined): string {
+  if (raw === null || raw === undefined || raw === '/') return '';
+  return raw;
+}
+
 // Right-aligned chip rendered alongside any tree row that has one or
 // more Access Points attached to it (per `accessByPath`).  Read it as
 // "this row is wired to N agents/tools" — the tiny visual that lets a
@@ -31,7 +43,25 @@ import type { DashboardConnection } from '../lib/types';
 // dots already crowd the right margin, three is illegible.  A single
 // dot + count delivers "this row is wired" in 12px with no clipping.
 
-export function ApChip({ aps }: { aps: DashboardConnection[] }) {
+export function ApChip({
+  aps,
+  rowPath,
+  hoveredPath,
+  onHoverPath,
+}: {
+  aps: DashboardConnection[];
+  // Path of the tree row this chip lives on.  Used as the
+  // hover-sync key so AccessPointsListCard can match against an
+  // AP's normalized path and highlight the corresponding card.
+  rowPath: string;
+  // Currently hovered path (anywhere — chip OR AP card).  Lifted
+  // in page.tsx so chip and card share one source of truth.
+  hoveredPath: string | null;
+  // Notifier — chip sets this on mouseenter (with its row path) and
+  // clears it on mouseleave.  Same callback the AP card uses, so
+  // the relationship is reflexive.
+  onHoverPath: (path: string | null) => void;
+}) {
   if (!aps || aps.length === 0) return null;
 
   const label =
@@ -39,10 +69,15 @@ export function ApChip({ aps }: { aps: DashboardConnection[] }) {
       ? '1 access point'
       : `${aps.length} access points`;
 
+  const myPath = normalizeChipPath(rowPath);
+  const isActive = hoveredPath !== null && hoveredPath === myPath;
+
   return (
     <div
       title={label}
       aria-label={label}
+      onMouseEnter={() => onHoverPath(myPath)}
+      onMouseLeave={() => onHoverPath(null)}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -50,14 +85,22 @@ export function ApChip({ aps }: { aps: DashboardConnection[] }) {
         flexShrink: 0,
         marginLeft: 8,
         marginRight: 12,
-        // Quiet by default — the chip should read as a small
-        // informational marker, not a CTA.  Lifted to text2 on the
-        // count keeps the number legible without competing with the
-        // file/folder name to its left.
+        // padding gives the hover-state pill a body to wear (without
+        // it the cyan tint would clip tight to the dot+number, which
+        // looks cramped at the row scale).
+        padding: '2px 6px',
+        borderRadius: 10,
+        // Active pill picks up the same `T.rowHighlightRoot` tint the
+        // AccessPointsListCard uses on its hover row — so the chip
+        // and the card light up *in the same colour at the same
+        // intensity*.  That visual handshake is the whole point of
+        // hover-sync.
+        background: isActive ? T.rowHighlightRoot : 'transparent',
         color: T.text3,
         fontSize: 11,
         fontVariantNumeric: 'tabular-nums',
         lineHeight: 1,
+        transition: `background 160ms ${T.ease}`,
       }}
     >
       <span

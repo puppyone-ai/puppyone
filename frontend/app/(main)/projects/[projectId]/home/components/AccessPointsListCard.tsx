@@ -1,12 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import type { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-react';
 import { T } from '../lib/tokens';
 import { PROVIDER_LABELS, getApDirection } from '../lib/constants';
 import type { DashboardConnection } from '../lib/types';
 import { ProviderAvatar } from './ProviderAvatar';
+
+// Normalize the three known "root scope" path representations the
+// backend may emit ('/' for `mut connect` bootstrap rows, null for
+// legacy rows, '' for early hand-bootstrapped rows) into a single
+// canonical key.  Used both for the lookup key in `accessByPath` and
+// for the hover-sync key here.  Keep this in step with the same
+// normalization in page.tsx — if they drift, the chip↔card hover
+// handshake silently breaks.
+function normalizeApPath(raw: string | null | undefined): string {
+  if (raw === null || raw === undefined || raw === '' || raw === '/') {
+    return '';
+  }
+  return raw;
+}
 
 // AccessPointsListCard — left-column primary surface that replaces the
 // previous ConnectionsCanvas slot.
@@ -203,10 +217,25 @@ export function AccessPointsListCard({
   projectId,
   router,
   connections,
+  hoveredPath,
+  onHoverPath,
 }: {
   projectId: string;
   router: ReturnType<typeof useRouter>;
   connections: DashboardConnection[];
+  // Path of the currently-hovered chip / AP row, normalized via
+  // `normalizeApPath`.  When this matches an AP's normalized path,
+  // that AP renders in its highlighted state.  `null` means nothing
+  // is hovered.  Lifted to page.tsx so a hover on a Data-card
+  // ApChip and a hover on this card's AP row share the same source
+  // of truth.
+  hoveredPath: string | null;
+  // Set when this card's row is hovered, cleared when the cursor
+  // leaves.  The Data card uses the same callback (via the chip's
+  // own onHover) so the hover state is reflexive — hovering the
+  // AP card highlights the matching tree row, hovering the tree
+  // row highlights the matching AP card.
+  onHoverPath: (path: string | null) => void;
 }) {
   const total = connections.length;
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -305,12 +334,12 @@ export function AccessPointsListCard({
         </button>
       </div>
 
-      {/* Body — list of AP cards or the empty placeholder.  minHeight
-          keeps the card from collapsing when an empty project has
-          zero APs (rare in practice — `mut connect` bootstrap creates
-          one — but the layout floor matters for visual stability
-          when an AP gets revoked). */}
-      <div style={{ padding: '8px 8px', minHeight: 60 }}>
+      {/* Body — flat list of AP rows (sidebar AccessPointsCard
+          rhythm: avatar + name + status dot + direction + scope path
+          on a single line) with URL / `$` rows nested beneath each.
+          minHeight stays so revoke→empty doesn't collapse the card
+          shell. */}
+      <div style={{ padding: '4px 6px', minHeight: 60 }}>
         {total === 0 ? (
           <div
             style={{
@@ -325,73 +354,63 @@ export function AccessPointsListCard({
             No access points configured.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {connections.map((conn) => {
-              const direction = getApDirection(conn);
-              const label =
-                conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
-              // Normalize the three "root scope" representations the
-              // backend can produce ('/' for newer rows, null for
-              // legacy, '' for early hand-bootstrapped) into a single
-              // displayed string '/'.  Without this, a root AP would
-              // render as '//' here (the leading '/' we prepend below
-              // + the literal '/' coming out of conn.path) which reads
-              // as a typo.
-              const rawPath = conn.path;
-              const isRoot =
-                rawPath === null || rawPath === '' || rawPath === '/';
-              const displayScope = isRoot ? '/' : `/${rawPath}`;
-              const isError = conn.status === 'error';
-              const statusColor = isError
-                ? T.err
-                : conn.status === 'paused'
-                  ? T.warn
-                  : T.live;
-              const url = buildEndpointUrl(conn);
-              const cmd = buildCliCommand(conn, url);
+          connections.map((conn, idx) => {
+            const direction = getApDirection(conn);
+            const label =
+              conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
+            // displayScope: '/' for any of the three root-scope
+            // forms the backend may produce, '/<path>' otherwise.
+            // Without this, root APs render as '//' (template '/'
+            // prepended to a path value that's already '/').
+            const rawPath = conn.path;
+            const isRoot =
+              rawPath === null || rawPath === '' || rawPath === '/';
+            const displayScope = isRoot ? '/' : `/${rawPath}`;
+            const isError = conn.status === 'error';
+            const statusColor = isError
+              ? T.err
+              : conn.status === 'paused'
+                ? T.warn
+                : T.live;
+            const url = buildEndpointUrl(conn);
+            const cmd = buildCliCommand(conn, url);
 
-              return (
+            // Normalized path drives hover-sync between Data ApChip
+            // and this card.  When the user mouses over a chip in the
+            // tree, page.tsx sets hoveredPath to the chip's row path
+            // (already normalized via `accessByPath`'s key); when
+            // they mouse over an AP row here, we set hoveredPath to
+            // this AP's normalized path.  The matching side
+            // highlights — chip ↔ row — making "this card and that
+            // chip are the same thing" obvious without the user
+            // having to mentally connect colour cues.
+            const apPath = normalizeApPath(rawPath);
+            const isHovered = hoveredPath !== null && hoveredPath === apPath;
+
+            return (
+              <React.Fragment key={conn.id}>
+                {/* Per-AP block: identity row + URL + cmd, drawn flat
+                    (no individual card frame) — the section card is
+                    the only frame, the rows below sit inside its
+                    body like a directory listing.  Highlight on
+                    hover-sync is a soft cyan tint flush across the
+                    whole block (identity row + sub-rows) so the
+                    user sees the entire AP, not just one row. */}
                 <div
-                  key={conn.id}
+                  onMouseEnter={() => onHoverPath(apPath)}
+                  onMouseLeave={() => onHoverPath(null)}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 10,
-                    // Asymmetric padding leaves room for the cyan
-                    // stripe on the left without crowding the
-                    // identity strip's content.
-                    padding: '12px 14px 12px 16px',
-                    borderRadius: 6,
-                    background: T.cardBg,
-                    border: `1px solid ${T.cardBorder}`,
-                    // Cyan stripe on the left edge — same hue as the
-                    // ApChip dot rendered next to AP-attached rows in
-                    // the Data card above.  The shared accent
-                    // is the visual handshake between the two views:
-                    // "this AP card and that tree-row chip are the
-                    // same thing."  A 3px stripe is wide enough to
-                    // register at scanning distance, narrow enough
-                    // to read as a left-edge accent rather than a
-                    // separate column.  Pinned to the cell-edge
-                    // background via box-shadow inset rather than
-                    // border-left so the rounded corners on
-                    // borderRadius stay clean.
-                    boxShadow: `inset 3px 0 0 0 ${T.live}`,
-                    transition: `background 160ms ${T.ease}, border-color 160ms ${T.ease}`,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = T.cardBgH;
-                    e.currentTarget.style.borderColor = T.cardBorderH;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = T.cardBg;
-                    e.currentTarget.style.borderColor = T.cardBorder;
+                    padding: '6px 8px',
+                    borderRadius: 4,
+                    background: isHovered ? T.rowHighlight : 'transparent',
+                    transition: `background 160ms ${T.ease}`,
                   }}
                 >
-                  {/* Identity strip — same layout rhythm as sidebar
-                      AccessPointsCard so the same AP reads consistently
-                      across the two views.  Whole strip is clickable
-                      to /access?ap=<id> for full management. */}
+                  {/* Identity row — sidebar AccessPointsCard layout
+                      verbatim so the same AP reads consistently
+                      across surfaces. */}
                   <button
                     type="button"
                     onClick={() =>
@@ -404,7 +423,7 @@ export function AccessPointsListCard({
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
-                      padding: 0,
+                      padding: '4px 0',
                       width: '100%',
                       textAlign: 'left',
                       display: 'flex',
@@ -496,40 +515,62 @@ export function AccessPointsListCard({
                     </div>
                   </button>
 
-                  {/* Endpoint URL — every AP that has an access_key gets
-                      a copyable URL.  Sandbox provider returns null for
-                      now (its public route uses endpoint.id which the
-                      dashboard doesn't surface yet); we just don't
-                      render the line in that case rather than showing a
-                      partially-broken pill. */}
-                  {url && (
-                    <CopyableLine
-                      label="URL"
-                      value={url}
-                      copyKey={`url-${conn.id}`}
-                      copiedKey={copiedKey}
-                      onCopy={handleCopy}
-                    />
-                  )}
-
-                  {/* CLI command — filesystem only for now.  Other
-                      providers' invocation shapes (MCP server config,
-                      sandbox exec body, agent prompt etc.) are richer
-                      than a single command line and live on the
-                      /access detail page. */}
-                  {cmd && (
-                    <CopyableLine
-                      label="$"
-                      value={cmd}
-                      copyKey={`cmd-${conn.id}`}
-                      copiedKey={copiedKey}
-                      onCopy={handleCopy}
-                    />
+                  {/* URL + cmd nested rows.  Indented to align with
+                      the AP name (24px avatar + 10px gap = 34px) so
+                      they read as belonging to this AP without
+                      needing extra background chrome. */}
+                  {(url || cmd) && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 6,
+                        marginTop: 6,
+                        marginLeft: 34,
+                        marginRight: 0,
+                      }}
+                    >
+                      {url && (
+                        <CopyableLine
+                          label="URL"
+                          value={url}
+                          copyKey={`url-${conn.id}`}
+                          copiedKey={copiedKey}
+                          onCopy={handleCopy}
+                        />
+                      )}
+                      {cmd && (
+                        <CopyableLine
+                          label="$"
+                          value={cmd}
+                          copyKey={`cmd-${conn.id}`}
+                          copiedKey={copiedKey}
+                          onCopy={handleCopy}
+                        />
+                      )}
+                    </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
+
+                {/* Hairline divider between APs — only when there's
+                    a next AP after this one.  T.sectionDivider keeps
+                    it in the same family as other 1px rules on the
+                    page, so the dividers in the AP list read as part
+                    of the section card's structure rather than as
+                    decorative. */}
+                {idx < connections.length - 1 && (
+                  <div
+                    aria-hidden
+                    style={{
+                      height: 1,
+                      background: T.sectionDivider,
+                      margin: '4px 0',
+                    }}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })
         )}
       </div>
     </div>

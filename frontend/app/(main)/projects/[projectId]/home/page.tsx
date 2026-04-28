@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useMemo, useEffect } from 'react';
+import { use, useMemo, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
@@ -99,6 +99,16 @@ export default function HomePage({
 }) {
   const { projectId } = use(params);
   const router = useRouter();
+
+  // Shared hover key for the Data ApChip ↔ AccessPointsListCard
+  // handshake.  When the user mouses over either side, this stores
+  // the matching path (project-root chip uses '', a folder/file chip
+  // uses its tree path, an AP card uses its `normalizeApPath`-d
+  // value).  Both sides then highlight when their own path matches.
+  // Lifted to page-level state because the chip and the card live in
+  // sibling components — there's no parent below this point that
+  // owns both.
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
 
   // ── Data ─────────────────────────────────────────────────────────
 
@@ -954,7 +964,12 @@ export default function HomePage({
                     renderRowExtras={(path) => {
                       const aps = accessByPath.get(path);
                       return aps && aps.length > 0 ? (
-                        <ApChip aps={aps} />
+                        <ApChip
+                          aps={aps}
+                          rowPath={path}
+                          hoveredPath={hoveredPath}
+                          onHoverPath={setHoveredPath}
+                        />
                       ) : null;
                     }}
                   />
@@ -979,6 +994,8 @@ export default function HomePage({
                 projectId={projectId}
                 router={router}
                 connections={connections}
+                hoveredPath={hoveredPath}
+                onHoverPath={setHoveredPath}
               />
             </div>
 
