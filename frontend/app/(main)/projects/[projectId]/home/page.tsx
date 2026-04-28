@@ -20,6 +20,7 @@ import { TreeRows, type RowVariant } from './components/TreeRows';
 import { HistoryCard } from './components/HistoryCard';
 import { AccessPointsCard } from './components/AccessPointsCard';
 import { GetStartedPanel } from './components/GetStartedPanel';
+import { ApChip } from './components/ApChip';
 
 const ConnectionsCanvas = dynamic(
   () => import('./components/ConnectionsCanvas').then((mod) => mod.ConnectionsCanvas),
@@ -895,6 +896,29 @@ export default function HomePage({
                   // one click on any row, which routes into the
                   // data explorer's recursive view.
                   //
+                  // Wrapped in a synthetic ROOT node (`path: ''`,
+                  // matching the convention `accessByPath` uses
+                  // for project-root APs in ConnectionsCanvas).
+                  // Two reasons:
+                  //   1.  AP visibility — root-attached access points
+                  //       (the default `mut connect` filesystem AP at
+                  //       `/`) had no anchor row in the Data card, so
+                  //       their presence was visible only in the
+                  //       Connections canvas below.  Now the chip
+                  //       renders directly on the root row, making
+                  //       "this whole project is exposed via X APs"
+                  //       legible at the top of the tree.
+                  //   2.  Visual parity with /data — that page's
+                  //       sidebar already renders a "root" entry as
+                  //       the parent of all top-level files; mirroring
+                  //       that here removes a "where am I?" mismatch
+                  //       when users move between Home and Data.
+                  //
+                  // `renderRowExtras` injects a tiny <ApChip /> on the
+                  // right of any row that has APs attached.  Reuses
+                  // the slot ConnectionsCanvas already uses for its
+                  // xyflow Handles — same protocol, different payload.
+                  //
                   // No cross-section hover sync — `highlightedPaths`
                   // is null so TreeRows renders only its quiet rest
                   // state (rowAttached tint where APs touch, no cyan
@@ -902,7 +926,20 @@ export default function HomePage({
                   // "which AP touches what" job, freeing the tree
                   // to stay a quiet file listing.
                   <TreeRows
-                    nodes={dataCardView.tree}
+                    nodes={[
+                      {
+                        entry: {
+                          name: 'Project root',
+                          path: '',
+                          type: 'folder',
+                          content_hash: null,
+                          size_bytes: 0,
+                          mime_type: null,
+                          children_count: dataCardView.tree.length,
+                        },
+                        children: dataCardView.tree,
+                      },
+                    ]}
                     depth={0}
                     projectId={projectId}
                     router={router}
@@ -910,6 +947,12 @@ export default function HomePage({
                     highlightedPaths={null}
                     highlightAnchorDepth={-1}
                     rowVariants={dataCardView.variants}
+                    renderRowExtras={(path) => {
+                      const aps = accessByPath.get(path);
+                      return aps && aps.length > 0 ? (
+                        <ApChip aps={aps} />
+                      ) : null;
+                    }}
                   />
                 )}
               </div>

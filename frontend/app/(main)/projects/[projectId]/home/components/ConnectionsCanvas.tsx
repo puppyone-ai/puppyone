@@ -797,6 +797,18 @@ export function ConnectionsCanvas({
     setHoveredApId(id);
   }, []);
 
+  // Collapsed by default.  The Data card above now renders an inline
+  // ApChip on every AP-attached row, so for the common case (a project
+  // with 1-3 root- or top-level APs) a user already sees "what's
+  // wired to what" without needing the graph view.  The graph still
+  // earns its keep for complex wiring (multi-AP fan-out, mixed
+  // providers, deeply-scoped APs) and for "I want to see edge
+  // direction" — both unlocked by clicking the header to expand.
+  // Initial-collapsed also keeps first paint lighter on dense
+  // projects: ReactFlow + xyflow's layout engine don't run until the
+  // user opts in.
+  const [collapsed, setCollapsed] = useState(true);
+
   // Pruned view of the tree — primary chains (path-to-AP) + a
   // single per-level "X more files" placeholder summarizing what's
   // hidden.  Drives both what the tree renders AND which paths get
@@ -876,17 +888,40 @@ export function ConnectionsCanvas({
       }}
     >
       {/* Header — same rhythm as the Data / History / APs cards.
-          Right-side hint teaches the two key affordances (zoom,
-          drag) since the dotted background only suggests
-          interactivity, doesn't spell it out. */}
-      <div
+          Now a TOGGLE: clicking anywhere on the header flips the
+          collapsed state.  When collapsed the right-side text reads
+          as a "expand to view" cue; when expanded it surfaces the
+          two interactive affordances (hover, drag) the dotted
+          background can't communicate on its own. */}
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        aria-expanded={!collapsed}
+        aria-controls="connections-canvas-body"
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '10px 14px',
           background: T.sectionHeaderBg,
-          borderBottom: `1px solid ${T.sectionDivider}`,
+          borderBottom: collapsed ? 'none' : `1px solid ${T.sectionDivider}`,
+          // Reset native button styling so the header still reads as
+          // a section header, not a CTA pill.  Cursor flips to
+          // pointer to communicate "this is interactive" — the only
+          // affordance change vs. the previous static header.
+          border: 'none',
+          width: '100%',
+          textAlign: 'left',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          color: 'inherit',
+          transition: `background 200ms ${T.ease}`,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = T.sectionHeaderBg;
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -915,12 +950,41 @@ export function ConnectionsCanvas({
             {connections.length}
           </span>
         </div>
-        <span style={{ fontSize: 11, color: T.text3 }}>
-          {connections.length === 0
-            ? 'No access points yet'
-            : 'Hover an access point to highlight · Drag to rearrange'}
-        </span>
-      </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 11, color: T.text3 }}>
+            {collapsed
+              ? connections.length === 0
+                ? 'No access points yet'
+                : 'View as graph'
+              : 'Hover an access point to highlight · Drag to rearrange'}
+          </span>
+          {/* Caret — flips down when expanded.  Slow rotation
+              transitions read as "panel opening" instead of an
+              instant snap.  aria-hidden because the button itself
+              already exposes aria-expanded for AT users. */}
+          <svg
+            aria-hidden
+            width="10"
+            height="10"
+            viewBox="0 0 12 12"
+            fill="none"
+            style={{
+              color: T.text3,
+              flexShrink: 0,
+              transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
+              transition: `transform 200ms ${T.ease}`,
+            }}
+          >
+            <path
+              d="M3 4.5l3 3 3-3"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      </button>
 
       {/* xyflow Controls dark-theme override.  The default Controls
           ship with white panel + dark glyph styling (built for
@@ -973,8 +1037,18 @@ export function ConnectionsCanvas({
           sits below the Data card's body floor (320), and the
           extra 60px gives fitView at 0.75 enough viewport room to
           seat a slightly bigger tree + AP rail without crunching
-          everything tight against the dot grid edges. */}
-      <div style={{ height: 300, position: 'relative' }}>
+          everything tight against the dot grid edges.
+
+          Conditionally rendered (defaults collapsed): when collapsed
+          we don't mount ReactFlow at all, so the xyflow layout pass
+          never runs on a freshly-loaded /home — initial render is
+          just the section header strip.  Expanding flips
+          `collapsed` to false and ReactFlow mounts inline; the
+          drag-position memory in the `setNodes` effect above will
+          honour any positions the user previously dragged within
+          the same session, so collapse → expand isn't destructive. */}
+      {!collapsed && (
+      <div id="connections-canvas-body" style={{ height: 300, position: 'relative' }}>
         <HoverContext.Provider value={hoverValue}>
           <ReactFlow
             nodes={nodes}
@@ -1070,6 +1144,7 @@ export function ConnectionsCanvas({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
