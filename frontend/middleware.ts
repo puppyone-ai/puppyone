@@ -3,6 +3,16 @@ import type { NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getServerSupabaseUrl, getSupabaseAnonKey } from '@/lib/server-env';
 
+const LOCALES = new Set(['en', 'zh-CN']);
+
+function detectLocale(request: NextRequest): string {
+  const cookie = request.cookies.get('NEXT_LOCALE')?.value;
+  if (cookie && LOCALES.has(cookie)) return cookie;
+  const accept = request.headers.get('accept-language') ?? '';
+  if (accept.toLowerCase().includes('zh')) return 'zh-CN';
+  return 'en';
+}
+
 /**
  * Next.js Middleware - 统一处理认证和路由保护
  *
@@ -83,6 +93,10 @@ export async function middleware(request: NextRequest) {
     // loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl);
   }
+
+  // Tell next-intl which locale to use for this request
+  const locale = detectLocale(request);
+  response.headers.set('x-next-intl-locale', locale);
 
   return response;
 }

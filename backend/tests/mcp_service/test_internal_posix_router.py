@@ -67,8 +67,18 @@ def app():
 def client(app, ops):
     app.dependency_overrides[verify_internal_secret] = lambda: None
     app.dependency_overrides[get_mut_ops] = lambda: ops
-    with TestClient(app) as c:
-        yield c
+    # SECURITY (C-3): all /internal/nodes/* endpoints now require an
+    # X-Acting-User-Id header AND verify the user has project access.
+    # The pre-existing tests don't set up real users, so we patch the
+    # access check to always allow.
+    with patch(
+        "src.internal.router.ProjectRepositorySupabase"
+    ) as repo_cls:
+        repo_cls.return_value.verify_project_access.return_value = "member"
+        with TestClient(app) as c:
+            # Inject the required header for every request via headers=
+            c.headers.update({"X-Acting-User-Id": "test-user"})
+            yield c
     app.dependency_overrides.clear()
 
 

@@ -1,7 +1,9 @@
 'use client';
 
-import { use, useMemo } from 'react';
+import { use, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
 import { treeList, getProjectHistory } from '@/lib/contentTreeApi';
@@ -17,8 +19,31 @@ import type {
 import { TreeRows, type RowVariant } from './components/TreeRows';
 import { HistoryCard } from './components/HistoryCard';
 import { AccessPointsCard } from './components/AccessPointsCard';
-import { ConnectionsCanvas } from './components/ConnectionsCanvas';
 import { GetStartedPanel } from './components/GetStartedPanel';
+
+const ConnectionsCanvas = dynamic(
+  () => import('./components/ConnectionsCanvas').then((mod) => mod.ConnectionsCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        style={{
+          height: 300,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: T.text3,
+          fontSize: 12,
+          background: T.sectionBg,
+          border: `2px solid ${T.sectionBorder}`,
+          borderRadius: T.sectionRadius,
+        }}
+      >
+        Loading connection graph...
+      </div>
+    ),
+  },
+);
 
 // Vitals-strip interpunct separator.  A single `·` glyph rendered in
 // the faint `text4` token with a small horizontal rhythm so the strip
@@ -94,17 +119,29 @@ export default function HomePage({
   const { data: dashboard, mutate: mutateDashboard } = useSWR<ProjectDashboard>(
     projectId ? `/api/v1/projects/${projectId}/dashboard` : null,
     (url: string) => get<ProjectDashboard>(url),
-    { refreshInterval: 30000 },
+    {
+      // PERFORMANCE (P-7): aggressive 30s polling re-issued the
+      // ~4-7s endpoint on every idle home tab. Switch to event-driven
+      // revalidation: refresh when the user returns to the tab or
+      // reconnects, and only fall back to polling at a much lower rate.
+      refreshInterval: 120_000,
+      revalidateOnFocus: true,
+      revalidateOnReconnect: true,
+      keepPreviousData: true,
+      dedupingInterval: 5_000,
+    },
   );
 
   const { data: treeEntries, mutate: mutateTree } = useSWR(
     projectId ? ['home-tree', projectId] : null,
     () => treeList(projectId, '', 3),
+    { keepPreviousData: true },
   );
 
   const { data: historyData } = useSWR(
     projectId ? ['project-history-overview', projectId] : null,
     () => getProjectHistory(projectId, 50),
+    { keepPreviousData: true },
   );
 
   const commits = historyData?.commits || [];
@@ -131,6 +168,13 @@ export default function HomePage({
   }, [commits]);
 
   const connections = dashboard?.access_points || [];
+
+  // Auto-complete onboarding steps based on real data
+  const { completeStep } = useOnboarding();
+  useEffect(() => {
+    if ((dashboard?.nodes?.total ?? 0) > 0) completeStep('file');
+    if (connections.length > 0) completeStep('access_point');
+  }, [dashboard, connections.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tree shaped from the flat treeList response.  Folders sort first,
   // then alphabetical — same order the data explorer uses, so a user
@@ -327,18 +371,21 @@ export default function HomePage({
 
   if (!dashboard) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          color: T.text3,
-          fontSize: 13,
-          fontFamily: T.fontSans,
-        }}
-      >
-        Loading…
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, overflow: 'hidden' }}>
+        {/* Header skeleton */}
+        <div style={{ height: 48, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }} />
+        <div style={{ flex: 1, padding: '32px 40px', overflow: 'hidden' }}>
+          {/* Title skeleton */}
+          <div style={{ height: 22, width: '28%', background: 'rgba(255,255,255,0.06)', borderRadius: 4, marginBottom: 10 }} />
+          <div style={{ height: 13, width: '45%', background: 'rgba(255,255,255,0.03)', borderRadius: 3, marginBottom: 40 }} />
+          {/* Cards skeleton */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
+            {[1,2,3].map(i => (
+              <div key={i} style={{ height: 100, background: 'rgba(255,255,255,0.04)', borderRadius: 8 }} />
+            ))}
+          </div>
+          <div style={{ height: 300, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }} />
+        </div>
       </div>
     );
   }
@@ -802,8 +849,33 @@ export default function HomePage({
                   in turn lets the Connections canvas below grow
                   to a comparable height without breaking the rule
                   that Connections must stay shorter than Data
-                  (see ConnectionsCanvas's height comment). */}
-              <div style={{ padding: '6px 0', minHeight: 320 }}>
+                  (see ConnectionsCanvas's height comment).
+                  
+                  `maxHeight` caps the card so a heavy top-level
+                  ("39 .txt files at the project root") doesn't
+                  silently dwarf the right rail — the previous
+                  design relied on the page-level scroller, which
+                  works fine for a 50-entry tree where the right
+                  rail goes off-screen with it, but breaks down
+                  when the rail is ~300px and Data wants to be
+                  ~1200px (the rail flat-lines while Data marches
+                  on, breaking the two-column band's read).  480px
+                  ≈ 15 rows at ROW_HEIGHT 32 — sized JUST above
+                  SOFT_TOTAL_CAP (14 rows ≈ 460px) so the
+                  expansion budget still fits naturally without
+                  triggering an internal scroller in the common
+                  case; only the genuinely-overflowing case (this
+                  project, with 39 flat files) scrolls inside the
+                  card.  `overflowY: auto` keeps the bar invisible
+                  until the content actually overflows. */}
+              <div
+                style={{
+                  padding: '6px 0',
+                  minHeight: 320,
+                  maxHeight: 480,
+                  overflowY: 'auto',
+                }}
+              >
                 {dataCardView.tree.length === 0 ? (
                   <div
                     style={{

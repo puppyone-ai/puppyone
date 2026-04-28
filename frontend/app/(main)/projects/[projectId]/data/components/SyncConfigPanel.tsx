@@ -374,9 +374,16 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
       } else {
         onClose();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to create sync:', err);
-      setDeployError(err instanceof Error ? err.message : 'Failed to create access.');
+      // User-friendly messages for known error types
+      if (err?.isDuplicate || err?.status === 409 || err?.code === 409) {
+        setDeployError('该文件夹已有相同类型的 Access Point，请先删除已有的，或选择其他文件夹。');
+      } else if (err?.status === 403) {
+        setDeployError('无权限创建 Access Point，请确认项目访问权限。');
+      } else {
+        setDeployError(err instanceof Error ? err.message : '创建失败，请重试。');
+      }
     } finally {
       setDeploying(false);
     }
@@ -540,12 +547,32 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
               </div>
             </div>
             
-            <div style={{ 
-              padding: '12px', 
+            <div style={{
+              padding: '12px',
               borderTop: '1px solid rgba(255,255,255,0.06)',
               background: '#0e0e0e',
               flexShrink: 0
             }}>
+              {deployError && (
+                <div style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10,
+                  padding: '8px 10px', borderRadius: 6,
+                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <span style={{ fontSize: 12, color: '#fca5a5', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
+                  <button
+                    onClick={() => setDeployError(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ef4444', flexShrink: 0, opacity: 0.7 }}
+                    onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                    onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+              )}
               <button
                 onClick={handleSyncDeploy}
                 disabled={deploying || draftResources.length === 0}
@@ -593,8 +620,23 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
           flexShrink: 0
         }}>
           {deployError && (
-            <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 8 }}>
-              {deployError}
+            <div style={{
+              display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10,
+              padding: '8px 10px', borderRadius: 6,
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span style={{ fontSize: 12, color: '#fca5a5', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
+              <button
+                onClick={() => setDeployError(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ef4444', flexShrink: 0, opacity: 0.7 }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
             </div>
           )}
           <button

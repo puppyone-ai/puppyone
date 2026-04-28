@@ -98,6 +98,33 @@ async def mut_push(
     from src.mut_engine.server.validation import validate_push_objects
     validate_push_objects(body)
 
+    # Parallel object upload — consolidates the negotiate + push dedup flow.
+    #
+    # Without this: negotiate checks exists(h) × N serially, returns missing list.
+    # Client sends only missing objects. Then _store_incoming_objects inside
+    # handle_push calls put(data) → _do_put → file_exists(h) AGAIN + upload(h).
+    # That's 2 × N serial S3 calls for objects that negotiate already confirmed missing.
+    #
+    # With this: we upload all objects in parallel here (20 concurrent),
+    # then clear body["objects"] so _store_incoming_objects iterates an empty dict.
+    # Saves: N serial HEAD checks + N serial PUTs → replaced by N parallel PUTs.
+    import base64
+    objects_b64 = body.get("objects", {})
+    if objects_b64:
+        repo = repo_manager.get_server_repo(project_id)
+        if hasattr(repo.store, "async_put_many"):
+            decoded = {}
+            for h, b64 in objects_b64.items():
+                raw = base64.b64decode(b64)
+                # ObjectStore.put(data) computes hash internally via hash_bytes(data).
+                # We need to store under that computed hash, not the client-provided key.
+                from mut.foundation.hash import hash_bytes as mut_hash
+                real_hash = mut_hash(raw)
+                decoded[real_hash] = raw
+            await repo.store.async_put_many(decoded, skip_exists=True)
+            # Clear objects so handle_push's _store_incoming_objects is a no-op
+            body["objects"] = {}
+
     try:
         result = await asyncio.to_thread(
             _invoke, handle_push, repo_manager, project_id, auth, body,
@@ -112,7 +139,12 @@ async def mut_push(
         log_error(f"[MUT] push failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
-    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
+    # Run post-push hook (graft) in background — don't block the push response.
+    # The graft makes changes visible in the global root tree, but the scope
+    # data is already committed and consistent. The client can proceed immediately.
+    asyncio.get_event_loop().run_in_executor(
+        None, run_post_push_hook, project_id, repo_manager, result,
+    )
 
     log_info(
         f"[MUT] push project={project_id} agent={auth['agent']} "
@@ -157,22 +189,36 @@ async def mut_negotiate(
     auth: dict = Depends(get_mut_auth),
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
-    """Hash negotiation for object dedup (reduces transfer size)."""
+    """Hash negotiation for object dedup (reduces transfer size).
+
+    Optimized: uses parallel S3 existence checks instead of serial.
+    """
     body = await request.json()
 
     try:
+        require_supported_protocol(body)
+    except ClientTooOldError as e:
+        _raise_too_old(e)
+
+    hashes = body.get("hashes", [])
+    if not hashes:
+        return JSONResponse({"missing": []})
+
+    repo = repo_manager.get_server_repo(project_id)
+    store = repo.store
+
+    # Parallel existence check — 20x faster than serial for many objects
+    if hasattr(store, "async_exists_many"):
+        existing = await store.async_exists_many(hashes)
+        missing = [h for h in hashes if h not in existing]
+    else:
+        # Fallback to serial (non-S3 stores)
         result = await asyncio.to_thread(
             _invoke, handle_negotiate, repo_manager, project_id, auth, body,
         )
-    except ClientTooOldError as e:
-        _raise_too_old(e)
-    except PermissionDenied as e:
-        raise HTTPException(status_code=403, detail=str(e))
-    except Exception as e:
-        log_error(f"[MUT] negotiate failed for project {project_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Negotiate failed: {e}")
+        return JSONResponse(result)
 
-    return JSONResponse(result)
+    return JSONResponse({"missing": missing})
 
 
 @router.post("/{project_id}/rollback")

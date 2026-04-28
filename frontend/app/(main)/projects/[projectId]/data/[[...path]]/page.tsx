@@ -62,7 +62,7 @@ import {
 } from '../components/explorer';
 
 import { useAgent } from '@/contexts/AgentContext';
-import { VersionHistoryPanel } from '@/components/editors/VersionHistoryPanel';
+import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { TaskStatusWidget } from '@/components/TaskStatusWidget';
 
 // Extracted hooks
@@ -76,12 +76,36 @@ import { EditorArea } from '../components/EditorArea';
 import { BottomBar } from '../components/BottomBar';
 import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
-import { SyncConfigPanel } from '../components/SyncConfigPanel';
-import { McpConfigPanel } from '../components/McpConfigPanel';
-import { SandboxConfigPanel } from '../components/SandboxConfigPanel';
 import { PanelShell } from '../components/PanelShell';
-import { ChatRuntimeView } from '@/components/agent/views/ChatRuntimeView';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
+
+// Panel components — loaded on demand when user opens the panel (saves ~1.5MB on initial load)
+import dynamic from 'next/dynamic';
+const _PanelLoading = () => (
+  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>
+    Loading...
+  </div>
+);
+const VersionHistoryPanel = dynamic(
+  () => import('@/components/editors/VersionHistoryPanel').then(m => ({ default: m.VersionHistoryPanel })),
+  { ssr: false, loading: _PanelLoading }
+);
+const SyncConfigPanel = dynamic(
+  () => import('../components/SyncConfigPanel').then(m => ({ default: m.SyncConfigPanel })),
+  { ssr: false, loading: _PanelLoading }
+);
+const McpConfigPanel = dynamic(
+  () => import('../components/McpConfigPanel').then(m => ({ default: m.McpConfigPanel })),
+  { ssr: false, loading: _PanelLoading }
+);
+const SandboxConfigPanel = dynamic(
+  () => import('../components/SandboxConfigPanel').then(m => ({ default: m.SandboxConfigPanel })),
+  { ssr: false, loading: _PanelLoading }
+);
+const ChatRuntimeView = dynamic(
+  () => import('@/components/agent/views/ChatRuntimeView').then(m => ({ default: m.ChatRuntimeView })),
+  { ssr: false, loading: _PanelLoading }
+);
 import { usePanelStore, type PanelState } from '../usePanelStore';
 import type { AccessOption } from '@/components/chat/ChatInputArea';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
@@ -355,6 +379,12 @@ export default function DataPage({ params }: DataPageProps) {
   // Agent context (needed early for syncEndpoints merge)
   const { draftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
 
+  // Auto-complete onboarding steps
+  const { completeStep } = useOnboarding();
+  useEffect(() => {
+    if (savedAgents.length > 0) completeStep('agent');
+  }, [savedAgents.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // View & editor type — persisted in localStorage
   const [viewType, setViewTypeState] = useState<ViewType>(() => {
     if (typeof window === 'undefined') return 'explorer';
@@ -380,6 +410,7 @@ export default function DataPage({ params }: DataPageProps) {
       router.replace(`/projects/${projectId}/data`);
     }
   }, [hasWelcomeParam, projectId, router]);
+
 
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);

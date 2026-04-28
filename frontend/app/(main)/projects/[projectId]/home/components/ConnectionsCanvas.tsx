@@ -232,7 +232,20 @@ function buildCanvasView(
     return result;
   }
 
-  const tree = walk(rawNodes, '', false);
+  // The "parent" of the top-level walk IS the project root, so its
+  // AP-attached status is `accessByPath.has('')` — a root-attached AP
+  // (filesystem at "/", path='' or null) means the project as a
+  // whole has external wiring, even when no individual top-level
+  // node carries its own AP.  Without this, projects whose ONLY AP
+  // is root-attached end up with primaries=[] AND no placeholder
+  // (because parentIsApAttached was hardcoded false), producing an
+  // empty tree body — the canvas degenerates to a header-only chip
+  // that gives the user no hint of what "39 files" the AP is wired
+  // to.  Threading the real value through surfaces the standard
+  // "X more files" placeholder so the user reads "filesystem AP →
+  // 39 more files" instead of "filesystem AP → ???".
+  const rootAttached = accessByPath.has('');
+  const tree = walk(rawNodes, '', rootAttached);
   return { tree, variants };
 }
 
@@ -426,25 +439,70 @@ const DataTreeNode = memo(function DataTreeNode({
           )}
         </div>
 
-        {/* Root handle.  Only mount it if there's actually a root-
-            level AP attached, so xyflow doesn't track an unused
-            handle.  Anchored on the header so root-scoped APs
-            connect to the tree's identity band, not its first row. */}
+        {/* Root scope chip — the visible anchor for root-attached
+            AP edges (filesystem at "/", path='' or null).
+            
+            Why a labeled chip + embedded invisible Handle instead
+            of a visible Handle:
+              1. xyflow uses `getBoundingClientRect` on the Handle
+                 element to compute the edge endpoint.  A Handle
+                 styled to "half overhang" the panel via tricks
+                 like `right: -3` with `overflow: hidden` decouples
+                 the visual position (clipped by CSS) from the
+                 measurement position (un-clipped DOM rect),
+                 producing edges that snap to coordinates the user
+                 can't see.  The chip-with-handle pattern keeps
+                 visual and measurement positions identical.
+              2. xyflow ships its own `.react-flow__handle*` CSS.
+                 Trying to make a Handle the visible UI fights this
+                 CSS for control of size/border/background.  Wrap-
+                 ping in a container we own sidesteps that.
+              3. Standard wiring-graph idiom (n8n, Airflow, Blender
+                 Shader Editor): edges that target "the whole
+                 scope" land on a clearly-labeled scope indicator,
+                 not an anonymous edge of a panel.  "/" here is the
+                 universally-understood filesystem-root symbol.
+
+            Visual treatment is a faint cyan tint (NOT the full
+            T.live cyan that direction-bearing edges use) so the
+            chip reads as "connection anchor" without claiming to
+            indicate direction — direction stays the edge's job. */}
         {rootAttached && (
-          <Handle
-            type="source"
-            id="__root__"
-            position={Position.Right}
+          <div
             style={{
-              opacity: 0,
-              pointerEvents: 'none',
-              width: 6,
-              height: 6,
-              background: 'transparent',
-              border: 'none',
-              top: '50%',
+              position: 'relative',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 20,
+              height: 18,
+              padding: '0 6px',
+              borderRadius: 4,
+              background: 'rgba(110, 231, 183, 0.08)',
+              border: '1px solid rgba(110, 231, 183, 0.30)',
+              fontFamily: T.fontMono,
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.text2,
+              lineHeight: 1,
             }}
-          />
+            title="Project root — APs attached here cover the entire tree"
+          >
+            /
+            <Handle
+              type="source"
+              id="__root__"
+              position={Position.Right}
+              style={{
+                opacity: 0,
+                pointerEvents: 'none',
+                width: 6,
+                height: 6,
+                background: 'transparent',
+                border: 'none',
+              }}
+            />
+          </div>
         )}
       </div>
 

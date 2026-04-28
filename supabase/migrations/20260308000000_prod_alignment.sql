@@ -319,6 +319,7 @@ CREATE TABLE IF NOT EXISTS "public"."org_invitations" (
 );
 
 -- Add org_id FK to profiles (after organizations exists)
+ALTER TABLE "public"."profiles" DROP CONSTRAINT IF EXISTS "profiles_default_org_id_fkey";
 ALTER TABLE "public"."profiles" ADD CONSTRAINT "profiles_default_org_id_fkey"
     FOREIGN KEY ("default_org_id") REFERENCES "public"."organizations"("id") ON DELETE SET NULL;
 
@@ -384,6 +385,7 @@ CREATE TABLE IF NOT EXISTS "public"."folder_snapshots" (
 );
 
 -- Add FK from file_versions to folder_snapshots
+ALTER TABLE "public"."file_versions" DROP CONSTRAINT IF EXISTS "fk_file_versions_snapshot";
 ALTER TABLE "public"."file_versions" ADD CONSTRAINT "fk_file_versions_snapshot"
     FOREIGN KEY ("snapshot_id") REFERENCES "public"."folder_snapshots"("id") ON DELETE SET NULL;
 
@@ -631,20 +633,31 @@ ALTER TABLE "public"."uploads" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."etl_rules" ENABLE ROW LEVEL SECURITY;
 
 -- Service role policies (backend uses service_role key)
+-- Use DROP IF EXISTS + CREATE to be idempotent for Supabase Preview
+DROP POLICY IF EXISTS "service_role_all_organizations" ON "public"."organizations";
 CREATE POLICY "service_role_all_organizations" ON "public"."organizations" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_org_members" ON "public"."org_members";
 CREATE POLICY "service_role_all_org_members" ON "public"."org_members" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_org_invitations" ON "public"."org_invitations";
 CREATE POLICY "service_role_all_org_invitations" ON "public"."org_invitations" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_project_members" ON "public"."project_members";
 CREATE POLICY "service_role_all_project_members" ON "public"."project_members" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_file_versions" ON "public"."file_versions";
 CREATE POLICY "service_role_all_file_versions" ON "public"."file_versions" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_folder_snapshots" ON "public"."folder_snapshots";
 CREATE POLICY "service_role_all_folder_snapshots" ON "public"."folder_snapshots" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_mcp_endpoints" ON "public"."mcp_endpoints";
 CREATE POLICY "service_role_all_mcp_endpoints" ON "public"."mcp_endpoints" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_sandbox_endpoints" ON "public"."sandbox_endpoints";
 CREATE POLICY "service_role_all_sandbox_endpoints" ON "public"."sandbox_endpoints" TO service_role USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "service_role_all_uploads" ON "public"."uploads";
 CREATE POLICY "service_role_all_uploads" ON "public"."uploads" TO service_role USING (true) WITH CHECK (true);
 -- These policies already exist from the pre-rename tables; skip re-creation
 -- service_role_all_etl_rule, service_role_all_project, service_role_all_tool,
 -- service_role_all_agent_execution_log, service_role_all_oauth_connection
 -- carry over automatically after ALTER TABLE RENAME.
 
+DROP POLICY IF EXISTS "service_role_all_sync_changelog" ON "public"."sync_changelog";
 CREATE POLICY "service_role_all_sync_changelog" ON "public"."sync_changelog" TO service_role USING (true) WITH CHECK (true);
 
 

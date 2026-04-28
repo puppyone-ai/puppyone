@@ -564,10 +564,13 @@ async def ready_check(
 @app.get("/health")
 async def health_check(
     response: Response,
-    mcp_service=Depends(get_mcp_instance_service),
 ):
-    """Compatibility endpoint: returns readiness result."""
-    report = await _build_readiness_report(mcp_service)
+    """Fast health check — skips slow MCP probe to avoid blocking traffic."""
+    report = {
+        "status": "ready",
+        "service": "ContextBase API",
+        "version": settings.VERSION,
+    }
     if report["status"] != "ready":
         response.status_code = 503
     return report

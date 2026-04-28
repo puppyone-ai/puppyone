@@ -97,11 +97,24 @@ class Settings(BaseSettings):
 
         if self.ALLOWED_HOSTS is None:
             if self.APP_ENV in {"development", "test"}:
+                # Next.js auto-rolls forward (3000 → 3001 → 3002 → …) when
+                # an earlier port is occupied (orphan dev servers, other IDE
+                # workers, etc.), and a missing entry here surfaces as every
+                # OPTIONS preflight returning 400 with no useful UI signal.
+                # Cover 3000-3004 so a couple of port bumps don't silently
+                # break the local stack.  Explicit env var ALLOWED_HOSTS
+                # still overrides this list for non-default setups.
                 self.ALLOWED_HOSTS = [
                     "http://localhost:3000",
                     "http://localhost:3001",
+                    "http://localhost:3002",
+                    "http://localhost:3003",
+                    "http://localhost:3004",
                     "http://127.0.0.1:3000",
                     "http://127.0.0.1:3001",
+                    "http://127.0.0.1:3002",
+                    "http://127.0.0.1:3003",
+                    "http://127.0.0.1:3004",
                 ]
             else:
                 self.ALLOWED_HOSTS = ["*"] if self.DEBUG else []

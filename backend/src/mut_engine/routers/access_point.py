@@ -205,7 +205,10 @@ async def ap_push(access_key: str, request: Request):
         log_error(f"[AP] push failed: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
 
-    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
+    # Post-push hook in background — don't block the push response
+    asyncio.get_event_loop().run_in_executor(
+        None, run_post_push_hook, project_id, repo_manager, result,
+    )
 
     log_info(
         f"[AP] push ap={access_key[:8]}... project={project_id} "
@@ -239,13 +242,28 @@ async def ap_pull(access_key: str, request: Request):
 
 @ap_router.post("/{access_key}/negotiate")
 async def ap_negotiate(access_key: str, request: Request):
-    """Hash negotiation via Access Point URL."""
+    """Hash negotiation via Access Point URL — parallel existence checks."""
     try:
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
         body = await request.json()
-        result = await asyncio.to_thread(
-            _invoke, handle_negotiate, repo_manager, project_id, auth, body,
-        )
+
+        from mut.core.protocol import require_supported_protocol
+        require_supported_protocol(body)
+
+        hashes = body.get("hashes", [])
+        if not hashes:
+            return JSONResponse({"missing": []})
+
+        repo = repo_manager.get_server_repo(project_id)
+        store = repo.store
+        if hasattr(store, "async_exists_many"):
+            existing = await store.async_exists_many(hashes)
+            missing = [h for h in hashes if h not in existing]
+            result = {"missing": missing}
+        else:
+            result = await asyncio.to_thread(
+                _invoke, handle_negotiate, repo_manager, project_id, auth, body,
+            )
     except HTTPException:
         raise
     except ClientTooOldError as e:

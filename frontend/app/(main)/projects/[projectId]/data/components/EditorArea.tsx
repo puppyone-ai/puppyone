@@ -4,7 +4,15 @@ import React, { useEffect, useState } from 'react';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import { fetchRawBlob } from '@/lib/contentTreeApi';
 import { MarkdownEditor, type MarkdownViewMode } from '@/components/editors/markdown';
-import { GithubRepoView } from '@/components/views/GithubRepoView';
+import dynamic from 'next/dynamic';
+
+// Loaded on demand — only when user opens a GitHub-connected node
+const GithubRepoView = dynamic(
+  () => import('@/components/views/GithubRepoView').then(m => ({ default: m.GithubRepoView })),
+  { ssr: false }
+);
+
+// ProjectWorkspaceView already uses dynamic imports internally for Monaco/Table editors
 import { ProjectWorkspaceView } from '@/components/ProjectWorkspaceView';
 import type { EditorType } from '@/components/ProjectsHeader';
 import type { McpToolPermissions } from '@/lib/mcpApi';

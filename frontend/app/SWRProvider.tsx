@@ -9,6 +9,7 @@ export function SWRGlobalProvider({ children }: { children: ReactNode }) {
       value={{
         dedupingInterval: 5000,
         revalidateOnFocus: false,
+        focusThrottleInterval: 300000,
         errorRetryCount: 2,
       }}
     >

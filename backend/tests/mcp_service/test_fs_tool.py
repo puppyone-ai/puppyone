@@ -81,7 +81,9 @@ async def test_cat_reads_file_content():
 
     assert result["content"] == "hello"
     assert result["path"] == "/docs/readme.md"
-    rpc.read_file.assert_awaited_once_with("proj-1", "docs/readme.md")
+    rpc.read_file.assert_awaited_once_with(
+        "proj-1", "docs/readme.md", acting_user_id=None,
+    )
 
 
 @pytest.mark.asyncio
@@ -131,7 +133,7 @@ async def test_mkdir_calls_rpc():
     result = await fs.mkdir("proj-1", [], "/docs/sub")
 
     assert result["created"] is True
-    rpc.mkdir.assert_awaited_once_with("proj-1", "docs/sub")
+    rpc.mkdir.assert_awaited_once_with("proj-1", "docs/sub", acting_user_id=None)
 
 
 @pytest.mark.asyncio
@@ -154,7 +156,7 @@ async def test_rm_calls_trash():
     result = await fs.rm("proj-1", [], "/docs/x.md", user_id="agent-1")
 
     assert result["removed"] is True
-    rpc.trash.assert_awaited_once_with("proj-1", "docs/x.md")
+    rpc.trash.assert_awaited_once_with("proj-1", "docs/x.md", acting_user_id=None)
 
 
 @pytest.mark.asyncio

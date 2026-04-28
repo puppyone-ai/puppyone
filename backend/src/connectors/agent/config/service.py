@@ -25,9 +25,18 @@ class AgentConfigService:
         """Get an Agent."""
         return self._repo.get_by_id_with_accesses(agent_id)
 
-    def list_agents(self, project_id: str) -> List[Agent]:
-        """Get the list of Agents for a project."""
-        return self._repo.get_by_project_id_with_accesses(project_id)
+    def list_agents(
+        self, project_id: str, viewer_user_id: Optional[str] = None,
+    ) -> List[Agent]:
+        """Get the list of Agents for a project.
+
+        viewer_user_id: pass the JWT user id so private agents owned by other
+        users are filtered out (security: M-1 visibility). Pass None when
+        called from an internal context that already gated by other means.
+        """
+        return self._repo.get_by_project_id_with_accesses(
+            project_id, viewer_user_id=viewer_user_id,
+        )
 
     def get_default_agent(self, project_id: str) -> Optional[Agent]:
         """Get the default Agent for a project."""

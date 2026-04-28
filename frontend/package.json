@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -35,6 +39,7 @@
     "jsoneditor": "^10.4.2",
     "lucide-react": "^0.562.0",
     "next": "^15.5.9",
+    "next-intl": "^4.9.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^10.1.0",
