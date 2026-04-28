@@ -25,38 +25,25 @@ function normalizeApPath(raw: string | null | undefined): string {
 // AccessPointsListCard — left-column primary surface that replaces the
 // previous ConnectionsCanvas slot.
 //
-// Why this exists
-//   The right-rail AccessPointsCard treated every AP as a one-line
-//   directory entry: provider chip, name, scope, click-to-manage.  But
-//   on Home the AP block is the user's *operational* surface — the
-//   thing they reach for when they need to paste a `mut connect` URL
-//   into a terminal, drop an MCP endpoint into Claude/Cursor, or grab
-//   an exec URL for a Sandbox.  280px of sidebar can't carry those
-//   strings + the Copy buttons users hit ten times a day.  Promoting
-//   the block to the main column gives each AP enough horizontal
-//   budget for an Endpoint URL row + a one-shot CLI command row +
-//   inline Copy buttons, removing the round-trip to /access for the
-//   common copy/paste actions.
+// Layout: section card with the same chrome as Data / History.  Body
+// is a flat list (sidebar AccessPointsCard rhythm verbatim: avatar +
+// name + status dot + direction + scope path) with URL / `$` rows
+// nested below each, indented to align with the AP name.  Adjacent
+// APs are separated by a 1px hairline divider so multi-AP lists
+// don't visually fuse.
 //
-// Visual contract
-//   ─ Section card matches Data / History card chrome (sectionBg +
-//     2px sectionBorder + sectionRadius + sectionHeaderBg strip) so
-//     it reads as the same family of "framed module" components.
-//   ─ Per-AP row is two visual layers stacked:
-//       1. Identity strip   — provider avatar, name, status dot,
-//                             direction glyph, scope path. Mirrors
-//                             the sidebar card's row layout so the
-//                             same AP reads as the same thing in
-//                             both views.
-//       2. Endpoint block   — monospaced URL (with Copy) + provider-
-//                             specific CLI command (with Copy) for
-//                             provider=filesystem.  Other providers
-//                             just get the endpoint URL; the
-//                             provider-specific config lives on the
-//                             /access detail page.
-//   ─ Empty state matches AccessPointsCard's literal copy ("No
-//     access points configured.") so users moving between page
-//     versions don't see different language for the same state.
+// Hover-sync: each AP row + the matching ApChip in the Data tree
+// share a single `hoveredPath` source of truth lifted to page.tsx.
+// Mousing over either side flips on a highlight on the other:
+//   ─ Self-hover (cursor on the AP row) → neutral grey wash
+//     (T.rowHover), the same affordance every clickable row in the
+//     app uses.  Cyan would over-promise here; the user is actively
+//     interacting with the row, not observing a relationship.
+//   ─ Synced highlight (chip in the tree above is hovered) → cyan
+//     wash (T.rowHighlight), matching the chip pill's accent.  This
+//     is the "we're the same thing" state — colour locked to the
+//     chip side of the handshake.
+//   ─ Both at once: self-hover wins; we don't double-paint.
 
 function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bidirectional' }) {
   if (direction === 'outbound') {
@@ -72,10 +59,7 @@ function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bi
 // path shape per provider.  The host comes from NEXT_PUBLIC_API_URL
 // when set (build-time-baked backend host) and falls back to the
 // current page origin only when no env was provided — same pattern as
-// FilesystemDetailView / SyncDetailView / GetStartedPanel.  Without
-// NEXT_PUBLIC_API_URL on a multi-host deployment (frontend on app.*,
-// backend on api.*) the URL we render would point at the frontend
-// origin and 404 in any tool that tried to use it.
+// FilesystemDetailView / SyncDetailView / GetStartedPanel.
 function buildEndpointUrl(conn: DashboardConnection): string | null {
   if (!conn.access_key) return null;
   const apiBase =
@@ -93,10 +77,7 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
       // Sandbox uses endpoint.id rather than access_key for the
       // public exec route, but DashboardConnection only carries
       // access_key.  The /access detail page composes the real
-      // exec URL; here we surface the access_key URL and let the
-      // detail page own the precise sandbox shape.  TODO: extend
-      // dashboard payload with `endpoint_id` if we want a sandbox
-      // exec URL to render directly in this card.
+      // exec URL; here we surface no URL rather than a broken one.
       return null;
     default:
       return null;
@@ -104,10 +85,10 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
 }
 
 // Shell command users would actually paste, scoped per provider.
-// `null` means we don't render a command row for this provider
-// (today: everything that isn't filesystem) — those providers'
-// invocation shapes (Claude config blob, MCP server entry, sandbox
-// exec body) live in their /access detail panels.
+// `null` means we don't render a command row for this provider —
+// today everything that isn't filesystem; their richer invocation
+// shapes (MCP server config blob, sandbox exec body, etc.) live on
+// the /access detail page.
 function buildCliCommand(conn: DashboardConnection, url: string | null): string | null {
   if (!url || !conn.access_key) return null;
   if (conn.provider !== 'filesystem') return null;
@@ -115,14 +96,8 @@ function buildCliCommand(conn: DashboardConnection, url: string | null): string 
 }
 
 // Single-line copyable row.  Renders inline (no inset background, no
-// border) so it reads as first-class content of the AP card rather
-// than a nested "sub-card" — the inset treatment we tried earlier
-// produced too much visual nesting (AP card → boxed URL row → boxed
-// cmd row) and made the URL/command feel demoted.  Now the AP card
-// is the only frame; URL and `$` are just labelled rows inside it.
-//
-// Used twice per AP row (URL + command) so the horizontal rhythm
-// stays predictable.
+// border) so it reads as first-class content of the AP body rather
+// than a nested "sub-card".  Label + value + Copy in a row.
 function CopyableLine({
   label,
   value,
@@ -153,9 +128,6 @@ function CopyableLine({
           color: T.text3,
           letterSpacing: '0.05em',
           flexShrink: 0,
-          // Fixed minWidth so URL and $ rows align column-wise — the
-          // value column starts at the same x in both lines, which
-          // makes "they're parallel things" read at a glance.
           minWidth: 22,
           textTransform: 'uppercase',
           fontFamily: T.fontMono,
@@ -223,18 +195,7 @@ export function AccessPointsListCard({
   projectId: string;
   router: ReturnType<typeof useRouter>;
   connections: DashboardConnection[];
-  // Path of the currently-hovered chip / AP row, normalized via
-  // `normalizeApPath`.  When this matches an AP's normalized path,
-  // that AP renders in its highlighted state.  `null` means nothing
-  // is hovered.  Lifted to page.tsx so a hover on a Data-card
-  // ApChip and a hover on this card's AP row share the same source
-  // of truth.
   hoveredPath: string | null;
-  // Set when this card's row is hovered, cleared when the cursor
-  // leaves.  The Data card uses the same callback (via the chip's
-  // own onHover) so the hover state is reflexive — hovering the
-  // AP card highlights the matching tree row, hovering the tree
-  // row highlights the matching AP card.
   onHoverPath: (path: string | null) => void;
 }) {
   const total = connections.length;
@@ -243,9 +204,6 @@ export function AccessPointsListCard({
   const handleCopy = (text: string, key: string) => {
     void navigator.clipboard.writeText(text);
     setCopiedKey(key);
-    // 1500ms feedback window — long enough to register the affirmation
-    // ("yes, that copied"), short enough that consecutive Copy clicks
-    // don't feel laggy on the second tap.
     window.setTimeout(() => setCopiedKey(null), 1500);
   };
 
@@ -260,10 +218,6 @@ export function AccessPointsListCard({
         flexDirection: 'column',
       }}
     >
-      {/* Header — matches Data / History card chrome.  Manage > is the
-          only header action; the AP creation / edit flow lives behind
-          the same chevron either way ("Manage" reads as the parent
-          verb that contains both add + edit). */}
       <div
         style={{
           display: 'flex',
@@ -334,12 +288,7 @@ export function AccessPointsListCard({
         </button>
       </div>
 
-      {/* Body — flat list of AP rows (sidebar AccessPointsCard
-          rhythm: avatar + name + status dot + direction + scope path
-          on a single line) with URL / `$` rows nested beneath each.
-          minHeight stays so revoke→empty doesn't collapse the card
-          shell. */}
-      <div style={{ padding: '4px 6px', minHeight: 60 }}>
+      <div style={{ padding: '6px 8px', minHeight: 60 }}>
         {total === 0 ? (
           <div
             style={{
@@ -354,225 +303,253 @@ export function AccessPointsListCard({
             No access points configured.
           </div>
         ) : (
-          connections.map((conn, idx) => {
-            const direction = getApDirection(conn);
-            const label =
-              conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
-            // displayScope: '/' for any of the three root-scope
-            // forms the backend may produce, '/<path>' otherwise.
-            // Without this, root APs render as '//' (template '/'
-            // prepended to a path value that's already '/').
-            const rawPath = conn.path;
-            const isRoot =
-              rawPath === null || rawPath === '' || rawPath === '/';
-            const displayScope = isRoot ? '/' : `/${rawPath}`;
-            const isError = conn.status === 'error';
-            const statusColor = isError
-              ? T.err
-              : conn.status === 'paused'
-                ? T.warn
-                : T.live;
-            const url = buildEndpointUrl(conn);
-            const cmd = buildCliCommand(conn, url);
-
-            // Normalized path drives hover-sync between Data ApChip
-            // and this card.  When the user mouses over a chip in the
-            // tree, page.tsx sets hoveredPath to the chip's row path
-            // (already normalized via `accessByPath`'s key); when
-            // they mouse over an AP row here, we set hoveredPath to
-            // this AP's normalized path.  The matching side
-            // highlights — chip ↔ row — making "this card and that
-            // chip are the same thing" obvious without the user
-            // having to mentally connect colour cues.
-            const apPath = normalizeApPath(rawPath);
-            const isHovered = hoveredPath !== null && hoveredPath === apPath;
-
-            return (
-              <React.Fragment key={conn.id}>
-                {/* Per-AP block: identity row + URL + cmd, drawn flat
-                    (no individual card frame) — the section card is
-                    the only frame, the rows below sit inside its
-                    body like a directory listing.  Highlight on
-                    hover-sync is a soft cyan tint flush across the
-                    whole block (identity row + sub-rows) so the
-                    user sees the entire AP, not just one row. */}
-                <div
-                  onMouseEnter={() => onHoverPath(apPath)}
-                  onMouseLeave={() => onHoverPath(null)}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    padding: '6px 8px',
-                    borderRadius: 4,
-                    background: isHovered ? T.rowHighlight : 'transparent',
-                    transition: `background 160ms ${T.ease}`,
-                  }}
-                >
-                  {/* Identity row — sidebar AccessPointsCard layout
-                      verbatim so the same AP reads consistently
-                      across surfaces. */}
-                  <button
-                    type="button"
-                    onClick={() =>
-                      router.push(
-                        `/projects/${projectId}/access?ap=${conn.id}`,
-                      )
-                    }
-                    title={`${label} — ${displayScope} (${conn.status})`}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '4px 0',
-                      width: '100%',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      color: T.text2,
-                      fontFamily: T.fontSans,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 6,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'rgba(255,255,255,0.04)',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <ProviderAvatar
-                        provider={conn.provider}
-                        size={16}
-                        icon={(conn as any).icon}
-                      />
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        minWidth: 0,
-                        flexShrink: 1,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: T.text1,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {label}
-                      </span>
-                      <span
-                        aria-hidden
-                        style={{
-                          width: 5,
-                          height: 5,
-                          borderRadius: '50%',
-                          background: statusColor,
-                          boxShadow: isError
-                            ? 'none'
-                            : `0 0 0 2px ${T.liveSoft}`,
-                          flexShrink: 0,
-                        }}
-                      />
-                    </div>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                        marginLeft: 'auto',
-                        minWidth: 0,
-                        flexShrink: 1,
-                      }}
-                    >
-                      <DirectionGlyph direction={direction} />
-                      <span
-                        style={{
-                          fontFamily: T.fontMono,
-                          fontSize: 11,
-                          color: T.text3,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          maxWidth: 220,
-                        }}
-                      >
-                        {displayScope}
-                      </span>
-                    </div>
-                  </button>
-
-                  {/* URL + cmd nested rows.  Indented to align with
-                      the AP name (24px avatar + 10px gap = 34px) so
-                      they read as belonging to this AP without
-                      needing extra background chrome. */}
-                  {(url || cmd) && (
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 6,
-                        marginTop: 6,
-                        marginLeft: 34,
-                        marginRight: 0,
-                      }}
-                    >
-                      {url && (
-                        <CopyableLine
-                          label="URL"
-                          value={url}
-                          copyKey={`url-${conn.id}`}
-                          copiedKey={copiedKey}
-                          onCopy={handleCopy}
-                        />
-                      )}
-                      {cmd && (
-                        <CopyableLine
-                          label="$"
-                          value={cmd}
-                          copyKey={`cmd-${conn.id}`}
-                          copiedKey={copiedKey}
-                          onCopy={handleCopy}
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Hairline divider between APs — only when there's
-                    a next AP after this one.  T.sectionDivider keeps
-                    it in the same family as other 1px rules on the
-                    page, so the dividers in the AP list read as part
-                    of the section card's structure rather than as
-                    decorative. */}
-                {idx < connections.length - 1 && (
-                  <div
-                    aria-hidden
-                    style={{
-                      height: 1,
-                      background: T.sectionDivider,
-                      margin: '4px 0',
-                    }}
-                  />
-                )}
-              </React.Fragment>
-            );
-          })
+          connections.map((conn, idx) => (
+            <ApListRow
+              key={conn.id}
+              conn={conn}
+              isLast={idx === connections.length - 1}
+              projectId={projectId}
+              router={router}
+              hoveredPath={hoveredPath}
+              onHoverPath={onHoverPath}
+              copiedKey={copiedKey}
+              onCopy={handleCopy}
+            />
+          ))
         )}
       </div>
     </div>
+  );
+}
+
+// Single AP row — hoisted out of the .map so we can keep an
+// `isMouseOver` local state that distinguishes "the user actually
+// has the cursor on this row" from "this row got highlighted because
+// the matching chip in the tree above is hovered".  The two states
+// look different by design (see component-level comment).
+function ApListRow({
+  conn,
+  isLast,
+  projectId,
+  router,
+  hoveredPath,
+  onHoverPath,
+  copiedKey,
+  onCopy,
+}: {
+  conn: DashboardConnection;
+  isLast: boolean;
+  projectId: string;
+  router: ReturnType<typeof useRouter>;
+  hoveredPath: string | null;
+  onHoverPath: (path: string | null) => void;
+  copiedKey: string | null;
+  onCopy: (text: string, key: string) => void;
+}) {
+  const [isMouseOver, setIsMouseOver] = useState(false);
+
+  const direction = getApDirection(conn);
+  const label = conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
+  const rawPath = conn.path;
+  const isRoot = rawPath === null || rawPath === '' || rawPath === '/';
+  const displayScope = isRoot ? '/' : `/${rawPath}`;
+  const isError = conn.status === 'error';
+  const statusColor = isError
+    ? T.err
+    : conn.status === 'paused'
+      ? T.warn
+      : T.live;
+  const url = buildEndpointUrl(conn);
+  const cmd = buildCliCommand(conn, url);
+
+  const apPath = normalizeApPath(rawPath);
+  const isSyncHighlighted =
+    !isMouseOver && hoveredPath !== null && hoveredPath === apPath;
+
+  // Background priority: self-hover (grey, "you can click me") wins
+  // over sync (cyan, "we're the same thing as the hovered chip"),
+  // wins over rest (transparent).
+  const background = isMouseOver
+    ? T.rowHover
+    : isSyncHighlighted
+      ? T.rowHighlight
+      : 'transparent';
+
+  return (
+    <React.Fragment>
+      <div
+        onMouseEnter={() => {
+          setIsMouseOver(true);
+          onHoverPath(apPath);
+        }}
+        onMouseLeave={() => {
+          setIsMouseOver(false);
+          onHoverPath(null);
+        }}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '10px 10px',
+          borderRadius: 6,
+          background,
+          transition: `background 160ms ${T.ease}`,
+        }}
+      >
+        {/* Identity row — sidebar AccessPointsCard layout verbatim
+            so the same AP reads consistently across surfaces. */}
+        <button
+          type="button"
+          onClick={() =>
+            router.push(`/projects/${projectId}/access?ap=${conn.id}`)
+          }
+          title={`${label} — ${displayScope} (${conn.status})`}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '4px 0',
+            width: '100%',
+            textAlign: 'left',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            color: T.text2,
+            fontFamily: T.fontSans,
+          }}
+        >
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 6,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(255,255,255,0.04)',
+              flexShrink: 0,
+            }}
+          >
+            <ProviderAvatar
+              provider={conn.provider}
+              size={16}
+              icon={(conn as any).icon}
+            />
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              minWidth: 0,
+              flexShrink: 1,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: T.text1,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {label}
+            </span>
+            <span
+              aria-hidden
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                background: statusColor,
+                boxShadow: isError ? 'none' : `0 0 0 2px ${T.liveSoft}`,
+                flexShrink: 0,
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              marginLeft: 'auto',
+              minWidth: 0,
+              flexShrink: 1,
+            }}
+          >
+            <DirectionGlyph direction={direction} />
+            <span
+              style={{
+                fontFamily: T.fontMono,
+                fontSize: 11,
+                color: T.text3,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                maxWidth: 220,
+              }}
+            >
+              {displayScope}
+            </span>
+          </div>
+        </button>
+
+        {/* URL + cmd nested rows.  Indented 34px to align with the
+            AP name (24px avatar + 10px gap), so they read as
+            belonging to this AP without needing extra background
+            chrome. */}
+        {(url || cmd) && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              marginTop: 8,
+              marginLeft: 34,
+              marginRight: 0,
+            }}
+          >
+            {url && (
+              <CopyableLine
+                label="URL"
+                value={url}
+                copyKey={`url-${conn.id}`}
+                copiedKey={copiedKey}
+                onCopy={onCopy}
+              />
+            )}
+            {cmd && (
+              <CopyableLine
+                label="$"
+                value={cmd}
+                copyKey={`cmd-${conn.id}`}
+                copiedKey={copiedKey}
+                onCopy={onCopy}
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Divider between adjacent APs.  Lifted from T.sectionDivider
+          (very faint hairline) to T.border (the app's standard 1px
+          rule) — the previous opacity wasn't pulling enough weight
+          for users to read multiple APs as distinct list items.
+          Slightly more vertical breathing room (8px → 10px each side)
+          for the same reason. */}
+      {!isLast && (
+        <div
+          aria-hidden
+          style={{
+            height: 1,
+            background: T.border,
+            margin: '6px 8px',
+          }}
+        />
+      )}
+    </React.Fragment>
   );
 }

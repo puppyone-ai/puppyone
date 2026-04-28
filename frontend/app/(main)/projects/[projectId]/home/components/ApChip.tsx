@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link2 } from 'lucide-react';
 import { T } from '../lib/tokens';
 import type { DashboardConnection } from '../lib/types';
 
@@ -85,33 +86,38 @@ export function ApChip({
         flexShrink: 0,
         marginLeft: 8,
         marginRight: 12,
-        // padding gives the hover-state pill a body to wear (without
-        // it the cyan tint would clip tight to the dot+number, which
-        // looks cramped at the row scale).
-        padding: '2px 6px',
+        padding: '3px 7px',
         borderRadius: 10,
-        // Active pill picks up the same `T.rowHighlightRoot` tint the
-        // AccessPointsListCard uses on its hover row — so the chip
-        // and the card light up *in the same colour at the same
-        // intensity*.  That visual handshake is the whole point of
-        // hover-sync.
-        background: isActive ? T.rowHighlightRoot : 'transparent',
+        // Default-state pill: faint cyan tint + a thin cyan border so
+        // the chip reads as a small "wired" badge instead of a naked
+        // dot.  The Link2 icon inside is the visual marker — a chain
+        // link communicates "connected to something external" the
+        // moment a user glances at the row, without forcing them to
+        // decode an abstract coloured shape.
+        //
+        // Active state (hover-sync from chip itself or from the
+        // matching AP row in the card below) bumps the bg to
+        // `rowHighlightRoot` (the brighter cyan) and the border to
+        // saturated `T.live` — same handshake intensity as the AP
+        // row picks up so the user sees them light up together.
+        background: isActive
+          ? T.rowHighlightRoot
+          : 'rgba(34, 211, 238, 0.06)',
+        border: `1px solid ${
+          isActive ? T.live : 'rgba(34, 211, 238, 0.18)'
+        }`,
         color: T.text3,
         fontSize: 11,
         fontVariantNumeric: 'tabular-nums',
         lineHeight: 1,
-        transition: `background 160ms ${T.ease}`,
+        transition: `background 160ms ${T.ease}, border-color 160ms ${T.ease}`,
+        cursor: 'default',
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: T.live,
-          flexShrink: 0,
-        }}
+      <Link2
+        size={11}
+        strokeWidth={2.2}
+        style={{ color: T.live, flexShrink: 0 }}
       />
       {aps.length > 1 && (
         <span style={{ color: T.text2, fontWeight: 500 }}>{aps.length}</span>

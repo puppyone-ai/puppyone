@@ -958,8 +958,33 @@ export default function HomePage({
                     projectId={projectId}
                     router={router}
                     accessByPath={accessByPath}
-                    highlightedPaths={null}
-                    highlightAnchorDepth={-1}
+                    // Single-row highlight driven by the shared
+                    // hoveredPath.  When the user mouses over the
+                    // matching ApChip in this tree OR an AP row in
+                    // the AccessPointsListCard below, the whole
+                    // matching Data row gets the rest-state cyan
+                    // band — not just the chip pill, which would be
+                    // too small a target for the user's eye to
+                    // catch.  Anchor depth is computed from the
+                    // path's own depth (root '' → 0, top-level
+                    // 'foo.md' → 1, 'docs/foo.md' → 2 …) so the
+                    // band's left edge sits at the right indent
+                    // for that row's visual depth.  No descendant
+                    // sweep here on purpose: we want exactly one
+                    // row to light up, matching the chip↔card
+                    // symmetry.
+                    highlightedPaths={
+                      hoveredPath !== null
+                        ? new Set([hoveredPath])
+                        : null
+                    }
+                    highlightAnchorDepth={
+                      hoveredPath === null
+                        ? -1
+                        : hoveredPath === ''
+                          ? 0
+                          : hoveredPath.split('/').length
+                    }
                     rowVariants={dataCardView.variants}
                     renderRowExtras={(path) => {
                       const aps = accessByPath.get(path);
