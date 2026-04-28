@@ -34,10 +34,20 @@ def test_allowed_hosts_default_for_development_without_debug() -> None:
         ALLOWED_HOSTS=None,
     )
 
+    # Next.js auto-rolls forward 3000 → 3001 → … → 3004 when the previous
+    # port is occupied, so the dev default covers 5 ports on both
+    # localhost and 127.0.0.1 (10 origins total). Update this list in
+    # lockstep with src/config.py:Settings.ALLOWED_HOSTS dev branch.
     assert settings.ALLOWED_HOSTS == [
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:3003",
+        "http://localhost:3004",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+        "http://127.0.0.1:3003",
+        "http://127.0.0.1:3004",
     ]
 
