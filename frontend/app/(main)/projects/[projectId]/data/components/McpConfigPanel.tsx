@@ -62,7 +62,14 @@ export function McpConfigPanel({ endpoint, onClose }: McpConfigPanelProps) {
     );
   }
 
-  const serverUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/mcp/proxy/${endpoint.api_key}`;
+  // The /api/v1/mcp/proxy/* path is served by the backend, so the URL
+  // we hand to MCP clients must point at the backend host, not the
+  // Next.js frontend origin. NEXT_PUBLIC_API_URL is the canonical
+  // backend URL set at build time.
+  const apiBase = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
+    : '';
+  const serverUrl = `${apiBase}/api/v1/mcp/proxy/${endpoint.api_key}`;
   const targetLabel = endpoint.accesses.length > 0
     ? endpoint.accesses[0].path
     : 'Workspace';
