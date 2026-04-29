@@ -1,8 +1,7 @@
 'use client';
 
-import { use, useMemo, useEffect } from 'react';
+import { use, useMemo, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
@@ -18,32 +17,19 @@ import type {
 
 import { TreeRows, type RowVariant } from './components/TreeRows';
 import { HistoryCard } from './components/HistoryCard';
-import { AccessPointsCard } from './components/AccessPointsCard';
 import { GetStartedPanel } from './components/GetStartedPanel';
+import { ApChip } from './components/ApChip';
+import { AccessPointsListCard } from './components/AccessPointsListCard';
 
-const ConnectionsCanvas = dynamic(
-  () => import('./components/ConnectionsCanvas').then((mod) => mod.ConnectionsCanvas),
-  {
-    ssr: false,
-    loading: () => (
-      <div
-        style={{
-          height: 300,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: T.text3,
-          fontSize: 12,
-          background: T.sectionBg,
-          border: `2px solid ${T.sectionBorder}`,
-          borderRadius: T.sectionRadius,
-        }}
-      >
-        Loading connection graph...
-      </div>
-    ),
-  },
-);
+// ConnectionsCanvas (the old xyflow wiring board) used to mount here.
+// Home now surfaces Access Points directly under the Data card via
+// AccessPointsListCard — that's a denser, copy-driven surface that
+// replaces the supplementary graph view (which was already collapsed
+// by default and rarely opened in practice).  ConnectionsCanvas.tsx
+// itself stays in the tree for now in case we want to bring the graph
+// back as a toggle on the AP card; this just stops importing it from
+// /home, so the bundle that ships for this route no longer pulls in
+// xyflow / @xyflow/react.
 
 // Vitals-strip interpunct separator.  A single `·` glyph rendered in
 // the faint `text4` token with a small horizontal rhythm so the strip
@@ -113,6 +99,16 @@ export default function HomePage({
 }) {
   const { projectId } = use(params);
   const router = useRouter();
+
+  // Shared hover key for the Data ApChip ↔ AccessPointsListCard
+  // handshake.  When the user mouses over either side, this stores
+  // the matching path (project-root chip uses '', a folder/file chip
+  // uses its tree path, an AP card uses its `normalizeApPath`-d
+  // value).  Both sides then highlight when their own path matches.
+  // Lifted to page-level state because the chip and the card live in
+  // sibling components — there's no parent below this point that
+  // owns both.
+  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
 
   // ── Data ─────────────────────────────────────────────────────────
 
@@ -219,7 +215,26 @@ export default function HomePage({
   const accessByPath = useMemo(() => {
     const map = new Map<string, DashboardConnection[]>();
     for (const conn of connections) {
-      const key = conn.path || '';
+      // Normalize the three "root scope" path representations the
+      // backend can produce into a single key — '' — so downstream
+      // consumers only have to look in one place:
+      //
+      //   path === '/'   — what `mut connect` bootstrap stores today
+      //                    (filesystem service.bootstrap is called
+      //                    with path='/' from the home onboarding
+      //                    panel and the access page's "root scope"
+      //                    button)
+      //   path === null  — legacy rows from before path-NOT-NULL was
+      //                    enforced; still in some long-lived projects
+      //   path === ''    — early hand-bootstrapped rows
+      //
+      // Without this, the root TreeRow's ApChip lookup
+      // (`accessByPath.get('')`) misses the AP entirely because its
+      // path was '/' under the previous `conn.path || ''` pass-through
+      // (truthy → key stays '/'), so the chip silently doesn't render
+      // even though a real root-scope AP is wired.
+      const raw = conn.path;
+      const key = raw === null || raw === '' || raw === '/' ? '' : raw;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(conn);
     }
@@ -693,16 +708,23 @@ export default function HomePage({
             <>
           {/* ============================================================
               BAND 2 — TWO-COLUMN.
-                LEFT  (flex 1) — Data card stacked over the
-                                ConnectionsCanvas (xyflow wiring
-                                board).  Both sit in the same wide
-                                column because they're complementary
-                                views of the same data: "what files"
-                                + "which APs are wired to them".
-                RIGHT (280px) — History + Access Points stacked.
-                                Fixed-width so the rail reads at a
-                                consistent width regardless of
-                                viewport.
+                LEFT  (flex 1) — Data card.  Just the file tree;
+                                the AP / wiring view used to live
+                                here too but moved to the right rail
+                                so the page reads left → right as
+                                "data → external connections" (data
+                                is the project's *content*, AP is
+                                its external *exposure*; spatially
+                                pairing them across columns is the
+                                most direct visual representation of
+                                that "data flows out via these
+                                endpoints" relationship).
+                RIGHT (280px) — Access Points + History stacked.
+                                Access Points goes first because the
+                                user's typical work is "look at
+                                Data, then act on it via an AP";
+                                History sits below as supporting
+                                time-series context.
               32px gap between columns; 16px gap between stacked
               cards within each column.
               ============================================================ */}
@@ -895,6 +917,29 @@ export default function HomePage({
                   // one click on any row, which routes into the
                   // data explorer's recursive view.
                   //
+                  // Wrapped in a synthetic ROOT node (`path: ''`,
+                  // matching the convention `accessByPath` uses
+                  // for project-root APs in ConnectionsCanvas).
+                  // Two reasons:
+                  //   1.  AP visibility — root-attached access points
+                  //       (the default `mut connect` filesystem AP at
+                  //       `/`) had no anchor row in the Data card, so
+                  //       their presence was visible only in the
+                  //       Connections canvas below.  Now the chip
+                  //       renders directly on the root row, making
+                  //       "this whole project is exposed via X APs"
+                  //       legible at the top of the tree.
+                  //   2.  Visual parity with /data — that page's
+                  //       sidebar already renders a "root" entry as
+                  //       the parent of all top-level files; mirroring
+                  //       that here removes a "where am I?" mismatch
+                  //       when users move between Home and Data.
+                  //
+                  // `renderRowExtras` injects a tiny <ApChip /> on the
+                  // right of any row that has APs attached.  Reuses
+                  // the slot ConnectionsCanvas already uses for its
+                  // xyflow Handles — same protocol, different payload.
+                  //
                   // No cross-section hover sync — `highlightedPaths`
                   // is null so TreeRows renders only its quiet rest
                   // state (rowAttached tint where APs touch, no cyan
@@ -902,47 +947,92 @@ export default function HomePage({
                   // "which AP touches what" job, freeing the tree
                   // to stay a quiet file listing.
                   <TreeRows
-                    nodes={dataCardView.tree}
+                    nodes={[
+                      {
+                        entry: {
+                          // Synthetic root row name kept in step with
+                          // /data's ExplorerSidebar root entry
+                          // ("Root").  Two renders of the same
+                          // semantic node should read with the same
+                          // word — earlier we rendered "Project root"
+                          // here while /data renders "Root", which
+                          // made users moving between the two pages
+                          // wonder if they were the same node.
+                          name: 'Root',
+                          path: '',
+                          type: 'folder',
+                          content_hash: null,
+                          size_bytes: 0,
+                          mime_type: null,
+                          children_count: dataCardView.tree.length,
+                        },
+                        children: dataCardView.tree,
+                      },
+                    ]}
                     depth={0}
                     projectId={projectId}
                     router={router}
                     accessByPath={accessByPath}
-                    highlightedPaths={null}
-                    highlightAnchorDepth={-1}
+                    // Single-row highlight driven by the shared
+                    // hoveredPath.  When the user mouses over the
+                    // matching ApChip in this tree OR an AP row in
+                    // the AccessPointsListCard below, the whole
+                    // matching Data row gets the rest-state cyan
+                    // band — not just the chip pill, which would be
+                    // too small a target for the user's eye to
+                    // catch.  Anchor depth is computed from the
+                    // path's own depth (root '' → 0, top-level
+                    // 'foo.md' → 1, 'docs/foo.md' → 2 …) so the
+                    // band's left edge sits at the right indent
+                    // for that row's visual depth.  No descendant
+                    // sweep here on purpose: we want exactly one
+                    // row to light up, matching the chip↔card
+                    // symmetry.
+                    highlightedPaths={
+                      hoveredPath !== null
+                        ? new Set([hoveredPath])
+                        : null
+                    }
+                    highlightAnchorDepth={
+                      hoveredPath === null
+                        ? -1
+                        : hoveredPath === ''
+                          ? 0
+                          : hoveredPath.split('/').length
+                    }
                     rowVariants={dataCardView.variants}
+                    renderRowExtras={(path) => {
+                      const aps = accessByPath.get(path);
+                      return aps && aps.length > 0 ? (
+                        <ApChip
+                          aps={aps}
+                          rowPath={path}
+                          hoveredPath={hoveredPath}
+                          onHoverPath={setHoveredPath}
+                        />
+                      ) : null;
+                    }}
                   />
                 )}
               </div>
             </div>
 
-              {/* Connections canvas — xyflow-powered wiring board
-                  that re-renders the same file tree INSIDE the
-                  canvas as a single big node, with AP cards on the
-                  right wired to the SPECIFIC tree row each one is
-                  scoped to.  Inherits the OLD TopologyCanvas's
-                  spine (tree-as-block + APs-as-leaves + per-row
-                  edges) and adds pan / zoom / dotted background
-                  via xyflow.  Same width as the Data card above
-                  (both inside this flex-column wrapper) so it
-                  reads as a SUPPLEMENT — "the same data, viewed
-                  structurally" — not a separate band. */}
-              <ConnectionsCanvas
-                connections={connections}
-                tree={tree}
-                accessByPath={accessByPath}
-                projectId={projectId}
-                router={router}
-                nodesTotal={dashboard?.nodes?.total ?? null}
-              />
             </div>
 
-            {/* RIGHT — stacked rail.  280px so HistoryCard's vertical
-                timeline + commit messages have enough room to read,
-                while still leaving the Data card the dominant share
-                of width (~2:1 ratio from the GitHub-style reference).
-                Was 320 (too wide → Data crowded), then 260 (too
-                narrow → History card crushed); 280 splits the
-                difference. */}
+            {/* RIGHT — stacked rail.  Now hosts AccessPointsListCard
+                + HistoryCard, in that order.  The reorder is a
+                spatial-semantic move: the page reads left → right
+                as "data → external connections", so the AP block
+                has to sit *to the right of* Data, not below it.
+                With AP underneath Data the visual chain was broken
+                — the user had to scroll down + back up to map
+                which row maps to which AP — and the right rail
+                was busy holding History alone, which doesn't need
+                that much space.  Now: Data | (AP + History).
+                Width was 280 — kept, even though AP pulled in,
+                because AccessPointsListCard reflows internally to
+                a vertical CopyableLine layout when the parent is
+                narrow. */}
             <div
               style={{
                 width: 280,
@@ -952,16 +1042,22 @@ export default function HomePage({
                 gap: 16,
               }}
             >
+              {/* Access Points first — top of the rail because the
+                  user's typical work is "look at Data, then act on
+                  it via an AP".  Putting AP above History honors
+                  that reading order. */}
+              <AccessPointsListCard
+                projectId={projectId}
+                router={router}
+                connections={connections}
+                hoveredPath={hoveredPath}
+                onHoverPath={setHoveredPath}
+              />
               <HistoryCard
                 projectId={projectId}
                 router={router}
                 commits={commits}
                 buckets={commitBuckets}
-              />
-              <AccessPointsCard
-                projectId={projectId}
-                router={router}
-                connections={connections}
               />
             </div>
           </div>

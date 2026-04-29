@@ -8,6 +8,12 @@ interface DataPageOverlaysProps {
   toast: { message: string; type: 'success' | 'error' } | null;
   createMenuOpen: boolean;
   createMenuPosition: CreateMenuPosition | null;
+  // When the menu was opened by a per-folder plug button rather
+  // than the regular `+`, this flag flips CreateMenu into its
+  // `accessOnly` rendering — flat list of providers / agents /
+  // endpoints, no Create Blank / Upload sections.  Same menu
+  // instance, different layout based on intent.
+  createMenuAccessOnly: boolean;
   createMenuRef: RefObject<HTMLDivElement>;
   createMenuActions: DataCreateMenuActions;
 }
@@ -16,6 +22,7 @@ export function DataPageOverlays({
   toast,
   createMenuOpen,
   createMenuPosition,
+  createMenuAccessOnly,
   createMenuRef,
   createMenuActions,
 }: DataPageOverlaysProps) {
@@ -62,6 +69,7 @@ export function DataPageOverlays({
             x={createMenuPosition.x}
             y={createMenuPosition.y}
             anchorLeft={createMenuPosition.anchorLeft}
+            accessOnly={createMenuAccessOnly}
             onClose={createMenuActions.onClose}
             onCreateFolder={createMenuActions.onCreateFolder}
             onCreateBlankJson={createMenuActions.onCreateBlankJson}

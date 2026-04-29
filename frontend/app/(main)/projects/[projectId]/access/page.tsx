@@ -641,7 +641,13 @@ type SetupMode = 'clone' | 'connect';
 function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; nodeName: string | null }) {
   const [copied, setCopied] = useState<string | null>(null);
   const [mode, setMode] = useState<SetupMode>('clone');
-  const apiBase = typeof window !== 'undefined' ? window.location.origin : '';
+  // `/mut/ap/...` is a backend route (legacy alias of /api/v1/mut/ap/...),
+  // so the URL we hand to the user must point at the backend host, not
+  // the Next.js frontend. Prefer NEXT_PUBLIC_API_URL — same pattern as
+  // FilesystemDetailView / SyncDetailView / GetStartedPanel.
+  const apiBase = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
+    : '';
   const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
 
   const copy = (text: string, key: string) => {
