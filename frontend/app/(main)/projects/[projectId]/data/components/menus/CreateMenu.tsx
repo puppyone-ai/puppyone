@@ -16,6 +16,15 @@ export interface CreateMenuProps {
   y: number;
   anchorLeft?: number;
   onClose: () => void;
+  // When `accessOnly` is true, the menu skips the Create Blank /
+  // Upload sections entirely and renders the access-provider list
+  // (Notion, Gmail, Calendar, …, Machine Folder, Chat Agent, etc.)
+  // as the top-level menu — flat, no `New Access >` submenu trigger.
+  // This is what the per-folder plug button uses: the user already
+  // expressed the intent "create access for this folder" by clicking
+  // the plug, so the picker shouldn't make them traverse a nested
+  // submenu to *get* to the access list.
+  accessOnly?: boolean;
   onCreateFolder: () => void;
   onCreateBlankJson: () => void;
   onCreateBlankMarkdown: () => void;
@@ -215,6 +224,7 @@ export function CreateMenu({
   y,
   anchorLeft,
   onClose,
+  accessOnly,
   onCreateFolder,
   onCreateBlankJson,
   onCreateBlankMarkdown,
@@ -281,79 +291,93 @@ export function CreateMenu({
         visibility: position ? 'visible' : 'hidden',
       }}
     >
-      <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
-        Create Blank
-      </div>
-
-      <MenuItem icon={<FolderIcon />} label="Folder" onClick={() => { onCreateFolder(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
-      <MenuItem icon={<MarkdownIcon />} label="Markdown" onClick={() => { onCreateBlankMarkdown(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
-      <MenuItem icon={<JsonIcon />} label="JSON" onClick={() => { onCreateBlankJson(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
-
-      <Divider />
-
-      <div style={{ position: 'relative' }}>
-        <MenuItem
-          icon={<UploadIcon />}
-          label="Upload"
-          hasSubmenu
-          isActive={activeSubMenu === 'upload'}
-          onMouseEnter={() => setActiveSubMenu('upload')}
-        />
-        {activeSubMenu === 'upload' && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: '100%',
-              marginLeft: 4,
-              background: 'rgba(28, 28, 30, 0.98)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 8,
-              padding: '4px 0',
-              minWidth: 180,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-              zIndex: 1001,
-            }}
-          >
-            <MenuItem
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={iconColor} strokeWidth="1.5" />
-                  <polyline points="14,2 14,8 20,8" stroke={iconColor} strokeWidth="1.5" />
-                </svg>
-              }
-              label="Files"
-              sublabel="PDF, MD, CSV"
-              onClick={() => { onImportFromFiles(); onClose(); }}
-            />
-            <MenuItem
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke={iconColor} strokeWidth="1.5" />
-                  <path d="M2 12h20" stroke={iconColor} strokeWidth="1.5" />
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke={iconColor} strokeWidth="1.5" />
-                </svg>
-              }
-              label="URL"
-              sublabel="Web page"
-              onClick={() => { onImportFromUrl(); onClose(); }}
-            />
+      {!accessOnly && (
+        <>
+          <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
+            Create Blank
           </div>
-        )}
-      </div>
+
+          <MenuItem icon={<FolderIcon />} label="Folder" onClick={() => { onCreateFolder(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
+          <MenuItem icon={<MarkdownIcon />} label="Markdown" onClick={() => { onCreateBlankMarkdown(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
+          <MenuItem icon={<JsonIcon />} label="JSON" onClick={() => { onCreateBlankJson(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
+
+          <Divider />
+
+          <div style={{ position: 'relative' }}>
+            <MenuItem
+              icon={<UploadIcon />}
+              label="Upload"
+              hasSubmenu
+              isActive={activeSubMenu === 'upload'}
+              onMouseEnter={() => setActiveSubMenu('upload')}
+            />
+            {activeSubMenu === 'upload' && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: '100%',
+                  marginLeft: 4,
+                  background: 'rgba(28, 28, 30, 0.98)',
+                  backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 8,
+                  padding: '4px 0',
+                  minWidth: 180,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                  zIndex: 1001,
+                }}
+              >
+                <MenuItem
+                  icon={
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={iconColor} strokeWidth="1.5" />
+                      <polyline points="14,2 14,8 20,8" stroke={iconColor} strokeWidth="1.5" />
+                    </svg>
+                  }
+                  label="Files"
+                  sublabel="PDF, MD, CSV"
+                  onClick={() => { onImportFromFiles(); onClose(); }}
+                />
+                <MenuItem
+                  icon={
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke={iconColor} strokeWidth="1.5" />
+                      <path d="M2 12h20" stroke={iconColor} strokeWidth="1.5" />
+                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke={iconColor} strokeWidth="1.5" />
+                    </svg>
+                  }
+                  label="URL"
+                  sublabel="Web page"
+                  onClick={() => { onImportFromUrl(); onClose(); }}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       <div style={{ position: 'relative' }}>
-        <MenuItem
-          icon={<ConnectIcon />}
-          label="New Access"
-          hasSubmenu
-          isActive={activeSubMenu === 'connect'}
-          onMouseEnter={() => setActiveSubMenu('connect')}
-        />
-        {activeSubMenu === 'connect' && (
+        {/* In accessOnly mode the access list IS the menu, so we
+            skip the "New Access >" parent row and render the
+            access content flat at the menu's top level.  The
+            wrapper still exists because we share the same content
+            block between flat and submenu modes. */}
+        {!accessOnly && (
+          <MenuItem
+            icon={<ConnectIcon />}
+            label="New Access"
+            hasSubmenu
+            isActive={activeSubMenu === 'connect'}
+            onMouseEnter={() => setActiveSubMenu('connect')}
+          />
+        )}
+        {(accessOnly || activeSubMenu === 'connect') && (
           <div
-            style={{
+            style={accessOnly ? {
+              padding: '4px 0',
+              minWidth: 240,
+            } : {
               position: 'absolute',
               top: 0,
               left: '100%',
@@ -428,13 +452,23 @@ export function CreateMenu({
             <MenuItem icon={<McpIcon />} label="MCP Server" sublabel="Coming soon" disabled />
             <MenuItem icon={<SandboxIcon />} label="Sandbox" sublabel="Coming soon" disabled />
 
-            <Divider />
+            {/* "More Sources…" is the open-the-empty-picker fallback
+                — useful from `+ → New Access` when the user is
+                exploring, but pointless from the per-folder plug
+                button (the user has already declared intent by
+                clicking the plug, an empty picker is a step
+                backwards).  Hide it in accessOnly mode. */}
+            {!accessOnly && (
+              <>
+                <Divider />
 
-            <MenuItem
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>}
-              label="More Sources..."
-              onClick={() => { onImportFromSaas(); onClose(); }}
-            />
+                <MenuItem
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>}
+                  label="More Sources..."
+                  onClick={() => { onImportFromSaas(); onClose(); }}
+                />
+              </>
+            )}
           </div>
         )}
       </div>

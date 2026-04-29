@@ -14,6 +14,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   activeNodeId,
   onNavigate,
   onCreate,
+  onCreateSync,
   onRename,
   onDelete,
   onMoveNode,
@@ -84,44 +85,16 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
           Workspace
         </div>
 
-        {onCreate && (
-          <button
-            type="button"
-            aria-haspopup="menu"
-            aria-expanded={isRootCreateMenuOpen}
-            onClick={(e) => onCreate(e, null)}
-            title="Add file/folder"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 24,
-              height: 24,
-              borderRadius: 4,
-              background: isRootCreateMenuOpen ? 'rgba(255,255,255,0.08)' : 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: isRootCreateMenuOpen ? '#ddd' : '#888',
-              padding: 0,
-              transition: 'background 0.12s, color 0.12s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-              e.currentTarget.style.color = '#ddd';
-            }}
-            onMouseLeave={(e) => {
-              if (!isRootCreateMenuOpen) {
-                e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#888';
-              }
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-        )}
+        {/* Header is now label-only.  The previous "Connect" and
+            "+" buttons that lived here moved down onto the Root
+            row's hover-revealed actions cluster — review feedback
+            was that header-level actions were both redundant
+            (every other folder row already has + in its hover
+            cluster, so root should match) and conceptually misplaced
+            (they conflated "this is what the panel is" with "what
+            you can do to its root").  Putting the actions on Root
+            itself unifies the affordance: every folder, root or
+            not, exposes the same per-row create cluster on hover. */}
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative', paddingTop: 6 }}>
@@ -175,6 +148,123 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 Root
               </span>
             </div>
+
+            {/* Hover-revealed actions on the Root row.  Same cluster
+                shape as ExplorerTreeRow's per-folder actions —
+                [+] [link] — minus the [more menu] (rename / delete
+                don't apply to the project root: it can't be renamed
+                or removed).  This is what replaces the previous
+                sidebar-header buttons; every folder row including
+                root now exposes the same affordances on the same
+                hover trigger, so the user doesn't need a separate
+                mental model for "the root case".  Wrapper stops
+                click propagation so the buttons don't trigger the
+                row's navigate-to-root onClick. */}
+            {(onCreate || onCreateSync) && (
+              <div
+                className={`flex items-center gap-0.5 flex-shrink-0 mr-2 ${
+                  isRootCreateMenuOpen
+                    ? 'visible'
+                    : 'invisible group-hover/row:visible'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {onCreate && (
+                  <button
+                    type="button"
+                    aria-haspopup="menu"
+                    aria-expanded={isRootCreateMenuOpen}
+                    onClick={(e) => onCreate(e, null)}
+                    title="New item"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 22,
+                      height: 22,
+                      borderRadius: 4,
+                      background: isRootCreateMenuOpen
+                        ? 'rgba(255,255,255,0.1)'
+                        : 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: isRootCreateMenuOpen ? '#ddd' : '#999',
+                      padding: 0,
+                      transition: 'background 0.1s, color 0.1s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                      e.currentTarget.style.color = '#ddd';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isRootCreateMenuOpen) {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#999';
+                      }
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                    >
+                      <line x1="12" y1="5" x2="12" y2="19" />
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                    </svg>
+                  </button>
+                )}
+
+                {onCreateSync && (
+                  <button
+                    type="button"
+                    onClick={(e) => onCreateSync(e, '')}
+                    title="Create access point at project root"
+                    aria-label="Create access point at project root"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 22,
+                      height: 22,
+                      borderRadius: 4,
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#999',
+                      padding: 0,
+                      transition: 'background 0.1s, color 0.1s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                      e.currentTarget.style.color = '#ddd';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'transparent';
+                      e.currentTarget.style.color = '#999';
+                    }}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+                      <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+                      <line x1="8" y1="12" x2="16" y2="12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {loading && rootItems.length === 0 ? (
@@ -190,6 +280,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 activeId={activeId}
                 onNavigate={onNavigate}
                 onCreate={onCreate}
+                onCreateSync={onCreateSync}
                 onRename={onRename}
                 onDelete={onDelete}
                 onMoveNode={onMoveNode}

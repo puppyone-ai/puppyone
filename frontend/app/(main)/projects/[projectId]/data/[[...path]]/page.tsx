@@ -377,7 +377,7 @@ export default function DataPage({ params }: DataPageProps) {
   const { syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
-  const { draftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
+  const { draftResources, setDraftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
 
   // Auto-complete onboarding steps
   const { completeStep } = useOnboarding();
@@ -485,6 +485,43 @@ export default function DataPage({ params }: DataPageProps) {
     openPanel({ type: 'sync_create' });
   }, [openPanel]);
 
+  // Same as openSyncCreatePanel, but with a *given* folder path
+  // pre-filled as the target resource.  Two callsites:
+  //   - sidebar header "Connect" button → passes the user's
+  //     current navigation focus
+  //   - per-folder row plug button → passes that row's own folder id
+  // Either way the panel lands ready-to-create — the user picks a
+  // provider type and clicks Create, instead of going through the
+  // old "open empty panel → drag folder from sidebar" flow.
+  //
+  // `folderPath` is normalised in two ways:
+  //   - null/undefined → '' (project root, the canonical "root
+  //     scope" key used elsewhere in the codebase via
+  //     `accessByPath` etc.)
+  //   - a non-empty path → trailing segment becomes the chip's
+  //     human-readable nodeName so the pre-filled chip reads as
+  //     something more useful than an opaque blob
+  const openSyncCreatePanelForFolder = useCallback(
+    (folderPath: string | null | undefined) => {
+      const targetPath = folderPath ?? '';
+      const segments = targetPath.split('/').filter(Boolean);
+      const nodeName =
+        segments.length > 0 ? segments[segments.length - 1] : 'Root';
+      setDraftResources([
+        {
+          path: targetPath,
+          nodeName,
+          nodeType: 'folder',
+          readonly: false,
+        },
+      ]);
+      setEditorTarget(null);
+      setIsEditorFullScreen(false);
+      openPanel({ type: 'sync_create' });
+    },
+    [openPanel, setDraftResources],
+  );
+
   const handleSyncCreated = useCallback(async (nodeId: string) => {
     await mutateSyncStatus();
     refreshCurrentNodes();
@@ -514,11 +551,13 @@ export default function DataPage({ params }: DataPageProps) {
     createMenuOpen,
     createMenuOpenForId,
     createMenuPosition,
+    createMenuAccessOnly,
     createMenuRef,
     createMenuActions,
     highlightNodeId,
     handleCreateClick,
     handleMillerCreateClick,
+    handleAccessMenuClick,
     closeCreateTable,
   } = useDataCreateFlow({
     projectId,
@@ -850,6 +889,7 @@ export default function DataPage({ params }: DataPageProps) {
         toast={nodeActions.toast}
         createMenuOpen={createMenuOpen}
         createMenuPosition={createMenuPosition}
+        createMenuAccessOnly={createMenuAccessOnly}
         createMenuRef={createMenuRef}
         createMenuActions={createMenuActions}
       />
@@ -890,6 +930,7 @@ export default function DataPage({ params }: DataPageProps) {
             }
             onNavigate={handleMillerNavigate}
             onCreate={handleMillerCreateClick}
+            onCreateSync={handleAccessMenuClick}
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}
