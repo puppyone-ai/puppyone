@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from src.exceptions import AppException
+from src.exceptions import BusinessException
 from src.platform.organization.repository import OrganizationRepository
 from src.platform.project.repository import ProjectRepositorySupabase
 from src.repo.models import RepoUserPermission, ResolvedPermission
@@ -106,7 +106,7 @@ class PermissionService:
         granted_by: Optional[str],
     ) -> RepoUserPermission:
         if role not in ("admin", "editor", "reader", "denied"):
-            raise AppException(status_code=400, message=f"Invalid role: {role}")
+            raise BusinessException(f"Invalid role: {role}")
         return self._perm.upsert(
             project_id=project_id,
             user_id=user_id,
