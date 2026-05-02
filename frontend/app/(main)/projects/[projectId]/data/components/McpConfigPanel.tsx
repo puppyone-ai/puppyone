@@ -14,6 +14,7 @@ interface McpEndpointData {
 interface McpConfigPanelProps {
   endpoint: McpEndpointData | null | undefined;
   onClose: () => void;
+  onBack?: () => void;
 }
 
 const McpIcon = (
@@ -51,10 +52,10 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function McpConfigPanel({ endpoint, onClose }: McpConfigPanelProps) {
+export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProps) {
   if (!endpoint) {
     return (
-      <PanelShell title="MCP Endpoint" icon={McpIcon} onClose={onClose}>
+      <PanelShell title="MCP Endpoint" icon={McpIcon} onClose={onClose} onBack={onBack}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>
           Loading...
         </div>
@@ -75,7 +76,7 @@ export function McpConfigPanel({ endpoint, onClose }: McpConfigPanelProps) {
     : 'Workspace';
 
   return (
-    <PanelShell title={endpoint.name} icon={McpIcon} onClose={onClose}>
+    <PanelShell title={endpoint.name} icon={McpIcon} onClose={onClose} onBack={onBack}>
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Connection visualization - keep style aligned with Sync detail panel */}
         <div style={{ borderRadius: 10, padding: '16px 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>

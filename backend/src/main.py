@@ -424,6 +424,8 @@ def create_app() -> FastAPI:
     # Canonical public URL: /api/v1/mut/ap/{access_key}/{clone|push|pull|negotiate|...}
     # See backend/src/mut_engine/_routes.py for the contract.
     app.include_router(ap_router, prefix="/api/v1", tags=["access-point"])
+    from src.mut_engine.routers.access_point_fs import router as ap_fs_router
+    app.include_router(ap_fs_router, prefix="/api/v1", tags=["access-point-fs"])
     # Backward-compat: mut clients <= v0.1.6 hit /mut/ap/* directly. Mounting
     # the same router again under the legacy prefix keeps them working without
     # a forced upgrade. Remove once telemetry shows < 1% legacy traffic.

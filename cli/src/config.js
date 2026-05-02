@@ -1,9 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
 export const CONFIG_DIR = join(homedir(), ".puppyone");
 export const CONFIG_FILE = join(CONFIG_DIR, "config.json");
+export const CREDENTIALS_FILE = join(CONFIG_DIR, "credentials.json");
 
 export const CLOUD_API_URL = "https://api.puppyone.ai";
 export const LOCAL_API_URL = "http://localhost:9090";
@@ -41,8 +42,31 @@ function _readRaw() {
 }
 
 function _writeRaw(raw) {
-  mkdirSync(CONFIG_DIR, { recursive: true });
+  _ensureConfigDir();
   writeFileSync(CONFIG_FILE, JSON.stringify(raw, null, 2) + "\n", "utf-8");
+}
+
+function _ensureConfigDir() {
+  mkdirSync(CONFIG_DIR, { recursive: true, mode: 0o700 });
+  try { chmodSync(CONFIG_DIR, 0o700); } catch {}
+}
+
+function _readCredentialsRaw() {
+  if (!existsSync(CREDENTIALS_FILE)) return {};
+  try {
+    return JSON.parse(readFileSync(CREDENTIALS_FILE, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function _writeCredentialsRaw(raw) {
+  _ensureConfigDir();
+  writeFileSync(CREDENTIALS_FILE, JSON.stringify(raw, null, 2) + "\n", {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
+  try { chmodSync(CREDENTIALS_FILE, 0o600); } catch {}
 }
 
 /**
@@ -226,4 +250,31 @@ export function removeTarget(apiUrl) {
   if (raw.targets) delete raw.targets[apiUrl];
   if (raw.current_target === apiUrl) raw.current_target = null;
   _writeRaw(raw);
+}
+
+// ── Access Point credential store ────────────────────────────
+
+export function getAccessPointCredential(profile) {
+  const raw = _readCredentialsRaw();
+  return raw.access_points?.[profile] ?? null;
+}
+
+export function saveAccessPointCredential(profile, accessKey) {
+  const raw = _readCredentialsRaw();
+  if (!raw.access_points) raw.access_points = {};
+  raw.access_points[profile] = accessKey;
+  _writeCredentialsRaw(raw);
+}
+
+export function deleteAccessPointCredential(profile) {
+  const raw = _readCredentialsRaw();
+  if (raw.access_points) delete raw.access_points[profile];
+  if (raw.access_points && Object.keys(raw.access_points).length === 0) {
+    delete raw.access_points;
+  }
+  if (Object.keys(raw).length === 0) {
+    try { unlinkSync(CREDENTIALS_FILE); } catch {}
+    return;
+  }
+  _writeCredentialsRaw(raw);
 }

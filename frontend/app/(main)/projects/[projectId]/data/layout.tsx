@@ -5,6 +5,8 @@ import useSWR from 'swr';
 import { get } from '@/lib/apiClient';
 import { useProjectTools } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
+import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
+import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
 import {
   DataLayoutContext,
   type SyncEndpointInfo,
@@ -14,6 +16,11 @@ import {
 interface DataLayoutProps {
   children: React.ReactNode;
   params: Promise<{ projectId: string }>;
+}
+
+function normalizeEndpointPath(path: string | null | undefined): string {
+  if (!path || path === '/') return '';
+  return path.replace(/^\/+|\/+$/g, '');
 }
 
 export default function DataLayout({ children, params }: DataLayoutProps) {
@@ -29,24 +36,37 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     () => get(`/api/v1/sync/status?project_id=${projectId}`),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
+  const { data: mcpEndpoints } = useSWR(
+    projectId ? ['mcp-endpoints', projectId] : null,
+    () => listMcpEndpoints(projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+  const { data: sandboxEndpoints } = useSWR(
+    projectId ? ['sandbox-endpoints', projectId] : null,
+    () => listSandboxEndpoints(projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
 
   const nodeEndpointMap = useMemo(() => {
     const map = new Map<string, SyncEndpointInfo[]>();
-    const append = (nodeId: string, endpoint: SyncEndpointInfo) => {
+    const append = (rawNodeId: string | null | undefined, endpoint: SyncEndpointInfo) => {
+      const nodeId = normalizeEndpointPath(rawNodeId);
       const list = map.get(nodeId) || [];
+      if (list.some((item) => item.syncId === endpoint.syncId && item.provider === endpoint.provider)) return;
       list.push(endpoint);
       map.set(nodeId, list);
     };
 
     if (syncStatusData?.syncs) {
       for (const s of syncStatusData.syncs) {
-        if (s.path)
-          append(s.path, {
-            syncId: s.id,
-            provider: s.provider,
-            direction: s.direction,
-            status: s.status,
-          });
+        append(s.path, {
+          syncId: s.id,
+          provider: s.provider,
+          direction: s.direction,
+          status: s.status,
+          name: s.name,
+          accessKey: s.access_key,
+        });
       }
     }
 
@@ -58,13 +78,45 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
             provider: `agent:${agent.type}`,
             direction: 'bidirectional',
             status: 'active',
+            name: agent.name,
+            accessKey: agent.mcp_api_key,
           });
         }
       }
     }
 
+    for (const endpoint of mcpEndpoints || []) {
+      const info: SyncEndpointInfo = {
+        syncId: endpoint.id,
+        provider: 'mcp',
+        direction: 'bidirectional',
+        status: endpoint.status,
+        name: endpoint.name,
+        accessKey: endpoint.api_key,
+      };
+      append(endpoint.path, info);
+      for (const access of endpoint.accesses || []) {
+        append(access.path, info);
+      }
+    }
+
+    for (const endpoint of sandboxEndpoints || []) {
+      const info: SyncEndpointInfo = {
+        syncId: endpoint.id,
+        provider: 'sandbox',
+        direction: 'bidirectional',
+        status: endpoint.status,
+        name: endpoint.name,
+        accessKey: endpoint.access_key,
+      };
+      append(endpoint.path, info);
+      for (const mount of endpoint.mounts || []) {
+        append(mount.path, info);
+      }
+    }
+
     return map;
-  }, [syncStatusData, savedAgents]);
+  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints]);
 
   const syncEndpoints = useMemo(() => {
     const pickPriority = (provider: string): number => {

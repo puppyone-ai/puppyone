@@ -667,8 +667,9 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
     sb = _get_client()
     cfg = payload.config
     scope = cfg.get("scope", {})
-    scope_path = scope.get("path", "") if isinstance(scope, dict) else ""
+    scope_path = scope.get("path", payload.path or "") if isinstance(scope, dict) else (payload.path or "")
     mode = scope.get("mode", "rw") if isinstance(scope, dict) else "rw"
+    exclude = scope.get("exclude", []) if isinstance(scope, dict) else []
 
     ap_id = f"direct-{secrets.token_hex(4)}"
     key = f"cli_{secrets.token_urlsafe(32)}"
@@ -678,7 +679,7 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         "provider": "direct",
         "direction": "bidirectional",
         "status": "active",
-        "config": {"scope": {"id": ap_id, "path": scope_path, "exclude": [], "mode": mode}},
+        "config": {"scope": {"id": ap_id, "path": scope_path, "exclude": exclude, "mode": mode}},
         "access_key": key,
     }).execute()
 

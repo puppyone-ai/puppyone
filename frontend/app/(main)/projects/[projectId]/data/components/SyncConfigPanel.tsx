@@ -118,13 +118,14 @@ interface SyncConfigPanelProps {
   syncId: string | null;
   projectId: string;
   onClose: () => void;
+  onBack?: () => void;
   onSyncCreated?: (nodeId: string) => void;
 }
 
-export function SyncConfigPanel({ mode, syncId, projectId, onClose, onSyncCreated }: SyncConfigPanelProps) {
+export function SyncConfigPanel({ mode, syncId, projectId, onClose, onBack, onSyncCreated }: SyncConfigPanelProps) {
   if (mode === 'detail' && syncId) {
     return (
-      <SyncDetailView syncId={syncId} projectId={projectId} onClose={onClose} />
+      <SyncDetailView syncId={syncId} projectId={projectId} onClose={onClose} onBack={onBack} />
     );
   }
 

@@ -7,7 +7,7 @@ import { useContentNodes } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import type { ContentType } from '../views/GridView';
 import { ensureExpanded, toggleExpanded, useIsExpanded } from './explorerState';
-import { ItemContextMenu } from './ExplorerRowMenus';
+import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 
 export const FolderIcon = ({ expanded }: { expanded?: boolean }) => {
@@ -123,12 +123,16 @@ interface ExplorerTreeRowProps {
   onNavigate: (item: MillerColumnItem) => void;
   onCreate?: ExplorerSidebarProps['onCreate'];
   onCreateSync?: ExplorerSidebarProps['onCreateSync'];
+  onOpenAccess?: ExplorerSidebarProps['onOpenAccess'];
+  endpointByNodeId?: ExplorerSidebarProps['endpointByNodeId'];
   onRename?: ExplorerSidebarProps['onRename'];
   onDelete?: ExplorerSidebarProps['onDelete'];
   onMoveNode?: ExplorerSidebarProps['onMoveNode'];
   activeSyncNodeId?: string | null;
   highlightNodeId?: string | null;
+  highlightVariant?: ExplorerSidebarProps['highlightVariant'];
   createMenuOpenForId?: string | null;
+  createMenuOpenAction?: ExplorerSidebarProps['createMenuOpenAction'];
 }
 
 export const ExplorerTreeRow = memo(function ExplorerTreeRow({
@@ -140,20 +144,26 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   onNavigate,
   onCreate,
   onCreateSync,
+  onOpenAccess,
+  endpointByNodeId,
   onRename,
   onDelete,
   onMoveNode,
   activeSyncNodeId,
   highlightNodeId,
+  highlightVariant = 'default',
   createMenuOpenForId,
+  createMenuOpenAction,
 }: ExplorerTreeRowProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
   const expanded = useIsExpanded(item.id) && isFolder;
-  const [menuOpen, setMenuOpen] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
   const isHighlighted = highlightNodeId === item.id;
-  const isCreateMenuOpen = createMenuOpenForId === item.id;
+  const openMenuAction = createMenuOpenForId === item.id ? createMenuOpenAction ?? null : null;
+  const isAnyCreateMenuOpen = openMenuAction !== null;
+  const endpoints = endpointByNodeId?.get(item.id) ?? [];
 
   const { isDropTarget, dropHandlers } = useNodeDrop({
     targetFolderId: item.id,
@@ -194,19 +204,27 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isRowActive = isActive || isSyncActive;
   const rowPaddingLeft = 8 + depth * 16;
   const childTextPadding = rowPaddingLeft + 22;
-  const hasSpecialBg = isDropTarget || isHighlighted || isRowActive || isCreateMenuOpen;
+  const isAccessPointHighlight = isHighlighted && highlightVariant === 'access-point';
+  const hasSpecialBg = isDropTarget || isHighlighted || isRowActive || isAnyCreateMenuOpen;
   const staticBg = isDropTarget
     ? 'rgba(59, 130, 246, 0.2)'
     : isHighlighted
-      ? 'rgba(59, 130, 246, 0.15)'
-      : isRowActive || isCreateMenuOpen
+      ? isAccessPointHighlight
+        ? 'rgba(52, 211, 153, 0.14)'
+        : 'rgba(59, 130, 246, 0.15)'
+      : isRowActive || isAnyCreateMenuOpen
         ? '#2a2a2a'
         : 'transparent';
   const staticColor = isDropTarget
     ? '#93c5fd'
-    : isRowActive || isCreateMenuOpen
+    : isAccessPointHighlight
+      ? '#d1fae5'
+    : isRowActive || isAnyCreateMenuOpen
       ? '#fff'
       : '#a1a1aa';
+  const isSoftHovered = isHovered && !hasSpecialBg;
+  const rowBackground = isSoftHovered ? 'rgba(255,255,255,0.045)' : staticBg;
+  const rowColor = isSoftHovered ? '#d4d4d8' : staticColor;
 
   const childItems: MillerColumnItem[] = useMemo(
     () =>
@@ -228,8 +246,10 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       <div
         ref={rowRef}
         data-menu-host="true"
-        className={`group/row ${!hasSpecialBg ? 'hover:bg-[rgba(255,255,255,0.06)] hover:text-[#d4d4d4]' : ''}`}
+        className="group/row"
         onClick={handleClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData(
@@ -251,12 +271,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           height: 30,
           boxSizing: 'border-box',
           borderRadius: 6,
-          background: staticBg,
-          color: staticColor,
+          background: rowBackground,
+          color: rowColor,
           fontSize: 13,
           userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
-          boxShadow: isDropTarget ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)' : 'none',
+          boxShadow: isDropTarget
+            ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)'
+            : isAccessPointHighlight
+              ? 'inset 2px 0 0 0 rgba(52, 211, 153, 0.9)'
+              : 'none',
           cursor: 'pointer',
           position: 'relative',
         }}
@@ -389,131 +413,21 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           </span>
 
           {hasActions && (
-            <div
-              className={`flex items-center gap-0.5 flex-shrink-0 ml-auto ${menuOpen || isCreateMenuOpen ? 'visible' : 'invisible group-hover/row:visible'}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Per-folder action cluster reads left → right:
-                    [+]  [link]  [⋮]
-                  + is the most-used action (add a child) so it
-                  takes the leftmost position in the user's eye
-                  scan; link (create access point for this folder)
-                  is one step less common; ⋮ catches the long-tail
-                  rename / delete / move actions.  Earlier draft
-                  put link first, but review feedback flagged that
-                  as the wrong grouping — `+` and the access-point
-                  link are conceptually peers (both "create"
-                  actions, just inside vs outside scopes), and
-                  putting + first matches the muscle memory the
-                  user already has from every other file manager. */}
-              {isFolder && onCreate && (
-                <button
-                  type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={isCreateMenuOpen}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCreate(e, item.id);
-                  }}
-                  title="New item"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 22,
-                    height: 22,
-                    borderRadius: 4,
-                    background: isCreateMenuOpen ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: isCreateMenuOpen ? '#ddd' : '#999',
-                    padding: 0,
-                    transition: 'background 0.1s, color 0.1s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.color = '#ddd';
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isCreateMenuOpen) {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#999';
-                    }
-                  }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                </button>
-              )}
-
-              {/* Link icon: "create access point for this folder".
-                  Visually paired with the + button (both "create"
-                  actions, just for inside vs outside scopes).
-                  Same Lucide Link2 SVG used in the Home Data
-                  card's ApChip and elsewhere — keeping the icon
-                  consistent so users learn one shape, not three. */}
-              {isFolder && onCreateSync && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCreateSync(e, item.id);
-                  }}
-                  title="Create access point for this folder"
-                  aria-label="Create access point for this folder"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 22,
-                    height: 22,
-                    borderRadius: 4,
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: '#999',
-                    padding: 0,
-                    transition: 'background 0.1s, color 0.1s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.color = '#ddd';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#999';
-                  }}
-                >
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M9 17H7A5 5 0 0 1 7 7h2" />
-                    <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
-                    <line x1="8" y1="12" x2="16" y2="12" />
-                  </svg>
-                </button>
-              )}
-
-              {(onRename || onDelete) && (
-                <ItemContextMenu
-                  itemId={item.id}
-                  itemName={item.name}
-                  isSynced={isSynced}
-                  onRename={onRename}
-                  onDelete={onDelete}
-                  onOpenChange={setMenuOpen}
-                />
-              )}
-            </div>
+            <ExplorerRowActions
+              nodeId={item.id}
+              createParentId={item.id}
+              accessPath={item.id}
+              isFolder={isFolder}
+              endpoints={endpoints}
+              openMenuAction={openMenuAction}
+              isSynced={isSynced}
+              itemName={item.name}
+              onCreate={onCreate}
+              onCreateSync={onCreateSync}
+              onOpenAccess={onOpenAccess}
+              onRename={onRename}
+              onDelete={onDelete}
+            />
           )}
         </div>
       </div>
@@ -573,12 +487,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 onNavigate={onNavigate}
                 onCreate={onCreate}
                 onCreateSync={onCreateSync}
+                onOpenAccess={onOpenAccess}
+                endpointByNodeId={endpointByNodeId}
                 onRename={onRename}
                 onDelete={onDelete}
                 onMoveNode={onMoveNode}
                 activeSyncNodeId={activeSyncNodeId}
                 highlightNodeId={highlightNodeId}
+                highlightVariant={highlightVariant}
                 createMenuOpenForId={createMenuOpenForId}
+                createMenuOpenAction={createMenuOpenAction}
               />
             ))
           ) : !loading ? (

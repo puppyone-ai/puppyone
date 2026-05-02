@@ -15,6 +15,7 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const deletingPathsRef = useRef<Set<string>>(new Set());
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -50,17 +51,26 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
   }, [renameTarget, projectId]);
 
   const handleDelete = useCallback(async (path: string, name: string) => {
+    if (deletingPathsRef.current.has(path)) {
+      showToast(`Still deleting "${name}"...`, 'error');
+      return;
+    }
     const confirmed = window.confirm(`Are you sure you want to delete "${name}"?`);
     if (confirmed) {
       try {
+        deletingPathsRef.current.add(path);
+        showToast(`Deleting "${name}"...`);
         await removeFile(projectId, path);
         refreshAllContentNodes(projectId);
+        showToast(`Deleted "${name}"`);
       } catch (err) {
         console.error('Failed to delete:', err);
         alert('Failed to delete item');
+      } finally {
+        deletingPathsRef.current.delete(path);
       }
     }
-  }, [projectId]);
+  }, [projectId, showToast]);
 
   const handleMoveNode = useCallback(async (
     nodePath: string,
