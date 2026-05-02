@@ -90,6 +90,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
     async function resolve() {
       if (path.length === 0) {
         setIsResolvingPath(false);
+        setIsLoadingMarkdown(false);
         setPendingActiveId(null);
         setCurrentFolderPath(null);
         setFolderBreadcrumbs([]);
@@ -119,6 +120,11 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
       const inferredType = typeHint || inferTypeFromName(path[path.length - 1]);
       const inferredRenderAs = getNodeTypeConfig(inferredType).renderAs;
       const shouldReadFile = inferredRenderAs === 'markdown';
+      if (shouldReadFile) {
+        setIsLoadingMarkdown(true);
+      } else {
+        setIsLoadingMarkdown(false);
+      }
 
       // Fire stat and (if likely needed) readFile in parallel
       const statPromise = stat(projectId, fullPath).catch((err) => {
@@ -153,6 +159,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
         setActivePreviewType(null);
         setActiveMimeType(null);
         setMarkdownContent('');
+        setIsLoadingMarkdown(false);
         setIsResolvingPath(false);
         return;
       }
@@ -168,6 +175,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
         // If we already fetched in parallel, use that result
         if (fileContent !== null) {
           setMarkdownContent(typeof fileContent.content_text === 'string' ? fileContent.content_text : '');
+          setIsLoadingMarkdown(false);
         } else {
           // Fallback: fetch now (e.g. mime turned out to be text after stat)
           setIsLoadingMarkdown(true);
@@ -185,6 +193,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
         }
       } else {
         setMarkdownContent('');
+        setIsLoadingMarkdown(false);
       }
 
       if (!cancelled) setIsResolvingPath(false);
@@ -199,6 +208,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
       applyFileState(fullPath, guessedType, path, breadcrumbs, setters);
       setPendingActiveId(null);
       setMarkdownContent('');
+      setIsLoadingMarkdown(false);
       setIsResolvingPath(false);
     });
 

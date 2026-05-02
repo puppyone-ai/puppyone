@@ -23,6 +23,7 @@ interface SandboxEndpointData {
 interface SandboxConfigPanelProps {
   endpoint: SandboxEndpointData | null | undefined;
   onClose: () => void;
+  onBack?: () => void;
 }
 
 const SandboxIcon = (
@@ -60,10 +61,10 @@ function CodeBlock({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function SandboxConfigPanel({ endpoint, onClose }: SandboxConfigPanelProps) {
+export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigPanelProps) {
   if (!endpoint) {
     return (
-      <PanelShell title="Sandbox" icon={SandboxIcon} onClose={onClose}>
+      <PanelShell title="Sandbox" icon={SandboxIcon} onClose={onClose} onBack={onBack}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>
           Loading...
         </div>
@@ -84,7 +85,7 @@ export function SandboxConfigPanel({ endpoint, onClose }: SandboxConfigPanelProp
     : 'Workspace';
 
   return (
-    <PanelShell title={endpoint.name} icon={SandboxIcon} onClose={onClose}>
+    <PanelShell title={endpoint.name} icon={SandboxIcon} onClose={onClose} onBack={onBack}>
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Connection visualization - aligned with Sync/MCP detail panels */}
         <div style={{ borderRadius: 10, padding: '16px 12px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>

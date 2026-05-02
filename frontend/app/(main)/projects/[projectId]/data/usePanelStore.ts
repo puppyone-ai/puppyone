@@ -5,6 +5,7 @@ export type PanelType =
   | 'version_history'
   | 'sync_config'
   | 'sync_create'
+  | 'access_list'
   | 'agent_chat'
   | 'mcp_config'
   | 'sandbox_config';
@@ -12,6 +13,7 @@ export type PanelType =
 export interface PanelState {
   type: PanelType;
   nodeId?: string;
+  accessEndpointId?: string;
   agentId?: string;
   mcpEndpointId?: string;
   sandboxEndpointId?: string;
@@ -38,6 +40,7 @@ export const usePanelStore = create<PanelStore>((set, get) => ({
     const isSame =
       cur.type === panel.type &&
       cur.nodeId === panel.nodeId &&
+      cur.accessEndpointId === panel.accessEndpointId &&
       cur.agentId === panel.agentId &&
       cur.mcpEndpointId === panel.mcpEndpointId &&
       cur.sandboxEndpointId === panel.sandboxEndpointId;

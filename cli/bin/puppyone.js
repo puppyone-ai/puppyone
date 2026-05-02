@@ -12,6 +12,7 @@ import { registerGateway } from "../src/commands/gateway.js";
 import { registerChat } from "../src/commands/chat.js";
 import { registerConfig } from "../src/commands/config-cmd.js";
 import { registerData } from "../src/commands/data.js";
+import { registerAp, registerFs } from "../src/commands/ap.js";
 import { registerGlobalCommands } from "../src/commands/global.js";
 
 program
@@ -38,6 +39,8 @@ registerConfig(program);
 
 // ─── Data Plane Commands ─────────────────────────────────
 registerData(program);
+registerAp(program);
+registerFs(program);
 
 // ─── Backward Compatibility ─────────────────────────────
 registerLegacyAuthAliases(program);

@@ -43,9 +43,10 @@ interface FilesystemDetailViewProps {
   syncId: string;
   projectId?: number | string;
   onClose?: () => void;
+  onBack?: () => void;
 }
 
-export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemDetailViewProps) {
+export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: FilesystemDetailViewProps) {
   const { data: syncData, mutate } = useSWR<{ syncs: SyncDetail[] }>(
     projectId ? ['sync-status', projectId] : null,
     () => get<{ syncs: SyncDetail[] }>(`/api/v1/sync/status?project_id=${projectId}`),
@@ -87,7 +88,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
 
   if (!sync) {
     return (
-      <PanelShell title="Machine Folder" onClose={onClose || (() => {})}>
+      <PanelShell title="Machine Folder" onClose={onClose || (() => {})} onBack={onBack}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, height: '100%' }}>
           Access point not found
         </div>
@@ -110,6 +111,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose }: FilesystemD
       subtitle={sync.node_name || undefined}
       icon={<LaptopIcon size={14} />}
       onClose={onClose || (() => {})}
+      onBack={onBack}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 

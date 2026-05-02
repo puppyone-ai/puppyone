@@ -1,11 +1,12 @@
 'use client';
 
-import { memo, useEffect } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { useShallowTree } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import type { ContentType } from '../views/GridView';
 import { ensureExpandedBatch, usePendingActiveId } from './explorerState';
 import { ExplorerTreeRow, FolderIcon } from './ExplorerTreeRow';
+import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 
 export const ExplorerSidebar = memo(function ExplorerSidebar({
@@ -15,12 +16,16 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   onNavigate,
   onCreate,
   onCreateSync,
+  onOpenAccess,
+  endpointByNodeId,
   onRename,
   onDelete,
   onMoveNode,
   activeSyncNodeId,
   highlightNodeId,
+  highlightVariant = 'default',
   createMenuOpenForId,
+  createMenuOpenAction,
   className,
   style,
 }: ExplorerSidebarProps) {
@@ -53,8 +58,13 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   const activeId =
     pendingId || activeNodeId || (currentPath.length > 0 ? currentPath[currentPath.length - 1].id : null);
   const isRootActive = !activeId && !activeNodeId;
-  const isRootCreateMenuOpen = createMenuOpenForId === '__root__';
-  const rootHasSpecialBg = isRootDropTarget || isRootActive;
+  const isRootHighlighted = highlightNodeId === '';
+  const isRootAccessPointHighlight = isRootHighlighted && highlightVariant === 'access-point';
+  const rootOpenMenuAction = createMenuOpenForId === '__root__' ? createMenuOpenAction ?? null : null;
+  const rootEndpoints = endpointByNodeId?.get('') ?? [];
+  const rootHasSpecialBg = isRootDropTarget || isRootHighlighted || isRootActive || rootOpenMenuAction !== null;
+  const [isRootHovered, setIsRootHovered] = useState(false);
+  const isRootSoftHovered = isRootHovered && !rootHasSpecialBg;
 
   return (
     <div className={className} style={{ ...style, display: 'flex', flexDirection: 'column' }}>
@@ -100,7 +110,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
       <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative', paddingTop: 6 }}>
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
           <div
-            className={`group/row ${!rootHasSpecialBg ? 'hover:bg-[rgba(255,255,255,0.06)] hover:text-[#d4d4d4]' : ''}`}
+            className="group/row"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -108,13 +118,26 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               height: 30,
               boxSizing: 'border-box',
               borderRadius: 6,
-              background: isRootDropTarget ? 'rgba(59, 130, 246, 0.15)' : isRootActive ? '#2a2a2a' : 'transparent',
-              color: isRootActive ? '#fff' : '#a1a1aa',
+              background: isRootDropTarget
+                ? 'rgba(59, 130, 246, 0.15)'
+                : isRootAccessPointHighlight
+                  ? 'rgba(52, 211, 153, 0.14)'
+                : isRootActive || rootOpenMenuAction
+                  ? '#2a2a2a'
+                  : isRootSoftHovered
+                    ? 'rgba(255,255,255,0.045)'
+                    : 'transparent',
+              color: isRootAccessPointHighlight ? '#d1fae5' : isRootActive || rootOpenMenuAction ? '#fff' : isRootSoftHovered ? '#d4d4d8' : '#a1a1aa',
               transition: 'background 0.1s, color 0.1s',
+              boxShadow: isRootAccessPointHighlight
+                ? 'inset 2px 0 0 0 rgba(52, 211, 153, 0.9)'
+                : 'none',
               position: 'relative',
               cursor: 'pointer',
             }}
             {...rootDropHandlers}
+            onMouseEnter={() => setIsRootHovered(true)}
+            onMouseLeave={() => setIsRootHovered(false)}
             onClick={() => {
               onNavigate({ id: '', name: 'Root', type: 'folder' as ContentType });
             }}
@@ -149,120 +172,20 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               </span>
             </div>
 
-            {/* Hover-revealed actions on the Root row.  Same cluster
-                shape as ExplorerTreeRow's per-folder actions —
-                [+] [link] — minus the [more menu] (rename / delete
-                don't apply to the project root: it can't be renamed
-                or removed).  This is what replaces the previous
-                sidebar-header buttons; every folder row including
-                root now exposes the same affordances on the same
-                hover trigger, so the user doesn't need a separate
-                mental model for "the root case".  Wrapper stops
-                click propagation so the buttons don't trigger the
-                row's navigate-to-root onClick. */}
             {(onCreate || onCreateSync) && (
-              <div
-                className={`flex items-center gap-0.5 flex-shrink-0 mr-2 ${
-                  isRootCreateMenuOpen
-                    ? 'visible'
-                    : 'invisible group-hover/row:visible'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {onCreate && (
-                  <button
-                    type="button"
-                    aria-haspopup="menu"
-                    aria-expanded={isRootCreateMenuOpen}
-                    onClick={(e) => onCreate(e, null)}
-                    title="New item"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 22,
-                      height: 22,
-                      borderRadius: 4,
-                      background: isRootCreateMenuOpen
-                        ? 'rgba(255,255,255,0.1)'
-                        : 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: isRootCreateMenuOpen ? '#ddd' : '#999',
-                      padding: 0,
-                      transition: 'background 0.1s, color 0.1s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                      e.currentTarget.style.color = '#ddd';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isRootCreateMenuOpen) {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = '#999';
-                      }
-                    }}
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    >
-                      <line x1="12" y1="5" x2="12" y2="19" />
-                      <line x1="5" y1="12" x2="19" y2="12" />
-                    </svg>
-                  </button>
-                )}
-
-                {onCreateSync && (
-                  <button
-                    type="button"
-                    onClick={(e) => onCreateSync(e, '')}
-                    title="Create access point at project root"
-                    aria-label="Create access point at project root"
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      width: 22,
-                      height: 22,
-                      borderRadius: 4,
-                      background: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: '#999',
-                      padding: 0,
-                      transition: 'background 0.1s, color 0.1s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                      e.currentTarget.style.color = '#ddd';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#999';
-                    }}
-                  >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
-                      <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
-                      <line x1="8" y1="12" x2="16" y2="12" />
-                    </svg>
-                  </button>
-                )}
+              <div style={{ marginRight: 8 }}>
+                <ExplorerRowActions
+                  nodeId=""
+                  createParentId={null}
+                  accessPath=""
+                  isFolder
+                  endpoints={rootEndpoints}
+                  openMenuAction={rootOpenMenuAction}
+                  itemName="Root"
+                  onCreate={onCreate}
+                  onCreateSync={onCreateSync}
+                  onOpenAccess={onOpenAccess}
+                />
               </div>
             )}
           </div>
@@ -281,12 +204,16 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 onNavigate={onNavigate}
                 onCreate={onCreate}
                 onCreateSync={onCreateSync}
+                onOpenAccess={onOpenAccess}
+                endpointByNodeId={endpointByNodeId}
                 onRename={onRename}
                 onDelete={onDelete}
                 onMoveNode={onMoveNode}
                 activeSyncNodeId={activeSyncNodeId}
                 highlightNodeId={highlightNodeId}
+                highlightVariant={highlightVariant}
                 createMenuOpenForId={createMenuOpenForId}
+                createMenuOpenAction={createMenuOpenAction}
               />
             ))
           )}
