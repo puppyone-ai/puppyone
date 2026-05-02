@@ -3,6 +3,7 @@ import type { ContentType } from '../views/GridView';
 import type { SyncEndpointInfo as DataSyncEndpointInfo } from '../../DataLayoutContext';
 
 export type SyncEndpointInfo = DataSyncEndpointInfo;
+export type ExplorerCreateMenuAction = 'create' | 'access';
 
 export interface MillerColumnItem {
   id: string;
@@ -42,9 +43,13 @@ export interface ExplorerSidebarProps {
   // folder pre-bound as the target chip.  Avoids the "open empty
   // panel + drag folder from sidebar" anti-pattern entirely.
   onCreateSync?: (event: MouseEvent<Element>, folderPath: string) => void;
+  onOpenAccess?: (endpoints: readonly SyncEndpointInfo[], nodeId: string) => void;
+  endpointByNodeId?: ReadonlyMap<string, readonly SyncEndpointInfo[]>;
   activeSyncNodeId?: string | null;
   highlightNodeId?: string | null;
+  highlightVariant?: 'default' | 'access-point';
   createMenuOpenForId?: string | null;
+  createMenuOpenAction?: ExplorerCreateMenuAction | null;
   className?: string;
   style?: CSSProperties;
 }

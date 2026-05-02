@@ -18,6 +18,8 @@ export interface SyncEndpointInfo {
   provider: string;
   direction: string;
   status: string;
+  name?: string;
+  accessKey?: string | null;
 }
 
 export interface DataLayoutContextValue {

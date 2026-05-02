@@ -178,9 +178,11 @@ class MutOps:
         """Soft-delete: move to .trash/{basename}_{timestamp}."""
         path = validate_path(path)
         basename = path.rsplit("/", 1)[-1] if "/" in path else path
-        trash_path = f".trash/{basename}_{int(time.time())}"
+        scope_path, rel_path = self._select_write_scope(project_id, path)
+        trash_rel_path = f".trash/{basename}_{int(time.time())}"
+        trash_path = self._join_scope_path(scope_path, trash_rel_path)
 
-        client = self._make_client(project_id, who, scope)
+        client = self._make_client(project_id, who, scope_path or scope)
         files = await asyncio.to_thread(client.clone)
 
         modified: dict[str, bytes] = {}
@@ -188,18 +190,18 @@ class MutOps:
 
         entry = self._reader.stat(project_id, path)
         if entry and entry.type == "folder":
-            prefix = path + "/"
+            prefix = rel_path + "/"
             for p, content in files.items():
-                if p == path or p.startswith(prefix):
-                    suffix = p[len(path):]
-                    modified[trash_path + suffix] = content
+                if p == rel_path or p.startswith(prefix):
+                    suffix = p[len(rel_path):]
+                    modified[trash_rel_path + suffix] = content
                     deleted.append(p)
         else:
-            content = files.get(path)
+            content = files.get(rel_path)
             if content is None:
                 raise FileNotFoundError(f"Path not found: {path}")
-            modified[trash_path] = content
-            deleted.append(path)
+            modified[trash_rel_path] = content
+            deleted.append(rel_path)
 
         result = await asyncio.to_thread(
             client.push,
@@ -263,19 +265,20 @@ class MutOps:
     ) -> WriteResult:
         """Hard-delete a file or folder (no trash)."""
         path = validate_path(path)
+        scope_path, rel_path = self._select_write_scope(project_id, path)
 
-        client = self._make_client(project_id, who, scope)
+        client = self._make_client(project_id, who, scope_path or scope)
         files = await asyncio.to_thread(client.clone)
 
         deleted: list[str] = []
         entry = self._reader.stat(project_id, path)
         if entry and entry.type == "folder":
-            prefix = path + "/"
+            prefix = rel_path + "/"
             for p in files:
-                if p == path or p.startswith(prefix):
+                if p == rel_path or p.startswith(prefix):
                     deleted.append(p)
         else:
-            deleted.append(path)
+            deleted.append(rel_path)
 
         result = await asyncio.to_thread(
             client.push,
@@ -283,7 +286,10 @@ class MutOps:
             message=message or f"delete {path}",
         )
         self._run_post_push_hook(project_id, result)
-        return self._to_result(result, deleted)
+        return self._to_result(
+            result,
+            [self._join_scope_path(scope_path, p) for p in deleted],
+        )
 
     # ══════════════════════════════════════════════
     # Read operations (sync — direct Merkle tree reads)
@@ -326,6 +332,43 @@ class MutOps:
             },
         }
         return MutEphemeralClient(self._repos, project_id, auth)
+
+    def _select_write_scope(self, project_id: str, path: str) -> tuple[str, str]:
+        """Pick the narrowest existing MUT scope that contains ``path``.
+
+        Web UI operations pass project-root paths.  If a folder belongs to a
+        narrower access point scope, pushing against that scope avoids cloning
+        and rebuilding the whole project root for every write/delete.
+        """
+        clean = validate_path(path)
+        try:
+            repo = self._repos.get_server_repo(project_id)
+            scopes = [
+                (scope_path or "").strip("/")
+                for scope_path in repo.get_all_scope_hashes().keys()
+            ]
+        except Exception:
+            scopes = []
+
+        candidates = [
+            scope_path
+            for scope_path in scopes
+            if scope_path and clean.startswith(scope_path + "/")
+        ]
+        scope_path = max(candidates, key=len) if candidates else ""
+        if not scope_path:
+            return "", clean
+        return scope_path, clean[len(scope_path) + 1:]
+
+    @staticmethod
+    def _join_scope_path(scope_path: str, rel_path: str) -> str:
+        scope = (scope_path or "").strip("/")
+        rel = (rel_path or "").strip("/")
+        if not scope:
+            return rel
+        if not rel:
+            return scope
+        return f"{scope}/{rel}"
 
     async def _do_push(
         self,

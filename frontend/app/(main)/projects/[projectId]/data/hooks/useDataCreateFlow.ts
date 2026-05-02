@@ -35,6 +35,8 @@ export interface DataCreateMenuActions {
   onCreateSandbox: () => void;
 }
 
+export type CreateMenuActionSource = 'create' | 'access';
+
 interface UseDataCreateFlowOptions {
   projectId: string;
   currentFolderId: string | null;
@@ -83,6 +85,9 @@ export function useDataCreateFlow({
   const createMenuOpenForId = createMenuOpen
     ? getCreateMenuOpenId(createInFolderId, currentFolderId)
     : undefined;
+  const createMenuOpenAction: CreateMenuActionSource | null = createMenuOpen
+    ? createMenuAccessOnly ? 'access' : 'create'
+    : null;
 
   const highlightCreatedNode = useCallback((nodeId: string) => {
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
@@ -499,6 +504,7 @@ export function useDataCreateFlow({
     defaultStartOption,
     createMenuOpen,
     createMenuOpenForId,
+    createMenuOpenAction,
     createMenuPosition,
     createMenuAccessOnly,
     createMenuRef,

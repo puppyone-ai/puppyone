@@ -101,6 +101,12 @@ def run_post_push_hook(
             c["path"] for c in changes
             if c.get("action") == "delete" or c.get("op") == "deleted"
         ]
+        scope_path = (entry.get("scope_path") or "").strip("/")
+        if scope_path:
+            deleted_paths = [
+                f"{scope_path}/{p.strip('/')}" if p.strip("/") else scope_path
+                for p in deleted_paths
+            ]
 
         if deleted_paths:
             post_commit_delete(project_id, deleted_paths)
