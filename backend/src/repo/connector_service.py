@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from src.exceptions import AppException
+from src.exceptions import BusinessException, NotFoundException
 from src.repo.connector_repository import ConnectorRepository
 from src.repo.models import Connector
 
@@ -79,34 +79,33 @@ class ConnectorService:
         # Built-in cli / agent rows are auto-created by the DB trigger; the
         # API never creates them.
         if provider in PROVIDERS_BIDIRECTIONAL:
-            raise AppException(
-                status_code=400,
-                message=(
-                    f"'{provider}' connectors are auto-created per scope. "
-                    "Edit the auto-created row instead of creating a new one."
-                ),
+            raise BusinessException(
+                f"'{provider}' connectors are auto-created per scope. "
+                "Edit the auto-created row instead of creating a new one."
             )
 
         # Direction validation.
         if direction == "bidirectional":
-            raise AppException(
-                status_code=400,
-                message=(
-                    "Only built-in 'cli' and 'agent' connectors are "
-                    "bidirectional. Third-party providers must choose "
-                    "'inbound' (import) or 'outbound' (export)."
-                ),
+            raise BusinessException(
+                "Only built-in 'cli' and 'agent' connectors are "
+                "bidirectional. Third-party providers must choose "
+                "'inbound' (import) or 'outbound' (export)."
             )
 
         if provider in PROVIDERS_OAUTH_BACKED and not oauth_connection_id:
-            raise AppException(
-                status_code=400,
-                message=(
-                    f"Provider '{provider}' requires an oauth_connection_id. "
-                    "Connect this provider via the /connections page first, "
-                    "then re-create this connector."
-                ),
+            raise BusinessException(
+                f"Provider '{provider}' requires an oauth_connection_id. "
+                "Connect this provider via the /connections page first, "
+                "then re-create this connector."
             )
+
+        # Verify scope exists and belongs to the same project before INSERT.
+        # Without this, an invalid scope_id surfaces as a raw FK violation
+        # that the global handler turns into a generic 500.
+        from src.repo.scope_repository import RepoScopeRepository
+        scope = RepoScopeRepository().get(scope_id)
+        if scope is None or scope.project_id != project_id:
+            raise NotFoundException(f"Scope {scope_id!r} not found in this project")
 
         return self._repo.insert(
             project_id=project_id,
@@ -126,9 +125,8 @@ class ConnectorService:
             return None
         # Refuse to flip a builtin's direction.
         if existing.is_builtin and "direction" in patch:
-            raise AppException(
-                status_code=400,
-                message="Built-in connector direction is fixed at 'bidirectional'.",
+            raise BusinessException(
+                "Built-in connector direction is fixed at 'bidirectional'."
             )
         # Don't let updates change provider or scope_id (those are immutable
         # post-create — re-create the connector if that's what you want).
@@ -139,14 +137,11 @@ class ConnectorService:
     def delete(self, connector_id: str) -> None:
         existing = self._repo.get(connector_id)
         if existing is None:
-            raise AppException(status_code=404, message="Connector not found")
+            raise NotFoundException("Connector not found")
         if existing.is_builtin:
-            raise AppException(
-                status_code=400,
-                message=(
-                    "Built-in cli/agent connectors are managed by their scope. "
-                    "Delete the scope to remove them, or pause the connector instead."
-                ),
+            raise BusinessException(
+                "Built-in cli/agent connectors are managed by their scope. "
+                "Delete the scope to remove them, or pause the connector instead."
             )
         self._repo.delete(connector_id)
 
@@ -171,14 +166,13 @@ class ConnectorService:
         """
         connector = self._repo.get(connector_id)
         if connector is None:
-            raise AppException(status_code=404, message="Connector not found")
+            raise NotFoundException("Connector not found")
         if connector.is_builtin:
-            raise AppException(
-                status_code=400,
-                message="Built-in cli/agent connectors don't have a manual run.",
+            raise BusinessException(
+                "Built-in cli/agent connectors don't have a manual run."
             )
         if connector.status == "paused":
-            raise AppException(status_code=400, message="Connector is paused; resume it first")
+            raise BusinessException("Connector is paused; resume it first")
 
         # Lazy imports to avoid pulling the heavy engine module on
         # read-only routes. Use the non-DI factory because we may be

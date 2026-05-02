@@ -14,7 +14,7 @@ from __future__ import annotations
 import secrets
 from typing import Optional
 
-from src.exceptions import AppException
+from src.exceptions import AppException, BusinessException, ErrorCode, NotFoundException
 from src.repo.models import RepoScope
 from src.repo.scope_repository import RepoScopeRepository
 from src.utils.logger import log_info, log_warning
@@ -109,6 +109,7 @@ class ScopeService:
             existing_root = self._repo.get_root_scope(project_id)
             if existing_root:
                 raise AppException(
+                    code=ErrorCode.BAD_REQUEST,
                     status_code=409,
                     message=(
                         "Project already has a root scope. The root scope "
@@ -174,11 +175,12 @@ class ScopeService:
         """
         scope = self._repo.get(scope_id)
         if scope is None:
-            raise AppException(status_code=404, message="Scope not found")
+            raise NotFoundException("Scope not found")
         if scope.is_root:
-            raise AppException(status_code=400, message="Root scope cannot be deleted")
+            raise BusinessException("Root scope cannot be deleted")
         if has_bound_connectors:
             raise AppException(
+                code=ErrorCode.BAD_REQUEST,
                 status_code=409,
                 message=(
                     "Scope has connectors bound to it. Delete those connectors "

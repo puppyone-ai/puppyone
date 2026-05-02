@@ -184,6 +184,22 @@ async def create_project(
     writer = create_mut_admin_service()
     await writer.init_tree(str(project.id))
 
+    # Ensure the project has a root scope (path='', is_root=true). Without
+    # this every redesign-aware endpoint (mut auth, /scopes list, the
+    # repo-identity endpoint) fails for newly-created projects — the
+    # 20260502000500_backfill migration only covered projects that existed
+    # at migration time. The DB trigger on repo_scopes auto-creates the
+    # cli + agent connectors as a side effect.
+    try:
+        from src.repo.scope_service import ScopeService
+        ScopeService().ensure_root_scope(str(project.id))
+    except Exception as e:
+        # Non-fatal: project still works for legacy access paths. Log and
+        # continue so a transient repo_scopes failure can't 500 project
+        # creation.
+        from src.utils.logger import log_error
+        log_error(f"[project.create] ensure_root_scope failed for {project.id}: {e}")
+
     entries = []
     if payload.template:
         from src.platform.project.templates import seed_template_content
