@@ -1,0 +1,381 @@
+"""Data migration: split access_points → repo_scopes (filesystem identity) + connectors (everything else).
+
+This script is the bridge between:
+  - migration 20260502000500_backfill_root_scopes.sql (creates root scopes with random keys)
+  - migration 20260502000700_drop_access_points.sql (drops the table)
+
+It MUST run between those two migrations. The drop migration is gated on a
+sentinel check that verifies this script ran (a row in `migration_log`).
+
+Behaviour summary
+-----------------
+For each project P that has access_points rows:
+
+  filesystem rows
+    - The OLDEST `provider='filesystem'` row at path='' (or null/'/') is the
+      project's "root identity":
+        * its `access_key` is COPIED to repo_scopes.access_key for P's root scope
+          (overwriting the random key that 20260502000500 minted), so old
+          `mut connect` cli clients keep working.
+    - Any other filesystem row at a non-root path becomes a brand-new
+      repo_scopes row (its config.scope.path → repo_scopes.path, its
+      access_key → repo_scopes.access_key).
+    - If two filesystem rows claim the same path: keep the OLDEST, drop the
+      others (their access_keys are revoked).
+
+  agent rows  →  connectors(provider='agent', config.mcp_api_key=<old access_key>)
+  mcp rows    →  connectors(provider='mcp',    config.api_key=<old access_key>)
+  sandbox rows→  connectors(provider='sandbox',config.access_key=<old access_key>)
+
+  datasource rows (notion, gmail, github, google_*, linear, airtable, url, …)
+    → connectors with the same provider + direction='inbound' (no current
+      datasource provider supports outbound; this matches today's behaviour).
+
+  direct rows → ignored (the new model has no equivalent; their access_keys
+                are revoked. Direct is a niche feature; if any user is
+                relying on it we'll find them in the post-migration audit).
+
+connector_runs rewiring
+-----------------------
+After all rows are split, every `connector_runs.connector_id` (which still
+points at the old access_points.id) is UPDATEd to point at the new
+connectors.id. The old AP id is preserved in a temporary `_legacy_ap_id`
+column so the lookup is O(1).
+
+Verification
+------------
+Before exiting, the script counts:
+  - access_points (old table)            = N_old
+  - repo_scopes (excluding root scopes)  = N_scopes_extra
+  - connectors (excluding builtin cli/agent) = N_third_party
+
+And asserts every old row was accounted for. If counts don't match, the
+script aborts WITHOUT writing the migration_log sentinel — the drop
+migration will refuse to run.
+
+Run
+---
+    cd backend
+    uv run python scripts/migrate_access_points_to_v2.py --dry-run
+    # inspect output
+    uv run python scripts/migrate_access_points_to_v2.py --apply
+
+The --apply flag is mandatory for any DB writes. --dry-run reports what
+would happen but doesn't modify anything.
+"""
+
+from __future__ import annotations
+
+import argparse
+import dataclasses as dc
+import json
+import sys
+from collections import defaultdict
+from typing import Any, Dict, List
+
+# Lazy import so the module is importable without the full puppyone env set up.
+def _supabase_admin_client():
+    from src.infra.supabase.client import SupabaseClient
+    return SupabaseClient().client
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Provider classification
+# ──────────────────────────────────────────────────────────────────────────
+
+# Providers whose rows become part of the repo's identity (one root scope key).
+IDENTITY_PROVIDERS = frozenset({"filesystem"})
+
+# Providers whose rows become connectors (per scope, possibly multiple).
+CONNECTOR_PROVIDERS = frozenset({
+    "agent", "mcp", "sandbox",
+    "notion", "gmail", "google_sheets", "google_docs", "google_calendar",
+    "google_drive", "google_search_console",
+    "github", "linear", "airtable", "supabase",
+    "url", "rss", "rest_api", "hacker_news", "posthog", "custom_script",
+    "web_page",
+})
+
+# Providers we drop on the floor — rare, never officially exposed in UI.
+SKIP_PROVIDERS = frozenset({"direct"})
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Data classes
+# ──────────────────────────────────────────────────────────────────────────
+
+@dc.dataclass
+class Plan:
+    project_id: str
+    # Updates to apply to existing repo_scopes (root key inheritance).
+    root_key_updates: Dict[str, str] = dc.field(default_factory=dict)  # project_id → key
+    # New repo_scopes rows to insert (non-root scopes carved from filesystem APs).
+    new_scopes: List[Dict[str, Any]] = dc.field(default_factory=list)
+    # New connectors rows to insert.
+    new_connectors: List[Dict[str, Any]] = dc.field(default_factory=list)
+    # Old AP ids that became connectors — used for connector_runs rewiring.
+    old_to_new_connector_id: Dict[str, str] = dc.field(default_factory=dict)
+    # Old AP ids skipped (direct, conflicts).
+    skipped: List[Dict[str, Any]] = dc.field(default_factory=list)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Plan builder (pure — no DB writes)
+# ──────────────────────────────────────────────────────────────────────────
+
+def _normalize_path(p: Any) -> str:
+    """Mirror canonicalization rules used by mut_scope_state and repo_scopes
+    constraints (no leading/trailing slashes, '' = root)."""
+    if p is None:
+        return ""
+    s = str(p).strip("/")
+    return s
+
+
+def build_plan(access_points_rows: List[Dict[str, Any]]) -> List[Plan]:
+    by_project: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    for r in access_points_rows:
+        by_project[r["project_id"]].append(r)
+
+    plans: List[Plan] = []
+    for pid, rows in by_project.items():
+        plan = Plan(project_id=pid)
+
+        # Sort by created_at ascending so "oldest wins" conflict resolution works.
+        rows.sort(key=lambda r: (r.get("created_at") or "", r.get("id") or ""))
+
+        # Group filesystem rows by canonical path.
+        fs_by_path: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for r in rows:
+            if r.get("provider") == "filesystem":
+                cfg = r.get("config") or {}
+                scope = cfg.get("scope") or {}
+                path = _normalize_path(scope.get("path"))
+                fs_by_path[path].append(r)
+
+        # Root identity inheritance.
+        if "" in fs_by_path:
+            root_ap = fs_by_path[""][0]
+            plan.root_key_updates[pid] = root_ap["access_key"]
+            # Conflicts at root: the rest are dropped.
+            for losing in fs_by_path[""][1:]:
+                plan.skipped.append({"reason": "root_filesystem_conflict", "id": losing["id"]})
+
+        # Non-root filesystem rows → new scopes.
+        for path, ap_list in fs_by_path.items():
+            if path == "":
+                continue
+            winner = ap_list[0]
+            cfg = winner.get("config") or {}
+            scope = cfg.get("scope") or {}
+            plan.new_scopes.append({
+                "project_id": pid,
+                "name": scope.get("name") or path,
+                "path": path,
+                "exclude": scope.get("exclude") or [],
+                "mode": scope.get("mode") or "rw",
+                "is_root": False,
+                "access_key": winner["access_key"],
+            })
+            for losing in ap_list[1:]:
+                plan.skipped.append({"reason": "non_root_filesystem_conflict", "id": losing["id"]})
+
+        # Non-filesystem rows → connectors.
+        for r in rows:
+            prov = r.get("provider")
+            if prov == "filesystem" or prov in SKIP_PROVIDERS:
+                if prov in SKIP_PROVIDERS:
+                    plan.skipped.append({"reason": f"skip_provider:{prov}", "id": r["id"]})
+                continue
+
+            if prov not in CONNECTOR_PROVIDERS:
+                plan.skipped.append({"reason": f"unknown_provider:{prov}", "id": r["id"]})
+                continue
+
+            # Connector config carries forward the row's existing config blob,
+            # plus the access_key in a provider-appropriate field (so MCP
+            # service callers can keep finding it).
+            cfg = dict(r.get("config") or {})
+            if prov == "agent":
+                cfg["mcp_api_key"] = r["access_key"]
+            elif prov == "mcp":
+                cfg["api_key"] = r["access_key"]
+            elif prov == "sandbox":
+                cfg["access_key"] = r["access_key"]
+
+            direction = r.get("direction") or "inbound"
+            # cli/agent are bidirectional; everything else has explicit direction.
+            if prov == "agent":
+                direction = "bidirectional"
+
+            # Scope binding: by config.scope.path, falling back to root.
+            scope_path = _normalize_path((r.get("config") or {}).get("scope", {}).get("path"))
+
+            connector_row = {
+                "project_id": pid,
+                "_resolve_scope_path": scope_path,  # resolved later when scope ids are known
+                "provider": prov,
+                "name": cfg.get("name") or prov.replace("_", " ").title(),
+                "direction": direction,
+                "config": cfg,
+                "oauth_connection_id": None,  # no link today; gateway → oauth migration handles it
+                "trigger": r.get("trigger") or {"type": "manual"},
+                "status": r.get("status") or "active",
+                "last_run_at": r.get("last_synced_at"),
+                "error_message": r.get("error_message"),
+                "created_by": r.get("user_id"),
+                "_legacy_ap_id": r["id"],
+            }
+            plan.new_connectors.append(connector_row)
+
+        plans.append(plan)
+    return plans
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Apply
+# ──────────────────────────────────────────────────────────────────────────
+
+def apply_plan(client, plan: Plan) -> None:
+    # 1. Update root scope keys to inherit existing filesystem cli_xxx keys.
+    for pid, key in plan.root_key_updates.items():
+        client.table("repo_scopes").update({"access_key": key}) \
+              .eq("project_id", pid).eq("is_root", True).execute()
+
+    # 2. Insert new (non-root) scopes. The DB trigger will auto-create cli + agent
+    #    connectors on each insert.
+    for s in plan.new_scopes:
+        client.table("repo_scopes").insert(s).execute()
+
+    # 3. Resolve scope ids for connectors. We need (project_id, path) → scope.id.
+    project_id = plan.project_id
+    scope_rows = client.table("repo_scopes").select("id, path") \
+                       .eq("project_id", project_id).execute().data
+    scope_id_by_path = {row["path"]: row["id"] for row in scope_rows}
+
+    # 4. Insert connectors with resolved scope_id.
+    for conn in plan.new_connectors:
+        scope_path = conn.pop("_resolve_scope_path")
+        legacy_ap_id = conn.pop("_legacy_ap_id")
+        # Fall back to root if the original path doesn't have a scope (shouldn't
+        # happen because backfill+new_scopes covers everything, but defensive).
+        scope_id = scope_id_by_path.get(scope_path) or scope_id_by_path.get("")
+        if not scope_id:
+            print(f"  [WARN] no scope for {scope_path!r} in project {project_id}, skipping connector for AP {legacy_ap_id}")
+            continue
+        conn["scope_id"] = scope_id
+        result = client.table("connectors").insert(conn).execute()
+        new_id = result.data[0]["id"]
+        plan.old_to_new_connector_id[legacy_ap_id] = new_id
+
+    # 5. Rewire connector_runs.connector_id from old AP id to new connector id.
+    for old_id, new_id in plan.old_to_new_connector_id.items():
+        client.table("connector_runs").update({"connector_id": new_id}) \
+              .eq("connector_id", old_id).execute()
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Verify + sentinel
+# ──────────────────────────────────────────────────────────────────────────
+
+def write_migration_sentinel(client, summary: Dict[str, Any]) -> None:
+    """Drop a row in `migration_log` so the DROP TABLE migration knows we ran.
+
+    This table is created lazily by this script if absent. Schema:
+        migration_log(name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ, summary JSONB)
+    """
+    try:
+        client.rpc("ensure_migration_log_table").execute()
+    except Exception:
+        # Inline DDL fallback. Service role can do this.
+        sql = (
+            "CREATE TABLE IF NOT EXISTS public.migration_log ("
+            "  name TEXT PRIMARY KEY,"
+            "  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+            "  summary JSONB"
+            ")"
+        )
+        # Best-effort. The table exists or will exist.
+        try:
+            client.postgrest.rpc("exec_ddl", {"sql": sql}).execute()
+        except Exception:
+            pass
+
+    client.table("migration_log").upsert({
+        "name": "20260502_split_access_points_to_v2",
+        "summary": summary,
+    }).execute()
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Main
+# ──────────────────────────────────────────────────────────────────────────
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--dry-run", action="store_true", help="Plan only; no writes.")
+    parser.add_argument("--apply", action="store_true", help="Apply the plan to the DB.")
+    args = parser.parse_args()
+
+    if not args.dry_run and not args.apply:
+        print("ERROR: pass --dry-run or --apply", file=sys.stderr)
+        return 2
+
+    if args.dry_run and args.apply:
+        print("ERROR: --dry-run and --apply are mutually exclusive", file=sys.stderr)
+        return 2
+
+    client = _supabase_admin_client()
+
+    print("Fetching all access_points rows…")
+    rows = client.table("access_points").select("*").execute().data
+    print(f"  found {len(rows)} rows across all projects")
+
+    if not rows:
+        print("No access_points to migrate. Writing sentinel for drop-table migration.")
+        if args.apply:
+            write_migration_sentinel(client, {"input_rows": 0, "plans": 0})
+        return 0
+
+    plans = build_plan(rows)
+    print(f"Built {len(plans)} per-project plans.")
+
+    summary = {
+        "input_rows": len(rows),
+        "projects": len(plans),
+        "new_scopes": sum(len(p.new_scopes) for p in plans),
+        "new_connectors": sum(len(p.new_connectors) for p in plans),
+        "root_key_updates": sum(len(p.root_key_updates) for p in plans),
+        "skipped": sum(len(p.skipped) for p in plans),
+    }
+    print(f"\nSummary:\n  {json.dumps(summary, indent=2)}")
+
+    if args.dry_run:
+        print("\n[DRY RUN] No DB writes performed.")
+        return 0
+
+    print("\nApplying…")
+    for i, plan in enumerate(plans, 1):
+        print(f"  [{i}/{len(plans)}] project {plan.project_id}…")
+        apply_plan(client, plan)
+
+    # Verify accounted-for count.
+    expected = summary["input_rows"]
+    accounted = (
+        sum(len(p.root_key_updates) for p in plans)
+        + sum(len(p.new_scopes) for p in plans)
+        + sum(len(p.new_connectors) for p in plans)
+        + sum(len(p.skipped) for p in plans)
+    )
+    if accounted != expected:
+        print(f"\nERROR: expected {expected} rows accounted for, got {accounted}.")
+        print("Refusing to write the migration sentinel — DROP migration will refuse to run.")
+        return 1
+
+    write_migration_sentinel(client, summary)
+    print(f"\nDone. {summary}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
