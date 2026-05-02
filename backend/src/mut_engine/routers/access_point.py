@@ -2,8 +2,8 @@
 Access Point — unified entry for MUT clients.
 
 An Access Point is a URL + credential that gives a MUT client everything
-it needs to connect. The client doesn't know about project_id, connector
-types, or platform concepts — just a URL and a key.
+it needs to connect. The client doesn't know about project_id, scope ids,
+or platform concepts — just a URL and a key.
 
 URL format: /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate|rollback|pull-commit
 
@@ -12,11 +12,12 @@ APIRouter only knows the relative "/mut/ap" prefix. The single source of
 truth for the composed public URL lives in src/mut_engine/_routes.py
 (MUT_AP_PREFIX) — change that constant to break every client at once.
 
-The access_key maps to an access_points row which contains:
+Per the access-point-redesign-2026-05-02, an access_key now maps to a
+`repo_scopes` row. The row carries everything the auth context needs:
+
   - project_id: which MUT tree to operate on
-  - config.scope: path-based permission (path, exclude, mode)
-  - provider: connector type (agent, filesystem, direct, etc.)
-  - revoked_at: null if active, timestamp if revoked
+  - path / exclude / mode: scope geometry
+  - access_key_revoked_at: null if active, timestamp if revoked
 
 This module provides:
   1. resolve_access_point() — lookup access_key → (project_id, auth_context)
@@ -46,11 +47,16 @@ from src.utils.logger import log_error, log_info
 def resolve_access_point(access_key: str) -> tuple[str, dict]:
     """Resolve an access_key to (project_id, auth_context).
 
-    Looks up the access_points table by access_key, validates the key is
+    Looks up the repo_scopes table by access_key, validates the key is
     active (not revoked), and builds the MUT auth context.
 
     Returns:
-        (project_id, {"agent": str, "_scope": dict})
+        (project_id, {
+            "agent": "scope:<scope_id>",
+            "_scope": {id, path, exclude, mode},
+            "_project_id": str,
+            "_user_identity": "",   # reserved for future per-key user binding
+        })
 
     Raises:
         HTTPException 401 if key is invalid/revoked
@@ -59,8 +65,8 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     client = SupabaseClient().client
 
     resp = (
-        client.table("access_points")
-        .select("id, project_id, provider, config, revoked_at, status")
+        client.table("repo_scopes")
+        .select("id, project_id, path, exclude, mode, access_key_revoked_at")
         .eq("access_key", access_key)
         .maybe_single()
         .execute()
@@ -69,39 +75,25 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     if not resp or not hasattr(resp, 'data') or not resp.data:
         raise HTTPException(status_code=401, detail="Invalid access point key")
 
-    conn = resp.data
+    scope_row = resp.data
 
-    if conn.get("revoked_at"):
+    if scope_row.get("access_key_revoked_at"):
         raise HTTPException(status_code=401, detail="Access point key has been revoked")
 
-    if conn.get("status") not in (None, "active", "syncing"):
-        raise HTTPException(status_code=403, detail="Access point is not active")
-
-    project_id = conn["project_id"]
-    config = conn.get("config") or {}
-    raw_scope = config.get("scope")
-
-    if not isinstance(raw_scope, dict) or raw_scope.get("path") is None:
-        raise HTTPException(
-            status_code=403,
-            detail="No scope configured for this access point",
-        )
+    project_id = scope_row["project_id"]
 
     scope = {
-        "id": raw_scope.get("id", conn["id"]),
-        "path": raw_scope.get("path", ""),
-        "exclude": raw_scope.get("exclude", []),
-        "mode": raw_scope.get("mode", "r"),
+        "id": scope_row["id"],
+        "path": scope_row.get("path", ""),
+        "exclude": scope_row.get("exclude") or [],
+        "mode": scope_row.get("mode", "rw"),
     }
 
-    user_identity = config.get("user_identity", "")
-
     auth_context = {
-        "agent": conn["id"],
+        "agent": f"scope:{scope_row['id']}",
         "_scope": scope,
         "_project_id": project_id,
-        "_provider": conn.get("provider", "direct"),
-        "_user_identity": user_identity,
+        "_user_identity": "",  # reserved for future per-key user binding
     }
 
     return project_id, auth_context

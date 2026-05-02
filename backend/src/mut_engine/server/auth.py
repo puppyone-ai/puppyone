@@ -31,12 +31,17 @@ class PuppyOneAuthenticator:
         self._client = supabase.client
 
     def authenticate(self, token: str, project_id: str,
-                     user_identity: str = "") -> dict:
+                     user_identity: str = "") -> dict:  # noqa: ARG002 — see below
         """Resolve a Bearer token to MUT auth context.
 
         Args:
             token: Bearer token (JWT or access key)
             project_id: Target project ID
+            user_identity: X-Mut-User header value. Reserved for future
+                per-key user binding once that surface moves to
+                repo_user_permissions; currently unused. Kept on the
+                signature so existing callers (get_mut_auth dependency)
+                don't break.
             user_identity: X-Mut-User header value (for identity binding)
 
         Returns:
@@ -81,74 +86,22 @@ class PuppyOneAuthenticator:
                 "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
             }
 
-        conn = self._try_access_key(token, project_id)
-        if conn:
-            # Check revocation
-            if conn.get("revoked_at"):
-                raise HTTPException(
-                    status_code=401, detail="Access key has been revoked"
-                )
-
-            bound_identity = conn.get("config", {}).get("user_identity", "")
-            if bound_identity:
-                if not user_identity:
-                    raise HTTPException(
-                        status_code=401,
-                        detail="X-Mut-User header required: key is bound to a specific user",
-                    )
-                if user_identity != bound_identity:
-                    raise HTTPException(
-                        status_code=401,
-                        detail="User identity mismatch: key is bound to a different user",
-                    )
-
-            scope = self._resolve_scope(conn, project_id)
+        scope_row = self._try_access_key(token, project_id)
+        if scope_row:
+            # Per the access-point-redesign, an access_key now resolves to a
+            # repo_scopes row directly. The "scope is the auth" mental model:
+            # the scope dict we return IS the row that authenticated.
             return {
-                "agent": conn["id"],
-                "_scope": scope,
+                "agent": f"scope:{scope_row['id']}",
+                "_scope": {
+                    "id": scope_row["id"],
+                    "path": scope_row.get("path", ""),
+                    "exclude": scope_row.get("exclude") or [],
+                    "mode": scope_row.get("mode", "rw"),
+                },
             }
 
         raise HTTPException(status_code=401, detail="Invalid MUT credentials")
-
-    def _resolve_scope(self, conn: dict, project_id: str) -> dict:
-        """Read scope through ScopeManager (SupabaseScopeBackend).
-
-        Fails closed: if scope lookup fails or returns nothing, the request
-        is rejected rather than silently granting full project access.
-        """
-        from mut.server.scope_manager import ScopeManager
-
-        from src.mut_engine.server.backends.supabase_scope import SupabaseScopeBackend
-
-        try:
-            backend = SupabaseScopeBackend(SupabaseClient(), project_id)
-            manager = ScopeManager(backend)
-            scope = manager.get_by_id(conn["id"])
-        except Exception as e:
-            log_error(f"[Auth] Scope lookup failed for {conn['id']}: {e}")
-            raise HTTPException(
-                status_code=503,
-                detail="Scope resolution unavailable, try again later",
-            )
-
-        if scope:
-            scope.setdefault("mode", "rw")
-            return scope
-
-        config = conn.get("config") or {}
-        raw_scope = config.get("scope")
-        if isinstance(raw_scope, dict) and raw_scope.get("path") is not None:
-            return {
-                "id": conn["id"],
-                "path": raw_scope.get("path", ""),
-                "exclude": raw_scope.get("exclude", []),
-                "mode": raw_scope.get("mode", "rw"),
-            }
-
-        raise HTTPException(
-            status_code=403,
-            detail="No scope configured for this access point",
-        )
 
     def _try_jwt(self, token: str) -> dict | None:
         try:
@@ -184,10 +137,22 @@ class PuppyOneAuthenticator:
             return False
 
     def _try_access_key(self, key: str, project_id: str) -> dict | None:
+        """Resolve an access_key against the new repo_scopes table.
+
+        Per the access-point-redesign-2026-05-02, scopes own their keys
+        directly — there's no separate "access point" row sitting between
+        the key and the scope geometry. A successful lookup returns the
+        scope row itself (id, path, exclude, mode), and the caller in
+        authenticate() projects that into the auth context's _scope.
+
+        Returns None for: unknown key, revoked key, or key whose scope
+        belongs to a different project (defense in depth — the URL
+        path's project_id MUST match the scope's project_id).
+        """
         try:
             resp = (
-                self._client.table("access_points")
-                .select("id, project_id, provider, config, revoked_at, status")
+                self._client.table("repo_scopes")
+                .select("id, project_id, path, exclude, mode, access_key_revoked_at")
                 .eq("access_key", key)
                 .limit(1)
                 .execute()
@@ -195,12 +160,18 @@ class PuppyOneAuthenticator:
             rows = safe_data(resp)
             if not rows:
                 return None
-            conn = rows[0]
-            if conn.get("project_id") != project_id:
+            scope = rows[0]
+            if scope.get("access_key_revoked_at"):
                 return None
-            if conn.get("status") not in (None, "active", "syncing"):
+            if scope.get("project_id") != project_id:
+                # Cross-tenant defense: the URL claims project X but the
+                # key belongs to project Y → reject.
+                log_warning(
+                    f"[Auth] access_key project mismatch: "
+                    f"url_project={project_id} key_project={scope.get('project_id')}"
+                )
                 return None
-            return conn
+            return scope
         except Exception as e:
             log_error(f"[Auth] Access key lookup failed: {e}")
             return None
