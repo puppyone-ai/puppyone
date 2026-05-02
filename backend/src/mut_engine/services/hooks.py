@@ -269,13 +269,24 @@ def _build_root_from_scope_state(
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
-    """After deleting paths from MUT tree, clean up dangling access points.
+    """After deleting paths from MUT tree, clean up dangling access points
+    AND repo_scopes (the new home for scope geometry).
 
-    Nullifies path on access points that referenced deleted paths.
-    Also updates scope.path if it falls under a deleted subtree.
+    Both legacy access_points rows and new repo_scopes rows are visited;
+    each table's cleanup is independently best-effort so a failure on
+    one doesn't skip the other. Once access_points is dropped post-data-
+    migration, the legacy block runs and finds nothing — no-op.
     """
     if not deleted_paths:
         return
+    _post_commit_delete_legacy_access_points(project_id, deleted_paths)
+    _post_commit_delete_repo_scopes(project_id, deleted_paths)
+
+
+def _post_commit_delete_legacy_access_points(
+    project_id: str, deleted_paths: list[str],
+) -> None:
+    """Legacy: nullify path / orphan scope on access_points rows."""
     try:
         from src.infra.supabase.client import SupabaseClient
         client = SupabaseClient().client
@@ -307,11 +318,57 @@ def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
                 log_warning(f"[PostCommit] Orphaned scope path on access point {conn_id}")
 
     except Exception as e:
-        log_error(f"[PostCommit] delete hook failed: {e}")
+        log_error(f"[PostCommit] delete hook (access_points) failed: {e}")
+
+
+def _post_commit_delete_repo_scopes(
+    project_id: str, deleted_paths: list[str],
+) -> None:
+    """New: log scopes whose path falls under a deleted subtree.
+
+    We deliberately DON'T auto-rewrite repo_scopes.path (the column is
+    constrained UNIQUE(project_id, path) — silently moving a scope to ''
+    would conflict with the auto-created root scope).
+
+    Connector rows attached to the orphaned scope keep their FK; the user
+    sees the orphaned scope in /scopes and decides what to do. Logging
+    here gives ops a forensics trail."""
+    try:
+        from src.infra.supabase.client import SupabaseClient
+        client = SupabaseClient().client
+        resp = (
+            client.table("repo_scopes")
+            .select("id, path, is_root")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        for row in resp.data or []:
+            if row.get("is_root"):
+                continue   # root scope (path='') is always valid; nothing to do
+            scope_path = row.get("path") or ""
+            if scope_path and _path_matches_any(scope_path, deleted_paths):
+                log_warning(
+                    f"[PostCommit] repo_scope {row['id']} path={scope_path!r} "
+                    f"is now orphaned (parent folder was deleted). Surface in "
+                    f"/scopes UI for user to delete or re-target."
+                )
+    except Exception as e:
+        log_error(f"[PostCommit] delete hook (repo_scopes) failed: {e}")
 
 
 def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
-    """After moving/renaming paths in MUT tree, update access point references."""
+    """After moving/renaming paths in MUT tree, update access point AND
+    repo_scopes references.
+
+    Both updates are best-effort + independent."""
+    _post_commit_move_legacy_access_points(project_id, old_prefix, new_prefix)
+    _post_commit_move_repo_scopes(project_id, old_prefix, new_prefix)
+
+
+def _post_commit_move_legacy_access_points(
+    project_id: str, old_prefix: str, new_prefix: str,
+) -> None:
+    """Legacy: rewrite access_points.path / config.scope.path on rename."""
     try:
         from src.infra.supabase.client import SupabaseClient
         client = SupabaseClient().client
@@ -328,7 +385,51 @@ def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
                 log_info(f"[PostCommit] Updated access point {row['id']} after move")
 
     except Exception as e:
-        log_error(f"[PostCommit] move hook failed: {e}")
+        log_error(f"[PostCommit] move hook (access_points) failed: {e}")
+
+
+def _post_commit_move_repo_scopes(
+    project_id: str, old_prefix: str, new_prefix: str,
+) -> None:
+    """New: rewrite repo_scopes.path on folder rename. The column is a
+    real index — much cleaner than the JSONB rewrite for access_points."""
+    try:
+        from src.infra.supabase.client import SupabaseClient
+        client = SupabaseClient().client
+        resp = (
+            client.table("repo_scopes")
+            .select("id, path, is_root")
+            .eq("project_id", project_id)
+            .execute()
+        )
+        for row in resp.data or []:
+            if row.get("is_root"):
+                continue   # root scope path is always '' — never rewritten
+            old_path = row.get("path") or ""
+            if not old_path:
+                continue
+            new_path = _rewrite_path(old_path, old_prefix, new_prefix)
+            if new_path == old_path:
+                continue
+            try:
+                client.table("repo_scopes").update(
+                    {"path": new_path}
+                ).eq("id", row["id"]).execute()
+                log_info(
+                    f"[PostCommit] repo_scope {row['id']} path "
+                    f"{old_path!r} → {new_path!r}"
+                )
+            except Exception as e:
+                # The UNIQUE(project_id, path) constraint can fire if a
+                # different scope already lives at the new path. Log and
+                # leave the orphan for the user to resolve via UI.
+                log_warning(
+                    f"[PostCommit] repo_scope {row['id']} path rewrite "
+                    f"{old_path!r} → {new_path!r} rejected (likely UNIQUE "
+                    f"conflict with existing scope): {e}"
+                )
+    except Exception as e:
+        log_error(f"[PostCommit] move hook (repo_scopes) failed: {e}")
 
 
 def _build_move_updates(row: dict, old_prefix: str, new_prefix: str) -> dict:

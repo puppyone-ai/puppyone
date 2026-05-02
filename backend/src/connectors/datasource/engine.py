@@ -211,17 +211,32 @@ class SyncEngine:
             return None
 
         # Transition-window bridge: find the legacy Sync row this connector
-        # was migrated from. Once that path is dropped, replace this with
-        # a direct dispatch on connector.provider.
-        sync = self.sync_repo.get_by_path(scope.path)
-        if sync is None or sync.project_id != connector.project_id:
+        # was migrated from. Scope the lookup by (project_id, provider, path)
+        # to avoid two failure modes of a naive get_by_path():
+        #   1. cross-project collision — same path string in another project
+        #   2. root scope (path="") matching arbitrary other rows in the
+        #      project. Once the legacy syncs table is dropped, replace this
+        #      with a direct dispatch on connector.provider.
+        target_path = scope.path or ""
+        candidates = self.sync_repo.list_by_provider(connector.project_id, connector.provider)
+        matches = [s for s in candidates if (s.path or "") == target_path]
+        if not matches:
             log_error(
-                f"[SyncEngine] no legacy sync row found for connector "
-                f"{connector.id} (project={connector.project_id} path={scope.path}). "
-                f"This is expected once the legacy syncs table is dropped — "
+                f"[SyncEngine] no legacy sync row for connector {connector.id} "
+                f"(project={connector.project_id} provider={connector.provider} "
+                f"path={target_path!r}). Expected once syncs table is dropped — "
                 f"replace with direct connector dispatch then."
             )
             return None
+        if len(matches) > 1:
+            log_error(
+                f"[SyncEngine] ambiguous legacy sync rows for connector "
+                f"{connector.id} (project={connector.project_id} "
+                f"provider={connector.provider} path={target_path!r}): "
+                f"{[m.id for m in matches]}. Refusing to dispatch."
+            )
+            return None
+        sync = matches[0]
 
         result = await self.execute(sync.id, trigger_type="manual")
         return (result or {}).get("run_id")

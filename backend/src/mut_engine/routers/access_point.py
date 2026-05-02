@@ -44,26 +44,11 @@ from src.mut_engine.services.hooks import run_post_push_hook
 from src.utils.logger import log_error, log_info
 
 
-def resolve_access_point(access_key: str) -> tuple[str, dict]:
-    """Resolve an access_key to (project_id, auth_context).
-
-    Looks up the repo_scopes table by access_key, validates the key is
-    active (not revoked), and builds the MUT auth context.
-
-    Returns:
-        (project_id, {
-            "agent": "scope:<scope_id>",
-            "_scope": {id, path, exclude, mode},
-            "_project_id": str,
-            "_user_identity": "",   # reserved for future per-key user binding
-        })
-
-    Raises:
-        HTTPException 401 if key is invalid/revoked
-    """
-    from src.infra.supabase.client import SupabaseClient
-    client = SupabaseClient().client
-
+def _resolve_via_repo_scopes(client, access_key: str) -> tuple[str, dict] | None:
+    """Path A: post-redesign canonical lookup. Returns (project_id, auth) or
+    None if the key isn't in repo_scopes. Raises 401 if the key IS in
+    repo_scopes but is revoked (revocation must NOT silently fall through
+    to the legacy table)."""
     resp = (
         client.table("repo_scopes")
         .select("id, project_id, path, exclude, mode, access_key_revoked_at")
@@ -71,32 +56,95 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
         .maybe_single()
         .execute()
     )
-
-    if not resp or not hasattr(resp, 'data') or not resp.data:
-        raise HTTPException(status_code=401, detail="Invalid access point key")
-
+    if not resp or not getattr(resp, "data", None):
+        return None
     scope_row = resp.data
-
     if scope_row.get("access_key_revoked_at"):
         raise HTTPException(status_code=401, detail="Access point key has been revoked")
-
     project_id = scope_row["project_id"]
-
-    scope = {
-        "id": scope_row["id"],
-        "path": scope_row.get("path", ""),
-        "exclude": scope_row.get("exclude") or [],
-        "mode": scope_row.get("mode", "rw"),
-    }
-
-    auth_context = {
+    return project_id, {
         "agent": f"scope:{scope_row['id']}",
-        "_scope": scope,
+        "_scope": {
+            "id": scope_row["id"],
+            "path": scope_row.get("path", ""),
+            "exclude": scope_row.get("exclude") or [],
+            "mode": scope_row.get("mode", "rw"),
+        },
         "_project_id": project_id,
-        "_user_identity": "",  # reserved for future per-key user binding
+        "_user_identity": "",
     }
 
-    return project_id, auth_context
+
+def _resolve_via_access_points(client, access_key: str) -> tuple[str, dict]:
+    """Path B: legacy access_points + config.scope JSONB. Raises 401/403 on
+    any failure; never returns None (this is the terminal lookup)."""
+    resp = (
+        client.table("access_points")
+        .select("id, project_id, provider, config, revoked_at, status")
+        .eq("access_key", access_key)
+        .maybe_single()
+        .execute()
+    )
+    if not resp or not getattr(resp, "data", None):
+        raise HTTPException(status_code=401, detail="Invalid access point key")
+    ap = resp.data
+    if ap.get("revoked_at"):
+        raise HTTPException(status_code=401, detail="Access point key has been revoked")
+    if ap.get("status") not in (None, "active", "syncing"):
+        raise HTTPException(status_code=403, detail="Access point is not active")
+
+    cfg = ap.get("config") or {}
+    raw_scope = cfg.get("scope") or {}
+    project_id = ap["project_id"]
+    return project_id, {
+        "agent": ap["id"],
+        "_scope": {
+            "id": raw_scope.get("id", ap["id"]),
+            "path": raw_scope.get("path", ""),
+            "exclude": raw_scope.get("exclude") or [],
+            "mode": raw_scope.get("mode", "rw"),
+        },
+        "_project_id": project_id,
+        "_provider": ap.get("provider", "direct"),
+        "_user_identity": cfg.get("user_identity", ""),
+    }
+
+
+def resolve_access_point(access_key: str) -> tuple[str, dict]:
+    """Resolve an access_key to (project_id, auth_context).
+
+    Resolution order (mirrors PuppyOneAuthenticator._try_access_key):
+      1. repo_scopes (post-redesign canonical table)
+      2. access_points + config.scope (legacy, transition-only)
+
+    Path A wraps DB errors so a not-yet-migrated DB falls through to
+    legacy. Once the data migration runs and access_points is dropped,
+    only Path A produces results.
+
+    Raises:
+        HTTPException 401 if key is invalid / revoked / unknown to both tables.
+    """
+    from src.infra.supabase.client import SupabaseClient
+    client = SupabaseClient().client
+
+    try:
+        result = _resolve_via_repo_scopes(client, access_key)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"[AP] repo_scopes lookup error (will try legacy): {e}")
+        result = None
+
+    if result is not None:
+        return result
+
+    try:
+        return _resolve_via_access_points(client, access_key)
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"[AP] access_points fallback lookup error: {e}")
+        raise HTTPException(status_code=401, detail="Invalid access point key") from e
 
 
 # ── Access Point Router ──────────────────────────────────────

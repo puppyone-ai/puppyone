@@ -12,8 +12,6 @@ Supports:
 
 from __future__ import annotations
 
-from datetime import UTC
-
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 
@@ -31,17 +29,20 @@ class PuppyOneAuthenticator:
         self._client = supabase.client
 
     def authenticate(self, token: str, project_id: str,
-                     user_identity: str = "") -> dict:  # noqa: ARG002 — see below
+                     user_identity: str = "") -> dict:
         """Resolve a Bearer token to MUT auth context.
 
         Args:
             token: Bearer token (JWT or access key)
             project_id: Target project ID
-            user_identity: X-Mut-User header value. Reserved for future
-                per-key user binding once that surface moves to
-                repo_user_permissions; currently unused. Kept on the
-                signature so existing callers (get_mut_auth dependency)
-                don't break.
+            user_identity: X-Mut-User header value. Threaded onto the
+                returned auth context as `_user_identity` so downstream
+                handlers / hooks / audit logs can attribute the operation
+                to the actual operator (the cli/agent identity behind the
+                key). The strict per-key binding enforcement that this
+                value used to drive moved to the new
+                repo_user_permissions table; this parameter is now an
+                identity HINT, not an auth gate.
             user_identity: X-Mut-User header value (for identity binding)
 
         Returns:
@@ -84,6 +85,7 @@ class PuppyOneAuthenticator:
             return {
                 "agent": f"user:{user['user_id']}",
                 "_scope": {"id": "_root", "path": "", "exclude": [], "mode": "rw"},
+                "_user_identity": user_identity,
             }
 
         scope_row = self._try_access_key(token, project_id)
@@ -99,6 +101,7 @@ class PuppyOneAuthenticator:
                     "exclude": scope_row.get("exclude") or [],
                     "mode": scope_row.get("mode", "rw"),
                 },
+                "_user_identity": user_identity,
             }
 
         raise HTTPException(status_code=401, detail="Invalid MUT credentials")
@@ -137,18 +140,35 @@ class PuppyOneAuthenticator:
             return False
 
     def _try_access_key(self, key: str, project_id: str) -> dict | None:
-        """Resolve an access_key against the new repo_scopes table.
+        """Resolve an access_key against the new repo_scopes table, falling
+        back to legacy access_points during the redesign transition window.
 
         Per the access-point-redesign-2026-05-02, scopes own their keys
         directly — there's no separate "access point" row sitting between
-        the key and the scope geometry. A successful lookup returns the
-        scope row itself (id, path, exclude, mode), and the caller in
+        the key and the scope geometry. A successful lookup returns a
+        scope-shaped dict (id, path, exclude, mode); the caller in
         authenticate() projects that into the auth context's _scope.
+
+        Resolution order:
+          1. repo_scopes.access_key (new model)
+          2. access_points.access_key + config.scope (legacy)
+
+        Why the fallback: between deploying this code and running the
+        Python data migration that copies access_points rows into
+        repo_scopes, every existing key still lives in access_points.
+        Without this fallback, the deploy bricks every active
+        `mut connect` setup until the migration runs.
+
+        Once the migration completes and access_points is dropped, the
+        fallback's first query returns nothing and execution flows
+        through the same shape as the all-new path. No additional
+        cleanup needed.
 
         Returns None for: unknown key, revoked key, or key whose scope
         belongs to a different project (defense in depth — the URL
         path's project_id MUST match the scope's project_id).
         """
+        # ── Path A: new repo_scopes table ────────────────────────────
         try:
             resp = (
                 self._client.table("repo_scopes")
@@ -158,66 +178,71 @@ class PuppyOneAuthenticator:
                 .execute()
             )
             rows = safe_data(resp)
+            if rows:
+                scope = rows[0]
+                if scope.get("access_key_revoked_at"):
+                    return None
+                if scope.get("project_id") != project_id:
+                    log_warning(
+                        f"[Auth] access_key project mismatch (repo_scopes): "
+                        f"url_project={project_id} key_project={scope.get('project_id')}"
+                    )
+                    return None
+                return scope
+        except Exception as e:
+            # Don't return early — repo_scopes may not exist yet on a DB
+            # where migrations haven't been applied. Fall through to
+            # the legacy lookup; if THAT also errors, we 401.
+            log_warning(f"[Auth] repo_scopes lookup error (will try legacy): {e}")
+
+        # ── Path B: legacy access_points (transition fallback) ────────
+        try:
+            resp = (
+                self._client.table("access_points")
+                .select("id, project_id, config, revoked_at, status")
+                .eq("access_key", key)
+                .limit(1)
+                .execute()
+            )
+            rows = safe_data(resp)
             if not rows:
                 return None
-            scope = rows[0]
-            if scope.get("access_key_revoked_at"):
+            ap = rows[0]
+            if ap.get("revoked_at"):
                 return None
-            if scope.get("project_id") != project_id:
-                # Cross-tenant defense: the URL claims project X but the
-                # key belongs to project Y → reject.
+            if ap.get("status") not in (None, "active", "syncing"):
+                return None
+            if ap.get("project_id") != project_id:
                 log_warning(
-                    f"[Auth] access_key project mismatch: "
-                    f"url_project={project_id} key_project={scope.get('project_id')}"
+                    f"[Auth] access_key project mismatch (access_points): "
+                    f"url_project={project_id} key_project={ap.get('project_id')}"
                 )
                 return None
-            return scope
+
+            cfg = ap.get("config") or {}
+            raw_scope = cfg.get("scope") or {}
+            return {
+                "id": ap["id"],
+                "project_id": ap["project_id"],
+                "path": raw_scope.get("path", ""),
+                "exclude": raw_scope.get("exclude") or [],
+                "mode": raw_scope.get("mode", "rw"),
+                "access_key_revoked_at": None,
+            }
         except Exception as e:
-            log_error(f"[Auth] Access key lookup failed: {e}")
+            log_error(f"[Auth] Access key lookup failed (both paths): {e}")
             return None
 
     # ── Key management ──
-
-    def revoke(self, access_key: str) -> bool:
-        """Revoke an access key by setting revoked_at timestamp."""
-        from datetime import datetime
-        try:
-            self._client.table("access_points").update(
-                {"revoked_at": datetime.now(UTC).isoformat()}
-            ).eq("access_key", access_key).execute()
-            return True
-        except Exception as e:
-            log_error(f"[Auth] Failed to revoke key: {e}")
-            return False
-
-    def revoke_by_scope(self, scope_id: str, project_id: str) -> int:
-        """Revoke all keys for a given scope within a project.
-
-        Matches access points whose config->scope->id equals scope_id.
-        """
-        from datetime import datetime
-        try:
-            now = datetime.now(UTC).isoformat()
-            resp = (
-                self._client.table("access_points")
-                .select("id, config")
-                .eq("project_id", project_id)
-                .is_("revoked_at", "null")
-                .execute()
-            )
-            count = 0
-            for row in (resp.data or []):
-                cfg = row.get("config") or {}
-                scope = cfg.get("scope") or {}
-                if scope.get("id") == scope_id:
-                    self._client.table("access_points").update(
-                        {"revoked_at": now}
-                    ).eq("id", row["id"]).execute()
-                    count += 1
-            return count
-        except Exception as e:
-            log_error(f"[Auth] Failed to revoke by scope {scope_id}: {e}")
-            return 0
+    #
+    # The old revoke() and revoke_by_scope() methods used to live here.
+    # They wrote to access_points.revoked_at which is the legacy column.
+    # Per the access-point-redesign-2026-05-02, key revocation now uses
+    # repo_scopes.access_key_revoked_at, and there's a dedicated public
+    # endpoint for it: POST /api/v1/projects/{pid}/scopes/{sid}/regenerate-key
+    # (see src/repo/scope_router.py). The old methods had no callers in
+    # src/, so removing them rather than rewriting — there's nothing to
+    # break, and the new endpoint is the One True way to rotate keys.
 
 
 def get_mut_auth(
