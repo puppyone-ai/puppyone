@@ -102,7 +102,7 @@ class ConnectorIn(BaseModel):
     direction: DirectionLiteral
     name: Optional[str] = None
     config: dict[str, Any] = Field(default_factory=dict)
-    oauth_connection_id: Optional[str] = None
+    oauth_connection_id: Optional[int] = None
     trigger: TriggerSpec = Field(default_factory=TriggerSpec)
 
 
@@ -110,7 +110,7 @@ class ConnectorPatch(BaseModel):
     name: Optional[str] = None
     direction: Optional[DirectionLiteral] = None
     config: Optional[dict[str, Any]] = None
-    oauth_connection_id: Optional[str] = None
+    oauth_connection_id: Optional[int] = None
     trigger: Optional[TriggerSpec] = None
     status: Optional[Literal["active", "paused"]] = None        # explicit pause/resume goes through dedicated endpoints
 
@@ -123,7 +123,7 @@ class ConnectorOut(BaseModel):
     name: str
     direction: DirectionLiteral
     config: dict[str, Any]
-    oauth_connection_id: Optional[str]
+    oauth_connection_id: Optional[int]
     trigger: dict[str, Any]
     status: str
     last_run_at: Optional[datetime]

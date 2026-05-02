@@ -72,7 +72,7 @@ class ConnectorService:
         direction: str,
         name: Optional[str],
         config: Optional[dict[str, Any]],
-        oauth_connection_id: Optional[str],
+        oauth_connection_id: Optional[int],
         trigger: Optional[dict[str, Any]],
         created_by: Optional[str],
     ) -> Connector:

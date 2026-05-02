@@ -51,7 +51,7 @@ class Connector:
     name: str
     direction: str                  # 'bidirectional' | 'inbound' | 'outbound'
     config: dict[str, Any]          # provider-specific
-    oauth_connection_id: Optional[str]
+    oauth_connection_id: Optional[int]   # FK → oauth_connections.id (BIGINT)
     trigger: dict[str, Any]         # {"type": "manual" | "scheduled" | "on_change", ...}
     status: str                     # 'active' | 'paused' | 'syncing' | 'error'
     last_run_at: Optional[datetime]

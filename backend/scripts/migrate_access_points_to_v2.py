@@ -211,6 +211,17 @@ def build_plan(access_points_rows: List[Dict[str, Any]]) -> List[Plan]:
             # Scope binding: by config.scope.path, falling back to root.
             scope_path = _normalize_path((r.get("config") or {}).get("scope", {}).get("path"))
 
+            # Carry the row's gateway_id forward in `config` as a transient
+            # `_legacy_gateway_id` marker. The SQL migration
+            # 20260502000800_migrate_gateways_to_oauth.sql uses this to wire
+            # connectors.oauth_connection_id once each gateway has been copied
+            # into oauth_connections; that migration also strips the marker
+            # from `config` afterwards. Without this hand-off the link is lost
+            # and users would have to manually re-pick OAuth per connector.
+            legacy_gateway_id = r.get("gateway_id")
+            if legacy_gateway_id:
+                cfg["_legacy_gateway_id"] = legacy_gateway_id
+
             connector_row = {
                 "project_id": pid,
                 "_resolve_scope_path": scope_path,  # resolved later when scope ids are known
@@ -218,7 +229,10 @@ def build_plan(access_points_rows: List[Dict[str, Any]]) -> List[Plan]:
                 "name": cfg.get("name") or prov.replace("_", " ").title(),
                 "direction": direction,
                 "config": cfg,
-                "oauth_connection_id": None,  # no link today; gateway → oauth migration handles it
+                # oauth_connection_id is BIGINT in the schema (FK → oauth_connections.id).
+                # Left NULL here; the SQL migration at step 800 sets it via the
+                # _legacy_gateway_id breadcrumb above.
+                "oauth_connection_id": None,
                 "trigger": r.get("trigger") or {"type": "manual"},
                 "status": r.get("status") or "active",
                 "last_run_at": r.get("last_synced_at"),

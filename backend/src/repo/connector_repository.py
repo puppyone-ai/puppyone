@@ -114,7 +114,7 @@ class ConnectorRepository:
         name: str,
         direction: str,
         config: dict,
-        oauth_connection_id: Optional[str],
+        oauth_connection_id: Optional[int],
         trigger: dict,
         created_by: Optional[str],
     ) -> Connector:

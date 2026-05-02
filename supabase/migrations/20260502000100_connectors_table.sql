@@ -54,7 +54,12 @@ CREATE TABLE IF NOT EXISTS public.connectors (
     -- For OAuth-backed third-party: which oauth_connections row provides
     -- credentials. NULL for cli, agent, and self-auth providers (e.g. raw URL
     -- with API key in config).
-    oauth_connection_id   TEXT        REFERENCES public.oauth_connections(id)
+    --
+    -- Type is BIGINT to match oauth_connections.id, which is a BIGINT IDENTITY
+    -- column inherited from the original qubits schema (see
+    -- 20260306085814_qubits_schema.sql:944). Don't be misled by the TEXT-based
+    -- ids elsewhere in this file — oauth_connections is the one big-int holdout.
+    oauth_connection_id   BIGINT      REFERENCES public.oauth_connections(id)
                                         ON DELETE SET NULL,
 
     -- Sync trigger: {"type": "manual" | "scheduled" | "on_change", "config": {...}}.
