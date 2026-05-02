@@ -55,13 +55,15 @@ BEGIN
     )
     SELECT
         -- Resolve org owner: first member of the gateway's org with owner role.
+        -- org_members tracks join time as `joined_at`, not `created_at`
+        -- (cf. 20260306085814_qubits_schema.sql:997).
         COALESCE(
             (SELECT om.user_id::UUID FROM public.org_members om
               WHERE om.org_id = g.org_id AND om.role = 'owner'
-              ORDER BY om.created_at ASC LIMIT 1),
+              ORDER BY om.joined_at ASC LIMIT 1),
             (SELECT om.user_id::UUID FROM public.org_members om
               WHERE om.org_id = g.org_id
-              ORDER BY om.created_at ASC LIMIT 1)
+              ORDER BY om.joined_at ASC LIMIT 1)
         ) AS user_id,
         g.provider,
         (g.credentials->>'access_token')::TEXT,
