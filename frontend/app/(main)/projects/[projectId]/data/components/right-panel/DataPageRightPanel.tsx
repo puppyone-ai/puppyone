@@ -200,6 +200,7 @@ export function DataPageRightPanel({
           syncId={null}
           projectId={projectId}
           onClose={onClose}
+          onBack={backToAccessList}
           onSyncCreated={onSyncCreated}
         />
       )}

@@ -86,15 +86,19 @@ async def list_projects(
     for oid in oids:
         all_projects.extend(project_service.get_by_org_id(oid))
 
-    # Batch-fetch connection counts for all projects
+    # Batch-fetch connection counts for all projects. The legacy
+    # access_points table was dropped post-redesign — count user-configured
+    # connectors instead, excluding the auto-created cli/agent built-ins
+    # so the "connections" badge reflects actual user-set integrations.
     conn_counts: dict[str, int] = {}
     project_ids = [str(p.id) for p in all_projects]
     if project_ids:
         sb = get_supabase_client()
         rows = (
-            sb.table("access_points")
-            .select("project_id")
+            sb.table("connectors")
+            .select("project_id, provider")
             .in_("project_id", project_ids)
+            .not_.in_("provider", ["cli", "agent"])
             .execute()
         ).data
         for row in rows:
