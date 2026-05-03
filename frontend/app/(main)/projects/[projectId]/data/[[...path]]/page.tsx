@@ -113,7 +113,7 @@ export default function DataPage({ params }: DataPageProps) {
   // Project-level data from layout (sync status, tools, endpoints, scopes, connectors)
   const {
     syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap,
-    scopes, connectorsByScope,
+    scopes, connectorsByScope, repoIdentity,
   } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
@@ -842,6 +842,7 @@ export default function DataPage({ params }: DataPageProps) {
           scopes={scopes}
           connectorsByScope={connectorsByScope}
           currentScopePath={currentFolderId || ''}
+          repoIdentity={repoIdentity}
           onClose={closeRightPanel}
           onEditorClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
           onEditorSave={(newValue) => {

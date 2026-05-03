@@ -16,7 +16,7 @@ import {
   type EndpointEntry,
   type ProviderIconLookup,
 } from '../access-points';
-import { matchScopeForPath, type Connector, type RepoScope } from '@/lib/repoApi';
+import { matchScopeForPath, type Connector, type RepoIdentity, type RepoScope } from '@/lib/repoApi';
 import type { SyncStatusSync } from '../../DataLayoutContext';
 import type { PanelState } from '../../usePanelStore';
 
@@ -71,6 +71,8 @@ interface DataPageRightPanelProps {
   readonly connectorsByScope: Map<string, Connector[]>;
   /** Redesign 2026-05-02: current canonical URL path (empty string for root). */
   readonly currentScopePath: string;
+  /** Redesign 2026-05-02: project identity payload (URL + prompt_template + scope keys). */
+  readonly repoIdentity: RepoIdentity | undefined;
   readonly onClose: () => void;
   onEditorClose: () => void;
   onEditorSave: (newValue: string) => void;
@@ -102,6 +104,7 @@ export function DataPageRightPanel({
   scopes,
   connectorsByScope,
   currentScopePath,
+  repoIdentity,
   onClose,
   onEditorClose,
   onEditorSave,
@@ -210,21 +213,27 @@ export function DataPageRightPanel({
           scope={currentScope}
           connectors={currentScopeConnectors}
           providerIcons={providerIcons}
+          promptTemplate={repoIdentity?.prompt_template}
           onClose={onClose}
           onAddRequested={() => {
-            // The "+ Add" button opens the existing create panel. The form
-            // pre-fills the target folder via panelState.nodeId so the
-            // legacy SyncConfigPanel can route through to the new
-            // /api/v1/projects/{pid}/connectors endpoint when ready.
+            // "+ Add" opens the existing create panel pre-filled with the
+            // current scope path. Will route through the new connectors
+            // endpoint once the create flow is migrated.
             onOpenPanel({ type: 'sync_create', nodeId: currentScope?.path });
           }}
           onConnectorClick={(c) => {
-            // For now, route built-ins to no-op and third-party to the
-            // legacy sync_config panel using their connector id. The
-            // legacy panel still expects access_points.id; once it's
-            // refactored to use the new connectors endpoint, this becomes
-            // a clean dispatch.
-            if (c.provider === 'cli' || c.provider === 'agent') return;
+            // cli is handled inline in the panel (no callback). Agent
+            // routes to agent_chat (same entry point as the legacy
+            // access-points agent flow). Third-party goes to sync detail.
+            if (c.provider === 'cli') return;
+            if (c.provider === 'agent') {
+              // Resolve the savedAgents row that matches this connector's
+              // mcp_api_key — that's the id ChatRuntimeView expects.
+              const mcpKey = (c.config?.mcp_api_key as string | undefined) || '';
+              const agent = savedAgents.find((a) => a.mcp_api_key === mcpKey);
+              if (agent) onOpenPanel({ type: 'agent_chat', agentId: agent.id });
+              return;
+            }
             onOpenPanel({ type: 'sync_config', accessEndpointId: c.id });
           }}
         />

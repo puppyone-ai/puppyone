@@ -7,7 +7,7 @@ import { useProjectTools } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
-import { listScopes, listConnectors, type Connector } from '@/lib/repoApi';
+import { listScopes, listConnectors, getRepoIdentity, type Connector } from '@/lib/repoApi';
 import {
   DataLayoutContext,
   type SyncEndpointInfo,
@@ -59,6 +59,11 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     () => listConnectors(projectId),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
+  const { data: repoIdentity, mutate: mutateIdentity } = useSWR(
+    projectId ? ['repo-identity', projectId] : null,
+    () => getRepoIdentity(projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
 
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
@@ -71,7 +76,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   }, [connectorsList]);
 
   const mutateRepo = async () => {
-    await Promise.all([mutateScopes(), mutateConnectors()]);
+    await Promise.all([mutateScopes(), mutateConnectors(), mutateIdentity()]);
   };
 
   const nodeEndpointMap = useMemo(() => {
@@ -172,6 +177,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       nodeEndpointMap,
       scopes: scopes || [],
       connectorsByScope,
+      repoIdentity,
       mutateRepo,
     }),
     [
@@ -182,6 +188,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       nodeEndpointMap,
       scopes,
       connectorsByScope,
+      repoIdentity,
       mutateRepo,
     ],
   );

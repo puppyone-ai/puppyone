@@ -48,6 +48,8 @@ interface Props {
   readonly scope: RepoScope | null;
   readonly connectors: readonly Connector[];
   readonly providerIcons: ProviderIconLookup;
+  /** projects.prompt_template — the canonical "paste this into your agent" prompt. */
+  readonly promptTemplate: string | undefined;
   readonly onClose: () => void;
   readonly onAddRequested: () => void;
   readonly onConnectorClick: (c: Connector) => void;
@@ -103,205 +105,213 @@ function profileSlug(name: string): string {
     .replaceAll(/^-+|-+$/g, '') || 'folder';
 }
 
-interface SnippetBlock {
-  title: string;
-  description: string;
-  prompt: string;
-  tone?: 'green' | 'blue' | 'neutral';
-}
-
-function buildCliSnippets(scope: RepoScope, displayName: string): SnippetBlock[] {
-  const apiBase = getApiBase();
-  const accessKey = scope.access_key || '';
-  if (!accessKey) {
-    return [{
-      title: 'No access key',
-      description: 'This scope has no access_key issued. Regenerate it from scope settings to enable CLI access.',
-      prompt: '',
-      tone: 'neutral',
-    }];
-  }
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
-  const profileName = profileSlug(scope.name || scope.path || 'root');
-  const scopeLabel = scope.path === '' ? 'root' : scope.path;
-
-  const cliPrompt = [
-    `Use this PuppyOne folder Access Point from terminal.`,
-    ``,
-    `Connector: ${displayName}`,
-    `Scope: ${scopeLabel}`,
-    ``,
-    `Recommended: direct remote filesystem commands (no local clone needed).`,
-    `printf '%s' '${accessKey}' | puppyone ap login ${profileName} --api-url ${apiBase} --access-key-stdin`,
-    `puppyone fs ls`,
-    `puppyone fs cat <file.md>`,
-    `echo "hello" | puppyone fs write notes/hello.md --type markdown`,
-    ``,
-    `Use MUT when you want a local folder backup or ongoing two-way sync.`,
-    `mut connect ${cloneUrl} --credential ${accessKey}`,
-    ``,
-    `Endpoint URL: ${cloneUrl}`,
-    `Credential: ${accessKey}`,
-    ``,
-    `Do not create a new access point unless I ask for one.`,
-  ].join('\n');
-
-  const mutPrompt = [
-    `Sync this PuppyOne Access Point with a local folder using the MUT CLI.`,
-    ``,
-    `Connector: ${displayName}`,
-    `Scope: ${scopeLabel}`,
-    ``,
-    `From the local folder that should sync with PuppyOne, run:`,
-    `mut connect ${cloneUrl} --credential ${accessKey}`,
-    ``,
-    `Endpoint URL: ${cloneUrl}`,
-    `Credential: ${accessKey}`,
-    ``,
-    `After connecting, use MUT for ongoing syncs. Do not create a new access point unless I ask for one.`,
-  ].join('\n');
-
-  return [
-    {
-      title: 'PuppyOne CLI',
-      description: 'Directly read and write this cloud folder. No local clone.',
-      prompt: cliPrompt,
-      tone: 'green',
-    },
-    {
-      title: 'MUT Sync',
-      description: 'Use when you want a local folder copy and ongoing two-way sync.',
-      prompt: mutPrompt,
-      tone: 'blue',
-    },
-  ];
-}
-
-function buildAgentSnippets(connector: Connector, scope: RepoScope, displayName: string): SnippetBlock[] {
-  const apiBase = getApiBase();
-  const mcpKey = (connector.config?.mcp_api_key as string | undefined) || '';
-  const scopeLabel = scope.path === '' ? 'root' : scope.path;
-
-  if (!mcpKey) {
-    return [{
-      title: 'Agent not yet activated',
-      description: 'No mcp_api_key on this agent connector. Open the agent in chat once to provision its MCP key.',
-      prompt: '',
-      tone: 'neutral',
-    }];
-  }
-
-  const serverName = profileSlug(displayName) || 'puppyone-agent';
-  const serverUrl = `${apiBase}/api/v1/mcp/proxy/${mcpKey}`;
-  const config = `{\n  "mcpServers": {\n    "${serverName}": {\n      "url": "${serverUrl}",\n      "headers": { "X-API-KEY": "${mcpKey}" }\n    }\n  }\n}`;
-  const prompt = [
-    `Configure this PuppyOne Chat Agent for an MCP-compatible client.`,
-    ``,
-    `Connector: ${displayName}`,
-    `Scope: ${scopeLabel}`,
-    `MCP Server URL: ${serverUrl}`,
-    `API Key: ${mcpKey}`,
-    ``,
-    `Use this MCP config:`,
-    config,
-    ``,
-    `After configuring it, use the MCP tools against the scoped PuppyOne workspace data.`,
-  ].join('\n');
-  return [{
-    title: 'MCP',
-    description: 'Configure this agent for an MCP-compatible client (Claude Desktop, Cursor, …).',
-    prompt,
-    tone: 'blue',
-  }];
-}
-
-function CopyPromptButton({ block }: { readonly block: SnippetBlock }) {
+function CopyButton({
+  text,
+  size = 'sm',
+}: {
+  readonly text: string;
+  readonly size?: 'sm' | 'md';
+}) {
   const [copied, setCopied] = useState(false);
-  const tone = block.tone || 'neutral';
-  let color: string;
-  if (tone === 'green') color = '#34d399';
-  else if (tone === 'blue') color = '#93c5fd';
-  else color = '#a3a3a3';
-
   const handleCopy = async () => {
-    if (!block.prompt) return;
-    await navigator.clipboard.writeText(block.prompt);
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
-
   return (
     <button
       type="button"
       onClick={handleCopy}
-      disabled={!block.prompt}
+      disabled={!text}
+      style={{
+        flexShrink: 0,
+        color: copied ? '#34d399' : '#a3a3a3',
+        fontSize: size === 'md' ? 12 : 11,
+        fontWeight: 500,
+        border: `1px solid ${copied ? 'rgba(52,211,153,0.24)' : 'rgba(255,255,255,0.08)'}`,
+        borderRadius: 999,
+        padding: size === 'md' ? '5px 12px' : '4px 8px',
+        background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.04)',
+        cursor: text ? 'pointer' : 'default',
+        transition: 'border-color 0.2s',
+      }}
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+}
+
+function CommandBlock({
+  label,
+  description,
+  lines,
+}: {
+  readonly label: string;
+  readonly description?: string;
+  readonly lines: readonly string[];
+}) {
+  const text = lines.join('\n');
+  return (
+    <div
+      style={{
+        borderRadius: 6,
+        border: `1px solid ${COLOR_BORDER}`,
+        background: 'rgba(0,0,0,0.25)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+          padding: '6px 10px',
+          borderBottom: `1px solid ${COLOR_BORDER}`,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: COLOR_FG_MUTED, letterSpacing: 0.4 }}>
+            {label}
+          </div>
+          {description && (
+            <div style={{ fontSize: 10, color: COLOR_FG_DIM, marginTop: 1 }}>{description}</div>
+          )}
+        </div>
+        <CopyButton text={text} />
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          padding: '8px 10px',
+          fontFamily: "'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace",
+          fontSize: 11,
+          lineHeight: 1.5,
+          color: '#d4d4d8',
+          overflowX: 'auto',
+          whiteSpace: 'pre',
+          wordBreak: 'normal',
+          maxWidth: '100%',
+        }}
+      >{text}</pre>
+    </div>
+  );
+}
+
+function PromptCopyRow({
+  promptTemplate,
+}: {
+  readonly promptTemplate: string | undefined;
+}) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    if (!promptTemplate) return;
+    await navigator.clipboard.writeText(promptTemplate);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      disabled={!promptTemplate}
       style={{
         width: '100%',
         textAlign: 'left',
         borderRadius: 8,
-        border: `1px solid ${copied ? 'rgba(52,211,153,0.35)' : 'rgba(255,255,255,0.08)'}`,
-        background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${copied ? 'rgba(52,211,153,0.35)' : 'rgba(147,197,253,0.18)'}`,
+        background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(96,165,250,0.05)',
         padding: '10px 12px',
-        cursor: block.prompt ? 'pointer' : 'default',
+        cursor: promptTemplate ? 'pointer' : 'default',
         transition: 'border-color 0.2s',
-        opacity: block.prompt ? 1 : 0.6,
+        opacity: promptTemplate ? 1 : 0.55,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ color, fontSize: 12, fontWeight: 600, lineHeight: 1.35 }}>{block.title}</div>
+          <div style={{ color: '#93c5fd', fontSize: 12, fontWeight: 600, lineHeight: 1.35 }}>
+            Copy Prompt for AI Agent
+          </div>
           <div style={{ color: '#8b8b8b', fontSize: 11, lineHeight: 1.45, marginTop: 2 }}>
-            {block.description}
+            {promptTemplate
+              ? 'Paste into your terminal-side AI agent (Claude Code, Cursor, Codex…) so it knows how to use this access point.'
+              : 'Loading project prompt…'}
           </div>
         </div>
-        {block.prompt && (
-          <span style={{
-            flexShrink: 0,
-            color: copied ? '#34d399' : '#a3a3a3',
-            fontSize: 11,
-            fontWeight: 500,
-            border: `1px solid ${copied ? 'rgba(52,211,153,0.24)' : 'rgba(255,255,255,0.08)'}`,
-            borderRadius: 999,
-            padding: '4px 8px',
-            background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.04)',
-          }}>
-            {copied ? 'Copied' : 'Copy Prompt'}
-          </span>
-        )}
+        <span style={{
+          flexShrink: 0,
+          color: copied ? '#34d399' : '#a3a3a3',
+          fontSize: 11,
+          fontWeight: 500,
+          border: `1px solid ${copied ? 'rgba(52,211,153,0.24)' : 'rgba(255,255,255,0.08)'}`,
+          borderRadius: 999,
+          padding: '4px 8px',
+          background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.04)',
+        }}>
+          {copied ? 'Copied' : 'Copy Prompt'}
+        </span>
       </div>
     </button>
   );
 }
 
-function BuiltinExpansion({
-  connector,
+function CliExpansion({
   scope,
-  displayName,
+  promptTemplate,
 }: {
-  readonly connector: Connector;
   readonly scope: RepoScope;
-  readonly displayName: string;
+  readonly promptTemplate: string | undefined;
 }) {
-  const blocks = useMemo(() => {
-    if (connector.provider === 'cli') return buildCliSnippets(scope, displayName);
-    if (connector.provider === 'agent') return buildAgentSnippets(connector, scope, displayName);
-    return [];
-  }, [connector, scope, displayName]);
+  const apiBase = getApiBase();
+  const accessKey = scope.access_key || '';
+  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  const profileName = profileSlug(scope.name || scope.path || 'root');
 
-  if (blocks.length === 0) return null;
+  if (!accessKey) {
+    return (
+      <div
+        style={{
+          borderTop: `1px solid ${COLOR_BORDER}`,
+          padding: '10px 12px',
+          fontSize: 12,
+          color: COLOR_FG_DIM,
+          lineHeight: 1.5,
+        }}
+      >
+        This scope has no access_key issued. Regenerate it from scope settings to enable CLI access.
+      </div>
+    );
+  }
+
+  const mutLines = [`mut connect ${cloneUrl} --credential ${accessKey}`];
+  const puppyoneLines = [
+    `printf '%s' '${accessKey}' | puppyone ap login ${profileName} --api-url ${apiBase} --access-key-stdin`,
+    `puppyone fs ls`,
+    `puppyone fs cat <file.md>`,
+    `echo "hello" | puppyone fs write notes/hello.md --type markdown`,
+  ];
+
   return (
     <div
       style={{
         borderTop: `1px solid ${COLOR_BORDER}`,
-        padding: '10px 10px 10px',
+        padding: '10px 10px 12px',
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 10,
       }}
     >
-      {blocks.map((block) => (
-        <CopyPromptButton key={block.title} block={block} />
-      ))}
+      <CommandBlock
+        label="MUT Sync"
+        description="Two-way sync with a local folder."
+        lines={mutLines}
+      />
+      <CommandBlock
+        label="PuppyOne CLI"
+        description="Direct remote filesystem commands. No local clone."
+        lines={puppyoneLines}
+      />
+      <PromptCopyRow promptTemplate={promptTemplate} />
     </div>
   );
 }
@@ -329,13 +339,15 @@ function ConnectorCard({
   connector,
   scope,
   providerIcons,
-  onThirdPartyClick,
+  promptTemplate,
+  onClick,
   builtin,
 }: {
   readonly connector: Connector;
   readonly scope: RepoScope;
   readonly providerIcons: ProviderIconLookup;
-  readonly onThirdPartyClick: () => void;
+  readonly promptTemplate: string | undefined;
+  readonly onClick: () => void;
   readonly builtin: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -343,11 +355,14 @@ function ConnectorCard({
   const iconEp = useMemo(() => connectorAsEndpointShape(connector), [connector]);
   const displayName = connector.name || providerLabel(connector.provider);
 
-  // Builtin (cli/agent): inline-expand to show setup snippets.
-  // Third-party: bubble click to parent for detail-panel routing.
+  // cli is the only provider with an inline-expand (mut + puppyone commands
+  // + canonical agent prompt). Agent + third-party bubble click to parent
+  // for routing (agent → agent_chat panel; third-party → sync detail).
+  const inlineExpand = connector.provider === 'cli';
+
   const handleClick = () => {
-    if (builtin) setExpanded((v) => !v);
-    else onThirdPartyClick();
+    if (inlineExpand) setExpanded((v) => !v);
+    else onClick();
   };
 
   return (
@@ -405,10 +420,10 @@ function ConnectorCard({
           </div>
         </div>
         <StatusDot status={connector.status} />
-        {builtin && <Chevron expanded={expanded} />}
+        {inlineExpand && <Chevron expanded={expanded} />}
       </button>
-      {builtin && expanded && (
-        <BuiltinExpansion connector={connector} scope={scope} displayName={displayName} />
+      {inlineExpand && expanded && (
+        <CliExpansion scope={scope} promptTemplate={promptTemplate} />
       )}
     </div>
   );
@@ -453,6 +468,7 @@ export function ScopedConnectorsListPanel({
   scope,
   connectors,
   providerIcons,
+  promptTemplate,
   onClose,
   onAddRequested,
   onConnectorClick,
@@ -559,7 +575,8 @@ export function ScopedConnectorsListPanel({
                       connector={c}
                       scope={scope}
                       providerIcons={providerIcons}
-                      onThirdPartyClick={() => onConnectorClick(c)}
+                      promptTemplate={promptTemplate}
+                      onClick={() => onConnectorClick(c)}
                       builtin
                     />
                   ))
@@ -591,7 +608,8 @@ export function ScopedConnectorsListPanel({
                       connector={c}
                       scope={scope}
                       providerIcons={providerIcons}
-                      onThirdPartyClick={() => onConnectorClick(c)}
+                      promptTemplate={promptTemplate}
+                      onClick={() => onConnectorClick(c)}
                       builtin={false}
                     />
                   ))
