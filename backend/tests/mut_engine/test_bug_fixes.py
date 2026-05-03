@@ -319,6 +319,36 @@ class TestP0_4_EphemeralClientMergeConsume:
         assert pull_called, \
             "client.pull() should be called when push result has merged=True"
 
+    def test_hash_cache_refreshes_when_server_head_advanced(self, server_repo):
+        """A cached lite client must refresh after a non-conflict rebase."""
+        from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+        from src.mut_engine.server.repo_manager import MutRepoManager
+
+        repo_manager = MagicMock(spec=MutRepoManager)
+        repo_manager.get_server_repo.return_value = server_repo
+
+        auth = _rw_auth()
+        first = _push_file(server_repo, auth, {"a.txt": b"v1"})
+
+        client = MutEphemeralClient(repo_manager, "test-proj", auth)
+        client.clone_lite()
+        assert client._file_hashes is not None
+        assert set(client._file_hashes) == {"a.txt"}
+
+        _push_file(
+            server_repo, auth,
+            {"a.txt": b"v1", "external.txt": b"server"},
+            base_commit_id=first["commit_id"],
+        )
+
+        result = client.push(modified={"mine.txt": b"client"}, message="add mine")
+
+        assert result["status"] == "ok"
+        assert client._file_hashes is not None
+        assert set(client._file_hashes) == {
+            "a.txt", "external.txt", "mine.txt",
+        }
+
 
 # ══════════════════════════════════════════════════
 # P1 — Security (backend-side)

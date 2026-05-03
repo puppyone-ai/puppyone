@@ -12,6 +12,8 @@ function LinearCallbackContent() {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get('code');
+      // CSRF nonce — backend's OAuthStateRepository.consume() requires it.
+      const state = searchParams.get('state') || undefined;
       const error = searchParams.get('error');
 
       if (error) {
@@ -29,7 +31,7 @@ function LinearCallbackContent() {
       }
 
       try {
-        const result = await linearCallback(code);
+        const result = await linearCallback(code, state);
 
         if (result.success) {
           setStatus('success');

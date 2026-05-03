@@ -90,7 +90,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
     return (
       <PanelShell title="Machine Folder" onClose={onClose || (() => {})} onBack={onBack}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, height: '100%' }}>
-          Access point not found
+          Integration not found
         </div>
       </PanelShell>
     );

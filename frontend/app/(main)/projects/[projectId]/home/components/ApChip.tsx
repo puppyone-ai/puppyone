@@ -67,8 +67,8 @@ export function ApChip({
 
   const label =
     aps.length === 1
-      ? '1 access point'
-      : `${aps.length} access points`;
+      ? '1 integration'
+      : `${aps.length} integrations`;
 
   const myPath = normalizeChipPath(rowPath);
   const isActive = hoveredPath !== null && hoveredPath === myPath;

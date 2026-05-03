@@ -233,7 +233,7 @@ export function AccessPointsListCard({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: T.text2 }}>
-            Access Points
+            Integrations
           </span>
           <span
             style={{
@@ -257,7 +257,7 @@ export function AccessPointsListCard({
         </div>
         <button
           onClick={() => router.push(`/projects/${projectId}/access`)}
-          title="Manage access points"
+          title="Manage integrations"
           style={{
             background: 'none',
             border: 'none',
@@ -303,7 +303,7 @@ export function AccessPointsListCard({
               fontSize: 12,
             }}
           >
-            No access points configured.
+            No integrations configured.
           </div>
         ) : (
           // Flex column with generous vertical gap rather than 1px
@@ -533,8 +533,8 @@ function ApListRow({
               e.stopPropagation();
               router.push(`/projects/${projectId}/access?ap=${conn.id}`);
             }}
-            title="Open access point details"
-            aria-label="Open access point details"
+            title="Open integration details"
+            aria-label="Open integration details"
             style={{
               flexShrink: 0,
               marginLeft: 4,

@@ -196,6 +196,27 @@ export function matchScopeForPath(
 }
 
 /**
+ * Test whether a node path falls within a scope's boundary, i.e. the node
+ * is the scope folder itself or a descendant of it. Used by the
+ * scope-aware drag-drop guard in agent / integration setup forms — the
+ * UX rule (per the redesign Q1 decision 2026-05-04) is that an agent
+ * bound to scope `/folder1` may only attach folders under `/folder1/...`,
+ * never `/folder2/...`. Out-of-scope drops should redirect the user to
+ * the parent scope.
+ *
+ * Both arguments use the canonical path form: empty string for root, no
+ * leading/trailing slashes, single-slash separators. Root scope (`''`)
+ * is permissive — every node belongs to it.
+ */
+export function isWithinScope(nodePath: string, scopePath: string): boolean {
+  const normNode = (nodePath || '').replaceAll(/^\/+|\/+$/g, '').replaceAll(/\/+/g, '/');
+  const normScope = (scopePath || '').replaceAll(/^\/+|\/+$/g, '').replaceAll(/\/+/g, '/');
+  if (normScope === '') return true;
+  if (normNode === normScope) return true;
+  return normNode.startsWith(`${normScope}/`);
+}
+
+/**
  * Sort connectors so cli + agent (DB-trigger built-ins) come first,
  * then everything else in stable insertion order.
  */

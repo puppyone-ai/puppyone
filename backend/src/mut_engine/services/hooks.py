@@ -167,6 +167,15 @@ def _update_global_root(repo, push_result: dict) -> None:
     MAX_GRAFT_RETRIES = 5
     for attempt in range(MAX_GRAFT_RETRIES):
         try:
+            # After a CAS failure the DB holds a newer root_hash than our
+            # cached copy. Clear the in-process cache so the next
+            # get_root_hash() reads the current DB value as the CAS pre-image
+            # instead of looping with the same stale value forever.
+            if attempt > 0:
+                history = getattr(repo, 'history', None) or repo
+                if hasattr(history, '_root_hash_cache'):
+                    del history._root_hash_cache
+
             # get_root_hash / cas_update_root_hash may not exist on older
             # mutai PyPI releases (<0.1.7). Fall back to history-based lookup.
             if hasattr(repo, "get_root_hash"):

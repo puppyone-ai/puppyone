@@ -858,7 +858,7 @@ export function ChatRuntimeView({
           {onBack && (
             <button
               onClick={onBack}
-              title="Back to access points"
+              title="Back to integrations"
               style={{
                 width: 28,
                 height: 28,

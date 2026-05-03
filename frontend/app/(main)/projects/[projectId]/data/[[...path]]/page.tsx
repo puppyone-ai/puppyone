@@ -42,6 +42,7 @@ import {
 
 import { refreshProjects } from '@/lib/hooks/useData';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
+import type { RepoScope } from '@/lib/repoApi';
 import {
   GridView,
   type AgentResource,
@@ -113,7 +114,7 @@ export default function DataPage({ params }: DataPageProps) {
   // Project-level data from layout (sync status, tools, endpoints, scopes, connectors)
   const {
     syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap,
-    scopes, connectorsByScope,
+    scopes, connectorsByScope, repoIdentity, mutateRepo,
   } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
@@ -192,6 +193,33 @@ export default function DataPage({ params }: DataPageProps) {
     const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
     router.push(url);
   }, [projectId, router]);
+
+  // Used by AllScopesList in ScopedConnectorsListPanel: jump the file
+  // explorer (and hence currentScopePath / currentScope resolution) to a
+  // given scope's canonical path. '' means the project root.
+  const handleScopeNavigate = useCallback((scopePath: string) => {
+    navigateTo(scopePath.split('/').filter(Boolean));
+  }, [navigateTo]);
+
+  // Click handler for the per-scope "AI Agent" default in
+  // ScopedConnectorsListPanel. Pre-fills the draft resource with the
+  // scope's folder so the chat-agent form's drop zone is already
+  // populated, then opens sync_create with `agentTypePreselect: 'chat'`
+  // — SyncConfigPanel auto-skips the type picker and lands on the
+  // chat-agent form (image 1 in the boss's mock).
+  const handleAgentDefaultRequested = useCallback((scope: RepoScope) => {
+    setDraftResources([
+      {
+        path: scope.path,
+        nodeName: scope.name,
+        nodeType: 'folder',
+        readonly: false,
+      },
+    ]);
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    openPanel({ type: 'sync_create', agentTypePreselect: 'chat' });
+  }, [openPanel, setDraftResources]);
 
   const closeRightPanel = useCallback(() => {
     setEditorTarget(null);
@@ -842,6 +870,7 @@ export default function DataPage({ params }: DataPageProps) {
           scopes={scopes}
           connectorsByScope={connectorsByScope}
           currentScopePath={currentFolderId || ''}
+          repoIdentity={repoIdentity}
           onClose={closeRightPanel}
           onEditorClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
           onEditorSave={(newValue) => {
@@ -853,6 +882,9 @@ export default function DataPage({ params }: DataPageProps) {
           onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
           onSyncCreated={handleSyncCreated}
           onAccessPointHover={setHoverHighlightNodeId}
+          onScopeMutated={mutateRepo}
+          onScopeNavigate={handleScopeNavigate}
+          onAgentDefaultRequested={handleAgentDefaultRequested}
           onOpenPanel={openPanel}
           onOpenSyncSetting={openSyncSetting}
           onDataUpdate={async () => { await refreshTable(); }}

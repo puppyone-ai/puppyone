@@ -32,9 +32,9 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: 'access_point',
-    label: 'Create an Access Point',
-    description: 'Access Points let Claude, Cursor, and other tools access your data.',
-    actionLabel: 'Create Access Point',
+    label: 'Add an integration',
+    description: 'Integrations let Claude, Cursor, and other tools access your data.',
+    actionLabel: 'Add integration',
     getHref: (pid) => (pid ? `/projects/${pid}/access` : '/home'),
   },
   {

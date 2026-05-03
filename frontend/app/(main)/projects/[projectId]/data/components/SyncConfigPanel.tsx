@@ -120,16 +120,39 @@ interface SyncConfigPanelProps {
   onClose: () => void;
   onBack?: () => void;
   onSyncCreated?: (nodeId: string) => void;
+  /** When opened from a scope context, restricts drag-drop targets to
+   *  paths inside this scope (see isWithinScope). Forwarded to all
+   *  inner config components (ChatAgentConfig / FilesystemAgentConfig /
+   *  SaaSyncConfig). Pass `undefined` to keep legacy permissive behaviour. */
+  scopeBoundary?: string;
+  scopeBoundaryLabel?: string;
+  /** Pre-select the agent type when entering create mode. Used by the
+   *  "AI Agent" default click in ScopedConnectorsListPanel — skips the
+   *  type-picker and lands directly on the chat-agent form. */
+  presetAgentType?: AgentTypeId;
 }
 
-export function SyncConfigPanel({ mode, syncId, projectId, onClose, onBack, onSyncCreated }: SyncConfigPanelProps) {
+export function SyncConfigPanel({
+  mode, syncId, projectId, onClose, onBack, onSyncCreated,
+  scopeBoundary, scopeBoundaryLabel, presetAgentType,
+}: SyncConfigPanelProps) {
   if (mode === 'detail' && syncId) {
     return (
       <SyncDetailView syncId={syncId} projectId={projectId} onClose={onClose} onBack={onBack} />
     );
   }
 
-  return <CreateView projectId={projectId} onClose={onClose} onBack={onBack} onSyncCreated={onSyncCreated} />;
+  return (
+    <CreateView
+      projectId={projectId}
+      onClose={onClose}
+      onBack={onBack}
+      onSyncCreated={onSyncCreated}
+      scopeBoundary={scopeBoundary}
+      scopeBoundaryLabel={scopeBoundaryLabel}
+      presetAgentType={presetAgentType}
+    />
+  );
 }
 
 /* ================================================================
@@ -140,11 +163,17 @@ export function SyncConfigPanel({ mode, syncId, projectId, onClose, onBack, onSy
    CreateView — unified creation panel for agents & syncs
    ================================================================ */
 
-function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
+function CreateView({
+  projectId, onClose, onBack, onSyncCreated,
+  scopeBoundary, scopeBoundaryLabel, presetAgentType,
+}: {
   projectId: string;
   onClose: () => void;
   onBack?: () => void;
   onSyncCreated?: (nodeId: string) => void;
+  scopeBoundary?: string;
+  scopeBoundaryLabel?: string;
+  presetAgentType?: AgentTypeId;
 }) {
   const {
     deployAgent, deploySyncEndpoint, setDraftType, draftResources,
@@ -217,6 +246,20 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
       }
     }
   }, [pendingSyncProvider, syncProviders]);
+
+  // Skip the type-picker when the panel was opened with a pre-selected
+  // agent type (e.g. clicking "AI Agent" default in the scope panel).
+  // Run once on mount — re-running on later prop changes would override
+  // a user's intentional Back-to-picker click.
+  useEffect(() => {
+    if (presetAgentType) {
+      setSelectedAgentType(presetAgentType);
+      setSelectedEndpointType(null);
+      setSelectedSyncProvider(null);
+      setDraftType(presetAgentType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // CRITICAL: handleSelect*/handleBack must NOT clear draftResources.
   // The previous version called `setDraftResources([])` on every
@@ -389,9 +432,9 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
       console.error('Failed to create sync:', err);
       // User-friendly messages for known error types
       if (err?.isDuplicate || err?.status === 409 || err?.code === 409) {
-        setDeployError('该文件夹已有相同类型的 Access Point，请先删除已有的，或选择其他文件夹。');
+        setDeployError('该文件夹已有相同类型的 integration，请先删除已有的，或选择其他文件夹。');
       } else if (err?.status === 403) {
-        setDeployError('无权限创建 Access Point，请确认项目访问权限。');
+        setDeployError('无权限创建 integration，请确认项目访问权限。');
       } else {
         setDeployError(err instanceof Error ? err.message : '创建失败，请重试。');
       }
@@ -432,7 +475,7 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
                 onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
               />
             </div>
-            <ConfigComponent />
+            <ConfigComponent scopeBoundary={scopeBoundary} scopeBoundaryLabel={scopeBoundaryLabel} />
           </div>
           
           <div style={{ 
@@ -453,7 +496,7 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
                 transition: 'all 0.2s',
               }}
             >
-              {deploying ? 'Creating...' : 'Create agent'}
+              {deploying ? 'Adding…' : 'Add integration'}
             </button>
           </div>
         </div>
@@ -509,6 +552,8 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
               targetDescription={selectedEndpointType === 'mcp'
                 ? 'Drag and drop a folder or file to expose as MCP tools.'
                 : 'Drag and drop a folder to mount into the sandbox environment.'}
+              scopeBoundary={scopeBoundary}
+              scopeBoundaryLabel={scopeBoundaryLabel}
             />
           </div>
           
@@ -530,7 +575,7 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
                 transition: 'all 0.2s',
               }}
             >
-              {deploying ? 'Creating...' : `Create ${endpointDef.label.toLowerCase()}`}
+              {deploying ? 'Adding…' : 'Add integration'}
             </button>
           </div>
         </div>
@@ -554,7 +599,10 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
                 isActive={draftResources.length > 0}
               />
               <div style={{ marginTop: 12 }}>
-                <FilesystemAgentConfig />
+                <FilesystemAgentConfig
+                  scopeBoundary={scopeBoundary}
+                  scopeBoundaryLabel={scopeBoundaryLabel}
+                />
               </div>
             </div>
             
@@ -596,7 +644,7 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
                   transition: 'all 0.2s',
                 }}
               >
-                {deploying ? 'Creating...' : 'Create access'}
+                {deploying ? 'Adding…' : 'Add integration'}
               </button>
             </div>
           </div>
@@ -621,6 +669,8 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
             direction={providerDef.direction}
             configValues={syncConfigValues}
             onConfigChange={(key, value) => setSyncConfigValues(prev => ({ ...prev, [key]: value }))}
+            scopeBoundary={scopeBoundary}
+            scopeBoundaryLabel={scopeBoundaryLabel}
           />
         </div>
         
@@ -662,7 +712,7 @@ function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
               transition: 'all 0.2s',
             }}
           >
-            {deploying ? 'Creating...' : 'Create access'}
+            {deploying ? 'Adding…' : 'Add integration'}
           </button>
         </div>
       </div>

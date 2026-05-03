@@ -161,6 +161,12 @@ def _register_oauth_provider(
                 ),
                 message=f"{name} OAuth callback handled",
             )
+        except HTTPException:
+            # Preserve intentional status codes (e.g. the 400 from the
+            # state-validation block above) — without this re-raise, the
+            # outer `except Exception` masked them as opaque 500s, making
+            # CSRF mismatches look like server bugs to the client.
+            raise
         except Exception as e:
             raise HTTPException(
                 status_code=500,

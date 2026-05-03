@@ -7,7 +7,7 @@ import { useProjectTools } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
-import { listScopes, listConnectors, type Connector } from '@/lib/repoApi';
+import { listScopes, listConnectors, getRepoIdentity, type Connector } from '@/lib/repoApi';
 import {
   DataLayoutContext,
   type SyncEndpointInfo,
@@ -59,6 +59,11 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     () => listConnectors(projectId),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
+  const { data: repoIdentity, mutate: mutateIdentity } = useSWR(
+    projectId ? ['repo-identity', projectId] : null,
+    () => getRepoIdentity(projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
 
   const connectorsByScope = useMemo(() => {
     const m = new Map<string, Connector[]>();
@@ -71,7 +76,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   }, [connectorsList]);
 
   const mutateRepo = async () => {
-    await Promise.all([mutateScopes(), mutateConnectors()]);
+    await Promise.all([mutateScopes(), mutateConnectors(), mutateIdentity()]);
   };
 
   const nodeEndpointMap = useMemo(() => {
@@ -95,6 +100,29 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
           accessKey: s.access_key,
         });
       }
+    }
+
+    // Redesign 2026-05-02: project the new connectors+scopes data into the
+    // legacy SyncEndpointInfo shape so the existing per-row plug button,
+    // AccessPointsHeaderButton count, and AP-list panel light up post-
+    // migration. cli connectors map to `filesystem` (matching the boss-era
+    // provider taxonomy that AccessPointProviderIcon / setup-snippet code
+    // branches on); the access_key for cli is the *scope's* access_key,
+    // not the connector's. agent connectors are skipped here because the
+    // savedAgents loop below already populates them from AgentContext.
+    const scopeById = new Map((scopes || []).map((s) => [s.id, s]));
+    for (const c of connectorsList || []) {
+      if (c.provider === 'agent') continue;
+      const scope = scopeById.get(c.scope_id);
+      if (!scope) continue;
+      append(scope.path, {
+        syncId: c.id,
+        provider: c.provider === 'cli' ? 'filesystem' : c.provider,
+        direction: c.direction,
+        status: c.status,
+        name: c.name || scope.name,
+        accessKey: scope.access_key ?? null,
+      });
     }
 
     for (const agent of savedAgents) {
@@ -143,7 +171,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     }
 
     return map;
-  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints]);
+  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, scopes, connectorsList]);
 
   const syncEndpoints = useMemo(() => {
     const pickPriority = (provider: string): number => {
@@ -172,6 +200,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       nodeEndpointMap,
       scopes: scopes || [],
       connectorsByScope,
+      repoIdentity,
       mutateRepo,
     }),
     [
@@ -182,6 +211,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       nodeEndpointMap,
       scopes,
       connectorsByScope,
+      repoIdentity,
       mutateRepo,
     ],
   );
