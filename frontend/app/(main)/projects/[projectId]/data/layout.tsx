@@ -7,6 +7,7 @@ import { useProjectTools } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
+import { listScopes, listConnectors, type Connector } from '@/lib/repoApi';
 import {
   DataLayoutContext,
   type SyncEndpointInfo,
@@ -46,6 +47,32 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     () => listSandboxEndpoints(projectId),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
+
+  // Redesign (2026-05-02): scopes + connectors via the new repo endpoints.
+  const { data: scopes, mutate: mutateScopes } = useSWR(
+    projectId ? ['repo-scopes', projectId] : null,
+    () => listScopes(projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+  const { data: connectorsList, mutate: mutateConnectors } = useSWR(
+    projectId ? ['repo-connectors', projectId] : null,
+    () => listConnectors(projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+
+  const connectorsByScope = useMemo(() => {
+    const m = new Map<string, Connector[]>();
+    for (const c of connectorsList || []) {
+      const list = m.get(c.scope_id) || [];
+      list.push(c);
+      m.set(c.scope_id, list);
+    }
+    return m;
+  }, [connectorsList]);
+
+  const mutateRepo = async () => {
+    await Promise.all([mutateScopes(), mutateConnectors()]);
+  };
 
   const nodeEndpointMap = useMemo(() => {
     const map = new Map<string, SyncEndpointInfo[]>();
@@ -143,8 +170,20 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       projectTools,
       syncEndpoints,
       nodeEndpointMap,
+      scopes: scopes || [],
+      connectorsByScope,
+      mutateRepo,
     }),
-    [syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap],
+    [
+      syncStatusData,
+      mutateSyncStatus,
+      projectTools,
+      syncEndpoints,
+      nodeEndpointMap,
+      scopes,
+      connectorsByScope,
+      mutateRepo,
+    ],
   );
 
   return (
