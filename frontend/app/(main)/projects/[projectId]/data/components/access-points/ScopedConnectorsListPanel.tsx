@@ -15,7 +15,7 @@
  * scopes show an empty state.
  */
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PanelShell } from '../PanelShell';
 import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import { sortConnectorsBuiltinFirst, type Connector, type RepoScope } from '@/lib/repoApi';
@@ -53,6 +53,13 @@ interface Props {
   readonly onClose: () => void;
   readonly onAddRequested: () => void;
   readonly onConnectorClick: (c: Connector) => void;
+  /**
+   * Hover feedback up into the explorer sidebar: while a row is hovered we
+   * pass the scope's path so the matching folder gets the access-point
+   * highlight; on leave / unmount we send null. Mirrors the legacy
+   * AccessPointsListPanel's onEndpointHover wiring (lost in the redesign).
+   */
+  readonly onScopeHover?: (path: string | null) => void;
 }
 
 const COLOR_FG = '#e4e4e7';
@@ -341,6 +348,8 @@ function ConnectorCard({
   providerIcons,
   promptTemplate,
   onClick,
+  onHoverEnter,
+  onHoverLeave,
   builtin,
 }: {
   readonly connector: Connector;
@@ -348,6 +357,8 @@ function ConnectorCard({
   readonly providerIcons: ProviderIconLookup;
   readonly promptTemplate: string | undefined;
   readonly onClick: () => void;
+  readonly onHoverEnter?: () => void;
+  readonly onHoverLeave?: () => void;
   readonly builtin: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
@@ -378,8 +389,8 @@ function ConnectorCard({
       <button
         type="button"
         onClick={handleClick}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseEnter={() => { setHovered(true); onHoverEnter?.(); }}
+        onMouseLeave={() => { setHovered(false); onHoverLeave?.(); }}
         style={{
           width: '100%',
           textAlign: 'left',
@@ -472,6 +483,7 @@ export function ScopedConnectorsListPanel({
   onClose,
   onAddRequested,
   onConnectorClick,
+  onScopeHover,
 }: Props) {
   const sorted = useMemo(() => sortConnectorsBuiltinFirst(connectors), [connectors]);
   const builtin = useMemo(
@@ -482,6 +494,20 @@ export function ScopedConnectorsListPanel({
     () => sorted.filter((c) => c.provider !== 'cli' && c.provider !== 'agent'),
     [sorted],
   );
+
+  // Clear any lingering hover highlight when the panel unmounts or the
+  // hovered scope changes (defensive: onMouseLeave handles the common case,
+  // but a fast scope-switch can skip leave events).
+  useEffect(() => {
+    return () => onScopeHover?.(null);
+  }, [scope?.id, onScopeHover]);
+
+  const handleHoverEnter = useCallback(() => {
+    if (scope) onScopeHover?.(scope.path);
+  }, [scope, onScopeHover]);
+  const handleHoverLeave = useCallback(() => {
+    onScopeHover?.(null);
+  }, [onScopeHover]);
 
   const title = scope ? `${scope.name} · Imports & Exports` : 'Imports & Exports';
 
@@ -577,6 +603,8 @@ export function ScopedConnectorsListPanel({
                       providerIcons={providerIcons}
                       promptTemplate={promptTemplate}
                       onClick={() => onConnectorClick(c)}
+                      onHoverEnter={handleHoverEnter}
+                      onHoverLeave={handleHoverLeave}
                       builtin
                     />
                   ))
@@ -610,6 +638,8 @@ export function ScopedConnectorsListPanel({
                       providerIcons={providerIcons}
                       promptTemplate={promptTemplate}
                       onClick={() => onConnectorClick(c)}
+                      onHoverEnter={handleHoverEnter}
+                      onHoverLeave={handleHoverLeave}
                       builtin={false}
                     />
                   ))

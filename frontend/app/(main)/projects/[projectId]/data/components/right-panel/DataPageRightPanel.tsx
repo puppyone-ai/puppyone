@@ -111,7 +111,7 @@ export function DataPageRightPanel({
   onToggleEditorFullScreen,
   onRollbackComplete,
   onSyncCreated,
-  onAccessPointHover: _onAccessPointHover,
+  onAccessPointHover,
   onOpenPanel,
   onOpenSyncSetting,
   onDataUpdate,
@@ -214,6 +214,7 @@ export function DataPageRightPanel({
           connectors={currentScopeConnectors}
           providerIcons={providerIcons}
           promptTemplate={repoIdentity?.prompt_template}
+          onScopeHover={onAccessPointHover}
           onClose={onClose}
           onAddRequested={() => {
             // "+ Add" opens the existing create panel pre-filled with the
