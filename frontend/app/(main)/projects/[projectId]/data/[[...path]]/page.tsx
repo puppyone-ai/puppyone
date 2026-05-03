@@ -110,8 +110,11 @@ export default function DataPage({ params }: DataPageProps) {
   // Data fetching
   const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
 
-  // Project-level data from layout (sync status, tools, endpoints)
-  const { syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap } = useDataLayout();
+  // Project-level data from layout (sync status, tools, endpoints, scopes, connectors)
+  const {
+    syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap,
+    scopes, connectorsByScope,
+  } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
   const { draftResources, setDraftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
@@ -836,6 +839,9 @@ export default function DataPage({ params }: DataPageProps) {
           savedAgents={savedAgents}
           accessPointEntries={accessPointEntries}
           providerIcons={providerIcons}
+          scopes={scopes}
+          connectorsByScope={connectorsByScope}
+          currentScopePath={currentFolderId || ''}
           onClose={closeRightPanel}
           onEditorClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
           onEditorSave={(newValue) => {

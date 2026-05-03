@@ -11,7 +11,12 @@ import type { SavedAgent } from '@/components/AgentRail';
 import type { Tool } from '@/lib/mcpApi';
 import type { TableData } from '@/lib/projectsApi';
 import { PanelShell } from '../PanelShell';
-import { AccessPointsListPanel, endpointToPanelState, type EndpointEntry, type ProviderIconLookup } from '../access-points';
+import {
+  ScopedConnectorsListPanel,
+  type EndpointEntry,
+  type ProviderIconLookup,
+} from '../access-points';
+import { matchScopeForPath, type Connector, type RepoScope } from '@/lib/repoApi';
 import type { SyncStatusSync } from '../../DataLayoutContext';
 import type { PanelState } from '../../usePanelStore';
 
@@ -48,19 +53,25 @@ export interface EditorTarget {
 }
 
 interface DataPageRightPanelProps {
-  editorTarget: EditorTarget | null;
-  isEditorFullScreen: boolean;
-  panelState: PanelState;
-  projectId: string;
-  activeNodeId?: string;
-  activeSyncId: string | null;
-  currentTableData?: TableData;
-  syncStatusData: { syncs: SyncStatusSync[] } | undefined;
-  projectTools: Tool[];
-  savedAgents: SavedAgent[];
-  accessPointEntries: EndpointEntry[];
-  providerIcons: ProviderIconLookup;
-  onClose: () => void;
+  readonly editorTarget: EditorTarget | null;
+  readonly isEditorFullScreen: boolean;
+  readonly panelState: PanelState;
+  readonly projectId: string;
+  readonly activeNodeId?: string;
+  readonly activeSyncId: string | null;
+  readonly currentTableData?: TableData;
+  readonly syncStatusData: { syncs: SyncStatusSync[] } | undefined;
+  readonly projectTools: Tool[];
+  readonly savedAgents: SavedAgent[];
+  readonly accessPointEntries: EndpointEntry[];
+  readonly providerIcons: ProviderIconLookup;
+  /** Redesign 2026-05-02: scope list for matching the current URL path. */
+  readonly scopes: RepoScope[];
+  /** Redesign 2026-05-02: connectors indexed by scope_id. */
+  readonly connectorsByScope: Map<string, Connector[]>;
+  /** Redesign 2026-05-02: current canonical URL path (empty string for root). */
+  readonly currentScopePath: string;
+  readonly onClose: () => void;
   onEditorClose: () => void;
   onEditorSave: (newValue: string) => void;
   onToggleEditorFullScreen: () => void;
@@ -86,19 +97,28 @@ export function DataPageRightPanel({
   syncStatusData,
   projectTools,
   savedAgents,
-  accessPointEntries,
+  accessPointEntries: _accessPointEntries,
   providerIcons,
+  scopes,
+  connectorsByScope,
+  currentScopePath,
   onClose,
   onEditorClose,
   onEditorSave,
   onToggleEditorFullScreen,
   onRollbackComplete,
   onSyncCreated,
-  onAccessPointHover,
+  onAccessPointHover: _onAccessPointHover,
   onOpenPanel,
   onOpenSyncSetting,
   onDataUpdate,
 }: DataPageRightPanelProps) {
+  // Resolve the scope the user has navigated into. No parent-child
+  // inheritance per the redesign Q1 decision (2026-05-03) — exact match only.
+  const currentScope = matchScopeForPath(currentScopePath, scopes);
+  const currentScopeConnectors = currentScope
+    ? connectorsByScope.get(currentScope.id) || []
+    : [];
   const panelMcpId = panelState.type === 'mcp_config' ? panelState.mcpEndpointId : undefined;
   const { data: mcpEndpointDetail } = useSWR<McpEndpoint>(
     panelMcpId ? ['mcp-endpoint-detail', panelMcpId] : null,
@@ -185,15 +205,26 @@ export function DataPageRightPanel({
       )}
 
       {!editorTarget && panelState.type === 'access_list' && (
-        <AccessPointsListPanel
-          entries={accessPointEntries}
+        <ScopedConnectorsListPanel
+          scope={currentScope}
+          connectors={currentScopeConnectors}
           providerIcons={providerIcons}
-          expandedEndpointId={panelState.accessEndpointId ?? null}
           onClose={onClose}
-          onEndpointHover={onAccessPointHover}
-          onEndpointClick={(ep, nodeId) => {
-            onAccessPointHover(null);
-            onOpenPanel(endpointToPanelState(ep, nodeId));
+          onAddRequested={() => {
+            // The "+ Add" button opens the existing create panel. The form
+            // pre-fills the target folder via panelState.nodeId so the
+            // legacy SyncConfigPanel can route through to the new
+            // /api/v1/projects/{pid}/connectors endpoint when ready.
+            onOpenPanel({ type: 'sync_create', nodeId: currentScope?.path });
+          }}
+          onConnectorClick={(c) => {
+            // For now, route built-ins to no-op and third-party to the
+            // legacy sync_config panel using their connector id. The
+            // legacy panel still expects access_points.id; once it's
+            // refactored to use the new connectors endpoint, this becomes
+            // a clean dispatch.
+            if (c.provider === 'cli' || c.provider === 'agent') return;
+            onOpenPanel({ type: 'sync_config', accessEndpointId: c.id });
           }}
         />
       )}
