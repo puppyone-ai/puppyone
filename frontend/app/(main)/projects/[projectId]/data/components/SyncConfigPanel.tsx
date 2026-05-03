@@ -129,7 +129,7 @@ export function SyncConfigPanel({ mode, syncId, projectId, onClose, onBack, onSy
     );
   }
 
-  return <CreateView projectId={projectId} onClose={onClose} onSyncCreated={onSyncCreated} />;
+  return <CreateView projectId={projectId} onClose={onClose} onBack={onBack} onSyncCreated={onSyncCreated} />;
 }
 
 /* ================================================================
@@ -140,9 +140,10 @@ export function SyncConfigPanel({ mode, syncId, projectId, onClose, onBack, onSy
    CreateView — unified creation panel for agents & syncs
    ================================================================ */
 
-function CreateView({ projectId, onClose, onSyncCreated }: {
+function CreateView({ projectId, onClose, onBack, onSyncCreated }: {
   projectId: string;
   onClose: () => void;
+  onBack?: () => void;
   onSyncCreated?: (nodeId: string) => void;
 }) {
   const {
@@ -678,7 +679,7 @@ function CreateView({ projectId, onClose, onSyncCreated }: {
 
   // Default: show provider picker
   return (
-    <PanelShell title="New access" onClose={onClose}>
+    <PanelShell title="New access" onClose={onClose} onBack={onBack}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           
