@@ -250,27 +250,78 @@ def build_plan(access_points_rows: List[Dict[str, Any]]) -> List[Plan]:
 # Apply
 # ──────────────────────────────────────────────────────────────────────────
 
-def apply_plan(client, plan: Plan) -> None:
-    # 1. Update root scope keys to inherit existing filesystem cli_xxx keys.
+def _apply_root_key_updates(client, plan: Plan) -> None:
     for pid, key in plan.root_key_updates.items():
         client.table("repo_scopes").update({"access_key": key}) \
               .eq("project_id", pid).eq("is_root", True).execute()
 
-    # 2. Insert new (non-root) scopes. The DB trigger will auto-create cli + agent
-    #    connectors on each insert.
+
+def _apply_new_scopes(client, plan: Plan) -> None:
+    """INSERT new (non-root) scopes. The DB trigger create_builtin_connectors_for_scope
+    auto-creates cli + agent connectors per scope. UNIQUE conflicts on
+    (project_id, path) are swallowed so re-runs after a partial apply work."""
+    from postgrest.exceptions import APIError
     for s in plan.new_scopes:
-        client.table("repo_scopes").insert(s).execute()
+        try:
+            client.table("repo_scopes").insert(s).execute()
+        except APIError as e:
+            if "23505" in str(e):
+                continue  # already exists from a prior partial run
+            raise
 
-    # 3. Resolve scope ids for connectors. We need (project_id, path) → scope.id.
+
+def _resolve_scope_ids(client, project_id: str) -> dict[str, str]:
+    rows = client.table("repo_scopes").select("id, path") \
+                 .eq("project_id", project_id).execute().data
+    return {row["path"]: row["id"] for row in rows}
+
+
+def _upsert_builtin_connector(client, conn: Dict[str, Any]) -> str:
+    """For cli/agent — DB trigger already created a row at scope-INSERT time.
+    UPDATE it with legacy fields instead of INSERT (which would violate
+    idx_connectors_builtin_one_per_scope UNIQUE). Returns connector.id."""
+    existing = (
+        client.table("connectors")
+        .select("id")
+        .eq("scope_id", conn["scope_id"])
+        .eq("provider", conn["provider"])
+        .limit(1).execute().data
+    )
+    if existing:
+        update_fields = {k: v for k, v in conn.items()
+                         if k not in ("project_id", "scope_id", "provider")}
+        client.table("connectors").update(update_fields).eq("id", existing[0]["id"]).execute()
+        return existing[0]["id"]
+    # Trigger didn't fire — defensive fallback (shouldn't normally happen).
+    return client.table("connectors").insert(conn).execute().data[0]["id"]
+
+
+def _upsert_third_party_connector(client, conn: Dict[str, Any], legacy_ap_id: str) -> str:
+    """For non-cli/agent — idempotency via config._legacy_ap_id marker so
+    re-runs after a partial apply don't double-insert. Returns connector.id."""
+    existing = (
+        client.table("connectors")
+        .select("id")
+        .eq("project_id", conn["project_id"])
+        .eq("config->>_legacy_ap_id", legacy_ap_id)
+        .limit(1).execute().data
+    )
+    if existing:
+        return existing[0]["id"]
+    return client.table("connectors").insert(conn).execute().data[0]["id"]
+
+
+def _apply_connectors(client, plan: Plan) -> None:
+    """INSERT/MERGE connectors with resolved scope_id. Splits builtin
+    (cli/agent — UPDATE auto-created row) from third-party (INSERT with
+    _legacy_ap_id marker)."""
     project_id = plan.project_id
-    scope_rows = client.table("repo_scopes").select("id, path") \
-                       .eq("project_id", project_id).execute().data
-    scope_id_by_path = {row["path"]: row["id"] for row in scope_rows}
+    scope_id_by_path = _resolve_scope_ids(client, project_id)
 
-    # 4. Insert connectors with resolved scope_id.
     for conn in plan.new_connectors:
         scope_path = conn.pop("_resolve_scope_path")
         legacy_ap_id = conn.pop("_legacy_ap_id")
+
         # Fall back to root if the original path doesn't have a scope (shouldn't
         # happen because backfill+new_scopes covers everything, but defensive).
         scope_id = scope_id_by_path.get(scope_path) or scope_id_by_path.get("")
@@ -278,14 +329,68 @@ def apply_plan(client, plan: Plan) -> None:
             print(f"  [WARN] no scope for {scope_path!r} in project {project_id}, skipping connector for AP {legacy_ap_id}")
             continue
         conn["scope_id"] = scope_id
-        result = client.table("connectors").insert(conn).execute()
-        new_id = result.data[0]["id"]
+
+        # Tag config with the legacy AP id for idempotency + post-migration audit.
+        cfg = dict(conn.get("config") or {})
+        cfg["_legacy_ap_id"] = legacy_ap_id
+        conn["config"] = cfg
+
+        if conn["provider"] in ("cli", "agent"):
+            new_id = _upsert_builtin_connector(client, conn)
+        else:
+            new_id = _upsert_third_party_connector(client, conn, legacy_ap_id)
         plan.old_to_new_connector_id[legacy_ap_id] = new_id
 
-    # 5. Rewire connector_runs.connector_id from old AP id to new connector id.
+
+def _rewire_connector_runs(client, plan: Plan) -> None:
+    """Update connector_runs.connector_id from old AP id → new connectors.id.
+
+    The 20260502000400_sync_runs_rename migration renamed the column from
+    `access_point_id` to `connector_id` but didn't drop the FK
+    `sync_runs_sync_id_fkey` that still points at `access_points(id)`. So
+    until 20260503000000_drop_stale_connector_runs_fk.sql lands, this
+    UPDATE fails with 23503 (FK violation on the new connector id, which
+    isn't in access_points). We catch and warn loudly so the rest of the
+    migration completes; once the FK is dropped, this step can be re-run
+    standalone (it's idempotent — already-rewired rows don't match the
+    .eq(old_id) filter on a second pass).
+    """
+    from postgrest.exceptions import APIError
+    skipped = 0
     for old_id, new_id in plan.old_to_new_connector_id.items():
-        client.table("connector_runs").update({"connector_id": new_id}) \
-              .eq("connector_id", old_id).execute()
+        try:
+            client.table("connector_runs").update({"connector_id": new_id}) \
+                  .eq("connector_id", old_id).execute()
+        except APIError as e:
+            if "23503" in str(e) and "sync_runs_sync_id_fkey" in str(e):
+                skipped += 1
+                continue
+            raise
+    if skipped:
+        print(
+            f"  [WARN] connector_runs rewire skipped for {skipped} mapping(s) "
+            f"due to stale FK sync_runs_sync_id_fkey. Apply migration "
+            f"20260503000000_drop_stale_connector_runs_fk.sql then re-run "
+            f"this script (it's idempotent)."
+        )
+
+
+def apply_plan(client, plan: Plan) -> None:
+    """Apply a plan idempotently. Handles two kinds of partial-run scenarios:
+
+    1. Some scopes/connectors already inserted (re-running after a crash).
+       Scope INSERTs swallow 23505 (UNIQUE conflict on project_id+path).
+    2. cli/agent connectors are AUTO-created by the DB trigger
+       create_builtin_connectors_for_scope on every repo_scopes INSERT.
+       We cannot INSERT a second cli/agent row (idx_connectors_builtin_one_per_scope
+       UNIQUE). Instead we UPDATE the auto-created row with the legacy
+       config (preserving mcp_api_key etc.). For third-party rows we tag
+       config._legacy_ap_id and skip if a row with that tag already exists.
+    """
+    _apply_root_key_updates(client, plan)
+    _apply_new_scopes(client, plan)
+    _apply_connectors(client, plan)
+    _rewire_connector_runs(client, plan)
 
 
 # ──────────────────────────────────────────────────────────────────────────
