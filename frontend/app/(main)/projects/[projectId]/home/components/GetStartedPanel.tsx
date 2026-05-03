@@ -327,7 +327,7 @@ export function GetStartedPanel({
           e.currentTarget.style.color = T.text3;
         }}
       >
-        Need a different source? Add an access point →
+        Need a different source? Add an integration →
       </button>
 
       {/* Hidden inputs — clicked programmatically from DropFilesCard. */}

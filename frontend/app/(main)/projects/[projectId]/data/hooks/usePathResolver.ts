@@ -151,15 +151,21 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
       }
 
       if (!exists) {
-        setPendingActiveId(null);
-        setCurrentFolderPath(null);
-        setFolderBreadcrumbs([]);
-        setActiveNodeId('');
-        setActiveNodeType('');
-        setActivePreviewType(null);
-        setActiveMimeType(null);
-        setMarkdownContent('');
-        setIsLoadingMarkdown(false);
+        // If we already rendered the editor via typeHint, keep it — don't
+        // fall back to root just because stat lost the race against an
+        // in-flight write. (Without typeHint there's no pending render to
+        // preserve, so resetting is correct.)
+        if (!typeHint) {
+          setPendingActiveId(null);
+          setCurrentFolderPath(null);
+          setFolderBreadcrumbs([]);
+          setActiveNodeId('');
+          setActiveNodeType('');
+          setActivePreviewType(null);
+          setActiveMimeType(null);
+          setMarkdownContent('');
+          setIsLoadingMarkdown(false);
+        }
         setIsResolvingPath(false);
         return;
       }

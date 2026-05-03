@@ -366,7 +366,7 @@ export function CreateMenu({
         {!accessOnly && (
           <MenuItem
             icon={<ConnectIcon />}
-            label="New Access"
+            label="New Integration"
             hasSubmenu
             isActive={activeSubMenu === 'connect'}
             onMouseEnter={() => setActiveSubMenu('connect')}

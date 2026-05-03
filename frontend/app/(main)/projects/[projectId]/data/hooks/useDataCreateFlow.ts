@@ -2,10 +2,88 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { mkdir, writeFile, treeList } from '@/lib/contentTreeApi';
+import { mutate as swrMutate } from 'swr';
+import { mkdir, writeFile, listDir, type NodeInfo, type NodeType } from '@/lib/contentTreeApi';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { ensureExpanded } from '../components/explorer';
+
+/**
+ * Build a placeholder NodeInfo for optimistic insertion into the tree
+ * before the backend write completes (instant feedback).
+ *
+ * After the write the caller issues refreshAllContentNodes which
+ * re-fetches every tree key including __shallow_1. With the backend
+ * root_hash cache TTL at 100 ms — shorter than any realistic write
+ * round-trip — the re-fetch always sees the committed state, so the
+ * placeholder is replaced with server-confirmed data without jitter.
+ */
+function buildOptimisticNode(
+  args: {
+    readonly projectId: string;
+    readonly path: string;
+    readonly name: string;
+    readonly type: NodeType;
+  },
+): NodeInfo {
+  const { projectId, path, name, type } = args;
+  const parentPath = path.includes('/')
+    ? path.substring(0, path.lastIndexOf('/'))
+    : '';
+  const nowIso = new Date().toISOString();
+  return {
+    name,
+    path,
+    type,
+    content_hash: null,
+    size_bytes: 0,
+    mime_type: null,
+    children_count: type === 'folder' ? 0 : null,
+    id: path,
+    mut_path: `/${path}`,
+    parent_id: parentPath || null,
+    project_id: projectId,
+    is_synced: false,
+    sync_source: null,
+    sync_url: null,
+    sync_status: 'not_connected',
+    sync_config: null,
+    last_synced_at: null,
+    preview_snippet: null,
+    created_at: nowIso,
+    updated_at: nowIso,
+  };
+}
+
+/** SWR cache key shape from `useTreeDir` — must match exactly. */
+function treeKey(projectId: string, dirPath: string): readonly [string, string, string] {
+  return ['tree', projectId, dirPath];
+}
+
+/**
+ * Insert ``node`` into the cached directory listing for ``parentPath``.
+ *
+ * Local cache mutation only (``revalidate: false``) — caller is responsible
+ * for triggering a background refresh after the real backend call returns,
+ * which will replace the optimistic node with the canonical server view.
+ */
+function optimisticInsert(
+  projectId: string,
+  parentPath: string,
+  node: NodeInfo,
+): void {
+  swrMutate(
+    treeKey(projectId, parentPath),
+    (prev?: NodeInfo[]) => {
+      const existing = prev ?? [];
+      // Idempotency guard: don't double-insert if a previous click for the
+      // same name is still in flight (rare but possible on rapid double-click).
+      if (existing.some((n) => n.path === node.path)) return existing;
+      return [...existing, node];
+    },
+    { revalidate: false },
+  );
+}
 
 export interface CreateMenuPosition {
   x: number;
@@ -323,111 +401,142 @@ export function useDataCreateFlow({
       createInFolderId === undefined ? currentFolderId : createInFolderId;
 
     // Pick a name that doesn't collide with an existing entry at the
-    // target folder.  We need this because creating a folder /
-    // Untitled file with a literal hardcoded name would silently
-    // no-op on the backend the second time around: mkdir writes
-    // `<path>/.keep` (empty bytes) and writeFile writes the same
-    // empty content, so MUT computes an identical commit hash and
-    // skips it as a no-op.  The UI then refreshes the tree, sees
-    // exactly the same nodes as before, and the user thinks the
-    // click "did nothing" or "overwrote" the previous one.
+    // target folder. We compare against the CANONICAL filename
+    // (basename + extension) — without the extension, an existing
+    // `Untitled Note.md` would never be detected against the bare
+    // baseName `Untitled Note`, so every click would re-write the
+    // same path with empty content and mut would correctly recognise
+    // it as a no-op (same blob hash → same scope hash → no commit
+    // delta). That looks identical to a broken save: the file
+    // already exists on the server but nothing visible has changed,
+    // so the user keeps clicking and getting nothing.
     //
     // Convention: `Base`, `Base (2)`, `Base (3)`, … — same pattern
-    // every native file manager uses, so users don't have to learn
-    // anything new.  We probe up to 999 to keep the loop bounded;
-    // in practice nobody creates 999 New Folders in one directory.
-    //
-    // For files we keep the extension contract intact: `Untitled`
-    // (extension-less, JSON adds it server-side via writeFile's
-    // `kind` parameter) and `Untitled Note` (markdown) get the
-    // suffix appended *before* any extension, so collisions still
-    // dedupe against bare names.
+    // every native file manager uses. Returns the canonical filename
+    // including extension so the caller can use it directly as the
+    // path segment without ever appending the extension a second
+    // time on the backend.
     const pickAvailableName = async (
       targetFolderPath: string | null,
       baseName: string,
+      extension: string = '',
     ): Promise<string> => {
-      let siblings: Awaited<ReturnType<typeof treeList>>;
+      let siblings: NodeInfo[];
       try {
-        siblings = await treeList(projectId, targetFolderPath ?? '', 1);
+        const listing = await listDir(projectId, targetFolderPath ?? '');
+        siblings = listing.nodes;
       } catch (err) {
         // If we can't reach the tree endpoint, fall back to the
         // base name and let the create call surface its own error.
         // Worse than the dedup-aware path but no worse than the
         // pre-fix behaviour.
         console.warn('treeList lookup failed, skipping dedup:', err);
-        return baseName;
+        return `${baseName}${extension}`;
       }
       const existing = new Set(siblings.map((e) => e.name));
-      if (!existing.has(baseName)) return baseName;
+      const canonical = `${baseName}${extension}`;
+      if (!existing.has(canonical)) return canonical;
       for (let n = 2; n < 1000; n++) {
-        const candidate = `${baseName} (${n})`;
+        const candidate = `${baseName} (${n})${extension}`;
         if (!existing.has(candidate)) return candidate;
       }
       // Outrageously unlikely fallback — append a timestamp so the
       // user gets a unique name rather than an infinite hang.
-      return `${baseName} (${Date.now()})`;
+      return `${baseName} (${Date.now()})${extension}`;
     };
 
     return {
       onClose: closeCreateMenu,
       onCreateFolder: async () => {
         const targetFolderPath = getTargetFolderPath();
+        const folderName = await pickAvailableName(
+          targetFolderPath,
+          'New Folder',
+        );
+        const folderPath = targetFolderPath
+          ? `${targetFolderPath}/${folderName}`
+          : folderName;
+        const parentPath = targetFolderPath ?? '';
+
+        optimisticInsert(
+          projectId,
+          parentPath,
+          buildOptimisticNode({
+            projectId, path: folderPath, name: folderName, type: 'folder',
+          }),
+        );
+        if (targetFolderPath) ensureExpanded(targetFolderPath);
+        ensureExpanded(folderPath);
+        highlightCreatedNode(folderPath);
 
         try {
-          const folderName = await pickAvailableName(
-            targetFolderPath,
-            'New Folder',
-          );
-          const folderPath = targetFolderPath
-            ? `${targetFolderPath}/${folderName}`
-            : folderName;
           await mkdir(projectId, folderPath);
-          if (targetFolderPath) ensureExpanded(targetFolderPath);
           await refreshAllContentNodes(projectId);
-          ensureExpanded(folderPath);
-          highlightCreatedNode(folderPath);
         } catch (err) {
           console.error('Failed to create folder:', err);
+          await refreshAllContentNodes(projectId);
         }
       },
       onCreateBlankJson: async () => {
         const targetFolderPath = getTargetFolderPath();
+        const fileName = await pickAvailableName(
+          targetFolderPath,
+          'Untitled',
+          '.json',
+        );
+        const filePath = targetFolderPath
+          ? `${targetFolderPath}/${fileName}`
+          : fileName;
+        const parentPath = targetFolderPath ?? '';
+
+        optimisticInsert(
+          projectId,
+          parentPath,
+          buildOptimisticNode({
+            projectId, path: filePath, name: fileName, type: 'json',
+          }),
+        );
+        if (targetFolderPath) ensureExpanded(targetFolderPath);
+        highlightCreatedNode(filePath);
 
         try {
-          const fileName = await pickAvailableName(
-            targetFolderPath,
-            'Untitled',
-          );
-          const filePath = targetFolderPath
-            ? `${targetFolderPath}/${fileName}`
-            : fileName;
           await writeFile(projectId, filePath, {}, 'json');
-          if (targetFolderPath) ensureExpanded(targetFolderPath);
+          navigateTo(filePath.split('/').filter(Boolean), 'json');
           await refreshAllContentNodes(projectId);
-          highlightCreatedNode(filePath);
-          navigateTo(filePath.split('/').filter(Boolean));
         } catch (err) {
           console.error('Failed to create JSON:', err);
+          await refreshAllContentNodes(projectId);
         }
       },
       onCreateBlankMarkdown: async () => {
         const targetFolderPath = getTargetFolderPath();
+        const fileName = await pickAvailableName(
+          targetFolderPath,
+          'Untitled Note',
+          '.md',
+        );
+        const filePath = targetFolderPath
+          ? `${targetFolderPath}/${fileName}`
+          : fileName;
+        const parentPath = targetFolderPath ?? '';
+
+        optimisticInsert(
+          projectId,
+          parentPath,
+          buildOptimisticNode({
+            projectId, path: filePath, name: fileName, type: 'markdown',
+          }),
+        );
+        if (targetFolderPath) ensureExpanded(targetFolderPath);
+        highlightCreatedNode(filePath);
 
         try {
-          const fileName = await pickAvailableName(
-            targetFolderPath,
-            'Untitled Note',
-          );
-          const filePath = targetFolderPath
-            ? `${targetFolderPath}/${fileName}`
-            : fileName;
           await writeFile(projectId, filePath, '', 'markdown');
-          if (targetFolderPath) ensureExpanded(targetFolderPath);
+          navigateTo(filePath.split('/').filter(Boolean), 'markdown');
           await refreshAllContentNodes(projectId);
-          highlightCreatedNode(filePath);
-          navigateTo(filePath.split('/').filter(Boolean));
         } catch (err) {
           console.error('Failed to create markdown:', err);
+          await refreshAllContentNodes(projectId);
         }
       },
       onImportFromFiles: () => {

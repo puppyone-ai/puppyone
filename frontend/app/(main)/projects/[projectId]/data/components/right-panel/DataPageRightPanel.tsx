@@ -80,6 +80,19 @@ interface DataPageRightPanelProps {
   onRollbackComplete: () => void;
   onSyncCreated: (nodeId: string) => void | Promise<void>;
   onAccessPointHover: (nodeId: string | null) => void;
+  /** Refresh scopes / connectors / repo identity after a scope CRUD
+   *  mutation. Wired at page level to useDataLayout().mutateRepo, which
+   *  is typed as `Promise<unknown>` because it forwards SWR's mutate()
+   *  return value (we don't care about the resolved value, just the
+   *  completion). */
+  onScopeMutated: () => Promise<unknown>;
+  /** Navigate the file explorer (and hence currentScopePath) to the given
+   *  scope's path. Used by AllScopesList in ScopedConnectorsListPanel. */
+  onScopeNavigate: (scopePath: string) => void;
+  /** Click handler for the per-scope "AI Agent" default connector card.
+   *  Page-level implementation pre-fills draftResources with the scope's
+   *  folder, then opens sync_create with `agentTypePreselect: 'chat'`. */
+  onAgentDefaultRequested: (scope: RepoScope) => void;
   onOpenPanel: (panel: PanelState) => void;
   onOpenSyncSetting: (
     syncId: string,
@@ -112,6 +125,9 @@ export function DataPageRightPanel({
   onRollbackComplete,
   onSyncCreated,
   onAccessPointHover,
+  onScopeMutated,
+  onScopeNavigate,
+  onAgentDefaultRequested,
   onOpenPanel,
   onOpenSyncSetting,
   onDataUpdate,
@@ -190,7 +206,7 @@ export function DataPageRightPanel({
                   borderRadius: 6, color: '#e4e4e7', cursor: 'pointer',
                 }}
               >
-                + New Access
+                + New Integration
               </button>
             </>
           )}
@@ -205,16 +221,23 @@ export function DataPageRightPanel({
           onClose={onClose}
           onBack={backToAccessList}
           onSyncCreated={onSyncCreated}
+          scopeBoundary={currentScope?.path}
+          scopeBoundaryLabel={currentScope?.name}
+          presetAgentType={panelState.agentTypePreselect}
         />
       )}
 
       {!editorTarget && panelState.type === 'access_list' && (
         <ScopedConnectorsListPanel
           scope={currentScope}
+          scopes={scopes}
+          currentScopePath={currentScopePath}
+          projectId={projectId}
           connectors={currentScopeConnectors}
           providerIcons={providerIcons}
-          promptTemplate={repoIdentity?.prompt_template}
           onScopeHover={onAccessPointHover}
+          onScopeMutated={onScopeMutated}
+          onScopeNavigate={onScopeNavigate}
           onClose={onClose}
           onAddRequested={() => {
             // "+ Add" opens the existing create panel pre-filled with the
@@ -223,16 +246,20 @@ export function DataPageRightPanel({
             onOpenPanel({ type: 'sync_create', nodeId: currentScope?.path });
           }}
           onConnectorClick={(c) => {
-            // cli is handled inline in the panel (no callback). Agent
-            // routes to agent_chat (same entry point as the legacy
-            // access-points agent flow). Third-party goes to sync detail.
+            // cli is handled inline in the panel (no callback).
+            //
+            // Agent: opens the chat-agent setup form for this scope
+            // (page-level handleAgentDefaultRequested pre-fills the
+            // draft resource with the scope's folder, then opens
+            // sync_create with `agentTypePreselect: 'chat'` so the type
+            // picker is skipped). Replaces the previous agent_chat
+            // shortcut — that runtime-chat surface is reachable from
+            // the agent's own row in the data view's agent rail.
+            //
+            // Third-party connectors → sync detail panel.
             if (c.provider === 'cli') return;
             if (c.provider === 'agent') {
-              // Resolve the savedAgents row that matches this connector's
-              // mcp_api_key — that's the id ChatRuntimeView expects.
-              const mcpKey = (c.config?.mcp_api_key as string | undefined) || '';
-              const agent = savedAgents.find((a) => a.mcp_api_key === mcpKey);
-              if (agent) onOpenPanel({ type: 'agent_chat', agentId: agent.id });
+              if (currentScope) onAgentDefaultRequested(currentScope);
               return;
             }
             onOpenPanel({ type: 'sync_config', accessEndpointId: c.id });

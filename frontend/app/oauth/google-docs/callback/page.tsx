@@ -12,6 +12,8 @@ function GoogleDocsCallbackContent() {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get('code');
+      // CSRF nonce — backend's OAuthStateRepository.consume() requires it.
+      const state = searchParams.get('state') || undefined;
       const error = searchParams.get('error');
 
       if (error) {
@@ -29,7 +31,7 @@ function GoogleDocsCallbackContent() {
       }
 
       try {
-        const result = await googleDocsCallback(code);
+        const result = await googleDocsCallback(code, state);
 
         if (result.success) {
           setStatus('success');

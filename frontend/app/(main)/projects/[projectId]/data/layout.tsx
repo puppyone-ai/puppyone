@@ -102,6 +102,29 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       }
     }
 
+    // Redesign 2026-05-02: project the new connectors+scopes data into the
+    // legacy SyncEndpointInfo shape so the existing per-row plug button,
+    // AccessPointsHeaderButton count, and AP-list panel light up post-
+    // migration. cli connectors map to `filesystem` (matching the boss-era
+    // provider taxonomy that AccessPointProviderIcon / setup-snippet code
+    // branches on); the access_key for cli is the *scope's* access_key,
+    // not the connector's. agent connectors are skipped here because the
+    // savedAgents loop below already populates them from AgentContext.
+    const scopeById = new Map((scopes || []).map((s) => [s.id, s]));
+    for (const c of connectorsList || []) {
+      if (c.provider === 'agent') continue;
+      const scope = scopeById.get(c.scope_id);
+      if (!scope) continue;
+      append(scope.path, {
+        syncId: c.id,
+        provider: c.provider === 'cli' ? 'filesystem' : c.provider,
+        direction: c.direction,
+        status: c.status,
+        name: c.name || scope.name,
+        accessKey: scope.access_key ?? null,
+      });
+    }
+
     for (const agent of savedAgents) {
       if (agent.type === 'chat' && agent.resources) {
         for (const r of agent.resources) {
@@ -148,7 +171,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     }
 
     return map;
-  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints]);
+  }, [syncStatusData, savedAgents, mcpEndpoints, sandboxEndpoints, scopes, connectorsList]);
 
   const syncEndpoints = useMemo(() => {
     const pickPriority = (provider: string): number => {

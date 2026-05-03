@@ -17,6 +17,10 @@ export interface PanelState {
   agentId?: string;
   mcpEndpointId?: string;
   sandboxEndpointId?: string;
+  /** When opening sync_create from a scope's "AI Agent" default, set
+   *  this to 'chat' so the create panel skips the type-picker and lands
+   *  directly on the chat-agent form. */
+  agentTypePreselect?: 'chat';
 }
 
 interface PanelStore {

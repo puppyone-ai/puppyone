@@ -27,7 +27,7 @@ export function AccessPointsHeaderButton({
     <button
       type="button"
       onClick={onClick}
-      title="Access points"
+      title="Integrations"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -70,7 +70,7 @@ export function AccessPointsHeaderButton({
       >
         <ChainIcon />
       </span>
-      <span>Access Points</span>
+      <span>Integrations</span>
       <span
         style={{
           minWidth: 18,

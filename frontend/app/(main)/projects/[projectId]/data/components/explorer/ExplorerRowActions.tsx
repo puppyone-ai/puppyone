@@ -115,6 +115,7 @@ export function ExplorerRowActions({
   const isAccessMenuOpen = openMenuAction === 'access';
   const endpointCount = endpoints.length;
   const hasAccessPoint = endpointCount > 0;
+  const integrationLabel = endpointCount === 1 ? 'integration' : 'integrations';
   const suppressPeerActions = isAccessControlActive || isAccessMenuOpen;
   const peerVisibility = suppressPeerActions ? 'invisible' : 'invisible group-hover/row:visible';
   const accessVisibility = hasAccessPoint || isAccessMenuOpen ? 'visible' : 'invisible group-hover/row:visible';
@@ -165,10 +166,10 @@ export function ExplorerRowActions({
           <RowActionButton
             title={
               hasAccessPoint
-                ? `${endpointCount} access point${endpointCount === 1 ? '' : 's'} on this folder`
-                : 'Create access point for this folder'
+                ? `${endpointCount} ${integrationLabel} on this folder`
+                : 'Add integration to this folder'
             }
-            ariaLabel="Create access point for this folder"
+            ariaLabel="Add integration to this folder"
             active={accessActive}
             variant={accessActive ? 'accessActive' : 'default'}
             onClick={(e) => {
