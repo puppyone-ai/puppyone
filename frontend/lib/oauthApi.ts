@@ -166,46 +166,60 @@ export async function openOAuthPopup(saasType: SaasType): Promise<boolean> {
 // (so existing callers don't need to change their imports)
 // ---------------------------------------------------------------------------
 
+// All callbacks accept an optional `state` second arg — the CSRF nonce
+// the backend issued during /authorize and round-tripped via the OAuth
+// `state` query param. Without it, OAuthStateRepository.consume() fails
+// validation and the callback returns 400 (re-wrapped as 500 by the
+// router's outer except). Each callback page must read `state` from
+// `searchParams` and forward it here.
+
 // --- Notion ---
 export const getNotionAuthUrl  = () => oauth.notion.getAuthUrl();
-export const notionCallback    = (code: string, provider?: string) =>
-  oauth.notion.callback(code, provider ? { state: provider } : undefined);
+export const notionCallback    = (code: string, state?: string) =>
+  oauth.notion.callback(code, state ? { state } : undefined);
 export const getNotionStatus   = () => oauth.notion.getStatus();
 export const disconnectNotion  = () => oauth.notion.disconnect();
 export const connectNotion     = async () => { window.location.href = await oauth.notion.getAuthUrl(); };
 
 // --- GitHub ---
 export const getGithubStatus   = () => oauth.github.getStatus();
-export const githubCallback    = (code: string) => oauth.github.callback(code);
+export const githubCallback    = (code: string, state?: string) =>
+  oauth.github.callback(code, state ? { state } : undefined);
 export const disconnectGithub  = () => oauth.github.disconnect();
 export const connectGithub     = async () => { window.location.href = await oauth.github.getAuthUrl(); };
 
 // --- Gmail ---
-export const gmailCallback     = (code: string) => oauth.gmail.callback(code);
+export const gmailCallback     = (code: string, state?: string) =>
+  oauth.gmail.callback(code, state ? { state } : undefined);
 export const getGmailStatus    = () => oauth.gmail.getStatus();
 export const disconnectGmail   = () => oauth.gmail.disconnect();
 
 // --- Google Drive ---
-export const googleDriveCallback  = (code: string) => oauth.google_drive.callback(code);
+export const googleDriveCallback  = (code: string, state?: string) =>
+  oauth.google_drive.callback(code, state ? { state } : undefined);
 export const getGoogleDriveStatus = () => oauth.google_drive.getStatus();
 
 // --- Google Calendar ---
-export const googleCalendarCallback  = (code: string) => oauth.google_calendar.callback(code);
+export const googleCalendarCallback  = (code: string, state?: string) =>
+  oauth.google_calendar.callback(code, state ? { state } : undefined);
 export const getGoogleCalendarStatus = () => oauth.google_calendar.getStatus();
 
 // --- Google Sheets ---
-export const googleSheetsCallback    = (code: string) => oauth.google_sheets.callback(code);
+export const googleSheetsCallback    = (code: string, state?: string) =>
+  oauth.google_sheets.callback(code, state ? { state } : undefined);
 export const getGoogleSheetsStatus   = () => oauth.google_sheets.getStatus();
 export const disconnectGoogleSheets  = () => oauth.google_sheets.disconnect();
 export const connectGoogleSheets     = async () => { window.location.href = await oauth.google_sheets.getAuthUrl(); };
 
 // --- Google Docs ---
-export const googleDocsCallback    = (code: string) => oauth.google_docs.callback(code);
+export const googleDocsCallback    = (code: string, state?: string) =>
+  oauth.google_docs.callback(code, state ? { state } : undefined);
 export const getGoogleDocsStatus   = () => oauth.google_docs.getStatus();
 export const disconnectGoogleDocs  = () => oauth.google_docs.disconnect();
 
 // --- Linear ---
-export const linearCallback    = (code: string) => oauth.linear.callback(code);
+export const linearCallback    = (code: string, state?: string) =>
+  oauth.linear.callback(code, state ? { state } : undefined);
 export const getLinearStatus   = () => oauth.linear.getStatus();
 export const disconnectLinear  = () => oauth.linear.disconnect();
 export const connectLinear     = async () => { window.location.href = await oauth.linear.getAuthUrl(); };

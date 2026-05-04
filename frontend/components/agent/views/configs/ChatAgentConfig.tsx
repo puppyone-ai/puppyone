@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
 import type { Tool as DbTool } from '@/lib/mcpApi';
+import { isWithinScope } from '@/lib/repoApi';
 import {
   FolderIcon, JsonIcon, MarkdownIcon,
   CloseIcon, PlusIcon, ChevronDownIcon,
@@ -12,9 +13,26 @@ import {
 
 export interface AgentConfigProps {
   projectTools?: DbTool[];
+  /**
+   * Canonical path of the scope this config edits, when it's opened from
+   * a scope context (e.g. clicking the "AI Agent" default in the scope
+   * panel). When set, drop targets reject folders outside the scope —
+   * the user is then prompted to configure those at the parent scope
+   * instead. Pass `undefined` from non-scope contexts to keep the
+   * legacy permissive behaviour.
+   */
+  scopeBoundary?: string;
+  /** Human-readable name for the scope (used in the rejection toast). */
+  scopeBoundaryLabel?: string;
 }
 
-export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }: AgentConfigProps & {
+export function ChatAgentConfig({
+  projectTools,
+  targetLabel,
+  targetDescription,
+  scopeBoundary,
+  scopeBoundaryLabel,
+}: AgentConfigProps & {
   targetLabel?: string;
   targetDescription?: string;
 }) {
@@ -23,6 +41,7 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
   const [isDragging, setIsDragging] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
   const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
+  const [dropError, setDropError] = useState<string | null>(null);
   const toolsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,13 +71,28 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
     if (!data) return;
     try {
       const node = JSON.parse(data);
-      if (draftResources.some(r => r.path === (node.nodeId || node.id))) return;
+      const nodePath: string = node.nodeId || node.id;
+      // Scope-aware guard (redesign Q1 decision 2026-05-04): when this
+      // config is opened from a scope context, only folders within that
+      // scope's boundary can be attached. Out-of-scope drops surface an
+      // inline error pointing the user back to the parent scope where
+      // the integration should be configured instead.
+      if (scopeBoundary !== undefined && !isWithinScope(nodePath, scopeBoundary)) {
+        const boundary = scopeBoundaryLabel || (scopeBoundary === '' ? 'root' : `/${scopeBoundary}`);
+        setDropError(
+          `${node.name || nodePath} is outside this scope (${boundary}). Configure integrations for it from its own scope.`,
+        );
+        setTimeout(() => setDropError(null), 5000);
+        return;
+      }
+      if (draftResources.some(r => r.path === nodePath)) return;
       const newResource: AccessResource = {
-        path: node.nodeId || node.id,
+        path: nodePath,
         nodeName: node.name,
         nodeType: node.type === 'folder' ? 'folder' : node.type === 'json' ? 'json' : 'file',
         readonly: false,
       };
+      setDropError(null);
       addDraftResource(newResource);
     } catch { /* ignore */ }
   };
@@ -122,6 +156,42 @@ export function ChatAgentConfig({ projectTools, targetLabel, targetDescription }
           <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
             {targetDescription || 'Drag and drop a folder to define the workspace scope this agent can interact with.'}
           </div>
+
+          {scopeBoundary !== undefined && (
+            <div
+              style={{
+                fontSize: 11,
+                color: '#71717a',
+                paddingLeft: 2,
+                marginBottom: 8,
+                lineHeight: 1.5,
+              }}
+            >
+              Only folders inside{' '}
+              <code style={{ color: '#a1a1aa' }}>
+                {scopeBoundary === '' ? '/ (root)' : `/${scopeBoundary}`}
+              </code>{' '}
+              can be attached. To configure folders outside this scope, use their parent scope.
+            </div>
+          )}
+
+          {dropError && (
+            <div
+              style={{
+                fontSize: 12,
+                color: '#fca5a5',
+                background: 'rgba(248,113,113,0.08)',
+                border: '1px solid rgba(248,113,113,0.25)',
+                borderRadius: 6,
+                padding: '6px 10px',
+                marginBottom: 8,
+                lineHeight: 1.5,
+              }}
+              role="alert"
+            >
+              {dropError}
+            </div>
+          )}
 
           <div
             style={{

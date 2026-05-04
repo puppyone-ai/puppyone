@@ -15,6 +15,8 @@ function GoogleSheetsCallbackContent() {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get('code');
+      // CSRF nonce — backend's OAuthStateRepository.consume() requires it.
+      const state = searchParams.get('state') || undefined;
       const error = searchParams.get('error');
 
       const redirectOrClose = (delay: number) => {
@@ -42,7 +44,7 @@ function GoogleSheetsCallbackContent() {
       }
 
       try {
-        const result = await googleSheetsCallback(code);
+        const result = await googleSheetsCallback(code, state);
 
         if (result.success) {
           setStatus('success');

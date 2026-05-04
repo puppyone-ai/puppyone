@@ -34,7 +34,16 @@ except ImportError:
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error
 
-_ASYNC_BRIDGE_TIMEOUT_SECS = 30
+# Single-blob S3 download budget. Used by the sync→async bridge below
+# to bound how long `store.get(blob_hash)` can block. The previous 30s
+# was tight: when MutOps does a full clone-on-write, every blob in the
+# scope is fetched serially, and large imports (e.g. Gmail messages
+# with attachments, multi-MB documents) routinely exceed it — symptom
+# was every mkdir / write_file / create_sync raising `TimeoutError`
+# from `future.result(timeout=...)` in `_run_async`. Bumped to 300s to
+# match the boto3 client's `read_timeout` (see infra/s3/service.py),
+# so the bridge timeout doesn't bite before S3 itself does.
+_ASYNC_BRIDGE_TIMEOUT_SECS = 300
 _HASH_PREFIX_LEN = 2
 _MAX_LIST_KEYS = 10000
 
@@ -67,8 +76,20 @@ def _run_async(coro):
 # CachedStorageBackend — process-wide LRU cache
 # ═══════════════════════════════════════════════
 
-_CACHE_MAX_BYTES = 128 * 1024 * 1024  # 128 MB total budget
-_CACHEABLE_THRESHOLD = 1 * 1024 * 1024  # only cache objects < 1 MB (tree objects are ~few KB)
+# LRU is keyed by content hash, so cached objects are immutable —
+# we can cache aggressively and the only cost is RAM. Tree nodes are
+# tiny (a few KB) but blob payloads can be tens of MB on real
+# projects, and they're hit twice per push (once by handle_push's
+# _flatten_tree_to_bytes for the incoming snapshot, once by
+# _push_cas_attempt's list_scope_files for the current scope state).
+# A 1 MB threshold meant a 26 MB user blob fell through both passes
+# and triggered two 19-second S3 GETs per push. Lifting the
+# per-object threshold to ~64 MB lets large blobs land in the LRU
+# after the first push, so subsequent writes don't pay the round-
+# trip again. Total budget bumped to keep room for a handful of
+# large blobs alongside the tree nodes.
+_CACHE_MAX_BYTES = 512 * 1024 * 1024  # 512 MB total budget
+_CACHEABLE_THRESHOLD = 64 * 1024 * 1024  # cache up to 64 MB per object
 
 _global_cache: cachetools.LRUCache | None = None
 _cache_lock = threading.Lock()
@@ -113,6 +134,15 @@ class CachedStorageBackend(StorageBackend):
         return data
 
     def put(self, h: str, data: bytes) -> None:
+        # Content-addressed: if the hash is already in the cache,
+        # the inner backend has the same bytes (we put them there
+        # ourselves on a previous call). Skip the S3 HEAD round-trip.
+        # This is what makes the second pass of handle_push (which
+        # re-puts every blob via _build_tree_from_files) free.
+        with _cache_lock:
+            already_cached = h in self._cache
+        if already_cached:
+            return
         self._inner.put(h, data)
         if len(data) < _CACHEABLE_THRESHOLD:
             with _cache_lock:

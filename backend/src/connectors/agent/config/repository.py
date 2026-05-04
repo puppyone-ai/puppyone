@@ -1,13 +1,21 @@
 """
 Agent Config Repository
 
-Unified architecture: Agent data is stored in the access_points table (provider='agent').
-AgentRepository is a domain view on the access_points table, specifically handling agent-type records.
+Post-redesign-2026-05-02: Agent data has been migrated from the legacy
+``access_points`` table to ``connectors`` (provider='agent'). Read methods
+(get_by_id*, get_by_project_id*, get_by_mcp_api_key*) target the new
+table. Write methods still write to the legacy table and will fail —
+they are slated for a follow-up that wires scope_id provisioning. The
+DB trigger on ``repo_scopes`` already auto-creates one ``agent``
+connector per scope, so the read path picks them up without user
+intervention; the user "activates" the agent later by filling in
+config.mcp_api_key, name, icon, etc. via the new write path.
 
-Mut-Native architecture: Agent access permissions are stored in access_points.config.scope (JSONB).
-The access_permissions table is no longer used for scope. Scope format:
-  { "path": "docs/", "exclude": [], "mode": "rw" }
-Frontend bash_accesses are derived from scope.
+mcp_api_key migration: the legacy ``access_points.access_key`` column
+moved into ``connectors.config.mcp_api_key`` (jsonb). _row_to_agent
+falls back to the legacy column for any pre-migration rows that
+slipped through (defensive — production data should have all of these
+re-keyed already).
 """
 
 from typing import List, Optional
@@ -19,6 +27,7 @@ from src.utils.id_generator import generate_uuid_v7
 
 
 AGENT_PROVIDER = "agent"
+CONNECTORS_TABLE = "connectors"
 _NOW = "now()"
 
 
@@ -64,18 +73,25 @@ def generate_mcp_api_key() -> str:
 
 
 def _row_to_agent(row: dict) -> Agent:
-    """Convert a syncs row to an Agent model."""
+    """Convert a connectors row (provider='agent') to an Agent model.
+
+    Defensive lookups: ``name`` is now a top-level column on connectors
+    (auto-populated to 'AI Agent' by the DB trigger) but was historically
+    in config; we fall back to whichever exists. ``mcp_api_key`` moved
+    from ``access_key`` column to ``config.mcp_api_key`` jsonb field
+    after the redesign — same fallback dance.
+    """
     config = row.get("config") or {}
     trigger = row.get("trigger") or {}
     return Agent(
         id=row["id"],
         project_id=row["project_id"],
-        name=config.get("name", ""),
+        name=config.get("name") or row.get("name") or "",
         icon=config.get("icon", "✨"),
         type=config.get("type", "chat"),
         description=config.get("description"),
         is_default=config.get("is_default", False),
-        mcp_api_key=row.get("access_key"),
+        mcp_api_key=config.get("mcp_api_key") or row.get("access_key") or None,
         trigger_type=trigger.get("type", "manual"),
         trigger_config=trigger.get("config"),
         task_content=config.get("task_content"),
@@ -118,8 +134,13 @@ def _merge_agent_updates(
 
 
 class AgentRepository:
-    """Agent repository -- reads/writes the access_points table (provider='agent')."""
+    """Agent repository — reads from ``connectors`` (provider='agent')
+    after the redesign-2026-05-02 migration. Writes still target the
+    legacy ``access_points`` table and will raise APIError on call (TODO:
+    rewire to connectors with scope_id provisioning)."""
 
+    # Legacy field kept for code that introspects TABLE; actual queries
+    # go through CONNECTORS_TABLE (module constant).
     TABLE = "access_points"
 
     def __init__(self, supabase_client=None):
@@ -130,7 +151,11 @@ class AgentRepository:
             self._client = supabase_client
 
     def _query(self):
-        return self._client.table(self.TABLE).select("*").eq("provider", AGENT_PROVIDER)
+        return (
+            self._client.table(CONNECTORS_TABLE)
+            .select("*")
+            .eq("provider", AGENT_PROVIDER)
+        )
 
     # ============================================
     # Agent CRUD
@@ -189,10 +214,14 @@ class AgentRepository:
         rows = response.data or []
 
         if viewer_user_id is not None:
+            # The redesigned `connectors` table uses `created_by` as the
+            # owner column; the legacy `access_points` table called the
+            # same field `user_id`. Check both so this code keeps working
+            # against either schema during the transition window.
             rows = [
                 r for r in rows
                 if (r.get("config") or {}).get("visibility", "org").lower() != "private"
-                or r.get("user_id") == viewer_user_id
+                or (r.get("created_by") or r.get("user_id")) == viewer_user_id
             ]
 
         agents = [_row_to_agent(row) for row in rows]
@@ -238,9 +267,12 @@ class AgentRepository:
         return None
 
     def get_by_mcp_api_key(self, mcp_api_key: str) -> Optional[Agent]:
+        # mcp_api_key now lives in connectors.config (jsonb). Use postgrest
+        # .filter(path, op, value) — same convention as connector_repository
+        # and the migrated mcp/sandbox endpoint repos.
         response = (
             self._query()
-            .eq("access_key", mcp_api_key)
+            .filter("config->>mcp_api_key", "eq", mcp_api_key)
             .execute()
         )
         if response.data:
@@ -250,7 +282,7 @@ class AgentRepository:
     def get_by_mcp_api_key_with_accesses(self, mcp_api_key: str) -> Optional[Agent]:
         response = (
             self._query()
-            .eq("access_key", mcp_api_key)
+            .filter("config->>mcp_api_key", "eq", mcp_api_key)
             .execute()
         )
         if not response.data:

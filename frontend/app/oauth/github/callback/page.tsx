@@ -12,6 +12,8 @@ function GithubCallbackContent() {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get('code');
+      // CSRF nonce — backend's OAuthStateRepository.consume() requires it.
+      const state = searchParams.get('state') || undefined;
       const error = searchParams.get('error');
 
       if (error) {
@@ -29,7 +31,7 @@ function GithubCallbackContent() {
       }
 
       try {
-        const result = await githubCallback(code);
+        const result = await githubCallback(code, state);
 
         if (result.success) {
           setStatus('success');

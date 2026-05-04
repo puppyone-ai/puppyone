@@ -97,7 +97,7 @@ class SupabaseHistoryManager:
     def get_root_hash(self) -> str:
         import time as _time
         now = _time.monotonic()
-        if hasattr(self, "_root_hash_cache") and now - self._root_hash_ts < 2.0:
+        if hasattr(self, "_root_hash_cache") and now - self._root_hash_ts < 0.1:
             return self._root_hash_val
         resp = (
             self._client.table("projects")

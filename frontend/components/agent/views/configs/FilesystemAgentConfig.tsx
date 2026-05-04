@@ -3,15 +3,17 @@
 import React, { useState } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
+import { isWithinScope } from '@/lib/repoApi';
 import { FolderIcon, CloseIcon, getNodeIcon } from '../_icons';
 import type { AgentConfigProps } from './ChatAgentConfig';
 
 // Filesystem connector syncs a local folder with the cloud workspace.
 // Only folders can be dragged in — individual files are not supported.
 
-export function FilesystemAgentConfig({}: AgentConfigProps) {
+export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: AgentConfigProps) {
   const { draftResources, addDraftResource, updateDraftResource, removeDraftResource } = useAgent();
   const [isDragging, setIsDragging] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
     if (draftResources.length > 0) return; // already has a folder, don't accept more
@@ -32,8 +34,21 @@ export function FilesystemAgentConfig({}: AgentConfigProps) {
       const node = JSON.parse(data);
       if (node.type !== 'folder') return; // only folders allowed
       if (draftResources.length > 0) return; // only one folder allowed
+      const nodePath: string = node.nodeId || node.id;
+      // Scope-aware guard: when this config is opened from a scope
+      // context, only folders inside that scope's boundary can be
+      // attached. Out-of-scope drops surface an inline error.
+      if (scopeBoundary !== undefined && !isWithinScope(nodePath, scopeBoundary)) {
+        const boundary = scopeBoundaryLabel || (scopeBoundary === '' ? 'root' : `/${scopeBoundary}`);
+        setDropError(
+          `${node.name || nodePath} is outside this scope (${boundary}). Configure integrations for it from its own scope.`,
+        );
+        setTimeout(() => setDropError(null), 5000);
+        return;
+      }
+      setDropError(null);
       addDraftResource({
-        path: node.nodeId || node.id,
+        path: nodePath,
         nodeName: node.name,
         nodeType: 'folder',
         readonly: true,
@@ -82,6 +97,31 @@ export function FilesystemAgentConfig({}: AgentConfigProps) {
           <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
             Drag and drop a folder from the left sidebar to sync it with your local desktop.
           </div>
+
+          {scopeBoundary !== undefined && (
+            <div style={{ fontSize: 11, color: '#71717a', paddingLeft: 2, marginBottom: 8, lineHeight: 1.5 }}>
+              Only folders inside{' '}
+              <code style={{ color: '#a1a1aa' }}>
+                {scopeBoundary === '' ? '/ (root)' : `/${scopeBoundary}`}
+              </code>{' '}
+              can be attached.
+            </div>
+          )}
+
+          {dropError && (
+            <div
+              style={{
+                fontSize: 12, color: '#fca5a5',
+                background: 'rgba(248,113,113,0.08)',
+                border: '1px solid rgba(248,113,113,0.25)',
+                borderRadius: 6, padding: '6px 10px',
+                marginBottom: 8, lineHeight: 1.5,
+              }}
+              role="alert"
+            >
+              {dropError}
+            </div>
+          )}
 
           <div
             style={{

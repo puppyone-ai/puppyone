@@ -300,6 +300,31 @@ class TestListScopeFiles:
         assert "readme.md" in files
         assert files["readme.md"] == b"hello world"
 
+    def test_root_scope_ignores_grafted_child_scope_files(self, server_repo, memory_store):
+        """Root protocol clone must not import materialized child-scope files."""
+        root_blob = memory_store.put(b"root")
+        child_blob = memory_store.put(b"child")
+        root_scope_hash = memory_store.put(json.dumps({
+            "root.txt": ["B", root_blob],
+        }, sort_keys=True).encode())
+        child_scope_hash = memory_store.put(json.dumps({
+            "child.txt": ["B", child_blob],
+        }, sort_keys=True).encode())
+        global_root_hash = memory_store.put(json.dumps({
+            "root.txt": ["B", root_blob],
+            "folder1": ["T", child_scope_hash],
+        }, sort_keys=True).encode())
+
+        server_repo.history.set_scope_hash("", root_scope_hash)
+        server_repo.history.set_scope_hash("folder1", child_scope_hash)
+        server_repo.history.set_root_hash(global_root_hash)
+
+        files = server_repo.list_scope_files({
+            "id": "root", "path": "", "exclude": [], "mode": "rw",
+        })
+
+        assert files == {"root.txt": b"root"}
+
 
 class TestWriteAndBuildScopeTree:
     def test_write_then_build(self, server_repo, memory_store):
