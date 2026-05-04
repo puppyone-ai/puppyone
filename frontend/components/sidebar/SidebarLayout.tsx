@@ -193,25 +193,28 @@ export function SidebarLayout({
         borderRight: '1px solid rgba(255,255,255,0.08)',
       }}
     >
-      {/* Header — 40px, matches showcase AppShell exactly. The
-          horizontal hairline runs at the same y as every page-level
-          header so sidebar and content share one continuous divider
-          line, which is what the showcase relies on for the
-          "single composed scene" read. Padding `0 12px` and gap 8px
-          also mirror the showcase. */}
+      {/* Header — 40px row, borderBottom 0.08. Internal padding lives
+          on the workspace switcher button itself (showcase pattern:
+          padding `0 12px` directly on the workspace `<div>`), so the
+          chip sits exactly 12px from the sidebar edge instead of
+          parent-padding-stacked-on-button-padding.
+          The collapse button is absolutely positioned on the right
+          and fades in on header hover; that way it doesn't reserve
+          flex space and the chevron lands at the showcase position
+          (right - 12 - 10 = right - 22). */}
       <div
-        className={clsx(
-          'box-border flex h-10 flex-shrink-0 items-center group/header',
-          effectiveCollapsed
-            ? 'justify-center px-0'
-            : 'justify-between px-3'
-        )}
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
+        className='group/header relative'
+        style={{
+          height: 40,
+          flexShrink: 0,
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          boxSizing: 'border-box',
+        }}
       >
         {effectiveCollapsed ? (
           <button
             type='button'
-            className='group relative flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
+            className='group relative mx-auto mt-[4px] flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
             onClick={() => handleCollapsedChange(false)}
             title={t('expand')}
             aria-label={t('expand')}
@@ -240,7 +243,7 @@ export function SidebarLayout({
           </button>
         ) : (
           <>
-            {/* Project Switcher (Figma-style) */}
+            {/* Project Switcher — fills the full 40px row. */}
             {onSelectProject && onGoHome ? (
               <ProjectSwitcher
                 currentProject={
@@ -257,27 +260,44 @@ export function SidebarLayout({
                 onHoverProject={onHoverProject}
               />
             ) : (
-              // Fallback: simple title display
-              <div className='flex items-center gap-2 overflow-hidden px-2'>
+              // Fallback: simple title display, identical padding to
+              // the workspace switcher button so the chip lands at
+              // the same x-coordinate.
+              <div
+                style={{
+                  height: 40,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '0 12px',
+                  overflow: 'hidden',
+                  boxSizing: 'border-box',
+                }}
+              >
                 <img
                   src='/puppyone-logo.svg'
                   alt='puppyone'
-                  width={20}
-                  height={20}
+                  width={18}
+                  height={18}
                   className='flex-shrink-0 rounded-[4px]'
                 />
-                <span className='text-sm font-semibold tracking-[0.3px] text-[#ededed] truncate'>
+                <span className='text-[12.5px] font-medium text-[#fafafa] truncate'>
                   {title}
                 </span>
               </div>
             )}
 
+            {/* Collapse button — absolutely placed on the right so
+                it doesn't take a flex slot. Fades in on header hover
+                and overlaps the chevron's area; we hide the chevron
+                via `group-hover/header:opacity-0` inside the
+                ProjectSwitcher to avoid the two stacking. */}
             <button
               type='button'
-              className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] opacity-0 transition-[opacity,colors,background] duration-150 group-hover/header:opacity-100 hover:bg-white/[0.06] hover:text-[#ededed]'
               onClick={() => handleCollapsedChange(true)}
               title={t('collapse')}
               aria-label={t('collapse')}
+              className='absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[5px] text-[#6b7280] opacity-0 transition-[opacity,colors,background] duration-150 group-hover/header:opacity-100 hover:bg-white/[0.06] hover:text-[#fafafa]'
             >
               <svg
                 width='14'
