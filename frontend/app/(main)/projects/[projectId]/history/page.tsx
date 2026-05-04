@@ -8,6 +8,7 @@ import {
   getVersionContent,
   type MutCommitInfo,
   type MutCommitChange,
+  type FileVersionDetail,
 } from '@/lib/contentTreeApi';
 
 // ─── Line diff utility ───────────────────────────────────────────────
@@ -67,13 +68,20 @@ function lineDiff(a: string[], b: string[]): DiffLine[] {
   return out;
 }
 
-function fileToLines(detail: { content_text: string | null; content_json: unknown }): string[] | null {
+// Pull lines out of the commit-content response. Backend returns
+// either `content_text` (raw decoded text — markdown / yaml / source)
+// or `content` (already-parsed JSON for JSON files). The earlier
+// version of this fn looked at `content_json`, which the endpoint
+// never returns — so JSON-file diffs always silently fell through to
+// the "Binary file" placeholder. Keep both fallbacks so the function
+// stays robust if the wire shape ever shifts.
+function fileToLines(detail: FileVersionDetail): string[] | null {
   if (detail.content_text != null) {
     return detail.content_text.split('\n');
   }
-  if (detail.content_json != null) {
+  if (detail.content != null) {
     try {
-      return JSON.stringify(detail.content_json, null, 2).split('\n');
+      return JSON.stringify(detail.content, null, 2).split('\n');
     } catch {
       return null;
     }

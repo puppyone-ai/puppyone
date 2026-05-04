@@ -68,57 +68,68 @@ export function ProjectSwitcher({
   const displayName = currentProject ? currentProject.name : 'puppyone';
   const isInProject = currentProject !== null;
 
+  // First-letter glyph for the chip — uppercase, single character.
+  // Mirrors the showcase AppShell which renders e.g. "A" for
+  // "Acme Finance Team".
+  const firstLetter = (currentProject?.name?.[0] || 'P').toUpperCase();
+
   return (
     <div className='relative flex-1 min-w-0'>
-      {/* Trigger Button */}
+      {/* Trigger Button — single-line workspace switcher matching the
+          showcase AppShell exactly. Gap 8, padding 0 (the parent
+          header already supplies 12px horizontal). The whole row is
+          the click target; chevron on the right is decorative. */}
       <button
         ref={buttonRef}
         type='button'
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
-          'group flex w-full items-center gap-2 rounded-[6px] px-1.5 py-1 transition-colors',
+          'group flex w-full items-center gap-2 rounded-[5px] px-1 py-1 transition-colors',
           'hover:bg-white/[0.04]',
-          isOpen && 'bg-white/[0.04]'
+          isOpen && 'bg-white/[0.05]'
         )}
       >
-        {/* Icon — outline cube glyph for projects, brand mark for home.
-            We deliberately avoid a saturated chip here: in the live
-            product the project name is what carries the identity, and
-            a bright initialed badge overpowers the rest of the rail. */}
+        {/* Identity glyph — 18×18.
+            • Project view: cyan→blue gradient chip with the workspace's
+              first letter, lifted pixel-for-pixel from the showcase
+              AppShell (`linear-gradient(135deg, #22d3ee 0%, #2563eb
+              100%)`, 5px radius, 10px mono uppercase, #0a0a0a text).
+            • Home / global view: the puppyone brand mark — a chip
+              with "P" would read as just another project, so we keep
+              the proper logo here. */}
         {isInProject ? (
-          <svg
-            width='14'
-            height='14'
-            viewBox='0 0 24 24'
-            fill='none'
-            stroke='#9ca3af'
-            strokeWidth='1.5'
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            className='flex-shrink-0'
+          <span
+            aria-hidden
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[#0a0a0a]'
+            style={{
+              background: 'linear-gradient(135deg, #22d3ee 0%, #2563eb 100%)',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              letterSpacing: 0,
+            }}
           >
-            <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
-            <polyline points='3.27 6.96 12 12.01 20.73 6.96' />
-            <line x1='12' y1='22.08' x2='12' y2='12' />
-          </svg>
+            {firstLetter}
+          </span>
         ) : (
           <img
             src='/puppyone-logo.svg'
             alt='puppyone'
-            width={20}
-            height={20}
+            width={18}
+            height={18}
             className='flex-shrink-0 rounded-[4px]'
           />
         )}
 
-        {/* Name — 12.5px / weight 500 to match showcase. */}
-        <span
-          className='flex-1 truncate text-left text-[12.5px] font-medium text-[#ededed]'
-        >
+        {/* Workspace name — 12.5px / weight 500 / #fafafa. Showcase
+            uses T.text1 = #fafafa here; we matched that exactly so
+            the workspace label sits at the same lightness as the
+            "active" nav row text underneath. */}
+        <span className='flex-1 truncate text-left text-[12.5px] font-medium text-[#fafafa]'>
           {displayName}
         </span>
 
-        {/* Chevron */}
+        {/* Chevron — 10×10 single down-caret matching the showcase.
+            Color #52525b (T.text3). On hover it lifts to T.text2 so
+            the row clearly reads as actionable. */}
         <svg
           width='10'
           height='10'
@@ -129,8 +140,8 @@ export function ProjectSwitcher({
           strokeLinecap='round'
           strokeLinejoin='round'
           className={clsx(
-            'flex-shrink-0 text-[#71717a] transition-transform duration-150',
-            isOpen && 'rotate-180'
+            'flex-shrink-0 text-[#52525b] transition-colors duration-150 group-hover:text-[#a1a1aa]',
+            isOpen && 'rotate-180 text-[#a1a1aa]'
           )}
         >
           <polyline points='6 9 12 15 18 9' />

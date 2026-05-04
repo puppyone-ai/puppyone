@@ -1,8 +1,34 @@
 'use client';
 
+/**
+ * System Monitor — pixel migration of the puppyone-web showcase's
+ * MonitorView with the product's existing functionality kept intact.
+ *
+ * What changed visually:
+ *   - Header gains a "Live · N events" indicator (animated dot)
+ *     instead of a refresh button. Live status reads as ambient
+ *     instead of a manual control.
+ *   - Column template tightened to `74 / 86 / 150 / 1fr / 60` to
+ *     match the showcase, plus a 28px table header strip with the
+ *     same uppercase tracking as the showcase.
+ *   - Newest row gets a subtle green tint to reinforce "live".
+ *   - 22px bottom footer summarising "streaming from N access
+ *     points · last 24h · sorted desc".
+ *
+ * What's preserved from the product (the showcase deliberately drops
+ * these for the marketing surface, but they're load-bearing in the
+ * real app):
+ *   - Filter tabs (All / Protocol / Agent) — we still need the type
+ *     split because the unified table mixes audit-log entries and
+ *     agent-call entries from two different sources.
+ *   - Search box — power-user affordance for incident triage.
+ *   - JSON detail drawer at the bottom — debuggability.
+ */
+
 import React, { use, useEffect, useState, useMemo, useCallback } from 'react';
 import { getAgentLogs, type AgentLog } from '@/lib/chatApi';
 import { get } from '@/lib/apiClient';
+import { listConnectors } from '@/lib/repoApi';
 import useSWR from 'swr';
 
 interface AuditLogEntry {
@@ -15,6 +41,17 @@ interface AuditLogEntry {
   created_at: string | null;
 }
 
+const T = {
+  text1: '#fafafa',
+  text2: '#a1a1aa',
+  text3: '#52525b',
+  text4: '#27272a',
+  border: 'rgba(255,255,255,0.08)',
+  fontSans: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+  fontMono: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
+} as const;
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
@@ -24,19 +61,7 @@ function formatTime(iso: string): string {
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
-  const ms = d.getMilliseconds().toString().padStart(3, '0');
-  return `${d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.${ms}`;
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 }
 
 type UnifiedLog = {
@@ -57,6 +82,10 @@ const ACTION_COLORS: Record<string, string> = {
   bash: '#34d399', tool: '#60a5fa', llm: '#c084fc',
 };
 
+// Single source of truth for the table grid template — header and
+// rows both reference it or columns desync at fractional widths.
+const COL_TEMPLATE = '74px 86px 150px 1fr 60px';
+
 export default function MonitorPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
   const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
@@ -69,6 +98,14 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
     projectId ? `/api/v1/nodes/project-audit-logs?project_id=${projectId}&limit=200` : null,
     (url: string) => get(url),
     { refreshInterval: 15000 },
+  );
+
+  // Connector count drives the footer's "Streaming from N access
+  // points" line. Cheap to fetch, already cached by /access.
+  const { data: connectors } = useSWR(
+    projectId ? ['repo-connectors', projectId] : null,
+    () => listConnectors(projectId),
+    { refreshInterval: 60000, revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
   const fetchAgentLogs = useCallback(async () => {
@@ -141,7 +178,10 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
     if (filter === 'agent') list = list.filter(l => l.type === 'agent');
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(l => l.detail.toLowerCase().includes(q) || l.action.toLowerCase().includes(q) || l.source.toLowerCase().includes(q));
+      list = list.filter(l =>
+        l.detail.toLowerCase().includes(q)
+        || l.action.toLowerCase().includes(q)
+        || l.source.toLowerCase().includes(q));
     }
     return list;
   }, [allLogs, filter, searchQuery]);
@@ -150,41 +190,32 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
 
   const protocolCount = allLogs.filter(l => l.type === 'protocol').length;
   const agentCount = allLogs.filter(l => l.type === 'agent').length;
+  const apCount = connectors?.length ?? 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
 
-      {/* Header */}
-      <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.08)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
-        background: '#0e0e0e', flexShrink: 0,
-      }}>
-        <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>System Monitor</span>
-        <button
-          onClick={fetchAgentLogs}
-          disabled={loading}
-          style={{ background: 'transparent', border: 'none', borderRadius: 4, color: loading ? '#52525b' : '#a1a1aa', cursor: loading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', padding: 6 }}
-          title="Refresh"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }}>
-            <path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </svg>
-          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-        </button>
-      </div>
-
-      {/* Main: table layout */}
+      {/* Main: table layout. The 40px page-level header that used to
+          sit above this band has been removed — the project header
+          (with the active "Monitor" tab) already provides the page
+          name, and stacking two header bands made the surface heavier
+          than the showcase. The Live indicator + event count + refresh
+          have moved into the toolbar below so the live signal stays
+          visible. */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
-        {/* Toolbar */}
+        {/* Toolbar — filter chips · Live indicator · search · refresh */}
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center',
           padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
           flexShrink: 0, gap: 12,
         }}>
-          {/* Filter tabs */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#111113', padding: 3, borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            background: '#111113', padding: 3, borderRadius: 6,
+            border: '1px solid rgba(255,255,255,0.06)',
+            flexShrink: 0,
+          }}>
             {[
               { key: 'all', label: 'All', count: allLogs.length },
               { key: 'protocol', label: 'Protocol', count: protocolCount },
@@ -199,86 +230,196 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                   border: 'none', borderRadius: 4, padding: '3px 10px', fontSize: 12,
                   fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s',
                   display: 'flex', alignItems: 'center', gap: 4,
+                  fontFamily: T.fontSans,
                 }}
               >
-                {f.label} <span style={{ opacity: 0.5, fontFamily: 'monospace', fontSize: 11 }}>{f.count}</span>
+                {f.label}{' '}
+                <span style={{ opacity: 0.5, fontFamily: T.fontMono, fontSize: 11 }}>{f.count}</span>
               </button>
             ))}
           </div>
 
-          {/* Search */}
+          {/* Live indicator — pulled out of the deleted page header.
+              Sits inline next to the filter chips so the "this is a
+              live stream" cue stays visible without occupying a
+              separate band. */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            fontSize: 11, color: T.text3,
+            fontFamily: T.fontMono, letterSpacing: '0.02em',
+            flexShrink: 0,
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: '#4ade80',
+              boxShadow: '0 0 6px #4ade80aa',
+              animation: `puppyone-monitor-pulse 1.6s ${T.ease} infinite`,
+            }} />
+            <span style={{ color: T.text2 }}>Live</span>
+            <span style={{ color: T.text4 }}>·</span>
+            <span>{allLogs.length} events</span>
+          </div>
+
+          {/* Spacer pushes search + refresh to the right edge. */}
+          <div style={{ flex: 1 }} />
+
           <div style={{ position: 'relative', width: 220 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#52525b" strokeWidth="2" style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }}>
+            <svg
+              width="12" height="12" viewBox="0 0 24 24"
+              fill="none" stroke="#52525b" strokeWidth="2"
+              style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }}
+            >
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               type="text" placeholder="Search logs..."
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               style={{
-                width: '100%', background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 5, padding: '5px 8px 5px 28px', fontSize: 12, color: '#e4e4e7', outline: 'none',
+                width: '100%', background: '#111113',
+                border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 5, padding: '5px 8px 5px 28px',
+                fontSize: 12, color: '#e4e4e7', outline: 'none',
+                fontFamily: T.fontSans,
               }}
             />
           </div>
+
+          <button
+            onClick={fetchAgentLogs}
+            disabled={loading}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 5,
+              color: loading ? '#52525b' : '#a1a1aa',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 26, height: 26, flexShrink: 0,
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (loading) return;
+              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+              e.currentTarget.style.color = '#e4e4e7';
+            }}
+            onMouseLeave={(e) => {
+              if (loading) return;
+              e.currentTarget.style.background = 'transparent';
+              e.currentTarget.style.color = '#a1a1aa';
+            }}
+            title="Refresh"
+          >
+            <svg
+              width="12" height="12" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              style={{ animation: loading ? 'puppyone-monitor-spin 1s linear infinite' : 'none' }}
+            >
+              <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
+          </button>
         </div>
 
         {/* Table header */}
         <div style={{
-          display: 'grid', gridTemplateColumns: '90px 70px 80px 1fr 50px',
-          gap: 0, padding: '6px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-          background: 'rgba(255,255,255,0.02)', fontSize: 10, fontWeight: 600,
-          color: '#52525b', letterSpacing: '0.05em', textTransform: 'uppercase',
+          display: 'grid', gridTemplateColumns: COL_TEMPLATE,
+          height: 28, alignItems: 'center',
+          padding: '0 16px',
+          borderBottom: `1px solid ${T.border}`,
+          background: 'rgba(255,255,255,0.02)',
+          fontSize: 9.5, fontWeight: 600,
+          color: T.text3, letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          fontFamily: T.fontSans,
           flexShrink: 0,
         }}>
-          <div>TIME</div>
-          <div>ACTION</div>
-          <div>SOURCE</div>
-          <div>EVENT</div>
-          <div style={{ textAlign: 'right' }}>DUR</div>
+          <div>Time</div>
+          <div>Action</div>
+          <div>Source</div>
+          <div>Event</div>
+          <div style={{ textAlign: 'right' }}>Dur</div>
         </div>
 
         {/* Table body */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {filteredLogs.length === 0 ? (
-            <div style={{ padding: 60, textAlign: 'center', color: '#3f3f46', fontSize: 13 }}>
+            <div style={{
+              padding: 60, textAlign: 'center', color: '#3f3f46', fontSize: 13,
+              fontFamily: T.fontSans,
+            }}>
               {loading ? 'Loading...' : 'No events found'}
             </div>
           ) : (
-            filteredLogs.map(log => {
+            filteredLogs.map((log, i) => {
               const isSelected = log.id === selectedId;
+              const isFirst = i === 0;
               const actionColor = ACTION_COLORS[log.action] || '#71717a';
+              const dotColor = log.status === 'error' ? '#ef4444'
+                : log.status === 'warn' ? '#f59e0b'
+                : actionColor;
               return (
                 <div
                   key={log.id}
                   onClick={() => setSelectedId(isSelected ? null : log.id)}
                   style={{
-                    display: 'grid', gridTemplateColumns: '90px 70px 80px 1fr 50px',
-                    gap: 0, padding: '0 16px', height: 32, alignItems: 'center',
+                    display: 'grid', gridTemplateColumns: COL_TEMPLATE,
+                    height: 30, alignItems: 'center',
+                    padding: '0 16px',
                     borderBottom: '1px solid rgba(255,255,255,0.03)',
-                    background: isSelected ? 'rgba(255,255,255,0.04)' : 'transparent',
-                    cursor: 'pointer', transition: 'background 0.1s',
-                    fontSize: 12,
+                    background: isSelected
+                      ? 'rgba(255,255,255,0.05)'
+                      : isFirst ? 'rgba(74,222,128,0.04)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: `background 0.2s ${T.ease}`,
+                    fontSize: 12, fontFamily: T.fontSans,
                   }}
-                  onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
-                  onMouseLeave={e => { if(!isSelected) e.currentTarget.style.background = isSelected ? 'rgba(255,255,255,0.04)' : 'transparent'; }}
+                  onMouseEnter={e => {
+                    if (isSelected) return;
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.025)';
+                  }}
+                  onMouseLeave={e => {
+                    if (isSelected) return;
+                    e.currentTarget.style.background = isFirst ? 'rgba(74,222,128,0.04)' : 'transparent';
+                  }}
                 >
-                  <div style={{ color: '#52525b', fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>
+                  <div style={{
+                    color: T.text3, fontFamily: T.fontMono, fontSize: 11,
+                    letterSpacing: '0.02em',
+                  }}>
                     {log.time ? formatTimestamp(log.time) : '—'}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span style={{
-                      width: 5, height: 5, borderRadius: '50%', flexShrink: 0,
-                      background: log.status === 'error' ? '#ef4444' : log.status === 'warn' ? '#f59e0b' : actionColor,
+                      width: 5, height: 5, borderRadius: '50%',
+                      background: dotColor, flexShrink: 0,
                     }} />
-                    <span style={{ color: actionColor, fontWeight: 500, fontSize: 11 }}>{log.action}</span>
+                    <span style={{
+                      color: actionColor, fontWeight: 500, fontSize: 11,
+                      fontFamily: T.fontMono, letterSpacing: '0.01em',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {log.action}
+                    </span>
                   </div>
-                  <div style={{ color: '#71717a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {log.source.length > 10 ? log.source.slice(0, 8) + '..' : log.source}
+                  <div style={{
+                    color: T.text2, fontWeight: 500,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    minWidth: 0,
+                  }}>
+                    {log.source.length > 16 ? log.source.slice(0, 14) + '…' : log.source}
                   </div>
-                  <div style={{ color: '#a1a1aa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{
+                    color: T.text2, fontFamily: T.fontMono, fontSize: 11.5,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    letterSpacing: '0.01em',
+                  }}>
                     {log.detail}
                   </div>
-                  <div style={{ textAlign: 'right', color: '#3f3f46', fontSize: 11 }}>
+                  <div style={{
+                    textAlign: 'right', color: T.text4,
+                    fontFamily: T.fontMono, fontSize: 11,
+                  }}>
                     {log.duration ? `${log.duration}ms` : ''}
                   </div>
                 </div>
@@ -287,36 +428,84 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           )}
         </div>
 
-        {/* Detail panel (bottom drawer when selected) */}
+        {/* Footer summary strip */}
+        <div style={{
+          height: 22,
+          padding: '0 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderTop: `1px solid ${T.border}`,
+          background: 'rgba(255,255,255,0.015)',
+          fontSize: 10, color: T.text3,
+          fontFamily: T.fontMono, letterSpacing: '0.04em',
+          flexShrink: 0,
+        }}>
+          <span>
+            Streaming from {apCount} access point{apCount === 1 ? '' : 's'}
+          </span>
+          <span>last 24h · sorted desc</span>
+        </div>
+
+        {/* Detail drawer (preserved from existing product) */}
         {selectedLog && (
           <div style={{
-            borderTop: '1px solid rgba(255,255,255,0.06)', background: '#0c0c0e',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            background: '#0c0c0e',
             maxHeight: 300, overflowY: 'auto', flexShrink: 0,
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)',
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{
                   width: 6, height: 6, borderRadius: '50%',
-                  background: selectedLog.status === 'error' ? '#ef4444' : ACTION_COLORS[selectedLog.action] || '#71717a',
+                  background: selectedLog.status === 'error' ? '#ef4444'
+                    : ACTION_COLORS[selectedLog.action] || '#71717a',
                 }} />
-                <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{selectedLog.action}</span>
-                <span style={{ fontSize: 12, color: '#52525b' }}>{selectedLog.source}</span>
-                <span style={{ fontSize: 12, color: '#3f3f46' }}>{selectedLog.time ? formatTime(selectedLog.time) : ''}</span>
-                {selectedLog.duration && <span style={{ fontSize: 11, color: '#52525b' }}>{selectedLog.duration}ms</span>}
+                <span style={{
+                  fontSize: 13, fontWeight: 500, color: '#e4e4e7',
+                  fontFamily: T.fontSans,
+                }}>
+                  {selectedLog.action}
+                </span>
+                <span style={{ fontSize: 12, color: T.text3, fontFamily: T.fontSans }}>
+                  {selectedLog.source}
+                </span>
+                <span style={{ fontSize: 12, color: '#3f3f46', fontFamily: T.fontMono }}>
+                  {selectedLog.time ? formatTime(selectedLog.time) : ''}
+                </span>
+                {selectedLog.duration && (
+                  <span style={{ fontSize: 11, color: T.text3, fontFamily: T.fontMono }}>
+                    {selectedLog.duration}ms
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setSelectedId(null)}
-                style={{ background: 'none', border: 'none', color: '#52525b', cursor: 'pointer', padding: 4 }}
+                style={{
+                  background: 'none', border: 'none', color: '#52525b',
+                  cursor: 'pointer', padding: 4,
+                }}
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
             <div style={{ padding: '12px 16px' }}>
-              <div style={{ fontSize: 13, color: '#c9d1d9', marginBottom: 12 }}>{selectedLog.detail}</div>
+              <div style={{
+                fontSize: 13, color: '#c9d1d9', marginBottom: 12,
+                fontFamily: T.fontMono,
+              }}>
+                {selectedLog.detail}
+              </div>
               <pre style={{
-                margin: 0, padding: 12, background: '#09090b', border: '1px solid rgba(255,255,255,0.04)',
-                borderRadius: 6, fontSize: 11, color: '#71717a', lineHeight: 1.5,
-                fontFamily: "ui-monospace, 'JetBrains Mono', monospace", whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+                margin: 0, padding: 12, background: '#09090b',
+                border: '1px solid rgba(255,255,255,0.04)',
+                borderRadius: 6, fontSize: 11, color: T.text2, lineHeight: 1.5,
+                fontFamily: T.fontMono,
+                whiteSpace: 'pre-wrap', wordBreak: 'break-all',
                 maxHeight: 180, overflow: 'auto',
               }}>
                 {JSON.stringify(selectedLog.raw, null, 2)}
@@ -325,6 +514,17 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes puppyone-monitor-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50%      { opacity: 0.55; transform: scale(0.85); }
+        }
+        @keyframes puppyone-monitor-spin {
+          from { transform: rotate(0deg); }
+          to   { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

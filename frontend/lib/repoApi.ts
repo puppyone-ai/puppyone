@@ -170,6 +170,29 @@ export async function runConnectorNow(
   );
 }
 
+/**
+ * Pause a connector. Hits the dedicated `POST /:id/pause` endpoint
+ * (rather than `PATCH … {status:"paused"}`) so the backend can run
+ * any side-effects beyond a column write — e.g. cancel in-flight
+ * scheduled runs.
+ */
+export async function pauseConnector(
+  projectId: string,
+  connectorId: string,
+): Promise<void> {
+  await post(`/api/v1/projects/${projectId}/connectors/${connectorId}/pause`, {});
+}
+
+/**
+ * Resume a paused connector. Counterpart to {@link pauseConnector}.
+ */
+export async function resumeConnector(
+  projectId: string,
+  connectorId: string,
+): Promise<void> {
+  await post(`/api/v1/projects/${projectId}/connectors/${connectorId}/resume`, {});
+}
+
 // ── Repo identity ───────────────────────────────────────────────────────
 
 export async function getRepoIdentity(projectId: string): Promise<RepoIdentity> {

@@ -71,7 +71,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
   const environmentLabel = useMemo(() => getEnvironmentLabel(), []);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: '#1c1c1c' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: '#0e0e0e' }}>
 
       {/* Welcome modal — first-ever visit */}
       {!onboarding.hasSeenWelcome && (

@@ -154,19 +154,19 @@ export function SidebarLayout({
   const navIconClass = (isActive: boolean) =>
     clsx(
       'flex h-[15px] w-[15px] items-center justify-center transition-colors duration-150',
-      isActive ? 'text-[#ededed]' : 'text-[#6d7177] group-hover:text-[#ededed]'
+      isActive ? 'text-[#fafafa]' : 'text-[#a1a1aa] group-hover:text-[#fafafa]'
     );
 
   const navLabelClass = (isActive: boolean) =>
     clsx(
       'truncate transition-colors duration-150',
-      isActive ? 'text-[#ededed]' : 'text-[#a1a1aa] group-hover:text-[#ededed]'
+      isActive ? 'text-[#fafafa]' : 'text-[#a1a1aa] group-hover:text-[#fafafa]'
     );
 
   const collapsedBtnClass = (isActive: boolean) =>
     clsx(
-      'flex h-8 w-8 items-center justify-center rounded-[6px] bg-transparent text-[#808080] transition-colors duration-150 hover:bg-white/[0.06] hover:text-[#ededed]',
-      isActive && 'bg-white/[0.06] text-[#ededed]'
+      'flex h-8 w-8 items-center justify-center rounded-[6px] bg-transparent text-[#a1a1aa] transition-colors duration-150 hover:bg-white/[0.06] hover:text-[#fafafa]',
+      isActive && 'bg-white/[0.06] text-[#fafafa]'
     );
 
   return (
@@ -180,21 +180,25 @@ export function SidebarLayout({
       )}
       style={{
         width: effectiveCollapsed ? 47 : sidebarWidth,
-        // Sidebar shares the base panel color of <main>. With identical
-        // base colors, every alpha hairline (header bottom, footer top,
-        // sidebar/content vertical divider) renders the same shade
-        // across the boundary, so the lines read as continuous.
-        background: '#0e0e0e',
-        // The vertical line between sidebar and content lives here on
-        // the sidebar's right edge — replaces the per-page `borderLeft`
-        // we used to draw inside each page. Single source of truth.
+        // Mirrors the showcase AppShell's sidebar surface
+        // (rgba(255,255,255,0.015) over #0e0e0e ≈ #121212). A very
+        // small +4 lift above the content canvas is enough to read
+        // as a distinct surface once the 1px border is in place;
+        // larger deltas tilt the rail toward "panel-on-panel" and
+        // away from the quiet Notion / Linear feel we want.
+        background: '#121212',
+        // Same 0.08 hairline used everywhere in the showcase
+        // (T.border). Keeping all dividers at one alpha keeps the
+        // grid consistent across sidebar / header / cards.
         borderRight: '1px solid rgba(255,255,255,0.08)',
       }}
     >
-      {/* Header — 40px, flush to top. The bottom hairline matches every
-          page-level header so the divider reads as a single continuous
-          line that runs across sidebar → content. Inline style keeps
-          the value identical to ProjectsHeader / ExplorerSidebar. */}
+      {/* Header — 40px, matches showcase AppShell exactly. The
+          horizontal hairline runs at the same y as every page-level
+          header so sidebar and content share one continuous divider
+          line, which is what the showcase relies on for the
+          "single composed scene" read. Padding `0 12px` and gap 8px
+          also mirror the showcase. */}
       <div
         className={clsx(
           'box-border flex h-10 flex-shrink-0 items-center group/header',
@@ -307,16 +311,20 @@ export function SidebarLayout({
                     onClick={() => onNavigate(item.id)}
                     onMouseEnter={() => onHoverNavItem?.(item.id)}
                   >
-                    {/* Accent bar — flush against the panel's left edge.
-                        Uses a small purple accent + soft glow to mark the
-                        active surface, matching the showcase. */}
+                    {/* Accent bar — flush against the panel's left
+                        edge. Cyan #22d3ee + cyan glow, lifted directly
+                        from the showcase's T.live token so the active
+                        marker reads as the same "live state" indicator
+                        as the footer pulse dot and the diff overlays.
+                        The bar inset is 5px top/bottom (showcase
+                        AppShell uses `top:5,bottom:5` exactly). */}
                     {isActive && (
                       <span
                         aria-hidden
-                        className='pointer-events-none absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-[1px]'
+                        className='pointer-events-none absolute left-0 top-[5px] bottom-[5px] w-[2px] rounded-[1px]'
                         style={{
-                          background: '#a78bfa',
-                          boxShadow: '0 0 6px rgba(167,139,250,0.45)',
+                          background: '#22d3ee',
+                          boxShadow: '0 0 6px rgba(34,211,238,0.4)',
                         }}
                       />
                     )}
@@ -368,9 +376,10 @@ export function SidebarLayout({
         </div>
       )}
 
-      {/* Footer — 40px, hairline divider on top, smaller env chip,
-          tighter avatar so the bar reads as a quiet status line
-          rather than a heavy CTA bar. */}
+      {/* Footer — 40px, hairline divider on top using the same 0.08
+          alpha as every other border in the showcase. The footer
+          carries the workspace stats line (shortId · N commits)
+          which doubles as a "live" indicator via the pulsing dot. */}
       <div
         className={clsx(
           'flex h-10 flex-shrink-0 items-center',
@@ -380,10 +389,12 @@ export function SidebarLayout({
       >
         {!effectiveCollapsed && (
           projectStats ? (
-            // In a project: show shortId · commits (matches the
-            // showcase footer). The pulse dot signals "live state".
+            // In a project: show shortId · commits (mirrors the
+            // showcase AppShell footer pixel-for-pixel — mono font,
+            // 10px size, #52525b text, #27272a separator dot, and
+            // a 6×6 cyan pulse dot anchored to T.live).
             <span
-              className='flex items-center gap-2 text-[10px] tracking-[0.04em] text-[#808080]'
+              className='flex items-center gap-[6px] text-[10px] tracking-[0.04em] text-[#52525b]'
               style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
               title={`${resolvedEnvLabel} · ${projectStats.shortId}`}
             >
@@ -392,21 +403,21 @@ export function SidebarLayout({
                 style={{
                   width: 6,
                   height: 6,
-                  background: '#22c55e',
-                  boxShadow: '0 0 6px rgba(34,197,94,0.55)',
+                  background: '#22d3ee',
+                  boxShadow: '0 0 8px #22d3ee',
                 }}
               />
               <span>{projectStats.shortId}</span>
               {typeof projectStats.commitCount === 'number' && (
                 <>
-                  <span className='text-[#3f3f46]'>·</span>
+                  <span className='text-[#27272a]'>·</span>
                   <span>{projectStats.commitCount} commits</span>
                 </>
               )}
             </span>
           ) : (
             <span
-              className='flex h-[22px] items-center rounded-[4px] bg-white/[0.04] px-2 text-[10px] tracking-[0.04em] text-[#808080]'
+              className='flex h-[22px] items-center rounded-[4px] bg-white/[0.04] px-2 text-[10px] tracking-[0.04em] text-[#52525b]'
               style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
             >
               {resolvedEnvLabel}
