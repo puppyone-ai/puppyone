@@ -31,7 +31,12 @@ _TRASH_PREFIX = f"{_TRASH_DIR}/"
 
 
 def _exclude_trash(entries: list) -> list:
-    return [e for e in entries if not e.path.startswith(_TRASH_PREFIX) and e.path != _TRASH_DIR]
+    return [
+        e for e in entries
+        if e.path != _TRASH_DIR
+        and not e.path.startswith(_TRASH_PREFIX)
+        and _TRASH_PREFIX not in e.path
+    ]
 
 
 @read_router.get(

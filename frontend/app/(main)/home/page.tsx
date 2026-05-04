@@ -43,8 +43,8 @@ function DashboardPageContent() {
   }
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#202020' }}>
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', margin: 0, borderRadius: 0, border: 'none', borderLeft: '1px solid #2a2a2a', background: '#0e0e0e', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#0e0e0e' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', margin: 0, borderRadius: 0, border: 'none', background: '#0e0e0e', overflow: 'hidden' }}>
         <DashboardView
           projects={projects}
           loading={projectsLoading}
@@ -67,7 +67,7 @@ function DashboardPageContent() {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: '#202020' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: '#0e0e0e' }}>
         <span style={{ color: 'rgba(255,255,255,0.5)' }}>Loading...</span>
       </div>
     }>

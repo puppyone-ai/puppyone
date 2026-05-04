@@ -86,15 +86,19 @@ async def list_projects(
     for oid in oids:
         all_projects.extend(project_service.get_by_org_id(oid))
 
-    # Batch-fetch connection counts for all projects
+    # Batch-fetch connection counts for all projects. The legacy
+    # access_points table was dropped post-redesign — count user-configured
+    # connectors instead, excluding the auto-created cli/agent built-ins
+    # so the "connections" badge reflects actual user-set integrations.
     conn_counts: dict[str, int] = {}
     project_ids = [str(p.id) for p in all_projects]
     if project_ids:
         sb = get_supabase_client()
         rows = (
-            sb.table("access_points")
-            .select("project_id")
+            sb.table("connectors")
+            .select("project_id, provider")
             .in_("project_id", project_ids)
+            .not_.in_("provider", ["cli", "agent"])
             .execute()
         ).data
         for row in rows:
@@ -183,6 +187,22 @@ async def create_project(
     from src.mut_engine.dependencies import create_mut_admin_service
     writer = create_mut_admin_service()
     await writer.init_tree(str(project.id))
+
+    # Ensure the project has a root scope (path='', is_root=true). Without
+    # this every redesign-aware endpoint (mut auth, /scopes list, the
+    # repo-identity endpoint) fails for newly-created projects — the
+    # 20260502000500_backfill migration only covered projects that existed
+    # at migration time. The DB trigger on repo_scopes auto-creates the
+    # cli + agent connectors as a side effect.
+    try:
+        from src.repo.scope_service import ScopeService
+        ScopeService().ensure_root_scope(str(project.id))
+    except Exception as e:
+        # Non-fatal: project still works for legacy access paths. Log and
+        # continue so a transient repo_scopes failure can't 500 project
+        # creation.
+        from src.utils.logger import log_error
+        log_error(f"[project.create] ensure_root_scope failed for {project.id}: {e}")
 
     entries = []
     if payload.template:

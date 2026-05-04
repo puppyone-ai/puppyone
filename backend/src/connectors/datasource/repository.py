@@ -15,13 +15,40 @@ from src.infra.supabase.client import SupabaseClient
 from src.connectors.datasource.schemas import Sync
 
 
+def _is_table_missing(exc: Exception) -> bool:
+    """Detect the postgrest 'table not in schema cache' error.
+
+    `access_points` was dropped post-redesign by 20260502000700_drop_access_points.sql.
+    Until every legacy caller has been migrated to repo_scopes/connectors, the
+    safe behaviour for read paths is to return empty rather than 500. Writes
+    still raise — they're either dead code or genuine bugs to surface.
+    """
+    return "PGRST205" in str(exc) or "schema cache" in str(exc).lower()
+
+
 class SyncRepository:
-    """CRUD for sync bindings in the `access_points` table (provider != 'agent')."""
+    """CRUD for sync bindings in the `access_points` table (provider != 'agent').
+
+    NOTE: this table was dropped post-redesign. All read methods here now
+    return empty when the table is missing; the new model lives in
+    repo_scopes + connectors (see src/repo/). Callers that still depend on
+    SyncRepository should be migrated; this layer's tolerance is a transition
+    safety net, not a permanent contract.
+    """
 
     TABLE = "access_points"
 
     def __init__(self, supabase_client: SupabaseClient):
         self.client = supabase_client.client
+
+    def _safe_list(self, build_query) -> list:
+        """Execute a list query, returning [] if the legacy table was dropped."""
+        try:
+            return build_query().execute().data or []
+        except Exception as e:
+            if _is_table_missing(e):
+                return []
+            raise
 
     @staticmethod
     def _now() -> str:
@@ -164,41 +191,40 @@ class SyncRepository:
     # ============================================================
 
     def list_by_project(self, project_id: str) -> List[Sync]:
-        response = (
-            self.client.table(self.TABLE)
+        rows = self._safe_list(
+            lambda: self.client.table(self.TABLE)
             .select("*")
             .eq("project_id", project_id)
             .neq("provider", "agent")
-            .execute()
         )
-        return [self._to_model(r) for r in response.data]
+        return [self._to_model(r) for r in rows]
 
     def list_by_path(self, path: str) -> List[Sync]:
         """All sync bindings for a given path."""
-        response = (
-            self.client.table(self.TABLE)
-            .select("*").eq("path", path).execute()
+        rows = self._safe_list(
+            lambda: self.client.table(self.TABLE).select("*").eq("path", path)
         )
-        return [self._to_model(r) for r in response.data]
+        return [self._to_model(r) for r in rows]
 
     def list_active(self, provider: Optional[str] = None) -> List[Sync]:
-        query = self.client.table(self.TABLE).select("*").eq("status", "active").neq("provider", "agent")
-        if provider:
-            query = query.eq("provider", provider)
-        return [self._to_model(r) for r in query.execute().data]
+        def build():
+            q = self.client.table(self.TABLE).select("*").eq("status", "active").neq("provider", "agent")
+            if provider:
+                q = q.eq("provider", provider)
+            return q
+        return [self._to_model(r) for r in self._safe_list(build)]
 
     def list_by_provider(
         self, project_id: str, provider: str,
     ) -> List[Sync]:
         """All syncs for a project + provider combination."""
-        response = (
-            self.client.table(self.TABLE)
+        rows = self._safe_list(
+            lambda: self.client.table(self.TABLE)
             .select("*")
             .eq("project_id", project_id)
             .eq("provider", provider)
-            .execute()
         )
-        return [self._to_model(r) for r in response.data]
+        return [self._to_model(r) for r in rows]
 
     # ============================================================
     # Update

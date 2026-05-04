@@ -424,6 +424,8 @@ def create_app() -> FastAPI:
     # Canonical public URL: /api/v1/mut/ap/{access_key}/{clone|push|pull|negotiate|...}
     # See backend/src/mut_engine/_routes.py for the contract.
     app.include_router(ap_router, prefix="/api/v1", tags=["access-point"])
+    from src.mut_engine.routers.access_point_fs import router as ap_fs_router
+    app.include_router(ap_fs_router, prefix="/api/v1", tags=["access-point-fs"])
     # Backward-compat: mut clients <= v0.1.6 hit /mut/ap/* directly. Mounting
     # the same router again under the legacy prefix keeps them working without
     # a forced upgrade. Remove once telemetry shows < 1% legacy traffic.
@@ -452,6 +454,19 @@ def create_app() -> FastAPI:
     app.include_router(access_router, prefix="/api/v1", tags=["access"])
     from src.connectors.gateway.router import router as gateway_router
     app.include_router(gateway_router, prefix="/api/v1", tags=["gateways"])
+
+    # Repo redesign (access-point-redesign-2026-05-02): scope CRUD, repo
+    # identity, connectors, per-user-per-repo permissions. These coexist
+    # with the legacy access_points router during the transition; the
+    # legacy /access endpoint will be removed once frontend migrates.
+    from src.repo.scope_router import router as repo_scope_router
+    from src.repo.identity_router import router as repo_identity_router
+    from src.repo.connector_router import router as repo_connector_router
+    from src.repo.permission_router import router as repo_permission_router
+    app.include_router(repo_scope_router, prefix="/api/v1", tags=["repo-scopes"])
+    app.include_router(repo_identity_router, prefix="/api/v1", tags=["repo-identity"])
+    app.include_router(repo_connector_router, prefix="/api/v1", tags=["connectors"])
+    app.include_router(repo_permission_router, prefix="/api/v1", tags=["repo-permissions"])
     router_register_duration = time.time() - router_register_start
 
     # Register exception handlers

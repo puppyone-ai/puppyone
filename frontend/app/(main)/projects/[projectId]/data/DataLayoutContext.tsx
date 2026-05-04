@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from 'react';
 import type { Tool } from '@/lib/mcpApi';
+import type { Connector, RepoIdentity, RepoScope } from '@/lib/repoApi';
 
 export interface SyncStatusSync {
   id: string;
@@ -18,6 +19,8 @@ export interface SyncEndpointInfo {
   provider: string;
   direction: string;
   status: string;
+  name?: string;
+  accessKey?: string | null;
 }
 
 export interface DataLayoutContextValue {
@@ -26,6 +29,14 @@ export interface DataLayoutContextValue {
   projectTools: Tool[];
   syncEndpoints: Map<string, SyncEndpointInfo>;
   nodeEndpointMap: Map<string, SyncEndpointInfo[]>;
+
+  /** Redesign (access-point-redesign-2026-05-02) — scopes + connectors. */
+  scopes: RepoScope[];
+  /** Index of connectors by scope_id. cli + agent are always present per scope (DB trigger). */
+  connectorsByScope: Map<string, Connector[]>;
+  /** Repo identity (URL + prompt_template + per-scope keys) — fetched once per project. */
+  repoIdentity: RepoIdentity | undefined;
+  mutateRepo: () => Promise<unknown>;
 }
 
 const DataLayoutContext = createContext<DataLayoutContextValue | null>(null);

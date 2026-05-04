@@ -41,6 +41,14 @@ export type SidebarLayoutProps = {
   environmentLabel?: string;
   onOpenGuide?: () => void; // Open getting-started guide
 
+  // Optional project stats line — when in a project context the footer
+  // can show `[• shortId · N commits]` (showcase parity) instead of the
+  // generic env chip. Falls back to env when undefined.
+  projectStats?: {
+    shortId: string;
+    commitCount?: number;
+  };
+
   // Layout State
   isCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
@@ -73,6 +81,7 @@ export function SidebarLayout({
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
   onOpenGuide,
+  projectStats,
 }: SidebarLayoutProps) {
   const t = useTranslations('sidebar');
   const resolvedEnvLabel = environmentLabel ?? getEnvironmentLabel();
@@ -130,54 +139,82 @@ export function SidebarLayout({
     };
   }, [isResizing, onSidebarWidthChange]);
 
+  // Sidebar nav row — 32px tall, 13px sans, 10px x-padding, 10px gap.
+  // Active rows get an elevated bg + an accent bar drawn from the row
+  // (rendered separately as an absolutely-positioned span so it sits
+  // flush against the panel's left edge).
   const navButtonClass = (isActive: boolean) =>
     clsx(
-      'group flex h-7 w-full items-center gap-2 rounded-[5px] bg-transparent pl-[6px] pr-1 text-left transition-colors duration-150',
-      isActive ? 'bg-[#2c2c2c]' : 'hover:bg-[#2c2c2c]'
+      'group relative flex h-8 w-full items-center gap-2.5 rounded-[6px] bg-transparent px-2.5 text-left text-[13px] transition-colors duration-150',
+      isActive
+        ? 'bg-white/[0.06] font-medium'
+        : 'hover:bg-white/[0.03] font-normal'
     );
 
   const navIconClass = (isActive: boolean) =>
     clsx(
-      'flex h-4 w-4 items-center justify-center transition-colors duration-150',
-      isActive ? 'text-[#cdcdcd]' : 'text-[#6d7177] group-hover:text-[#cdcdcd]'
+      'flex h-[15px] w-[15px] items-center justify-center transition-colors duration-150',
+      isActive ? 'text-[#fafafa]' : 'text-[#a1a1aa] group-hover:text-[#fafafa]'
     );
 
   const navLabelClass = (isActive: boolean) =>
     clsx(
-      'truncate text-sm transition-colors duration-150',
-      isActive ? 'text-white' : 'text-[#9b9b9b] group-hover:text-[#f0efed]'
+      'truncate transition-colors duration-150',
+      isActive ? 'text-[#fafafa]' : 'text-[#a1a1aa] group-hover:text-[#fafafa]'
     );
 
   const collapsedBtnClass = (isActive: boolean) =>
     clsx(
-      'flex h-8 w-8 items-center justify-center rounded-[5px] bg-transparent text-[#808080] transition-colors duration-150 hover:bg-white/8 hover:text-[#e2e8f0]',
-      isActive && 'bg-white/10 text-[#e2e8f0]'
+      'flex h-8 w-8 items-center justify-center rounded-[6px] bg-transparent text-[#a1a1aa] transition-colors duration-150 hover:bg-white/[0.06] hover:text-[#fafafa]',
+      isActive && 'bg-white/[0.06] text-[#fafafa]'
     );
 
   return (
     <aside
       ref={sidebarRef}
       className={clsx(
-        'relative flex h-screen flex-shrink-0 flex-col bg-[#1c1c1c] font-sans text-sm',
+        'relative flex h-screen flex-shrink-0 flex-col font-sans text-sm',
         isResizing
           ? 'transition-none'
           : 'transition-[width] duration-200 ease-in-out'
       )}
-      style={{ width: effectiveCollapsed ? 47 : sidebarWidth }}
+      style={{
+        width: effectiveCollapsed ? 47 : sidebarWidth,
+        // Mirrors the showcase AppShell's sidebar surface
+        // (rgba(255,255,255,0.015) over #0e0e0e ≈ #121212). A very
+        // small +4 lift above the content canvas is enough to read
+        // as a distinct surface once the 1px border is in place;
+        // larger deltas tilt the rail toward "panel-on-panel" and
+        // away from the quiet Notion / Linear feel we want.
+        background: '#121212',
+        // Same 0.08 hairline used everywhere in the showcase
+        // (T.border). Keeping all dividers at one alpha keeps the
+        // grid consistent across sidebar / header / cards.
+        borderRight: '1px solid rgba(255,255,255,0.08)',
+      }}
     >
-      {/* Header */}
+      {/* Header — 40px row, borderBottom 0.08. Internal padding lives
+          on the workspace switcher button itself (showcase pattern:
+          padding `0 12px` directly on the workspace `<div>`), so the
+          chip sits exactly 12px from the sidebar edge instead of
+          parent-padding-stacked-on-button-padding.
+          The collapse button is absolutely positioned on the right
+          and fades in on header hover; that way it doesn't reserve
+          flex space and the chevron lands at the showcase position
+          (right - 12 - 10 = right - 22). */}
       <div
-        className={clsx(
-          'box-border flex h-[48px] items-center mt-2',
-          effectiveCollapsed
-            ? 'justify-center px-0'
-            : 'justify-between pl-2 pr-[9px]'
-        )}
+        className='group/header relative'
+        style={{
+          height: 40,
+          flexShrink: 0,
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          boxSizing: 'border-box',
+        }}
       >
         {effectiveCollapsed ? (
           <button
             type='button'
-            className='group relative flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
+            className='group relative mx-auto mt-[4px] flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
             onClick={() => handleCollapsedChange(false)}
             title={t('expand')}
             aria-label={t('expand')}
@@ -206,7 +243,7 @@ export function SidebarLayout({
           </button>
         ) : (
           <>
-            {/* Project Switcher (Figma-style) */}
+            {/* Project Switcher — fills the full 40px row. */}
             {onSelectProject && onGoHome ? (
               <ProjectSwitcher
                 currentProject={
@@ -223,27 +260,44 @@ export function SidebarLayout({
                 onHoverProject={onHoverProject}
               />
             ) : (
-              // Fallback: simple title display
-              <div className='flex items-center gap-2 overflow-hidden px-2'>
+              // Fallback: simple title display, identical padding to
+              // the workspace switcher button so the chip lands at
+              // the same x-coordinate.
+              <div
+                style={{
+                  height: 40,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '0 12px',
+                  overflow: 'hidden',
+                  boxSizing: 'border-box',
+                }}
+              >
                 <img
                   src='/puppyone-logo.svg'
                   alt='puppyone'
-                  width={20}
-                  height={20}
+                  width={18}
+                  height={18}
                   className='flex-shrink-0 rounded-[4px]'
                 />
-                <span className='text-sm font-semibold tracking-[0.3px] text-[#ededed] truncate'>
+                <span className='text-[12.5px] font-medium text-[#fafafa] truncate'>
                   {title}
                 </span>
               </div>
             )}
 
+            {/* Collapse button — absolutely placed on the right so
+                it doesn't take a flex slot. Fades in on header hover
+                and overlaps the chevron's area; we hide the chevron
+                via `group-hover/header:opacity-0` inside the
+                ProjectSwitcher to avoid the two stacking. */}
             <button
               type='button'
-              className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] transition-colors duration-150 hover:bg-white/8 hover:text-[#9ca3af]'
               onClick={() => handleCollapsedChange(true)}
               title={t('collapse')}
               aria-label={t('collapse')}
+              className='absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[5px] text-[#6b7280] opacity-0 transition-[opacity,colors,background] duration-150 group-hover/header:opacity-100 hover:bg-white/[0.06] hover:text-[#fafafa]'
             >
               <svg
                 width='14'
@@ -266,34 +320,51 @@ export function SidebarLayout({
       {/* Content / Collapsed Navigation */}
       {!effectiveCollapsed ? (
         <div className='flex-1 overflow-y-auto overflow-x-hidden'>
-          <div className='flex flex-col gap-[2px] px-2 pb-2 pt-3'>
-            {navItems.map(item => (
-              <React.Fragment key={item.id}>
-                <button
-                  type='button'
-                  className={navButtonClass(activeView === item.id)}
-                  onClick={() => onNavigate(item.id)}
-                  onMouseEnter={() => onHoverNavItem?.(item.id)}
-                >
-                  <span className={navIconClass(activeView === item.id)}>
-                    {item.icon}
-                  </span>
+          <div className='flex flex-col gap-px px-1.5 py-2'>
+            {navItems.map(item => {
+              const isActive = activeView === item.id;
+              return (
+                <React.Fragment key={item.id}>
+                  <button
+                    type='button'
+                    className={navButtonClass(isActive)}
+                    onClick={() => onNavigate(item.id)}
+                    onMouseEnter={() => onHoverNavItem?.(item.id)}
+                  >
+                    {/* Accent bar — flush against the panel's left
+                        edge. Cyan #22d3ee + cyan glow, lifted directly
+                        from the showcase's T.live token so the active
+                        marker reads as the same "live state" indicator
+                        as the footer pulse dot and the diff overlays.
+                        The bar inset is 5px top/bottom (showcase
+                        AppShell uses `top:5,bottom:5` exactly). */}
+                    {isActive && (
+                      <span
+                        aria-hidden
+                        className='pointer-events-none absolute left-0 top-[5px] bottom-[5px] w-[2px] rounded-[1px]'
+                        style={{
+                          background: '#22d3ee',
+                          boxShadow: '0 0 6px rgba(34,211,238,0.4)',
+                        }}
+                      />
+                    )}
 
-                  <span className={navLabelClass(activeView === item.id)}>
-                    {item.label}
-                  </span>
+                    <span className={navIconClass(isActive)}>{item.icon}</span>
 
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className='ml-auto rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] text-[#6d7177]'>
-                      {item.badge}
-                    </span>
+                    <span className={navLabelClass(isActive)}>{item.label}</span>
+
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span className='ml-auto rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] text-[#6d7177]'>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                  {item.groupEnd && (
+                    <div className='my-1.5 mx-1 border-t border-white/[0.06]' />
                   )}
-                </button>
-                {item.groupEnd && (
-                  <div className='my-1.5 mx-1 border-t border-white/[0.06]' />
-                )}
-              </React.Fragment>
-            ))}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -325,54 +396,92 @@ export function SidebarLayout({
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer — 40px, hairline divider on top using the same 0.08
+          alpha as every other border in the showcase. The footer
+          carries the workspace stats line (shortId · N commits)
+          which doubles as a "live" indicator via the pulsing dot. */}
       <div
         className={clsx(
-          'flex h-[47px] flex-shrink-0 items-center',
-          effectiveCollapsed ? 'justify-center px-3' : 'justify-between px-4'
+          'flex h-10 flex-shrink-0 items-center',
+          effectiveCollapsed ? 'justify-center px-2' : 'justify-between px-3'
         )}
+        style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
       >
         {!effectiveCollapsed && (
-          <span className='flex h-7 items-center rounded-[5px] bg-[#2a2a2a] px-2.5 text-xs text-[#808080]'>
-            {resolvedEnvLabel}
-          </span>
+          projectStats ? (
+            // In a project: show shortId · commits (mirrors the
+            // showcase AppShell footer pixel-for-pixel — mono font,
+            // 10px size, #52525b text, #27272a separator dot, and
+            // a 6×6 cyan pulse dot anchored to T.live).
+            <span
+              className='flex items-center gap-[6px] text-[10px] tracking-[0.04em] text-[#52525b]'
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+              title={`${resolvedEnvLabel} · ${projectStats.shortId}`}
+            >
+              <span
+                className='flex-shrink-0 rounded-full'
+                style={{
+                  width: 6,
+                  height: 6,
+                  background: '#22d3ee',
+                  boxShadow: '0 0 8px #22d3ee',
+                }}
+              />
+              <span>{projectStats.shortId}</span>
+              {typeof projectStats.commitCount === 'number' && (
+                <>
+                  <span className='text-[#27272a]'>·</span>
+                  <span>{projectStats.commitCount} commits</span>
+                </>
+              )}
+            </span>
+          ) : (
+            <span
+              className='flex h-[22px] items-center rounded-[4px] bg-white/[0.04] px-2 text-[10px] tracking-[0.04em] text-[#52525b]'
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+            >
+              {resolvedEnvLabel}
+            </span>
+          )
         )}
 
-        {/* Guide button */}
-        {onOpenGuide && !effectiveCollapsed && (
+        <div className='flex items-center gap-1'>
+          {/* Guide button */}
+          {onOpenGuide && !effectiveCollapsed && (
+            <button
+              type='button'
+              onClick={onOpenGuide}
+              title={t('guide')}
+              aria-label={t('guide')}
+              className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[#555] transition-colors hover:bg-white/[0.06] hover:text-[#a1a1aa]'
+            >
+              <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
+                <circle cx='12' cy='12' r='10' />
+                <path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' />
+                <line x1='12' y1='17' x2='12.01' y2='17' />
+              </svg>
+            </button>
+          )}
+
           <button
             type='button'
-            onClick={onOpenGuide}
-            title={t('guide')}
-            aria-label={t('guide')}
-            className='mr-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[#555] transition-colors hover:bg-white/5 hover:text-[#a1a1aa]'
+            className='flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[10px] font-semibold text-white transition-all duration-200 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
+            onClick={() => setUserMenuOpen(true)}
+            title={t('accountSettings')}
+            aria-label={t('accountSettings')}
           >
-            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
-              <circle cx='12' cy='12' r='10' />
-              <path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' />
-              <line x1='12' y1='17' x2='12.01' y2='17' />
-            </svg>
+            {userAvatarUrl ? (
+              <img
+                src={userAvatarUrl}
+                alt='User avatar'
+                referrerPolicy='no-referrer'
+                className='h-full w-full object-cover'
+              />
+            ) : (
+              userInitial
+            )}
           </button>
-        )}
-
-        <button
-          type='button'
-          className='flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[12px] font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
-          onClick={() => setUserMenuOpen(true)}
-          title={t('accountSettings')}
-          aria-label={t('accountSettings')}
-        >
-          {userAvatarUrl ? (
-            <img
-              src={userAvatarUrl}
-              alt='User avatar'
-              referrerPolicy='no-referrer'
-              className='h-full w-full object-cover'
-            />
-          ) : (
-            userInitial
-          )}
-        </button>
+        </div>
       </div>
 
       {/* Resize Handle */}

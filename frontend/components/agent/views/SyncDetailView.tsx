@@ -44,6 +44,7 @@ interface SyncDetailViewProps {
   syncId: string;
   projectId?: number | string;
   onClose?: () => void;
+  onBack?: () => void;
 }
 
 // ============================================================
@@ -158,7 +159,7 @@ function relativeTime(iso: string | null): string {
 
 export { getProviderLogo, PROVIDER_LABELS };
 
-export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewProps) {
+export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetailViewProps) {
   const [refreshing, setRefreshing] = useState(false);
   const { specs } = useConnectorSpecs();
 
@@ -226,7 +227,7 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
 
   if (!sync) {
     return (
-      <PanelShell title="Access" onClose={onClose || (() => {})}>
+      <PanelShell title="Access" onClose={onClose || (() => {})} onBack={onBack}>
         <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 12, height: '100%' }}>
           Sync endpoint not found
         </div>
@@ -235,7 +236,7 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
   }
 
   if (sync.provider === 'filesystem') {
-    return <FilesystemDetailView syncId={syncId} projectId={projectId} onClose={onClose} />;
+    return <FilesystemDetailView syncId={syncId} projectId={projectId} onClose={onClose} onBack={onBack} />;
   }
 
   const providerLabel = getProviderDisplayLabel(sync.provider, specs) !== sync.provider
@@ -262,6 +263,7 @@ export function SyncDetailView({ syncId, projectId, onClose }: SyncDetailViewPro
         subtitle={sync.node_name || undefined}
         icon={getProviderLogo(sync.provider, 14)}
         onClose={onClose || (() => {})}
+        onBack={onBack}
       >
         <div style={{ padding: '20px 24px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 

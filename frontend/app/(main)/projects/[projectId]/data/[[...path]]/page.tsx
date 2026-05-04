@@ -11,11 +11,8 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
-import { getMcpEndpoint, type McpEndpoint } from '@/lib/mcpEndpointsApi';
-import { getSandboxEndpoint, type SandboxEndpoint } from '@/lib/sandboxEndpointsApi';
 import {
   useProjects,
   useToolsByPath,
@@ -32,8 +29,6 @@ import {
   type ViewType,
   type BreadcrumbSegment,
 } from '@/components/ProjectsHeader';
-import { ResizablePanel } from '@/components/RightAuxiliaryPanel/ResizablePanel';
-import { DocumentEditor } from '@/components/RightAuxiliaryPanel/DocumentEditor';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 import {
@@ -47,6 +42,7 @@ import {
 
 import { refreshProjects } from '@/lib/hooks/useData';
 import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
+import type { RepoScope } from '@/lib/repoApi';
 import {
   GridView,
   type AgentResource,
@@ -54,11 +50,9 @@ import {
 } from '../components/views';
 import {
   ExplorerSidebar,
-  EndpointIconRenderer,
   setPendingActiveId,
   usePendingActiveId,
   type MillerColumnItem,
-  type SyncEndpointInfo,
 } from '../components/explorer';
 
 import { useAgent } from '@/contexts/AgentContext';
@@ -76,274 +70,18 @@ import { EditorArea } from '../components/EditorArea';
 import { BottomBar } from '../components/BottomBar';
 import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
-import { PanelShell } from '../components/PanelShell';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
-
-// Panel components — loaded on demand when user opens the panel (saves ~1.5MB on initial load)
-import dynamic from 'next/dynamic';
-const _PanelLoading = () => (
-  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>
-    Loading...
-  </div>
-);
-const VersionHistoryPanel = dynamic(
-  () => import('@/components/editors/VersionHistoryPanel').then(m => ({ default: m.VersionHistoryPanel })),
-  { ssr: false, loading: _PanelLoading }
-);
-const SyncConfigPanel = dynamic(
-  () => import('../components/SyncConfigPanel').then(m => ({ default: m.SyncConfigPanel })),
-  { ssr: false, loading: _PanelLoading }
-);
-const McpConfigPanel = dynamic(
-  () => import('../components/McpConfigPanel').then(m => ({ default: m.McpConfigPanel })),
-  { ssr: false, loading: _PanelLoading }
-);
-const SandboxConfigPanel = dynamic(
-  () => import('../components/SandboxConfigPanel').then(m => ({ default: m.SandboxConfigPanel })),
-  { ssr: false, loading: _PanelLoading }
-);
-const ChatRuntimeView = dynamic(
-  () => import('@/components/agent/views/ChatRuntimeView').then(m => ({ default: m.ChatRuntimeView })),
-  { ssr: false, loading: _PanelLoading }
-);
-import { usePanelStore, type PanelState } from '../usePanelStore';
-import type { AccessOption } from '@/components/chat/ChatInputArea';
+import {
+  AccessPointsHeaderButton,
+  endpointToPanelState,
+} from '../components/access-points';
+import { DataPageRightPanel, type EditorTarget } from '../components/right-panel';
+import { usePanelStore } from '../usePanelStore';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
-
-interface EditorTarget {
-  path: string;
-  value: string;
-}
+import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
 
 interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
-}
-
-function endpointToPanelState(ep: SyncEndpointInfo, nodeId: string): PanelState {
-  if (ep.provider.startsWith('agent:')) return { type: 'agent_chat', nodeId, agentId: ep.syncId };
-  if (ep.provider === 'mcp') return { type: 'mcp_config', nodeId, mcpEndpointId: ep.syncId };
-  if (ep.provider === 'sandbox') return { type: 'sandbox_config', nodeId, sandboxEndpointId: ep.syncId };
-  return { type: 'sync_config', nodeId };
-}
-
-interface EndpointEntry {
-  ep: SyncEndpointInfo;
-  nodeId: string;
-  name: string;
-  nodeName?: string;
-}
-
-type EndpointCategory = 'agents' | 'sync' | 'infra';
-
-const CATEGORY_CONFIG: Record<EndpointCategory, { label: string; color: string }> = {
-  agents: { label: 'Agents', color: '#a78bfa' },
-  sync: { label: 'Data Sync', color: '#34d399' },
-  infra: { label: 'Infrastructure', color: '#60a5fa' },
-};
-
-function categorizeEndpoint(provider: string): EndpointCategory {
-  if (provider.startsWith('agent:')) return 'agents';
-  if (provider === 'mcp' || provider === 'sandbox') return 'infra';
-  return 'sync';
-}
-
-function GlobalEndpointsAvatarGroup({ 
-  nodeEndpointMap, 
-  onEndpointClick,
-  onEndpointHover,
-  nameMap,
-}: { 
-  nodeEndpointMap: Map<string, SyncEndpointInfo[]>,
-  onEndpointClick: (ep: SyncEndpointInfo, nodeId: string) => void,
-  onEndpointHover?: (nodeId: string | null) => void,
-  nameMap: { agents: Record<string, string>; nodes: Record<string, string>; syncs: Record<string, string> },
-}) {
-  const [hoveredEndpoint, setHoveredEndpoint] = useState<string | null>(null);
-  const [showAllEndpoints, setShowAllEndpoints] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
-
-  const uniqueEndpoints = useMemo(() => {
-    const map = new Map<string, EndpointEntry>();
-    for (const [nodeId, eps] of nodeEndpointMap.entries()) {
-      for (const ep of eps) {
-        if (!map.has(ep.syncId)) {
-          const isAgent = ep.provider.startsWith('agent:');
-          const name = isAgent
-            ? (nameMap.agents[ep.syncId] || 'Agent')
-            : (nameMap.syncs[ep.syncId] || ep.provider);
-          const nodeName = nameMap.nodes[nodeId];
-          map.set(ep.syncId, { ep, nodeId, name, nodeName });
-        }
-      }
-    }
-    return Array.from(map.values());
-  }, [nodeEndpointMap, nameMap]);
-
-  const grouped = useMemo(() => {
-    const groups: Record<EndpointCategory, EndpointEntry[]> = { agents: [], sync: [], infra: [] };
-    for (const entry of uniqueEndpoints) {
-      groups[categorizeEndpoint(entry.ep.provider)].push(entry);
-    }
-    return groups;
-  }, [uniqueEndpoints]);
-
-  if (uniqueEndpoints.length === 0) return null;
-
-  const maxVisible = 5;
-  const visibleEndpoints = uniqueEndpoints.slice(0, maxVisible);
-  const hiddenCount = uniqueEndpoints.length - maxVisible;
-
-  const handleMouseEnter = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    setShowAllEndpoints(true);
-  };
-
-  const handleMouseLeave = () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      setShowAllEndpoints(false);
-      setHoveredEndpoint(null);
-      onEndpointHover?.(null);
-    }, 150);
-  };
-
-  const categoryOrder: EndpointCategory[] = ['agents', 'sync', 'infra'];
-
-  return (
-    <div 
-      style={{ display: 'flex', alignItems: 'center', gap: 2, position: 'relative' }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {visibleEndpoints.map(({ ep, nodeId, name }, index) => {
-        const isHovered = hoveredEndpoint === ep.syncId;
-        return (
-          <div
-            key={ep.syncId}
-            title={`${name} (Click to configure)`}
-            onClick={() => onEndpointClick(ep, nodeId)}
-            onMouseEnter={() => {
-              setHoveredEndpoint(ep.syncId);
-              onEndpointHover?.(nodeId);
-            }}
-            onMouseLeave={() => {
-              setHoveredEndpoint(null);
-              onEndpointHover?.(null);
-            }}
-            style={{
-              width: 24, height: 24, borderRadius: 6,
-              background: isHovered ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer',
-              opacity: isHovered ? 1 : 0.85,
-              transition: 'background 0.1s, opacity 0.1s',
-              position: 'relative',
-            }}
-          >
-            {/* For the top header avatars, we only show the icon to save space, no dot */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, color: '#a1a1aa' }}>
-              {ep.provider.startsWith('agent:') ? (
-                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
-              ) : ep.provider === 'mcp' ? (
-                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-                  <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-                  <line x1="6" y1="6" x2="6.01" y2="6" />
-                  <line x1="6" y1="18" x2="6.01" y2="18" />
-                </svg>
-              ) : ep.provider === 'sandbox' ? (
-                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="4 17 10 11 4 5" />
-                  <line x1="12" y1="19" x2="20" y2="19" />
-                </svg>
-              ) : (
-                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22v-5" />
-                  <path d="M9 8V2" />
-                  <path d="M15 8V2" />
-                  <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-                </svg>
-              )}
-            </div>
-            <div style={{
-              position: 'absolute', bottom: 2, right: 2,
-              width: 6, height: 6, borderRadius: '50%',
-              background: ep.status === 'error' ? '#ef4444' : ep.status === 'stopped' ? '#71717a' : '#10b981',
-              boxShadow: '0 0 0 2px #0e0e0e',
-            }} />
-          </div>
-        );
-      })}
-      
-      {hiddenCount > 0 && (
-        <div style={{
-          padding: '0 6px', height: 24, borderRadius: 6,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#a1a1aa', fontSize: 12, fontWeight: 500,
-          cursor: 'default',
-        }}>
-          +{hiddenCount}
-        </div>
-      )}
-
-      {showAllEndpoints && (
-        <div
-          style={{
-            position: 'absolute', top: '100%', right: 0, marginTop: 8,
-            background: '#0e0e0e',
-            border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-            padding: '6px 0', width: 240, maxHeight: 400, overflowY: 'auto',
-            zIndex: 1000,
-          }}
-        >
-          {categoryOrder.map((cat, catIdx) => {
-            const entries = grouped[cat];
-            if (entries.length === 0) return null;
-            return (
-              <div key={cat}>
-                {catIdx > 0 && grouped[categoryOrder[catIdx - 1]].length > 0 && (
-                  <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '4px 8px' }} />
-                )}
-                {entries.map(({ ep, nodeId, name, nodeName }) => (
-                  <div
-                    key={`dropdown-${ep.syncId}`}
-                    onClick={() => { setShowAllEndpoints(false); onEndpointClick(ep, nodeId); }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      padding: '0 8px', margin: '1px 6px', borderRadius: 6, height: 30,
-                      cursor: 'pointer', color: hoveredEndpoint === ep.syncId ? '#d4d4d4' : '#a1a1aa', fontSize: 13,
-                      transition: 'background 0.1s, color 0.1s',
-                      background: hoveredEndpoint === ep.syncId ? 'rgba(255, 255, 255, 0.06)' : 'transparent',
-                      overflow: 'hidden',
-                    }}
-                    onMouseEnter={() => {
-                      setHoveredEndpoint(ep.syncId);
-                      onEndpointHover?.(nodeId);
-                    }}
-                    onMouseLeave={() => {
-                      setHoveredEndpoint(null);
-                      onEndpointHover?.(null);
-                    }}
-                  >
-                    <EndpointIconRenderer ep={ep} size={14} />
-                    <span style={{ 
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      fontWeight: 500, flex: 1, minWidth: 0,
-                    }}>
-                      {name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function decodePath(segments: string[]): string[] {
@@ -373,8 +111,11 @@ export default function DataPage({ params }: DataPageProps) {
   // Data fetching
   const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
 
-  // Project-level data from layout (sync status, tools, endpoints)
-  const { syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap } = useDataLayout();
+  // Project-level data from layout (sync status, tools, endpoints, scopes, connectors)
+  const {
+    syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap,
+    scopes, connectorsByScope, repoIdentity, mutateRepo,
+  } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
   const { draftResources, setDraftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
@@ -442,20 +183,7 @@ export default function DataPage({ params }: DataPageProps) {
   const { panel: panelState, openPanel, closePanel, togglePanel } = usePanelStore();
 
   const activeSyncNodeId = panelState.type === 'sync_config' ? panelState.nodeId ?? null : null;
-  const activeSyncId = activeSyncNodeId ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
-
-  const panelMcpId = panelState.type === 'mcp_config' ? panelState.mcpEndpointId : undefined;
-  const { data: mcpEndpointDetail } = useSWR<McpEndpoint>(
-    panelMcpId ? ['mcp-endpoint-detail', panelMcpId] : null,
-    () => getMcpEndpoint(panelMcpId!),
-    { revalidateOnFocus: false },
-  );
-  const panelSandboxId = panelState.type === 'sandbox_config' ? panelState.sandboxEndpointId : undefined;
-  const { data: sandboxEndpointDetail } = useSWR<SandboxEndpoint>(
-    panelSandboxId ? ['sandbox-endpoint-detail', panelSandboxId] : null,
-    () => getSandboxEndpoint(panelSandboxId!),
-    { revalidateOnFocus: false },
-  );
+  const activeSyncId = activeSyncNodeId !== null ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
 
   // ───── Navigation (path only, panel state is independent) ─────
 
@@ -465,6 +193,33 @@ export default function DataPage({ params }: DataPageProps) {
     const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
     router.push(url);
   }, [projectId, router]);
+
+  // Used by AllScopesList in ScopedConnectorsListPanel: jump the file
+  // explorer (and hence currentScopePath / currentScope resolution) to a
+  // given scope's canonical path. '' means the project root.
+  const handleScopeNavigate = useCallback((scopePath: string) => {
+    navigateTo(scopePath.split('/').filter(Boolean));
+  }, [navigateTo]);
+
+  // Click handler for the per-scope "AI Agent" default in
+  // ScopedConnectorsListPanel. Pre-fills the draft resource with the
+  // scope's folder so the chat-agent form's drop zone is already
+  // populated, then opens sync_create with `agentTypePreselect: 'chat'`
+  // — SyncConfigPanel auto-skips the type picker and lands on the
+  // chat-agent form (image 1 in the boss's mock).
+  const handleAgentDefaultRequested = useCallback((scope: RepoScope) => {
+    setDraftResources([
+      {
+        path: scope.path,
+        nodeName: scope.name,
+        nodeType: 'folder',
+        readonly: false,
+      },
+    ]);
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    openPanel({ type: 'sync_create', agentTypePreselect: 'chat' });
+  }, [openPanel, setDraftResources]);
 
   const closeRightPanel = useCallback(() => {
     setEditorTarget(null);
@@ -550,6 +305,7 @@ export default function DataPage({ params }: DataPageProps) {
     defaultStartOption,
     createMenuOpen,
     createMenuOpenForId,
+    createMenuOpenAction,
     createMenuPosition,
     createMenuAccessOnly,
     createMenuRef,
@@ -650,29 +406,12 @@ export default function DataPage({ params }: DataPageProps) {
     if (key !== tableNameByIdRef.current) { tableNameByIdRef.current = key; setTableNameById(tableNameById); }
   }, [tableNameById, setTableNameById]);
 
-  const endpointNameMap = useMemo(() => {
-    const agents: Record<string, string> = {};
-    for (const a of savedAgents) { agents[a.id] = a.name; }
-    const nodes: Record<string, string> = { ...tableNameById };
-    if (syncStatusData?.syncs) {
-      for (const s of syncStatusData.syncs) {
-        if (s.path && !nodes[s.path] && s.name) nodes[s.path] = s.name;
-      }
-    }
-    const syncs: Record<string, string> = {};
-    if (syncStatusData?.syncs) {
-      for (const s of syncStatusData.syncs) {
-        const PROVIDER_LABELS: Record<string, string> = {
-          filesystem: 'Local Sync', gmail: 'Gmail',
-          google_calendar: 'Calendar', google_sheets: 'Sheets', google_drive: 'Drive',
-          google_docs: 'Docs', github: 'GitHub', notion: 'Notion', linear: 'Linear',
-          airtable: 'Airtable', mcp: 'MCP Server', sandbox: 'Sandbox',
-        };
-        syncs[s.id] = s.name || PROVIDER_LABELS[s.provider] || s.provider;
-      }
-    }
-    return { agents, nodes, syncs };
-  }, [savedAgents, tableNameById, syncStatusData]);
+  const { accessPointEntries, providerIcons } = useAccessPointEntries({
+    nodeEndpointMap,
+    savedAgents,
+    tableNameById,
+    syncStatusData,
+  });
 
   useEffect(() => { setAccessPointsToContext(accessPoints); }, [accessPoints, setAccessPointsToContext]);
   useEffect(() => {
@@ -894,13 +633,31 @@ export default function DataPage({ params }: DataPageProps) {
         createMenuActions={createMenuActions}
       />
 
-      {/* Main Content */}
+      {/* Main Content
+       *
+       * Layout (matches the marketing showcase):
+       *
+       *   ┌──────────────────────────────────────────────────┐
+       *   │ ProjectsHeader (Workspace / finance)   [Access]  │  <- 40px, full width
+       *   ├────────────┬─────────────────────────────────────┤
+       *   │            │                                     │
+       *   │ Explorer   │ content / editor / grid             │
+       *   │ (tree)     │                                     │
+       *   │            │                                     │
+       *   └────────────┴─────────────────────────────────────┘
+       *
+       * Header is hoisted OUT of the column row so a single hairline
+       * runs unbroken across the explorer column boundary, the way
+       * Linear / GitHub / Supabase do it. The previous structure had
+       * ExplorerSidebar render its own "Workspace" header, which
+       * broke the line into two segments.
+       */}
       <div
         onDragEnter={fileImport.handleGlobalDragEnter}
         onDragLeave={fileImport.handleGlobalDragLeave}
         onDragOver={fileImport.handleGlobalDragOver}
         onDrop={fileImport.handleGlobalDrop}
-        style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' } as React.CSSProperties}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', overflow: 'hidden' } as React.CSSProperties}
       >
         {/* File drop overlay */}
         {fileImport.isDraggingFiles && (
@@ -919,8 +676,39 @@ export default function DataPage({ params }: DataPageProps) {
           </div>
         )}
 
-        {/* Explorer Sidebar */}
-        <ExplorerSidebar
+        {/* Top header bar — spans the full width of <main>, including
+            over the ExplorerSidebar column. Renders ONE breadcrumb
+            (`Workspace / finance / …`) and the Access points button. */}
+        <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 40 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <ProjectsHeader
+              pathSegments={pathSegments}
+              projectId={activeProject?.id ?? null}
+              onProjectsRefresh={() => {}}
+              accessPointCount={accessPoints.length}
+            />
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', paddingRight: 8,
+            borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#0e0e0e',
+            height: '100%',
+            gap: 8,
+          }}>
+            <AccessPointsHeaderButton
+              entries={accessPointEntries}
+              isOpen={panelState.type === 'access_list'}
+              onClick={() => togglePanel({ type: 'access_list' })}
+            />
+          </div>
+        </div>
+
+        {/* Body row: Explorer sidebar + content column + right panel */}
+        <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
+
+          {/* Explorer Sidebar — no internal header, starts directly
+              with the file tree so it sits flush under the unified
+              ProjectsHeader above. */}
+          <ExplorerSidebar
             projectId={projectId}
             currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
             activeNodeId={
@@ -931,6 +719,15 @@ export default function DataPage({ params }: DataPageProps) {
             onNavigate={handleMillerNavigate}
             onCreate={handleMillerCreateClick}
             onCreateSync={handleAccessMenuClick}
+            onOpenAccess={(endpoints, nodeId) => {
+              setHoverHighlightNodeId(null);
+              if (endpoints.length === 1) {
+                openPanel({ type: 'access_list', nodeId, accessEndpointId: endpoints[0].syncId });
+                return;
+              }
+              openPanel({ type: 'access_list', nodeId });
+            }}
+            endpointByNodeId={nodeEndpointMap}
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
             onMoveNode={nodeActions.handleMoveNode}
@@ -940,87 +737,15 @@ export default function DataPage({ params }: DataPageProps) {
                 : null
             }
             highlightNodeId={hoverHighlightNodeId || highlightNodeId}
+            highlightVariant={hoverHighlightNodeId !== null ? 'access-point' : 'default'}
             createMenuOpenForId={createMenuOpenForId}
-            style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
+            createMenuOpenAction={createMenuOpenAction}
+            style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.08)', background: 'transparent', flexShrink: 0 }}
           />
 
-        {/* Content column */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {/* Header (Breadcrumbs + Connect) */}
-          <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 40 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <ProjectsHeader
-                pathSegments={pathSegments}
-                projectId={activeProject?.id ?? null}
-                onProjectsRefresh={() => {}}
-                accessPointCount={accessPoints.length}
-              />
-            </div>
-            {/* New Sync button in header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', paddingRight: 8,
-              borderBottom: '1px solid rgba(255,255,255,0.1)', background: '#0e0e0e',
-              height: '100%',
-              gap: 8,
-            }}>
-              <GlobalEndpointsAvatarGroup 
-                nodeEndpointMap={nodeEndpointMap} 
-                onEndpointClick={(ep, nodeId) => {
-                  const ps = endpointToPanelState(ep, nodeId);
-                  togglePanel(ps);
-                }}
-                onEndpointHover={setHoverHighlightNodeId}
-                nameMap={endpointNameMap}
-              />
-              {nodeEndpointMap.size > 0 && (
-                <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.1)' }} />
-              )}
-              <button
-                onClick={openSyncCreatePanel}
-                title="New access"
-                style={{
-                  display: 'flex', alignItems: 'center',
-                  height: 28, paddingRight: 10, borderRadius: 6,
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  background: '#242424', 
-                  color: '#ededed',
-                  fontSize: 12, fontWeight: 500, cursor: 'pointer',
-                  transition: 'all 0.15s ease', whiteSpace: 'nowrap',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = '#2a2a2a';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = '#242424';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-                }}
-                onMouseDown={e => {
-                  e.currentTarget.style.background = '#1f1f1f';
-                }}
-                onMouseUp={e => {
-                  e.currentTarget.style.background = '#2a2a2a';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: '100%' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.9 }}>
-                    <path d="M12 5v14" />
-                    <path d="M5 12h14" />
-                  </svg>
-                </div>
-                <span style={{ paddingLeft: 6 }}>
-                  Access
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Wrapper for Content Column and Right Panel */}
-          <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
-            
-            {/* Content Column */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Content column */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Loading state */}
             {isResolvingPath && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0e0e0e' }}>
@@ -1148,117 +873,41 @@ export default function DataPage({ params }: DataPageProps) {
         </div>
 
         {/* Right Panel */}
-        <ResizablePanel isVisible={!!editorTarget || panelState.type !== 'none'}>
-          {editorTarget && (
-            <DocumentEditor
-              path={editorTarget.path}
-              value={editorTarget.value}
-              onSave={newValue => {
-                console.log('Save document:', editorTarget.path, newValue);
-                setEditorTarget(null);
-                setIsEditorFullScreen(false);
-              }}
-              onClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
-              isFullScreen={isEditorFullScreen}
-              onToggleFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
-            />
-          )}
-          {!editorTarget && panelState.type === 'version_history' && panelState.nodeId && (
-            <VersionHistoryPanel
-              nodeId={panelState.nodeId}
-              projectId={projectId}
-              onClose={closeRightPanel}
-              onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
-            />
-          )}
-          {!editorTarget && panelState.type === 'sync_config' && activeSyncId && (
-            <SyncConfigPanel
-              mode="detail"
-              syncId={activeSyncId}
-              projectId={projectId}
-              onClose={closeRightPanel}
-            />
-          )}
-          {!editorTarget && panelState.type === 'sync_config' && !activeSyncId && (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
-              {!syncStatusData ? (
-                <span style={{ color: '#71717a', fontSize: 13 }}>Loading...</span>
-              ) : (
-                <>
-                  <span style={{ color: '#525252', fontSize: 13 }}>No access configured</span>
-                  <button
-                    onClick={() => {
-                      const nodeId = panelState.nodeId;
-                      if (nodeId) {
-                        openSyncSetting('_generic', { path: nodeId, nodeName: '', nodeType: 'folder', readonly: true });
-                      }
-                      openPanel({ type: 'sync_create' });
-                    }}
-                    style={{
-                      padding: '6px 14px', fontSize: 12, fontWeight: 500,
-                      background: '#242424', border: '1px solid rgba(255,255,255,0.12)',
-                      borderRadius: 6, color: '#e4e4e7', cursor: 'pointer',
-                    }}
-                  >
-                    + New Access
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-          {!editorTarget && panelState.type === 'sync_create' && (
-            <SyncConfigPanel
-              mode="create"
-              syncId={null}
-              projectId={projectId}
-              onClose={closeRightPanel}
-              onSyncCreated={handleSyncCreated}
-            />
-          )}
-          {!editorTarget && panelState.type === 'mcp_config' && panelState.mcpEndpointId && (
-            <McpConfigPanel endpoint={mcpEndpointDetail} onClose={closeRightPanel} />
-          )}
-          {!editorTarget && panelState.type === 'sandbox_config' && panelState.sandboxEndpointId && (
-            <SandboxConfigPanel endpoint={sandboxEndpointDetail} onClose={closeRightPanel} />
-          )}
-          {panelState.type === 'agent_chat' && (() => {
-            const agentId = panelState.agentId;
-            const chatAgent = agentId ? savedAgents.find(a => a.id === agentId) : null;
-            if (!chatAgent) {
-              return !editorTarget ? (
-                <PanelShell title="Chat Agent" onClose={closeRightPanel}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Agent not found</div>
-                </PanelShell>
-              ) : null;
-            }
-            const tools: AccessOption[] = [];
-            if (chatAgent.resources) {
-              for (const res of chatAgent.resources) {
-                tools.push({
-                  id: `bash:${res.path}`,
-                  label: `${res.nodeName || res.path} · Bash${res.readonly ? ' (Read-only)' : ''}`,
-                  type: 'bash' as const,
-                  tableId: res.path,
-                  tableName: res.nodeName || res.path,
-                });
-              }
-            }
-            return (
-              <div style={{ display: editorTarget ? 'none' : 'contents' }}>
-                <ChatRuntimeView
-                  availableTools={tools}
-                  tableData={currentTableData?.data}
-                  tableId={activeNodeId}
-                  projectId={projectId}
-                  onDataUpdate={async () => { await refreshTable(); }}
-                  projectTools={projectTools}
-                  onClose={closeRightPanel}
-                />
-              </div>
-            );
-          })()}
-        </ResizablePanel>
-          </div>
+        <DataPageRightPanel
+          editorTarget={editorTarget}
+          isEditorFullScreen={isEditorFullScreen}
+          panelState={panelState}
+          projectId={projectId}
+          activeNodeId={activeNodeId}
+          activeSyncId={activeSyncId}
+          currentTableData={currentTableData}
+          syncStatusData={syncStatusData}
+          projectTools={projectTools}
+          savedAgents={savedAgents}
+          accessPointEntries={accessPointEntries}
+          providerIcons={providerIcons}
+          scopes={scopes}
+          connectorsByScope={connectorsByScope}
+          currentScopePath={currentFolderId || ''}
+          repoIdentity={repoIdentity}
+          onClose={closeRightPanel}
+          onEditorClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
+          onEditorSave={(newValue) => {
+            console.log('Save document:', editorTarget?.path, newValue);
+            setEditorTarget(null);
+            setIsEditorFullScreen(false);
+          }}
+          onToggleEditorFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
+          onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
+          onSyncCreated={handleSyncCreated}
+          onAccessPointHover={setHoverHighlightNodeId}
+          onScopeMutated={mutateRepo}
+          onScopeNavigate={handleScopeNavigate}
+          onAgentDefaultRequested={handleAgentDefaultRequested}
+          onOpenPanel={openPanel}
+          onOpenSyncSetting={openSyncSetting}
+          onDataUpdate={async () => { await refreshTable(); }}
+        />
         </div>
       </div>
     </>

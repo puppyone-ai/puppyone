@@ -198,6 +198,19 @@ class UserInitializationService:
             )
             return project_id
 
+        # Same root-scope auto-create as the regular create_project router
+        # (cf. platform/project/router.py:create_project). Without this,
+        # the demo project has zero scopes — /scopes is empty, mut auth
+        # can't resolve a key, and the post-redesign UI's data view sees
+        # no entry point.
+        try:
+            from src.repo.scope_service import ScopeService
+            ScopeService().ensure_root_scope(project_id)
+        except Exception as e:
+            log_error(
+                f"Demo project {project_id}: ensure_root_scope failed: {e}"
+            )
+
         try:
             await seed_template_content(
                 project_id=project_id,

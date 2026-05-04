@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { openOAuthPopup, type SaasType } from '@/lib/oauthApi';
+import { isWithinScope } from '@/lib/repoApi';
 import { SyncPreview, type AcceptedNodeType } from './SyncPreview';
 import { ScheduleTriggerSection } from './ScheduleAgentConfig';
 import { FolderIcon, JsonIcon, MarkdownIcon, CloseIcon, getNodeIcon } from '../_icons';
@@ -35,6 +36,10 @@ export interface SaaSyncConfigProps {
   direction: SyncDirection;
   configValues?: Record<string, string>;
   onConfigChange?: (key: string, value: string) => void;
+  /** Canonical scope path. When set, drop targets reject folders outside
+   *  the scope — see `isWithinScope`. Pass `undefined` to disable. */
+  scopeBoundary?: string;
+  scopeBoundaryLabel?: string;
 }
 
 type OAuthStatus = { connected: boolean; email?: string } | null;
@@ -46,6 +51,7 @@ const TYPE_ARTICLE: Record<AcceptedNodeType, string> = {
 export function SaaSyncConfig({
   provider, providerLabel, oauthType, requiresAuth = true, icon, description,
   configFields, accept, direction, configValues, onConfigChange,
+  scopeBoundary, scopeBoundaryLabel,
 }: SaaSyncConfigProps) {
   const { draftResources, addDraftResource, removeDraftResource } = useAgent();
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus>(null);
@@ -53,6 +59,7 @@ export function SaaSyncConfig({
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
 
   const primaryType = accept[0];
   const targetRes = draftResources[0] || null;
@@ -112,7 +119,20 @@ export function SaaSyncConfig({
       const node = JSON.parse(data);
       const nodeType: AcceptedNodeType = node.type === 'folder' ? 'folder' : node.type === 'json' ? 'json' : node.type === 'markdown' ? 'markdown' : 'file';
       if (!accept.includes(nodeType)) return;
-      addDraftResource({ path: node.nodeId || node.id, nodeName: node.name, nodeType, readonly: true } as AccessResource);
+      const nodePath: string = node.nodeId || node.id;
+      // Scope-aware guard: when this config is opened from a scope
+      // context, only nodes inside that scope's boundary can be the
+      // sync target. Out-of-scope drops surface an inline error.
+      if (scopeBoundary !== undefined && !isWithinScope(nodePath, scopeBoundary)) {
+        const boundary = scopeBoundaryLabel || (scopeBoundary === '' ? 'root' : `/${scopeBoundary}`);
+        setDropError(
+          `${node.name || nodePath} is outside this scope (${boundary}). Configure integrations for it from its own scope.`,
+        );
+        setTimeout(() => setDropError(null), 5000);
+        return;
+      }
+      setDropError(null);
+      addDraftResource({ path: nodePath, nodeName: node.name, nodeType, readonly: true } as AccessResource);
     } catch { /* ignore */ }
   };
 
@@ -157,8 +177,33 @@ export function SaaSyncConfig({
             <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
           </div>
           <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
-            Drag and drop a folder or database here to set it as the destination for this access point.
+            Drag and drop a folder or database here to set it as the destination for this integration.
           </div>
+
+          {scopeBoundary !== undefined && (
+            <div style={{ fontSize: 11, color: '#71717a', paddingLeft: 2, marginBottom: 8, lineHeight: 1.5 }}>
+              Only nodes inside{' '}
+              <code style={{ color: '#a1a1aa' }}>
+                {scopeBoundary === '' ? '/ (root)' : `/${scopeBoundary}`}
+              </code>{' '}
+              can be attached.
+            </div>
+          )}
+
+          {dropError && (
+            <div
+              style={{
+                fontSize: 12, color: '#fca5a5',
+                background: 'rgba(248,113,113,0.08)',
+                border: '1px solid rgba(248,113,113,0.25)',
+                borderRadius: 6, padding: '6px 10px',
+                marginBottom: 8, lineHeight: 1.5,
+              }}
+              role="alert"
+            >
+              {dropError}
+            </div>
+          )}
 
           <div
             style={{

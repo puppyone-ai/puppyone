@@ -749,6 +749,66 @@ def get_agent_config_service() -> AgentConfigService:
     return AgentConfigService(AgentRepository())
 
 
+def _resolve_agent_via_connectors(mcp_api_key: str) -> dict | None:
+    """New-path resolution: query the `connectors` table for an agent.
+
+    Returns the response payload directly when found, or None if there's
+    no agent connector with that key (caller falls back to the legacy
+    access_points lookup).
+
+    Failure-mode contract: ANY exception (network blip, table not yet
+    migrated, DB outage) returns None so the legacy fallback runs. We
+    log the failure but never let it propagate — the legacy path is
+    still the source of truth during the transition window.
+    """
+    try:
+        from src.repo.connector_service import ConnectorService
+        from src.repo.scope_repository import RepoScopeRepository
+        connector = ConnectorService().get_agent_by_mcp_key(mcp_api_key)
+    except Exception as e:
+        log_warning(f"[internal] connectors lookup failed for mcp key — falling back: {e}")
+        return None
+    if connector is None:
+        return None
+
+    # Connectors don't have first-class tools/bash_accesses today; the
+    # agent's bound scope IS its access scope. We return one access
+    # entry per scope (the connector's bound scope), letting the MCP
+    # service render its tool list against that scope.
+    scope = RepoScopeRepository().get(connector.scope_id)
+    accesses_data: list[dict] = []
+    if scope is not None:
+        is_writable = scope.mode == "rw"
+        accesses_data.append({
+            "path": scope.path,
+            "bash_enabled": True,
+            "bash_readonly": not is_writable,
+            "tool_query": True,
+            "tool_create": is_writable,
+            "tool_update": is_writable,
+            "tool_delete": is_writable,
+            "json_path": "",
+            "node_name": scope.name,
+            "node_type": "folder",
+        })
+
+    return {
+        "agent": {
+            "id": connector.id,
+            "name": connector.name,
+            "project_id": connector.project_id,
+            # Connectors don't carry the legacy `type` field; default to
+            # 'chat' for MCP service compatibility.
+            "type": "chat",
+            "user_id": connector.created_by or "",
+        },
+        "accesses": accesses_data,
+        # Tools attached to agents lived in the legacy access_tools table;
+        # the new model doesn't surface them here yet.
+        "tools": [],
+    }
+
+
 @router.get(
     "/agent-by-mcp-key/{mcp_api_key}",
     summary="Get Agent and its access permissions and tools by MCP API key",
@@ -759,6 +819,21 @@ async def get_agent_by_mcp_key(
     mcp_api_key: str,
     agent_service: AgentConfigService = Depends(get_agent_config_service),
 ):
+    """Resolve an MCP API key to an agent's config + tools + accesses.
+
+    Queries the new `connectors` table first (rows with provider='agent'
+    and config.mcp_api_key=<key>). Falls back to the legacy
+    AgentConfigService.get_by_mcp_api_key() during the access-points →
+    connectors transition window — once access_points is dropped, the
+    fallback returns nothing and we 404.
+
+    The response shape is unchanged for the MCP service consumer.
+    """
+    new_payload = _resolve_agent_via_connectors(mcp_api_key)
+    if new_payload is not None:
+        return new_payload
+
+    # ── Fallback: legacy access_points-backed agent lookup ────────────
     agent = agent_service.get_by_mcp_api_key(mcp_api_key)
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")

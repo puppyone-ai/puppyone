@@ -179,8 +179,9 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
         detail = parsed.detail ?? parsed.message ?? text;
       } catch {}
 
+      const usesAccessKey = currentAuthHeaders["X-Access-Key"] != null;
       const hint = res.status === 401
-        ? "Invalid or expired token. Run `puppyone auth login`."
+        ? (usesAccessKey ? "Invalid or expired access key." : "Invalid or expired token. Run `puppyone auth login`.")
         : res.status === 404
         ? "Check the resource ID or path."
         : undefined;

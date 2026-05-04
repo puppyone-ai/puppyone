@@ -119,6 +119,12 @@ function _defaultName(provider) {
   return DEFAULT_NAMES[provider] || provider;
 }
 
+function _scopeMode(permission) {
+  const p = String(permission || "rw").toLowerCase();
+  if (p === "read" || p === "r" || p === "readonly") return "r";
+  return "rw";
+}
+
 // ── OAuth helpers (from sync.js) ────────────────────────────
 
 async function fetchProviderMeta(client) {
@@ -428,6 +434,16 @@ export function registerAccess(program) {
       }
 
       if (isPlatformType(provider) || provider === "database") {
+        if (provider === "direct") {
+          const existingScope = typeof config.scope === "object" && config.scope ? config.scope : {};
+          config.scope = {
+            ...existingScope,
+            path: scope ?? existingScope.path ?? "",
+            exclude: Array.isArray(existingScope.exclude) ? existingScope.exclude : [],
+            mode: _scopeMode(opts.permission),
+          };
+        }
+
         const body = {
           project_id: projectId,
           provider,
@@ -980,6 +996,13 @@ function _showProviderGuidance(out, connection, baseUrl) {
     out.info("");
     out.info("  \u2500 Retrieve key later:");
     out.info(`    puppyone access key ${connection.id}\n`);
+  } else if (provider === "direct" && key) {
+    out.info(`\n  Access Key: ${key}\n`);
+    out.info("  \u2500 Scoped filesystem commands:");
+    out.info(`    puppyone ap login file-access --access-key-stdin`);
+    out.info(`    puppyone fs ls`);
+    out.info(`    puppyone fs cat README.md`);
+    out.info(`    echo "hello" | puppyone fs write notes/hello.md\n`);
   } else {
     out.info("  \u2500 Management:");
     out.info(`    Refresh: puppyone access refresh ${id}`);

@@ -5,6 +5,7 @@ export type PanelType =
   | 'version_history'
   | 'sync_config'
   | 'sync_create'
+  | 'access_list'
   | 'agent_chat'
   | 'mcp_config'
   | 'sandbox_config';
@@ -12,9 +13,14 @@ export type PanelType =
 export interface PanelState {
   type: PanelType;
   nodeId?: string;
+  accessEndpointId?: string;
   agentId?: string;
   mcpEndpointId?: string;
   sandboxEndpointId?: string;
+  /** When opening sync_create from a scope's "AI Agent" default, set
+   *  this to 'chat' so the create panel skips the type-picker and lands
+   *  directly on the chat-agent form. */
+  agentTypePreselect?: 'chat';
 }
 
 interface PanelStore {
@@ -38,6 +44,7 @@ export const usePanelStore = create<PanelStore>((set, get) => ({
     const isSame =
       cur.type === panel.type &&
       cur.nodeId === panel.nodeId &&
+      cur.accessEndpointId === panel.accessEndpointId &&
       cur.agentId === panel.agentId &&
       cur.mcpEndpointId === panel.mcpEndpointId &&
       cur.sandboxEndpointId === panel.sandboxEndpointId;

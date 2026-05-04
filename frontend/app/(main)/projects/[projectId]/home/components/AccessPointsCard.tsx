@@ -93,7 +93,7 @@ export function AccessPointsCard({
               color: T.text2,
             }}
           >
-            Access Points
+            Integrations
           </span>
           <span
             style={{
@@ -119,7 +119,7 @@ export function AccessPointsCard({
         </div>
         <button
           onClick={() => router.push(`/projects/${projectId}/access`)}
-          title="Add access point"
+          title="Add integration"
           style={{
             background: 'none',
             border: 'none',
@@ -170,7 +170,7 @@ export function AccessPointsCard({
               fontSize: 12,
             }}
           >
-            No access points configured.
+            No integrations configured.
           </div>
         ) : (
           connections.map((conn) => {

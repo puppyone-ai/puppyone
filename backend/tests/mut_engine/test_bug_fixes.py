@@ -319,6 +319,36 @@ class TestP0_4_EphemeralClientMergeConsume:
         assert pull_called, \
             "client.pull() should be called when push result has merged=True"
 
+    def test_hash_cache_refreshes_when_server_head_advanced(self, server_repo):
+        """A cached lite client must refresh after a non-conflict rebase."""
+        from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+        from src.mut_engine.server.repo_manager import MutRepoManager
+
+        repo_manager = MagicMock(spec=MutRepoManager)
+        repo_manager.get_server_repo.return_value = server_repo
+
+        auth = _rw_auth()
+        first = _push_file(server_repo, auth, {"a.txt": b"v1"})
+
+        client = MutEphemeralClient(repo_manager, "test-proj", auth)
+        client.clone_lite()
+        assert client._file_hashes is not None
+        assert set(client._file_hashes) == {"a.txt"}
+
+        _push_file(
+            server_repo, auth,
+            {"a.txt": b"v1", "external.txt": b"server"},
+            base_commit_id=first["commit_id"],
+        )
+
+        result = client.push(modified={"mine.txt": b"client"}, message="add mine")
+
+        assert result["status"] == "ok"
+        assert client._file_hashes is not None
+        assert set(client._file_hashes) == {
+            "a.txt", "external.txt", "mine.txt",
+        }
+
 
 # ══════════════════════════════════════════════════
 # P1 — Security (backend-side)
@@ -363,8 +393,22 @@ class TestP1_1_ViewerRoleCannotWrite:
         assert role == "admin"
 
 
+@pytest.mark.skip(
+    reason=(
+        "Legacy contract removed by access-point-redesign-2026-05-02. "
+        "In the new model, scope is the access_key's row itself (repo_scopes), "
+        "so 'missing scope on a valid AP' is no longer a representable state — "
+        "if the access_key resolves, the scope is present by construction."
+    )
+)
 class TestP1_2_ScopeFailClosed:
-    """P1-2: Scope fallback must fail closed, not grant full access."""
+    """P1-2: Scope fallback must fail closed, not grant full access.
+
+    DEPRECATED: this test exercises the access_points.config.scope JSONB
+    fallback path, which the redesign removed. New scope storage in
+    repo_scopes.path/exclude/mode columns has no fallback mode — the row
+    either exists or auth fails earlier.
+    """
 
     def test_missing_scope_raises_403(self):
         from src.mut_engine.server.auth import PuppyOneAuthenticator
@@ -412,8 +456,22 @@ class TestP1_2_ScopeFailClosed:
                     assert scope["mode"] == "r"
 
 
+@pytest.mark.skip(
+    reason=(
+        "Test mocks `access_points.status` / `access_points.revoked_at` columns. "
+        "After access-point-redesign-2026-05-02, keys live on repo_scopes with "
+        "the field renamed to access_key_revoked_at. Revocation IS still tested "
+        "live via the scope router's regenerate-key endpoint and the new code "
+        "path in auth._try_access_key (covered by tests/security/)."
+    )
+)
 class TestP1_6_AccessKeyStatusCheck:
-    """P1-6: Revoked or disabled access keys must be rejected."""
+    """P1-6: Revoked or disabled access keys must be rejected.
+
+    DEPRECATED: assumes the legacy access_points.status / revoked_at fields.
+    New revocation lives on repo_scopes.access_key_revoked_at; coverage moved
+    to the security regression suite.
+    """
 
     def test_revoked_key_rejected(self):
         from src.mut_engine.server.auth import PuppyOneAuthenticator
@@ -453,8 +511,21 @@ class TestP1_7_SkipAuthGuard:
             assert result["_scope"]["mode"] == "rw"
 
 
+@pytest.mark.skip(
+    reason=(
+        "user_identity binding-to-key feature removed in access-point-redesign-"
+        "2026-05-02. Per-user repo access is now expressed via the new "
+        "repo_user_permissions table (denied-overrides-allow), not a "
+        "key-bound-to-identity field. The X-Mut-User header parameter "
+        "remains on PuppyOneAuthenticator.authenticate() for forward "
+        "compatibility but is currently unused."
+    )
+)
 class TestP1_8_UserIdentityRequired:
-    """P1-8: When user_identity is configured, X-Mut-User header is mandatory."""
+    """P1-8: When user_identity is configured, X-Mut-User header is mandatory.
+
+    DEPRECATED: user_identity binding moved to repo_user_permissions.
+    """
 
     def test_bound_identity_requires_header(self):
         from src.mut_engine.server.auth import PuppyOneAuthenticator
@@ -952,8 +1023,20 @@ class TestScopePathTraversal:
 # Access Point auth hardening
 # ══════════════════════════════════════════════════
 
+@pytest.mark.skip(
+    reason=(
+        "Mocks the legacy access_points table layout (config.scope JSONB, "
+        "provider field, status field). After access-point-redesign-2026-05-02, "
+        "resolve_access_point reads from repo_scopes columns directly — "
+        "no JSONB extraction, no separate scope-missing state. Replaced by "
+        "the connectors/scope_router test suite + tests/security/."
+    )
+)
 class TestAccessPointFailClosed:
-    """access_point.py must fail closed when scope is missing or malformed."""
+    """access_point.py must fail closed when scope is missing or malformed.
+
+    DEPRECATED: assumes the legacy access_points table layout.
+    """
 
     def _call_resolve(self, conn_data):
         """Helper: call resolve_access_point with a mocked DB response."""

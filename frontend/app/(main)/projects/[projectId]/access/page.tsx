@@ -1,62 +1,296 @@
 'use client';
 
 /**
- * Access Page
+ * Access Points page — pixel-faithful migration of the puppyone-web
+ * showcase's AccessView.
  *
- * Lists all access points (data syncs, agents, MCP, sandbox) for a project.
- * Clicking an access point opens its detail view.
+ * Surface contract:
+ *   - Master-detail layout: 280px sidebar (filter tabs + AP list) +
+ *     a right detail pane (Identity, Scope, Quick Connect, Activity).
+ *   - Single unified AP list — cli + agent + third-party integrations
+ *     all live in the same sidebar, grouped by category. The earlier
+ *     surface excluded built-ins (cli/agent) on the theory that the
+ *     /data right panel was the canonical surface for them; review
+ *     concluded that asymmetry was confusing — every actor that has a
+ *     *connection* belongs here.
+ *   - Pause / Resume wired to the dedicated backend endpoints
+ *     (`/connectors/:id/pause` and `/resume`), revalidating the SWR
+ *     cache afterwards so the status pill flips immediately.
+ *   - The "Quick Connect" prompt is provider-aware: for cli/agent we
+ *     reuse the `mut clone` prompt template (canonical, functional);
+ *     for third-party connectors the panel surfaces a connection
+ *     summary and links the user to the data view's right panel,
+ *     which owns the actual auth/trigger config.
+ *   - Recent activity is rendered as an empty state for now — the
+ *     audit-log endpoint isn't AP-scoped yet. Wiring it up is on the
+ *     follow-up backend pass (deliberately out of scope here per the
+ *     "front-end first, back-end after" directive).
  */
 
-import React, { use, useState, useMemo, useCallback, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { use, useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import useSWR from 'swr';
-import { get, post, del } from '@/lib/apiClient';
-import { getProviderDisplayLabel, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
-import { useConnectorSpecs } from '@/lib/hooks/useData';
-import { getProviderLogo } from '@/components/agent/views/SyncDetailView';
-import { getProjectHistory } from '@/lib/contentTreeApi';
+import {
+  listConnectors,
+  listScopes,
+  pauseConnector,
+  resumeConnector,
+  type Connector,
+  type RepoScope,
+} from '@/lib/repoApi';
+import { listDir, type NodeInfo } from '@/lib/contentTreeApi';
 
-/* ================================================================
-   Types
-   ================================================================ */
+// ─── Tokens (inline so this page has no cross-file dependency) ──────
 
-interface SyncStatusItem {
-  id: string;
-  path: string | null;
-  node_name: string | null;
-  node_type: string | null;
-  provider: string;
-  direction: string;
-  status: string;
-  name?: string | null;
-  access_key?: string | null;
-  last_synced_at: string | null;
-  error_message: string | null;
-  config?: Record<string, unknown>;
-  trigger?: { type?: string; schedule?: string; timezone?: string } | null;
-}
+const T = {
+  bg: '#0e0e0e',
+  border: 'rgba(255,255,255,0.08)',
+  cardBg: 'rgba(255,255,255,0.02)',
+  cardBorder: 'rgba(255,255,255,0.06)',
 
-interface ProjectSyncStatus {
-  syncs: SyncStatusItem[];
-  uploads: { id: string; status: string }[];
-}
+  text1: '#fafafa',
+  text2: '#a1a1aa',
+  text3: '#52525b',
+  text4: '#27272a',
 
-/* ================================================================
-   Provider Icons & UI Helpers
-   ================================================================ */
+  fontSans: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+  fontMono: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
+} as const;
+
+// ─── Domain constants ────────────────────────────────────────────────
 
 const PROVIDER_LABELS: Record<string, string> = {
-  filesystem: 'Machine Folder', gmail: 'Gmail', google_sheets: 'Google Sheets',
-  google_calendar: 'Google Calendar', google_docs: 'Google Docs', github: 'GitHub',
-  supabase: 'Supabase', notion: 'Notion', linear: 'Linear',
-  agent: 'Agent', mcp: 'MCP Server', sandbox: 'Sandbox',
-  url: 'Web Page', rss: 'RSS Feed', rest_api: 'REST API',
-  hackernews: 'Hacker News', posthog: 'PostHog',
+  cli: 'mut CLI',
+  agent: 'AI Agent',
+  filesystem: 'Local Folder',
+  gmail: 'Gmail',
+  google_sheets: 'Google Sheets',
+  google_calendar: 'Google Calendar',
+  google_docs: 'Google Docs',
+  google_drive: 'Google Drive',
+  github: 'GitHub',
+  notion: 'Notion',
+  linear: 'Linear',
+  airtable: 'Airtable',
+  url: 'Web Page',
+  rss: 'RSS Feed',
+  rest_api: 'REST API',
+  supabase: 'Supabase',
+  mcp: 'MCP Server',
+  sandbox: 'Sandbox',
+  hackernews: 'Hacker News',
+  posthog: 'PostHog',
   google_search_console: 'Google Search Console',
   script: 'Custom Script',
 };
 
-function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number }) {
+const STATUS_COLORS: Record<string, string> = {
+  active: '#4ade80',
+  syncing: '#60a5fa',
+  error: '#ef4444',
+  paused: '#f59e0b',
+  pending: '#71717a',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Active',
+  syncing: 'Syncing',
+  error: 'Error',
+  paused: 'Paused',
+  pending: 'Pending',
+};
+
+// AP grouping. Maps each provider to a category that drives the
+// sidebar's filter tabs and the type-line under each AP name.
+//
+// Order is the order tabs appear left-to-right.
+type APGroupKey = 'cli' | 'agent' | 'mcp' | 'sandbox' | 'integration';
+const AP_GROUP_ORDER: ReadonlyArray<{ key: APGroupKey; label: string }> = [
+  { key: 'cli', label: 'CLI' },
+  { key: 'agent', label: 'Agent' },
+  { key: 'mcp', label: 'MCP' },
+  { key: 'sandbox', label: 'Sandbox' },
+  { key: 'integration', label: 'Third-party' },
+] as const;
+
+function getGroup(provider: string): APGroupKey {
+  if (provider === 'cli') return 'cli';
+  if (provider === 'agent') return 'agent';
+  if (provider === 'mcp') return 'mcp';
+  if (provider === 'sandbox') return 'sandbox';
+  return 'integration';
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return 'Never';
+  const d = new Date(iso);
+  const secs = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (secs < 60) return 'just now';
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+  return `${Math.floor(secs / 86400)}d ago`;
+}
+
+function getApiBase(): string {
+  if (globalThis.window === undefined) return process.env.NEXT_PUBLIC_API_URL || '';
+  return process.env.NEXT_PUBLIC_API_URL || globalThis.location.origin;
+}
+
+function scopePathToDataUrl(projectId: string, scopePath: string): string {
+  const segments = scopePath.split('/').filter(Boolean);
+  if (segments.length === 0) return `/projects/${projectId}/data`;
+  return `/projects/${projectId}/data/${segments.map(encodeURIComponent).join('/')}`;
+}
+
+function getAccentColor(c: Connector): string {
+  // Accent driven by provider. Built-ins get neutral / functional
+  // colors; third-party providers borrow the showcase's palette.
+  switch (c.provider) {
+    case 'agent': return '#a78bfa';
+    case 'cli': return '#34d399';
+    case 'filesystem': return '#34d399';
+    case 'mcp': return '#60a5fa';
+    case 'sandbox': return '#f59e0b';
+    case 'github': return '#94a3b8';
+    case 'notion': return '#e4e4e7';
+    case 'gmail': return '#fb7185';
+    default: return '#a1a1aa';
+  }
+}
+
+function getTypeLine(c: Connector): string {
+  const direction =
+    c.direction === 'bidirectional' ? 'Two-way'
+    : c.direction === 'inbound' ? 'Import'
+    : c.direction === 'outbound' ? 'Export' : '';
+  switch (c.provider) {
+    case 'cli': return ['CLI agent', direction].filter(Boolean).join(' · ');
+    case 'agent': return ['AI agent', direction].filter(Boolean).join(' · ');
+    case 'mcp': return ['MCP server', direction].filter(Boolean).join(' · ');
+    case 'sandbox': return ['Compute sandbox', direction].filter(Boolean).join(' · ');
+    case 'filesystem': return 'Local filesystem';
+    default: return [`Third-party · ${PROVIDER_LABELS[c.provider] ?? c.provider}`, direction].filter(Boolean).join(' · ');
+  }
+}
+
+function getPrimaryAction(status: string): { label: string; icon: 'pause' | 'play' | 'retry'; tone: 'neutral' | 'warn' } {
+  if (status === 'active' || status === 'syncing') return { label: 'Pause', icon: 'pause', tone: 'neutral' };
+  if (status === 'paused' || status === 'pending') return { label: 'Resume', icon: 'play', tone: 'neutral' };
+  if (status === 'error') return { label: 'Retry', icon: 'retry', tone: 'warn' };
+  return { label: 'Resume', icon: 'play', tone: 'neutral' };
+}
+
+/**
+ * Provider-aware connect prompt. For cli/agent we render the canonical
+ * `mut clone` template; for everything else we surface a short summary
+ * with a hint that auth/trigger config lives in the data view's right
+ * panel (the canonical surface for third-party setup).
+ */
+function buildConnectPrompt(c: Connector, scope: RepoScope | undefined): string {
+  const apiBase = getApiBase();
+  const accessKey = scope?.access_key || '';
+  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  const scopePath = scope?.path === '' ? '/' : `/${scope?.path ?? ''}`;
+  const scopeName = scope?.name || (scope?.path === '' ? 'root' : (scope?.path ?? 'workspace'));
+  const accessLabel = scope?.mode === 'rw' ? 'read and write' : 'read-only';
+
+  if (c.provider === 'cli' || c.provider === 'agent' || c.provider === 'filesystem') {
+    if (!accessKey) {
+      return [
+        `Sync my puppyone scope "${scopeName}" using the \`mut\` CLI.`,
+        ``,
+        `⚠ This scope has no access_key issued. Regenerate it from the data view's`,
+        `   scope settings to enable CLI access. Once you have the key, the prompt`,
+        `   below will fill in automatically.`,
+      ].join('\n');
+    }
+    return [
+      `Sync my puppyone scope "${scopeName}" using the \`mut\` CLI.`,
+      ``,
+      `## Install (one-time)`,
+      `\`\`\`bash`,
+      `pip install mutai`,
+      `\`\`\``,
+      ``,
+      `## Setup — choose one path`,
+      ``,
+      `**A. Clone to a new folder** (no local files yet):`,
+      `\`\`\`bash`,
+      `mut clone ${cloneUrl} --credential ${accessKey}`,
+      `cd ${scopeName}`,
+      `\`\`\``,
+      ``,
+      `**B. Connect an existing folder** (already have files locally):`,
+      `\`\`\`bash`,
+      `cd /path/to/your/existing/folder`,
+      `mut connect ${cloneUrl} --credential ${accessKey}`,
+      `\`\`\``,
+      `Three-way merges with whatever is on disk — no overwrite, no data loss.`,
+      ``,
+      `## Sync workflow`,
+      `\`\`\`bash`,
+      `mut pull                          # get latest from cloud`,
+      `# ... make your edits ...`,
+      `mut commit -m "describe changes"  # snapshot locally`,
+      `mut push                          # send to cloud`,
+      `\`\`\``,
+    ].join('\n');
+  }
+
+  if (c.provider === 'mcp') {
+    return [
+      `Register my puppyone MCP server in your toolset.`,
+      ``,
+      `Endpoint:    wss://mcp.puppyone.dev/v1`,
+      `Workspace:   ${c.project_id}`,
+      `Scope:       ${scopePath}  (${accessLabel})`,
+      ``,
+      `Initialize the connection over WebSocket; each tool call should`,
+      `include the workspace id above. The full tool schema is published at`,
+      `docs.puppyone.dev/mcp/v1. Confirm registration and list available`,
+      `tools.`,
+    ].join('\n');
+  }
+
+  if (c.provider === 'sandbox') {
+    return [
+      `Provision a puppyone sandbox tied to my workspace.`,
+      ``,
+      `Image:       puppyone-sandbox:python3.11`,
+      `Region:      us-east-1`,
+      `Workspace:   ${c.project_id}`,
+      `Mount:       ${scopePath} → /workspace inside the container`,
+      ``,
+      `Run \`pup sandbox start --workspace ${c.project_id} --image python3.11\`.`,
+      `The drive at ${scopePath} will be bind-mounted at /workspace; outputs`,
+      `persist back to the drive as versioned commits attributed to "${c.name}".`,
+    ].join('\n');
+  }
+
+  // Third-party fallback — informational, points to the configuration
+  // surface in the data view rather than pretending to issue tokens.
+  const providerLabel = PROVIDER_LABELS[c.provider] ?? c.provider;
+  return [
+    `Connect my ${providerLabel} as a puppyone source.`,
+    ``,
+    `Source:      ${c.name} (${providerLabel})`,
+    `Scope:       ${scopePath}  (${accessLabel})`,
+    `Direction:   ${c.direction}`,
+    ``,
+    `OAuth and trigger configuration for this connector live in the`,
+    `data view's right-side panel — open ${scopePath || '/'} and click`,
+    `into "${c.name}" to authorize, set sync triggers, and edit field`,
+    `mappings. Once configured, ${providerLabel} content syncs into`,
+    `${scopePath || '/'} as versioned commits.`,
+  ].join('\n');
+}
+
+// ─── Icons ───────────────────────────────────────────────────────────
+
+function ProviderIcon({ provider, size = 16 }: { readonly provider: string; readonly size?: number }) {
   const logos: Record<string, string> = {
     gmail: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
     google_sheets: 'https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png',
@@ -65,1110 +299,1178 @@ function ProviderIcon({ provider, size = 16 }: { provider: string; size?: number
     github: 'https://github.githubassets.com/favicons/favicon-dark.svg',
     notion: 'https://www.notion.so/images/favicon.ico',
   };
-
   if (logos[provider]) {
+    // eslint-disable-next-line @next/next/no-img-element
     return <img src={logos[provider]} alt={provider} width={size} height={size} style={{ display: 'block', borderRadius: 2 }} />;
   }
-
-  if (provider === 'filesystem') return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" /></svg>;
+  if (provider === 'cli' || provider === 'filesystem') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="4 17 10 11 4 5" />
+        <line x1="12" y1="19" x2="20" y2="19" />
+      </svg>
+    );
+  }
   if (provider === 'agent') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="8" r="4" /><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2" />
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 1v6m0 10v6m11-11h-6m-10 0H1m17.07-7.07l-4.24 4.24m-5.66 5.66l-4.24 4.24m12.73 0l-4.24-4.24m-5.66-5.66L1.93 4.93" />
       </svg>
     );
   }
   if (provider === 'mcp') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+        <rect x="2" y="3" width="20" height="14" rx="2" />
+        <line x1="8" y1="21" x2="16" y2="21" />
+        <line x1="12" y1="17" x2="12" y2="21" />
       </svg>
     );
   }
   if (provider === 'sandbox') {
     return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M9 9l2 2-2 2M13 15h2" />
       </svg>
     );
   }
-  if (provider === 'url') return <span style={{ fontSize: size * 0.85 }}>🌐</span>;
-  if (provider === 'hackernews') return <span style={{ fontSize: size * 0.85 }}>🟠</span>;
-  if (provider === 'posthog') return <span style={{ fontSize: size * 0.85 }}>🦔</span>;
-  if (provider === 'google_search_console') return <span style={{ fontSize: size * 0.85 }}>📊</span>;
-  if (provider === 'script') return <span style={{ fontSize: size * 0.85 }}>📜</span>;
-
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2">
-      <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
     </svg>
   );
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  active: '#4ade80', syncing: '#60a5fa', error: '#ef4444',
-  paused: '#f59e0b', pending: '#71717a', waiting: '#71717a',
-};
+const PauseIcon = ({ size = 11 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+);
+const PlayIcon = ({ size = 11 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+);
+const RetryIcon = ({ size = 11 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+  </svg>
+);
+const EditIcon = ({ size = 10 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4z" /></svg>
+);
+const ChevronRightIcon = ({ size = 10 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+);
+const MoreVerticalIcon = ({ size = 12 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
+);
+const FolderGlyph = ({ size = 11, color = T.text2 }: { readonly size?: number; readonly color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+  </svg>
+);
+const FileGlyph = ({ size = 11, color = T.text3 }: { readonly size?: number; readonly color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+const CopyIcon = ({ size = 12 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
 
-const DIRECTION_LABELS: Record<string, string> = {
-  inbound: 'Inbound', outbound: 'Outbound', bidirectional: 'Bidirectional',
-};
+// ─── Chip system ─────────────────────────────────────────────────────
 
-function timeAgo(dateStr: string | null): string {
-  if (!dateStr) return 'Never';
-  const d = new Date(dateStr);
-  const now = new Date();
-  const secs = Math.floor((now.getTime() - d.getTime()) / 1000);
-  if (secs < 60) return 'Just now';
-  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-  return `${Math.floor(secs / 86400)}d ago`;
-}
+const CHIP_HEIGHT = 22;
+const CHIP_RADIUS = 5;
+const CHIP_FONT_SIZE = 11;
+const CHIP_BUTTON_PADDING = '0 10px';
+const CHIP_BADGE_PADDING = '0 8px';
 
-function normalizeMode(raw?: string): SyncModeType {
-  if (!raw) return 'import_once';
-  if (raw === 'cli_push' || raw === 'realtime') return 'realtime';
-  if (raw === 'cron' || raw === 'scheduled') return 'scheduled';
-  if (raw === 'manual') return 'manual';
-  return 'import_once';
-}
-
-function MiniDocShell({ type }: { type: 'json' | 'markdown' | 'file' }) {
-  const accentColor = type === 'json' ? '#4ade80' : type === 'markdown' ? '#60a5fa' : '#a3a3a3';
-  const label = type === 'json' ? '{ }' : type === 'markdown' ? 'MD' : 'FILE';
-  return (
-    <svg width="36" height="40" viewBox="0 0 36 40" fill="none">
-      <path d="M4 2C4 1.44772 4.44772 1 5 1H23L32 10V38C32 38.5523 31.5523 39 31 39H5C4.44772 39 4 38.5523 4 38V2Z" fill="#222225" stroke="#3a3a3d" strokeWidth="0.75" />
-      <path d="M23 1V10H32" stroke="#3a3a3d" strokeWidth="0.75" strokeLinejoin="round" />
-      <path d="M23 1V10H32L23 1Z" fill="#2a2a2d" />
-      <text x="18" y="28" textAnchor="middle" fontSize="7" fontWeight="600" fill={accentColor} fontFamily="'SF Mono', 'JetBrains Mono', monospace">{label}</text>
-    </svg>
-  );
-}
-
-function ConnectionLine({ direction, isActive, status }: { direction: string; isActive: boolean; status: string }) {
-  if (!isActive) {
-    const label = status === 'error' ? 'Sync error'
-      : status === 'paused' ? 'Paused'
-      : status === 'pending' || status === 'waiting' ? 'Waiting'
-      : 'Not connected';
-    const labelColor = status === 'error' ? '#ef4444' : status === 'paused' ? '#f59e0b' : '#525252';
-    const lineColor = status === 'error' ? 'rgba(239,68,68,0.3)' : status === 'paused' ? 'rgba(245,158,11,0.2)' : '#333';
-    return (
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', margin: '0 4px' }}>
-        <div style={{ width: '100%', textAlign: 'center', position: 'relative', borderTop: `1px dashed ${lineColor}` }}>
-          <span style={{ position: 'relative', top: -7, background: '#0e0e0e', padding: '0 6px', fontSize: 9, fontWeight: 500, color: labelColor, whiteSpace: 'nowrap', letterSpacing: '0.3px' }}>
-            {label}
-          </span>
-        </div>
-      </div>
-    );
-  }
-  const arrowColor = '#4ade80';
-  return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 4px' }}>
-      {direction === 'bidirectional' ? (
-        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 5h44M6 2L2 5l4 3" /><path d="M42 8l4 3-4 3M2 11h44" />
-        </svg>
-      ) : direction === 'outbound' ? (
-        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M46 8H2M6 4L2 8l4 4" />
-        </svg>
-      ) : (
-        <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke={arrowColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M2 8h44M42 4l4 4-4 4" />
-        </svg>
-      )}
-    </div>
-  );
-}
-
-/* ================================================================
-   AccessPage
-   ================================================================ */
-
-const PROVIDER_GROUPS: { key: string; label: string; providers: string[] }[] = [
-  { key: 'filesystem', label: 'Filesystem', providers: ['filesystem'] },
-  { key: 'datasources', label: 'Data Sources', providers: ['gmail', 'google_sheets', 'google_calendar', 'google_docs', 'github', 'supabase', 'notion', 'linear', 'hackernews', 'posthog', 'google_search_console', 'url', 'rss', 'rest_api', 'script'] },
-  { key: 'agents', label: 'Agents', providers: ['agent'] },
-  { key: 'mcp', label: 'MCP', providers: ['mcp'] },
-  { key: 'sandbox', label: 'Sandbox', providers: ['sandbox'] },
-];
-
-function groupConnections(connections: SyncStatusItem[]) {
-  return PROVIDER_GROUPS
-    .map(g => ({
-      ...g,
-      items: connections.filter(c => g.providers.includes(c.provider)),
-    }))
-    .filter(g => g.items.length > 0);
-}
-
-export default function AccessPage({ params }: { params: Promise<{ projectId: string }> }) {
-  const { projectId } = use(params);
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  // `?ap=<id>` is the deep-link entry point — Home's AP cards push that URL
-  // when clicked, and we treat the query string as the source-of-truth for
-  // selection so back/forward and shared links round-trip cleanly.  Local
-  // state is kept in sync via `useEffect` (one-way: URL → state); user clicks
-  // in the sidebar go through `selectAp()` which sets state AND patches the
-  // URL with `router.replace` (so reload preserves the selection without
-  // polluting browser history).
-  const queryAp = searchParams.get('ap');
-  const [selectedId, setSelectedIdState] = useState<string | null>(queryAp);
-  useEffect(() => {
-    if (queryAp && queryAp !== selectedId) setSelectedIdState(queryAp);
-  }, [queryAp]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const selectAp = useCallback((id: string | null) => {
-    setSelectedIdState(id);
-    const next = new URLSearchParams(searchParams.toString());
-    if (id) next.set('ap', id);
-    else next.delete('ap');
-    const qs = next.toString();
-    router.replace(qs ? `?${qs}` : '?');
-  }, [router, searchParams]);
-
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
-
-  const { data: syncData, mutate: mutateSyncs } = useSWR<ProjectSyncStatus>(
-    projectId ? `/api/v1/sync/status?project_id=${projectId}` : null,
-    (url: string) => get<ProjectSyncStatus>(url),
-    { refreshInterval: 15000 },
-  );
-
-  const connections = useMemo(() => syncData?.syncs || [], [syncData]);
-  const allGroups = useMemo(() => groupConnections(connections), [connections]);
-
-  // Auto-complete onboarding steps based on access point data
-  useEffect(() => {
-    if (!connections.length) return;
-    try {
-      const KEY = 'puppyone_onboarding_v1';
-      const state = JSON.parse(localStorage.getItem(KEY) || '{"hasSeenWelcome":true,"completedSteps":[],"dismissedChecklist":false}');
-      let changed = false;
-      if (!state.completedSteps.includes('access_point')) { state.completedSteps.push('access_point'); changed = true; }
-      if (!state.completedSteps.includes('local_sync') && connections.some((c: SyncStatusItem) => c.provider === 'filesystem')) {
-        state.completedSteps.push('local_sync'); changed = true;
-      }
-      if (changed) localStorage.setItem(KEY, JSON.stringify(state));
-    } catch {}
-  }, [connections]);
-  const filteredConnections = useMemo(() => {
-    if (!activeFilter) return connections;
-    return connections.filter(c => {
-      const group = PROVIDER_GROUPS.find(g => g.providers.includes(c.provider));
-      return group?.key === activeFilter;
-    });
-  }, [connections, activeFilter]);
-  const groups = useMemo(() => groupConnections(filteredConnections), [filteredConnections]);
-
-  const effectiveSelectedId = selectedId && filteredConnections.find(c => c.id === selectedId)
-    ? selectedId
-    : filteredConnections.length > 0 ? filteredConnections[0].id : null;
-
-  const selected = connections.find(c => c.id === effectiveSelectedId) || null;
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
-      {/* Header */}
-      <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
-        background: '#0e0e0e', fontSize: 13, fontWeight: 500, color: '#e4e4e7', flexShrink: 0,
-      }}>
-        <span>Access</span>
-        <button
-          onClick={() => {/* TODO: open create modal */}}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5,
-            padding: '3px 10px', color: '#a1a1aa', fontSize: 12, fontWeight: 500,
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#e4e4e7'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#a1a1aa'; }}
-        >
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z"></path></svg>
-          Access
-        </button>
-      </div>
-
-      {/* Left-right split */}
-      <div className="flex flex-1 min-h-0">
-
-        {/* Left sidebar */}
-        <div className="w-[280px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#0e0e0e]">
-
-          {/* Filter tabs */}
-          {allGroups.length > 0 && (
-            <div className="h-[40px] min-h-[40px] shrink-0 flex items-center gap-2 px-3 overflow-x-auto no-scrollbar border-b border-white/[0.06] bg-[#0e0e0e] relative z-10" style={{ scrollbarWidth: 'none' }}>
-              <button
-                onClick={() => setActiveFilter(null)}
-                className={`flex-shrink-0 px-2.5 py-1 rounded-[6px] text-[12px] font-medium transition-colors ${
-                  activeFilter === null
-                    ? 'bg-[#1a1a1a] text-[#eee]'
-                    : 'bg-transparent text-[#71717a] hover:text-[#a1a1aa] hover:bg-white/[0.04]'
-                }`}
-              >
-                All
-              </button>
-              {allGroups.map(g => (
-                <button
-                  key={g.key}
-                  onClick={() => setActiveFilter(g.key)}
-                  className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[12px] font-medium transition-colors ${
-                    activeFilter === g.key
-                      ? 'bg-[#1a1a1a] text-[#eee]'
-                      : 'bg-transparent text-[#71717a] hover:text-[#a1a1aa] hover:bg-white/[0.04]'
-                  }`}
-                >
-                  {g.label}
-                  <span className={`text-[10px] font-bold leading-none px-1.5 py-0.5 rounded border ${
-                    activeFilter === g.key 
-                      ? 'bg-[#222] text-[#888] border-[#333]' 
-                      : 'bg-[#111] text-[#666] border-[#222]'
-                  }`}>
-                    {g.items.length}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar">
-            {connections.length === 0 ? (
-              <div style={{ padding: '32px 16px', textAlign: 'center', color: '#3f3f46', fontSize: 13 }}>
-                No access points yet
-              </div>
-            ) : (
-              filteredConnections.map(conn => (
-                <AccessSidebarRow
-                  key={conn.id}
-                  connection={conn}
-                  isSelected={conn.id === effectiveSelectedId}
-                  onClick={() => selectAp(conn.id)}
-                />
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Right detail panel */}
-        <div className="flex-1 overflow-auto bg-[#0e0e0e]">
-          {selected ? (
-            <AccessDetailPanel
-              connection={selected}
-              projectId={projectId}
-              onRefresh={() => mutateSyncs()}
-            />
-          ) : (
-            <div style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              height: '100%', gap: 8, color: '#3f3f46',
-            }}>
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-                <path d="M12 22v-5" /><path d="M9 8V2" /><path d="M15 8V2" />
-                <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
-              </svg>
-              <span style={{ fontSize: 13 }}>Select an access point</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================
-   AccessSidebarRow — matches VerticalCommitNode row style from History
-   ================================================================ */
-
-function AccessSidebarRow({ connection: c, isSelected, onClick }: {
-  connection: SyncStatusItem;
-  isSelected: boolean;
-  onClick: () => void;
+function InlineActionButton({
+  icon,
+  children,
+  onClick,
+}: {
+  readonly icon?: React.ReactNode;
+  readonly children: React.ReactNode;
+  readonly onClick?: () => void;
 }) {
-  const name = c.name || c.node_name || PROVIDER_LABELS[c.provider] || c.provider;
-  const statusColor = STATUS_COLORS[c.status] || '#71717a';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        height: CHIP_HEIGHT,
+        padding: CHIP_BUTTON_PADDING,
+        background: 'transparent',
+        border: `1px solid ${T.border}`,
+        borderRadius: CHIP_RADIUS,
+        color: T.text3,
+        fontSize: CHIP_FONT_SIZE,
+        fontWeight: 500,
+        fontFamily: T.fontSans,
+        cursor: 'pointer',
+        transition: `background 0.15s ${T.ease}, color 0.15s ${T.ease}`,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+        e.currentTarget.style.color = T.text1;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = T.text3;
+      }}
+    >
+      {icon}
+      {children}
+    </button>
+  );
+}
+
+function PermBadge({ label, active, accent }: { readonly label: string; readonly active: boolean; readonly accent: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: CHIP_HEIGHT,
+        padding: CHIP_BADGE_PADDING,
+        borderRadius: CHIP_RADIUS,
+        background: active ? `${accent}26` : 'transparent',
+        border: `1px solid ${active ? `${accent}55` : T.border}`,
+        color: active ? accent : T.text4,
+        fontSize: CHIP_FONT_SIZE,
+        fontWeight: 500,
+        fontFamily: T.fontSans,
+        letterSpacing: '0.02em',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+// ─── Layout primitives ───────────────────────────────────────────────
+
+function SectionLabel({ children, right }: { readonly children: React.ReactNode; readonly right?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingLeft: 2 }}>
+      <span
+        style={{
+          fontSize: 10.5,
+          fontWeight: 600,
+          color: T.text3,
+          fontFamily: T.fontSans,
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+        }}
+      >
+        {children}
+      </span>
+      {right}
+    </div>
+  );
+}
+
+// ─── Header ──────────────────────────────────────────────────────────
+
+function AccessHeader({ count }: { readonly count: number }) {
+  return (
+    <div
+      style={{
+        height: 40,
+        minHeight: 40,
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 16px',
+        background: '#0e0e0e',
+        flexShrink: 0,
+        fontFamily: T.fontSans,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Access</span>
+        <span
+          style={{
+            fontSize: 11,
+            padding: '1px 7px',
+            borderRadius: 999,
+            background: 'rgba(255,255,255,0.06)',
+            color: '#a1a1aa',
+          }}
+        >
+          {count}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Filter tabs ─────────────────────────────────────────────────────
+
+function FilterTabs({
+  active,
+  groupCounts,
+  onChange,
+}: {
+  readonly active: APGroupKey | null;
+  readonly groupCounts: Map<APGroupKey, number>;
+  readonly onChange: (g: APGroupKey | null) => void;
+}) {
+  const total = Array.from(groupCounts.values()).reduce((n, v) => n + v, 0);
+  const tabBase: React.CSSProperties = {
+    flexShrink: 0,
+    padding: '4px 10px',
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 500,
+    fontFamily: T.fontSans,
+    transition: 'background 0.15s, color 0.15s',
+    cursor: 'pointer',
+    border: 'none',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+  };
 
   return (
     <div
-      onClick={onClick}
-      className={`group flex items-center mx-1.5 h-[30px] rounded-md cursor-pointer px-2.5 gap-2 select-none transition-colors ${
-        isSelected ? 'bg-[#2a2a2a] text-white' : 'bg-transparent text-[#a1a1aa] hover:bg-white/[0.06] hover:text-[#d4d4d4]'
-      }`}
+      style={{
+        height: 40,
+        minHeight: 40,
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '0 12px',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        background: '#0e0e0e',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+      }}
+      className="puppyone-access-filter-tabs"
     >
-      <div className="w-4 h-4 flex items-center justify-center shrink-0">
-        <ProviderIcon provider={c.provider} size={14} />
+      <button
+        onClick={() => onChange(null)}
+        style={{
+          ...tabBase,
+          background: active === null ? '#1a1a1a' : 'transparent',
+          color: active === null ? '#eee' : '#71717a',
+        }}
+      >
+        All
+        <span
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            lineHeight: 1,
+            padding: '2px 5px',
+            borderRadius: 3,
+            background: active === null ? '#222' : '#111',
+            color: active === null ? '#888' : '#666',
+            border: `1px solid ${active === null ? '#333' : '#222'}`,
+          }}
+        >
+          {total}
+        </span>
+      </button>
+      {AP_GROUP_ORDER.map((g) => {
+        const count = groupCounts.get(g.key) ?? 0;
+        if (count === 0) return null;
+        const isSelected = active === g.key;
+        return (
+          <button
+            key={g.key}
+            onClick={() => onChange(g.key)}
+            style={{
+              ...tabBase,
+              background: isSelected ? '#1a1a1a' : 'transparent',
+              color: isSelected ? '#eee' : '#71717a',
+            }}
+          >
+            {g.label}
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                lineHeight: 1,
+                padding: '2px 5px',
+                borderRadius: 3,
+                background: isSelected ? '#222' : '#111',
+                color: isSelected ? '#888' : '#666',
+                border: `1px solid ${isSelected ? '#333' : '#222'}`,
+              }}
+            >
+              {count}
+            </span>
+          </button>
+        );
+      })}
+      <style>{`
+        .puppyone-access-filter-tabs::-webkit-scrollbar { display: none; }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Sidebar row ─────────────────────────────────────────────────────
+
+function SidebarRow({
+  connector,
+  isSelected,
+  onClick,
+}: {
+  readonly connector: Connector;
+  readonly isSelected: boolean;
+  readonly onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const statusColor = STATUS_COLORS[connector.status] ?? '#71717a';
+  return (
+    <div
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        margin: '0 6px',
+        height: 30,
+        padding: '0 10px',
+        gap: 8,
+        cursor: 'pointer',
+        userSelect: 'none',
+        borderRadius: 6,
+        background: isSelected ? '#2a2a2a' : hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
+        color: isSelected ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
+        transition: 'background 0.1s, color 0.1s',
+      }}
+    >
+      <div style={{ width: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <ProviderIcon provider={connector.provider} size={14} />
       </div>
-      <span className="flex-1 truncate text-[13px]">
-        {name}
+      <span
+        style={{
+          flex: 1,
+          fontSize: 13,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontFamily: T.fontSans,
+        }}
+      >
+        {connector.name || PROVIDER_LABELS[connector.provider] || connector.provider}
       </span>
-      <div 
-        className="w-1.5 h-1.5 rounded-full shrink-0" 
-        style={{ backgroundColor: statusColor, boxShadow: `0 0 8px ${statusColor}40` }}
+      <div
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: statusColor,
+          boxShadow: `0 0 8px ${statusColor}66`,
+          flexShrink: 0,
+        }}
+        title={connector.status}
       />
     </div>
   );
 }
 
-/* ================================================================
-   AccessDetailPanel (right panel in split layout)
-   ================================================================ */
+// ─── Identity row ────────────────────────────────────────────────────
 
-function AccessDetailPanel({ connection: c, projectId, onRefresh }: {
-  connection: SyncStatusItem;
-  projectId: string;
-  onRefresh: () => void;
+function IdentityRow({
+  connector,
+  onPauseResume,
+  pending,
+}: {
+  readonly connector: Connector;
+  readonly onPauseResume: () => void;
+  readonly pending: boolean;
 }) {
-  const [syncing, setSyncing] = useState(false);
-  const [pausing, setPausing] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState('');
-  const [savingName, setSavingName] = useState(false);
-  const { specs } = useConnectorSpecs();
-
-  const label = getProviderDisplayLabel(c.provider, specs) || PROVIDER_LABELS[c.provider] || c.provider;
-  const name = c.name || c.node_name || label;
-
-  const startRename = () => { setNameInput(name); setEditingName(true); };
-  const cancelRename = () => setEditingName(false);
-  const saveRename = async () => {
-    const trimmed = nameInput.trim();
-    if (!trimmed || trimmed === name) { setEditingName(false); return; }
-    setSavingName(true);
-    try {
-      await fetch(`/api/v1/access/${c.id}/rename`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      onRefresh();
-      setEditingName(false);
-    } catch { /* ignore */ } finally {
-      setSavingName(false);
-    }
-  };
-
-  const handleSync = useCallback(async () => {
-    setSyncing(true);
-    try {
-      await post(`/api/v1/sync/syncs/${c.id}/refresh`);
-      onRefresh();
-    } catch (err) {
-      console.error('Sync failed:', err);
-    } finally {
-      setSyncing(false);
-    }
-  }, [c.id, onRefresh]);
-
-  const handlePause = useCallback(async () => {
-    setPausing(true);
-    try {
-      const action = c.status === 'paused' ? 'resume' : 'pause';
-      await post(`/api/v1/sync/syncs/${c.id}/${action}`);
-      onRefresh();
-    } catch (err) {
-      console.error('Pause/resume failed:', err);
-    } finally {
-      setPausing(false);
-    }
-  }, [c.id, c.status, onRefresh]);
-
-  const isAgent = c.provider === 'agent';
-  const isMcp = c.provider === 'mcp';
-  const isSandbox = c.provider === 'sandbox';
-  const showSyncActions = !isAgent && !isMcp && !isSandbox;
+  const accent = getAccentColor(connector);
+  const statusColor = STATUS_COLORS[connector.status] ?? T.text3;
+  const action = getPrimaryAction(connector.status);
+  const name = connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 24px' }}>
-      <div style={{ width: '100%', maxWidth: 720, display: 'flex', flexDirection: 'column' }}>
-
-        {/* Title */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
-            }}>
-              <ProviderIcon provider={c.provider} size={16} />
-            </div>
-            <div>
-              {editingName ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <input
-                    autoFocus
-                    value={nameInput}
-                    onChange={e => setNameInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') cancelRename(); }}
-                    style={{
-                      fontSize: 14, fontWeight: 600, color: '#e4e4e7', background: '#1a1a1a',
-                      border: '1px solid rgba(255,255,255,0.15)', borderRadius: 4, padding: '2px 8px',
-                      outline: 'none', width: 200,
-                    }}
-                  />
-                  <button onClick={saveRename} disabled={savingName} style={{ fontSize: 11, color: '#4ade80', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
-                    {savingName ? '…' : 'Save'}
-                  </button>
-                  <button onClick={cancelRename} style={{ fontSize: 11, color: '#71717a', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>Cancel</button>
-                </div>
-              ) : (
-                <div
-                  style={{ fontSize: 15, fontWeight: 600, color: '#e4e4e7', lineHeight: 1.2, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
-                  title="Click to rename"
-                  onClick={startRename}
-                >
-                  {name}
-                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#52525b" strokeWidth="1.5" style={{ opacity: 0.6 }}>
-                    <path d="M11.5 2.5l2 2L5 13H3v-2L11.5 2.5z"/>
-                  </svg>
-                </div>
-              )}
-              <div style={{ fontSize: 12, color: '#52525b', marginTop: 2 }}>{label}</div>
-            </div>
-          </div>
-
-          {showSyncActions && (
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                onClick={handlePause}
-                disabled={pausing}
-                style={{
-                  height: 28, padding: '0 10px', fontSize: 12, background: 'transparent',
-                  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#a1a1aa',
-                  cursor: pausing ? 'not-allowed' : 'pointer', fontWeight: 500,
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if(!pausing) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                onMouseLeave={e => { if(!pausing) e.currentTarget.style.background = 'transparent'; }}
-              >
-                {c.status === 'paused' ? 'Resume' : 'Pause'}
-              </button>
-              <button
-                onClick={handleSync}
-                disabled={syncing}
-                style={{
-                  height: 28, padding: '0 12px', fontSize: 12, background: '#22c55e',
-                  border: 'none', borderRadius: 5, color: '#fff',
-                  cursor: syncing ? 'not-allowed' : 'pointer', fontWeight: 500,
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if(!syncing) e.currentTarget.style.background = '#16a34a'; }}
-                onMouseLeave={e => { if(!syncing) e.currentTarget.style.background = '#22c55e'; }}
-              >
-                {syncing ? 'Syncing...' : 'Sync now'}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* All-in-one detail — no tabs, everything visible */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Connection visualization */}
-          <OverviewTab connection={c} projectId={projectId} />
-
-          {/* Filesystem: Getting Started */}
-          {c.provider === 'filesystem' && c.access_key && (
-            <FilesystemGettingStarted accessKey={c.access_key} nodeName={c.node_name} />
-          )}
-
-          {/* Configuration (from Settings) */}
-          <div style={{
-            background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-            borderRadius: 8, display: 'flex', flexDirection: 'column',
-          }}>
-            <InfoRow label="Status" value={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS[c.status] || '#71717a' }} />
-                <span style={{ textTransform: 'capitalize' }}>{c.status}</span>
-                {c.last_synced_at && <span style={{ color: '#52525b' }}>· Last synced {timeAgo(c.last_synced_at)}</span>}
-              </div>
-            } />
-            <InfoRow label="Provider" value={label} />
-            <InfoRow label="Direction" value={DIRECTION_LABELS[c.direction] || c.direction} />
-            {showSyncActions && (
-              <InfoRow label="Sync Mode" value={
-                <span style={{ background: 'rgba(255,255,255,0.06)', padding: '2px 8px', borderRadius: 4, color: '#d4d4d8' }}>
-                  {SYNC_MODE_META[normalizeMode(c.trigger?.type)]?.label || c.trigger?.type || 'Realtime'}
-                </span>
-              } />
-            )}
-            {c.access_key && (
-              <InfoRow label="Access Key" value={
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <code style={{ fontSize: 12, color: '#a1a1aa', fontFamily: "'JetBrains Mono', monospace" }}>
-                    {c.access_key.length > 16 ? c.access_key.slice(0, 8) + '...' + c.access_key.slice(-4) : c.access_key}
-                  </code>
-                  <button
-                    onClick={() => navigator.clipboard.writeText(c.access_key!)}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, color: '#a1a1aa', padding: '2px 8px', cursor: 'pointer', fontSize: 11 }}
-                  >
-                    Copy
-                  </button>
-                </div>
-              } />
-            )}
-            <InfoRow label="Path" value={c.path || '/'} mono />
-            <InfoRow label="ID" value={c.id} mono isLast />
-          </div>
-
-          {/* Recent Activity (from History) */}
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 8 }}>Recent Activity</div>
-            <HistoryTab connectionPath={c.path} projectId={projectId} />
-          </div>
-
-          {/* Danger Zone (from Settings) */}
-          <SettingsTab connection={c} onRefresh={onRefresh} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================
-   FilesystemGettingStarted
-   ================================================================ */
-
-type SetupMode = 'clone' | 'connect';
-
-function FilesystemGettingStarted({ accessKey, nodeName }: { accessKey: string; nodeName: string | null }) {
-  const [copied, setCopied] = useState<string | null>(null);
-  const [mode, setMode] = useState<SetupMode>('clone');
-  // `/mut/ap/...` is a backend route (legacy alias of /api/v1/mut/ap/...),
-  // so the URL we hand to the user must point at the backend host, not
-  // the Next.js frontend. Prefer NEXT_PUBLIC_API_URL — same pattern as
-  // FilesystemDetailView / SyncDetailView / GetStartedPanel.
-  const apiBase = typeof window !== 'undefined'
-    ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
-    : '';
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
-
-  const copy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const cmdStyle: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-    padding: '10px 14px', background: '#0a0a0a',
-    border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
-  };
-  const codeStyle: React.CSSProperties = {
-    flex: 1, fontSize: 12, color: '#d4d4d8', fontFamily: "'JetBrains Mono', monospace",
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.6,
-  };
-
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 20,
-      background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-      borderRadius: 8, padding: '24px',
-    }}>
-      {/* Setup */}
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
-          Setup
-        </div>
-
-        {/* ── Path picker ── */}
-        <div style={{
-          display: 'flex', gap: 0, marginBottom: 12,
-          background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)',
-          borderRadius: 6, padding: 3,
-        }}>
-          <ModeTab
-            active={mode === 'clone'}
-            label="Clone to new folder"
-            hint="No local files yet"
-            onClick={() => setMode('clone')}
-          />
-          <ModeTab
-            active={mode === 'connect'}
-            label="Connect existing folder"
-            hint="Already have files locally"
-            onClick={() => setMode('connect')}
-          />
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={cmdStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
-              <code style={codeStyle}>pip install mutai</code>
-            </div>
-            <CopyBtn copied={copied === 'install'} onCopy={() => copy('pip install mutai', 'install')} />
-          </div>
-
-          {mode === 'clone' ? (
-            <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0, marginTop: 2 }}>$</span>
-                <code style={{ ...codeStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                  {`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
-                </code>
-              </div>
-              <CopyBtn copied={copied === 'clone'} onCopy={() => copy(`mut clone ${cloneUrl} --credential ${accessKey}`, 'clone')} />
-            </div>
-          ) : (
-            <div style={{ ...cmdStyle, whiteSpace: 'normal' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0, marginTop: 2 }}>$</span>
-                <code style={{ ...codeStyle, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                  {`cd /path/to/your/folder\nmut connect ${cloneUrl} \\\n  --credential ${accessKey}`}
-                </code>
-              </div>
-              <CopyBtn copied={copied === 'connect'} onCopy={() => copy(`mut connect ${cloneUrl} --credential ${accessKey}`, 'connect')} />
-            </div>
-          )}
-        </div>
-
-        {mode === 'clone' ? (
-          <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
-            Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#71717a' }}>./{nodeName || 'project'}/</code> folder
-            with whatever is already in this context.
-          </div>
-        ) : (
-          <div style={{ fontSize: 12, color: '#525252', marginTop: 8, lineHeight: 1.5 }}>
-            Run inside an existing folder. Pulls cloud state, three-way merges with your local files,
-            then pushes the result. Files only on disk get uploaded; files only in cloud get downloaded.
-            <span style={{ color: '#facc15', fontWeight: 500 }}> No data loss.</span>
-          </div>
-        )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 7,
+          background: `${accent}1c`,
+          border: `1px solid ${accent}33`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <ProviderIcon provider={connector.provider} size={16} />
       </div>
 
-      {/* Usage */}
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
-          Usage
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div>
-            <div style={cmdStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
-                <code style={codeStyle}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code>
-              </div>
-              <CopyBtn copied={copied === 'push'} onCopy={() => copy('mut commit -m "message" && mut push', 'push')} />
-            </div>
-            <div style={{ fontSize: 12, color: '#525252', marginTop: 4, paddingLeft: 20 }}>Send local changes to the cloud</div>
-          </div>
-          <div>
-            <div style={cmdStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#525252', flexShrink: 0 }}>$</span>
-                <code style={codeStyle}>mut pull</code>
-              </div>
-              <CopyBtn copied={copied === 'pull'} onCopy={() => copy('mut pull', 'pull')} />
-            </div>
-            <div style={{ fontSize: 12, color: '#525252', marginTop: 4, paddingLeft: 20 }}>Fetch changes from other agents or the web UI</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Credentials */}
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 12 }}>
-          Credentials
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <CopyField value={accessKey} label="Access Key" masked copied={copied === 'key'} onCopy={() => copy(accessKey, 'key')} />
-          <CopyField value={cloneUrl} label="Endpoint URL" copied={copied === 'url'} onCopy={() => copy(cloneUrl, 'url')} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ModeTab({ active, label, hint, onClick }: { active: boolean; label: string; hint: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        flex: 1, padding: '8px 12px', borderRadius: 4, border: 'none',
-        background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
-        color: active ? '#e5e5e5' : '#71717a',
-        cursor: 'pointer', textAlign: 'left',
-        transition: 'all 0.15s',
-        display: 'flex', flexDirection: 'column', gap: 2,
-      }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.color = '#a3a3a3'; }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#71717a'; }}
-    >
-      <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
-      <span style={{ fontSize: 11, color: active ? '#a3a3a3' : '#525252' }}>{hint}</span>
-    </button>
-  );
-}
-
-function CopyBtn({ copied, onCopy }: { copied: boolean; onCopy: () => void }) {
-  return (
-    <button onClick={onCopy} style={{
-      background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4,
-      color: copied ? '#4ade80' : '#525252', padding: '3px 8px',
-      cursor: 'pointer', fontSize: 11, fontWeight: 500, flexShrink: 0, transition: 'all 0.15s',
-    }}
-    onMouseEnter={e => { if(!copied) { e.currentTarget.style.color = '#a1a1aa'; } }}
-    onMouseLeave={e => { if(!copied) { e.currentTarget.style.color = '#525252'; } }}
-    >
-      {copied ? '✓' : 'Copy'}
-    </button>
-  );
-}
-
-/* ================================================================
-   OverviewTab
-   ================================================================ */
-
-function OverviewTab({ connection: c, projectId }: { connection: SyncStatusItem; projectId: string }) {
-  const { specs } = useConnectorSpecs();
-  const label = getProviderDisplayLabel(c.provider, specs) || PROVIDER_LABELS[c.provider] || c.provider;
-  const isActive = c.status === 'active' || c.status === 'syncing';
-
-  if (c.provider === 'mcp') {
-    return <McpOverviewTab connection={c} />;
-  }
-  if (c.provider === 'sandbox') {
-    return <SandboxOverviewTab connection={c} />;
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Connection visualization (borrowed from SyncDetailView) */}
-      <div style={{
-        borderRadius: 10, padding: '24px 32px',
-        background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', flexDirection: 'column', gap: 20,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 100 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 8,
-              background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              {getProviderLogo(c.provider, 24)}
-            </div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>
-              {label}
-            </div>
-          </div>
-
-          <div style={{ flex: 1, padding: '0 16px' }}>
-            <ConnectionLine
-              direction={c.direction}
-              isActive={isActive}
-              status={c.status}
-            />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, width: 100 }}>
-            {c.node_type === 'folder' || !c.node_type
-              ? <img src="/icons/folder.svg" alt="Folder" width={40} height={40} style={{ display: 'block' }} />
-              : <MiniDocShell type={c.node_type as 'json' | 'markdown' | 'file'} />
-            }
-            <div style={{ fontSize: 12, fontWeight: 500, color: '#a3a3a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 100 }}>
-              {c.node_name || 'Workspace'}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: STATUS_COLORS[c.status] || '#71717a' }} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: '#a1a1aa', textTransform: 'capitalize' }}>
-            {c.status === 'syncing' ? 'Syncing...' : c.status}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span
+            style={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: T.text1,
+              fontFamily: T.fontSans,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              minWidth: 0,
+            }}
+          >
+            {name}
           </span>
-          {c.last_synced_at && (
-            <span style={{ fontSize: 12, color: '#525252' }}>
-              · Last synced {timeAgo(c.last_synced_at)}
-            </span>
-          )}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            fontSize: 11,
+            color: T.text3,
+            fontFamily: T.fontSans,
+            minWidth: 0,
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+            {getTypeLine(connector)}
+          </span>
+          <span style={{ color: T.text4 }}>·</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+            <span
+              style={{
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                background: statusColor,
+                boxShadow: `0 0 6px ${statusColor}88`,
+              }}
+            />
+            <span style={{ color: statusColor, fontWeight: 500 }}>{STATUS_LABEL[connector.status] ?? connector.status}</span>
+          </div>
+          <span style={{ color: T.text4 }}>·</span>
+          <span style={{ color: T.text4, flexShrink: 0 }}>{timeAgo(connector.last_run_at)}</span>
         </div>
       </div>
 
-      {c.error_message && (
-        <div style={{
-          padding: '12px 16px', background: 'rgba(239,68,68,0.06)',
-          border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8,
-          fontSize: 13, color: '#f87171', lineHeight: 1.5,
-        }}>
-          {c.error_message}
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <button
+          type="button"
+          onClick={onPauseResume}
+          disabled={pending}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            height: 26,
+            padding: '0 10px',
+            background: action.tone === 'warn' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${action.tone === 'warn' ? 'rgba(239,68,68,0.3)' : T.border}`,
+            borderRadius: 5,
+            color: action.tone === 'warn' ? '#fca5a5' : T.text2,
+            fontSize: 11,
+            fontWeight: 500,
+            fontFamily: T.fontSans,
+            cursor: pending ? 'wait' : 'pointer',
+            opacity: pending ? 0.6 : 1,
+            transition: `background 0.15s ${T.ease}, color 0.15s ${T.ease}`,
+          }}
+          onMouseEnter={(e) => {
+            if (pending) return;
+            e.currentTarget.style.background = action.tone === 'warn' ? 'rgba(239,68,68,0.14)' : 'rgba(255,255,255,0.09)';
+            e.currentTarget.style.color = action.tone === 'warn' ? '#fecaca' : T.text1;
+          }}
+          onMouseLeave={(e) => {
+            if (pending) return;
+            e.currentTarget.style.background = action.tone === 'warn' ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.05)';
+            e.currentTarget.style.color = action.tone === 'warn' ? '#fca5a5' : T.text2;
+          }}
+        >
+          {action.icon === 'pause' && <PauseIcon size={10} />}
+          {action.icon === 'play' && <PlayIcon size={10} />}
+          {action.icon === 'retry' && <RetryIcon size={10} />}
+          {action.label}
+        </button>
+
+        <button
+          type="button"
+          aria-label="More"
+          style={{
+            width: 26,
+            height: 26,
+            background: 'transparent',
+            border: `1px solid ${T.border}`,
+            borderRadius: 5,
+            color: T.text3,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: `background 0.15s ${T.ease}, color 0.15s ${T.ease}`,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+            e.currentTarget.style.color = T.text1;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = T.text3;
+          }}
+        >
+          <MoreVerticalIcon size={12} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Scope card with file-tree preview ───────────────────────────────
+
+const SCOPE_ROWS_LIMIT = 4;
+
+type ScopePreviewRow =
+  | { kind: 'folder'; name: string; count: number | null }
+  | { kind: 'file'; name: string }
+  | { kind: 'empty' };
+
+interface ScopePreview {
+  rows: ScopePreviewRow[];
+  hiddenCount: number;
+  totalChildren: number;
+  isWorkspaceWide: boolean;
+}
+
+function nodesToPreview(nodes: NodeInfo[], scopePath: string): ScopePreview {
+  const isWorkspaceWide = scopePath === '' || scopePath === '/';
+  if (nodes.length === 0) {
+    return { rows: [{ kind: 'empty' }], hiddenCount: 0, totalChildren: 0, isWorkspaceWide };
+  }
+  const sorted = [...nodes].sort((a, b) => {
+    const af = a.type === 'folder' ? 0 : 1;
+    const bf = b.type === 'folder' ? 0 : 1;
+    if (af !== bf) return af - bf;
+    return a.name.localeCompare(b.name);
+  });
+  const slice = sorted.slice(0, SCOPE_ROWS_LIMIT);
+  const rows: ScopePreviewRow[] = slice.map((n) =>
+    n.type === 'folder'
+      ? { kind: 'folder', name: n.name, count: n.children_count }
+      : { kind: 'file', name: n.name }
+  );
+  return {
+    rows,
+    hiddenCount: Math.max(0, sorted.length - SCOPE_ROWS_LIMIT),
+    totalChildren: sorted.length,
+    isWorkspaceWide,
+  };
+}
+
+// L-shape elbow connector. Same geometry as the showcase: 1px crisp
+// SVG rects so the rows read as branches under the path header.
+const ELBOW_STEM_X = 20;
+const ELBOW_HOOK_END = 28;
+const ELBOW_COLOR = '#27272a';
+const ELBOW_ROW_HEIGHT = 22;
+const ELBOW_HOOK_Y = 11;
+
+function ScopeRowElbow({ isLast }: { readonly isLast: boolean }) {
+  return (
+    <svg
+      width={ELBOW_HOOK_END}
+      height={ELBOW_ROW_HEIGHT}
+      viewBox={`0 0 ${ELBOW_HOOK_END} ${ELBOW_ROW_HEIGHT}`}
+      shapeRendering="crispEdges"
+      style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none', zIndex: 0 }}
+      aria-hidden
+    >
+      <rect x={ELBOW_STEM_X} y={0} width={1} height={isLast ? ELBOW_HOOK_Y : ELBOW_ROW_HEIGHT} fill={ELBOW_COLOR} />
+      <rect x={ELBOW_STEM_X} y={ELBOW_HOOK_Y} width={ELBOW_HOOK_END - ELBOW_STEM_X} height={1} fill={ELBOW_COLOR} />
+    </svg>
+  );
+}
+
+function ScopePreviewRowView({ row, isLast }: { readonly row: ScopePreviewRow; readonly isLast: boolean }) {
+  if (row.kind === 'empty') {
+    return (
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          height: ELBOW_ROW_HEIGHT,
+          padding: '0 14px 0 30px',
+          color: T.text4,
+          fontSize: 11.5,
+          fontFamily: T.fontSans,
+          fontStyle: 'italic',
+        }}
+      >
+        <ScopeRowElbow isLast />
+        empty
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        height: ELBOW_ROW_HEIGHT,
+        padding: '0 14px 0 30px',
+        color: T.text3,
+        fontSize: 11.5,
+        fontFamily: T.fontSans,
+      }}
+    >
+      <ScopeRowElbow isLast={isLast} />
+      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, flexShrink: 0 }}>
+        {row.kind === 'folder' ? <FolderGlyph size={12} /> : <FileGlyph size={12} />}
+      </span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {row.name}
+      </span>
+      {row.kind === 'folder' && row.count !== null && (
+        <span
+          style={{
+            flexShrink: 0,
+            fontSize: 10.5,
+            color: T.text4,
+            fontFamily: T.fontMono,
+            letterSpacing: '0.02em',
+          }}
+        >
+          {row.count} items
+        </span>
       )}
     </div>
   );
 }
 
-/* ================================================================
-   McpOverviewTab
-   ================================================================ */
+function ScopeSection({
+  connector,
+  scope,
+  projectId,
+  onEdit,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+  readonly projectId: string;
+  readonly onEdit: () => void;
+}) {
+  const accent = getAccentColor(connector);
+  const isReadWrite = scope?.mode === 'rw';
+  const path = scope?.path === '' ? '/' : `/${scope?.path ?? ''}`;
 
-function McpOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
-  const [copied, setCopied] = useState<string | null>(null);
-  const apiKey = c.access_key || '';
-  const mcpUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/api/v1/mcp/${c.id}/sse`
-    : `/api/v1/mcp/${c.id}/sse`;
-
-  const copy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(key);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{
-        padding: '24px', background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 20
-      }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>MCP Endpoint URL</div>
-          <CopyField value={mcpUrl} copied={copied === 'url'} onCopy={() => copy(mcpUrl, 'url')} />
-        </div>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>API Key</div>
-          <CopyField value={apiKey} masked copied={copied === 'key'} onCopy={() => copy(apiKey, 'key')} />
-        </div>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Client Configuration</div>
-          <pre style={{
-            padding: '16px', background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)',
-            borderRadius: 6, fontSize: 12, color: '#a1a1aa', lineHeight: 1.6, overflow: 'auto',
-            whiteSpace: 'pre-wrap', margin: 0, fontFamily: "'JetBrains Mono', monospace"
-          }}>
-{JSON.stringify({
-  mcpServers: {
-    puppyone: {
-      url: mcpUrl,
-      headers: { Authorization: `Bearer ${apiKey}` },
-    },
-  },
-}, null, 2)}
-          </pre>
-        </div>
-      </div>
-    </div>
+  // Fetch the scope folder's listing for the file-tree preview. Cap
+  // by the row limit; if the folder is huge we still get a footer
+  // "+N more" hint via totalChildren.
+  const { data: dirResp } = useSWR(
+    scope && projectId ? ['repo-scope-listing', projectId, scope.path] : null,
+    () => listDir(projectId, scope!.path || ''),
+    { refreshInterval: 0, revalidateOnFocus: false, dedupingInterval: 60000 },
   );
-}
 
-function CopyField({ value, label, masked, copied, onCopy }: { value: string; label?: string; masked?: boolean; copied: boolean; onCopy: () => void }) {
+  const preview = useMemo<ScopePreview>(() => {
+    if (!scope) {
+      return { rows: [], hiddenCount: 0, totalChildren: 0, isWorkspaceWide: false };
+    }
+    if (!dirResp) {
+      return { rows: [], hiddenCount: 0, totalChildren: 0, isWorkspaceWide: scope.path === '' };
+    }
+    return nodesToPreview(dirResp.nodes, scope.path);
+  }, [dirResp, scope]);
+
+  let footer: string | null = null;
+  if (preview.hiddenCount > 0) footer = `… and ${preview.hiddenCount} more`;
+  else if (preview.isWorkspaceWide && preview.totalChildren > 0) footer = `${preview.totalChildren} top-level entries · workspace-wide`;
+
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
-      background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
-    }}>
-      {label && <span style={{ fontSize: 11, fontWeight: 500, color: '#525252', flexShrink: 0, width: 72 }}>{label}</span>}
-      <span style={{ flex: 1, fontSize: 13, color: '#d4d4d8', fontFamily: "'JetBrains Mono', monospace", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {masked ? value.slice(0, 8) + '···' + value.slice(-4) : value}
-      </span>
-      <button onClick={onCopy} style={{
-        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, 
-        color: copied ? '#4ade80' : '#a1a1aa', padding: '4px 10px',
-        cursor: 'pointer', fontSize: 11, fontWeight: 500, flexShrink: 0, transition: 'all 0.15s'
-      }}
-      onMouseEnter={e => { if(!copied) { e.currentTarget.style.color = '#e4e4e7'; e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; } }}
-      onMouseLeave={e => { if(!copied) { e.currentTarget.style.color = '#a1a1aa'; e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; } }}
+    <div style={{ marginBottom: 16 }}>
+      <SectionLabel
+        right={
+          <InlineActionButton icon={<EditIcon size={9} />} onClick={onEdit}>
+            Edit
+          </InlineActionButton>
+        }
       >
-        {copied ? 'Copied' : 'Copy'}
-      </button>
-    </div>
-  );
-}
+        Scope
+      </SectionLabel>
 
-/* ================================================================
-   SandboxOverviewTab
-   ================================================================ */
-
-function SandboxOverviewTab({ connection: c }: { connection: SyncStatusItem }) {
-  const [copied, setCopied] = useState(false);
-  const apiKey = c.access_key || '';
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      <div style={{
-        padding: '24px', background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 20
-      }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Sandbox API Key</div>
-          <CopyField value={apiKey} masked copied={copied} onCopy={() => {
-            navigator.clipboard.writeText(apiKey);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }} />
-        </div>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: '#71717a', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Usage</div>
-          <div style={{
-            padding: '14px 16px', background: '#0a0a0a',
-            border: '1px solid rgba(255,255,255,0.04)', borderRadius: 6,
-            fontSize: 13, color: '#a1a1aa', lineHeight: 1.6,
-          }}>
-            Use the Sandbox API to execute commands in an isolated environment.
-            <br/><br/>
-            Send requests to <code style={{ color: '#d4d4d8', background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>/api/v1/sandbox/sessions/start</code> with
-            your API key in the <code style={{ color: '#d4d4d8', background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 4, fontSize: 12 }}>X-API-KEY</code> header.
+      <div
+        style={{
+          background: T.cardBg,
+          border: `1px solid ${T.cardBorder}`,
+          borderRadius: 8,
+          boxShadow: `inset 0 1px 0 ${accent}1c`,
+          overflow: 'hidden',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', height: 36, padding: '0 14px', gap: 10 }}>
+          <FolderGlyph size={13} color={T.text2} />
+          <span style={{ flex: 1, fontSize: 12.5, color: T.text1, fontFamily: T.fontSans, fontWeight: 500 }}>
+            {path}
+          </span>
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            <PermBadge label="read" active={!!scope} accent={accent} />
+            <PermBadge label="write" active={!!isReadWrite} accent={accent} />
           </div>
         </div>
+
+        {preview.rows.length > 0 && (
+          <>
+            <div style={{ height: 1, background: T.cardBorder, margin: '0 14px' }} />
+            <div style={{ padding: '4px 0 6px' }}>
+              {preview.rows.map((row, i) => (
+                <ScopePreviewRowView key={i} row={row} isLast={i === preview.rows.length - 1} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {footer && (
+          <div
+            style={{
+              padding: '6px 14px 9px',
+              fontSize: 10.5,
+              color: T.text4,
+              fontFamily: T.fontSans,
+              letterSpacing: '0.02em',
+            }}
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-/* ================================================================
-   HistoryTab
-   ================================================================ */
+// ─── Quick connect ───────────────────────────────────────────────────
 
-function HistoryTab({ connectionPath, projectId }: { connectionPath: string | null; projectId: string }) {
-  const { data: historyData } = useSWR(
-    projectId ? ['access-history', projectId, connectionPath] : null,
-    () => getProjectHistory(projectId, 20),
+function QuickConnectSection({
+  connector,
+  scope,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+}) {
+  const [copied, setCopied] = useState(false);
+  const prompt = useMemo(() => buildConnectPrompt(connector, scope), [connector, scope]);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard unavailable — silent */
+    }
+  }, [prompt]);
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <SectionLabel>Quick Connect</SectionLabel>
+
+      <div
+        style={{
+          position: 'relative',
+          background: '#08080a',
+          border: `1px solid ${T.cardBorder}`,
+          borderRadius: 8,
+          overflow: 'hidden',
+          boxShadow: 'inset 0 1px 0 rgba(0,0,0,0.4)',
+        }}
+      >
+        <pre
+          style={{
+            margin: 0,
+            padding: '12px 14px',
+            fontSize: 11,
+            lineHeight: 1.55,
+            color: T.text2,
+            fontFamily: T.fontMono,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            height: 138,
+            overflow: 'hidden',
+            background: 'transparent',
+            letterSpacing: '0.01em',
+          }}
+        >
+          {prompt}
+        </pre>
+
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 86,
+            background: 'linear-gradient(180deg, rgba(8,8,10,0) 0%, #08080a 55%)',
+            pointerEvents: 'none',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            paddingBottom: 12,
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleCopy}
+            style={{
+              pointerEvents: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 26,
+              padding: '0 12px',
+              background: copied ? 'rgba(74,222,128,0.16)' : 'rgba(255,255,255,0.10)',
+              border: `1px solid ${copied ? 'rgba(74,222,128,0.32)' : 'rgba(255,255,255,0.22)'}`,
+              borderRadius: 6,
+              color: copied ? '#86efac' : T.text1,
+              fontSize: 11.5,
+              fontWeight: 600,
+              fontFamily: T.fontSans,
+              cursor: 'pointer',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.2)',
+              backdropFilter: 'blur(6px)',
+              WebkitBackdropFilter: 'blur(6px)',
+              transition: `background 0.15s ${T.ease}, transform 0.15s ${T.ease}, border-color 0.15s ${T.ease}`,
+            }}
+            onMouseEnter={(e) => {
+              if (copied) return;
+              e.currentTarget.style.background = 'rgba(255,255,255,0.16)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.32)';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              if (copied) return;
+              e.currentTarget.style.background = 'rgba(255,255,255,0.10)';
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <CopyIcon size={12} />
+            {copied ? 'Copied' : 'Copy connect prompt'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
+}
 
-  const commits = useMemo(() => {
-    if (!historyData?.commits) return [];
-    if (!connectionPath) return historyData.commits;
-    return historyData.commits.filter(c =>
-      c.scope_path === connectionPath ||
-      c.changes.some(ch => ch.path.startsWith(connectionPath))
-    );
-  }, [historyData, connectionPath]);
+// ─── Activity ────────────────────────────────────────────────────────
 
+function ActivitySection({ connector }: { readonly connector: Connector }) {
+  // Backend doesn't yet expose AP-scoped activity. Empty state is the
+  // honest surface; flipping to a real feed is a follow-up wiring pass.
+  // The InlineActionButton "View all" jumps to /monitor — once activity
+  // is wired in line, we can deep-link to a filtered Monitor view.
+  void connector;
   return (
     <div>
-      <div style={{
-        background: '#111113', border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 8, overflow: 'hidden',
-      }}>
-        {commits.length === 0 && (
-          <div style={{ textAlign: 'center', color: '#525252', fontSize: 13, padding: '40px 0' }}>
-            No activity yet
-          </div>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {commits.map((c, i) => (
-            <div key={c.commit_id} style={{
-              display: 'flex', alignItems: 'center', gap: 16, padding: '10px 16px',
-              borderBottom: i < commits.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-            }}>
-              <span
-                title={c.commit_id}
-                style={{ fontSize: 11, color: '#52525b', fontFamily: 'monospace', width: 64, flexShrink: 0 }}
-              >
-                {c.commit_id.slice(0, 8)}
-              </span>
-              <span style={{ flex: 1, fontSize: 13, color: '#d4d4d8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                {c.message || '(no message)'}
-              </span>
-              <span style={{ fontSize: 12, color: '#3f3f46', flexShrink: 0 }}>{c.changes.length} file{c.changes.length !== 1 ? 's' : ''}</span>
-              <span style={{ fontSize: 12, color: '#52525b', flexShrink: 0 }}>{timeAgo(c.created_at)}</span>
-            </div>
-          ))}
-        </div>
+      <SectionLabel
+        right={
+          <InlineActionButton icon={<ChevronRightIcon size={9} />}>
+            View all
+          </InlineActionButton>
+        }
+      >
+        Recent activity
+      </SectionLabel>
+
+      <div
+        style={{
+          padding: '8px 2px',
+          fontSize: 11.5,
+          color: T.text4,
+          fontFamily: T.fontSans,
+          fontStyle: 'italic',
+        }}
+      >
+        No activity tracked for this access point yet.
       </div>
     </div>
   );
 }
 
-/* ================================================================
-   SettingsTab
-   ================================================================ */
+// ─── Detail pane root ────────────────────────────────────────────────
 
-function SettingsTab({ connection: c, onRefresh }: { connection: SyncStatusItem; onRefresh: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+function APDetailPanel({
+  connector,
+  scope,
+  projectId,
+  onPauseResume,
+  pendingPauseResume,
+  onEditScope,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+  readonly projectId: string;
+  readonly onPauseResume: () => void;
+  readonly pendingPauseResume: boolean;
+  readonly onEditScope: () => void;
+}) {
+  return (
+    <div
+      key={connector.id}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        overflow: 'auto',
+        background: T.bg,
+        padding: '16px 20px',
+        animation: `puppyone-access-fade-in 200ms ${T.ease}`,
+      }}
+    >
+      <IdentityRow connector={connector} onPauseResume={onPauseResume} pending={pendingPauseResume} />
+      <div style={{ height: 1, background: T.border, marginBottom: 14 }} />
+      <ScopeSection connector={connector} scope={scope} projectId={projectId} onEdit={onEditScope} />
+      <QuickConnectSection connector={connector} scope={scope} />
+      <ActivitySection connector={connector} />
 
-  const handleDisconnect = async () => {
+      <style>{`
+        @keyframes puppyone-access-fade-in {
+          from { opacity: 0; transform: translateY(2px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Empty / loading states ──────────────────────────────────────────
+
+function LoadingState() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: '#525252',
+        fontSize: 13,
+      }}
+    >
+      Loading…
+    </div>
+  );
+}
+
+function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: () => void }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        gap: 12,
+        color: '#71717a',
+        textAlign: 'center',
+        padding: '0 32px',
+      }}
+    >
+      <div style={{ fontSize: 14, color: '#a1a1aa' }}>No access points yet.</div>
+      <div style={{ fontSize: 12, lineHeight: 1.6, maxWidth: 420 }}>
+        Access points let agents, CLIs, and third-party services read or write
+        your workspace. Open the Data view to bind a folder as a scope and add
+        your first integration.
+      </div>
+      <button
+        type="button"
+        onClick={onCreateScope}
+        style={{
+          marginTop: 8,
+          padding: '6px 14px',
+          fontSize: 12,
+          color: '#e4e4e7',
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 6,
+          cursor: 'pointer',
+        }}
+      >
+        Open Data view
+      </button>
+    </div>
+  );
+}
+
+// ─── Page root ───────────────────────────────────────────────────────
+
+export default function AccessPointsPage({
+  params,
+}: {
+  readonly params: Promise<{ projectId: string }>;
+}) {
+  const { projectId } = use(params);
+  const router = useRouter();
+
+  const { data: scopes, mutate: mutateScopes } = useSWR(
+    projectId ? ['repo-scopes', projectId] : null,
+    () => listScopes(projectId),
+    { refreshInterval: 30000, revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+  const { data: connectors, mutate: mutateConnectors } = useSWR(
+    projectId ? ['repo-connectors', projectId] : null,
+    () => listConnectors(projectId),
+    { refreshInterval: 30000, revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<APGroupKey | null>(null);
+  const [pausePending, setPausePending] = useState(false);
+
+  // Sort: built-ins (cli, agent) first, then by created_at. Mirrors
+  // sortConnectorsBuiltinFirst but applied at view layer so we can
+  // inject the filter cleanly afterwards.
+  const sortedConnectors = useMemo(() => {
+    if (!connectors) return [];
+    return [...connectors].sort((a, b) => {
+      const order = (c: Connector) => (c.provider === 'cli' ? 0 : c.provider === 'agent' ? 1 : 2);
+      return order(a) - order(b) || a.created_at.localeCompare(b.created_at);
+    });
+  }, [connectors]);
+
+  const groupCounts = useMemo(() => {
+    const m = new Map<APGroupKey, number>();
+    sortedConnectors.forEach((c) => {
+      const g = getGroup(c.provider);
+      m.set(g, (m.get(g) ?? 0) + 1);
+    });
+    return m;
+  }, [sortedConnectors]);
+
+  const filtered = useMemo(() => {
+    return filter ? sortedConnectors.filter((c) => getGroup(c.provider) === filter) : sortedConnectors;
+  }, [sortedConnectors, filter]);
+
+  // Auto-pick a default selection on first load. Effect (rather than
+  // initial state) so when /access is mounted and connectors arrive
+  // asynchronously we still anchor to a real id.
+  useEffect(() => {
+    if (selectedId) return;
+    const first = filtered[0] ?? sortedConnectors[0];
+    if (first) setSelectedId(first.id);
+  }, [filtered, sortedConnectors, selectedId]);
+
+  const effectiveSelected = useMemo(() => {
+    if (!selectedId) return filtered[0] ?? sortedConnectors[0];
+    const inFiltered = filtered.find((c) => c.id === selectedId);
+    if (inFiltered) return inFiltered;
+    return filtered[0] ?? sortedConnectors.find((c) => c.id === selectedId) ?? sortedConnectors[0];
+  }, [filtered, sortedConnectors, selectedId]);
+
+  const selectedScope = useMemo(
+    () => scopes?.find((s) => s.id === effectiveSelected?.scope_id),
+    [scopes, effectiveSelected],
+  );
+
+  const handlePauseResume = useCallback(async () => {
+    if (!effectiveSelected || pausePending) return;
+    setPausePending(true);
     try {
-      await del(`/api/v1/sync/syncs/${c.id}`);
-      onRefresh();
+      const isActive = effectiveSelected.status === 'active' || effectiveSelected.status === 'syncing';
+      if (isActive) {
+        await pauseConnector(projectId, effectiveSelected.id);
+      } else {
+        await resumeConnector(projectId, effectiveSelected.id);
+      }
+      await mutateConnectors();
     } catch (err) {
-      console.error('Disconnect failed:', err);
+      console.error('Failed to toggle connector status:', err);
+    } finally {
+      setPausePending(false);
     }
-  };
+  }, [effectiveSelected, pausePending, projectId, mutateConnectors]);
+
+  const handleEditScope = useCallback(() => {
+    if (!selectedScope) return;
+    router.push(scopePathToDataUrl(projectId, selectedScope.path));
+  }, [router, projectId, selectedScope]);
+
+  const loading = scopes === undefined || connectors === undefined;
+  const noConnectors = !loading && sortedConnectors.length === 0;
+
+  // Suppress unused-var warning for mutateScopes — kept for future
+  // wiring when scope edit returns inline.
+  void mutateScopes;
 
   return (
-    <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: 12 }}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
-          cursor: 'pointer', fontSize: 12, color: '#52525b', padding: 0, transition: 'color 0.15s',
-        }}
-        onMouseEnter={e => e.currentTarget.style.color = '#a1a1aa'}
-        onMouseLeave={e => e.currentTarget.style.color = '#52525b'}
-      >
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>
-          <path d="M6 4l4 4-4 4" />
-        </svg>
-        Danger Zone
-      </button>
-      {expanded && (
-        <div style={{
-          marginTop: 12, background: 'rgba(239,68,68,0.02)', border: '1px solid rgba(239,68,68,0.1)',
-          borderRadius: 8, padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Delete Access Point</div>
-            <div style={{ fontSize: 12, color: '#71717a', marginTop: 4 }}>This action cannot be undone.</div>
-          </div>
-          {!confirming ? (
-            <button
-              onClick={() => setConfirming(true)}
-              style={{
-                height: 28, padding: '0 12px', fontSize: 12, fontWeight: 500, background: 'transparent',
-                border: '1px solid rgba(239,68,68,0.3)', borderRadius: 5, color: '#ef4444',
-                cursor: 'pointer', transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.05)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              Disconnect
-            </button>
-          ) : (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: '#71717a', marginRight: 4 }}>Sure?</span>
-              <button
-                onClick={() => setConfirming(false)}
-                style={{ height: 28, padding: '0 10px', fontSize: 12, fontWeight: 500, background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 5, color: '#a1a1aa', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDisconnect}
-                style={{ height: 28, padding: '0 12px', fontSize: 12, fontWeight: 500, background: '#ef4444', border: 'none', borderRadius: 5, color: '#fff', cursor: 'pointer' }}
-              >
-                Confirm
-              </button>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
+      <AccessHeader count={loading ? 0 : sortedConnectors.length} />
+
+      {loading ? (
+        <LoadingState />
+      ) : noConnectors ? (
+        <NoConnectorsState onCreateScope={() => router.push(`/projects/${projectId}/data`)} />
+      ) : (
+        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+          {/* Left sidebar */}
+          <div
+            style={{
+              width: 280,
+              flexShrink: 0,
+              borderRight: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              background: '#0e0e0e',
+            }}
+          >
+            <FilterTabs active={filter} groupCounts={groupCounts} onChange={setFilter} />
+            <div style={{ flex: 1, overflow: 'auto', paddingTop: 8 }}>
+              {filtered.map((c) => (
+                <SidebarRow
+                  key={c.id}
+                  connector={c}
+                  isSelected={c.id === effectiveSelected?.id}
+                  onClick={() => setSelectedId(c.id)}
+                />
+              ))}
             </div>
+          </div>
+
+          {/* Right detail pane */}
+          {effectiveSelected ? (
+            <APDetailPanel
+              connector={effectiveSelected}
+              scope={selectedScope}
+              projectId={projectId}
+              onPauseResume={handlePauseResume}
+              pendingPauseResume={pausePending}
+              onEditScope={handleEditScope}
+            />
+          ) : (
+            <div style={{ flex: 1, background: T.bg }} />
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function InfoRow({ label, value, mono, isLast }: { label: string; value: React.ReactNode; mono?: boolean; isLast?: boolean }) {
-  return (
-    <div style={{ 
-      display: 'flex', gap: 24, padding: '16px 20px',
-      borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)'
-    }}>
-      <div style={{ fontSize: 13, color: '#71717a', width: 140, flexShrink: 0 }}>{label}</div>
-      <div style={{
-        fontSize: 13, color: '#e4e4e7', flex: 1, minWidth: 0,
-        fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit',
-      }}>
-        {value}
-      </div>
     </div>
   );
 }
