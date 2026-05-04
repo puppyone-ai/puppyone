@@ -533,14 +533,24 @@ export interface FileVersionInfo {
   created_at: string | null;
 }
 
+/**
+ * Response shape of `GET /content/{pid}/commit-content`.
+ *
+ * The backend mirrors the `cat` endpoint's shape: for JSON files it
+ * parses the bytes and returns them under `content`; for everything
+ * else it returns raw decoded bytes under `content_text`. Fields are
+ * mutually exclusive — the unset one is omitted, not null. The earlier
+ * version of this interface invented `content_json` / `who` / `message`
+ * / `changes` / `root_hash` fields that the endpoint never returned;
+ * the result was that JSON-file diffs always fell into the "Binary
+ * file" placeholder branch on the History page.
+ */
 export interface FileVersionDetail {
+  path: string;
   commit_id: string;
-  who: string;
-  message: string;
-  changes: MutCommitChange[];
-  root_hash: string;
-  content_text: string | null;
-  content_json: any | null;
+  type: string;
+  content?: any;
+  content_text?: string | null;
 }
 
 export interface VersionHistoryResponse {

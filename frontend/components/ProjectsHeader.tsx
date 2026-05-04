@@ -166,7 +166,7 @@ const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  borderBottom: '1px solid rgba(255,255,255,0.1)',
+  borderBottom: '1px solid rgba(255,255,255,0.08)',
   background: '#0e0e0e',
   position: 'relative',
   zIndex: 10,

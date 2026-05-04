@@ -68,45 +68,12 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
 
   return (
     <div className={className} style={{ ...style, display: 'flex', flexDirection: 'column' }}>
-      <div
-        data-menu-host="true"
-        style={{
-          height: 40,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0 8px 0 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          background: '#0e0e0e',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            color: '#71717a',
-            fontSize: 13,
-            fontWeight: 500,
-            fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif',
-          }}
-        >
-          Workspace
-        </div>
-
-        {/* Header is now label-only.  The previous "Connect" and
-            "+" buttons that lived here moved down onto the Root
-            row's hover-revealed actions cluster — review feedback
-            was that header-level actions were both redundant
-            (every other folder row already has + in its hover
-            cluster, so root should match) and conceptually misplaced
-            (they conflated "this is what the panel is" with "what
-            you can do to its root").  Putting the actions on Root
-            itself unifies the affordance: every folder, root or
-            not, exposes the same per-row create cluster on hover. */}
-      </div>
-
+      {/* Header used to live here as its own "Workspace" label bar.
+          That created two stacked headers on the data page (this one
+          + the page-level ProjectsHeader to the right). The unified
+          design now hoists ProjectsHeader to span the full column row,
+          so this sidebar starts directly with the file tree — no
+          duplicate label, no broken hairline at the boundary. */}
       <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative', paddingTop: 6 }}>
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
           <div
