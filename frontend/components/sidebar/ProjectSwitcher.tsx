@@ -76,21 +76,23 @@ export function ProjectSwitcher({
         type='button'
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
-          'group flex w-full items-center gap-2 rounded-md px-2 py-1.5 transition-colors',
-          'hover:bg-white/5',
-          isOpen && 'bg-white/5'
+          'group flex w-full items-center gap-2 rounded-[6px] px-1.5 py-1 transition-colors',
+          'hover:bg-white/[0.04]',
+          isOpen && 'bg-white/[0.04]'
         )}
       >
-        {/* Icon */}
+        {/* Icon — outline cube glyph for projects, brand mark for home.
+            We deliberately avoid a saturated chip here: in the live
+            product the project name is what carries the identity, and
+            a bright initialed badge overpowers the rest of the rail. */}
         {isInProject ? (
-          // Project cube icon
           <svg
             width='14'
             height='14'
             viewBox='0 0 24 24'
             fill='none'
-            stroke='#a78bfa'
-            strokeWidth='2'
+            stroke='#9ca3af'
+            strokeWidth='1.5'
             strokeLinecap='round'
             strokeLinejoin='round'
             className='flex-shrink-0'
@@ -100,7 +102,6 @@ export function ProjectSwitcher({
             <line x1='12' y1='22.08' x2='12' y2='12' />
           </svg>
         ) : (
-          // Logo for home
           <img
             src='/puppyone-logo.svg'
             alt='puppyone'
@@ -110,15 +111,17 @@ export function ProjectSwitcher({
           />
         )}
 
-        {/* Name */}
-        <span className='truncate text-sm font-semibold tracking-[0.3px] text-[#ededed]'>
+        {/* Name — 12.5px / weight 500 to match showcase. */}
+        <span
+          className='flex-1 truncate text-left text-[12.5px] font-medium text-[#ededed]'
+        >
           {displayName}
         </span>
 
         {/* Chevron */}
         <svg
-          width='12'
-          height='12'
+          width='10'
+          height='10'
           viewBox='0 0 24 24'
           fill='none'
           stroke='currentColor'
@@ -126,7 +129,7 @@ export function ProjectSwitcher({
           strokeLinecap='round'
           strokeLinejoin='round'
           className={clsx(
-            'ml-auto flex-shrink-0 text-[#666] transition-transform duration-150',
+            'flex-shrink-0 text-[#71717a] transition-transform duration-150',
             isOpen && 'rotate-180'
           )}
         >
@@ -214,14 +217,13 @@ export function ProjectSwitcher({
                       currentProject?.id === project.id && 'bg-white/8'
                     )}
                   >
-                    {/* Project icon */}
                     <svg
                       width='14'
                       height='14'
                       viewBox='0 0 24 24'
                       fill='none'
-                      stroke='#a78bfa'
-                      strokeWidth='2'
+                      stroke='#9ca3af'
+                      strokeWidth='1.5'
                       strokeLinecap='round'
                       strokeLinejoin='round'
                       className='flex-shrink-0'

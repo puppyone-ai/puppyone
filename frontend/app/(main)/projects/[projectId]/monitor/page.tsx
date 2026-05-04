@@ -156,7 +156,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
 
       {/* Header */}
       <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)',
+        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
         background: '#0e0e0e', flexShrink: 0,
       }}>

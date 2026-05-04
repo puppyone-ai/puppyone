@@ -605,13 +605,31 @@ export default function DataPage({ params }: DataPageProps) {
         createMenuActions={createMenuActions}
       />
 
-      {/* Main Content */}
+      {/* Main Content
+       *
+       * Layout (matches the marketing showcase):
+       *
+       *   ┌──────────────────────────────────────────────────┐
+       *   │ ProjectsHeader (Workspace / finance)   [Access]  │  <- 40px, full width
+       *   ├────────────┬─────────────────────────────────────┤
+       *   │            │                                     │
+       *   │ Explorer   │ content / editor / grid             │
+       *   │ (tree)     │                                     │
+       *   │            │                                     │
+       *   └────────────┴─────────────────────────────────────┘
+       *
+       * Header is hoisted OUT of the column row so a single hairline
+       * runs unbroken across the explorer column boundary, the way
+       * Linear / GitHub / Supabase do it. The previous structure had
+       * ExplorerSidebar render its own "Workspace" header, which
+       * broke the line into two segments.
+       */}
       <div
         onDragEnter={fileImport.handleGlobalDragEnter}
         onDragLeave={fileImport.handleGlobalDragLeave}
         onDragOver={fileImport.handleGlobalDragOver}
         onDrop={fileImport.handleGlobalDrop}
-        style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative', overflow: 'hidden' } as React.CSSProperties}
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', overflow: 'hidden' } as React.CSSProperties}
       >
         {/* File drop overlay */}
         {fileImport.isDraggingFiles && (
@@ -630,8 +648,39 @@ export default function DataPage({ params }: DataPageProps) {
           </div>
         )}
 
-        {/* Explorer Sidebar */}
-        <ExplorerSidebar
+        {/* Top header bar — spans the full width of <main>, including
+            over the ExplorerSidebar column. Renders ONE breadcrumb
+            (`Workspace / finance / …`) and the Access points button. */}
+        <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 40 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <ProjectsHeader
+              pathSegments={pathSegments}
+              projectId={activeProject?.id ?? null}
+              onProjectsRefresh={() => {}}
+              accessPointCount={accessPoints.length}
+            />
+          </div>
+          <div style={{
+            display: 'flex', alignItems: 'center', paddingRight: 8,
+            borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#0e0e0e',
+            height: '100%',
+            gap: 8,
+          }}>
+            <AccessPointsHeaderButton
+              entries={accessPointEntries}
+              isOpen={panelState.type === 'access_list'}
+              onClick={() => togglePanel({ type: 'access_list' })}
+            />
+          </div>
+        </div>
+
+        {/* Body row: Explorer sidebar + content column + right panel */}
+        <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
+
+          {/* Explorer Sidebar — no internal header, starts directly
+              with the file tree so it sits flush under the unified
+              ProjectsHeader above. */}
+          <ExplorerSidebar
             projectId={projectId}
             currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
             activeNodeId={
@@ -663,42 +712,12 @@ export default function DataPage({ params }: DataPageProps) {
             highlightVariant={hoverHighlightNodeId !== null ? 'access-point' : 'default'}
             createMenuOpenForId={createMenuOpenForId}
             createMenuOpenAction={createMenuOpenAction}
-            style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.06)', background: 'transparent', flexShrink: 0 }}
+            style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.08)', background: 'transparent', flexShrink: 0 }}
           />
 
-        {/* Content column */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          {/* Header (Breadcrumbs + Connect) */}
-          <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 40 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <ProjectsHeader
-                pathSegments={pathSegments}
-                projectId={activeProject?.id ?? null}
-                onProjectsRefresh={() => {}}
-                accessPointCount={accessPoints.length}
-              />
-            </div>
-            {/* Access points list button in header */}
-            <div style={{
-              display: 'flex', alignItems: 'center', paddingRight: 8,
-              borderBottom: '1px solid rgba(255,255,255,0.1)', background: '#0e0e0e',
-              height: '100%',
-              gap: 8,
-            }}>
-              <AccessPointsHeaderButton
-                entries={accessPointEntries}
-                isOpen={panelState.type === 'access_list'}
-                onClick={() => togglePanel({ type: 'access_list' })}
-              />
-            </div>
-          </div>
-
-          {/* Wrapper for Content Column and Right Panel */}
-          <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
-            
-            {/* Content Column */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Content column */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Loading state */}
             {isResolvingPath && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0e0e0e' }}>
@@ -857,7 +876,6 @@ export default function DataPage({ params }: DataPageProps) {
           onOpenSyncSetting={openSyncSetting}
           onDataUpdate={async () => { await refreshTable(); }}
         />
-          </div>
         </div>
       </div>
     </>

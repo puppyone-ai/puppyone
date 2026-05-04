@@ -50,15 +50,13 @@ const MainLayoutInner = memo(function MainLayoutInner({
     if (pathname.startsWith('/settings')) return 'settings';
     if (pathname.startsWith('/home')) return 'home';
     if (pathname.includes('/projects/')) {
-      if (pathname.includes('/home')) return 'home';
-      if (pathname.includes('/overview')) return 'home';
       if (pathname.includes('/toolkit')) return 'toolkit';
       if (pathname.includes('/history')) return 'history';
       if (pathname.includes('/access')) return 'access';
       if (pathname.includes('/monitor')) return 'monitor';
       if (pathname.includes('/settings')) return 'settings';
       if (pathname.includes('/data')) return 'data';
-      return 'home';
+      return 'data';
     }
     return 'home';
   }, [pathname]);
@@ -106,12 +104,9 @@ const MainLayoutInner = memo(function MainLayoutInner({
           display: 'flex',
           flexDirection: 'column',
           minWidth: 0,
-          height: 'calc(100vh - 16px)',
+          height: '100vh',
           overflow: 'hidden',
-          margin: '8px 8px 8px 0',
-          borderRadius: 12,
           background: '#0e0e0e',
-          border: '1.5px solid rgba(255,255,255,0.15)',
         }}
       >
         {children}

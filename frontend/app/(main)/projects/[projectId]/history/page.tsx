@@ -5,25 +5,91 @@ import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
   getProjectHistory,
+  getVersionContent,
   type MutCommitInfo,
   type MutCommitChange,
 } from '@/lib/contentTreeApi';
 
+// ─── Line diff utility ───────────────────────────────────────────────
+//
+// Standard LCS-based diff. Produces an interleaved list of
+// {add, remove, context} rows that reads top-to-bottom like a unified
+// patch. O(m*n) memory — safe for typical file sizes (<10k lines);
+// guarded by a hard length cap below to avoid pathological pages.
+
+type DiffLineKind = 'add' | 'remove' | 'context';
+interface DiffLine {
+  kind: DiffLineKind;
+  text: string;
+}
+
+const DIFF_MAX_LINES = 4000;
+
+function lineDiff(a: string[], b: string[]): DiffLine[] {
+  if (a.length + b.length > DIFF_MAX_LINES) {
+    return [
+      ...a.map((text) => ({ kind: 'remove' as const, text })),
+      ...b.map((text) => ({ kind: 'add' as const, text })),
+    ];
+  }
+
+  const m = a.length;
+  const n = b.length;
+  const dp: Uint16Array = new Uint16Array((m + 1) * (n + 1));
+  const idx = (i: number, j: number) => i * (n + 1) + j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[idx(i, j)] =
+        a[i - 1] === b[j - 1]
+          ? dp[idx(i - 1, j - 1)] + 1
+          : Math.max(dp[idx(i - 1, j)], dp[idx(i, j - 1)]);
+    }
+  }
+
+  const out: DiffLine[] = [];
+  let i = m;
+  let j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+      out.push({ kind: 'context', text: a[i - 1] });
+      i--;
+      j--;
+    } else if (j > 0 && (i === 0 || dp[idx(i, j - 1)] >= dp[idx(i - 1, j)])) {
+      out.push({ kind: 'add', text: b[j - 1] });
+      j--;
+    } else {
+      out.push({ kind: 'remove', text: a[i - 1] });
+      i--;
+    }
+  }
+  out.reverse();
+  return out;
+}
+
+function fileToLines(detail: { content_text: string | null; content_json: unknown }): string[] | null {
+  if (detail.content_text != null) {
+    return detail.content_text.split('\n');
+  }
+  if (detail.content_json != null) {
+    try {
+      return JSON.stringify(detail.content_json, null, 2).split('\n');
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function fileExtClass(path: string): 'json' | 'markdown' | 'plain' {
+  if (path.endsWith('.json')) return 'json';
+  if (path.endsWith('.md') || path.endsWith('.markdown')) return 'markdown';
+  return 'plain';
+}
+
 interface HistoryPageProps {
   params: Promise<{ projectId: string }>;
 }
-
-const OP_COLORS: Record<string, string> = {
-  added: '#22c55e',
-  modified: '#3b82f6',
-  deleted: '#ef4444',
-};
-
-const OP_ICONS: Record<string, string> = {
-  added: '+',
-  modified: '~',
-  deleted: '-',
-};
 
 function formatTime(iso: string | null): string {
   if (!iso) return '';
@@ -72,146 +138,6 @@ function parseOperator(who: string): { type: string; id: string } {
     return { type, id: rest.join(':') };
   }
   return { type: who || 'system', id: '' };
-}
-
-// ─── Build a tree structure from flat change paths ───
-
-interface FileTreeNode {
-  name: string;
-  path: string;
-  op?: string;
-  children: FileTreeNode[];
-  isFile: boolean;
-}
-
-function buildFileTree(changes: MutCommitChange[]): FileTreeNode[] {
-  const root: FileTreeNode = { name: '', path: '', children: [], isFile: false };
-
-  for (const change of changes) {
-    const parts = change.path.split('/');
-    let current = root;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
-      const isLast = i === parts.length - 1;
-      const fullPath = parts.slice(0, i + 1).join('/');
-
-      let child = current.children.find(c => c.name === part);
-      if (!child) {
-        child = {
-          name: part,
-          path: fullPath,
-          children: [],
-          isFile: isLast,
-          op: isLast ? change.op : undefined,
-        };
-        current.children.push(child);
-      }
-      if (isLast) {
-        child.op = change.op;
-        child.isFile = true;
-      }
-      current = child;
-    }
-  }
-
-  root.children.sort(sortTreeNodes);
-  return root.children;
-}
-
-function sortTreeNodes(a: FileTreeNode, b: FileTreeNode): number {
-  if (a.isFile !== b.isFile) return a.isFile ? 1 : -1;
-  return a.name.localeCompare(b.name);
-}
-
-// ─── File tree node component ───
-
-function TreeNode({ node, depth }: { node: FileTreeNode; depth: number }) {
-  const [expanded, setExpanded] = useState(true);
-  const hasChildren = node.children.length > 0;
-  const color = node.op ? OP_COLORS[node.op] || '#a1a1aa' : '#a1a1aa';
-
-  return (
-    <div>
-      <div
-        onClick={() => hasChildren && setExpanded(!expanded)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '4px 8px',
-          paddingLeft: 8 + depth * 20,
-          borderRadius: 4,
-          cursor: hasChildren ? 'pointer' : 'default',
-          transition: 'background 0.1s',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-      >
-        {/* Expand/collapse or file icon */}
-        {hasChildren ? (
-          <svg
-            width="12" height="12" viewBox="0 0 24 24" fill="none"
-            stroke="#52525b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            style={{
-              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-              transition: 'transform 0.15s', flexShrink: 0,
-            }}
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        ) : (
-          <div style={{ width: 12, flexShrink: 0 }} />
-        )}
-
-        {/* Folder / File icon */}
-        {node.isFile ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#eab308" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-        )}
-
-        {/* Name */}
-        <span style={{
-          fontSize: 12,
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-          color: node.isFile ? color : '#d4d4d8',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}>
-          {node.name}
-        </span>
-
-        {/* Op badge */}
-        {node.op && (
-          <span style={{
-            fontSize: 9, fontWeight: 600,
-            padding: '1px 5px', borderRadius: 3,
-            background: `${color}18`,
-            color,
-            marginLeft: 'auto', flexShrink: 0,
-          }}>
-            {node.op}
-          </span>
-        )}
-      </div>
-
-      {/* Children */}
-      {hasChildren && expanded && (
-        <div>
-          {node.children.sort(sortTreeNodes).map(child => (
-            <TreeNode key={child.path} node={child} depth={depth + 1} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Vertical commit node (Linear Audit Trail) ───
@@ -405,6 +331,243 @@ function VerticalCommitNode({
   );
 }
 
+// ─── DiffRow + FileDiffBlock (showcase parity) ───────────────────────
+
+const OP_TONE: Record<string, { bg: string; fg: string }> = {
+  added:    { bg: 'rgba(34,197,94,0.15)',  fg: '#22c55e' },
+  modified: { bg: 'rgba(59,130,246,0.15)', fg: '#3b82f6' },
+  deleted:  { bg: 'rgba(239,68,68,0.15)',  fg: '#ef4444' },
+};
+
+function DiffRow({ line, lineNum }: { line: DiffLine; lineNum: number }) {
+  const isAdd = line.kind === 'add';
+  const isRem = line.kind === 'remove';
+  const bg = isAdd
+    ? 'rgba(34,197,94,0.08)'
+    : isRem
+    ? 'rgba(239,68,68,0.08)'
+    : 'transparent';
+  const numColor = isAdd ? '#22c55e' : isRem ? '#ef4444' : '#52525b';
+  const prefix = isAdd ? '+' : isRem ? '-' : ' ';
+  const textColor = isAdd ? '#86efac' : isRem ? '#fca5a5' : '#a1a1aa';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        background: bg,
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontSize: 11.5,
+        lineHeight: '20px',
+        minHeight: 20,
+      }}
+    >
+      <span
+        style={{
+          width: 44,
+          textAlign: 'right',
+          paddingRight: 10,
+          color: numColor,
+          opacity: 0.7,
+          flexShrink: 0,
+          userSelect: 'none',
+        }}
+      >
+        {lineNum}
+      </span>
+      <span
+        style={{
+          width: 14,
+          textAlign: 'center',
+          color: numColor,
+          flexShrink: 0,
+          fontWeight: 600,
+        }}
+      >
+        {prefix}
+      </span>
+      <span
+        style={{
+          color: textColor,
+          whiteSpace: 'pre',
+          paddingLeft: 4,
+          paddingRight: 12,
+        }}
+      >
+        {line.text}
+      </span>
+    </div>
+  );
+}
+
+interface FileDiffBlockProps {
+  change: MutCommitChange;
+  projectId: string;
+  commitId: string;
+  parentCommitId: string | null;
+}
+
+function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiffBlockProps) {
+  const tone = OP_TONE[change.op] ?? OP_TONE.modified;
+  const ext = fileExtClass(change.path);
+
+  // Fetch current content for added/modified; previous content for
+  // modified/deleted. SWR keys are scoped per (path, commit) so a
+  // parent fetch can be reused across rows.
+  const needsCurrent = change.op === 'added' || change.op === 'modified';
+  const needsParent = (change.op === 'modified' || change.op === 'deleted') && !!parentCommitId;
+
+  const { data: currentDetail, error: currentErr } = useSWR(
+    needsCurrent ? ['ver-content', projectId, change.path, commitId] : null,
+    () => getVersionContent(change.path, commitId, projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+  const { data: parentDetail, error: parentErr } = useSWR(
+    needsParent ? ['ver-content', projectId, change.path, parentCommitId] : null,
+    () => getVersionContent(change.path, parentCommitId!, projectId),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+
+  const isLoading =
+    (needsCurrent && !currentDetail && !currentErr) ||
+    (needsParent && !parentDetail && !parentErr);
+
+  let lines: DiffLine[] | null = null;
+  let placeholder: string | null = null;
+
+  if (currentErr || parentErr) {
+    placeholder = 'Failed to load diff';
+  } else if (!isLoading) {
+    if (change.op === 'added') {
+      const cur = currentDetail ? fileToLines(currentDetail) : null;
+      if (cur) lines = cur.map((text) => ({ kind: 'add' as const, text }));
+      else placeholder = 'Binary file or unchanged metadata';
+    } else if (change.op === 'deleted') {
+      const prev = parentDetail ? fileToLines(parentDetail) : null;
+      if (prev) lines = prev.map((text) => ({ kind: 'remove' as const, text }));
+      else if (!parentCommitId) placeholder = 'No previous version available';
+      else placeholder = 'Binary file or unchanged metadata';
+    } else {
+      const prev = parentDetail ? fileToLines(parentDetail) : null;
+      const cur = currentDetail ? fileToLines(currentDetail) : null;
+      if (prev && cur) lines = lineDiff(prev, cur);
+      else placeholder = 'Binary file or unchanged metadata';
+    }
+  }
+
+  return (
+    <div
+      style={{
+        marginBottom: 16,
+        borderRadius: 8,
+        overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      {/* File header */}
+      <div
+        style={{
+          height: 32,
+          padding: '0 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'rgba(255,255,255,0.025)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        <svg
+          width='14'
+          height='14'
+          viewBox='0 0 24 24'
+          fill='none'
+          stroke={ext === 'json' ? '#34d399' : ext === 'markdown' ? '#a1a1aa' : '#71717a'}
+          strokeWidth='1.5'
+          strokeLinecap='round'
+          strokeLinejoin='round'
+          style={{ flexShrink: 0 }}
+        >
+          <path d='M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z' />
+          <path d='M14 2v6h6' />
+        </svg>
+        <span
+          style={{
+            fontSize: 11.5,
+            color: '#fff',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {change.path}
+        </span>
+        <span
+          style={{
+            padding: '1px 6px',
+            fontSize: 9.5,
+            fontWeight: 600,
+            borderRadius: 3,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            background: tone.bg,
+            color: tone.fg,
+          }}
+        >
+          {change.op}
+        </span>
+      </div>
+
+      {/* Diff body */}
+      {isLoading ? (
+        <div
+          style={{
+            padding: '14px 16px',
+            fontSize: 11,
+            color: '#71717a',
+            background: 'rgba(0,0,0,0.2)',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          }}
+        >
+          Loading diff…
+        </div>
+      ) : placeholder ? (
+        <div
+          style={{
+            padding: '14px 16px',
+            fontSize: 11,
+            color: '#71717a',
+            background: 'rgba(0,0,0,0.2)',
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontStyle: 'italic',
+          }}
+        >
+          {placeholder}
+        </div>
+      ) : lines && lines.length > 0 ? (
+        <div style={{ padding: '6px 0', background: 'rgba(0,0,0,0.25)' }}>
+          {lines.map((line, j) => (
+            <DiffRow key={j} line={line} lineNum={j + 1} />
+          ))}
+        </div>
+      ) : (
+        <div
+          style={{
+            padding: '14px 16px',
+            fontSize: 11,
+            color: '#71717a',
+            background: 'rgba(0,0,0,0.2)',
+            fontStyle: 'italic',
+          }}
+        >
+          No textual changes
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ───
 
 export default function HistoryPage({ params }: HistoryPageProps) {
@@ -462,10 +625,15 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     [commits, selectedCommitId]
   );
 
-  const fileTree = useMemo(
-    () => selectedCommit ? buildFileTree(selectedCommit.changes) : [],
-    [selectedCommit]
-  );
+  // Parent commit = the commit immediately preceding the selected one
+  // in chronological order. The API returns commits oldest-first, so
+  // the parent of `commits[i]` is `commits[i - 1]`.
+  const parentCommitId = useMemo(() => {
+    if (!selectedCommit) return null;
+    const idx = commits.findIndex(c => c.commit_id === selectedCommit.commit_id);
+    if (idx <= 0) return null;
+    return commits[idx - 1].commit_id;
+  }, [commits, selectedCommit]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#0e0e0e' }}>
@@ -475,7 +643,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         height: 40, minHeight: 40, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         background: '#0e0e0e',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -647,29 +815,50 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   </div>
                 </div>
 
-                {/* File changes tree */}
-                <div className="bg-[#0a0a0a] border border-white/[0.08] rounded-xl overflow-hidden shadow-sm">
-                  <div className="px-4 py-3 border-b border-white/[0.04] flex items-center gap-2 bg-white/[0.01]">
-                    <span className="text-xs font-medium text-zinc-300">
-                      Changed files
-                    </span>
-                    <span className="text-[11px] font-medium text-zinc-500 bg-white/[0.05] px-1.5 py-0.5 rounded">
-                      {selectedCommit.changes.length}
-                    </span>
+                {/* File diff blocks — one per changed file. Each block
+                    lazy-loads its content (current + parent) and renders
+                    a line-level +/- diff. Matches the showcase layout. */}
+                {selectedCommit.changes.length > 0 ? (
+                  <>
+                    {(() => {
+                      const totalAdded = 0;
+                      const totalRemoved = 0;
+                      return (
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 12,
+                            fontSize: 11,
+                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                            color: '#71717a',
+                            marginBottom: 16,
+                            paddingBottom: 14,
+                            borderBottom: '1px solid rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <span>
+                            {selectedCommit.changes.length} file
+                            {selectedCommit.changes.length !== 1 ? 's' : ''} changed
+                          </span>
+                        </div>
+                      );
+                    })()}
+                    {selectedCommit.changes.map((change, i) => (
+                      <FileDiffBlock
+                        key={`${change.path}-${i}`}
+                        change={change}
+                        projectId={projectId}
+                        commitId={selectedCommit.commit_id}
+                        parentCommitId={parentCommitId}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <div className="px-6 py-12 text-center text-zinc-500 text-sm border border-white/[0.06] rounded-xl">
+                    No file changes in this commit
                   </div>
-
-                  {fileTree.length > 0 ? (
-                    <div className="p-2">
-                      {fileTree.map(node => (
-                        <TreeNode key={node.path} node={node} depth={0} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="px-6 py-12 text-center text-zinc-500 text-sm">
-                      No file changes in this commit
-                    </div>
-                  )}
-                </div>
+                )}
 
                 {/* Conflicts section */}
                 {selectedCommit.conflicts.length > 0 && (

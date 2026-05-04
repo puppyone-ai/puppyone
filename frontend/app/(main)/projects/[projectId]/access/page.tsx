@@ -277,7 +277,7 @@ export default function AccessPage({ params }: { params: Promise<{ projectId: st
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
       {/* Header */}
       <div style={{
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)',
+        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.08)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px',
         background: '#0e0e0e', fontSize: 13, fontWeight: 500, color: '#e4e4e7', flexShrink: 0,
       }}>

@@ -3,8 +3,10 @@
 import React, { memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import useSWR from 'swr';
 import type { ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
+import { getProjectHistory } from '../lib/contentTreeApi';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
 
 type AppSidebarProps = {
@@ -48,25 +50,30 @@ export const AppSidebar = memo(function AppSidebar({
     name: p.name,
   }));
 
+  // Lightweight stats for the footer chip — `limit=1` keeps payload
+  // small while `total` still reflects the real commit count.
+  // Cached for 60s to avoid refetching every render.
+  const { data: history } = useSWR(
+    activeProject ? ['sidebar-stats', activeProject.id] : null,
+    () => getProjectHistory(activeProject!.id, 1),
+    { revalidateOnFocus: false, dedupingInterval: 60000 },
+  );
+
+  const projectStats = activeProject
+    ? {
+        shortId: activeProject.id.slice(0, 8),
+        commitCount: history?.total,
+      }
+    : undefined;
+
   if (activeProject) {
     const projectNavItems: NavItem[] = [
       {
-        id: 'home',
-        label: t('home'),
-        icon: (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-        ),
-      },
-      {
         id: 'data',
         label: t('context'),
-        groupEnd: true,
         icon: (
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <path d='M4 7c0-1.1.9-2 2-2h4l2 2h6a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z' />
           </svg>
         ),
       },
@@ -74,11 +81,9 @@ export const AppSidebar = memo(function AppSidebar({
         id: 'access',
         label: t('access'),
         icon: (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 22v-5" />
-            <path d="M9 8V2" />
-            <path d="M15 8V2" />
-            <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <rect x='4' y='10' width='16' height='10' rx='2' />
+            <path d='M8 10V7a4 4 0 0 1 8 0v3' />
           </svg>
         ),
       },
@@ -86,19 +91,18 @@ export const AppSidebar = memo(function AppSidebar({
         id: 'history',
         label: t('history'),
         icon: (
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <circle cx='12' cy='12' r='9' />
+            <polyline points='12 6 12 12 16 14' />
           </svg>
         ),
       },
       {
         id: 'monitor',
         label: t('monitor'),
-        groupEnd: true,
         icon: (
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <path d='M3 12h4l3-8 4 16 3-8h4' />
           </svg>
         ),
       },
@@ -116,9 +120,9 @@ export const AppSidebar = memo(function AppSidebar({
         id: 'settings',
         label: t('settings'),
         icon: (
-          <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
             <circle cx='12' cy='12' r='3' />
-            <path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z' />
+            <path d='M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 0 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 0 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3h.1a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 0 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8v.1a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z' />
           </svg>
         ),
       },
@@ -132,15 +136,14 @@ export const AppSidebar = memo(function AppSidebar({
         projects={projectOptions}
         onSelectProject={(projectId) => router.push(`/projects/${projectId}`)}
         onHoverProject={(projectId) => {
-          router.prefetch(`/projects/${projectId}/home`);
           router.prefetch(`/projects/${projectId}/data`);
         }}
         onGoHome={() => router.push('/home')}
         activeView={activeView}
         navItems={projectNavItems}
         onNavigate={(viewId) => {
-          if (viewId === 'projects' || viewId === 'home') {
-            router.push(`/projects/${activeProject.id}/home`);
+          if (viewId === 'projects') {
+            router.push(`/projects/${activeProject.id}/data`);
           } else if (viewId === 'data') {
             router.push(`/projects/${activeProject.id}/data`);
           } else if (viewId === 'access') {
@@ -158,7 +161,6 @@ export const AppSidebar = memo(function AppSidebar({
         onHoverNavItem={(viewId) => {
           const id = activeProject.id;
           const pathMap: Record<string, string> = {
-            home: `/projects/${id}/home`,
             data: `/projects/${id}/data`,
             access: `/projects/${id}/access`,
             history: `/projects/${id}/history`,
@@ -177,6 +179,7 @@ export const AppSidebar = memo(function AppSidebar({
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={onSidebarWidthChange}
         onOpenGuide={onOpenGuide}
+        projectStats={projectStats}
       />
     );
   }
@@ -186,10 +189,10 @@ export const AppSidebar = memo(function AppSidebar({
       id: 'home',
       label: t('home'),
       icon: (
-        <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-          <path d='M7 0.5L1 3.5V10.5L7 13.5L13 10.5V3.5L7 0.5Z' stroke='currentColor' strokeWidth='1.2' strokeLinejoin='round' />
-          <path d='M1 3.5L7 6.5L13 3.5' stroke='currentColor' strokeWidth='1.2' strokeLinejoin='round' />
-          <path d='M7 6.5V13.5' stroke='currentColor' strokeWidth='1.2' strokeLinejoin='round' />
+        <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+          <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
+          <polyline points='3.27 6.96 12 12.01 20.73 6.96' />
+          <line x1='12' y1='22.08' x2='12' y2='12' />
         </svg>
       ),
       badge: projects.length,
@@ -198,11 +201,11 @@ export const AppSidebar = memo(function AppSidebar({
       id: 'team',
       label: t('team'),
       icon: (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+          <path d='M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2' />
+          <circle cx='9' cy='7' r='4' />
+          <path d='M23 21v-2a4 4 0 0 0-3-3.87' />
+          <path d='M16 3.13a4 4 0 0 1 0 7.75' />
         </svg>
       ),
     },
@@ -210,9 +213,9 @@ export const AppSidebar = memo(function AppSidebar({
       id: 'billing',
       label: t('billing'),
       icon: (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
-          <line x1="1" y1="10" x2="23" y2="10"></line>
+        <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+          <rect x='1' y='4' width='22' height='16' rx='2' ry='2' />
+          <line x1='1' y1='10' x2='23' y2='10' />
         </svg>
       ),
     },

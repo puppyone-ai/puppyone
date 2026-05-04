@@ -159,7 +159,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 
       <div style={{
         height: 40, minHeight: 40,
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
         display: 'flex', alignItems: 'center', padding: '0 16px',
         background: '#0e0e0e', flexShrink: 0
       }}>

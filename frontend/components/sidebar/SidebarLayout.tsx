@@ -41,6 +41,14 @@ export type SidebarLayoutProps = {
   environmentLabel?: string;
   onOpenGuide?: () => void; // Open getting-started guide
 
+  // Optional project stats line — when in a project context the footer
+  // can show `[• shortId · N commits]` (showcase parity) instead of the
+  // generic env chip. Falls back to env when undefined.
+  projectStats?: {
+    shortId: string;
+    commitCount?: number;
+  };
+
   // Layout State
   isCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
@@ -73,6 +81,7 @@ export function SidebarLayout({
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
   onOpenGuide,
+  projectStats,
 }: SidebarLayoutProps) {
   const t = useTranslations('sidebar');
   const resolvedEnvLabel = environmentLabel ?? getEnvironmentLabel();
@@ -130,49 +139,70 @@ export function SidebarLayout({
     };
   }, [isResizing, onSidebarWidthChange]);
 
+  // Sidebar nav row — 32px tall, 13px sans, 10px x-padding, 10px gap.
+  // Active rows get an elevated bg + an accent bar drawn from the row
+  // (rendered separately as an absolutely-positioned span so it sits
+  // flush against the panel's left edge).
   const navButtonClass = (isActive: boolean) =>
     clsx(
-      'group flex h-7 w-full items-center gap-2 rounded-[5px] bg-transparent pl-[6px] pr-1 text-left transition-colors duration-150',
-      isActive ? 'bg-[#2c2c2c]' : 'hover:bg-[#2c2c2c]'
+      'group relative flex h-8 w-full items-center gap-2.5 rounded-[6px] bg-transparent px-2.5 text-left text-[13px] transition-colors duration-150',
+      isActive
+        ? 'bg-white/[0.06] font-medium'
+        : 'hover:bg-white/[0.03] font-normal'
     );
 
   const navIconClass = (isActive: boolean) =>
     clsx(
-      'flex h-4 w-4 items-center justify-center transition-colors duration-150',
-      isActive ? 'text-[#cdcdcd]' : 'text-[#6d7177] group-hover:text-[#cdcdcd]'
+      'flex h-[15px] w-[15px] items-center justify-center transition-colors duration-150',
+      isActive ? 'text-[#ededed]' : 'text-[#6d7177] group-hover:text-[#ededed]'
     );
 
   const navLabelClass = (isActive: boolean) =>
     clsx(
-      'truncate text-sm transition-colors duration-150',
-      isActive ? 'text-white' : 'text-[#9b9b9b] group-hover:text-[#f0efed]'
+      'truncate transition-colors duration-150',
+      isActive ? 'text-[#ededed]' : 'text-[#a1a1aa] group-hover:text-[#ededed]'
     );
 
   const collapsedBtnClass = (isActive: boolean) =>
     clsx(
-      'flex h-8 w-8 items-center justify-center rounded-[5px] bg-transparent text-[#808080] transition-colors duration-150 hover:bg-white/8 hover:text-[#e2e8f0]',
-      isActive && 'bg-white/10 text-[#e2e8f0]'
+      'flex h-8 w-8 items-center justify-center rounded-[6px] bg-transparent text-[#808080] transition-colors duration-150 hover:bg-white/[0.06] hover:text-[#ededed]',
+      isActive && 'bg-white/[0.06] text-[#ededed]'
     );
 
   return (
     <aside
       ref={sidebarRef}
       className={clsx(
-        'relative flex h-screen flex-shrink-0 flex-col bg-[#1c1c1c] font-sans text-sm',
+        'relative flex h-screen flex-shrink-0 flex-col font-sans text-sm',
         isResizing
           ? 'transition-none'
           : 'transition-[width] duration-200 ease-in-out'
       )}
-      style={{ width: effectiveCollapsed ? 47 : sidebarWidth }}
+      style={{
+        width: effectiveCollapsed ? 47 : sidebarWidth,
+        // Sidebar shares the base panel color of <main>. With identical
+        // base colors, every alpha hairline (header bottom, footer top,
+        // sidebar/content vertical divider) renders the same shade
+        // across the boundary, so the lines read as continuous.
+        background: '#0e0e0e',
+        // The vertical line between sidebar and content lives here on
+        // the sidebar's right edge — replaces the per-page `borderLeft`
+        // we used to draw inside each page. Single source of truth.
+        borderRight: '1px solid rgba(255,255,255,0.08)',
+      }}
     >
-      {/* Header */}
+      {/* Header — 40px, flush to top. The bottom hairline matches every
+          page-level header so the divider reads as a single continuous
+          line that runs across sidebar → content. Inline style keeps
+          the value identical to ProjectsHeader / ExplorerSidebar. */}
       <div
         className={clsx(
-          'box-border flex h-[48px] items-center mt-2',
+          'box-border flex h-10 flex-shrink-0 items-center group/header',
           effectiveCollapsed
             ? 'justify-center px-0'
-            : 'justify-between pl-2 pr-[9px]'
+            : 'justify-between px-3'
         )}
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}
       >
         {effectiveCollapsed ? (
           <button
@@ -240,7 +270,7 @@ export function SidebarLayout({
 
             <button
               type='button'
-              className='flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] transition-colors duration-150 hover:bg-white/8 hover:text-[#9ca3af]'
+              className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] opacity-0 transition-[opacity,colors,background] duration-150 group-hover/header:opacity-100 hover:bg-white/[0.06] hover:text-[#ededed]'
               onClick={() => handleCollapsedChange(true)}
               title={t('collapse')}
               aria-label={t('collapse')}
@@ -266,34 +296,47 @@ export function SidebarLayout({
       {/* Content / Collapsed Navigation */}
       {!effectiveCollapsed ? (
         <div className='flex-1 overflow-y-auto overflow-x-hidden'>
-          <div className='flex flex-col gap-[2px] px-2 pb-2 pt-3'>
-            {navItems.map(item => (
-              <React.Fragment key={item.id}>
-                <button
-                  type='button'
-                  className={navButtonClass(activeView === item.id)}
-                  onClick={() => onNavigate(item.id)}
-                  onMouseEnter={() => onHoverNavItem?.(item.id)}
-                >
-                  <span className={navIconClass(activeView === item.id)}>
-                    {item.icon}
-                  </span>
+          <div className='flex flex-col gap-px px-1.5 py-2'>
+            {navItems.map(item => {
+              const isActive = activeView === item.id;
+              return (
+                <React.Fragment key={item.id}>
+                  <button
+                    type='button'
+                    className={navButtonClass(isActive)}
+                    onClick={() => onNavigate(item.id)}
+                    onMouseEnter={() => onHoverNavItem?.(item.id)}
+                  >
+                    {/* Accent bar — flush against the panel's left edge.
+                        Uses a small purple accent + soft glow to mark the
+                        active surface, matching the showcase. */}
+                    {isActive && (
+                      <span
+                        aria-hidden
+                        className='pointer-events-none absolute left-0 top-1.5 bottom-1.5 w-[2px] rounded-[1px]'
+                        style={{
+                          background: '#a78bfa',
+                          boxShadow: '0 0 6px rgba(167,139,250,0.45)',
+                        }}
+                      />
+                    )}
 
-                  <span className={navLabelClass(activeView === item.id)}>
-                    {item.label}
-                  </span>
+                    <span className={navIconClass(isActive)}>{item.icon}</span>
 
-                  {item.badge !== undefined && item.badge > 0 && (
-                    <span className='ml-auto rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] text-[#6d7177]'>
-                      {item.badge}
-                    </span>
+                    <span className={navLabelClass(isActive)}>{item.label}</span>
+
+                    {item.badge !== undefined && item.badge > 0 && (
+                      <span className='ml-auto rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] text-[#6d7177]'>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                  {item.groupEnd && (
+                    <div className='my-1.5 mx-1 border-t border-white/[0.06]' />
                   )}
-                </button>
-                {item.groupEnd && (
-                  <div className='my-1.5 mx-1 border-t border-white/[0.06]' />
-                )}
-              </React.Fragment>
-            ))}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
       ) : (
@@ -325,54 +368,89 @@ export function SidebarLayout({
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer — 40px, hairline divider on top, smaller env chip,
+          tighter avatar so the bar reads as a quiet status line
+          rather than a heavy CTA bar. */}
       <div
         className={clsx(
-          'flex h-[47px] flex-shrink-0 items-center',
-          effectiveCollapsed ? 'justify-center px-3' : 'justify-between px-4'
+          'flex h-10 flex-shrink-0 items-center',
+          effectiveCollapsed ? 'justify-center px-2' : 'justify-between px-3'
         )}
+        style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
       >
         {!effectiveCollapsed && (
-          <span className='flex h-7 items-center rounded-[5px] bg-[#2a2a2a] px-2.5 text-xs text-[#808080]'>
-            {resolvedEnvLabel}
-          </span>
+          projectStats ? (
+            // In a project: show shortId · commits (matches the
+            // showcase footer). The pulse dot signals "live state".
+            <span
+              className='flex items-center gap-2 text-[10px] tracking-[0.04em] text-[#808080]'
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+              title={`${resolvedEnvLabel} · ${projectStats.shortId}`}
+            >
+              <span
+                className='flex-shrink-0 rounded-full'
+                style={{
+                  width: 6,
+                  height: 6,
+                  background: '#22c55e',
+                  boxShadow: '0 0 6px rgba(34,197,94,0.55)',
+                }}
+              />
+              <span>{projectStats.shortId}</span>
+              {typeof projectStats.commitCount === 'number' && (
+                <>
+                  <span className='text-[#3f3f46]'>·</span>
+                  <span>{projectStats.commitCount} commits</span>
+                </>
+              )}
+            </span>
+          ) : (
+            <span
+              className='flex h-[22px] items-center rounded-[4px] bg-white/[0.04] px-2 text-[10px] tracking-[0.04em] text-[#808080]'
+              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+            >
+              {resolvedEnvLabel}
+            </span>
+          )
         )}
 
-        {/* Guide button */}
-        {onOpenGuide && !effectiveCollapsed && (
+        <div className='flex items-center gap-1'>
+          {/* Guide button */}
+          {onOpenGuide && !effectiveCollapsed && (
+            <button
+              type='button'
+              onClick={onOpenGuide}
+              title={t('guide')}
+              aria-label={t('guide')}
+              className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[#555] transition-colors hover:bg-white/[0.06] hover:text-[#a1a1aa]'
+            >
+              <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
+                <circle cx='12' cy='12' r='10' />
+                <path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' />
+                <line x1='12' y1='17' x2='12.01' y2='17' />
+              </svg>
+            </button>
+          )}
+
           <button
             type='button'
-            onClick={onOpenGuide}
-            title={t('guide')}
-            aria-label={t('guide')}
-            className='mr-1 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-[#555] transition-colors hover:bg-white/5 hover:text-[#a1a1aa]'
+            className='flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[10px] font-semibold text-white transition-all duration-200 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
+            onClick={() => setUserMenuOpen(true)}
+            title={t('accountSettings')}
+            aria-label={t('accountSettings')}
           >
-            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
-              <circle cx='12' cy='12' r='10' />
-              <path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' />
-              <line x1='12' y1='17' x2='12.01' y2='17' />
-            </svg>
+            {userAvatarUrl ? (
+              <img
+                src={userAvatarUrl}
+                alt='User avatar'
+                referrerPolicy='no-referrer'
+                className='h-full w-full object-cover'
+              />
+            ) : (
+              userInitial
+            )}
           </button>
-        )}
-
-        <button
-          type='button'
-          className='flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[12px] font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
-          onClick={() => setUserMenuOpen(true)}
-          title={t('accountSettings')}
-          aria-label={t('accountSettings')}
-        >
-          {userAvatarUrl ? (
-            <img
-              src={userAvatarUrl}
-              alt='User avatar'
-              referrerPolicy='no-referrer'
-              className='h-full w-full object-cover'
-            />
-          ) : (
-            userInitial
-          )}
-        </button>
+        </div>
       </div>
 
       {/* Resize Handle */}
