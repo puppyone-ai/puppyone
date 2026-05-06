@@ -67,6 +67,8 @@ export interface UploadAndSubmitParams {
   ruleId?: number;
   path?: string;
   jsonPath?: string;
+  /** Parent folder path in the MUT tree */
+  parentPath?: string;
   /** Parent node ID for organizing uploaded files */
   parentId?: string;
   /** Processing mode: 'ocr_parse' (Smart Parse) or 'raw' (Raw Storage) */
@@ -154,8 +156,9 @@ export async function uploadAndSubmit(
   if (params.jsonPath !== undefined) {
     formData.append('json_path', params.jsonPath);
   }
-  if (params.parentId !== undefined) {
-    formData.append('parent_id', params.parentId);
+  const parentPath = params.parentPath ?? params.parentId ?? params.path;
+  if (parentPath !== undefined) {
+    formData.append('parent_path', parentPath);
   }
   if (params.mode) {
     formData.append('mode', params.mode);

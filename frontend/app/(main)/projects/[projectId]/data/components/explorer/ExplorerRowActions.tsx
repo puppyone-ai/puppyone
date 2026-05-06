@@ -93,6 +93,7 @@ export function ExplorerRowActions({
   onOpenAccess,
   onRename,
   onDelete,
+  onDownload,
 }: {
   nodeId: string;
   createParentId: string | null;
@@ -107,6 +108,7 @@ export function ExplorerRowActions({
   onOpenAccess?: ExplorerSidebarProps['onOpenAccess'];
   onRename?: ExplorerSidebarProps['onRename'];
   onDelete?: ExplorerSidebarProps['onDelete'];
+  onDownload?: ExplorerSidebarProps['onDownload'];
 }) {
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
   const [isAccessControlActive, setIsAccessControlActive] = useState(false);
@@ -121,7 +123,7 @@ export function ExplorerRowActions({
   const accessVisibility = hasAccessPoint || isAccessMenuOpen ? 'visible' : 'invisible group-hover/row:visible';
   const accessActive = hasAccessPoint || isAccessMenuOpen;
 
-  if (!onCreate && !onCreateSync && !onRename && !onDelete) return null;
+  if (!onCreate && !onCreateSync && !onRename && !onDelete && !onDownload) return null;
 
   return (
     <div className="ml-auto flex flex-shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
@@ -142,7 +144,7 @@ export function ExplorerRowActions({
         </div>
       )}
 
-      {(onRename || onDelete) && (
+      {(onRename || onDelete || onDownload) && (
         <div className={isContextMenuOpen ? 'visible' : peerVisibility}>
           <ItemContextMenu
             itemId={nodeId}
@@ -150,6 +152,7 @@ export function ExplorerRowActions({
             isSynced={isSynced}
             onRename={onRename}
             onDelete={onDelete}
+            onDownload={onDownload}
             onOpenChange={setIsContextMenuOpen}
           />
         </div>

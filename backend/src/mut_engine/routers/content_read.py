@@ -1,15 +1,25 @@
-"""Content Read API — ls, cat, stat, tree, trash, raw."""
+"""Content Read API — ls, cat, stat, tree, trash, raw, download."""
 
 from __future__ import annotations
 
 import json as _json
+from urllib.parse import quote
+from zipfile import ZIP_DEFLATED
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
+from pydantic import BaseModel, Field
+from zipstream import ZipStream
 
 from src.common_schemas import ApiResponse
 from src.mut_engine.dependencies import get_mut_ops
 from src.mut_engine.routers._content_helpers import ensure_project_access, entry_to_response
+from src.mut_engine.routers._download_token import (
+    DEFAULT_TTL_SECONDS,
+    DownloadTokenError,
+    issue_token,
+    verify_token,
+)
 from src.mut_engine.schemas import (
     ListDirResponse,
     ReadFileResponse,
@@ -142,6 +152,197 @@ def raw_file(
             "Cache-Control": "private, max-age=3600",
         },
     )
+
+
+def _content_disposition_attachment(filename: str) -> str:
+    """Build a `Content-Disposition: attachment` header value that handles
+    non-ASCII filenames per RFC 5987 (so e.g. Chinese folder names download
+    with the right name across browsers)."""
+    safe_filename = filename.replace('"', "")
+    ascii_fallback = safe_filename.encode("ascii", errors="replace").decode("ascii")
+    encoded = quote(safe_filename, safe="")
+    return f'attachment; filename="{ascii_fallback}"; filename*=UTF-8\'\'{encoded}'
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Download — two-step: POST /sign (auth via Bearer) → GET /download (auth via token)
+#
+# Why split: a plain `<a href download>` opens as a top-level navigation
+# and the browser cannot attach `Authorization: Bearer ...`. Without
+# token-in-URL, the only alternatives are:
+#   1) `fetch → blob → URL.createObjectURL → click <a>` — kills the
+#      browser's native download manager (no progress bar, no pause/cancel,
+#      whole zip held in tab memory).
+#   2) cookie auth — would require introducing a separate auth scheme just
+#      for downloads.
+# A signed URL with a 5-min HMAC token gives us streaming + native
+# browser download without breaking the bearer-token auth model.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class DownloadSignRequest(BaseModel):
+    path: str = Field(..., description="File or folder path within the project")
+
+
+class DownloadSignResponse(BaseModel):
+    url: str = Field(..., description="Pre-signed download URL (valid for ~5 minutes)")
+    expires_at: int = Field(..., description="Unix timestamp when the token expires")
+
+
+@read_router.post(
+    "/{project_id}/download/sign",
+    response_model=ApiResponse[DownloadSignResponse],
+    summary="Mint a signed URL for downloading a file or folder",
+)
+def sign_download(
+    project_id: str,
+    body: DownloadSignRequest,
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Authenticated step. Caller proves project access via the normal
+    Bearer flow; we hand back a token that the browser can use for a
+    plain `<a download>` navigation."""
+    ensure_project_access(project_service, current_user, project_id)
+    clean_path = validate_path(body.path)
+
+    token, expires_at = issue_token(
+        project_id=project_id,
+        path=clean_path,
+        user_id=current_user.user_id,
+    )
+
+    url = (
+        f"/api/v1/content/{project_id}/download"
+        f"?path={quote(clean_path, safe='')}&token={quote(token, safe='')}"
+    )
+
+    return ApiResponse.success(
+        data=DownloadSignResponse(url=url, expires_at=expires_at)
+    )
+
+
+@read_router.get(
+    "/{project_id}/download",
+    summary="Download a file or folder (folders are streamed as zip)",
+)
+def download(
+    project_id: str,
+    path: str = Query(..., description="File or folder path"),
+    token: str = Query(..., description="Signed token from /download/sign"),
+    ops: MutOps = Depends(get_mut_ops),
+):
+    """Token-authenticated streaming download.
+
+    - **Files**: streamed back as raw bytes with `Content-Disposition: attachment`.
+    - **Folders**: walked via `MutOps.list_tree` and packed into a
+      `zipstream-ng` `ZipStream`. We yield chunks as they're produced so
+      the browser's native download manager picks up the response
+      immediately and shows real byte progress (instead of waiting for
+      the whole zip to be buffered server-side).
+
+    Trash entries (`.trash/...`) are excluded from folder archives so
+    users don't get deleted leftovers in their downloads.
+    """
+    try:
+        claims = verify_token(token)
+    except DownloadTokenError as exc:
+        raise HTTPException(status_code=401, detail=f"invalid token: {exc}")
+
+    # Defense in depth: query params must match what the token was issued for.
+    # Without this, a token issued for `notes/secret.md` could be replayed
+    # against `?path=notes/public.md` (same project, same user, but different
+    # asset). The token already pins both, so we just enforce equality here.
+    clean_path = validate_path(path)
+    if claims.project_id != project_id or claims.path != clean_path:
+        raise HTTPException(status_code=403, detail="token does not match request")
+
+    entry = ops.stat(project_id, clean_path)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"Path not found: {clean_path}")
+
+    if entry.type == "folder":
+        folder_name = entry.name or clean_path.rsplit("/", 1)[-1] or "root"
+        prefix = clean_path.strip("/")
+        prefix_with_slash = f"{prefix}/" if prefix else ""
+
+        # Snapshot the tree once, up-front. Doing it inside the generator
+        # would mean the request handler returns before list_tree runs,
+        # which complicates error reporting (the headers are already on
+        # the wire by then).
+        entries = ops.list_tree(project_id, clean_path, max_depth=-1)
+
+        def chunks():
+            # zipstream-ng's add()/mkdir() *queue* entries; all_files()
+            # processes the queue and yields chunks as they're produced.
+            # Calling all_files() after each add() means bytes leave the
+            # server as soon as each file is zipped — which is what gives
+            # the browser's native download manager real-time progress.
+            # footer() writes the central directory + end-of-archive
+            # record once all entries are done.
+            zs = ZipStream(compress_type=ZIP_DEFLATED)
+            for e in entries:
+                if e.path == ".trash" or e.path.startswith(".trash/"):
+                    continue
+                rel_path = e.path[len(prefix_with_slash):] if prefix_with_slash else e.path
+                if not rel_path:
+                    continue
+                arcname = f"{folder_name}/{rel_path}"
+
+                if e.type == "folder":
+                    # mkdir() is the dedicated API for empty directory
+                    # entries — keeps empty folders visible in the archive.
+                    zs.mkdir(arcname)
+                    yield from zs.all_files()
+                    continue
+
+                try:
+                    content = ops.read_file(project_id, e.path)
+                except FileNotFoundError:
+                    continue
+                zs.add(data=content, arcname=arcname)
+                yield from zs.all_files()
+
+            yield from zs.footer()
+
+        return StreamingResponse(
+            chunks(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": _content_disposition_attachment(f"{folder_name}.zip"),
+                "Cache-Control": "private, no-store",
+                # Hint to proxies/CDNs not to buffer the response, otherwise
+                # the browser's progress bar won't move until the whole zip
+                # is built.
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    # Single-file path: same bytes as /raw, but `attachment` so the
+    # browser triggers a save dialog instead of trying to render it.
+    try:
+        content = ops.read_file(project_id, clean_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
+
+    from src.mut_engine.services.tree_reader import detect_mime
+    mime = detect_mime(clean_path) or "application/octet-stream"
+    filename = entry.name or clean_path.rsplit("/", 1)[-1] or "download"
+
+    return Response(
+        content=content,
+        media_type=mime,
+        headers={
+            "Content-Disposition": _content_disposition_attachment(filename),
+            "Cache-Control": "private, no-store",
+            "Content-Length": str(len(content)),
+        },
+    )
+
+
+# Suppress unused-import warning for DEFAULT_TTL_SECONDS — it's re-exported
+# for any caller that wants to know our token TTL without hard-coding it.
+_ = DEFAULT_TTL_SECONDS
 
 
 @read_router.get(

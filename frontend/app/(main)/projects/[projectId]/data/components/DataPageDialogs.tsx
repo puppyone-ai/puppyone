@@ -49,6 +49,7 @@ export interface DataPageDialogsProps {
   onCloseFileImport: () => void;
   onFileImportConfirm: (files: File[], mode: 'ocr_parse' | 'raw') => void;
   droppedFiles: File[];
+  fileImportTargetLabel: string;
 }
 
 export function DataPageDialogs(props: DataPageDialogsProps) {
@@ -60,7 +61,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
     createFolderOpen, onCloseFolderDialog, onFolderSuccess,
     supabaseConnectOpen, onCloseSupabaseConnect, onSupabaseConnected,
     supabaseSQLEditorOpen, supabaseConnectionId, onCloseSupabaseSQLEditor, onSupabaseSaved,
-    fileImportDialogOpen, onCloseFileImport, onFileImportConfirm, droppedFiles,
+    fileImportDialogOpen, onCloseFileImport, onFileImportConfirm, droppedFiles, fileImportTargetLabel,
   } = props;
 
   return (
@@ -138,6 +139,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
         onClose={onCloseFileImport}
         onConfirm={onFileImportConfirm}
         initialFiles={droppedFiles.length > 0 ? droppedFiles : undefined}
+        targetLabel={fileImportTargetLabel}
       />
 
       {/* HIDDEN: Tool Creation Panel temporarily disabled */}

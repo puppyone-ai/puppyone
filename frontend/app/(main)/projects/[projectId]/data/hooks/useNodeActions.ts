@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
-import { moveFile, removeFile, type NodeInfo } from '@/lib/contentTreeApi';
+import { downloadNode, moveFile, removeFile, type NodeInfo } from '@/lib/contentTreeApi';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
 import { ensureExpanded } from '../components/explorer';
 
@@ -72,6 +72,23 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     }
   }, [projectId, showToast]);
 
+  const handleDownload = useCallback(async (path: string, name: string) => {
+    // App-layer toast covers only the "preparing" window — the brief gap
+    // between the user clicking and the server starting to stream bytes.
+    // Once the browser's native download manager picks up the response
+    // it owns the rest (progress bar, pause/cancel, "Show in Finder"),
+    // so we don't show a "Downloaded" follow-up — that would just
+    // duplicate what the browser is already telling them.
+    try {
+      showToast(`Preparing "${name}"...`);
+      await downloadNode(projectId, path);
+    } catch (err) {
+      console.error('Failed to download:', err);
+      const msg = (err as { message?: string })?.message || 'Failed to download';
+      showToast(msg, 'error');
+    }
+  }, [projectId, showToast]);
+
   const handleMoveNode = useCallback(async (
     nodePath: string,
     targetFolderPath: string | null,
@@ -138,6 +155,6 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     handleMoveNode, handleMoveRequest,
     toast, showToast,
     toolPanelTarget, setToolPanelTarget,
-    handleDelete, handleCreateTool,
+    handleDelete, handleDownload, handleCreateTool,
   };
 }

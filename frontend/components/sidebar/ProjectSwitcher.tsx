@@ -2,6 +2,13 @@
 
 import clsx from 'clsx';
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
+
+// Brand blue — same constant as `BRAND_BLUE` in SidebarLayout.tsx.
+// Used for every workspace identity chip so the project's "color"
+// stays constant from collapsed sidebar → expanded trigger → dropdown
+// rows. Keep the two definitions in sync.
+const BRAND_BLUE = '#4599DF';
 
 export type ProjectOption = {
   id: string;
@@ -25,6 +32,7 @@ export function ProjectSwitcher({
   onHoverProject,
   isCollapsed = false,
 }: ProjectSwitcherProps) {
+  const t = useTranslations('sidebar');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -75,34 +83,31 @@ export function ProjectSwitcher({
 
   return (
     <div className='relative flex-1 min-w-0'>
-      {/* Trigger Button — single-line workspace switcher matching the
-          showcase AppShell exactly. Gap 8, padding 0 (the parent
-          header already supplies 12px horizontal). The whole row is
-          the click target; chevron on the right is decorative. */}
+      {/* Trigger Button — uses the exact same row metrics as the
+          dropdown rows below and the SidebarLayout nav rows (13px
+          text / gap-2.5 / h-8 / rounded-[5px] / white/[0.03] hover /
+          white/[0.06] active). One row spec for the whole sidebar so
+          everything reads as the same scale. */}
       <button
         ref={buttonRef}
         type='button'
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
-          'group flex w-full items-center gap-2 rounded-[5px] px-1 py-1 transition-colors',
-          'hover:bg-white/[0.04]',
-          isOpen && 'bg-white/[0.05]'
+          'flex h-8 w-full items-center gap-2.5 rounded-[5px] px-2 transition-colors duration-150',
+          isOpen ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
         )}
       >
-        {/* Identity glyph — 18×18.
-            • Project view: cyan→blue gradient chip with the workspace's
-              first letter, lifted pixel-for-pixel from the showcase
-              AppShell (`linear-gradient(135deg, #22d3ee 0%, #2563eb
-              100%)`, 5px radius, 10px mono uppercase, #0a0a0a text).
-            • Home / global view: the puppyone brand mark — a chip
-              with "P" would read as just another project, so we keep
-              the proper logo here. */}
+        {/* Identity glyph — 18×18 chip. Project view shows a
+            cyan→blue gradient chip with the workspace initial; home
+            view shows the puppyone brand mark. The dropdown rows
+            below reuse the same chip spec so the active workspace
+            stays visually constant from trigger → menu. */}
         {isInProject ? (
           <span
             aria-hidden
-            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[#0a0a0a]'
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
             style={{
-              background: 'linear-gradient(135deg, #22d3ee 0%, #2563eb 100%)',
+              background: BRAND_BLUE,
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
               letterSpacing: 0,
             }}
@@ -112,24 +117,23 @@ export function ProjectSwitcher({
         ) : (
           <img
             src='/puppyone-logo.svg'
-            alt='puppyone'
+            alt=''
             width={18}
             height={18}
             className='flex-shrink-0 rounded-[4px]'
           />
         )}
 
-        {/* Workspace name — 12.5px / weight 500 / #fafafa. Showcase
-            uses T.text1 = #fafafa here; we matched that exactly so
-            the workspace label sits at the same lightness as the
-            "active" nav row text underneath. */}
-        <span className='flex-1 truncate text-left text-[12.5px] font-medium text-[#fafafa]'>
+        <span className='flex-1 truncate text-left text-[13px] font-medium text-[#fafafa]'>
           {displayName}
         </span>
 
-        {/* Chevron — 10×10 single down-caret matching the showcase.
-            Color #52525b (T.text3). On hover it lifts to T.text2 so
-            the row clearly reads as actionable. */}
+        {/* Chevron — only revealed on header hover or while the
+            dropdown is open. Keeps the rest state quiet (just the
+            workspace name + glyph), and shows the affordance exactly
+            when the user is reaching for it. Mirrors the collapse
+            button's hover-to-reveal behavior so the two header
+            controls feel like one coordinated set. */}
         <svg
           width='10'
           height='10'
@@ -139,137 +143,149 @@ export function ProjectSwitcher({
           strokeWidth='2'
           strokeLinecap='round'
           strokeLinejoin='round'
+          aria-hidden
           className={clsx(
-            'flex-shrink-0 text-[#52525b] transition-colors duration-150 group-hover:text-[#a1a1aa]',
-            isOpen && 'rotate-180 text-[#a1a1aa]'
+            'flex-shrink-0 text-[#52525b] transition-[transform,opacity,colors] duration-150',
+            isOpen
+              ? 'rotate-180 opacity-100 text-[#a1a1aa]'
+              : 'opacity-0 group-hover/header:opacity-100 group-hover/header:text-[#a1a1aa]'
           )}
         >
           <polyline points='6 9 12 15 18 9' />
         </svg>
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Dropdown Menu — follows the sidebar design system 1:1 so the
+          panel reads as a continuation of the sidebar rather than a
+          separate widget:
+            • Border alpha matches the sidebar (rgba(255,255,255,0.08))
+            • Row height / typography / hover / active states are
+              identical to the SidebarLayout nav rows (32px h-8,
+              13px text, gap-2.5, white/[0.03] hover, white/[0.06]
+              active, #a1a1aa → #fafafa text ramp)
+            • Project rows reuse the same cyan→blue first-letter chip
+              from the trigger button so the "active workspace"
+              identity glyph stays visually constant. */}
       {isOpen && (
         <div
           ref={dropdownRef}
-          className={clsx(
-            'absolute left-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-lg',
-            'border border-[#2a2a2a] bg-[#1a1a1a] shadow-xl shadow-black/40'
-          )}
+          className='absolute left-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-md bg-[#181818] shadow-xl shadow-black/40'
+          style={{ border: '1px solid rgba(255,255,255,0.08)' }}
         >
-          {/* Home Option */}
-          <div className='p-1 border-b border-[#2a2a2a]'>
+          {/* Go to organization — action-oriented label rather than
+              echoing the org name (which would visually collide with
+              project rows). The puppyone logo + the verb-led label
+              make it unambiguous that this navigates *out* of any
+              project context, back to the org view. */}
+          <div className='p-1' style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <button
               type='button'
               onClick={() => {
                 onGoHome();
                 setIsOpen(false);
               }}
-              className={clsx(
-                'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors',
-                'hover:bg-white/5',
-                !isInProject && 'bg-white/8'
-              )}
+              className={dropdownRowClass(!isInProject)}
             >
               <img
                 src='/puppyone-logo.svg'
-                alt='puppyone'
-                width={20}
-                height={20}
+                alt=''
+                width={18}
+                height={18}
                 className='flex-shrink-0 rounded-[4px]'
               />
-              <div className='flex-1 min-w-0'>
-                <div className='text-sm font-medium text-[#ededed] truncate'>
-                  puppyone
-                </div>
-                <div className='text-[11px] text-[#666]'>Organization Home</div>
-              </div>
-              {!isInProject && (
-                <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='#34d399'
-                  strokeWidth='2'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  className='flex-shrink-0'
-                >
-                  <polyline points='20 6 9 17 4 12' />
-                </svg>
-              )}
+              <span className={dropdownLabelClass(!isInProject)}>
+                {t('goToOrganization')}
+              </span>
+              {!isInProject && <CheckIcon />}
             </button>
           </div>
 
-          {/* Projects Section */}
+          {/* Projects Section — section header is sentence case
+              ("Projects", not "PROJECTS") so it reads as a normal
+              label rather than an all-caps banner. Slightly larger
+              (11px) and untracked since proper case doesn't need
+              extra letterspacing for legibility. */}
           <div className='p-1'>
-            <div className='px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#555]'>
-              Projects
+            <div className='px-2 pt-1.5 pb-1 text-[11px] font-medium text-[#52525b]'>
+              {t('projects')}
             </div>
             <div className='max-h-[240px] overflow-y-auto'>
               {projects.length === 0 ? (
-                <div className='px-2.5 py-3 text-xs text-[#555] text-center'>
-                  No projects yet
+                <div className='px-2 py-3 text-center text-[12px] text-[#52525b]'>
+                  {t('noProjects')}
                 </div>
               ) : (
-                projects.map(project => (
-                  <button
-                    key={project.id}
-                    type='button'
-                    onMouseEnter={() => onHoverProject?.(project.id)}
-                    onClick={() => {
-                      onSelectProject(project.id);
-                      setIsOpen(false);
-                    }}
-                    className={clsx(
-                      'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors',
-                      'hover:bg-white/5',
-                      currentProject?.id === project.id && 'bg-white/8'
-                    )}
-                  >
-                    <svg
-                      width='14'
-                      height='14'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='#9ca3af'
-                      strokeWidth='1.5'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      className='flex-shrink-0'
+                projects.map(project => {
+                  const isActive = currentProject?.id === project.id;
+                  return (
+                    <button
+                      key={project.id}
+                      type='button'
+                      onMouseEnter={() => onHoverProject?.(project.id)}
+                      onClick={() => {
+                        onSelectProject(project.id);
+                        setIsOpen(false);
+                      }}
+                      className={dropdownRowClass(isActive)}
                     >
-                      <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' />
-                      <polyline points='3.27 6.96 12 12.01 20.73 6.96' />
-                      <line x1='12' y1='22.08' x2='12' y2='12' />
-                    </svg>
-
-                    <span className='flex-1 truncate text-sm text-[#ccc]'>
-                      {project.name}
-                    </span>
-
-                    {currentProject?.id === project.id && (
-                      <svg
-                        width='14'
-                        height='14'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='#34d399'
-                        strokeWidth='2'
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        className='flex-shrink-0'
+                      <span
+                        aria-hidden
+                        className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
+                        style={{
+                          background: BRAND_BLUE,
+                          fontFamily:
+                            'ui-monospace, SFMono-Regular, Menlo, monospace',
+                        }}
                       >
-                        <polyline points='20 6 9 17 4 12' />
-                      </svg>
-                    )}
-                  </button>
-                ))
+                        {(project.name?.[0] || '?').toUpperCase()}
+                      </span>
+                      <span className={dropdownLabelClass(isActive)}>
+                        {project.name}
+                      </span>
+                      {isActive && <CheckIcon />}
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// Shared row class — mirrors `navButtonClass` in SidebarLayout so the
+// dropdown rows visually rhyme with the nav rows underneath.
+function dropdownRowClass(isActive: boolean) {
+  return clsx(
+    'flex h-8 w-full items-center gap-2.5 rounded-[5px] px-2 text-left transition-colors duration-150',
+    isActive ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
+  );
+}
+
+function dropdownLabelClass(isActive: boolean) {
+  return clsx(
+    'flex-1 truncate text-[13px]',
+    isActive ? 'font-medium text-[#fafafa]' : 'font-normal text-[#a1a1aa]'
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width='12'
+      height='12'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='#22d3ee'
+      strokeWidth='2.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      className='flex-shrink-0'
+      aria-hidden
+    >
+      <polyline points='20 6 9 17 4 12' />
+    </svg>
   );
 }

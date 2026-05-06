@@ -76,6 +76,7 @@ export function ItemContextMenu({
   isSynced,
   onRename,
   onDelete,
+  onDownload,
   onOpenChange,
 }: {
   itemId: string;
@@ -83,6 +84,7 @@ export function ItemContextMenu({
   isSynced?: boolean;
   onRename?: (id: string, name: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onDownload?: (id: string, name: string) => void;
   onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpenRaw] = useState(false);
@@ -238,6 +240,44 @@ export function ItemContextMenu({
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
               Rename
+            </button>
+          )}
+
+          {onDownload && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpen(false);
+                onDownload(itemId, itemName);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '7px 14px',
+                background: 'transparent',
+                border: 'none',
+                color: '#d4d4d8',
+                cursor: 'pointer',
+                fontSize: 13,
+                textAlign: 'left',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download
             </button>
           )}
 

@@ -20,7 +20,7 @@ import {
   getToolsByPath,
   type Tool,
 } from '../mcpApi';
-import { listDir, treeList, entryToNodeInfo, type NodeInfo, type TreeEntry } from '../contentTreeApi';
+import { listDir, treeList, entryToNodeInfo, sortNodes, type NodeInfo, type TreeEntry } from '../contentTreeApi';
 import { getConnectorSpecs, type ConnectorSpec } from '../syncApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
@@ -158,7 +158,12 @@ export function useTreeDir(projectId: string, dirPath: string | null | undefined
     mutate: revalidate,
   } = useSWR<NodeInfo[]>(
     key,
-    () => listDir(projectId, normalizedPath).then(r => r.nodes),
+    // Normalize the order at the fetcher boundary so that *whatever* the
+    // backend returns ends up in canonical UI order in the SWR cache. This
+    // keeps the sidebar's row order stable regardless of which read path
+    // (`/ls` vs `/tree` pre-population in `useShallowTree`) last wrote the
+    // cache — see `sortNodes` for the full rationale.
+    () => listDir(projectId, normalizedPath).then(r => sortNodes(r.nodes)),
     {
       ...defaultConfig,
       dedupingInterval: 30000,
@@ -229,6 +234,15 @@ export function useShallowTree(projectId: string, maxDepth: number = 1) {
 
   // Pre-populate per-folder SWR caches from the flat response.
   // This way useContentNodes(projectId, "docs") gets an instant cache hit.
+  //
+  // CRITICAL: each per-folder bucket is normalized through `sortNodes` before
+  // it lands in the cache, mirroring exactly what `useTreeDir`'s fetcher does
+  // when `/ls` later overwrites the same key. Without this, the cache flips
+  // between the backend's `_walk_tree` order (alphabetical, case-sensitive,
+  // folders intermixed with files) and `/ls`'s "folders first" order the
+  // first time the user clicks into a subfolder, visibly reshuffling the
+  // sidebar. By making both writes go through the same sort, the order is
+  // stable regardless of which path populated the cache last.
   useEffect(() => {
     if (entries.length === 0 || !projectId) return;
     const byParent = new Map<string, NodeInfo[]>();
@@ -240,14 +254,14 @@ export function useShallowTree(projectId: string, maxDepth: number = 1) {
       byParent.get(parentPath)!.push(entryToNodeInfo(entry, projectId));
     }
     for (const [parentPath, nodes] of byParent) {
-      mutate(['tree', projectId, parentPath], nodes, { revalidate: false });
+      mutate(['tree', projectId, parentPath], sortNodes(nodes), { revalidate: false });
     }
   }, [entries, projectId]);
 
   // Root nodes = entries whose path has no "/" (top-level items).
-  const rootNodes: NodeInfo[] = entries
-    .filter(e => !e.path.includes('/'))
-    .map(e => entryToNodeInfo(e, projectId));
+  const rootNodes: NodeInfo[] = sortNodes(
+    entries.filter(e => !e.path.includes('/')).map(e => entryToNodeInfo(e, projectId)),
+  );
 
   return { rootNodes, isLoading, refresh: revalidate };
 }

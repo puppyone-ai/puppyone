@@ -3,6 +3,18 @@
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import type { OnboardingStep } from '@/lib/hooks/useOnboarding';
+import {
+  ACTIVITY_BG,
+  ACTIVITY_BORDER,
+  ACTIVITY_RADIUS,
+  ACTIVITY_SHADOW,
+  ACTIVITY_WIDTH,
+  activityCardStyle,
+  activityHeaderStyle,
+  activitySubtleTextStyle,
+  activityTitleStyle,
+} from '../activityStyles';
+import { ActivityIconButton } from '../ActivityIconButton';
 
 interface StepDef {
   id: OnboardingStep;
@@ -69,9 +81,10 @@ const STEP_DEFS: StepDef[] = [
 
 interface Props {
   projectId?: string;
+  inline?: boolean;
 }
 
-export function GettingStartedPanel({ projectId }: Readonly<Props>) {
+export function GettingStartedPanel({ projectId, inline = false }: Readonly<Props>) {
   const router = useRouter();
   const { completedSteps, collapsedChecklist, dismissedChecklist, dismissChecklist, openChecklist, collapseChecklist, resetWelcome } = useOnboarding();
 
@@ -85,72 +98,70 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
       <button
         onClick={openChecklist}
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 100,
+          ...(inline
+            ? {}
+            : { position: 'fixed' as const, bottom: 24, right: 24, zIndex: 100 }),
           display: 'flex', alignItems: 'center', gap: 8,
-          padding: '9px 14px', borderRadius: 10,
-          background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.12)',
-          color: '#e4e4e7', fontSize: 13, fontWeight: 500, cursor: 'pointer',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          width: ACTIVITY_WIDTH,
+          minHeight: 44,
+          padding: '8px 12px', borderRadius: ACTIVITY_RADIUS,
+          background: ACTIVITY_BG, border: ACTIVITY_BORDER,
+          color: '#e4e4e7', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          boxShadow: ACTIVITY_SHADOW,
+          boxSizing: 'border-box',
         }}
       >
         <div style={{
-          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+          width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
           background: `conic-gradient(#3b82f6 ${pct}%, rgba(255,255,255,0.1) 0)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#1a1a1a' }} />
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: ACTIVITY_BG }} />
         </div>
-        Getting started {done}/{total}
+        <span style={{ ...activityTitleStyle, flex: 1, textAlign: 'left' }}>
+          Getting started
+        </span>
+        <span style={{ ...activitySubtleTextStyle, whiteSpace: 'nowrap' }}>{done}/{total}</span>
       </button>
     );
   }
 
   return (
     <div style={{
-      position: 'fixed', bottom: 24, right: 24, zIndex: 100,
-      width: 340, borderRadius: 12,
-      background: '#111', border: '1px solid rgba(255,255,255,0.1)',
-      boxShadow: '0 8px 32px rgba(0,0,0,0.5)', overflow: 'hidden',
+      ...(inline
+        ? {}
+        : { position: 'fixed' as const, bottom: 24, right: 24, zIndex: 100 }),
+      ...activityCardStyle,
     }}>
       {/* Header */}
-      <div style={{
-        padding: '14px 16px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
-      }}>
+      <div style={activityHeaderStyle}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#f4f4f5', marginBottom: 8 }}>
+          <div style={{ ...activityTitleStyle, marginBottom: 8 }}>
             Getting started
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
               <div style={{ height: '100%', borderRadius: 2, background: '#3b82f6', width: `${pct}%`, transition: 'width 0.4s ease' }} />
             </div>
-            <span style={{ fontSize: 11, color: '#71717a', whiteSpace: 'nowrap' }}>{done}/{total}</span>
+            <span style={{ ...activitySubtleTextStyle, whiteSpace: 'nowrap' }}>{done}/{total}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0, marginTop: 2 }}>
-          <button
-            onClick={collapseChecklist}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+          <ActivityIconButton
+            kind="collapse"
             title="Collapse"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#71717a', padding: '2px 6px', borderRadius: 4 }}
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="19 15 12 22 5 15" />
-            </svg>
-          </button>
-          <button
-            onClick={dismissChecklist}
+            onClick={collapseChecklist}
+          />
+          <ActivityIconButton
+            kind="close"
             title="Already familiar, don't show again"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#71717a', padding: '2px 6px', borderRadius: 4, fontSize: 14, lineHeight: 1 }}
-          >
-            ✕
-          </button>
+            onClick={dismissChecklist}
+          />
         </div>
       </div>
 
       {/* Steps */}
-      <div style={{ maxHeight: 380, overflowY: 'auto' }}>
+      <div style={{ maxHeight: 360, overflowY: 'auto' }}>
         {STEP_DEFS.map((step, i) => {
           const completed = completedSteps.includes(step.id);
           const isNext = i === nextIdx;
@@ -163,8 +174,8 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
             <div
               key={step.id}
               style={{
-                padding: isNext ? '12px 16px' : '8px 16px',
-                borderBottom: i < STEP_DEFS.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                padding: isNext ? '10px 12px' : '8px 12px',
+                borderBottom: i < STEP_DEFS.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
                 background: isNext ? 'rgba(59,130,246,0.06)' : 'transparent',
                 display: 'flex', gap: 10, alignItems: 'flex-start',
               }}
@@ -186,7 +197,7 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
-                  fontSize: 12, fontWeight: isNext ? 600 : 400,
+                  fontSize: 13, lineHeight: '18px', fontWeight: isNext ? 600 : 400,
                   color: labelColor,
                   textDecoration: completed ? 'line-through' : 'none',
                   marginBottom: isNext ? 4 : 0,
@@ -195,16 +206,16 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
                 </div>
                 {isNext && !completed && (
                   <>
-                    <div style={{ fontSize: 11, color: '#a1a1aa', lineHeight: 1.6, marginBottom: 8 }}>
+                    <div style={{ ...activitySubtleTextStyle, color: '#a1a1aa', marginBottom: 8 }}>
                       {step.description}
                     </div>
                     {step.actionLabel && href && (
                       <button
                         onClick={() => router.push(href)}
                         style={{
-                          fontSize: 12, fontWeight: 500, color: '#fff',
+                          height: 28, fontSize: 12, fontWeight: 500, color: '#fff',
                           background: '#2563eb', border: 'none',
-                          borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
+                          borderRadius: 6, padding: '0 12px', cursor: 'pointer',
                         }}
                         onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
                         onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
@@ -221,16 +232,16 @@ export function GettingStartedPanel({ projectId }: Readonly<Props>) {
       </div>
 
       {/* Footer */}
-      <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ padding: '9px 12px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button
           onClick={dismissChecklist}
-          style={{ fontSize: 11, color: '#3f3f46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          style={{ ...activitySubtleTextStyle, color: '#52525b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
           Already familiar, don&apos;t show again
         </button>
         <button
           onClick={resetWelcome}
-          style={{ fontSize: 11, color: '#3f3f46', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          style={{ ...activitySubtleTextStyle, color: '#52525b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
         >
           Watch intro again
         </button>

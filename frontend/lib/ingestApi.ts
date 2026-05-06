@@ -100,6 +100,7 @@ export interface FileIngestParams {
   mode?: IngestMode;
   ruleId?: number;
   path?: string;
+  parentPath?: string;
   jsonPath?: string;
 }
 
@@ -236,8 +237,9 @@ export async function submitFileIngest(
   if (params.ruleId !== undefined) {
     formData.append('rule_id', params.ruleId.toString());
   }
-  if (params.path !== undefined) {
-    formData.append('path', params.path);
+  const parentPath = params.parentPath ?? params.path;
+  if (parentPath !== undefined) {
+    formData.append('parent_path', parentPath);
   }
   if (params.jsonPath !== undefined) {
     formData.append('json_path', params.jsonPath);
