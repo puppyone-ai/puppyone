@@ -1,14 +1,33 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import { getNodeTypeConfig, getSyncSource, getSyncSourceIcon, isSyncedType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import type { ContentType } from '../views/GridView';
+import type { FileImportTarget } from '../../hooks/useFileImport';
 import { ensureExpanded, toggleExpanded, useIsExpanded } from './explorerState';
 import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
+
+const FILE_DROP_TARGET_BG = 'rgba(255, 255, 255, 0.11)';
+const FILE_DROP_SCOPE_BG = 'rgba(255, 255, 255, 0.04)';
+const FILE_DROP_TARGET_BORDER = 'rgba(255, 255, 255, 0.24)';
+const FILE_DROP_SCOPE_BORDER = 'rgba(255, 255, 255, 0.12)';
+
+function hasExternalFiles(event: ReactDragEvent): boolean {
+  return Array.from(event.dataTransfer.types).includes('Files');
+}
+
+function getParentFileDropTarget(item: MillerColumnItem): FileImportTarget {
+  if (!item.id.includes('/')) return { path: null, name: 'Root' };
+  const parentPath = item.id.split('/').slice(0, -1).join('/');
+  return {
+    path: parentPath,
+    name: parentPath.split('/').pop() || 'Root',
+  };
+}
 
 export const FolderIcon = ({ expanded }: { expanded?: boolean }) => {
   if (expanded) {
@@ -127,12 +146,16 @@ interface ExplorerTreeRowProps {
   endpointByNodeId?: ExplorerSidebarProps['endpointByNodeId'];
   onRename?: ExplorerSidebarProps['onRename'];
   onDelete?: ExplorerSidebarProps['onDelete'];
+  onDownload?: ExplorerSidebarProps['onDownload'];
+  onFilesDrop?: ExplorerSidebarProps['onFilesDrop'];
   onMoveNode?: ExplorerSidebarProps['onMoveNode'];
   activeSyncNodeId?: string | null;
   highlightNodeId?: string | null;
   highlightVariant?: ExplorerSidebarProps['highlightVariant'];
   createMenuOpenForId?: string | null;
   createMenuOpenAction?: ExplorerSidebarProps['createMenuOpenAction'];
+  activeFileDropTargetPath?: string | null;
+  onFileDragTarget?: (target: FileImportTarget | null) => void;
 }
 
 export const ExplorerTreeRow = memo(function ExplorerTreeRow({
@@ -148,12 +171,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   endpointByNodeId,
   onRename,
   onDelete,
+  onDownload,
+  onFilesDrop,
   onMoveNode,
   activeSyncNodeId,
   highlightNodeId,
   highlightVariant = 'default',
   createMenuOpenForId,
   createMenuOpenAction,
+  activeFileDropTargetPath,
+  onFileDragTarget,
 }: ExplorerTreeRowProps) {
   const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
   const isSynced = item.is_synced;
@@ -170,6 +197,9 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
     onMoveNode,
     disabled: !isFolder,
   });
+  const fileDropTarget = isFolder
+    ? { path: item.id, name: item.name }
+    : getParentFileDropTarget(item);
 
   useEffect(() => {
     if (isHighlighted && rowRef.current) {
@@ -205,9 +235,14 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const rowPaddingLeft = 8 + depth * 16;
   const childTextPadding = rowPaddingLeft + 22;
   const isAccessPointHighlight = isHighlighted && highlightVariant === 'access-point';
-  const hasSpecialBg = isDropTarget || isHighlighted || isRowActive || isAnyCreateMenuOpen;
-  const staticBg = isDropTarget
-    ? 'rgba(59, 130, 246, 0.2)'
+  const isFileDropTarget = isFolder && activeFileDropTargetPath === item.id;
+  const isInsideActiveFileDropScope =
+    !!activeFileDropTargetPath && item.id.startsWith(`${activeFileDropTargetPath}/`);
+  const hasSpecialBg = isDropTarget || isFileDropTarget || isInsideActiveFileDropScope || isHighlighted || isRowActive || isAnyCreateMenuOpen;
+  const staticBg = isDropTarget || isFileDropTarget
+    ? FILE_DROP_TARGET_BG
+    : isInsideActiveFileDropScope
+      ? FILE_DROP_SCOPE_BG
     : isHighlighted
       ? isAccessPointHighlight
         ? 'rgba(52, 211, 153, 0.14)'
@@ -215,8 +250,8 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       : isRowActive || isAnyCreateMenuOpen
         ? '#2a2a2a'
         : 'transparent';
-  const staticColor = isDropTarget
-    ? '#93c5fd'
+  const staticColor = isDropTarget || isFileDropTarget
+    ? '#f4f4f5'
     : isAccessPointHighlight
       ? '#d1fae5'
     : isRowActive || isAnyCreateMenuOpen
@@ -239,7 +274,29 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
     [children],
   );
 
-  const hasActions = !!(onCreate || onCreateSync || onRename || onDelete);
+  const hasActions = !!(onCreate || onCreateSync || onRename || onDelete || onDownload);
+
+  const activateFileDropTarget = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasExternalFiles(event)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+    onFileDragTarget?.(fileDropTarget);
+    return true;
+  }, [fileDropTarget, onFileDragTarget]);
+
+  const handleExternalFileDrop = useCallback((event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasExternalFiles(event)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) {
+      onFilesDrop?.(files, fileDropTarget);
+    }
+    onFileDragTarget?.(null);
+    return true;
+  }, [fileDropTarget, onFileDragTarget, onFilesDrop]);
 
   return (
     <div>
@@ -261,9 +318,20 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               parentId: item.id.includes('/') ? item.id.split('/').slice(0, -1).join('/') : null,
             }),
           );
-          e.dataTransfer.effectAllowed = 'copyMove';
+          e.dataTransfer.effectAllowed = 'move';
         }}
-        {...dropHandlers}
+        onDragEnter={(e) => {
+          if (!activateFileDropTarget(e)) dropHandlers.onDragEnter(e);
+        }}
+        onDragOver={(e) => {
+          if (!activateFileDropTarget(e)) dropHandlers.onDragOver(e);
+        }}
+        onDragLeave={(e) => {
+          dropHandlers.onDragLeave(e);
+        }}
+        onDrop={(e) => {
+          if (!handleExternalFileDrop(e)) dropHandlers.onDrop(e);
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -276,8 +344,10 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
           fontSize: 13,
           userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
-          boxShadow: isDropTarget
-            ? 'inset 3px 0 0 0 rgba(59, 130, 246, 0.7)'
+          boxShadow: isDropTarget || isFileDropTarget
+            ? `inset 0 0 0 1px ${FILE_DROP_TARGET_BORDER}`
+            : isInsideActiveFileDropScope
+              ? `inset 1px 0 0 0 ${FILE_DROP_SCOPE_BORDER}`
             : isAccessPointHighlight
               ? 'inset 2px 0 0 0 rgba(52, 211, 153, 0.9)'
               : 'none',
@@ -427,6 +497,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               onOpenAccess={onOpenAccess}
               onRename={onRename}
               onDelete={onDelete}
+              onDownload={onDownload}
             />
           )}
         </div>
@@ -491,12 +562,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 endpointByNodeId={endpointByNodeId}
                 onRename={onRename}
                 onDelete={onDelete}
+                onDownload={onDownload}
+              onFilesDrop={onFilesDrop}
                 onMoveNode={onMoveNode}
                 activeSyncNodeId={activeSyncNodeId}
                 highlightNodeId={highlightNodeId}
                 highlightVariant={highlightVariant}
                 createMenuOpenForId={createMenuOpenForId}
                 createMenuOpenAction={createMenuOpenAction}
+                activeFileDropTargetPath={activeFileDropTargetPath}
+                onFileDragTarget={onFileDragTarget}
               />
             ))
           ) : !loading ? (

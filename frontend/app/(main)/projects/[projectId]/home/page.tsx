@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
-import { treeList, getProjectHistory } from '@/lib/contentTreeApi';
+import { treeList, getProjectHistory, sortNodes } from '@/lib/contentTreeApi';
 import { listScopes, listConnectors } from '@/lib/repoApi';
 
 import { T } from './lib/tokens';
@@ -216,16 +216,13 @@ export default function HomePage({
     if (connections.length > 0) completeStep('access_point');
   }, [dashboard, connections.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Tree shaped from the flat treeList response.  Folders sort first,
-  // then alphabetical — same order the data explorer uses, so a user
-  // jumping between Home and Data sees the same arrangement.
+  // Tree shaped from the flat treeList response.  Order comes from the
+  // shared `sortNodes` helper so Home and Data show the same arrangement
+  // and any future tweak to the canonical order (mtime, type-priority,
+  // user preference, …) lives in one place.
   const tree = useMemo<TreeNode[]>(() => {
     const entries = treeEntries || [];
-    const sorted = [...entries].sort((a, b) => {
-      if (a.type === 'folder' && b.type !== 'folder') return -1;
-      if (a.type !== 'folder' && b.type === 'folder') return 1;
-      return a.name.localeCompare(b.name);
-    });
+    const sorted = sortNodes(entries);
 
     const nodeMap = new Map<string, TreeNode>();
     const roots: TreeNode[] = [];
@@ -468,8 +465,8 @@ export default function HomePage({
           other top-level page in /(main). */}
       <div
         style={{
-          height: 40,
-          minHeight: 40,
+          height: 46,
+          minHeight: 46,
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',

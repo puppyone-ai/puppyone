@@ -149,6 +149,58 @@ export function entryToNodeInfo(entry: TreeEntry, projectId: string): NodeInfo {
 
 // === Helper Functions ===
 
+const nodeNameCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+});
+
+const nodeNameTieBreakerCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'variant',
+});
+
+/**
+ * Canonical UI ordering for a list of nodes: folders first, then natural
+ * name sort (case-insensitive and locale-aware) with a deterministic
+ * tie-breaker for names that only differ by case/diacritics.
+ *
+ * Why this lives in the frontend and not the backend: presentation order is a
+ * UI concern. Different read paths in the backend (`/ls`, `/tree`) historically
+ * applied different sorts, and downstream consumers of `MutTreeReader`
+ * (zipstream download, search indexing, sandbox listing) shouldn't be forced
+ * into the file-explorer's "folders first" convention. Normalizing here means:
+ *   1. The sidebar shows the same order regardless of which endpoint
+ *      (`useShallowTree` via `/tree` or `useContentNodes` via `/ls`)
+ *      populated the SWR cache — no more visible reshuffling when the cache
+ *      gets replaced as the user clicks around.
+ *   2. The backend can keep returning whatever stable order it likes; we're
+ *      defensive against backend changes.
+ *   3. If we ever need user-configurable sorts (by mtime, size, etc.) it's
+ *      a one-place change here, not a cross-cutting backend rewrite.
+ *
+ * `Intl.Collator` (over `<`) handles unicode names correctly (CJK, accented
+ * chars), and `numeric: true` gives file-explorer-style natural sorting
+ * (`file2.md` before `file10.md`).
+ */
+export function sortNodes<T extends { type: string; name: string; path?: string }>(nodes: T[]): T[] {
+  return [...nodes].sort((a, b) => {
+    const aFolder = a.type === 'folder';
+    const bFolder = b.type === 'folder';
+    if (aFolder !== bFolder) return aFolder ? -1 : 1;
+
+    const primary = nodeNameCollator.compare(a.name, b.name);
+    if (primary !== 0) return primary;
+
+    const tieBreaker = nodeNameTieBreakerCollator.compare(a.name, b.name);
+    if (tieBreaker !== 0) return tieBreaker;
+
+    return (a.path ?? a.name).localeCompare(b.path ?? b.name, undefined, {
+      numeric: true,
+      sensitivity: 'variant',
+    });
+  });
+}
+
 export function isFolder(node: { type: string }): boolean {
   return node.type === 'folder';
 }
@@ -232,6 +284,57 @@ export async function fetchRawBlob(
   );
   if (!res.ok) throw new Error(`Failed to fetch raw file: ${res.status}`);
   return res.blob();
+}
+
+/**
+ * Trigger a browser-native download for a file or folder.
+ *
+ * Two-step flow (see `mut_engine/routers/_download_token.py` for the
+ * server-side rationale):
+ *   1. POST `/download/sign` with our Bearer token → server returns a
+ *      pre-signed URL with an HMAC token in the query string (5 min TTL).
+ *   2. Navigate to that URL in a hidden `<a download>` click. The browser
+ *      opens it as a normal top-level download — its native download
+ *      manager picks up the `Content-Disposition: attachment` response
+ *      and shows real-time byte progress, pause/cancel, "Show in Finder",
+ *      etc. None of which we'd get if we did `fetch → blob → anchor`.
+ *
+ * Returns once the download has been *initiated* (not when the browser
+ * finishes). Caller can show a "Preparing…" toast until this resolves
+ * and then dismiss it — the browser owns the rest of the UX.
+ */
+export async function downloadNode(
+  projectId: string,
+  path: string
+): Promise<void> {
+  const signed = await treeRequest<{ url: string; expires_at: number }>(
+    `/api/v1/content/${projectId}/download/sign`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    }
+  );
+
+  // Build the absolute URL — the server returns a relative path so it
+  // works behind any deployment host.
+  const absoluteUrl = signed.url.startsWith('http')
+    ? signed.url
+    : `${API_BASE_URL}${signed.url}`;
+
+  // A hidden `<a download>` click — vs `window.location.assign(url)` —
+  // keeps the user's current page intact (no SPA unmount, no scroll
+  // jump). The browser still opens it as a top-level download because
+  // the response carries `Content-Disposition: attachment`.
+  const a = document.createElement('a');
+  a.href = absoluteUrl;
+  // The `download` attribute hints the file should be saved instead of
+  // navigated to; the actual filename comes from the server's
+  // Content-Disposition header (which handles RFC 5987 UTF-8 names).
+  a.download = '';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 /**

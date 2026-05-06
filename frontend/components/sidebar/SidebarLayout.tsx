@@ -60,6 +60,13 @@ const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
 const DEFAULT_SIDEBAR_WIDTH = 240;
 
+// Brand blue — single source of truth for the workspace identity
+// chip (both the expanded ProjectSwitcher chip and the collapsed
+// sidebar chip). Picked to read as PuppyOne's primary accent against
+// the #121212 / #181818 sidebar surfaces. Keep this in sync with
+// `BRAND_BLUE` in `ProjectSwitcher.tsx`.
+const BRAND_BLUE = '#4599DF';
+
 export function SidebarLayout({
   title,
   context,
@@ -193,39 +200,69 @@ export function SidebarLayout({
         borderRight: '1px solid rgba(255,255,255,0.08)',
       }}
     >
-      {/* Header — 40px row, borderBottom 0.08. Internal padding lives
-          on the workspace switcher button itself (showcase pattern:
-          padding `0 12px` directly on the workspace `<div>`), so the
-          chip sits exactly 12px from the sidebar edge instead of
-          parent-padding-stacked-on-button-padding.
-          The collapse button is absolutely positioned on the right
-          and fades in on header hover; that way it doesn't reserve
-          flex space and the chevron lands at the showcase position
-          (right - 12 - 10 = right - 22). */}
+      {/* Header — 46px row, borderBottom 0.08. Aligns with every
+          page-level header across /(main) (Context / Access / History /
+          Settings / etc.) so the top band reads as one continuous
+          strip across sidebar + main pane.
+          Layout is a single flex row so the workspace switcher and the
+          collapse toggle each get their own slot and never overlap.
+          The collapse button always reserves its slot so the workspace
+          name truncates predictably — no layout shift between
+          rest/hover states, and the two controls are spatially
+          distinct rather than stacked. */}
       <div
-        className='group/header relative'
+        className={clsx(
+          'group/header flex items-center',
+          effectiveCollapsed && 'justify-center'
+        )}
         style={{
-          height: 40,
+          height: 46,
           flexShrink: 0,
           borderBottom: '1px solid rgba(255,255,255,0.08)',
           boxSizing: 'border-box',
         }}
       >
         {effectiveCollapsed ? (
+          // Collapsed identity chip — context-aware:
+          //   • In a project: the cyan brand-blue chip with the
+          //     workspace's first letter (mirrors the expanded
+          //     trigger glyph 1:1 so collapsing doesn't change
+          //     identity).
+          //   • In org/global view: the puppyone brand mark.
+          // On hover the chip morphs into the "expand sidebar"
+          // affordance (panel-open icon) — same hover-to-reveal
+          // pattern used by the collapse button on the right.
           <button
             type='button'
-            className='group relative mx-auto mt-[4px] flex h-8 w-8 items-center justify-center rounded-[5px] transition-colors duration-150 hover:bg-white/8'
+            className='group flex h-9 w-9 items-center justify-center rounded-[6px] transition-colors duration-150 hover:bg-white/[0.06]'
             onClick={() => handleCollapsedChange(false)}
             title={t('expand')}
             aria-label={t('expand')}
           >
-            <img
-              className='block group-hover:hidden rounded-[4px]'
-              src='/puppyone-logo.svg'
-              alt='puppyone'
-              width={20}
-              height={20}
-            />
+            <span className='block group-hover:hidden'>
+              {context === 'project' ? (
+                <span
+                  aria-hidden
+                  className='flex h-[22px] w-[22px] items-center justify-center rounded-[5px] text-[11px] font-bold uppercase text-white'
+                  style={{
+                    background: BRAND_BLUE,
+                    fontFamily:
+                      'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    letterSpacing: 0,
+                  }}
+                >
+                  {(title?.[0] || '?').toUpperCase()}
+                </span>
+              ) : (
+                <img
+                  src='/puppyone-logo.svg'
+                  alt=''
+                  width={22}
+                  height={22}
+                  className='rounded-[4px]'
+                />
+              )}
+            </span>
             <svg
               className='hidden text-[#9ca3af] group-hover:block'
               width='16'
@@ -242,8 +279,8 @@ export function SidebarLayout({
             </svg>
           </button>
         ) : (
-          <>
-            {/* Project Switcher — fills the full 40px row. */}
+          <div className='flex h-full w-full items-center gap-1 pl-2 pr-1'>
+            {/* Workspace switcher — flexible slot, truncates first */}
             {onSelectProject && onGoHome ? (
               <ProjectSwitcher
                 currentProject={
@@ -260,20 +297,7 @@ export function SidebarLayout({
                 onHoverProject={onHoverProject}
               />
             ) : (
-              // Fallback: simple title display, identical padding to
-              // the workspace switcher button so the chip lands at
-              // the same x-coordinate.
-              <div
-                style={{
-                  height: 40,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '0 12px',
-                  overflow: 'hidden',
-                  boxSizing: 'border-box',
-                }}
-              >
+              <div className='flex min-w-0 flex-1 items-center gap-2 px-1'>
                 <img
                   src='/puppyone-logo.svg'
                   alt='puppyone'
@@ -281,23 +305,22 @@ export function SidebarLayout({
                   height={18}
                   className='flex-shrink-0 rounded-[4px]'
                 />
-                <span className='text-[12.5px] font-medium text-[#fafafa] truncate'>
+                <span className='truncate text-[12.5px] font-medium text-[#fafafa]'>
                   {title}
                 </span>
               </div>
             )}
 
-            {/* Collapse button — absolutely placed on the right so
-                it doesn't take a flex slot. Fades in on header hover
-                and overlaps the chevron's area; we hide the chevron
-                via `group-hover/header:opacity-0` inside the
-                ProjectSwitcher to avoid the two stacking. */}
+            {/* Collapse toggle — dedicated 28×28 slot at the right.
+                Always rendered (so layout is stable + control is
+                discoverable via keyboard), but visually fades in on
+                header hover to keep the rest state quiet. */}
             <button
               type='button'
               onClick={() => handleCollapsedChange(true)}
               title={t('collapse')}
               aria-label={t('collapse')}
-              className='absolute right-1 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-[5px] text-[#6b7280] opacity-0 transition-[opacity,colors,background] duration-150 group-hover/header:opacity-100 hover:bg-white/[0.06] hover:text-[#fafafa]'
+              className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] opacity-0 transition-opacity duration-150 hover:bg-white/[0.06] hover:text-[#fafafa] group-hover/header:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20'
             >
               <svg
                 width='14'
@@ -313,7 +336,7 @@ export function SidebarLayout({
                 <line x1='9' y1='3' x2='9' y2='21' />
               </svg>
             </button>
-          </>
+          </div>
         )}
       </div>
 
@@ -396,13 +419,14 @@ export function SidebarLayout({
         </div>
       )}
 
-      {/* Footer — 40px, hairline divider on top using the same 0.08
-          alpha as every other border in the showcase. The footer
-          carries the workspace stats line (shortId · N commits)
-          which doubles as a "live" indicator via the pulsing dot. */}
+      {/* Footer — 46px to match the header (and every page-level
+          header across /(main)). Hairline divider on top using the
+          same 0.08 alpha as every other border. Footer carries the
+          workspace stats line (shortId · N commits) which doubles as
+          a "live" indicator via the pulsing dot. */}
       <div
         className={clsx(
-          'flex h-10 flex-shrink-0 items-center',
+          'flex h-[46px] flex-shrink-0 items-center',
           effectiveCollapsed ? 'justify-center px-2' : 'justify-between px-3'
         )}
         style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}

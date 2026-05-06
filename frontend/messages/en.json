@@ -28,7 +28,10 @@
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
     "guide": "Getting started guide",
-    "accountSettings": "Account settings"
+    "accountSettings": "Account settings",
+    "goToOrganization": "Go to organization",
+    "projects": "Projects",
+    "noProjects": "No projects yet"
   },
   "home": {
     "title": "Projects",

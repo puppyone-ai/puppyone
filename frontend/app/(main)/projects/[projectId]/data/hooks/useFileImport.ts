@@ -9,59 +9,28 @@ import {
 } from '@/components/BackgroundTaskNotifier';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
 
+export type FileImportTarget = {
+  path: string | null;
+  name: string;
+};
+
+const ROOT_IMPORT_TARGET: FileImportTarget = { path: null, name: 'Root' };
+
 export function useFileImport(
   projectId: string,
-  currentFolderId: string | null,
   accessToken: string | undefined,
 ) {
-  const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const [fileImportDialogOpen, setFileImportDialogOpen] = useState(false);
   const [droppedFiles, setDroppedFiles] = useState<File[]>([]);
-  const dragCounterRef = useRef(0);
+  const [fileImportTarget, setFileImportTarget] = useState<FileImportTarget>(ROOT_IMPORT_TARGET);
+  const latestTargetRef = useRef<FileImportTarget>(ROOT_IMPORT_TARGET);
 
-  const handleGlobalDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current++;
-    if (e.dataTransfer.types.includes('Files')) {
-      setIsDraggingFiles(true);
-    }
-  }, []);
-
-  const handleGlobalDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current--;
-    if (dragCounterRef.current <= 0) {
-      dragCounterRef.current = 0;
-      setIsDraggingFiles(false);
-    }
-  }, []);
-
-  const handleGlobalDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('Files')) {
-      e.preventDefault();
-    }
-    e.stopPropagation();
-  }, []);
-
-  const handleGlobalDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounterRef.current = 0;
-    setIsDraggingFiles(false);
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      setDroppedFiles(files);
-      setFileImportDialogOpen(true);
-    }
-  }, []);
-
-  const handleFileImportConfirm = useCallback(async (importFiles: File[], mode: 'ocr_parse' | 'raw') => {
-    setFileImportDialogOpen(false);
-    setDroppedFiles([]);
+  const uploadFilesToTarget = useCallback(async (
+    importFiles: File[],
+    target: FileImportTarget,
+  ) => {
     if (importFiles.length === 0) return;
-
+    const targetPath = target.path?.trim() || undefined;
     const baseTimestamp = Date.now();
     const placeholderGroupId = `upload-${baseTimestamp}`;
     const placeholderTasks = importFiles.map((file, index) => ({
@@ -78,7 +47,9 @@ export function useFileImport(
     try {
       if (!accessToken) throw new Error('Not authenticated');
       const response = await uploadAndSubmit(
-        { projectId, files: importFiles, mode, parentId: currentFolderId ?? undefined },
+        // Sidebar drag/drop is filesystem-like: files are stored as-is.
+        // OCR/Smart Parse is intentionally out of this flow for now.
+        { projectId, files: importFiles, mode: 'raw', parentPath: targetPath },
         accessToken,
       );
 
@@ -106,21 +77,35 @@ export function useFileImport(
     } catch (err) {
       console.error('File import failed:', err);
     }
-  }, [projectId, currentFolderId, accessToken]);
+  }, [projectId, accessToken]);
+
+  const openFileImportForTarget = useCallback((files: File[], target: FileImportTarget) => {
+    const normalizedTarget = target.path ? target : ROOT_IMPORT_TARGET;
+    setFileImportTarget(normalizedTarget);
+    latestTargetRef.current = normalizedTarget;
+    // Best-practice sidebar drop: dropping a local file into a folder is
+    // an immediate raw upload, not a modal-driven OCR decision.
+    void uploadFilesToTarget(files, normalizedTarget);
+  }, [uploadFilesToTarget]);
+
+  const handleFileImportConfirm = useCallback(async (importFiles: File[], _mode: 'ocr_parse' | 'raw') => {
+    setFileImportDialogOpen(false);
+    setDroppedFiles([]);
+    await uploadFilesToTarget(importFiles, latestTargetRef.current);
+  }, [uploadFilesToTarget]);
 
   const closeFileImportDialog = useCallback(() => {
     setFileImportDialogOpen(false);
     setDroppedFiles([]);
+    setFileImportTarget(ROOT_IMPORT_TARGET);
+    latestTargetRef.current = ROOT_IMPORT_TARGET;
   }, []);
 
   return {
-    isDraggingFiles,
     fileImportDialogOpen,
+    fileImportTarget,
     droppedFiles,
-    handleGlobalDragEnter,
-    handleGlobalDragLeave,
-    handleGlobalDragOver,
-    handleGlobalDrop,
+    openFileImportForTarget,
     handleFileImportConfirm,
     closeFileImportDialog,
   };

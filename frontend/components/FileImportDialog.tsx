@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { getETLHealth } from '@/lib/etlApi';
 
 interface FileImportDialogProps {
   isOpen: boolean;
@@ -10,28 +9,23 @@ interface FileImportDialogProps {
   onConfirm: (files: File[], mode: 'ocr_parse' | 'raw') => void;
   /** 预先选中的文件（可选） */
   initialFiles?: File[];
+  /** Display label for the upload destination folder. */
+  targetLabel?: string;
 }
-
-type ProcessingMode = 'smart' | 'raw';
 
 /**
  * 统一的文件导入对话框
- * 
- * 将拖放文件和模式选择合并到同一个界面：
- * 1. 用户拖放/选择文件
- * 2. 选择处理模式
- * 3. 点击导入
+ *
+ * OCR/Smart Parse is temporarily hidden. File imports are stored as-is.
  */
 export function FileImportDialog({
   isOpen,
   onClose,
   onConfirm,
   initialFiles,
+  targetLabel = 'Root',
 }: FileImportDialogProps) {
   const [files, setFiles] = useState<File[]>(initialFiles || []);
-  const [mode, setMode] = useState<ProcessingMode>('smart');
-  const [workerOnline, setWorkerOnline] = useState<boolean | null>(null);
-  const [checking, setChecking] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -65,37 +59,12 @@ export function FileImportDialog({
     return { textCount, binaryCount, extensions: Array.from(extensions) };
   }, [files]);
 
-  // 检查 Worker 状态
-  useEffect(() => {
-    if (isOpen) {
-      setChecking(true);
-      getETLHealth()
-        .then(health => {
-          const isOnline = health.file_worker.worker_count > 0;
-          setWorkerOnline(isOnline);
-          
-          // Worker 离线时自动切换到 Raw 模式
-          if (!isOnline && fileStats.binaryCount > 0) {
-            setMode('raw');
-          }
-        })
-        .catch(() => {
-          setWorkerOnline(false);
-          if (fileStats.binaryCount > 0) {
-            setMode('raw');
-          }
-        })
-        .finally(() => setChecking(false));
-    }
-  }, [isOpen, fileStats.binaryCount]);
-
   // 重置状态
   useEffect(() => {
     if (!isOpen) {
       if (!initialFiles) {
         setFiles([]);
       }
-      setMode('smart');
       setIsDragging(false);
     }
   }, [isOpen, initialFiles]);
@@ -150,10 +119,8 @@ export function FileImportDialog({
 
   const handleConfirm = useCallback(() => {
     if (files.length === 0) return;
-    // 映射 mode: smart -> ocr_parse
-    const backendMode = mode === 'smart' ? 'ocr_parse' : 'raw';
-    onConfirm(files, backendMode);
-  }, [files, mode, onConfirm]);
+    onConfirm(files, 'raw');
+  }, [files, onConfirm]);
 
   if (!isOpen) return null;
 
@@ -203,8 +170,29 @@ export function FileImportDialog({
             Import Files
           </h2>
           <p style={{ margin: '6px 0 0', fontSize: 13, color: '#71717a' }}>
-            Drag & drop files, then choose how to process them
+            Files are stored as-is in your context tree
           </p>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 10,
+              padding: '4px 8px',
+              borderRadius: 6,
+              background: 'rgba(69, 153, 223, 0.12)',
+              border: '1px solid rgba(69, 153, 223, 0.22)',
+              color: '#93c5fd',
+              fontSize: 12,
+              fontWeight: 500,
+              maxWidth: '100%',
+            }}
+          >
+            <span style={{ color: '#71717a' }}>Import to</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {targetLabel}
+            </span>
+          </div>
         </div>
 
         {/* Content */}
@@ -356,101 +344,6 @@ export function FileImportDialog({
             </div>
           )}
 
-          {/* Processing Mode Selection */}
-          {files.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ 
-                display: 'block', 
-                fontSize: 13, 
-                fontWeight: 500, 
-                marginBottom: 10, 
-                color: '#d4d4d8' 
-              }}>
-                Processing Mode
-              </label>
-
-              <div style={{ display: 'flex', gap: 10 }}>
-                {/* Smart Parse */}
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (workerOnline !== false) setMode('smart');
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: 14,
-                    borderRadius: 8,
-                    border: `1px solid ${mode === 'smart' ? '#3b82f6' : '#3f3f46'}`,
-                    background: mode === 'smart' ? 'rgba(59, 130, 246, 0.1)' : '#18181b',
-                    cursor: workerOnline === false ? 'not-allowed' : 'pointer',
-                    opacity: workerOnline === false ? 0.5 : 1,
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{
-                      width: 18, height: 18, borderRadius: '50%',
-                      border: `2px solid ${mode === 'smart' ? '#3b82f6' : '#52525b'}`,
-                      background: mode === 'smart' ? '#3b82f6' : 'transparent',
-                      marginRight: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      {mode === 'smart' && (
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                          <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>Smart Parse</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.4, paddingLeft: 28 }}>
-                    OCR for PDFs & images
-                  </div>
-                </div>
-
-                {/* Raw Storage */}
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMode('raw');
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: 14,
-                    borderRadius: 8,
-                    border: `1px solid ${mode === 'raw' ? '#3b82f6' : '#3f3f46'}`,
-                    background: mode === 'raw' ? 'rgba(59, 130, 246, 0.1)' : '#18181b',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{
-                      width: 18, height: 18, borderRadius: '50%',
-                      border: `2px solid ${mode === 'raw' ? '#3b82f6' : '#52525b'}`,
-                      background: mode === 'raw' ? '#3b82f6' : 'transparent',
-                      marginRight: 10,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}>
-                      {mode === 'raw' && (
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                          <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      )}
-                    </div>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>Raw Storage</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.4, paddingLeft: 28 }}>
-                    Store files as-is, faster
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
@@ -462,21 +355,19 @@ export function FileImportDialog({
           justifyContent: 'space-between',
           flexShrink: 0,
         }}>
-          {/* Worker Status */}
+          {/* Upload Status */}
           <div style={{ 
             display: 'flex', 
             alignItems: 'center', 
             fontSize: 12, 
-            color: workerOnline ? '#22c55e' : (workerOnline === false ? '#71717a' : '#71717a'),
+            color: '#a1a1aa',
           }}>
             <div style={{ 
               width: 6, height: 6, borderRadius: '50%', 
-              background: workerOnline ? '#22c55e' : (workerOnline === false ? '#ef4444' : '#52525b'),
+              background: '#71717a',
               marginRight: 6,
             }} />
-            {checking ? 'Checking...' : (
-              workerOnline ? 'OCR Ready' : (workerOnline === false ? 'OCR Unavailable' : '')
-            )}
+            Raw upload
           </div>
 
           {/* Actions */}
@@ -498,14 +389,14 @@ export function FileImportDialog({
             </button>
             <button
               onClick={handleConfirm}
-              disabled={files.length === 0 || checking}
+              disabled={files.length === 0}
               style={{
                 padding: '8px 20px',
                 borderRadius: 6,
                 border: 'none',
                 background: files.length > 0 ? '#3b82f6' : '#27272a',
                 color: files.length > 0 ? '#fff' : '#52525b',
-                cursor: files.length > 0 && !checking ? 'pointer' : 'not-allowed',
+                cursor: files.length > 0 ? 'pointer' : 'not-allowed',
                 fontSize: 13,
                 fontWeight: 600,
                 transition: 'all 0.15s',

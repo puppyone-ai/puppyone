@@ -12,6 +12,12 @@ import {
   PendingTask,
   TaskType,
 } from './BackgroundTaskNotifier';
+import {
+  activityCardStyle,
+  activityHeaderStyle,
+  activityTitleStyle,
+} from './activityStyles';
+import { ActivityIconButton } from './ActivityIconButton';
 
 interface TaskWithStatus extends PendingTask {
   displayStatus: ETLTaskStatus['status'] | 'uploading' | 'downloading' | 'extracting' | 'creating_nodes';
@@ -86,10 +92,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
   // Position styles based on inline prop
   const containerStyle: React.CSSProperties = inline
     ? {
-        position: 'absolute',
-        bottom: 12,
-        right: 12,
-        zIndex: 30,
+        position: 'relative',
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }
     : {
@@ -116,14 +119,15 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
           style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            width: 36,
-            height: 36,
-            background: '#1e1e22',
-            border: `1px solid ${processingCount > 0 ? '#1e40af' : failedCount > 0 ? '#7f1d1d' : '#166534'}`,
-            borderRadius: '50%',
+          gap: 10,
+          width: 300,
+          minHeight: 44,
+          padding: '8px 12px',
+          background: '#1e1e22',
+          border: '1px solid rgba(255,255,255,0.11)',
+          borderRadius: 10,
             cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.42)',
             position: 'relative',
           }}
         >
@@ -166,56 +170,21 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
             </svg>
           )}
 
-          {/* 数量角标 */}
-          <span
-            style={{
-              position: 'absolute',
-              top: -4,
-              right: -4,
-              minWidth: 16,
-              height: 16,
-              background:
-                failedCount > 0
-                  ? '#dc2626'
-                  : processingCount > 0
-                    ? '#2563eb'
-                    : '#16a34a',
-              color: 'white',
-              borderRadius: 8,
-              fontSize: 10,
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 4px',
-            }}
-          >
-            {tasks.length}
+          <span style={{ ...activityTitleStyle, flex: 1, textAlign: 'left' }}>
+            {processingCount > 0 ? `${processingCount} processing` : 'Done'}
+          </span>
+          <span style={{ color: '#71717a', fontSize: 11 }}>
+            {tasks.length} {tasks.length === 1 ? 'item' : 'items'}
           </span>
         </button>
       ) : (
         /* 展开状态 */
-        <div
-          style={{
-            width: 260,
-            background: '#1e1e22',
-            border: '1px solid #333',
-            borderRadius: 8,
-            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.4)',
-            overflow: 'hidden',
-          }}
-        >
+        <div style={activityCardStyle}>
           {/* 头部 */}
           <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '8px 10px',
-              borderBottom: '1px solid #333',
-            }}
+            style={activityHeaderStyle}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               {processingCount > 0 ? (
                 <svg
                   width='12'
@@ -245,60 +214,28 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
                   />
                 </svg>
               )}
-              <span style={{ color: '#e2e8f0', fontSize: 11, fontWeight: 500 }}>
+              <span style={activityTitleStyle}>
                 {processingCount > 0 ? `${processingCount} processing` : 'Done'}
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
               {/* 收起按钮 */}
-              <button
+              <ActivityIconButton
+                kind="minimize"
+                title="Minimize"
                 onClick={() => setIsExpanded(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 4,
-                  cursor: 'pointer',
-                  color: '#6b7280',
-                  display: 'flex',
-                }}
-                title='Minimize'
-              >
-                <svg width='10' height='10' viewBox='0 0 12 12' fill='none'>
-                  <path
-                    d='M2 6h8'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                    strokeLinecap='round'
-                  />
-                </svg>
-              </button>
+              />
               {/* 清空按钮 */}
-              <button
+              <ActivityIconButton
+                kind="close"
+                title="Clear"
                 onClick={handleClear}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 4,
-                  cursor: 'pointer',
-                  color: '#6b7280',
-                  display: 'flex',
-                }}
-                title='Clear'
-              >
-                <svg width='10' height='10' viewBox='0 0 12 12' fill='none'>
-                  <path
-                    d='M2 2L10 10M10 2L2 10'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                    strokeLinecap='round'
-                  />
-                </svg>
-              </button>
+              />
             </div>
           </div>
 
           {/* 任务列表 - 简化版，无底部统计 */}
-          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {tasks.map(task => (
               <TaskRow key={task.taskId} task={task} />
             ))}
@@ -387,8 +324,8 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '8px 12px',
-        borderBottom: '1px solid #2a2a2e',
+        padding: '9px 12px',
+        borderBottom: '1px solid rgba(255,255,255,0.07)',
       }}
     >
       {/* 状态图标 */}
@@ -452,8 +389,9 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            color: '#e2e8f0',
-            fontSize: 12,
+            color: '#e4e4e7',
+            fontSize: 13,
+            lineHeight: '18px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -461,7 +399,7 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
         >
           {task.filename}
         </div>
-        <div style={{ color: getStatusColor(), fontSize: 10, marginTop: 2 }}>
+        <div style={{ color: getStatusColor(), fontSize: 11, lineHeight: '16px', marginTop: 1 }}>
           {isSaasTask ? getSaasStatusText(task.displayStatus) : getStatusDisplayText(task.displayStatus as ETLTaskStatus['status'] | 'uploading')}
         </div>
       </div>

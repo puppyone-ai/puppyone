@@ -677,7 +677,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
       
       {/* Header */}
       <div style={{ 
-        height: 40, minHeight: 40, borderBottom: '1px solid rgba(255,255,255,0.1)', 
+        height: 46, minHeight: 46, borderBottom: '1px solid rgba(255,255,255,0.1)', 
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#0e0e0e', flexShrink: 0 
       }}>
         <h1 style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif', fontSize: 13, fontWeight: 500, color: '#CDCDCD', margin: 0 }}>Toolkit</h1>

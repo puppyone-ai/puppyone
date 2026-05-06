@@ -93,6 +93,11 @@ async def submit_file_ingest(
     mode: str = Form("ocr_parse", description="Processing mode: raw | ocr_parse"),
     rule_id: int | None = Form(None, description="ETL rule ID (for ocr_parse mode)"),
     parent_path: str | None = Form(None, description="Parent directory path for new files"),
+    # Legacy alias kept so older frontend callers that still send
+    # `parent_id` continue to land files in the intended MUT path.
+    # The content tree is path-based, so new callers should use
+    # `parent_path`.
+    parent_id: str | None = Form(None, description="Deprecated alias for parent_path"),
 
     # Dependencies
     etl_service: ETLService = Depends(get_etl_service),
@@ -113,6 +118,8 @@ async def submit_file_ingest(
 
     ops = create_mut_ops()
 
+    target_parent_path = (parent_path or parent_id or "").strip("/")
+
     items: list[IngestSubmitItem] = []
     modified_files: dict[str, bytes] = {}
 
@@ -126,7 +133,11 @@ async def submit_file_ingest(
 
         file_type = classify_file_type(ext)
 
-        file_path = f"{parent_path.strip('/')}/{original_basename}" if parent_path else original_basename
+        file_path = (
+            f"{target_parent_path}/{original_basename}"
+            if target_parent_path
+            else original_basename
+        )
 
         try:
             if file_type == "json":

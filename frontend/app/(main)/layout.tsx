@@ -10,17 +10,13 @@ import { OrganizationProvider, useOrganization } from '@/contexts/OrganizationCo
 import { OnboardingProvider } from '@/contexts/OnboardingContext';
 import { getEnvironmentLabel } from '@/lib/env';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
+import { ActivityStack } from '@/components/ActivityStack';
 
 // Lazy-loaded — don't affect the initial app shell bundle
 const WelcomeModal = dynamic(
   () => import('@/components/onboarding/WelcomeModal').then(m => ({ default: m.WelcomeModal })),
   { ssr: false }
 );
-const GettingStartedPanel = dynamic(
-  () => import('@/components/onboarding/GettingStartedPanel').then(m => ({ default: m.GettingStartedPanel })),
-  { ssr: false }
-);
-
 const MainLayoutInner = memo(function MainLayoutInner({
   children,
 }: {
@@ -78,10 +74,10 @@ const MainLayoutInner = memo(function MainLayoutInner({
         <WelcomeModal onDone={onboarding.completeWelcome} />
       )}
 
-      {/* Getting-started checklist — always rendered after welcome so the mini-button stays accessible */}
-      {onboarding.hasSeenWelcome && (
-        <GettingStartedPanel projectId={activeBaseId || undefined} />
-      )}
+      <ActivityStack
+        showGettingStarted={onboarding.hasSeenWelcome}
+        projectId={activeBaseId || undefined}
+      />
 
       <AppSidebar
         projects={projects}

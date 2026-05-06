@@ -1,5 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import type { ContentType } from '../views/GridView';
+import type { FileImportTarget } from '../../hooks/useFileImport';
 import type { SyncEndpointInfo as DataSyncEndpointInfo } from '../../DataLayoutContext';
 
 export type SyncEndpointInfo = DataSyncEndpointInfo;
@@ -23,6 +24,8 @@ export interface ExplorerSidebarProps {
   onCreate?: (e: MouseEvent<Element>, parentId: string | null) => void;
   onRename?: (id: string, currentName: string) => void;
   onDelete?: (id: string, name: string) => void;
+  onDownload?: (id: string, name: string) => void;
+  onFilesDrop?: (files: File[], target: FileImportTarget) => void;
   onMoveNode?: (
     nodeId: string,
     targetFolderId: string | null,

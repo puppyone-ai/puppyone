@@ -41,7 +41,6 @@ import {
 } from '@/lib/mcpApi';
 
 import { refreshProjects } from '@/lib/hooks/useData';
-import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
 import type { RepoScope } from '@/lib/repoApi';
 import {
   GridView,
@@ -57,7 +56,6 @@ import {
 
 import { useAgent } from '@/contexts/AgentContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
-import { TaskStatusWidget } from '@/components/TaskStatusWidget';
 
 // Extracted hooks
 import { usePathResolver } from '../hooks/usePathResolver';
@@ -170,7 +168,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const { handleMarkdownChange, markdownSaveStatus } = useMarkdownAutoSave(activeNodeId, projectId, setMarkdownContent);
 
-  const fileImport = useFileImport(projectId, currentFolderId, session?.access_token);
+  const fileImport = useFileImport(projectId, session?.access_token);
 
   const nodeActions = useNodeActions(projectId, currentFolderId);
 
@@ -495,60 +493,26 @@ export default function DataPage({ params }: DataPageProps) {
     alert(`Refresh not yet implemented for path: ${path}`);
   };
 
-  // ───── Icons & Breadcrumbs ─────
-
-  const projectIcon = (
-    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#a78bfa' }}>
-      <path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-      <path d='M3.27 6.96L12 12.01l8.73-5.05' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-      <path d='M12 22.08V12' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-    </svg>
-  );
-  const folderIcon = (
-    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#3b82f6' }}>
-      <path d='M2 6C2 4.89543 2.89543 4 4 4H9.17157C9.70201 4 10.2107 4.21071 10.5858 4.58579L12.4142 6.41421C12.7893 6.78929 13.298 7 13.8284 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6Z' fill='currentColor' />
-    </svg>
-  );
-  const tableIcon = (
-    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#34d399' }}>
-      <rect x='3' y='3' width='18' height='18' rx='2' stroke='currentColor' strokeWidth='2' />
-      <path d='M3 9H21' stroke='currentColor' strokeWidth='2' />
-      <path d='M9 21V9' stroke='currentColor' strokeWidth='2' />
-    </svg>
-  );
-  const markdownIcon = (
-    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#60a5fa' }}>
-      <path d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z' stroke='currentColor' strokeWidth='1.5' fill='currentColor' fillOpacity='0.08' />
-      <path d='M14 2V8H20' stroke='currentColor' strokeWidth='1.5' />
-      <path d='M8 13H16' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
-      <path d='M8 17H12' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' />
-    </svg>
-  );
-  const fileIcon = (
-    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#71717a' }}>
-      <path d='M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z' stroke='currentColor' strokeWidth='1.5' />
-      <path d='M14 2V8H20' stroke='currentColor' strokeWidth='1.5' />
-    </svg>
-  );
-  const loadingIcon = (
-    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' style={{ color: '#525252' }}>
-      <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='2' opacity='0.3' />
-      <path d='M12 2a10 10 0 0 1 10 10' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
-        <animateTransform attributeName='transform' type='rotate' from='0 12 12' to='360 12 12' dur='0.8s' repeatCount='indefinite' />
-      </path>
-    </svg>
-  );
+  // ───── Breadcrumbs ─────
+  // Text-only segments. Per design: the page header is just the
+  // address line — no project box, no folder/markdown/file glyphs,
+  // no per-segment color tinting. Type-specific iconography stays in
+  // the file tree (where it's functional for scanning), the header
+  // stays quiet so the user's eye doesn't compete with the workspace
+  // chip on the sidebar.
 
   const pathSegments = useMemo<BreadcrumbSegment[]>(() => {
     const segments: BreadcrumbSegment[] = [];
     const projectName = activeProject?.name || projectId;
     const hasSubContent = path.length > 0 || currentFolderId || activeNodeId;
-    segments.push({ label: projectName, href: hasSubContent ? `/projects/${projectId}/data` : undefined, icon: projectIcon });
+    segments.push({
+      label: projectName,
+      href: hasSubContent ? `/projects/${projectId}/data` : undefined,
+    });
 
     if (isResolvingPath && path.length > 0 && folderBreadcrumbs.length === 0) {
-      path.forEach((_, index) => {
-        const isLast = index === path.length - 1;
-        segments.push({ label: '...', icon: isLast ? loadingIcon : folderIcon });
+      path.forEach(() => {
+        segments.push({ label: '…' });
       });
     } else {
       folderBreadcrumbs.forEach((folder, index) => {
@@ -558,19 +522,16 @@ export default function DataPage({ params }: DataPageProps) {
         segments.push({
           label: folder.name,
           href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
-          icon: folderIcon,
         });
       });
       if (activeNodeId && currentTableData) {
-        const renderAs = getNodeTypeConfig(activeNodeType).renderAs;
-        const nodeIcon = renderAs === 'markdown' ? markdownIcon : ['file', 'image'].includes(renderAs) ? fileIcon : tableIcon;
-        segments.push({ label: currentTableData.name, icon: nodeIcon });
+        segments.push({ label: currentTableData.name });
       } else if (activeNodeId) {
-        segments.push({ label: '...', icon: loadingIcon });
+        segments.push({ label: '…' });
       }
     }
     return segments;
-  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeType, currentTableData, isResolvingPath, path]);
+  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, currentTableData, isResolvingPath, path]);
 
   const configuredAccessPoints = useMemo(() => {
     return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }));
@@ -622,6 +583,7 @@ export default function DataPage({ params }: DataPageProps) {
         onCloseFileImport={fileImport.closeFileImportDialog}
         onFileImportConfirm={fileImport.handleFileImportConfirm}
         droppedFiles={fileImport.droppedFiles}
+        fileImportTargetLabel={fileImport.fileImportTarget.name}
       />
 
       <DataPageOverlays
@@ -653,33 +615,12 @@ export default function DataPage({ params }: DataPageProps) {
        * broke the line into two segments.
        */}
       <div
-        onDragEnter={fileImport.handleGlobalDragEnter}
-        onDragLeave={fileImport.handleGlobalDragLeave}
-        onDragOver={fileImport.handleGlobalDragOver}
-        onDrop={fileImport.handleGlobalDrop}
         style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', overflow: 'hidden' } as React.CSSProperties}
       >
-        {/* File drop overlay */}
-        {fileImport.isDraggingFiles && (
-          <div style={{
-            position: 'absolute', inset: 0, zIndex: 50,
-            background: 'rgba(59, 130, 246, 0.08)', border: '2px dashed #3b82f6', borderRadius: 8,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12,
-            pointerEvents: 'none',
-          }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" opacity="0.8">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" strokeLinecap="round" strokeLinejoin="round" />
-              <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
-              <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
-            </svg>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#3b82f6' }}>Drop files to import</div>
-          </div>
-        )}
-
         {/* Top header bar — spans the full width of <main>, including
             over the ExplorerSidebar column. Renders ONE breadcrumb
             (`Workspace / finance / …`) and the Access points button. */}
-        <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 40 }}>
+        <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 46 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <ProjectsHeader
               pathSegments={pathSegments}
@@ -730,6 +671,8 @@ export default function DataPage({ params }: DataPageProps) {
             endpointByNodeId={nodeEndpointMap}
             onRename={nodeActions.handleRename}
             onDelete={nodeActions.handleDelete}
+            onDownload={nodeActions.handleDownload}
+            onFilesDrop={fileImport.openFileImportForTarget}
             onMoveNode={nodeActions.handleMoveNode}
             activeSyncNodeId={
               panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
@@ -851,8 +794,6 @@ export default function DataPage({ params }: DataPageProps) {
                 )}
               </div>
             )}
-
-            <TaskStatusWidget inline />
           </div>
 
           <BottomBar
