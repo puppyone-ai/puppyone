@@ -1,13 +1,25 @@
 'use client';
 
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import type { DragEvent } from 'react';
 import { useShallowTree } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import type { ContentType } from '../views/GridView';
+import type { FileImportTarget } from '../../hooks/useFileImport';
 import { ensureExpandedBatch, usePendingActiveId } from './explorerState';
 import { ExplorerTreeRow, FolderIcon } from './ExplorerTreeRow';
 import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
+
+const FILE_DROP_TARGET_BG = 'rgba(255, 255, 255, 0.11)';
+const FILE_DROP_ROOT_SCOPE_BG = 'rgba(255, 255, 255, 0.035)';
+const FILE_DROP_TARGET_BORDER = 'rgba(255, 255, 255, 0.24)';
+const FILE_DROP_SCOPE_BORDER = 'rgba(255, 255, 255, 0.12)';
+const ROOT_DROP_TARGET: FileImportTarget = { path: null, name: 'Root' };
+
+function hasExternalFiles(event: DragEvent): boolean {
+  return Array.from(event.dataTransfer.types).includes('Files');
+}
 
 export const ExplorerSidebar = memo(function ExplorerSidebar({
   projectId,
@@ -20,6 +32,8 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   endpointByNodeId,
   onRename,
   onDelete,
+  onDownload,
+  onFilesDrop,
   onMoveNode,
   activeSyncNodeId,
   highlightNodeId,
@@ -30,6 +44,9 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   style,
 }: ExplorerSidebarProps) {
   const { rootNodes, isLoading: loading } = useShallowTree(projectId);
+  const sidebarFileDragCounterRef = useRef(0);
+  const [isExternalFileDraggingInSidebar, setIsExternalFileDraggingInSidebar] = useState(false);
+  const [activeFileDropTarget, setActiveFileDropTarget] = useState<FileImportTarget | null>(null);
   const { isDropTarget: isRootDropTarget, dropHandlers: rootDropHandlers } = useNodeDrop({
     targetFolderId: null,
     onMoveNode,
@@ -62,19 +79,88 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   const isRootAccessPointHighlight = isRootHighlighted && highlightVariant === 'access-point';
   const rootOpenMenuAction = createMenuOpenForId === '__root__' ? createMenuOpenAction ?? null : null;
   const rootEndpoints = endpointByNodeId?.get('') ?? [];
-  const rootHasSpecialBg = isRootDropTarget || isRootHighlighted || isRootActive || rootOpenMenuAction !== null;
+  const isRootFileDropTarget = isExternalFileDraggingInSidebar && activeFileDropTarget?.path === null;
+  const rootHasSpecialBg = isRootDropTarget || isRootFileDropTarget || isRootHighlighted || isRootActive || rootOpenMenuAction !== null;
   const [isRootHovered, setIsRootHovered] = useState(false);
   const isRootSoftHovered = isRootHovered && !rootHasSpecialBg;
 
+  const handleSidebarDragEnterCapture = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!hasExternalFiles(event)) return;
+    sidebarFileDragCounterRef.current += 1;
+    setIsExternalFileDraggingInSidebar(true);
+    setActiveFileDropTarget((current) => current ?? ROOT_DROP_TARGET);
+  }, []);
+
+  const handleSidebarDragLeaveCapture = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!hasExternalFiles(event)) return;
+    sidebarFileDragCounterRef.current -= 1;
+    if (sidebarFileDragCounterRef.current <= 0) {
+      sidebarFileDragCounterRef.current = 0;
+      setIsExternalFileDraggingInSidebar(false);
+      setActiveFileDropTarget(null);
+    }
+  }, []);
+
+  const handleSidebarDropCapture = useCallback((event: DragEvent<HTMLDivElement>) => {
+    if (!hasExternalFiles(event)) return;
+    sidebarFileDragCounterRef.current = 0;
+    setIsExternalFileDraggingInSidebar(false);
+    setActiveFileDropTarget(null);
+  }, []);
+
+  const activateRootDropTarget = useCallback((event: DragEvent<HTMLElement>) => {
+    if (!hasExternalFiles(event)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = 'copy';
+    setIsExternalFileDraggingInSidebar(true);
+    setActiveFileDropTarget(ROOT_DROP_TARGET);
+    return true;
+  }, []);
+
+  const handleRootFileDrop = useCallback((event: DragEvent<HTMLElement>) => {
+    if (!hasExternalFiles(event)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    sidebarFileDragCounterRef.current = 0;
+    setIsExternalFileDraggingInSidebar(false);
+    setActiveFileDropTarget(null);
+
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length > 0) onFilesDrop?.(files, ROOT_DROP_TARGET);
+    return true;
+  }, [onFilesDrop]);
+
   return (
-    <div className={className} style={{ ...style, display: 'flex', flexDirection: 'column' }}>
+    <div
+      className={className}
+      onDragEnterCapture={handleSidebarDragEnterCapture}
+      onDragLeaveCapture={handleSidebarDragLeaveCapture}
+      onDropCapture={handleSidebarDropCapture}
+      style={{ ...style, display: 'flex', flexDirection: 'column' }}
+    >
       {/* Header used to live here as its own "Workspace" label bar.
           That created two stacked headers on the data page (this one
           + the page-level ProjectsHeader to the right). The unified
           design now hoists ProjectsHeader to span the full column row,
           so this sidebar starts directly with the file tree — no
           duplicate label, no broken hairline at the boundary. */}
-      <div style={{ flex: 1, overflow: 'auto', overflowX: 'hidden', position: 'relative', paddingTop: 6 }}>
+      <div
+        onDragOver={activateRootDropTarget}
+        onDrop={handleRootFileDrop}
+        style={{
+          flex: 1,
+          overflow: 'auto',
+          overflowX: 'hidden',
+          position: 'relative',
+          paddingTop: 6,
+          background: isRootFileDropTarget ? FILE_DROP_ROOT_SCOPE_BG : 'transparent',
+          boxShadow: isRootFileDropTarget
+            ? `inset 0 0 0 1px ${FILE_DROP_SCOPE_BORDER}`
+            : 'none',
+          transition: 'background 0.12s ease, box-shadow 0.12s ease',
+        }}
+      >
         <div style={{ padding: '0 0 6px 0', position: 'relative', boxSizing: 'border-box' }}>
           <div
             className="group/row"
@@ -85,8 +171,8 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               height: 30,
               boxSizing: 'border-box',
               borderRadius: 6,
-              background: isRootDropTarget
-                ? 'rgba(59, 130, 246, 0.15)'
+              background: isRootDropTarget || isRootFileDropTarget
+                ? FILE_DROP_TARGET_BG
                 : isRootAccessPointHighlight
                   ? 'rgba(52, 211, 153, 0.14)'
                 : isRootActive || rootOpenMenuAction
@@ -94,15 +180,30 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                   : isRootSoftHovered
                     ? 'rgba(255,255,255,0.045)'
                     : 'transparent',
-              color: isRootAccessPointHighlight ? '#d1fae5' : isRootActive || rootOpenMenuAction ? '#fff' : isRootSoftHovered ? '#d4d4d8' : '#a1a1aa',
+              color: isRootDropTarget || isRootFileDropTarget
+                ? '#f4f4f5'
+                : isRootAccessPointHighlight ? '#d1fae5' : isRootActive || rootOpenMenuAction ? '#fff' : isRootSoftHovered ? '#d4d4d8' : '#a1a1aa',
               transition: 'background 0.1s, color 0.1s',
-              boxShadow: isRootAccessPointHighlight
+              boxShadow: isRootDropTarget || isRootFileDropTarget
+                ? `inset 0 0 0 1px ${FILE_DROP_TARGET_BORDER}`
+                : isRootAccessPointHighlight
                 ? 'inset 2px 0 0 0 rgba(52, 211, 153, 0.9)'
                 : 'none',
               position: 'relative',
               cursor: 'pointer',
             }}
-            {...rootDropHandlers}
+            onDragEnter={(e) => {
+              if (!activateRootDropTarget(e)) rootDropHandlers.onDragEnter(e);
+            }}
+            onDragOver={(e) => {
+              if (!activateRootDropTarget(e)) rootDropHandlers.onDragOver(e);
+            }}
+            onDragLeave={(e) => {
+              rootDropHandlers.onDragLeave(e);
+            }}
+            onDrop={(e) => {
+              if (!handleRootFileDrop(e)) rootDropHandlers.onDrop(e);
+            }}
             onMouseEnter={() => setIsRootHovered(true)}
             onMouseLeave={() => setIsRootHovered(false)}
             onClick={() => {
@@ -127,6 +228,8 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               </div>
               <span
                 style={{
+                  flex: 1,
+                  minWidth: 0,
                   fontSize: 13,
                   fontWeight: 500,
                   color: 'inherit',
@@ -137,10 +240,8 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               >
                 Root
               </span>
-            </div>
 
-            {(onCreate || onCreateSync) && (
-              <div style={{ marginRight: 8 }}>
+              {(onCreate || onCreateSync) && (
                 <ExplorerRowActions
                   nodeId=""
                   createParentId={null}
@@ -153,8 +254,8 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                   onCreateSync={onCreateSync}
                   onOpenAccess={onOpenAccess}
                 />
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {loading && rootItems.length === 0 ? (
@@ -175,6 +276,10 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 endpointByNodeId={endpointByNodeId}
                 onRename={onRename}
                 onDelete={onDelete}
+                onDownload={onDownload}
+                onFilesDrop={onFilesDrop}
+                activeFileDropTargetPath={activeFileDropTarget?.path}
+                onFileDragTarget={setActiveFileDropTarget}
                 onMoveNode={onMoveNode}
                 activeSyncNodeId={activeSyncNodeId}
                 highlightNodeId={highlightNodeId}

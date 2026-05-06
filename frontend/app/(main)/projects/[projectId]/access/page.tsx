@@ -487,8 +487,8 @@ function AccessHeader({ count }: { readonly count: number }) {
   return (
     <div
       style={{
-        height: 40,
-        minHeight: 40,
+        height: 46,
+        minHeight: 46,
         borderBottom: '1px solid rgba(255,255,255,0.1)',
         display: 'flex',
         alignItems: 'center',

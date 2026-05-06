@@ -6,10 +6,12 @@ import Link from 'next/link';
 export type EditorType = 'table' | 'monaco';
 export type ViewType = 'grid' | 'list' | 'explorer';
 
+// Per-segment icon was removed in favor of a quiet, text-only
+// address bar — the file tree carries the type-glyph information
+// where it's actually functional. Keeping the segment type minimal.
 export type BreadcrumbSegment = {
   label: string;
   href?: string;
-  icon?: React.ReactNode;
 };
 
 type ProjectsHeaderProps = {
@@ -101,9 +103,6 @@ export function ProjectsHeader({
                       color: '#888',
                       cursor: 'pointer',
                       transition: 'color 0.15s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.color = '#fff';
@@ -112,17 +111,6 @@ export function ProjectsHeader({
                       e.currentTarget.style.color = '#888';
                     }}
                   >
-                    {segment.icon && (
-                      <span
-                        style={{
-                          display: 'flex',
-                          color: 'inherit',
-                          opacity: 0.8,
-                        }}
-                      >
-                        {segment.icon}
-                      </span>
-                    )}
                     {segment.label}
                   </Link>
                 ) : (
@@ -130,22 +118,8 @@ export function ProjectsHeader({
                     style={{
                       ...pathStyle,
                       color: isLast ? '#CDCDCD' : '#888',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
                     }}
                   >
-                    {segment.icon && (
-                      <span
-                        style={{
-                          display: 'flex',
-                          color: 'inherit',
-                          opacity: 0.8,
-                        }}
-                      >
-                        {segment.icon}
-                      </span>
-                    )}
                     {segment.label}
                   </span>
                 )}
@@ -160,7 +134,7 @@ export function ProjectsHeader({
 
 // Styles
 const headerStyle: CSSProperties = {
-  height: 40,
+  height: 46,
   paddingLeft: 16,
   paddingRight: 16,
   display: 'flex',
