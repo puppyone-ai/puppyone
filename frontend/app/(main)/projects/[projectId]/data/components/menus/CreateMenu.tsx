@@ -68,7 +68,12 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
         padding: '0 12px',
         cursor: disabled ? 'default' : 'pointer',
         color: disabled ? '#52525b' : '#e4e4e7',
-        fontSize: 14,
+        // Was 14px — bumped down to 13px to align with the explorer
+        // row context menu and the surrounding tree text. 14px made
+        // popup items read as visually heavier than the rows that
+        // launched them, which felt off because the popups are a
+        // sibling control (not a primary surface).
+        fontSize: 13,
         transition: 'background 0.1s',
         background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
         borderRadius: 6,
@@ -143,6 +148,11 @@ const UploadIcon = () => (
   </svg>
 );
 
+// Plug-in icon kept around even though the "New Integration" parent
+// row that referenced it has been retired (see comment in the
+// connect submenu wrapper below). Treating it as a deletable
+// orphan would lose a designed asset that pairs naturally with the
+// integrations submenu the moment that entry is reinstated.
 const ConnectIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 22v-5" />
@@ -190,19 +200,9 @@ const SupabaseIcon = () => (
 
 const SearchConsoleIcon = () => <span style={{ fontSize: 14 }}>📊</span>;
 
-const LocalFolderIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="12" rx="2" />
-    <path d="M2 20h20" />
-  </svg>
-);
-
-const ChatAgentIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="8" r="4" />
-    <path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4-4v2" />
-  </svg>
-);
+// LocalFolderIcon and ChatAgentIcon were removed alongside their menu
+// rows in the 2026-05-08 cleanup — Machine Folder (filesystem) and
+// Chat Agent are now per-scope built-ins, not creatable connectors.
 
 const McpIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -358,20 +358,32 @@ export function CreateMenu({
       )}
 
       <div style={{ position: 'relative' }}>
-        {/* In accessOnly mode the access list IS the menu, so we
-            skip the "New Access >" parent row and render the
-            access content flat at the menu's top level.  The
-            wrapper still exists because we share the same content
-            block between flat and submenu modes. */}
-        {!accessOnly && (
-          <MenuItem
-            icon={<ConnectIcon />}
-            label="New Integration"
-            hasSubmenu
-            isActive={activeSubMenu === 'connect'}
-            onMouseEnter={() => setActiveSubMenu('connect')}
-          />
-        )}
+        {/*
+          The "New Integration" parent row used to live here as a
+          hover-triggered MenuItem that opened the integrations
+          submenu. We removed it from the visible menu because:
+            1. Every node in the explorer already exposes a
+               chain/link affordance on its row that opens the
+               same integrations panel scoped to that node, so
+               this entry was a duplicate path.
+            2. The visual treatment (chevron + nested floating
+               card hovering off the parent row) was inconsistent
+               with the rest of the create menu, which is flat.
+
+          We deliberately keep the submenu *content* below mounted —
+          it's the canonical "all integrations" picker we still
+          render in `accessOnly` mode (the per-folder plug button
+          uses CreateMenu with accessOnly=true and renders this
+          block flat at the top level). Removing the content here
+          would also delete that picker, which is a real product
+          asset.
+
+          The `activeSubMenu === 'connect'` branch in the condition
+          is now unreachable through this menu (no sender ever sets
+          'connect' anymore). It stays for symmetry with `'upload'`
+          and so re-introducing the parent row in the future is a
+          one-line change.
+        */}
         {(accessOnly || activeSubMenu === 'connect') && (
           <div
             style={accessOnly ? {
@@ -418,12 +430,22 @@ export function CreateMenu({
             <MenuItem icon={<GitHubIcon />} label="GitHub" sublabel="Coming soon" disabled />
             <MenuItem icon={<SearchConsoleIcon />} label="Google Search Console" sublabel="Coming soon" disabled />
 
-            <Divider />
+            {/*
+              Removed (2026-05-08):
+                - "Sync data with a folder / Machine Folder" — filesystem
+                  is now a per-scope built-in (DB trigger auto-provisions
+                  one connector per scope), not a creatable connector.
+                - "Share data with an AI Agent / Chat Agent" — agent is
+                  now a per-scope built-in too. Users reach the chat
+                  runtime from the scope's detail panel (the Connect
+                  block's AI Agent MethodCard), not by minting one here.
 
-            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Sync data with a folder
-            </div>
-            {onImportLocalFolder && <MenuItem icon={<LocalFolderIcon />} label="Machine Folder" sublabel="Two-way sync via terminal" onClick={() => { onImportLocalFolder(); onClose(); }} />}
+              `onImportLocalFolder` and `onCreateAgent` props are kept on
+              the interface for now so external deep-link callers don't
+              break — but no menu row consumes them. Future cleanup pass
+              can prune the props once we confirm no caller still passes
+              them.
+            */}
 
             <Divider />
 
@@ -436,13 +458,6 @@ export function CreateMenu({
               sublabel="Coming soon"
               disabled
             />
-
-            <Divider />
-
-            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Share data with an AI Agent
-            </div>
-            <MenuItem icon={<ChatAgentIcon />} label="Chat Agent" onClick={() => { onCreateAgent?.(); onClose(); }} />
 
             <Divider />
 

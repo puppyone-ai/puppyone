@@ -39,7 +39,15 @@ export type SidebarLayoutProps = {
   userInitial: string;
   userAvatarUrl?: string;
   environmentLabel?: string;
-  onOpenGuide?: () => void; // Open getting-started guide
+  /**
+   * Reserved hook for re-opening the getting-started guide. The
+   * footer used to expose this as a "?" button next to the avatar,
+   * but the affordance was retired (low-traffic action that paid
+   * rent on every page load). Kept on the type so existing call
+   * sites — `AppSidebar` and `(main)/layout.tsx` — keep compiling
+   * without churn. Intentionally unused inside this component.
+   */
+  onOpenGuide?: () => void;
 
   // Optional project stats line — when in a project context the footer
   // can show `[• shortId · N commits]` (showcase parity) instead of the
@@ -87,7 +95,8 @@ export function SidebarLayout({
   onCollapsedChange,
   sidebarWidth = DEFAULT_SIDEBAR_WIDTH,
   onSidebarWidthChange,
-  onOpenGuide,
+  // `onOpenGuide` is accepted for backward compat (see prop docs)
+  // but no longer rendered in the footer.
   projectStats,
 }: SidebarLayoutProps) {
   const t = useTranslations('sidebar');
@@ -223,50 +232,49 @@ export function SidebarLayout({
         }}
       >
         {effectiveCollapsed ? (
-          // Collapsed identity chip — context-aware:
-          //   • In a project: the cyan brand-blue chip with the
-          //     workspace's first letter (mirrors the expanded
-          //     trigger glyph 1:1 so collapsing doesn't change
-          //     identity).
-          //   • In org/global view: the puppyone brand mark.
-          // On hover the chip morphs into the "expand sidebar"
-          // affordance (panel-open icon) — same hover-to-reveal
-          // pattern used by the collapse button on the right.
+          // Collapsed identity chip — one grammar across project AND
+          // org/global view: the brand-blue 22×22 chip carrying the
+          // workspace's first letter. Earlier we forked between the
+          // chip (project) and a puppyone-logo image (global), but
+          // the two glyphs have very different visual mass (flat
+          // letter vs detailed illustration), so the rail "changed
+          // shape" when the user navigated home → project. Letter is
+          // the first character of whatever title is in scope (project
+          // name when in a project, org name when in /home / /team /
+          // /billing / /settings). On hover the chip morphs into the
+          // "expand sidebar" affordance — same hover-to-reveal pattern
+          // used by the collapse button on the right.
+          // Geometry locked to the collapsed nav rail below it:
+          //   hit area : h-8 w-8 (32×32) — same as `collapsedBtnClass`
+          //   hover icon: 18×18 — same as cloned nav icons
+          // Was h-9 w-9 (36×36) with a 16×16 icon, which made the
+          // rounded hover bg read as one notch larger than every other
+          // icon in the rail and visibly off-grid.
           <button
             type='button'
-            className='group flex h-9 w-9 items-center justify-center rounded-[6px] transition-colors duration-150 hover:bg-white/[0.06]'
+            className='group flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors duration-150 hover:bg-white/[0.06]'
             onClick={() => handleCollapsedChange(false)}
             title={t('expand')}
             aria-label={t('expand')}
           >
             <span className='block group-hover:hidden'>
-              {context === 'project' ? (
-                <span
-                  aria-hidden
-                  className='flex h-[22px] w-[22px] items-center justify-center rounded-[5px] text-[11px] font-bold uppercase text-white'
-                  style={{
-                    background: BRAND_BLUE,
-                    fontFamily:
-                      'ui-monospace, SFMono-Regular, Menlo, monospace',
-                    letterSpacing: 0,
-                  }}
-                >
-                  {(title?.[0] || '?').toUpperCase()}
-                </span>
-              ) : (
-                <img
-                  src='/puppyone-logo.svg'
-                  alt=''
-                  width={22}
-                  height={22}
-                  className='rounded-[4px]'
-                />
-              )}
+              <span
+                aria-hidden
+                className='flex h-[22px] w-[22px] items-center justify-center rounded-[5px] text-[11px] font-bold uppercase text-white'
+                style={{
+                  background: BRAND_BLUE,
+                  fontFamily:
+                    'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  letterSpacing: 0,
+                }}
+              >
+                {(title?.[0] || 'P').toUpperCase()}
+              </span>
             </span>
             <svg
               className='hidden text-[#9ca3af] group-hover:block'
-              width='16'
-              height='16'
+              width='18'
+              height='18'
               viewBox='0 0 24 24'
               fill='none'
               stroke='currentColor'
@@ -295,6 +303,13 @@ export function SidebarLayout({
                 onSelectProject={onSelectProject}
                 onGoHome={onGoHome}
                 onHoverProject={onHoverProject}
+                // When `currentProjectId` is null we're in /home /
+                // /team / /billing / /settings — the `title` prop is
+                // the org name. Pass it down so the trigger glyph
+                // shows the org's first letter (rather than the
+                // generic 'P' fallback) and so the "Go to
+                // organization" dropdown row labels match.
+                globalLabel={!currentProjectId ? title : undefined}
               />
             ) : (
               <div className='flex min-w-0 flex-1 items-center gap-2 px-1'>
@@ -391,7 +406,13 @@ export function SidebarLayout({
           </div>
         </div>
       ) : (
-        <div className='flex-1 pt-1 pb-3'>
+        // Collapsed nav. Top + bottom padding deliberately match the
+        // *horizontal* breathing room around the 32×32 icon buttons in
+        // the 47px-wide rail (gap = (47−32)/2 ≈ 8px). The earlier
+        // `pt-1 pb-3` produced 4px top / 12px bottom — visibly
+        // asymmetric next to the 8px side padding, which made the top
+        // icon look "tucked under" the header divider.
+        <div className='flex-1 pt-2 pb-2'>
           <div className='flex flex-col items-center gap-2'>
             {navItems.map(item => (
               <React.Fragment key={item.id}>
@@ -421,75 +442,87 @@ export function SidebarLayout({
 
       {/* Footer — 46px to match the header (and every page-level
           header across /(main)). Hairline divider on top using the
-          same 0.08 alpha as every other border. Footer carries the
-          workspace stats line (shortId · N commits) which doubles as
-          a "live" indicator via the pulsing dot. */}
+          same 0.08 alpha as every other border.
+          Layout: a two-zone strip.
+            • LEFT  — vertically stacked workspace stats. The earlier
+              one-line `●  019d  ·  1 commits` ribbon read as a single
+              cramped tag because every element shared the same colour
+              and font-size. The redesign splits it into two lines with
+              hierarchy: shortId at 11px / #a1a1aa as the headline
+              metric, commit count at 10px / #52525b as ambient
+              context. The pulse dot anchors only the headline so the
+              eye lands on it first.
+            • RIGHT — 24×24 ghost guide button + 24×24 avatar (the
+              earlier 24/22 mismatch was part of why the corner felt
+              uneven). 8px gap between them, padding bumped to 14px so
+              the two zones have actual breathing room. */}
       <div
         className={clsx(
           'flex h-[46px] flex-shrink-0 items-center',
-          effectiveCollapsed ? 'justify-center px-2' : 'justify-between px-3'
+          effectiveCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-3.5'
         )}
         style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
       >
         {!effectiveCollapsed && (
-          projectStats ? (
-            // In a project: show shortId · commits (mirrors the
-            // showcase AppShell footer pixel-for-pixel — mono font,
-            // 10px size, #52525b text, #27272a separator dot, and
-            // a 6×6 cyan pulse dot anchored to T.live).
-            <span
-              className='flex items-center gap-[6px] text-[10px] tracking-[0.04em] text-[#52525b]'
-              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
-              title={`${resolvedEnvLabel} · ${projectStats.shortId}`}
-            >
+          <div className='flex min-w-0 flex-1 flex-col justify-center'>
+            {projectStats ? (
+              <>
+                <span
+                  className='flex items-center gap-[6px] text-[11px] leading-[1.2] tracking-[0.02em] text-[#a1a1aa]'
+                  style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+                  title={`${resolvedEnvLabel} · ${projectStats.shortId}`}
+                >
+                  <span
+                    aria-hidden
+                    className='flex-shrink-0 rounded-full'
+                    style={{
+                      width: 6,
+                      height: 6,
+                      background: '#22d3ee',
+                      boxShadow: '0 0 6px rgba(34,211,238,0.55)',
+                    }}
+                  />
+                  <span className='truncate'>{projectStats.shortId}</span>
+                </span>
+                {typeof projectStats.commitCount === 'number' && (
+                  // Indented so the metric label sits flush under the
+                  // shortId text (12px ≈ dot width 6 + dot-to-text gap 6).
+                  <span
+                    className='mt-[2px] truncate pl-[12px] text-[10px] leading-[1.2] tracking-[0.04em] text-[#52525b]'
+                    style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+                  >
+                    {projectStats.commitCount} commit{projectStats.commitCount === 1 ? '' : 's'}
+                  </span>
+                )}
+              </>
+            ) : (
+              // No-project fallback: a single env chip. Kept as one
+              // line; vertically centred via the wrapping flex column.
               <span
-                className='flex-shrink-0 rounded-full'
-                style={{
-                  width: 6,
-                  height: 6,
-                  background: '#22d3ee',
-                  boxShadow: '0 0 8px #22d3ee',
-                }}
-              />
-              <span>{projectStats.shortId}</span>
-              {typeof projectStats.commitCount === 'number' && (
-                <>
-                  <span className='text-[#27272a]'>·</span>
-                  <span>{projectStats.commitCount} commits</span>
-                </>
-              )}
-            </span>
-          ) : (
-            <span
-              className='flex h-[22px] items-center rounded-[4px] bg-white/[0.04] px-2 text-[10px] tracking-[0.04em] text-[#52525b]'
-              style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
-            >
-              {resolvedEnvLabel}
-            </span>
-          )
+                className='inline-flex h-[22px] w-fit items-center rounded-[4px] bg-white/[0.04] px-2 text-[10px] tracking-[0.04em] text-[#52525b]'
+                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+              >
+                {resolvedEnvLabel}
+              </span>
+            )}
+          </div>
         )}
 
-        <div className='flex items-center gap-1'>
-          {/* Guide button */}
-          {onOpenGuide && !effectiveCollapsed && (
-            <button
-              type='button'
-              onClick={onOpenGuide}
-              title={t('guide')}
-              aria-label={t('guide')}
-              className='flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[#555] transition-colors hover:bg-white/[0.06] hover:text-[#a1a1aa]'
-            >
-              <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round'>
-                <circle cx='12' cy='12' r='10' />
-                <path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3' />
-                <line x1='12' y1='17' x2='12.01' y2='17' />
-              </svg>
-            </button>
-          )}
-
+        <div className='flex flex-shrink-0 items-center'>
+          {/* Footer right zone — just the user avatar.
+              We used to render a "?" guide button next to the avatar
+              that opened the getting-started checklist, but it took
+              up dedicated visual real-estate for an action almost no
+              returning user invokes. The checklist is still
+              reachable from the onboarding flow / user menu, so the
+              affordance hasn't disappeared — it just stopped paying
+              rent in the chrome that's seen on every page load.
+              The `onOpenGuide` prop is still accepted for backward
+              compat with existing call sites; it's intentionally
+              unused here. */}
           <button
             type='button'
-            className='flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[10px] font-semibold text-white transition-all duration-200 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
+            className='flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[11px] font-semibold text-white transition-all duration-200 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
             onClick={() => setUserMenuOpen(true)}
             title={t('accountSettings')}
             aria-label={t('accountSettings')}

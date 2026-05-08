@@ -5,6 +5,7 @@ import type { ProjectInfo } from '../lib/projectsApi';
 import { updateTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { Dots } from './loading';
 
 type TableRenameDialogProps = {
   projectId: string;
@@ -180,9 +181,10 @@ export function TableRenameDialog({
             <button
               type='submit'
               disabled={loading || !name.trim()}
-              style={buttonStyle(true)}
+              style={{ ...buttonStyle(true), display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
-              {loading ? 'Saving...' : 'Save Changes'}
+              {loading && <Dots size='xs' />}
+              {loading ? 'Saving…' : 'Save Changes'}
             </button>
           </div>
         </form>

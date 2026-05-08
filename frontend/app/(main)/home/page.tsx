@@ -6,6 +6,7 @@ import { useProjects } from '@/lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
+import { PageLoading } from '@/components/loading';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 
 function DashboardPageContent() {
@@ -32,14 +33,7 @@ function DashboardPageContent() {
   }, [searchParams, projectsLoading, router]);
 
   if (projectsLoading) {
-    return (
-      <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#0e0e0e', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div className='w-10 h-10 rounded-full animate-spin' style={{ border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#fff' }} />
-          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)' }}>Loading...</span>
-        </div>
-      </div>
-    );
+    return <PageLoading variant='fill' />;
   }
 
   return (
@@ -66,11 +60,7 @@ function DashboardPageContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', backgroundColor: '#0e0e0e' }}>
-        <span style={{ color: 'rgba(255,255,255,0.5)' }}>Loading...</span>
-      </div>
-    }>
+    <Suspense fallback={<PageLoading variant='fill' />}>
       <DashboardPageContent />
     </Suspense>
   );

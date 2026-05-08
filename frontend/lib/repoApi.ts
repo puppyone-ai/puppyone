@@ -170,6 +170,16 @@ export async function runConnectorNow(
   );
 }
 
+export async function activateAgentConnector(
+  projectId: string,
+  connectorId: string,
+): Promise<Connector> {
+  return post<Connector>(
+    `/api/v1/projects/${projectId}/connectors/${connectorId}/activate-agent`,
+    {},
+  );
+}
+
 /**
  * Pause a connector. Hits the dedicated `POST /:id/pause` endpoint
  * (rather than `PATCH … {status:"paused"}`) so the backend can run

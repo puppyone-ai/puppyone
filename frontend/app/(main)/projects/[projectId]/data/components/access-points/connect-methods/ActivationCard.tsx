@@ -1,0 +1,71 @@
+'use client';
+
+import {
+  COLOR_BG_CARD,
+  COLOR_BORDER,
+  COLOR_BORDER_HOVER,
+  COLOR_DANGER_FAINT,
+  COLOR_FG,
+  COLOR_FG_DIM,
+  COLOR_FG_MUTED,
+} from '../tokens';
+
+/**
+ * ActivationCard — dashed card with one primary CTA + optional error.
+ * Used by the AI Agent body for "activate" and "open chat" prompts.
+ */
+export function ActivationCard({
+  title,
+  body,
+  actionLabel,
+  disabled = false,
+  error,
+  onAction,
+}: {
+  readonly title: string;
+  readonly body: string;
+  readonly actionLabel: string;
+  readonly disabled?: boolean;
+  readonly error?: string | null;
+  readonly onAction: () => void;
+}) {
+  return (
+    <div
+      style={{
+        borderRadius: 8,
+        border: `1px dashed ${COLOR_BORDER_HOVER}`,
+        background: COLOR_BG_CARD,
+        padding: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ fontSize: 13, color: COLOR_FG, fontWeight: 600 }}>{title}</div>
+      <div style={{ fontSize: 12, color: COLOR_FG_MUTED, lineHeight: 1.55 }}>{body}</div>
+      <button
+        type="button"
+        onClick={onAction}
+        disabled={disabled}
+        style={{
+          alignSelf: 'flex-start',
+          padding: '6px 12px',
+          fontSize: 12,
+          fontWeight: 600,
+          color: disabled ? COLOR_FG_DIM : '#171717',
+          background: disabled ? 'rgba(255,255,255,0.06)' : '#ededed',
+          border: `1px solid ${disabled ? COLOR_BORDER : '#ededed'}`,
+          borderRadius: 6,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {actionLabel}
+      </button>
+      {error && (
+        <div style={{ fontSize: 11, color: COLOR_DANGER_FAINT, lineHeight: 1.5 }}>
+          {error}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -7,6 +7,7 @@ import {
   updateMemberRole,
   removeMember,
 } from '@/lib/organizationsApi';
+import { PageLoading, Dots } from '@/components/loading';
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner',
@@ -97,8 +98,8 @@ export default function TeamPage() {
 
   if (!currentOrg) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8">
-        <span className="text-sm text-[#666]">Loading...</span>
+      <div className="flex-1">
+        <PageLoading variant="fill" />
       </div>
     );
   }
@@ -172,7 +173,8 @@ export default function TeamPage() {
                   disabled={inviting || !inviteEmail.trim()}
                   className={`flex items-center gap-2 rounded-md bg-white text-black px-3 h-8 text-sm font-medium transition-all ${inviting || !inviteEmail.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'}`}
                 >
-                  <SendIcon /> {inviting ? 'Sending...' : 'Send Invite'}
+                  {inviting ? <Dots size="xs" /> : <SendIcon />}
+                  {inviting ? 'Sending…' : 'Send Invite'}
                 </button>
                 <button 
                   onClick={() => setShowInvite(false)} 

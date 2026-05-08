@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PanelShell } from './PanelShell';
+import { PageLoading } from '@/components/loading';
 
 interface SandboxMount {
   path: string;
@@ -65,9 +66,7 @@ export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigP
   if (!endpoint) {
     return (
       <PanelShell title="Sandbox" icon={SandboxIcon} onClose={onClose} onBack={onBack}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>
-          Loading...
-        </div>
+        <PageLoading variant="fill" />
       </PanelShell>
     );
   }

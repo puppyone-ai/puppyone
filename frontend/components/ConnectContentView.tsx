@@ -27,6 +27,7 @@ import {
 } from '../lib/oauthApi';
 import { useProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { Dots } from './loading';
 
 type ConnectContentViewProps = {
   onBack: () => void;
@@ -972,6 +973,9 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                         ? 'not-allowed'
                         : 'pointer',
                     transition: 'all 0.15s',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
                   }}
                   onMouseEnter={e => {
                     if (!isLoading && !isImporting && url.trim()) {
@@ -984,7 +988,8 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     }
                   }}
                 >
-                  {isLoading ? 'Parsing...' : 'Parse'}
+                  {isLoading && <Dots size='xs' />}
+                  {isLoading ? 'Parsing…' : 'Parse'}
                 </button>
               </div>
 

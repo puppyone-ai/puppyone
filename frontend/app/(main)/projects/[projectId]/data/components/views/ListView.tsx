@@ -5,6 +5,7 @@ import type { ContentType, AgentResource } from './GridView';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, LockIcon, getSyncSourceIcon, getSyncSource } from '@/lib/nodeTypeConfig';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
+import { PageLoading } from '@/components/loading';
 
 export interface ListViewItem {
   id: string;
@@ -69,23 +70,6 @@ const FileIcon = () => (
   </svg>
 );
 
-// 小号数据格式角标 (用于 SaaS 类型) - 放大到 12x12 更清晰
-const MiniJsonBadge = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-    <rect x="1" y="1" width="22" height="22" rx="3" stroke="#34d399" strokeWidth="2" fill="#18181b" />
-    <path d="M1 9H23" stroke="#34d399" strokeWidth="2" />
-    <path d="M9 1V23" stroke="#34d399" strokeWidth="2" />
-  </svg>
-);
-
-const MiniMarkdownBadge = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-    <rect x="1" y="1" width="22" height="22" rx="3" fill="#18181b" stroke="#a1a1aa" strokeWidth="2" />
-    <path d="M5 9H19" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" />
-    <path d="M5 14H15" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-
 const ChevronRightIcon = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
     <path d="M9 6L15 12L9 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -110,11 +94,10 @@ const AgentAccessTag = ({ mode }: { mode: 'read' | 'write' }) => (
 
 function getIcon(type: string) {
   const config = getNodeTypeConfig(type);
-  switch (config.renderAs) {
+  switch (config.iconCategory) {
     case 'folder': return <FolderIcon />;
     case 'markdown': return <MarkdownIcon />;
-    case 'file':
-    case 'image': return <FileIcon />;
+    case 'file': return <FileIcon />;
     default: return <JsonIcon />;
   }
 }
@@ -122,15 +105,6 @@ function getIcon(type: string) {
 function getIconColor(type: string) {
   const config = getNodeTypeConfig(type);
   return config.color;
-}
-
-// 获取数据格式角标
-function getFormatBadge(renderAs: string) {
-  switch (renderAs) {
-    case 'markdown': return <MiniMarkdownBadge />;
-    case 'json': return <MiniJsonBadge />;
-    default: return null;
-  }
 }
 
 // Sync Status indicator (只显示 syncing/error，占位符不显示任何东西)
@@ -186,7 +160,7 @@ function ListItem({
   const [hovered, setHovered] = useState(false);
   
   const typeConfig = getNodeTypeConfig(item.type);
-  const isFolder = typeConfig.renderAs === 'folder';
+  const isFolder = typeConfig.iconCategory === 'folder';
 
   const { isDropTarget, dropHandlers } = useNodeDrop({
     targetFolderId: item.id,
@@ -259,7 +233,7 @@ function ListItem({
         {BadgeIcon ? (
           // SaaS 类型：Logo + (格式) - type 决定渲染方式
           (() => {
-            const isJson = typeConfig.renderAs === 'json';
+            const isJson = typeConfig.iconCategory === 'json';
             return (
               <>
                 <BadgeIcon size={16} />
@@ -373,7 +347,7 @@ export function ListView({
   agentResources,
 }: ListViewProps) {
   if (loading) {
-    return <div style={{ color: '#666', padding: 16, fontSize: 13 }}>Loading...</div>;
+    return <PageLoading variant="fill" />;
   }
 
   // Create a map for quick lookup

@@ -10,6 +10,7 @@ import { ScheduleTriggerSection } from './ScheduleAgentConfig';
 import { FolderIcon, JsonIcon, MarkdownIcon, CloseIcon, getNodeIcon } from '../_icons';
 import { getSyncTriggerPolicy, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
+import { Dots } from '@/components/loading';
 
 export interface SaaSConfigField {
   key: string;
@@ -335,11 +336,13 @@ export function SaaSyncConfig({
                     background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
                     color: connecting ? '#525252' : '#e5e5e5', cursor: connecting ? 'not-allowed' : 'pointer',
                     transition: 'all 0.12s', flexShrink: 0, whiteSpace: 'nowrap',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
                   }}
                   onMouseEnter={e => { if (!connecting) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  {connecting ? 'Signing in...' : 'Sign in'}
+                  {connecting && <Dots size='xs' />}
+                  {connecting ? 'Signing in…' : 'Sign in'}
                 </button>
               </div>
             )}

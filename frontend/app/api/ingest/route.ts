@@ -38,8 +38,14 @@ function forwardHeaders(request: NextRequest): Record<string, string> {
   const headers: Record<string, string> = {};
   const authorization = request.headers.get('authorization');
   const contentType = request.headers.get('content-type');
+  const contentLength = request.headers.get('content-length');
   if (authorization) headers['Authorization'] = authorization;
   if (contentType) headers['Content-Type'] = contentType;
+  // Forward Content-Length when present so the backend can fast-bounce
+  // oversized part bodies before reading them. Without this header,
+  // FastAPI's ``request.body()`` still works (chunked) but we lose the
+  // upfront size check.
+  if (contentLength) headers['Content-Length'] = contentLength;
   return headers;
 }
 
@@ -65,6 +71,43 @@ export async function POST(request: NextRequest) {
     });
   } catch (error: any) {
     console.error('[ingest proxy] POST failed:', error?.message || error);
+    return NextResponse.json(
+      { error: 'Backend request failed', detail: error?.message || 'Unknown error' },
+      { status: 502 },
+    );
+  }
+}
+
+/**
+ * Forward PUT requests to the backend. Used by ``/upload/part`` to
+ * stream a multipart upload part body from the browser through this
+ * proxy to FastAPI. We use ``duplex: 'half'`` so the request body is
+ * streamed (rather than fully buffered) — this matters for the 8 MiB
+ * default chunk_size, where buffering 4 concurrent parts would burn
+ * 32 MiB of Node heap per file unnecessarily.
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const backendUrl = buildBackendUrl(request);
+    const headers = forwardHeaders(request);
+
+    const response = await fetch(backendUrl, {
+      method: 'PUT',
+      headers,
+      body: request.body,
+      // @ts-expect-error -- Node.js fetch supports duplex for streaming bodies
+      duplex: 'half',
+    });
+
+    const responseBody = await response.text();
+    return new NextResponse(responseBody, {
+      status: response.status,
+      headers: {
+        'Content-Type': response.headers.get('Content-Type') || 'application/json',
+      },
+    });
+  } catch (error: any) {
+    console.error('[ingest proxy] PUT failed:', error?.message || error);
     return NextResponse.json(
       { error: 'Backend request failed', detail: error?.message || 'Unknown error' },
       { status: 502 },

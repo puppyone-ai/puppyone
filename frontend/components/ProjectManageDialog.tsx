@@ -16,6 +16,7 @@ import {
 } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { Dots } from './loading';
 
 // ── Visual tokens ────────────────────────────────────────────
 const ACCENT = '#329955';
@@ -916,6 +917,9 @@ function FooterBar({
           fontFamily: 'inherit',
           transition: 'all 0.15s',
           opacity: loading ? 0.6 : 1,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
           ...dangerStyle,
         }}
         onMouseEnter={e => {
@@ -935,6 +939,7 @@ function FooterBar({
           }
         }}
       >
+        {loading && <Dots size="xs" />}
         {primaryLabel}
       </button>
     </div>

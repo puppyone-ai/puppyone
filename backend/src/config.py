@@ -182,6 +182,21 @@ class Settings(BaseSettings):
     # - True/False: Force enable/disable (can be overridden via ENABLE_ETL env variable)
     ENABLE_ETL: bool | None = None
 
+    # OCR / Smart-Parse pipeline switch.
+    #
+    # When False, file ingest requests asking for `mode="ocr_parse"`
+    # are silently downgraded to `mode="raw"` (S3 upload + completed
+    # task, no MineRU/LLM round-trip). This is intentionally a
+    # separate flag from ENABLE_ETL because raw uploads still go
+    # through the ETL service (just not the OCR branch) and we
+    # want the rest of that pipeline alive.
+    #
+    # Default False: the smart-parse path is paused while we
+    # rework it. Flip to True (or set `ENABLE_OCR=true` in the
+    # environment) to bring it back online — no other code change
+    # needed; the router branch is preserved as-is.
+    ENABLE_OCR: bool = False
+
     @property
     def etl_enabled(self) -> bool:
         """Whether ETL is enabled (controls both ETL route imports and ETL service startup)"""

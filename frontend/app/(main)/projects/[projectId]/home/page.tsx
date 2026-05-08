@@ -21,6 +21,7 @@ import { HistoryCard } from './components/HistoryCard';
 import { GetStartedPanel } from './components/GetStartedPanel';
 import { ApChip } from './components/ApChip';
 import { AccessPointsListCard } from './components/AccessPointsListCard';
+import { PageLoading } from '@/components/loading';
 
 // ConnectionsCanvas (the old xyflow wiring board) used to mount here.
 // Home now surfaces Access Points directly under the Data card via
@@ -425,23 +426,19 @@ export default function HomePage({
 
   // ── Render ───────────────────────────────────────────────────────
 
+  // Bespoke skeleton was removed (2026-05-08) — `home` was the only
+  // page rendering its own custom placeholder, while every other page
+  // (data, access, history, settings, toolkit, monitor) renders the
+  // unified `<PageLoading variant="fill" />`. The skeleton looked
+  // crisper in isolation but was visibly disconnected from the rest
+  // of the product when the user flipped between pages, which is the
+  // dominant UX path for a project dashboard. Standardising on the
+  // shared loader makes every project sub-route show the *same*
+  // 13px block + "Loading" glyph.
   if (!dashboard) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, overflow: 'hidden' }}>
-        {/* Header skeleton */}
-        <div style={{ height: 48, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }} />
-        <div style={{ flex: 1, padding: '32px 40px', overflow: 'hidden' }}>
-          {/* Title skeleton */}
-          <div style={{ height: 22, width: '28%', background: 'rgba(255,255,255,0.06)', borderRadius: 4, marginBottom: 10 }} />
-          <div style={{ height: 13, width: '45%', background: 'rgba(255,255,255,0.03)', borderRadius: 3, marginBottom: 40 }} />
-          {/* Cards skeleton */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 24 }}>
-            {[1,2,3].map(i => (
-              <div key={i} style={{ height: 100, background: 'rgba(255,255,255,0.04)', borderRadius: 8 }} />
-            ))}
-          </div>
-          <div style={{ height: 300, background: 'rgba(255,255,255,0.03)', borderRadius: 8 }} />
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg }}>
+        <PageLoading variant="fill" />
       </div>
     );
   }

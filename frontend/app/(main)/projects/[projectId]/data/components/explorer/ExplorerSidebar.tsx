@@ -4,12 +4,17 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { useShallowTree } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
+import {
+  resolveDataTransferSnapshot,
+  snapshotDataTransfer,
+} from '@/lib/dropFiles';
 import type { ContentType } from '../views/GridView';
 import type { FileImportTarget } from '../../hooks/useFileImport';
 import { ensureExpandedBatch, usePendingActiveId } from './explorerState';
 import { ExplorerTreeRow, FolderIcon } from './ExplorerTreeRow';
 import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
+import { Dots } from '@/components/loading';
 
 const FILE_DROP_TARGET_BG = 'rgba(255, 255, 255, 0.11)';
 const FILE_DROP_ROOT_SCOPE_BG = 'rgba(255, 255, 255, 0.035)';
@@ -126,8 +131,13 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
     setIsExternalFileDraggingInSidebar(false);
     setActiveFileDropTarget(null);
 
-    const files = Array.from(event.dataTransfer.files);
-    if (files.length > 0) onFilesDrop?.(files, ROOT_DROP_TARGET);
+    // Snapshot the DataTransfer SYNCHRONOUSLY — see lib/dropFiles.ts.
+    // Reading items after this handler returns yields null entries
+    // in Safari/Firefox, which would silently drop folder contents.
+    const snapshot = snapshotDataTransfer(event.nativeEvent);
+    void resolveDataTransferSnapshot(snapshot).then((files) => {
+      if (files.length > 0) onFilesDrop?.(files, ROOT_DROP_TARGET);
+    });
     return true;
   }, [onFilesDrop]);
 
@@ -176,7 +186,11 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
                 : isRootAccessPointHighlight
                   ? 'rgba(52, 211, 153, 0.14)'
                 : isRootActive || rootOpenMenuAction
-                  ? '#2a2a2a'
+                  // Translucent — see ExplorerTreeRow for the full
+                  // rationale. tldr: opaque #2a2a2a was visually
+                  // indistinguishable from the tree-line colour
+                  // #27272a, so selecting a row "ate" the elbow.
+                  ? 'rgba(255,255,255,0.085)'
                   : isRootSoftHovered
                     ? 'rgba(255,255,255,0.045)'
                     : 'transparent',
@@ -259,7 +273,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
           </div>
 
           {loading && rootItems.length === 0 ? (
-            <div style={{ padding: '0 16px', color: '#666', fontSize: 13 }}>Loading...</div>
+            <div style={{ padding: '4px 16px' }}><Dots size="xs" /></div>
           ) : (
             rootItems.map((item, idx) => (
               <ExplorerTreeRow

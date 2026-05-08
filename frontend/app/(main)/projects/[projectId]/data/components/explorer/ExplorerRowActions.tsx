@@ -115,12 +115,57 @@ export function ExplorerRowActions({
 
   const isCreateMenuOpen = openMenuAction === 'create';
   const isAccessMenuOpen = openMenuAction === 'access';
+  // Aggregate "is any popover anchored to this row open?". This is
+  // the lock that pins the row's geometry — once any menu is open,
+  // we don't let the peer slots collapse just because the mouse
+  // wandered off the row, otherwise the popover ends up floating
+  // over a partially-empty row and the buttons "teleport" when the
+  // user dismisses the menu.
+  const isAnyMenuOpen =
+    isCreateMenuOpen || isContextMenuOpen || isAccessMenuOpen;
   const endpointCount = endpoints.length;
   const hasAccessPoint = endpointCount > 0;
   const integrationLabel = endpointCount === 1 ? 'integration' : 'integrations';
   const suppressPeerActions = isAccessControlActive || isAccessMenuOpen;
-  const peerVisibility = suppressPeerActions ? 'invisible' : 'invisible group-hover/row:visible';
-  const accessVisibility = hasAccessPoint || isAccessMenuOpen ? 'visible' : 'invisible group-hover/row:visible';
+
+  // Visibility primitives.
+  //
+  //   • `hidden`     →  `display: none`  → element takes no layout space
+  //   • `flex`       →  `display: flex`  → element takes its natural width
+  //   • `invisible`  →  `visibility: hidden` → element takes space, hidden visually
+  //
+  // The earlier version used `invisible` for the rest state, which
+  // meant the `+` / `…` / `link` buttons each reserved ~22px of
+  // layout even when they weren't drawn — so a 240px sidebar was
+  // effectively ~166px after subtracting indent + icon + reserved
+  // actions, and that's why "02-vendors" truncated to "02-ve…"
+  // while there was visibly empty space to the right.
+  //
+  // The current rules:
+  //
+  //   1. Rest state (no row hover, no open menu): `hidden` — peers
+  //      take zero layout space, file name gets the full width.
+  //   2. Row hover, no menu open: `flex` — peers fade in, name
+  //      reflows naturally to make room.
+  //   3. Any menu anchored to this row is open: `flex` — peers stay
+  //      in their natural slot regardless of mouse position. The
+  //      button whose menu is open shows its active variant; the
+  //      others stay in default ghost state (visible but not
+  //      highlighted) so the row geometry is locked while the user
+  //      navigates the popover.
+  //   4. Hovering the access button while no menu is open: peers
+  //      go `flex invisible` instead of `hidden`, so the name
+  //      doesn't expand-then-snap-back as the mouse crosses the
+  //      access slot. Skipped when (3) applies.
+  const peerVisibility = isAnyMenuOpen
+    ? 'flex'
+    : suppressPeerActions
+      ? 'hidden group-hover/row:flex group-hover/row:invisible'
+      : 'hidden group-hover/row:flex';
+  const accessVisibility =
+    hasAccessPoint || isAnyMenuOpen
+      ? 'flex'
+      : 'hidden group-hover/row:flex';
   const accessActive = hasAccessPoint || isAccessMenuOpen;
 
   if (!onCreate && !onCreateSync && !onRename && !onDelete && !onDownload) return null;
@@ -128,7 +173,7 @@ export function ExplorerRowActions({
   return (
     <div className="ml-auto flex flex-shrink-0 items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
       {isFolder && onCreate && (
-        <div className={isCreateMenuOpen ? 'visible' : peerVisibility}>
+        <div className={peerVisibility}>
           <RowActionButton
             title="New item"
             ariaLabel="New item"
@@ -145,7 +190,7 @@ export function ExplorerRowActions({
       )}
 
       {(onRename || onDelete || onDownload) && (
-        <div className={isContextMenuOpen ? 'visible' : peerVisibility}>
+        <div className={peerVisibility}>
           <ItemContextMenu
             itemId={nodeId}
             itemName={itemName}

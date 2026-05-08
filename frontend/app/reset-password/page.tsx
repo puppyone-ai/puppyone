@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../supabase/SupabaseAuthProvider';
 import { useRouter } from 'next/navigation';
+import { InlineLoading } from '@/components/loading';
 
 type PageState = 'loading' | 'ready' | 'success' | 'no-session';
 
@@ -105,8 +106,8 @@ export default function ResetPasswordPage() {
     return (
       <div style={containerStyle}>
         <div style={cardStyle}>
-          <div style={{ textAlign: 'center', color: '#888', fontSize: 14 }}>
-            Verifying...
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <InlineLoading label="Verifying…" />
           </div>
         </div>
       </div>

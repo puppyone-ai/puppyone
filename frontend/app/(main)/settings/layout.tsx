@@ -1,13 +1,54 @@
 'use client';
 
+/**
+ * Settings layout — chrome for the global `/settings/*` routes
+ * (currently just `/settings/connect`).
+ *
+ * Visual grammar matches the rest of `/(main)`:
+ *
+ *   - Page-level header is a single 46px row with a hairline border,
+ *     13px / 500 / `#e4e4e7` title in Geist Sans. Same as
+ *     `AccessHeader` and the project Settings page.
+ *   - Secondary sidebar uses the AppSidebar's row spec — 32px tall,
+ *     13px label, white/[0.06] active fill — so the two rails
+ *     visually rhyme when stacked side-by-side. The earlier copy was
+ *     16px / weight 500-600 in Plus Jakarta Sans, which made every
+ *     nav row feel about 25% larger than the workspace nav next to
+ *     it.
+ *   - No outer "floating card" wrapper. The previous shell wrapped
+ *     everything in `margin: 8 / borderRadius: 12 / border: #2a2a2a`,
+ *     which is a treatment nothing else in /(main) uses — you'd
+ *     navigate Settings → anywhere else and the page would visibly
+ *     "snap" to the screen edge. Pages render flush against the
+ *     AppSidebar now, like every other surface.
+ *   - Collapsed nav active state is the same neutral lift as the
+ *     AppSidebar (white/[0.06]), not the blue tint the old version
+ *     used. Blue is reserved for the sidebar's `active accent bar`
+ *     so it stays a single distinctive signal.
+ */
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const MIN_WIDTH = 180;
+const MIN_WIDTH = 200;
 const MAX_WIDTH = 320;
 const DEFAULT_WIDTH = 220;
-const COLLAPSED_WIDTH = 45;
+const COLLAPSED_WIDTH = 47;
+
+// Local design tokens. Same family as the project Access page +
+// the project Settings page so all three surfaces share a single
+// font stack / border alpha / text scale.
+const T = {
+  bg: '#0e0e0e',
+  rail: '#121212',
+  border: 'rgba(255,255,255,0.08)',
+  text1: '#fafafa',
+  text2: '#a1a1aa',
+  text3: '#52525b',
+  fontSans:
+    'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+} as const;
 
 export default function SettingsLayout({
   children,
@@ -21,7 +62,6 @@ export default function SettingsLayout({
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // Handle resize logic
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (isCollapsed) return;
@@ -65,264 +105,255 @@ export default function SettingsLayout({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: '#0f0f0f', // Main content area - darker than bars (#1a1a1a)
+        background: T.bg,
+        fontFamily: T.fontSans,
       }}
     >
-      {/* --- 右侧浮动容器：包含二级 sidebar + 主内容区 --- */}
-      <div
+      {/* Secondary sidebar — flush against the AppSidebar to its
+          left. No outer card / margin / radius; this is just the
+          page splitting into a rail + a content pane, same as
+          /access and /history. */}
+      <aside
+        ref={sidebarRef}
         style={{
-          flex: 1,
+          width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
+          borderRight: `1px solid ${T.border}`,
           display: 'flex',
-          margin: 8,
-          marginLeft: 0,
-          borderRadius: 12,
-          border: '1px solid #2a2a2a',
-          background: '#0e0e0e',
-          overflow: 'hidden',
+          flexDirection: 'column',
+          background: T.rail,
+          boxSizing: 'border-box',
+          position: 'relative',
+          flexShrink: 0,
+          transition: isResizing ? 'none' : 'width 0.2s ease',
         }}
       >
-        {/* --- Settings Sidebar --- */}
-        <aside
-          ref={sidebarRef}
+        {/* Header — 46px row, single border-bottom, matches every
+            other page header in /(main). 13px / 500 / #e4e4e7 in
+            Geist Sans. The collapse / expand button hover-fades in,
+            same pattern the AppSidebar uses for its own collapse
+            toggle. */}
+        <div
           style={{
-            width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
-            borderRight: '1px solid #2a2a2a',
+            height: 46,
+            minHeight: 46,
+            maxHeight: 46,
             display: 'flex',
-            flexDirection: 'column',
-            background: '#141414',
-            fontFamily:
-              "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+            alignItems: 'center',
+            justifyContent: isCollapsed ? 'center' : 'space-between',
+            padding: isCollapsed ? '0' : '0 8px 0 14px',
+            borderBottom: `1px solid ${T.border}`,
             boxSizing: 'border-box',
-            position: 'relative',
-            flexShrink: 0,
-            transition: isResizing ? 'none' : 'width 0.2s ease',
           }}
+          className='group/settings-header'
         >
-          {/* Header */}
-          <div
-            style={{
-              height: 46,
-              minHeight: 46,
-              maxHeight: 46,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: isCollapsed ? 'center' : 'space-between',
-              padding: isCollapsed ? '0' : '0 9px 0 16px',
-              borderBottom: '1px solid #2a2a2a',
-              boxSizing: 'border-box',
-            }}
-          >
-            {isCollapsed ? (
-              <button
-                onClick={() => setIsCollapsed(false)}
-                title='Expand sidebar'
+          {isCollapsed ? (
+            <button
+              type='button'
+              onClick={() => setIsCollapsed(false)}
+              title='Expand sidebar'
+              aria-label='Expand sidebar'
+              style={collapseToggleStyle}
+              onMouseEnter={onCollapseEnter}
+              onMouseLeave={onCollapseLeave}
+            >
+              <PanelIcon />
+            </button>
+          ) : (
+            <>
+              <span
                 style={{
-                  width: 28,
-                  height: 32,
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: 5,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#6b7280',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                  e.currentTarget.style.color = '#9ca3af';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#6b7280';
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: '#e4e4e7',
+                  letterSpacing: 0,
                 }}
               >
-                <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='1.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                >
-                  <rect x='3' y='3' width='18' height='18' rx='2' />
-                  <line x1='9' y1='3' x2='9' y2='21' />
-                </svg>
+                Settings
+              </span>
+              <button
+                type='button'
+                onClick={() => setIsCollapsed(true)}
+                title='Collapse sidebar'
+                aria-label='Collapse sidebar'
+                style={collapseToggleStyle}
+                onMouseEnter={onCollapseEnter}
+                onMouseLeave={onCollapseLeave}
+              >
+                <PanelIcon />
               </button>
-            ) : (
-              <>
-                <span
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: '#EDEDED',
-                    letterSpacing: '0.3px',
-                  }}
-                >
-                  Settings
-                </span>
-                <button
-                  onClick={() => setIsCollapsed(true)}
-                  title='Collapse sidebar'
-                  style={{
-                    width: 28,
-                    height: 32,
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: 5,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#6b7280',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                    e.currentTarget.style.color = '#9ca3af';
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#6b7280';
-                  }}
-                >
-                  <svg
-                    width='14'
-                    height='14'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  >
-                    <rect x='3' y='3' width='18' height='18' rx='2' />
-                    <line x1='9' y1='3' x2='9' y2='21' />
-                  </svg>
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Expanded Content */}
-          {!isCollapsed && (
-            <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12 }}>
-              <div style={{ marginBottom: 4 }}>
-                <div
-                  style={{
-                    padding: '2px 8px 4px 8px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
-                  }}
-                >
-                  <NavItem
-                    href='/settings/connect'
-                    active={pathname?.startsWith('/settings/connect')}
-                    label='Integrations'
-                  />
-                </div>
-              </div>
-            </div>
+            </>
           )}
+        </div>
 
-          {/* Collapsed Navigation */}
-          {isCollapsed && (
+        {/* Expanded nav — single column of 32px rows. Same row spec
+            as the AppSidebar's nav. */}
+        {!isCollapsed && (
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingTop: 8 }}>
             <div
               style={{
-                flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'center',
-                padding: '12px 0',
-                gap: 4,
+                gap: 1,
+                padding: '0 6px',
               }}
             >
-              <CollapsedNavItem
+              <NavItem
                 href='/settings/connect'
-                active={pathname?.startsWith('/settings/connect')}
-                title='Import Settings'
-                icon={
-                  <svg
-                    width='14'
-                    height='14'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='1.5'
-                  >
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      d='M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 0 1-.657.643 48.39 48.39 0 0 1-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 0 1-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 0 0-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 0 1-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 0 0 .657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 0 0 5.427-.63 48.05 48.05 0 0 0 .582-4.717.532.532 0 0 0-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.96.401v0a.656.656 0 0 0 .658-.663 48.422 48.422 0 0 0-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 0 1-.61-.58v0Z'
-                    />
-                  </svg>
-                }
+                active={Boolean(pathname?.startsWith('/settings/connect'))}
+                label='Integrations'
+                icon={<IntegrationsIcon />}
               />
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Resize Handle */}
-          {!isCollapsed && (
-            <div
-              onMouseDown={handleMouseDown}
-              style={{
-                position: 'absolute',
-                top: 0,
-                right: -2,
-                width: 4,
-                height: '100%',
-                cursor: 'col-resize',
-                zIndex: 10,
-                background: isResizing
-                  ? 'rgba(255, 255, 255, 0.1)'
-                  : 'transparent',
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => {
-                if (!isResizing)
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-              }}
-              onMouseLeave={e => {
-                if (!isResizing)
-                  e.currentTarget.style.background = 'transparent';
-              }}
+        {/* Collapsed nav — 32×32 icon buttons, symmetric padding all
+            around (matches the AppSidebar's collapsed nav). Active
+            state is the same neutral lift, not blue. */}
+        {isCollapsed && (
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: '8px 0',
+              gap: 6,
+            }}
+          >
+            <CollapsedNavItem
+              href='/settings/connect'
+              active={Boolean(pathname?.startsWith('/settings/connect'))}
+              title='Integrations'
+              icon={<IntegrationsIcon />}
             />
-          )}
-        </aside>
+          </div>
+        )}
 
-        {/* --- Main Content Area --- */}
-        <section
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: '100%', // 确保高度传递给子组件
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            background: '#0e0e0e',
-          }}
-        >
-          {children}
-        </section>
-      </div>
+        {/* Resize handle — same hover-revealed bar the AppSidebar
+            uses on its right edge. */}
+        {!isCollapsed && (
+          <div
+            onMouseDown={handleMouseDown}
+            style={{
+              position: 'absolute',
+              top: 0,
+              right: -2,
+              width: 4,
+              height: '100%',
+              cursor: 'col-resize',
+              zIndex: 10,
+              background: isResizing ? 'rgba(255,255,255,0.10)' : 'transparent',
+              transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => {
+              if (!isResizing) e.currentTarget.style.background = 'rgba(255,255,255,0.10)';
+            }}
+            onMouseLeave={e => {
+              if (!isResizing) e.currentTarget.style.background = 'transparent';
+            }}
+            role='separator'
+            aria-orientation='vertical'
+          />
+        )}
+      </aside>
+
+      {/* Main content pane — flush, no margins, no radius. */}
+      <section
+        style={{
+          flex: 1,
+          minWidth: 0,
+          height: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          background: T.bg,
+        }}
+      >
+        {children}
+      </section>
     </div>
   );
 }
 
-// --- Sub Components ---
+// ─── Sub-components ──────────────────────────────────────────────────
 
+const collapseToggleStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 28,
+  height: 28,
+  background: 'transparent',
+  border: 'none',
+  borderRadius: 5,
+  cursor: 'pointer',
+  color: '#6b7280',
+  transition: 'background 0.15s, color 0.15s',
+};
+
+function onCollapseEnter(e: React.MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+  e.currentTarget.style.color = '#fafafa';
+}
+function onCollapseLeave(e: React.MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.background = 'transparent';
+  e.currentTarget.style.color = '#6b7280';
+}
+
+function PanelIcon() {
+  return (
+    <svg
+      width='14'
+      height='14'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.5'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <rect x='3' y='3' width='18' height='18' rx='2' />
+      <line x1='9' y1='3' x2='9' y2='21' />
+    </svg>
+  );
+}
+
+// Integrations / connectors glyph. Matches the chain-link family used
+// by the project Access icon — consistent semantic ("things connected
+// to your workspace") across every surface that talks about
+// integrations.
+function IntegrationsIcon() {
+  return (
+    <svg
+      width='15'
+      height='15'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' />
+      <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' />
+    </svg>
+  );
+}
+
+// Expanded nav row. 32px tall, 13px label, 10px x-padding, 10px gap.
+// Lifted directly from the AppSidebar's nav row spec so the two
+// rails read as one font / one row height when they're side-by-side.
 function NavItem({
   active,
   href,
   label,
+  icon,
 }: {
   active?: boolean;
   href: string;
   label: string;
+  icon: React.ReactNode;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -332,59 +363,71 @@ function NavItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
+        position: 'relative',
         height: 32,
         display: 'flex',
         alignItems: 'center',
-        gap: 8,
-        padding: '0 4px 0 12px',
+        gap: 10,
+        padding: '0 10px',
         borderRadius: 6,
         cursor: 'pointer',
-        background: active || hovered ? '#2C2C2C' : 'transparent',
+        background: active
+          ? 'rgba(255,255,255,0.06)'
+          : hovered
+          ? 'rgba(255,255,255,0.03)'
+          : 'transparent',
         border: 'none',
         width: '100%',
         textDecoration: 'none',
-        transition: 'background 0.15s',
+        transition: 'background 0.15s, color 0.15s',
         boxSizing: 'border-box',
+        color: active ? T.text1 : hovered ? T.text1 : T.text2,
+        fontFamily: T.fontSans,
       }}
     >
-      {/* Icon */}
+      {/* Active accent bar — same cyan #22d3ee mark the AppSidebar
+          uses on its active row. Mirrors the visual anchor the user
+          already learned in the workspace rail. */}
+      {active && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            left: -6,
+            top: 5,
+            bottom: 5,
+            width: 2,
+            borderRadius: 1,
+            background: '#22d3ee',
+            boxShadow: '0 0 6px rgba(34,211,238,0.4)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
+
       <span
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: 16,
-          height: 16,
+          width: 15,
+          height: 15,
           flexShrink: 0,
+          color: active ? T.text1 : T.text2,
         }}
       >
-        <svg
-          width='14'
-          height='14'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke={active ? '#CDCDCD' : hovered ? '#9B9B9B' : '#5D6065'}
-          strokeWidth='1.5'
-        >
-          <path
-            strokeLinecap='round'
-            strokeLinejoin='round'
-            d='M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 0 1-.657.643 48.39 48.39 0 0 1-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 0 1-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 0 0-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 0 1-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 0 0 .657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 0 0 5.427-.63 48.05 48.05 0 0 0 .582-4.717.532.532 0 0 0-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.96.401v0a.656.656 0 0 0 .658-.663 48.422 48.422 0 0 0-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 0 1-.61-.58v0Z'
-          />
-        </svg>
+        {icon}
       </span>
 
-      {/* Label */}
       <span
         style={{
           flex: 1,
-          fontSize: 16,
-          fontWeight: 500,
-          color: active ? '#FFFFFF' : hovered ? '#F0EFED' : '#9B9B9B',
+          fontSize: 13,
+          fontWeight: active ? 500 : 400,
+          color: 'inherit',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          transition: 'color 0.15s',
         }}
       >
         {label}
@@ -393,6 +436,9 @@ function NavItem({
   );
 }
 
+// Collapsed-nav row. 32×32 button, neutral hover/active. Matches the
+// AppSidebar's `collapsedBtnClass` exactly so the two rails feel like
+// the same widget collapsed.
 function CollapsedNavItem({
   active,
   href,
@@ -410,27 +456,32 @@ function CollapsedNavItem({
     <Link
       href={href}
       title={title}
+      aria-label={title}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 28,
+        width: 32,
         height: 32,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         background: active
-          ? 'rgba(59, 130, 246, 0.15)'
+          ? 'rgba(255,255,255,0.06)'
           : hovered
-            ? 'rgba(255,255,255,0.08)'
-            : 'transparent',
-        borderRadius: 5,
+          ? 'rgba(255,255,255,0.06)'
+          : 'transparent',
+        borderRadius: 6,
         cursor: 'pointer',
-        color: active ? '#60a5fa' : hovered ? '#e2e8f0' : '#808080',
-        transition: 'all 0.15s',
+        color: active || hovered ? T.text1 : T.text2,
+        transition: 'background 0.15s, color 0.15s',
         textDecoration: 'none',
       }}
     >
-      {icon}
+      <span style={{ width: 18, height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {React.isValidElement(icon)
+          ? React.cloneElement(icon as React.ReactElement, { width: 18, height: 18 } as any)
+          : icon}
+      </span>
     </Link>
   );
 }

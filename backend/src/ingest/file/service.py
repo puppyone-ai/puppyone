@@ -149,6 +149,83 @@ class ETLService:
 
         return task_with_id
 
+    def get_default_rule_id_for_user(self, user_id: str) -> int:
+        """Resolve the default rule id for a user, in one Supabase query.
+
+        Hoisted so callers that create N tasks for the same user
+        (e.g. /upload/init for a multi-file folder upload) can do
+        the lookup ONCE and pass the result into N
+        ``create_pending_upload_task`` calls — saving N-1 etl_rules
+        list queries (~400ms each) per request.
+        """
+        rule_repository = self._get_rule_repository(created_by=user_id)
+        return int(get_default_rule_id(rule_repository))
+
+    def create_pending_upload_task(
+        self,
+        *,
+        user_id: str,
+        project_id: str,
+        filename: str,
+        s3_key: str,
+        upload_id: str,
+        mount_path: str,
+        size: int,
+        content_type: str | None,
+        default_rule_id: int | None = None,
+    ) -> ETLTask:
+        """
+        Create a ``pending`` task for a direct-to-S3 multipart upload.
+
+        Lifecycle:
+          1. Frontend calls ``/upload/init`` -> we create this task and
+             return presigned PUT URLs alongside its ``task_id``.
+          2. Frontend uploads each part directly to S3.
+          3. Frontend calls ``/upload/complete`` -> we run
+             ``CompleteMultipartUpload`` and enqueue
+             ``etl_finalize_upload_job`` which writes the bytes into MUT.
+          4. Worker marks the task COMPLETED (or FAILED on mount
+             error). The frontend's existing ``BackgroundTaskNotifier``
+             polling picks up the terminal state.
+
+        Stored as ``type="file_postprocess"`` (one of the four values
+        the ``chk_uploads_type`` CHECK constraint allows). We
+        distinguish these tasks from legacy postprocess work via
+        ``metadata.upload_kind == "direct_s3_multipart"``; downstream
+        worker dispatch is by job-name (``etl_finalize_upload_job``)
+        not by ``type``, so reusing the existing enum value is safe.
+        Once a migration extends the constraint we can rename this
+        to a dedicated ``file_upload`` type.
+        """
+        # ``rule_id`` is non-null in the legacy ``uploads`` schema, so
+        # we attach the global default for compatibility — the
+        # finalize worker never invokes the rule engine.
+        if default_rule_id is None:
+            rule_repository = self._get_rule_repository(created_by=user_id)
+            default_rule_id = int(get_default_rule_id(rule_repository))
+
+        task = ETLTask(
+            task_id=None,
+            created_by=user_id,
+            project_id=project_id,
+            filename=filename,
+            rule_id=int(default_rule_id),
+            path=mount_path,
+            type="file_postprocess",
+            status=ETLTaskStatus.PENDING,
+            progress=0,
+            metadata={
+                "s3_key": s3_key,
+                "upload_id": upload_id,
+                "mount_path": mount_path,
+                "size": size,
+                "content_type": content_type,
+                "upload_kind": "direct_s3_multipart",
+            },
+        )
+
+        return self.task_repository.create_task(task)
+
     def create_failed_task(
         self,
         *,

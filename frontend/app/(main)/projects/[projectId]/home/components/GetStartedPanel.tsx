@@ -4,13 +4,18 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { post } from '@/lib/apiClient';
-import { uploadAndSubmit } from '@/lib/etlApi';
+import { uploadFiles as uploadFilesApi } from '@/lib/uploadApi';
 import {
   addPendingTasks,
-  replacePlaceholderTasks,
-  removeFailedPlaceholders,
+  updateTaskStatusById,
+  updateTaskProgress,
+  replaceTaskId,
 } from '@/components/BackgroundTaskNotifier';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
+import {
+  resolveDataTransferSnapshot,
+  snapshotDataTransfer,
+} from '@/lib/dropFiles';
 import { T } from '../lib/tokens';
 import type { DashboardConnection } from '../lib/types';
 
@@ -71,74 +76,6 @@ interface GetStartedPanelProps {
   onChanged?: () => void;
 }
 
-// Walk a DataTransferItemList (which may contain folders) into a flat
-// File[] with `webkitRelativePath` set so the backend gets the original
-// folder structure.  `webkitGetAsEntry` is non-standard but supported
-// in every browser we target.  Fallback (no entry API) just calls
-// `getAsFile()` per item.
-async function collectFilesFromDataTransfer(
-  items: DataTransferItemList,
-): Promise<File[]> {
-  const out: File[] = [];
-
-  const traverseEntry = async (entry: any, pathPrefix: string): Promise<void> => {
-    if (entry.isFile) {
-      await new Promise<void>((resolve) => {
-        entry.file((file: File) => {
-          const path = pathPrefix + file.name;
-          // `webkitRelativePath` is read-only on `File`, but redefining
-          // the property via `Object.defineProperty` works in Chromium
-          // and Firefox.  If a future browser hardens this, the catch
-          // silently drops back to the bare filename — uploads still
-          // succeed, just without the folder context.
-          try {
-            Object.defineProperty(file, 'webkitRelativePath', { value: path });
-          } catch {
-            /* keep file as-is */
-          }
-          out.push(file);
-          resolve();
-        });
-      });
-      return;
-    }
-    if (entry.isDirectory) {
-      const reader = entry.createReader();
-      const allEntries: any[] = await new Promise((resolve) => {
-        const acc: any[] = [];
-        const readBatch = () => {
-          reader.readEntries((batch: any[]) => {
-            if (batch.length === 0) resolve(acc);
-            else {
-              acc.push(...batch);
-              readBatch();
-            }
-          });
-        };
-        readBatch();
-      });
-      await Promise.all(
-        allEntries.map((e) => traverseEntry(e, `${pathPrefix}${entry.name}/`)),
-      );
-    }
-  };
-
-  const tasks: Promise<void>[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (item.kind !== 'file') continue;
-    const entry = (item as any).webkitGetAsEntry?.();
-    if (entry) {
-      tasks.push(traverseEntry(entry, ''));
-    } else {
-      const f = item.getAsFile();
-      if (f) out.push(f);
-    }
-  }
-  await Promise.all(tasks);
-  return out;
-}
-
 export function GetStartedPanel({
   projectId,
   connections,
@@ -152,11 +89,13 @@ export function GetStartedPanel({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
-  // ---- Upload pipeline (raw mode, project root, no dialog) ----------
-  // Mirrors `useFileImport.handleFileImportConfirm` minus the OCR/raw
-  // selection step — we always go raw, always to root.  Background
-  // task notifier provides the visual progress so the panel itself
-  // doesn't need to render a busy spinner inline.
+  // ---- Upload pipeline (direct-to-S3, project root, no dialog) -----
+  // Same pipeline as the explorer dialog and sidebar drag/drop: bytes
+  // go browser -> S3 directly via presigned multipart URLs, the
+  // worker writes them into MUT, and the BackgroundTaskNotifier
+  // surfaces progress via the floating widget. No dialog asks the
+  // user about OCR vs raw because Smart Parse is paused server-side
+  // (see config.ENABLE_OCR).
   const uploadFiles = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
@@ -165,54 +104,60 @@ export function GetStartedPanel({
         return;
       }
       setUploading(true);
-
-      const baseTimestamp = Date.now();
-      const placeholderGroupId = `getstarted-${baseTimestamp}`;
-      const placeholders = files.map((f, i) => ({
-        taskId: `placeholder-${baseTimestamp}-${i}-${Math.random().toString(36).slice(2, 8)}`,
-        projectId,
-        tableId: placeholderGroupId,
-        tableName: f.name,
-        filename: f.name,
-        status: 'pending' as const,
-        taskType: 'file' as const,
-      }));
-      addPendingTasks(placeholders);
+      const placeholderIds: string[] = [];
 
       try {
-        const response = await uploadAndSubmit(
-          { projectId, files, mode: 'raw' },
+        await uploadFilesApi(
+          { projectId, files, parentPath: null },
           session.access_token,
+          {
+            onUploadStart: (entries) => {
+              entries.forEach((f) => {
+                const tmpId = `tmp-${crypto.randomUUID()}`;
+                placeholderIds[f.fileIndex] = tmpId;
+              });
+              addPendingTasks(
+                entries.map((f) => ({
+                  taskId: placeholderIds[f.fileIndex],
+                  projectId,
+                  tableName: f.filename,
+                  filename: f.filename,
+                  status: 'uploading',
+                  taskType: 'file',
+                })),
+              );
+            },
+            onTaskCreated: ({ fileIndex, taskId }) => {
+              const tmpId = placeholderIds[fileIndex];
+              if (tmpId) {
+                replaceTaskId(tmpId, taskId);
+                placeholderIds[fileIndex] = taskId;
+              }
+            },
+            onProgress: (taskId, _loaded, _total, percent) => {
+              updateTaskProgress(taskId, percent);
+            },
+            onAllPartsUploaded: (taskId) => {
+              updateTaskStatusById(taskId, 'finalizing');
+            },
+            onTaskCompleted: (taskId) => {
+              updateTaskStatusById(taskId, 'completed');
+            },
+            onTaskFailed: (taskId, error) => {
+              updateTaskStatusById(taskId, 'failed', { error });
+            },
+          },
         );
-
-        const realTasks = response.items
-          .filter((it: any) => it.status !== 'failed')
-          .map((it: any) => ({
-            taskId: String(it.task_id),
-            projectId,
-            tableId: placeholderGroupId,
-            tableName: it.filename ?? '',
-            filename: it.filename ?? '',
-            status: (it.status === 'completed' ? 'completed' : 'pending') as
-              | 'completed'
-              | 'pending',
-            taskType: 'file' as const,
-          }));
-        if (realTasks.length > 0) {
-          replacePlaceholderTasks(placeholderGroupId, realTasks);
-        }
-
-        const failed = response.items.filter((it: any) => it.status === 'failed');
-        if (failed.length > 0) {
-          removeFailedPlaceholders(
-            placeholderGroupId,
-            failed.map((f: any) => f.filename ?? ''),
-          );
-        }
 
         refreshAllContentNodes(projectId);
         onChanged?.();
       } catch (err) {
+        // /upload/init failed — flip placeholders to failed so the
+        // widget surfaces a stable terminal state.
+        const errMsg = err instanceof Error ? err.message : String(err);
+        placeholderIds.forEach((id) => {
+          if (id) updateTaskStatusById(id, 'failed', { error: errMsg });
+        });
         console.error('GetStartedPanel: upload failed', err);
       } finally {
         setUploading(false);
@@ -257,7 +202,9 @@ export function GetStartedPanel({
       e.stopPropagation();
       dragCounterRef.current = 0;
       setIsDraggingOver(false);
-      const files = await collectFilesFromDataTransfer(e.dataTransfer.items);
+      // Snapshot synchronously: see lib/dropFiles.ts.
+      const snapshot = snapshotDataTransfer(e.nativeEvent);
+      const files = await resolveDataTransferSnapshot(snapshot);
       if (files.length > 0) await uploadFiles(files);
     },
     [uploadFiles],

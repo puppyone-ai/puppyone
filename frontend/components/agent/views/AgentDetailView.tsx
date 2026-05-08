@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAgent, type SavedAgent } from '@/contexts/AgentContext';
 import { get } from '@/lib/apiClient';
+import { InlineLoading } from '@/components/loading';
 
 interface ExecutionLog {
   id: string;
@@ -422,11 +423,10 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                 background: '#161616',
                 border: '1px solid #2a2a2a',
                 borderRadius: 6,
-                textAlign: 'center',
-                color: '#525252',
-                fontSize: 13,
+                display: 'flex',
+                justifyContent: 'center',
               }}>
-                Loading...
+                <InlineLoading />
               </div>
             ) : executions.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>

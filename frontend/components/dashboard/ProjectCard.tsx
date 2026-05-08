@@ -50,8 +50,12 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events
     <div
       onClick={onClick}
+      // No `maxWidth` cap — the parent grid column is what bounds the
+      // card. `PROJECT_CARD_WIDTH` (210) is now used by the grid as the
+      // *minimum* column width (see `DashboardView.tsx`), and the card
+      // stretches to whatever the column resolves to. `aspect-square`
+      // keeps it a perfect square at any size.
       className="group relative w-full flex flex-col cursor-pointer aspect-square"
-      style={{ maxWidth: PROJECT_CARD_WIDTH, maxHeight: PROJECT_CARD_WIDTH }}
     >
       {/* Tab */}
       <div className="h-7 px-3 flex items-center rounded-t-md border-2 border-b-0 border-[#2a2a2a] group-hover:border-[#329955] self-start relative z-10 bg-[#1c1c1c] group-hover:bg-[#252525] transition-colors duration-150" style={{ maxWidth: '75%' }}>
@@ -138,8 +142,11 @@ export function NewProjectCard({ onClick }: Readonly<{ onClick: () => void }>) {
   return (
     <button
       onClick={onClick}
+      // Same sizing contract as `ProjectCard` — column-bounded width,
+      // square aspect, no hard maxWidth cap. Keeps the dashed empty-
+      // slot card the exact same dimensions as filled cards no matter
+      // how the grid resolves column widths on the current viewport.
       className="group relative w-full flex flex-col cursor-pointer aspect-square"
-      style={{ maxWidth: PROJECT_CARD_WIDTH, maxHeight: PROJECT_CARD_WIDTH }}
     >
       <div
         className="h-7 w-16 rounded-t-md border-2 border-b-0 border-dashed border-[#333] group-hover:border-[#555] self-start bg-transparent group-hover:bg-[rgba(255,255,255,0.02)] transition-colors relative z-10"

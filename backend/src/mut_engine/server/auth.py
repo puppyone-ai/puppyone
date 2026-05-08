@@ -8,6 +8,9 @@ Maps PuppyOne's authentication system to the MUT (agent, _scope) model:
 Supports:
   - Key revocation (revoked access points are rejected)
   - User identity binding via X-Mut-User header
+  - Channel pause enforcement via X-Puppy-Client header (cli / filesystem):
+    when present, the resolved scope's connector for that channel is
+    consulted and the request is rejected with 403 if status='paused'.
 """
 
 from __future__ import annotations
@@ -19,7 +22,15 @@ from src.config import settings
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.backends import safe_data
 from src.platform.auth.dependencies import security
+from src.repo.connector_repository import ConnectorRepository
 from src.utils.logger import log_error, log_warning
+
+
+# Recognised channel headers. Anything else is silently ignored so that
+# unknown / future client kinds don't break authentication — the worst
+# case is that pause becomes informational for that client kind, never
+# that a legitimate request gets rejected.
+_KNOWN_CHANNELS = frozenset({"cli", "filesystem"})
 
 
 class PuppyOneAuthenticator:
@@ -250,12 +261,67 @@ def get_mut_auth(
     project_id: str,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> dict:
-    """FastAPI dependency: extract and verify MUT auth context."""
+    """FastAPI dependency: extract and verify MUT auth context.
+
+    Two-stage gate:
+      1. Resolve the Bearer token (JWT or access_key) → auth context with
+         a scope binding. This is the existing identity check.
+      2. If the request advertises a channel via X-Puppy-Client (e.g.
+         'cli', 'filesystem'), consult that channel's connector for the
+         resolved scope and reject with 403 when status='paused'.
+
+    Stage 2 is deliberately opt-in via the header so that older
+    CLI / daemon installs that don't send X-Puppy-Client continue to
+    work unchanged. The "Pause" toggle in the access-page UI becomes a
+    hard gate progressively as clients roll out the header — for the
+    in-app agent path the same enforcement happens inside the agent
+    chat router (see src/connectors/agent/chat/...).
+    """
     if not credentials:
         raise HTTPException(status_code=401, detail="Missing Authorization header")
 
     user_identity = request.headers.get("x-mut-user", "")
     authenticator = PuppyOneAuthenticator(SupabaseClient())
-    return authenticator.authenticate(
+    auth = authenticator.authenticate(
         credentials.credentials, project_id, user_identity=user_identity,
     )
+
+    # ── Stage 2: channel pause enforcement ───────────────────────────────
+    channel = (request.headers.get("x-puppy-client") or "").strip().lower()
+    scope = auth.get("_scope") or {}
+    scope_id = scope.get("id")
+    if channel in _KNOWN_CHANNELS and scope_id and scope_id != "_root":
+        # JWT auth (member access) returns _scope.id='_root' as a virtual
+        # scope marker, not a real repo_scopes row, so we skip the check
+        # there — JWT users see the full project tree by membership and
+        # aren't subject to per-channel pause. Access-key auth always
+        # returns a real scope_id, which is the only case we enforce.
+        try:
+            connector = ConnectorRepository().get_by_scope_provider(
+                scope_id, channel,
+            )
+        except Exception as e:
+            # Defensive: if the lookup fails (e.g. transient DB blip), we
+            # don't want to suddenly start 5xx-ing legitimate traffic.
+            # Log and fail open — pause stays as informational on this
+            # request, the next one re-tries.
+            log_error(
+                f"[Auth] Channel-pause lookup failed for scope={scope_id} "
+                f"channel={channel}: {e}; failing open"
+            )
+            connector = None
+
+        if connector is not None and connector.status == "paused":
+            log_warning(
+                f"[Auth] Rejected {channel} request to scope={scope_id}: "
+                f"connector {connector.id} is paused"
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"The '{channel}' connector for this scope is paused. "
+                    "Resume it from the Access page to re-enable this channel."
+                ),
+            )
+
+    return auth
