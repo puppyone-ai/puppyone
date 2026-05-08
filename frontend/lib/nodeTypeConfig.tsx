@@ -1,14 +1,23 @@
 /**
- * Node Type Configuration
- * 
- * 定义每种节点类型的渲染方式、图标、颜色等配置
- * 支持基础类型和同步类型（SaaS 数据）
+ * Node Type Configuration — 节点级（树视图）的视觉分类。
+ *
+ * 这里 *不* 决定如何在编辑器中渲染文件内容 — 那是
+ * `lib/fileFormats/registry.ts` 的职责（按文件后缀 + MIME → viewer）。
+ *
+ * 这里只回答两个问题：
+ *   1. 这个节点类型在树视图里画什么图标？(`iconCategory`)
+ *   2. 这个节点类型是不是文件夹？(`isFolderType()`)
+ *
+ * 节点类型 ⊆ {folder, json, markdown, file, github, notion, airtable,
+ * linear, google_sheets, gmail, google_drive, google_calendar}。
+ * 它和文件后缀正交：一个 nodeType 'file' 节点，文件可能是 .png / .pdf /
+ * .py — 编辑器从文件名走 file-format registry 决定 viewer。
  */
 
 import React from 'react';
 
-// === 渲染类型 ===
-export type RenderAs = 'folder' | 'json' | 'markdown' | 'image' | 'file';
+/** 树视图图标的粗粒度分类。仅用于 `getNodeTypeConfig().iconCategory`。 */
+export type IconCategory = 'folder' | 'json' | 'markdown' | 'file';
 
 // === SaaS Logo 图标 ===
 // 使用项目中的实际 Logo 图片
@@ -109,7 +118,8 @@ export const LockIcon = ({ size = 12 }: { size?: number }) => (
 // === 节点类型配置 ===
 
 export interface NodeTypeConfig {
-  renderAs: RenderAs;
+  /** 树视图图标的粗粒度分类。**只**用于挑图标，不参与编辑器派发。 */
+  iconCategory: IconCategory;
   color: string;
   label: string;
   badgeIcon?: React.ComponentType<{ size?: number }>;
@@ -119,83 +129,83 @@ export interface NodeTypeConfig {
 export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
   // === 原生类型 ===
   'folder': {
-    renderAs: 'folder',
-    color: '#3b82f6',  // 蓝色
+    iconCategory: 'folder',
+    color: '#3b82f6',
     label: 'Folder',
     isReadOnly: false,
   },
   'json': {
-    renderAs: 'json',
+    iconCategory: 'json',
     color: '#34d399',
     label: 'JSON',
     isReadOnly: false,
   },
   'markdown': {
-    renderAs: 'markdown',
-    color: '#a1a1aa',  // 灰色
+    iconCategory: 'markdown',
+    color: '#a1a1aa',
     label: 'Markdown',
     isReadOnly: false,
   },
   'file': {
-    renderAs: 'file',
+    iconCategory: 'file',
     color: '#71717a',
     label: 'File',
     isReadOnly: false,
   },
 
-  // === 同步类型（简化版，细节在 sync_config.import_type 中）===
+  // === 同步类型（细节在 sync_config.import_type 中） ===
   'github': {
-    renderAs: 'folder',  // GitHub repo 是文件夹结构
-    color: '#6366f1',  // GitHub 紫色
+    iconCategory: 'folder',
+    color: '#6366f1',
     label: 'GitHub',
     badgeIcon: GithubIcon,
     isReadOnly: false,
   },
   'notion': {
-    renderAs: 'json',
-    color: '#000000',  // Notion 黑色
+    iconCategory: 'json',
+    color: '#000000',
     label: 'Notion',
     badgeIcon: NotionIcon,
     isReadOnly: false,
   },
   'airtable': {
-    renderAs: 'json',
-    color: '#FFBF00',  // Airtable 黄色
+    iconCategory: 'json',
+    color: '#FFBF00',
     label: 'Airtable',
     badgeIcon: AirtableIcon,
     isReadOnly: false,
   },
   'linear': {
-    renderAs: 'json',
-    color: '#5E6AD2',  // Linear 紫色
+    iconCategory: 'json',
+    color: '#5E6AD2',
     label: 'Linear',
     badgeIcon: LinearIcon,
     isReadOnly: false,
   },
   'google_sheets': {
-    renderAs: 'json',
-    color: '#0F9D58',  // Google Sheets 绿色
+    iconCategory: 'json',
+    color: '#0F9D58',
     label: 'Google Sheets',
     badgeIcon: SheetsIcon,
     isReadOnly: false,
   },
   'gmail': {
-    renderAs: 'json',
-    color: '#EA4335',  // Gmail 红色
+    iconCategory: 'json',
+    color: '#EA4335',
     label: 'Gmail',
     badgeIcon: GmailIcon,
     isReadOnly: false,
   },
   'google_drive': {
-    renderAs: 'markdown',  // Google Drive 文件通常是 markdown
-    color: '#4285F4',  // Google 蓝色
+    iconCategory: 'markdown',
+    color: '#4285F4',
     label: 'Google Drive',
     badgeIcon: GoogleDriveIcon,
     isReadOnly: false,
   },
   'google_calendar': {
-    renderAs: 'json',
-    color: '#4285F4',  // Google 蓝色
+    iconCategory: 'json',
+    color: '#4285F4',
     label: 'Google Calendar',
     badgeIcon: GoogleCalendarIcon,
     isReadOnly: false,
@@ -204,28 +214,14 @@ export const NODE_TYPE_CONFIG: Record<string, NodeTypeConfig> = {
 
 // === 辅助函数 ===
 
-// 原生类型列表
 const NATIVE_TYPES = ['folder', 'json', 'markdown', 'file'];
 
-// 同步类型列表
-const SYNC_TYPES = ['github', 'notion', 'airtable', 'linear', 'google_sheets', 'gmail', 'google_drive', 'google_calendar'];
-
-/**
- * 获取节点类型配置
- * 
- * type 直接决定渲染方式:
- * - 原生类型: folder, json, markdown, file
- * - 同步类型: github, notion, airtable, linear, gmail, google_sheets, google_calendar, google_drive
- */
 export function getNodeTypeConfig(type: string): NodeTypeConfig {
-  // 已知类型直接返回配置
   if (NODE_TYPE_CONFIG[type]) {
     return NODE_TYPE_CONFIG[type];
   }
-  
-  // 未知类型的默认配置
   return {
-    renderAs: 'json',
+    iconCategory: 'json',
     color: '#71717a',
     label: type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
     isReadOnly: false,
@@ -233,15 +229,17 @@ export function getNodeTypeConfig(type: string): NodeTypeConfig {
 }
 
 /**
- * 判断节点类型是否为同步类型
+ * 节点类型是否为文件夹形态。GitHub 仓库也是文件夹，所以不能简单
+ * 通过 `type === 'folder'` 判断 — 走 `iconCategory === 'folder'`。
  */
+export function isFolderType(type: string): boolean {
+  return getNodeTypeConfig(type).iconCategory === 'folder';
+}
+
 export function isSyncedType(type: string): boolean {
   return !NATIVE_TYPES.includes(type);
 }
 
-/**
- * 获取同步来源（对于简化后的架构，type 就是来源）
- */
 export function getSyncSource(type: string): string | null {
   if (NATIVE_TYPES.includes(type)) return null;
   return type;

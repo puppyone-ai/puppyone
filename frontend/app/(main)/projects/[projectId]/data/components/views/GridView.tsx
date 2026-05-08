@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, LockIcon } from '@/lib/nodeTypeConfig';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
+import { PageLoading } from '@/components/loading';
 
 // Content type definition
 export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'sync' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
@@ -171,7 +172,7 @@ const UnifiedBrandedIcon = ({
   const badgeLines = (snippet || '').split('\n').slice(0, 5);
   const truncated = (s: string, max: number) => s.length > max ? s.slice(0, max) : s;
 
-  const isJson = typeConfig.renderAs !== 'markdown' && typeConfig.renderAs !== 'folder';
+  const isJson = typeConfig.iconCategory !== 'markdown' && typeConfig.iconCategory !== 'folder';
   const badgeColor = isJson ? '#6ee7b7' : '#8a8a8e';
 
   const DataBadge = () => (
@@ -270,7 +271,7 @@ const UnifiedBrandedIcon = ({
           zIndex: 10,
           filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
         }}>
-          {typeConfig.renderAs === 'folder' ? <FolderBadge /> : <DataBadge />}
+          {typeConfig.iconCategory === 'folder' ? <FolderBadge /> : <DataBadge />}
         </div>
 
         {/* Warning indicator */}
@@ -343,6 +344,12 @@ export interface GridViewProps {
   loading?: boolean;
   agentResources?: AgentResource[];
   highlightNodeId?: string | null;
+  // ─── Multi-select ───
+  selectedIds?: Set<string>;
+  onToggleSelected?: (id: string) => void;
+  onRangeSelectTo?: (id: string) => void;
+  onSelectOnly?: (id: string) => void;
+  onClearSelection?: () => void;
 }
 
 function GridItem({
@@ -357,6 +364,11 @@ function GridItem({
   onMoveNode,
   onCreateTool,
   isHighlighted,
+  isSelected,
+  selectionActive,
+  onToggleSelected,
+  onRangeSelectTo,
+  onSelectOnly,
 }: {
   item: GridViewItem;
   parentFolderId?: string | null;
@@ -369,12 +381,17 @@ function GridItem({
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   isHighlighted?: boolean;
+  isSelected?: boolean;
+  selectionActive?: boolean;
+  onToggleSelected?: (id: string) => void;
+  onRangeSelectTo?: (id: string) => void;
+  onSelectOnly?: (id: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const itemRef = useRef<HTMLDivElement>(null);
 
   const typeConfig = getNodeTypeConfig(item.type);
-  const isFolder = typeConfig.renderAs === 'folder';
+  const isFolder = typeConfig.iconCategory === 'folder';
   const { isDropTarget, dropHandlers } = useNodeDrop({
     targetFolderId: item.id,
     onMoveNode,
@@ -429,13 +446,12 @@ function GridItem({
       );
     }
 
-    switch (typeConfig.renderAs) {
+    switch (typeConfig.iconCategory) {
       case 'folder':
         return <FolderIconLarge childrenCount={item.children_count} />;
       case 'markdown':
         return <MarkdownPreviewIcon snippet={item.preview_snippet} />;
-      case 'file':
-      case 'image': {
+      case 'file': {
         const ext = item.name.split('.').pop()?.slice(0, 4) || 'FILE';
         return <FileIconLarge ext={ext} />;
       }
@@ -444,10 +460,39 @@ function GridItem({
     }
   };
 
+  // Modifier-aware click handler. Branches:
+  //   - Cmd/Ctrl  → toggle this item in/out of selection
+  //   - Shift     → extend selection to this item
+  //   - Plain     → if a selection exists, clear it (the click resets
+  //                  to "single mode") AND open the item; otherwise
+  //                  just open. Matches Finder/Explorer.
+  const handleClick = (e: React.MouseEvent) => {
+    const isMod = e.metaKey || e.ctrlKey;
+    if (isMod && onToggleSelected) {
+      e.preventDefault();
+      e.stopPropagation();
+      onToggleSelected(item.id);
+      return;
+    }
+    if (e.shiftKey && onRangeSelectTo) {
+      e.preventDefault();
+      e.stopPropagation();
+      onRangeSelectTo(item.id);
+      return;
+    }
+    if (selectionActive && onSelectOnly) {
+      // Drop multi-select context but keep this item highlighted as
+      // the new anchor. The default item.onClick still fires so the
+      // user transitions cleanly into single-file mode.
+      onSelectOnly(item.id);
+    }
+    item.onClick(e);
+  };
+
   return (
     <div
       ref={itemRef}
-      onClick={item.onClick}
+      onClick={handleClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       draggable={!isPlaceholder}
@@ -466,8 +511,9 @@ function GridItem({
       }}
       {...dropHandlers}
       className={`flex flex-col items-center justify-center gap-1.5 cursor-pointer group p-3 rounded-xl transition-colors relative aspect-square ${
-        isDropTarget ? 'bg-blue-500/15 ring-2 ring-blue-500/60' : 
-        isHighlighted ? 'bg-blue-500/12 ring-2 ring-blue-500/50' : 
+        isDropTarget ? 'bg-blue-500/15 ring-2 ring-blue-500/60' :
+        isSelected ? 'bg-blue-500/20 ring-2 ring-blue-500/70' :
+        isHighlighted ? 'bg-blue-500/12 ring-2 ring-blue-500/50' :
         hasAgentAccess ? 'ring-2 ring-orange-500/50' :
         hovered ? 'bg-[#1a1a1a]' : 'bg-transparent'
       }`}
@@ -480,8 +526,10 @@ function GridItem({
         {getTypeIcon()}
       </div>
       
-      {/* Action Menu - 右上角 (absolute 定位相对于 GridItem) */}
-      {(onRename || onDelete || onDuplicate || onMove || onCreateTool || (isSynced && onRefresh)) && !isPlaceholder && (
+      {/* Action Menu - 右上角 (absolute 定位相对于 GridItem).
+          Hidden while the item is selected so the checkmark badge
+          can occupy the corner without overlapping. */}
+      {(onRename || onDelete || onDuplicate || onMove || onCreateTool || (isSynced && onRefresh)) && !isPlaceholder && !isSelected && (
         <div style={{ position: 'absolute', top: 4, right: 4 }}>
           <ItemActionMenu
             itemId={item.id}
@@ -496,6 +544,37 @@ function GridItem({
             syncUrl={item.sync_url}
             visible={hovered}
           />
+        </div>
+      )}
+
+      {/* Selection checkmark - 右上角 (only when multi-selected) */}
+      {isSelected && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            width: 18,
+            height: 18,
+            borderRadius: '50%',
+            background: '#3b82f6',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 0 2px #18181b',
+            zIndex: 25,
+          }}
+          aria-label="Selected"
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 6.5L4.75 8.75L9.5 4"
+              stroke="#fff"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </div>
       )}
 
@@ -581,12 +660,28 @@ export function GridView({
   loading,
   agentResources,
   highlightNodeId,
+  selectedIds,
+  onToggleSelected,
+  onRangeSelectTo,
+  onSelectOnly,
+  onClearSelection,
 }: GridViewProps) {
   if (loading) {
-    return <div style={{ color: '#666', padding: 16 }}>Loading...</div>;
+    return <PageLoading variant="fill" />;
   }
 
   const resourceMap = new Map(agentResources?.map(r => [r.path, r]) ?? []);
+  const selectionActive = (selectedIds?.size ?? 0) > 0;
+
+  // Click on the grid container itself (not an item or the create
+  // button) clears the multi-selection. Matches Finder's
+  // "click background to deselect" affordance.
+  const handleBackgroundClick = (e: React.MouseEvent) => {
+    if (!selectionActive || !onClearSelection) return;
+    if (e.target === e.currentTarget) {
+      onClearSelection();
+    }
+  };
 
   return (
     <>
@@ -596,7 +691,11 @@ export function GridView({
           100% { background: transparent; outline-color: transparent; }
         }
       `}</style>
-      <div className="grid gap-x-2 gap-y-2 w-full" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}>
+      <div
+        className="grid gap-x-2 gap-y-2 w-full"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}
+        onClick={handleBackgroundClick}
+      >
         {items.map(item => (
           <GridItem
             key={item.id}
@@ -611,6 +710,11 @@ export function GridView({
             onMoveNode={onMoveNode}
             onCreateTool={onCreateTool}
             isHighlighted={highlightNodeId === item.id}
+            isSelected={selectedIds?.has(item.id)}
+            selectionActive={selectionActive}
+            onToggleSelected={onToggleSelected}
+            onRangeSelectTo={onRangeSelectTo}
+            onSelectOnly={onSelectOnly}
           />
         ))}
 

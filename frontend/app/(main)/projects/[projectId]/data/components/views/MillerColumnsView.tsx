@@ -15,6 +15,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ContentType, AgentResource } from './GridView';
 import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, LockIcon } from '@/lib/nodeTypeConfig';
+import { InlineLoading, PageLoading } from '@/components/loading';
 
 // === Types ===
 
@@ -108,7 +109,7 @@ const PlusIcon = () => (
 
 function getIcon(type: string) {
   const config = getNodeTypeConfig(type);
-  switch (config.renderAs) {
+  switch (config.iconCategory) {
     case 'folder':
       return <FolderIcon />;
     case 'markdown':
@@ -155,12 +156,20 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
       {/* Items */}
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 0' }}>
         {loading ? (
-          <div style={{
-            padding: '6px 12px',
-            color: '#666',
-            fontSize: 14,
-          }}>
-            Loading...
+          // Column-level placeholder while children resolve. We keep
+          // `InlineLoading` here (not PageLoading) because the column
+          // is narrow and a 18px centred loader would feel oversized;
+          // the wrapping flex makes sure the spinner is centred in
+          // the column instead of clinging to the top edge.
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px 12px',
+            }}
+          >
+            <InlineLoading size="sm" />
           </div>
         ) : (
           <>
@@ -168,7 +177,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
               const isSelected = selectedId === item.id;
               const isHovered = hoveredId === item.id;
               const typeConfig = getNodeTypeConfig(item.type);
-              const isFolder = typeConfig.renderAs === 'folder';
+              const isFolder = typeConfig.iconCategory === 'folder';
               const agentResource = resourceMap.get(item.id);
               const hasAgentAccess = !!agentResource;
               const isSynced = item.is_synced || isSyncedType(item.type);
@@ -474,22 +483,13 @@ export function MillerColumnsView({
   if (isLoading && columns[0].items.length === 0) {
     return (
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         height: '100%',
-        color: '#525252',
-        fontSize: 14,
         border: '1px solid rgba(255,255,255,0.08)',
         borderRadius: 6,
         margin: 8,
         marginTop: 0,
       }}>
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite', marginRight: 8 }}>
-          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
-        </svg>
-        Loading...
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+        <PageLoading variant="fill" />
       </div>
     );
   }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createConnection, type ConnectionErrorDetail, type KeyType } from '../lib/dbConnectorApi';
+import { Dots } from './loading';
 
 type SupabaseConnectDialogProps = {
   projectId: string;
@@ -343,9 +344,13 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
               cursor: canSubmit && !isConnecting ? 'pointer' : 'not-allowed',
               fontSize: 14,
               fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
             }}
           >
-            {isConnecting ? 'Connecting...' : 'Connect'}
+            {isConnecting && <Dots size='xs' />}
+            {isConnecting ? 'Connecting…' : 'Connect'}
           </button>
         </div>
       </div>

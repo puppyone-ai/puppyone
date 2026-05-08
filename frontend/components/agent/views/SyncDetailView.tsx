@@ -8,6 +8,7 @@ import type { SyncModeType } from '@/lib/syncTriggerPolicy';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 import { FilesystemDetailView } from './FilesystemDetailView';
+import { Dots } from '@/components/loading';
 
 interface SyncDetail {
   id: string;
@@ -255,9 +256,6 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
 
   return (
     <>
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
       <PanelShell
         title={providerLabel}
         subtitle={sync.node_name || undefined}
@@ -602,9 +600,11 @@ function TriggerModeSelector({
                 background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)',
                 color: '#60a5fa', cursor: saving ? 'not-allowed' : 'pointer',
                 opacity: saving || (pendingMode === 'scheduled' && !scheduleConfig?.schedule) ? 0.5 : 1,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
             >
-              {saving ? 'Saving...' : 'Save'}
+              {saving && <Dots size='xs' tone='info' />}
+              {saving ? 'Saving…' : 'Save'}
             </button>
             <button
               onClick={handleCancel}

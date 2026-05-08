@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { activityIconButtonStyle } from './activityStyles';
 
-type ActivityIconButtonKind = 'minimize' | 'collapse' | 'close';
+type ActivityIconButtonKind = 'minimize' | 'collapse' | 'close' | 'back';
 
 interface ActivityIconButtonProps {
   kind: ActivityIconButtonKind;
@@ -63,6 +63,18 @@ export function ActivityIconButton({
             stroke="currentColor"
             strokeWidth="1.75"
             strokeLinecap="round"
+          />
+        </svg>
+      )}
+
+      {kind === 'back' && (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path
+            d="M9.5 4L5.5 8L9.5 12"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       )}

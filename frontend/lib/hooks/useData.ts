@@ -195,13 +195,53 @@ export function refreshContentNodes(projectId: string, dirPath: string | null) {
 }
 
 /**
- * Refresh all directory caches for a project (used after external changes: MCP/Bot/Sync).
+ * Refresh all directory caches for a project.
+ *
+ * Use ONLY when the set of changed folders is genuinely unknown
+ * (external sync/MCP/bot pushes, supabase saves, file imports that
+ * may span many folders). User-initiated mutations whose target
+ * folders are known should call ``refreshFolderNodes`` instead —
+ * a single rename re-fetching every cached folder in the project
+ * is what made saves feel slow.
  */
 export function refreshAllContentNodes(projectId: string) {
   return mutate(
     key => Array.isArray(key) && key[0] === 'tree' && key[1] === projectId,
     undefined,
     { revalidate: true }
+  );
+}
+
+/**
+ * Refresh only the directory caches for the given folder paths.
+ *
+ * Use this whenever the caller knows exactly which folder listings
+ * the mutation affected:
+ *   - create: parent folder
+ *   - rename / delete: parent folder
+ *   - move: source parent + target parent
+ *
+ * Pass ``''`` (empty string) for the project root. ``null`` /
+ * ``undefined`` are normalised to root for callers that pass
+ * ``currentFolderPath`` directly.
+ *
+ * Compared to ``refreshAllContentNodes`` this avoids re-fetching
+ * unrelated folders the user has open elsewhere — a project with
+ * 20 cached folder listings now does 1 round-trip per mutation
+ * instead of 20.
+ */
+export function refreshFolderNodes(
+  projectId: string,
+  ...folderPaths: (string | null | undefined)[]
+) {
+  if (!folderPaths.length) return Promise.resolve();
+  const unique = Array.from(
+    new Set(folderPaths.map((p) => p ?? '')),
+  );
+  return Promise.all(
+    unique.map((folderPath) =>
+      mutate(['tree', projectId, folderPath], undefined, { revalidate: true }),
+    ),
   );
 }
 

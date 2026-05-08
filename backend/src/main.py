@@ -4,6 +4,7 @@ ContextBase Backend Server Entrypoint.
 
 # ruff: noqa: E402
 
+import os
 import time
 from contextlib import asynccontextmanager
 

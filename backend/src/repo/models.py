@@ -63,7 +63,12 @@ class Connector:
 
     @property
     def is_builtin(self) -> bool:
-        return self.provider in ("cli", "agent")
+        # Built-in connectors are auto-created by the DB trigger on every
+        # repo_scopes INSERT (see migrations/…_connectors_table.sql + the
+        # filesystem-builtin migration). They are protected from deletion
+        # via the API — users can pause/resume but not destroy them, since
+        # their lifecycle is tied to the scope itself.
+        return self.provider in ("cli", "agent", "filesystem")
 
     @property
     def is_oauth_backed(self) -> bool:

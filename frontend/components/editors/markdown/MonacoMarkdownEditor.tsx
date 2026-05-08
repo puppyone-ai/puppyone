@@ -2,6 +2,20 @@
 
 import Editor, { OnMount, Monaco } from '@monaco-editor/react';
 import { useRef, useCallback } from 'react';
+import { PageLoading } from '@/components/loading';
+
+/**
+ * Monaco's default loading state is a spinning ring while worker
+ * scripts and theme registration finish. The `<Editor />` component
+ * accepts a `loading` prop for replacement; we feed it the unified
+ * `<PageLoading />` (block + "Loading" label) so the brand-consistent
+ * loader takes over from the generic Monaco spinner.
+ */
+const MONACO_LOADING = (
+  <div style={{ width: '100%', height: '100%', background: '#0e0e0e' }}>
+    <PageLoading variant="fill" />
+  </div>
+);
 
 const DARK_THEME_CONFIG = {
   base: 'vs-dark' as const,
@@ -81,6 +95,7 @@ export default function MonacoMarkdownEditor({ content, onChange, readOnly }: Pr
         onChange={handleChange}
         onMount={handleMount}
         theme="markdown-dark"
+        loading={MONACO_LOADING}
         options={{
           minimap: { enabled: false },
           fontSize: 13,

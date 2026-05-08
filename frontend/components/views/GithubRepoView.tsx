@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { InlineLoading } from '@/components/loading';
 
 interface FileInfo {
   path: string;
@@ -314,8 +315,8 @@ export function GithubRepoView({ nodeId, nodeName, content, syncUrl }: GithubRep
 
   if (!content) {
     return (
-      <div style={{ padding: 40, textAlign: 'center', color: '#525252', fontSize: 13 }}>
-        Loading repository data...
+      <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}>
+        <InlineLoading label="Loading repository data…" />
       </div>
     );
   }

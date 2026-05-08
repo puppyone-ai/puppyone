@@ -9,6 +9,7 @@ import {
   refreshToolsAndMcp,
 } from '@/lib/hooks/useData';
 import { createMcpV2 } from '@/lib/mcpApi';
+import { Dots } from '@/components/loading';
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 320;
@@ -562,9 +563,13 @@ export default function ToolsLayout({
                   opacity: isCreating ? 0.7 : 1,
                   fontSize: 16,
                   fontWeight: 500,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                {isCreating ? 'Connecting...' : 'Connect'}
+                {isCreating && <Dots size='xs' />}
+                {isCreating ? 'Connecting…' : 'Connect'}
               </button>
             </div>
           </div>

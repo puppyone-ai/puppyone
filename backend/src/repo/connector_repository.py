@@ -91,14 +91,40 @@ class ConnectorRepository:
         rows = resp.data or []
         return _row_to_connector(rows[0]) if rows else None
 
+    def get_by_scope_provider(
+        self, scope_id: str, provider: str,
+    ) -> Optional[Connector]:
+        """Hot path for the channel-aware MUT auth check.
+
+        For built-in providers (cli, agent, filesystem) there's at most one
+        row per scope, enforced by the partial unique index
+        idx_connectors_builtin_one_per_scope. For third-party providers
+        this query may match multiple rows; we return the first by
+        creation time, but callers in the auth layer should only ever
+        invoke this with built-in providers.
+        """
+        resp = (
+            self._client.table(self.TABLE)
+            .select("*")
+            .eq("scope_id", scope_id)
+            .eq("provider", provider)
+            .order("created_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return _row_to_connector(rows[0]) if rows else None
+
     def count_third_party_for_scope(self, scope_id: str) -> int:
-        """How many user-created (non-cli/non-agent) connectors are attached
-        to this scope. Used by scope deletion to refuse if non-zero."""
+        """How many user-created (non-builtin) connectors are attached to
+        this scope. Used by scope deletion to refuse if non-zero. Built-in
+        providers (cli/agent/filesystem) are excluded since they are
+        auto-created and tied to the scope's lifecycle."""
         resp = (
             self._client.table(self.TABLE)
             .select("id", count="exact")
             .eq("scope_id", scope_id)
-            .not_.in_("provider", ["cli", "agent"])
+            .not_.in_("provider", ["cli", "agent", "filesystem"])
             .execute()
         )
         return resp.count or 0

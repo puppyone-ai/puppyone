@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PanelShell } from './PanelShell';
+import { PageLoading } from '@/components/loading';
 
 interface McpEndpointData {
   id: string;
@@ -56,9 +57,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
   if (!endpoint) {
     return (
       <PanelShell title="MCP Endpoint" icon={McpIcon} onClose={onClose} onBack={onBack}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>
-          Loading...
-        </div>
+        <PageLoading variant="fill" />
       </PanelShell>
     );
   }

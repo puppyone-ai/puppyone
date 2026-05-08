@@ -111,3 +111,41 @@ body {
     transform: translateX(-50%) translateY(0);
   }
 }
+
+/*
+ * ── PuppyOne unified loading system ────────────────────────────────
+ * Defined ONCE here. Components in `components/loading/` reference
+ * these by name; do NOT inline `<style>{@keyframes ...}</style>` in
+ * components anymore. Old `spin` / `pulse` / `ping` above are kept
+ * for backward compatibility while we migrate call-sites; remove them
+ * once `components/loading/` has fully replaced everything.
+ */
+
+@keyframes puppy-pulse-grid {
+  0%, 60%, 100% { opacity: 0.18; }
+  30%           { opacity: 1; }
+}
+
+@keyframes puppy-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes puppy-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.35; }
+  40%           { transform: translateY(-2px); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Honour OS-level "Reduce motion" — collapse all puppy-* loading
+   * animations down to a static, fully-rendered frame. The user still
+   * sees the loader's shape (so they know "something is loading"),
+   * just without the looping motion that triggers vestibular issues.
+   */
+  [data-puppy-loader] *,
+  [data-puppy-loader] {
+    animation: none !important;
+    opacity: 0.6 !important;
+  }
+}

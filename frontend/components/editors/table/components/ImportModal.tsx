@@ -6,6 +6,7 @@ import React, {
   CSSProperties,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Dots } from '@/components/loading';
 import {
   submitImport,
   type CrawlOptions,
@@ -378,7 +379,7 @@ export function ImportModal({
           <button
             onClick={handleImport}
             disabled={isImporting || !url.trim()}
-            style={styles.button(isImporting || !url.trim(), true)}
+            style={{ ...styles.button(isImporting || !url.trim(), true), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             onMouseEnter={e => {
               if (!isImporting && url.trim()) {
                 e.currentTarget.style.background = '#353535';
@@ -390,10 +391,11 @@ export function ImportModal({
               }
             }}
           >
+            {isImporting && <Dots size='xs' />}
             {isImporting
               ? mode === 'create_table'
-                ? 'Creating...'
-                : 'Importing...'
+                ? 'Creating…'
+                : 'Importing…'
               : mode === 'create_table'
                 ? 'Create Table'
                 : 'Import'}

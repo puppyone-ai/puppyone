@@ -2,6 +2,11 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  resolveDataTransferSnapshot,
+  snapshotDataTransfer,
+} from '@/lib/dropFiles';
+import { resolveFormat } from '@/lib/fileFormats';
 
 interface FileImportDialogProps {
   isOpen: boolean;
@@ -28,6 +33,15 @@ export function FileImportDialog({
   const [files, setFiles] = useState<File[]>(initialFiles || []);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Separate folder picker. The browser exposes ``webkitdirectory``
+  // only on dedicated inputs — toggling it on a single shared input
+  // would force the user to pick one mode at dialog mount time and
+  // we'd lose the per-click choice. With two hidden inputs the
+  // visible UI gets both buttons and each click opens the right
+  // picker. ``handleFileSelect`` works for both: when the user
+  // picks a folder, every File in the resulting FileList carries
+  // a non-empty ``webkitRelativePath`` set by the browser.
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // 同步初始文件
   useEffect(() => {
@@ -36,20 +50,22 @@ export function FileImportDialog({
     }
   }, [initialFiles]);
 
-  // 分析文件类型
+  // Analyze files using the file-format registry as the single
+  // source of truth — no more local hardcoded extension list. The
+  // category split is text-like (markdown / text / code / structured
+  // text data) vs everything else (image / pdf / archive / binary).
   const fileStats = React.useMemo(() => {
     let textCount = 0;
     let binaryCount = 0;
     const extensions = new Set<string>();
 
-    const textExts = new Set([
-      'txt', 'md', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'html', 'css', 'xml', 'yaml', 'yml', 'csv'
-    ]);
+    const TEXT_LIKE_CATEGORIES = new Set(['markdown', 'text', 'code', 'data']);
 
-    files.forEach(f => {
+    files.forEach((f) => {
       const ext = f.name.split('.').pop()?.toLowerCase() || '';
       extensions.add(ext);
-      if (textExts.has(ext)) {
+      const fmt = resolveFormat({ name: f.name, mimeType: f.type || null });
+      if (TEXT_LIKE_CATEGORIES.has(fmt.category)) {
         textCount++;
       } else {
         binaryCount++;
@@ -98,10 +114,15 @@ export function FileImportDialog({
     e.stopPropagation();
     setIsDragging(false);
 
-    const droppedFiles = Array.from(e.dataTransfer.files);
-    if (droppedFiles.length > 0) {
-      setFiles(prev => [...prev, ...droppedFiles]);
-    }
+    // Snapshot synchronously — see lib/dropFiles.ts. If the user
+    // dropped a folder, ``e.dataTransfer.files`` would lie and
+    // report a single 0-byte "file" with the folder's name.
+    const snapshot = snapshotDataTransfer(e.nativeEvent);
+    void resolveDataTransferSnapshot(snapshot).then((droppedFiles) => {
+      if (droppedFiles.length > 0) {
+        setFiles((prev) => [...prev, ...droppedFiles]);
+      }
+    });
   }, []);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,7 +230,27 @@ export function FileImportDialog({
             onChange={handleFileSelect}
             style={{ display: 'none' }}
           />
-          
+          {/* Folder picker — separate hidden input. When the user
+              clicks the "Browse folder" link below, the browser's
+              native folder picker opens and every selected File
+              gets a ``webkitRelativePath`` reflecting the folder
+              hierarchy. The upload pipeline (lib/uploadApi.ts ->
+              deriveFileParentPath) reads that path to preserve
+              the structure on the server. */}
+          <input
+            ref={folderInputRef}
+            type="file"
+            multiple
+            // ``webkitdirectory`` / ``directory`` are non-standard
+            // attributes shipped by every Chromium / Firefox /
+            // Safari we target; React's TS types don't know about
+            // them, so we spread them through ``any`` (matches the
+            // pattern in GetStartedPanel and TableManageDialog).
+            {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
+
           <div
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
@@ -241,11 +282,30 @@ export function FileImportDialog({
                   <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
                   <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
                 </svg>
-                <div style={{ fontSize: 14, color: '#a1a1aa', marginBottom: 4 }}>
-                  Drop files here or click to browse
+                <div style={{ fontSize: 14, color: '#a1a1aa' }}>
+                  Drop files or a folder here, or click to browse
                 </div>
-                <div style={{ fontSize: 12, color: '#52525b' }}>
-                  Supports PDF, images, documents, and text files
+                <div style={{ marginTop: 6, fontSize: 12, color: '#71717a' }}>
+                  Need to pick a whole folder?{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      folderInputRef.current?.click();
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: '#3b82f6',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Browse folder
+                  </button>
                 </div>
               </div>
             ) : (
@@ -310,7 +370,27 @@ export function FileImportDialog({
                   paddingTop: 8,
                   borderTop: '1px dashed #27272a',
                 }}>
-                  Click or drop to add more files
+                  Click or drop to add more files{' '}
+                  <span style={{ opacity: 0.4 }}>·</span>{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      folderInputRef.current?.click();
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      color: '#3b82f6',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Add folder
+                  </button>
                 </div>
               </>
             )}

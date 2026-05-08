@@ -19,6 +19,7 @@ import { sendChatMessage } from '../../../lib/chatApi';
 import { useMention } from '../../../lib/hooks/useMention';
 import { useAgent } from '@/contexts/AgentContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
+import { Dots } from '@/components/loading';
 
 // 时间格式化
 const getTimeAgo = (date: Date): string => {
@@ -1152,10 +1153,8 @@ export function ChatRuntimeView({
             >
               {isSavingResources ? (
                 <>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
-                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12"></circle>
-                  </svg>
-                  Saving...
+                  <Dots size="xs" />
+                  Saving…
                 </>
               ) : (
                 <>

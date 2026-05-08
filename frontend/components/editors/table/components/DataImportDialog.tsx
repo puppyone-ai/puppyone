@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
+import { Dots } from '@/components/loading';
 
 interface DataImportDialogProps {
   visible: boolean;
@@ -300,10 +301,11 @@ export function DataImportDialog({
                 onKeyDown={e => e.key === 'Enter' && handleParseUrl()}
               />
               <button
-                style={styles.button(true, isLoading || !url)}
+                style={{ ...styles.button(true, isLoading || !url), display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 onClick={handleParseUrl}
               >
-                {isLoading ? 'Fetching...' : 'Fetch'}
+                {isLoading && <Dots size='xs' />}
+                {isLoading ? 'Fetching…' : 'Fetch'}
               </button>
             </div>
           </div>

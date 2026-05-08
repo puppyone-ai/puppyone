@@ -2,37 +2,44 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import { PageLoading } from '@/components/loading';
+
+// Shared loader for both Markdown editor variants — keeps the
+// fallback identical whether Monaco (~2.1MB) or Milkdown is being
+// pulled, so users don't see a different placeholder per mode.
+const EditorLoader = () => (
+  <div style={{ height: '100%', background: '#0e0e0e' }}>
+    <PageLoading variant="fill" label="Loading editor…" />
+  </div>
+);
 
 // Dynamically import Monaco — only loads when user switches to source mode (~2.1MB)
 const MonacoMarkdownEditor = dynamic(() => import('./MonacoMarkdownEditor'), {
   ssr: false,
-  loading: () => (
-    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0e0e0e' }}>
-      Loading editor...
-    </div>
-  ),
+  loading: EditorLoader,
 });
 
 // Dynamically import MilkdownEditor to avoid SSR issues
 const MilkdownEditor = dynamic(() => import('./MilkdownEditor'), {
   ssr: false,
-  loading: () => (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#525252',
-      background: '#0e0e0e',
-    }}>
-      Loading editor...
-    </div>
-  ),
+  loading: EditorLoader,
 });
 
 // Custom dark theme is now in MonacoMarkdownEditor.tsx
 
-export type MarkdownViewMode = 'wysiwyg' | 'source';
+/**
+ * Three explicit user-facing rendering intents for a markdown file:
+ *
+ *   - ``'wysiwyg'`` — visual editor (Milkdown). Editable when the
+ *     file format is editable.
+ *   - ``'source'`` — raw markdown in Monaco. Editable when the file
+ *     format is editable.
+ *   - ``'preview'`` — visual renderer (Milkdown), forced read-only
+ *     even on editable files. Lets users read their own notes
+ *     without accidentally editing them — Obsidian's "Reading view"
+ *     equivalent.
+ */
+export type MarkdownViewMode = 'wysiwyg' | 'source' | 'preview';
 
 interface MarkdownEditorProps {
   content: string;
@@ -105,6 +112,11 @@ export function MarkdownEditor({
     }
   }, [onChange, readOnly]);
 
+  // ``preview`` is a "force read-only" intent on top of the visual
+  // editor; ``readOnly`` from props (file-level lock) still wins.
+  const isPreview = viewMode === 'preview';
+  const effectiveReadOnly = readOnly || isPreview;
+
   return (
     <div
       style={{
@@ -114,12 +126,13 @@ export function MarkdownEditor({
         background: '#0e0e0e',
       }}
     >
-      {/* WYSIWYG Mode - Milkdown */}
-      {viewMode === 'wysiwyg' && (
+      {/* WYSIWYG + Preview share the Milkdown surface — preview is just
+          Milkdown with editing disabled. */}
+      {(viewMode === 'wysiwyg' || isPreview) && (
         <MilkdownEditor
           content={localContent}
-          onChange={handleMilkdownChange}
-          readOnly={readOnly}
+          onChange={isPreview ? undefined : handleMilkdownChange}
+          readOnly={effectiveReadOnly}
         />
       )}
 

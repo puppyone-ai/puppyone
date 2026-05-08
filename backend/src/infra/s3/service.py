@@ -827,6 +827,99 @@ class S3Service:
             self._handle_client_error(e, "list_multipart_uploads")
             raise
 
+    # ============= Server-side copy & existence =============
+
+    async def copy_object(
+        self,
+        src_key: str,
+        dst_key: str,
+        *,
+        content_type: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> None:
+        """
+        Server-side copy from ``src_key`` to ``dst_key`` within the
+        same bucket. Bytes never leave S3 — no egress, no client-side
+        memory, takes ~50–200ms regardless of object size (within the
+        5 GB single-call limit).
+
+        Used by the upload finalize path to move a freshly uploaded
+        object from its staging key (``projects/.../uploads/...``) to
+        its content-addressed location in the MUT object store
+        (``mut/{project}/objects/<hh>/<rest>``) without round-tripping
+        the bytes through the FastAPI process. The MUT push that
+        follows then ``negotiate``s and sees the blob is already
+        there, so no part of the file payload travels over the
+        Python process — only the small JSON tree nodes do.
+
+        Args:
+            src_key: Object key to copy from (must be in this bucket).
+            dst_key: Destination object key in this bucket.
+            content_type: Optional override for the destination
+                ``Content-Type``. When ``None`` we replace the metadata
+                anyway (S3 requires REPLACE if any metadata field is
+                set, COPY otherwise — keep things explicit).
+            metadata: Optional user metadata to attach to the
+                destination. ``None`` keeps the source's metadata.
+
+        Raises:
+            S3OperationError: copy failed (source missing, permission
+                denied, etc.).
+
+        Note on >5 GB objects: ``CopyObject`` caps at 5 GB per call.
+        For larger objects we'd need ``UploadPartCopy`` (multipart
+        copy). Punted for now — typical uploads are tens of MB.
+        """
+        kwargs: dict = {
+            "Bucket": self.bucket_name,
+            "Key": dst_key,
+            "CopySource": {"Bucket": self.bucket_name, "Key": src_key},
+        }
+        if content_type or metadata:
+            kwargs["MetadataDirective"] = "REPLACE"
+            if content_type:
+                kwargs["ContentType"] = content_type
+            if metadata:
+                kwargs["Metadata"] = metadata
+
+        try:
+            await self._run_sync(self.client.copy_object, **kwargs)
+            logger.info(
+                f"Copied object {src_key} -> {dst_key} (server-side, no egress)"
+            )
+        except ClientError as e:
+            self._handle_client_error(e, "copy_object")
+            raise
+
+    async def object_exists(self, key: str) -> bool:
+        """
+        Return ``True`` iff an object exists at ``key`` in this
+        bucket. Cheap (HEAD only). Treats ``NoSuchKey`` / 404 as
+        "not present" rather than an error.
+
+        Used by the finalize path to skip ``copy_object`` when the
+        destination (which is content-addressed by SHA-256, so any
+        prior write of the same bytes lands at the same key) is
+        already populated. Saves one S3 round-trip per duplicate
+        upload.
+        """
+        try:
+            await self._run_sync(
+                self.client.head_object, Bucket=self.bucket_name, Key=key
+            )
+            return True
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "")
+            http_status = e.response.get("ResponseMetadata", {}).get(
+                "HTTPStatusCode", 0
+            )
+            if error_code in {"NoSuchKey", "404", "NotFound"} or http_status == 404:
+                return False
+            self._handle_client_error(e, "object_exists")
+            raise
+
+    # ============= Multipart parts listing =============
+
     async def list_parts(
         self, key: str, upload_id: str, max_parts: int = 1000
     ) -> tuple[list[MultipartPartListItem], int | None]:

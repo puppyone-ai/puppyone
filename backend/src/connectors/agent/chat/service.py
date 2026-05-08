@@ -9,6 +9,8 @@ from src.connectors.agent.chat.schemas import (
     ChatSession,
     ChatSessionCreate,
 )
+from src.exceptions import BusinessException
+from src.repo.connector_repository import ConnectorRepository
 
 
 def _generate_session_title(first_message: str, max_len: int = 30) -> str:
@@ -16,6 +18,36 @@ def _generate_session_title(first_message: str, max_len: int = 30) -> str:
     if len(cleaned) <= max_len:
         return cleaned
     return cleaned[:max_len] + "..."
+
+
+def _enforce_agent_not_paused(agent_id: str) -> None:
+    """Reject session creation if the agent connector is paused.
+
+    `agent_id` here is the connectors row id (provider='agent') for the
+    chat agent the user is talking to. Pausing that row from the access
+    page is meant to act as a hard "this agent is offline" toggle —
+    without this check it would only flip a label in the UI and the
+    chat would continue to work, which contradicts the user-facing
+    affordance.
+
+    We deliberately swallow lookup failures (returning silently when
+    the connector can't be fetched) so transient DB issues don't lock
+    every chat session out; a missing-or-unreadable connector falls
+    back to the prior behaviour of "let the request through".
+    """
+    if not agent_id:
+        return
+    try:
+        connector = ConnectorRepository().get(agent_id)
+    except Exception:
+        return
+    if connector is None:
+        return
+    if connector.status == "paused":
+        raise BusinessException(
+            "This agent is currently paused. Resume it from the Access page "
+            "to start chatting."
+        )
 
 
 class ChatService:
@@ -27,6 +59,7 @@ class ChatService:
     def create_session(
         self, *, user_id: str, agent_id: str, title: Optional[str] = None, mode: str = "agent"
     ) -> ChatSession:
+        _enforce_agent_not_paused(agent_id)
         return self.repo.create_session(
             ChatSessionCreate(user_id=user_id, agent_id=agent_id, title=title, mode=mode)
         )
@@ -81,6 +114,13 @@ class ChatService:
             existing = self.repo.get_session(session_id=session_id, user_id=user_id)
             if existing is None:
                 raise PermissionError("Invalid session_id for current user")
+            # Re-check pause state on every continuation: a session opened
+            # while the agent was active stays valid, but if the user
+            # later pauses the agent we want subsequent sends to bounce
+            # off the same gate as a fresh session creation. Use the
+            # session's bound agent_id when no override is supplied.
+            target_agent_id = agent_id or existing.agent_id
+            _enforce_agent_not_paused(target_agent_id or "")
             return session_id, False
         created = self.create_session(user_id=user_id, agent_id=agent_id or "", mode=mode)
         return created.id, True

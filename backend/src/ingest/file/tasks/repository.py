@@ -143,7 +143,13 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             return created_task
 
         except Exception as e:
-            handle_supabase_error(e, "create ETL task")
+            # ``handle_supabase_error`` returns a SupabaseException; we
+            # MUST raise it. The previous fall-through made this method
+            # silently return ``None`` on failure (e.g. CHECK constraint
+            # violations), which then exploded at the call site as
+            # ``AttributeError: 'NoneType' object has no attribute ...``
+            # — a confusing diagnostic that hid the real cause.
+            raise handle_supabase_error(e, "create ETL task") from e
 
     def get_task(self, task_id: str) -> ETLTask | None:
         """Get task by ID from Supabase."""
@@ -199,7 +205,7 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             return updated_task
 
         except Exception as e:
-            handle_supabase_error(e, "update ETL task")
+            raise handle_supabase_error(e, "update ETL task") from e
 
     def list_tasks(
         self,
@@ -284,4 +290,4 @@ class ETLTaskRepositorySupabase(ETLTaskRepositoryBase):
             return True
 
         except Exception as e:
-            handle_supabase_error(e, "delete ETL task")
+            raise handle_supabase_error(e, "delete ETL task") from e

@@ -79,11 +79,20 @@ export const AppSidebar = memo(function AppSidebar({
       },
       {
         id: 'access',
+        // Chain-link glyph — diagonal / 45°-rotated variant of the
+        // Lucide `link` icon. The earlier horizontal version only
+        // filled ~20×10 of the 24-grid which made the strokes read as
+        // thin and the icon as "too wide" next to its siblings (folder
+        // / clock / monitor / gear all fill ~18×18). The rotated path
+        // shares the same square footprint as those four, so the rail
+        // reads as one consistent family. Kept in sync with `ChainIcon`
+        // in `AccessPointsHeaderButton.tsx` so both surfaces (sidebar
+        // and Data page header chip) draw the same mark.
         label: t('access'),
         icon: (
           <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <rect x='4' y='10' width='16' height='10' rx='2' />
-            <path d='M8 10V7a4 4 0 0 1 8 0v3' />
+            <path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' />
+            <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' />
           </svg>
         ),
       },
@@ -101,8 +110,33 @@ export const AppSidebar = memo(function AppSidebar({
         id: 'monitor',
         label: t('monitor'),
         icon: (
+          // Logs glyph — three iterations on this:
+          //   v1 ECG line          → wrong semantic (looked like
+          //                          live metrics, not events).
+          //   v2 list-with-bullets → right semantic but bare horizontal
+          //                          lines felt thin next to the other
+          //                          four nav glyphs (folder · lock ·
+          //                          clock · gear), which are all
+          //                          `closed outline + interior detail`.
+          //   v3 rect + lines      → right visual weight but the bullets
+          //                          went away, so the icon read as a
+          //                          generic document rather than a
+          //                          bulleted log feed.
+          //
+          // This is v4: the closed-outline grammar of v3 (a 3–21
+          // rounded rect, same footprint as the History clock and
+          // Settings gear) wrapped around the bullet+line grammar of
+          // v2. Visual weight matches the family; semantic stays as
+          // "stream of bulleted log entries". Last entry is shorter so
+          // the list reads as "trailing off into the live tail".
           <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <path d='M3 12h4l3-8 4 16 3-8h4' />
+            <rect x='3' y='4' width='18' height='16' rx='2' />
+            <line x1='7' y1='9' x2='7.01' y2='9' />
+            <line x1='10' y1='9' x2='17' y2='9' />
+            <line x1='7' y1='13' x2='7.01' y2='13' />
+            <line x1='10' y1='13' x2='17' y2='13' />
+            <line x1='7' y1='17' x2='7.01' y2='17' />
+            <line x1='10' y1='17' x2='14' y2='17' />
           </svg>
         ),
       },

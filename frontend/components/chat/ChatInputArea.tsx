@@ -7,6 +7,7 @@ import {
   useImperativeHandle,
   useState,
 } from 'react';
+import { Dots } from '@/components/loading';
 
 // Access 选项类型
 export interface AccessOption {
@@ -279,16 +280,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
             }}
           >
             {isLoading ? (
-              <div
-                style={{
-                  width: 14,
-                  height: 14,
-                  border: '2px solid rgba(255,255,255,0.3)',
-                  borderTopColor: '#fff',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                }}
-              />
+              <Dots size="xs" />
             ) : (
               <svg
                 width='16'

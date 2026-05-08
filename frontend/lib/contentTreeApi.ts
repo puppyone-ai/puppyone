@@ -66,6 +66,12 @@ export interface TreeRmResponse {
   permanent: boolean;
 }
 
+export interface TreeBulkRmResponse {
+  commit_id: string;
+  paths: string[];
+  trash_paths?: string[];
+}
+
 export interface TreeRestoreResponse {
   path: string;
   restored_to: string;
@@ -287,6 +293,31 @@ export async function fetchRawBlob(
 }
 
 /**
+ * Mint a short-lived inline URL for native browser previews.
+ *
+ * Unlike `fetchRawBlob`, the returned URL can be used directly as
+ * `<audio src>`, `<video src>`, or `<iframe src>`. That lets the
+ * browser issue normal Range requests for media seek/progressive
+ * playback and avoids buffering the entire file in JS memory.
+ */
+export async function getInlinePreviewUrl(
+  projectId: string,
+  path: string,
+): Promise<string> {
+  const signed = await treeRequest<{ url: string; expires_at: number }>(
+    `/api/v1/content/${projectId}/inline/sign`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ path }),
+    },
+  );
+
+  return signed.url.startsWith('http')
+    ? signed.url
+    : `${API_BASE_URL}${signed.url}`;
+}
+
+/**
  * Trigger a browser-native download for a file or folder.
  *
  * Two-step flow (see `mut_engine/routers/_download_token.py` for the
@@ -434,6 +465,26 @@ export async function removeFile(
   return treeRequest<TreeRmResponse>(`/api/v1/content/${projectId}/rm`, {
     method: 'POST',
     body: JSON.stringify({ path, permanent }),
+  });
+}
+
+/**
+ * Soft-delete (default) or permanent-delete multiple files in one
+ * round-trip. Backend bundles every move into a single commit per
+ * scope via ``MutOps.bulk_trash`` (or ``MutOps.delete`` when
+ * ``permanent`` is true), so the size of ``paths`` does not change
+ * the number of commits or audit entries.
+ *
+ * POST /api/v1/content/{projectId}/rm  with ``{ paths, permanent }``
+ */
+export async function bulkRemoveFiles(
+  projectId: string,
+  paths: string[],
+  permanent: boolean = false,
+): Promise<TreeBulkRmResponse> {
+  return treeRequest<TreeBulkRmResponse>(`/api/v1/content/${projectId}/rm`, {
+    method: 'POST',
+    body: JSON.stringify({ paths, permanent }),
   });
 }
 

@@ -9,17 +9,30 @@ export class ApiError extends Error {
   }
 }
 
-export function createClient(cmd) {
+// Channel header. The backend's MUT auth dependency
+// (mut_engine/server/auth.py:get_mut_auth) uses this to decide which
+// connector's `status` to consult when enforcing pause/resume.
+//   "cli"        — manual mut commands typed into a terminal
+//   "filesystem" — the local-folder sync daemon (set by daemon code path)
+// Anything not recognised falls back to "no per-channel enforcement",
+// which is the historical (pre-pause-enforcement) behaviour.
+const DEFAULT_CLIENT_KIND = "cli";
+
+export function createClient(cmd, { clientKind = DEFAULT_CLIENT_KIND } = {}) {
   const { apiUrl, apiKey } = resolveAuth(cmd);
 
   if (!apiKey) {
     throw new ApiError(0, "NOT_AUTHENTICATED", "Not logged in.", 'Run `puppyone auth login` first.');
   }
 
-  return _makeClient(apiUrl, { Authorization: `Bearer ${apiKey}` }, { autoRefresh: true });
+  return _makeClient(
+    apiUrl,
+    { Authorization: `Bearer ${apiKey}` },
+    { autoRefresh: true, clientKind },
+  );
 }
 
-export function createAccessKeyClient(accessKey, cmd, apiUrlOverride) {
+export function createAccessKeyClient(accessKey, cmd, apiUrlOverride, { clientKind = DEFAULT_CLIENT_KIND } = {}) {
   const opts = collectOpts(cmd);
   const config = loadConfig();
   const apiUrl = apiUrlOverride ?? opts.apiUrl ?? config.api_url ?? "http://localhost:9090";
@@ -28,7 +41,11 @@ export function createAccessKeyClient(accessKey, cmd, apiUrlOverride) {
     throw new ApiError(0, "MISSING_KEY", "Access key is required.", "Provide --key <access-key>.");
   }
 
-  return _makeClient(apiUrl, { "X-Access-Key": accessKey }, { autoRefresh: false });
+  return _makeClient(
+    apiUrl,
+    { "X-Access-Key": accessKey },
+    { autoRefresh: false, clientKind },
+  );
 }
 
 /** @deprecated Use createAccessKeyClient */
@@ -92,8 +109,14 @@ function _buildUrl(baseUrl, path, query) {
   return url;
 }
 
-function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
+function _makeClient(apiUrl, authHeaders, { autoRefresh = false, clientKind = "cli" } = {}) {
   const baseUrl = apiUrl.replace(/\/+$/, "");
+
+  // Channel header attached to every request out of this client. The
+  // backend reads it in get_mut_auth() and rejects the request when the
+  // matching connector for the resolved scope is paused. Threaded into
+  // a single source so both `request` and `rawRequest` / `upload` agree.
+  const channelHeaders = clientKind ? { "X-Puppy-Client": clientKind } : {};
 
   async function getAuthHeaders() {
     if (!autoRefresh) return authHeaders;
@@ -116,6 +139,7 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
     const currentAuthHeaders = await getAuthHeaders();
     const headers = {
       ...currentAuthHeaders,
+      ...channelHeaders,
       "Content-Type": "application/json",
     };
 
@@ -143,7 +167,11 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
     if (res.status === 401 && autoRefresh) {
       const newToken = await _tryRefreshToken(baseUrl);
       if (newToken) {
-        const retryHeaders = { "Content-Type": "application/json", Authorization: `Bearer ${newToken}` };
+        const retryHeaders = {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${newToken}`,
+          ...channelHeaders,
+        };
         const retryRes = await fetch(url, {
           method,
           headers: retryHeaders,
@@ -202,7 +230,11 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
     const currentAuthHeaders = await getAuthHeaders();
     return fetch(url, {
       method,
-      headers: { ...currentAuthHeaders, "Content-Type": "application/json" },
+      headers: {
+        ...currentAuthHeaders,
+        ...channelHeaders,
+        "Content-Type": "application/json",
+      },
       body: body != null ? JSON.stringify(body) : undefined,
     });
   }
@@ -219,6 +251,7 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false } = {}) {
       method: "POST",
       headers: {
         ...currentAuthHeaders,
+        ...channelHeaders,
         "Content-Type": "application/octet-stream",
         "X-Filename": basename(filePath),
         "Content-Length": String(stat.size),

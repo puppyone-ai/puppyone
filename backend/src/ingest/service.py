@@ -35,8 +35,14 @@ class IngestService:
         if source_type != SourceType.FILE:
             return None
 
+        # ``task_id`` from the DB is a UUID string (uploads.id is TEXT).
+        # The previous ``int(task_id)`` cast was a holdover from the
+        # bigint-ID schema and crashed on UUIDs — which never showed
+        # up in practice because raw uploads were marked COMPLETED
+        # synchronously and clients never polled. With direct-to-S3
+        # uploads polling is now the norm, so the cast has to go.
         task = await self.file_service.get_task_status_with_access_check(
-            task_id=int(task_id),
+            task_id=task_id,
             user_id=user_id,
         )
         return normalize_file_task(task) if task else None
@@ -69,8 +75,9 @@ class IngestService:
         if source_type != SourceType.FILE:
             return False
         try:
+            # See note in ``get_task``: task_id is a UUID string, not an int.
             task = await self.file_service.cancel_task(
-                task_id=int(task_id),
+                task_id=task_id,
                 user_id=user_id,
             )
             return task is not None
