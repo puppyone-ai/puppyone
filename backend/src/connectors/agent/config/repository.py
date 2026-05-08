@@ -39,8 +39,6 @@ def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
     if scope.get("_orphaned_from"):
         return []
     path = scope.get("path", "")
-    if not path:
-        return []
     mode = scope.get("mode", "r")
     return [AgentBash(
         id=f"{agent_id}:scope",

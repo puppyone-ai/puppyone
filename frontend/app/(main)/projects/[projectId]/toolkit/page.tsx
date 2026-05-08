@@ -24,7 +24,8 @@ import {
   SearchIndexTask,
 } from '@/lib/mcpApi';
 import { listDir, type NodeInfo } from '@/lib/contentTreeApi';
-import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
+import { getNodeTypeConfig, isFolderType } from '@/lib/nodeTypeConfig';
+import { PulseGrid, InlineLoading, PageLoading, Dots } from '@/components/loading';
 
 // ================= Types =================
 
@@ -379,7 +380,7 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
   };
 
   const renderNode = (node: NodeInfo, depth: number = 0) => {
-    const isFolder = getNodeTypeConfig(node.type).renderAs === 'folder';
+    const isFolder = isFolderType(node.type);
     const isExpanded = expandedFolders.has(node.id);
     const isSelected = selectedNodeId === node.id;
     const children = childNodes[node.id] || [];
@@ -426,7 +427,20 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
     );
   };
 
-  if (loading) return <div style={{ padding: 20, textAlign: 'center', color: '#52525b', fontSize: 12 }}>Loading...</div>;
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 20px',
+        }}
+      >
+        <InlineLoading size="sm" />
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxHeight: 240, overflowY: 'auto' }}>
@@ -527,8 +541,9 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
           </button>
           {step === 'config' && (
             <button onClick={handleCreate} disabled={creating}
-              style={{ padding: '6px 16px', background: '#3b82f6', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 500, cursor: creating ? 'wait' : 'pointer' }}>
-              {creating ? 'Creating...' : 'Create Tool'}
+              style={{ padding: '6px 16px', background: '#3b82f6', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 500, cursor: creating ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {creating && <Dots size="xs" />}
+              {creating ? 'Creating…' : 'Create Tool'}
             </button>
           )}
         </div>
@@ -762,7 +777,10 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
             style={{ background: 'transparent', border: 'none', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: loading ? '#27272a' : '#52525b', cursor: loading ? 'not-allowed' : 'pointer' }}
             title="Refresh list"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }}><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+            {loading
+              ? <PulseGrid size="xs" />
+              : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
+            }
           </button>
         </div>
       </div>
@@ -797,9 +815,8 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
 
         {/* Table Body */}
         {loading && tools.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#3f3f46' }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }}><path d="M23 4v6h-6" /><path d="M1 20v-6h6" /></svg>
-            <div>Loading tools...</div>
+          <div style={{ minHeight: 200 }}>
+            <PageLoading variant="fill" />
           </div>
         ) : filteredTools.length === 0 ? (
           <div style={{ padding: 60, textAlign: 'center', color: '#27272a' }}>
@@ -851,7 +868,6 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
         </div>
       )}
 
-      <style jsx>{` @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } } `}</style>
     </div>
   );
 }

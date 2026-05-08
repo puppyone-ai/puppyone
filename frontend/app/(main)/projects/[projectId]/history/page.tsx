@@ -10,6 +10,9 @@ import {
   type MutCommitChange,
   type FileVersionDetail,
 } from '@/lib/contentTreeApi';
+import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
+import { InlineLoading, PageLoading } from '@/components/loading';
+import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 
 // ─── Line diff utility ───────────────────────────────────────────────
 //
@@ -532,13 +535,10 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
         <div
           style={{
             padding: '14px 16px',
-            fontSize: 11,
-            color: '#71717a',
             background: 'rgba(0,0,0,0.2)',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
           }}
         >
-          Loading diff…
+          <InlineLoading label="Loading diff…" />
         </div>
       ) : placeholder ? (
         <div
@@ -582,11 +582,24 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   const { projectId } = use(params);
   const { session } = useAuth();
 
-  const { data: history, error, isLoading } = useSWR(
+  const { data: history, error } = useSWR(
     session ? ['project-history', projectId] : null,
     () => getProjectHistory(projectId, 100),
     { revalidateOnFocus: false },
   );
+
+  // We deliberately ignore SWR's `isLoading` here: it's only true
+  // *while a fetch is in flight*. Before the SWR key becomes truthy
+  // (auth still resolving, project not yet selected, etc.) SWR
+  // returns `isLoading=false` even though `data` is still undefined.
+  // Combined with the empty-state branch below this produced a brief
+  // "No commits yet" flash on initial mount before the real fetch
+  // had even started — the user reads it as "did everything just get
+  // wiped?". Using "has data ever arrived?" (`history !== undefined`)
+  // closes the gap: the loading view stays mounted until SWR has
+  // actually delivered a payload (or raised an error), so the empty
+  // branch only fires once we *know* the API returned zero commits.
+  const isInitialLoading = !error && history === undefined;
 
   const commits = useMemo(() => history?.commits ?? [], [history]);
   // Reverse commits so newest is on top
@@ -683,13 +696,9 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       </div>
 
       {/* ── Loading / Error / Empty ── */}
-      {isLoading && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#52525b', fontSize: 13 }}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite', marginRight: 8 }}>
-            <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
-          </svg>
-          Loading...
-          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+      {isInitialLoading && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <PageLoading variant="fill" />
         </div>
       )}
 
@@ -699,7 +708,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         </div>
       )}
 
-      {!isLoading && !error && commits.length === 0 && (
+      {!isInitialLoading && !error && commits.length === 0 && (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           flex: 1, gap: 12, color: '#3f3f46',
@@ -714,10 +723,19 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       )}
 
       {/* ── Main Layout (Left/Right Split) ── */}
-      {!isLoading && !error && commits.length > 0 && (
+      {!isInitialLoading && !error && commits.length > 0 && (
         <div className="flex flex-1 min-h-0">
-          {/* Left: Timeline List */}
-          <div className="w-[340px] flex-shrink-0 border-r border-white/[0.06] flex flex-col bg-[#0e0e0e] z-10">
+          {/* Left: Timeline List — wrapped in `ResizableSidebarColumn`
+              so users can widen the timeline when commit messages or
+              author IDs would otherwise truncate aggressively. Default
+              340 matches the previous fixed width. */}
+          <ResizableSidebarColumn
+            storageKey='history-timeline:history'
+            defaultWidth={340}
+            minWidth={260}
+            maxWidth={520}
+            className="border-r border-white/[0.06] bg-[#0e0e0e] z-10"
+          >
             
             {/* Filter Header */}
             {accessPoints.length > 1 && (
@@ -769,12 +787,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                 />
               ))}
             </div>
-          </div>
+          </ResizableSidebarColumn>
 
           {/* Right: Detail panel: commit info + file tree */}
           <div className="flex-1 overflow-auto bg-[#0e0e0e]">
             {selectedCommit ? (
-              <div className="p-6 md:p-8 max-w-5xl mx-auto">
+              <div className="p-6 md:p-8 mx-auto" style={{ maxWidth: PROJECT_CONTENT_RAIL_WIDTH }}>
                 {/* Commit info header */}
                 <div className="flex flex-wrap items-center gap-4 mb-6">
                   <div className="flex items-center gap-3">

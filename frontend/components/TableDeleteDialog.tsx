@@ -5,6 +5,7 @@ import type { ProjectInfo } from '../lib/projectsApi';
 import { deleteTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
+import { Dots } from './loading';
 
 type TableDeleteDialogProps = {
   projectId: string;
@@ -158,9 +159,14 @@ export function TableDeleteDialog({
               background: 'rgba(239,68,68,0.1)',
               color: '#ef4444',
               border: '1px solid rgba(239,68,68,0.2)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              justifyContent: 'center',
             }}
           >
-            {loading ? 'Deleting...' : 'Delete Context'}
+            {loading && <Dots size='xs' tone='danger' />}
+            {loading ? 'Deleting…' : 'Delete Context'}
           </button>
         </div>
       </div>

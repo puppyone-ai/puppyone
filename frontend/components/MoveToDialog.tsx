@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTreeDir } from '@/lib/hooks/useData';
+import { Dots } from './loading';
 
 interface MoveToDialogProps {
   isOpen: boolean;
@@ -146,14 +147,12 @@ function FolderTreeItem({
             <div
               style={{
                 paddingLeft: 32 + depth * 20,
-                color: '#525252',
-                fontSize: 12,
                 height: 28,
                 display: 'flex',
                 alignItems: 'center',
               }}
             >
-              Loading...
+              <Dots size="xs" />
             </div>
           )}
           {childFolders.map((child) => (

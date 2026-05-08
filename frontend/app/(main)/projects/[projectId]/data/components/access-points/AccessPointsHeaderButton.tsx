@@ -1,92 +1,165 @@
 'use client';
 
-import type { EndpointEntry } from './types';
+import { useState } from 'react';
 
-function ChainIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 17H7A5 5 0 0 1 7 7h2" />
-      <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
-      <line x1="8" y1="12" x2="16" y2="12" />
-    </svg>
-  );
-}
+const TYPOGRAPHY = {
+  fontFamily:
+    "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontSize: 13,
+  fontWeight: 500,
+  letterSpacing: 0,
+} as const;
+
+// The chip lives in the same visual language as the sidebar's row-level
+// access-active button (`bg-[rgba(34,211,238,0.1)] text-[#67e8f9]`). The
+// header surface is the same accent family, scaled up: a leading chain
+// glyph (the project's recurring "access" mark, also used in the file
+// tree's per-row chip) + the literal word "Access" + a count of access
+// points in this project.
+//
+// 2026-05-08 redesign:
+//   - Renamed from "Add access" → "Access". The button doesn't *create*
+//     anything; clicking it opens the management surface (Pp.1
+//     Overview), where creation is one click away. The verb framing
+//     was misleading.
+//   - Count is now project-wide scope count, not per-scope integration
+//     count. The button is a global entry point — its number should
+//     reflect the project's total access surface, not whatever scope
+//     the user happens to be cursoring over.
+//   - Provider stack glyph dropped: it was a per-scope concern and
+//     conflicted with the new global semantic.
+//
+// 2026-05-08 second pass — "stop floating":
+//   The cyan tint at rest made the chip read as an always-on CTA in
+//   the corner of the page, jarring against the otherwise quiet dark
+//   chrome. New rest state has no fill and a muted label; only the
+//   chain glyph keeps its cyan as a brand anchor. Hover steps up to
+//   a neutral white wash, and active (panel open) lights the full
+//   cyan tint so the open-state still reads as state-bearing.
+//   Combined with the vertical hairline added to the header slot in
+//   ``data/[[...path]]/page.tsx``, the button now sits inside a
+//   defined "right zone" instead of floating.
+const STATES = {
+  resting: {
+    bg: 'transparent',
+    text: '#a3a3a3',
+    countText: '#737373',
+    iconStroke: '#67e8f9',
+  },
+  hover: {
+    bg: 'rgba(255,255,255,0.05)',
+    text: '#e4e4e7',
+    countText: '#a3a3a3',
+    iconStroke: '#a5f3fc',
+  },
+  active: {
+    bg: 'rgba(34,211,238,0.10)',
+    text: '#67e8f9',
+    countText: 'rgba(103,232,249,0.7)',
+    iconStroke: '#67e8f9',
+  },
+} as const;
 
 export function AccessPointsHeaderButton({
-  entries,
+  scopeCount,
   isOpen,
   onClick,
 }: {
-  entries: EndpointEntry[];
+  /**
+   * Total number of access points (scopes) in the current project.
+   * Always rendered next to the label; "0" is a valid display value
+   * (it tells the user "you haven't created any yet — open me to
+   * start") rather than a reason to swap to a different button copy.
+   */
+  scopeCount: number;
   isOpen: boolean;
   onClick: () => void;
 }) {
-  const count = entries.length;
+  const [hover, setHover] = useState(false);
+
+  const state = isOpen ? STATES.active : hover ? STATES.hover : STATES.resting;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      title="Integrations"
+      title={`${scopeCount} access ${scopeCount === 1 ? 'point' : 'points'} in this project`}
+      aria-label="Manage access points"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
+        ...TYPOGRAPHY,
         display: 'flex',
         alignItems: 'center',
         gap: 8,
-        height: 28,
-        padding: '0 10px',
-        borderRadius: 6,
-        border: `1px solid ${isOpen ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.12)'}`,
-        background: isOpen ? '#2a2a2a' : '#242424',
-        color: '#ededed',
-        fontSize: 12,
-        fontWeight: 500,
+        height: 30,
+        padding: '0 12px 0 10px',
+        borderRadius: 8,
+        border: 'none',
+        background: state.bg,
+        color: state.text,
         cursor: 'pointer',
-        transition: 'background 0.15s ease, border-color 0.15s ease',
+        transition: 'background 0.15s ease, color 0.15s ease',
         whiteSpace: 'nowrap',
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = '#2a2a2a';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
-      }}
-      onMouseLeave={(e) => {
-        if (!isOpen) {
-          e.currentTarget.style.background = '#242424';
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
-        }
-      }}
     >
+      <ChainIcon stroke={state.iconStroke} />
+      <span>Access</span>
       <span
         style={{
-          width: 18,
-          height: 18,
-          borderRadius: 6,
-          background: 'rgba(34,211,238,0.08)',
-          color: isOpen ? '#a5f3fc' : '#67e8f9',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
+          // Same font-size as the label per 2026-05-08 spec ("用同样
+          // 的字号去做") — the count reads as the second word of the
+          // chip's two-word headline, not as a subordinate badge.
+          fontSize: TYPOGRAPHY.fontSize,
+          fontWeight: 400,
+          color: state.countText,
+          fontVariantNumeric: 'tabular-nums',
+          transition: 'color 0.15s ease',
         }}
       >
-        <ChainIcon />
-      </span>
-      <span>Integrations</span>
-      <span
-        style={{
-          minWidth: 18,
-          height: 18,
-          padding: '0 5px',
-          borderRadius: 999,
-          background: 'rgba(255,255,255,0.08)',
-          color: '#a1a1aa',
-          fontSize: 11,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {count}
+        {scopeCount}
       </span>
     </button>
+  );
+}
+
+// Mirrors the chain glyph used by ExplorerRowActions' RowActionButton so
+// the header chip and the per-row access toggles read as the same
+// concept at different scales.
+function ChainIcon({ stroke }: { stroke: string }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 14,
+        height: 14,
+        color: stroke,
+      }}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {/* Lucide `link-2` (horizontal). Same geometry the explorer
+            sidebar's per-row access button uses, and the same the
+            Overview's per-row chain stamp uses, so the user reads
+            ALL three surfaces (sidebar chip, header chip, list row)
+            as the same recurring "access" sigil at different scales.
+            Per 2026-05-08 UX feedback: unify the access mark across
+            the system or it stops feeling like an identity. */}
+        <path d="M9 17H7A5 5 0 0 1 7 7h2" />
+        <path d="M15 7h2a5 5 0 1 1 0 10h-2" />
+        <line x1="8" y1="12" x2="16" y2="12" />
+      </svg>
+    </span>
   );
 }

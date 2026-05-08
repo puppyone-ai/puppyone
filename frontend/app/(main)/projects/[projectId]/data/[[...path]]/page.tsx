@@ -41,7 +41,6 @@ import {
 } from '@/lib/mcpApi';
 
 import { refreshProjects } from '@/lib/hooks/useData';
-import type { RepoScope } from '@/lib/repoApi';
 import {
   GridView,
   type AgentResource,
@@ -53,15 +52,19 @@ import {
   usePendingActiveId,
   type MillerColumnItem,
 } from '../components/explorer';
+import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 
 import { useAgent } from '@/contexts/AgentContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
+import { matchScopeForPath } from '@/lib/repoApi';
 
 // Extracted hooks
 import { usePathResolver } from '../hooks/usePathResolver';
-import { useMarkdownAutoSave } from '../hooks/useMarkdownAutoSave';
+import { useMarkdownSave } from '../hooks/useMarkdownSave';
 import { useFileImport } from '../hooks/useFileImport';
 import { useNodeActions } from '../hooks/useNodeActions';
+import { useGridSelection } from '../hooks/useGridSelection';
+import { useExternalFileDropCatcher } from '@/lib/hooks/useExternalFileDropCatcher';
 
 // Extracted components
 import { EditorArea } from '../components/EditorArea';
@@ -69,14 +72,14 @@ import { BottomBar } from '../components/BottomBar';
 import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
-import {
-  AccessPointsHeaderButton,
-  endpointToPanelState,
-} from '../components/access-points';
+import { AccessPointsHeaderButton } from '../components/access-points';
+import { SelectionActionBar } from '../components/SelectionActionBar';
+import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { DataPageRightPanel, type EditorTarget } from '../components/right-panel';
 import { usePanelStore } from '../usePanelStore';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
+import { PageLoading } from '@/components/loading';
 
 interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
@@ -116,7 +119,7 @@ export default function DataPage({ params }: DataPageProps) {
   } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
-  const { draftResources, setDraftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent } = useAgent();
+  const { draftResources, setDraftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent, refreshAgents } = useAgent();
 
   // Auto-complete onboarding steps
   const { completeStep } = useOnboarding();
@@ -160,17 +163,121 @@ export default function DataPage({ params }: DataPageProps) {
   const {
     currentFolderId, folderBreadcrumbs, isResolvingPath,
     activeNodeId, activeNodeType, activePreviewType, activeMimeType,
-    markdownContent, setMarkdownContent, isLoadingMarkdown,
+    // `textContent` here is the **server-side** value (any text-like
+    // file: markdown, code, yaml, csv, plaintext). Fed into
+    // `useMarkdownSave` as the dirty-check baseline. The page-level
+    // editor draft (used by EditorArea) comes from the save hook
+    // below — it may differ from the server value when the user has
+    // unsaved markdown edits. Non-markdown text formats are
+    // read-only, so for those the draft equals the server value.
+    textContent: serverTextContent,
+    isLoadingText,
     markdownViewMode, setMarkdownViewMode,
   } = usePathResolver(projectId, path);
 
   const { nodes: contentNodes, isLoading: contentNodesLoading, refresh: refreshCurrentNodes } = useContentNodes(projectId, currentFolderId);
 
-  const { handleMarkdownChange, markdownSaveStatus } = useMarkdownAutoSave(activeNodeId, projectId, setMarkdownContent);
+  // Manual-save hook: editor edits stay local until the user hits
+  // Cmd+S / clicks Save. Replaces the older 1.5s-debounced
+  // auto-save which generated 100+ commits per editing session.
+  // CLI / MUT / external writes still go through their own code
+  // paths and are unaffected.
+  const {
+    markdownContent: editorTextDraft,
+    handleMarkdownChange: onEditorTextChange,
+    markdownSaveStatus: editorSaveStatus,
+    save: saveEditor,
+    dirty: editorDirty,
+  } = useMarkdownSave({
+    projectId,
+    activeNodePath: activeNodeId,
+    serverContent: serverTextContent,
+  });
+
+  // ── Cmd+S / Ctrl+S → save the active markdown editor ──────────
+  //
+  // The shortcut is global on the data page — listening on
+  // `document` so it works regardless of which child element has
+  // focus (sidebar, right panel, breadcrumb, etc.). We pre-empt
+  // the browser's default "Save Page As…" dialog *only* when an
+  // editor is actually mounted and has unsaved work; otherwise
+  // we leave the default behaviour alone so the shortcut still
+  // does something familiar in non-editor contexts (e.g. when
+  // the user is on the access management page).
+  //
+  // We bind once and read the latest values via the dependency
+  // array — the listener captures `saveEditor` etc. by closure
+  // and React re-binds it on each render where the deps changed.
+  // The cost of re-binding (one removeEventListener +
+  // addEventListener) is negligible.
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey)) return;
+      if (event.key !== 's' && event.key !== 'S') return;
+      // Only intercept if there's actually something to save.
+      // Without this guard we'd swallow Cmd+S on every page in the
+      // app, which is hostile when the user is just trying to save
+      // the browser tab (e.g. a long form they typed into).
+      if (!editorDirty) return;
+      event.preventDefault();
+      void saveEditor();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [saveEditor, editorDirty]);
+
+  // ── beforeunload guard for unsaved markdown edits ─────────────
+  //
+  // Browsers no longer let us customise the prompt copy (it always
+  // shows their generic "Leave site?" dialog), but setting
+  // `returnValue` to a non-empty string is still the documented way
+  // to *trigger* it. We only attach the listener while there's
+  // actually something dirty — otherwise every navigation in the
+  // app would needlessly check this listener.
+  useEffect(() => {
+    if (!editorDirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      // Required for Chrome — the value itself is ignored by all
+      // modern browsers, but a non-empty assignment is what
+      // actually surfaces the prompt.
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [editorDirty]);
 
   const fileImport = useFileImport(projectId, session?.access_token);
 
   const nodeActions = useNodeActions(projectId, currentFolderId);
+
+  // Page-wide safety net for external file drops. Without this, a
+  // file dropped on the content area / right-panel / gap between
+  // zones triggers the browser-default "open file in this tab"
+  // behaviour — the user's session vanishes and the file appears
+  // not to upload at all.
+  //
+  // The catcher runs silently (no full-page overlay): the explorer
+  // sidebar already has its own per-row drop highlighting, and
+  // overlaying a banner across the whole page on top of that read
+  // as duplicated/confusing UI. So:
+  //   - inside sidebar  → sidebar's own per-folder UI takes over
+  //                       (its handlers stopPropagation/preventDefault
+  //                       before this fallback ever runs)
+  //   - outside sidebar → no visual cue, but on drop we still route
+  //                       to the current folder so the file isn't
+  //                       silently lost to a browser-default tab nav
+  const externalDropTarget = useMemo(
+    () => (currentFolderId
+      ? { path: currentFolderId, name: folderBreadcrumbs.at(-1)?.name ?? 'Folder' }
+      : { path: null, name: 'Root' }),
+    [currentFolderId, folderBreadcrumbs],
+  );
+  useExternalFileDropCatcher({
+    onDrop: (files) => {
+      fileImport.openFileImportForTarget(files, externalDropTarget);
+    },
+  });
 
   // Derive active node info (single source of truth for editor context)
   // pendingActiveId fills the gap before usePathResolver finishes resolving
@@ -192,32 +299,10 @@ export default function DataPage({ params }: DataPageProps) {
     router.push(url);
   }, [projectId, router]);
 
-  // Used by AllScopesList in ScopedConnectorsListPanel: jump the file
-  // explorer (and hence currentScopePath / currentScope resolution) to a
-  // given scope's canonical path. '' means the project root.
-  const handleScopeNavigate = useCallback((scopePath: string) => {
-    navigateTo(scopePath.split('/').filter(Boolean));
-  }, [navigateTo]);
-
-  // Click handler for the per-scope "AI Agent" default in
-  // ScopedConnectorsListPanel. Pre-fills the draft resource with the
-  // scope's folder so the chat-agent form's drop zone is already
-  // populated, then opens sync_create with `agentTypePreselect: 'chat'`
-  // — SyncConfigPanel auto-skips the type picker and lands on the
-  // chat-agent form (image 1 in the boss's mock).
-  const handleAgentDefaultRequested = useCallback((scope: RepoScope) => {
-    setDraftResources([
-      {
-        path: scope.path,
-        nodeName: scope.name,
-        nodeType: 'folder',
-        readonly: false,
-      },
-    ]);
-    setEditorTarget(null);
-    setIsEditorFullScreen(false);
-    openPanel({ type: 'sync_create', agentTypePreselect: 'chat' });
-  }, [openPanel, setDraftResources]);
+  const refreshRepoAndAgents = useCallback(async () => {
+    await mutateRepo();
+    await refreshAgents();
+  }, [mutateRepo, refreshAgents]);
 
   const closeRightPanel = useCallback(() => {
     setEditorTarget(null);
@@ -232,11 +317,14 @@ export default function DataPage({ params }: DataPageProps) {
     openPanel({ type: 'version_history', nodeId: effectiveNodeId });
   }, [effectiveNodeId, openPanel]);
 
-  const openSyncCreatePanel = useCallback(() => {
+  const openSyncCreatePanel = useCallback((targetScopePath?: string | null) => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
-    openPanel({ type: 'sync_create' });
-  }, [openPanel]);
+    openPanel({
+      type: 'sync_create',
+      nodeId: targetScopePath ?? currentFolderId ?? undefined,
+    });
+  }, [currentFolderId, openPanel]);
 
   // Same as openSyncCreatePanel, but with a *given* folder path
   // pre-filled as the target resource.  Two callsites:
@@ -270,7 +358,7 @@ export default function DataPage({ params }: DataPageProps) {
       ]);
       setEditorTarget(null);
       setIsEditorFullScreen(false);
-      openPanel({ type: 'sync_create' });
+      openPanel({ type: 'sync_create', nodeId: targetPath });
     },
     [openPanel, setDraftResources],
   );
@@ -311,7 +399,6 @@ export default function DataPage({ params }: DataPageProps) {
     highlightNodeId,
     handleCreateClick,
     handleMillerCreateClick,
-    handleAccessMenuClick,
     closeCreateTable,
   } = useDataCreateFlow({
     projectId,
@@ -484,6 +571,99 @@ export default function DataPage({ params }: DataPageProps) {
     },
   }));
 
+  // ───── Multi-select ─────
+  // Selection lives at this level so SelectionActionBar / BulkDeleteDialog
+  // / the Esc / Delete hotkey handlers can all observe the same state.
+  // GridView only renders the highlights; it doesn't own the truth.
+  const orderedItemIds = useMemo(() => items.map((i) => i.id), [items]);
+  const gridSelection = useGridSelection({ orderedIds: orderedItemIds });
+
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  // Snapshot the paths at "open dialog" time so refreshes between
+  // opening and confirming don't shrink the set under the user's feet.
+  const [bulkDeletePaths, setBulkDeletePaths] = useState<string[]>([]);
+  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false);
+
+  const openBulkDeleteDialog = useCallback(() => {
+    if (gridSelection.selectedCount === 0) return;
+    setBulkDeletePaths(gridSelection.selectedInOrder);
+    setBulkDeleteOpen(true);
+  }, [gridSelection.selectedCount, gridSelection.selectedInOrder]);
+
+  const handleBulkDeleteConfirm = useCallback(
+    async (permanent: boolean) => {
+      if (!bulkDeletePaths.length) return;
+      setBulkDeleteSubmitting(true);
+      try {
+        if (permanent) {
+          // For permanent delete we need a different API call
+          // (bulkRemoveFiles with permanent=true). Reach into the
+          // raw API client because nodeActions.handleBulkDelete
+          // only does soft delete.
+          const { bulkRemoveFiles } = await import('@/lib/contentTreeApi');
+          const { refreshFolderNodes } = await import('@/lib/hooks/useData');
+          await bulkRemoveFiles(projectId, bulkDeletePaths, true);
+          const parents = Array.from(
+            new Set(
+              bulkDeletePaths.map((p) =>
+                p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '',
+              ),
+            ),
+          );
+          await refreshFolderNodes(projectId, ...parents);
+          nodeActions.showToast(
+            `Deleted ${bulkDeletePaths.length} item(s) permanently`,
+          );
+        } else {
+          await nodeActions.handleBulkDelete(bulkDeletePaths);
+        }
+        gridSelection.clear();
+      } finally {
+        setBulkDeleteSubmitting(false);
+      }
+    },
+    [bulkDeletePaths, nodeActions, gridSelection, projectId],
+  );
+
+  // Folder navigation invalidates any prior selection — selecting in
+  // /docs and then navigating to /assets shouldn't leave a phantom
+  // count on screen for items the user is no longer looking at.
+  useEffect(() => {
+    gridSelection.clear();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFolderId]);
+
+  // OS-aware shortcut hint (only used by SelectionActionBar's Delete
+  // button tooltip, not the actual key binding).
+  const platformDeleteHint = useMemo(() => {
+    if (typeof navigator === 'undefined') return 'Delete';
+    return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+      ? '⌫'
+      : 'Del';
+  }, []);
+
+  // Selection hotkeys: Delete / Backspace opens the dialog, Esc clears.
+  // Guarded so they don't fire while the user is typing in an input
+  // (rename dialog, search, etc.).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (gridSelection.selectedCount === 0) return;
+      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        gridSelection.clear();
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && !bulkDeleteOpen) {
+        e.preventDefault();
+        openBulkDeleteDialog();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [gridSelection, bulkDeleteOpen, openBulkDeleteDialog]);
+
   const handleMillerNavigate = useCallback((item: MillerColumnItem) => {
     setPendingActiveId(item.id);
     navigateTo(item.id.split('/').filter(Boolean), item.type || undefined);
@@ -595,6 +775,23 @@ export default function DataPage({ params }: DataPageProps) {
         createMenuActions={createMenuActions}
       />
 
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        paths={bulkDeletePaths}
+        onClose={() => {
+          if (!bulkDeleteSubmitting) setBulkDeleteOpen(false);
+        }}
+        onConfirm={handleBulkDeleteConfirm}
+      />
+
+      <SelectionActionBar
+        count={gridSelection.selectedCount}
+        onClear={gridSelection.clear}
+        onDelete={openBulkDeleteDialog}
+        busy={bulkDeleteSubmitting}
+        shortcutHint={platformDeleteHint}
+      />
+
       {/* Main Content
        *
        * Layout (matches the marketing showcase):
@@ -629,72 +826,149 @@ export default function DataPage({ params }: DataPageProps) {
               accessPointCount={accessPoints.length}
             />
           </div>
+          {/* Right slot of the header — Access entry. The vertical
+              hairline on the left anchors the button into a "section"
+              instead of letting it float as a standalone chip. Same
+              ``rgba(255,255,255,0.08)`` alpha as every other divider
+              in the chrome (sidebar / header bottom / footer top), so
+              all four lines visually belong to the same grid. */}
           <div style={{
-            display: 'flex', alignItems: 'center', paddingRight: 8,
-            borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#0e0e0e',
+            display: 'flex', alignItems: 'center',
+            paddingLeft: 12, paddingRight: 12,
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            borderLeft: '1px solid rgba(255,255,255,0.08)',
+            background: '#0e0e0e',
             height: '100%',
-            gap: 8,
           }}>
             <AccessPointsHeaderButton
-              entries={accessPointEntries}
+              // Project-level scope count, not per-folder integration
+              // count. The button is a global entry to Pp.1 Overview;
+              // its number should reflect the project's total access
+              // surface ("you have 5 access points") rather than
+              // whatever scope the file-tree cursor happens to match
+              // (per 2026-05-08 UX spec).
+              scopeCount={scopes.length}
               isOpen={panelState.type === 'access_list'}
-              onClick={() => togglePanel({ type: 'access_list' })}
+              // Header chip is the canonical entry to Pp.1 Overview:
+              // clicking "Access" always lands on the management home
+              // page, never auto-resolves into Detail. Toggle is
+              // type-only for access_list (see usePanelStore): the
+              // panel auto-syncs to the current folder, so reopening
+              // with a different nodeId would otherwise re-open
+              // instead of closing.
+              onClick={() => togglePanel({ type: 'access_list', view: 'overview' })}
             />
           </div>
         </div>
 
         {/* Body row: Explorer sidebar + content column + right panel */}
-        <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            minHeight: 0,
+            position: 'relative',
+            // The right sheet lives inside this body row and is pulled
+            // upward by 46px so its header replaces the page header's
+            // right slot. The page header itself has zIndex 60; without
+            // lifting the body row above it, the sheet is still painted
+            // underneath the header and the old Access chip remains
+            // visible (the exact bug seen in the screenshot).
+            zIndex: 70,
+          }}
+        >
 
           {/* Explorer Sidebar — no internal header, starts directly
               with the file tree so it sits flush under the unified
-              ProjectsHeader above. */}
-          <ExplorerSidebar
-            projectId={projectId}
-            currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
-            activeNodeId={
-              (panelState.type !== 'none' && panelState.nodeId)
-                ? panelState.nodeId
-                : (activeNodeId || undefined)
-            }
-            onNavigate={handleMillerNavigate}
-            onCreate={handleMillerCreateClick}
-            onCreateSync={handleAccessMenuClick}
-            onOpenAccess={(endpoints, nodeId) => {
-              setHoverHighlightNodeId(null);
-              if (endpoints.length === 1) {
-                openPanel({ type: 'access_list', nodeId, accessEndpointId: endpoints[0].syncId });
-                return;
+              ProjectsHeader above.
+              Wrapped in `ResizableSidebarColumn` so the user can drag
+              the right edge to widen the file tree (long sync/AP
+              names + deep paths quickly outgrow a fixed 250px). The
+              storageKey persists per-page so the data view's preferred
+              width doesn't bleed into history / access. */}
+          <ResizableSidebarColumn
+            storageKey='explorer-sidebar:data'
+            defaultWidth={250}
+            minWidth={220}
+            maxWidth={480}
+            style={{ borderRight: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            <ExplorerSidebar
+              projectId={projectId}
+              currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
+              activeNodeId={
+                (panelState.type !== 'none' && panelState.nodeId !== undefined)
+                  ? panelState.nodeId
+                  : (activeNodeId || undefined)
               }
-              openPanel({ type: 'access_list', nodeId });
-            }}
-            endpointByNodeId={nodeEndpointMap}
-            onRename={nodeActions.handleRename}
-            onDelete={nodeActions.handleDelete}
-            onDownload={nodeActions.handleDownload}
-            onFilesDrop={fileImport.openFileImportForTarget}
-            onMoveNode={nodeActions.handleMoveNode}
-            activeSyncNodeId={
-              panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
-                ? (panelState.nodeId ?? null)
-                : null
-            }
-            highlightNodeId={hoverHighlightNodeId || highlightNodeId}
-            highlightVariant={hoverHighlightNodeId !== null ? 'access-point' : 'default'}
-            createMenuOpenForId={createMenuOpenForId}
-            createMenuOpenAction={createMenuOpenAction}
-            style={{ width: 250, borderRight: '1px solid rgba(255,255,255,0.08)', background: 'transparent', flexShrink: 0 }}
-          />
+              onNavigate={handleMillerNavigate}
+              onCreate={handleMillerCreateClick}
+              // Per-folder access link button — Pp.2 trigger in the
+              // 3-page Access hierarchy (2026-05-08 UX spec):
+              //
+              //   - Folder IS a scope    → Pp.2a Detail of that scope
+              //                            (selectedScopeId pinned).
+              //   - Folder is NOT a scope → Pp.2b Create, pre-filled
+              //                            with the row's nodeId.
+              //
+              // Critical: we explicitly set `view='create'` for the
+              // non-scope branch so the right panel opens DIRECTLY on
+              // the create form pre-filled with the clicked folder.
+              // Previously this routed to Overview which read
+              // `currentScopePath` (= file-tree cursor), so clicking
+              // /iiinote's chain icon while cursor was at Root made
+              // Root the activated context — the user had to manually
+              // navigate the file tree to /iiinote first. Now the
+              // sidebar trigger fully owns the context, no manual
+              // file-tree dance required.
+              //
+              // The chain icon and the row's "+" share this handler
+              // so both surfaces produce identical navigation; the
+              // event arg distinguishes them upstream if/when needed.
+              onCreateSync={(_event, nodeId) => {
+                setHoverHighlightNodeId(null);
+                const matched = matchScopeForPath(nodeId, scopes);
+                if (matched) {
+                  openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
+                } else {
+                  openPanel({ type: 'access_list', view: 'create', nodeId });
+                }
+              }}
+              onOpenAccess={(_endpoints, nodeId) => {
+                setHoverHighlightNodeId(null);
+                const matched = matchScopeForPath(nodeId, scopes);
+                if (matched) {
+                  openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
+                } else {
+                  openPanel({ type: 'access_list', view: 'create', nodeId });
+                }
+              }}
+              endpointByNodeId={nodeEndpointMap}
+              onRename={nodeActions.handleRename}
+              onDelete={nodeActions.handleDelete}
+              onDownload={nodeActions.handleDownload}
+              onFilesDrop={fileImport.openFileImportForTarget}
+              onMoveNode={nodeActions.handleMoveNode}
+              activeSyncNodeId={
+                panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
+                  ? (panelState.nodeId ?? null)
+                  : null
+              }
+              highlightNodeId={hoverHighlightNodeId || highlightNodeId}
+              highlightVariant={hoverHighlightNodeId !== null ? 'access-point' : 'default'}
+              createMenuOpenForId={createMenuOpenForId}
+              createMenuOpenAction={createMenuOpenAction}
+              style={{ flex: 1, width: '100%', background: 'transparent', minHeight: 0 }}
+            />
+          </ResizableSidebarColumn>
 
           {/* Content column */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Loading state */}
             {isResolvingPath && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', background: '#0e0e0e' }}>
-                <svg width="20" height="20" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
-                </svg>
+              <div style={{ flex: 1, background: '#0e0e0e' }}>
+                <PageLoading variant="fill" />
               </div>
             )}
 
@@ -707,11 +981,12 @@ export default function DataPage({ params }: DataPageProps) {
                   activeMimeType={activeMimeType}
                   activeProject={activeProject}
                   currentTableData={currentTableData}
-                  markdownContent={markdownContent}
-                  isLoadingMarkdown={isLoadingMarkdown}
-                  markdownSaveStatus={markdownSaveStatus}
+                  textContent={editorTextDraft}
+                  isLoadingText={isLoadingText}
+                  saveStatus={editorSaveStatus}
                   markdownViewMode={markdownViewMode}
-                  handleMarkdownChange={handleMarkdownChange}
+                  onTextChange={onEditorTextChange}
+                  onSave={saveEditor}
                   setMarkdownViewMode={setMarkdownViewMode}
                   editorType={editorType}
                   configuredAccessPoints={configuredAccessPoints}
@@ -763,14 +1038,8 @@ export default function DataPage({ params }: DataPageProps) {
             {isFolderView && !isResolvingPath && (
               <div style={{ flex: 1, overflow: 'auto', padding: items.length === 0 && !currentFolderId ? 0 : 24, display: 'flex', flexDirection: 'column' }}>
                 {isLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 200 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#525252', fontSize: 14 }}>
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-                        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
-                      </svg>
-                      Loading...
-                    </div>
-                    <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                  <div style={{ height: '100%', minHeight: 200 }}>
+                    <PageLoading variant="fill" />
                   </div>
                 ) : items.length === 0 && !currentFolderId ? (
                   <EmptyWorkspaceState
@@ -790,6 +1059,11 @@ export default function DataPage({ params }: DataPageProps) {
                     onCreateTool={nodeActions.handleCreateTool}
                     agentResources={agentResources}
                     highlightNodeId={hoverHighlightNodeId || highlightNodeId}
+                    selectedIds={gridSelection.selectedIds}
+                    onToggleSelected={gridSelection.toggle}
+                    onRangeSelectTo={gridSelection.selectRangeTo}
+                    onSelectOnly={gridSelection.selectOnly}
+                    onClearSelection={gridSelection.clear}
                   />
                 )}
               </div>
@@ -797,19 +1071,12 @@ export default function DataPage({ params }: DataPageProps) {
           </div>
 
           <BottomBar
-            viewType={viewType}
-            setViewType={setViewType}
             editorType={editorType}
             setEditorType={setEditorType}
-            markdownViewMode={markdownViewMode}
-            setMarkdownViewMode={setMarkdownViewMode}
             isEditorView={isEditorView}
-            activeNodeType={activeNodeType}
+            activeNodeId={activeNodeId}
+            activeMimeType={activeMimeType}
             activeProject={activeProject}
-            currentTableData={currentTableData}
-            markdownContent={markdownContent}
-            isVersionHistoryOpen={panelState.type === 'version_history'}
-            onOpenVersionHistory={openVersionHistoryPanel}
           />
         </div>
 
@@ -842,9 +1109,7 @@ export default function DataPage({ params }: DataPageProps) {
           onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
           onSyncCreated={handleSyncCreated}
           onAccessPointHover={setHoverHighlightNodeId}
-          onScopeMutated={mutateRepo}
-          onScopeNavigate={handleScopeNavigate}
-          onAgentDefaultRequested={handleAgentDefaultRequested}
+          onScopeMutated={refreshRepoAndAgents}
           onOpenPanel={openPanel}
           onOpenSyncSetting={openSyncSetting}
           onDataUpdate={async () => { await refreshTable(); }}

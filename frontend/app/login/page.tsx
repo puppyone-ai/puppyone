@@ -3,6 +3,7 @@
 import React, { Suspense, useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../supabase/SupabaseAuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { PulseGrid, Dots } from '@/components/loading';
 
 const URL_ERROR_MESSAGES: Record<string, string> = {
   signup_link_deprecated:
@@ -81,20 +82,11 @@ function PostAuthRedirectingScreen({ message }: { message: string }) {
         height={48}
         className="opacity-95"
       />
-      <div style={{ position: 'relative', width: 40, height: 40 }}>
-        <div
-          className="animate-spin"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            borderRadius: '50%',
-            border: '3px solid rgba(255,255,255,0.08)',
-            borderTopColor: 'rgba(255,255,255,0.55)',
-          }}
-        />
-      </div>
-      <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
-        {message}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <PulseGrid />
+        <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
+          {message}
+        </span>
       </div>
     </div>
   );
@@ -484,8 +476,8 @@ function LoginPageInner() {
                     placeholder="Your email address"
                     disabled={disabled}
                   />
-                  <SubmitButton disabled={disabled}>
-                    {loading === 'continue' ? 'Checking...' : 'Continue'}
+                  <SubmitButton disabled={disabled} loading={loading === 'continue'}>
+                    {loading === 'continue' ? 'Checking…' : 'Continue'}
                   </SubmitButton>
                 </form>
               </div>
@@ -513,8 +505,8 @@ function LoginPageInner() {
                   minLength={6}
                   autoFocus
                 />
-                <SubmitButton disabled={disabled}>
-                  {loading === 'password' ? 'Signing in...' : 'Sign In'}
+                <SubmitButton disabled={disabled} loading={loading === 'password'}>
+                  {loading === 'password' ? 'Signing in…' : 'Sign In'}
                 </SubmitButton>
               </form>
 
@@ -525,9 +517,10 @@ function LoginPageInner() {
                   <button
                     onClick={handleStartVerification}
                     disabled={disabled}
-                    className="w-full h-10 px-4 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1f1f1f] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full h-10 px-4 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1f1f1f] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                   >
-                    {loading === 'start-verify' ? 'Sending code...' : 'Verify your email'}
+                    {loading === 'start-verify' && <Dots size="xs" />}
+                    {loading === 'start-verify' ? 'Sending code…' : 'Verify your email'}
                   </button>
                 </div>
               )}
@@ -567,8 +560,8 @@ function LoginPageInner() {
                   disabled={disabled}
                   autoFocus
                 />
-                <SubmitButton disabled={disabled || otpCode.length !== 6}>
-                  {loading === 'verify' ? 'Verifying...' : 'Verify & Continue'}
+                <SubmitButton disabled={disabled || otpCode.length !== 6} loading={loading === 'verify'}>
+                  {loading === 'verify' ? 'Verifying…' : 'Verify & Continue'}
                 </SubmitButton>
               </form>
 
@@ -578,12 +571,13 @@ function LoginPageInner() {
                 <button
                   onClick={handleResendCode}
                   disabled={disabled || resendCooldown > 0}
-                  className="bg-transparent border-none text-[#888] enabled:hover:text-[#ccc] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm p-0 transition-colors"
+                  className="bg-transparent border-none text-[#888] enabled:hover:text-[#ccc] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm p-0 transition-colors inline-flex items-center justify-center gap-2"
                 >
+                  {loading === 'resend' && <Dots size="xs" />}
                   {resendCooldown > 0
                     ? `Resend code in ${formatCooldown(resendCooldown)}`
                     : loading === 'resend'
-                      ? 'Sending...'
+                      ? 'Sending…'
                       : "Didn't get a code? Resend"}
                 </button>
               </div>
@@ -609,8 +603,8 @@ function LoginPageInner() {
                   minLength={6}
                   autoFocus
                 />
-                <SubmitButton disabled={disabled}>
-                  {loading === 'signup' ? 'Creating account...' : 'Create Account'}
+                <SubmitButton disabled={disabled} loading={loading === 'signup'}>
+                  {loading === 'signup' ? 'Creating account…' : 'Create Account'}
                 </SubmitButton>
               </form>
 
@@ -627,8 +621,8 @@ function LoginPageInner() {
               </div>
 
               <form onSubmit={handleForgotPassword} className="flex flex-col gap-3">
-                <SubmitButton disabled={disabled}>
-                  {loading === 'forgot' ? 'Sending...' : 'Send Reset Link'}
+                <SubmitButton disabled={disabled} loading={loading === 'forgot'}>
+                  {loading === 'forgot' ? 'Sending…' : 'Send Reset Link'}
                 </SubmitButton>
               </form>
 
@@ -702,13 +696,25 @@ function InputField({
   );
 }
 
-function SubmitButton({ disabled, children }: { disabled?: boolean; children: React.ReactNode }) {
+function SubmitButton({
+  disabled,
+  loading,
+  children,
+}: {
+  disabled?: boolean;
+  /** When true, prepends a <Dots /> spinner inside the button so the
+   *  loading state visually matches the rest of the product (button
+   *  spinners use Dots — see components/loading). */
+  loading?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="submit"
       disabled={disabled}
-      className="w-full h-10 px-4 rounded-md border-none bg-[#ededed] text-[#0a0a0a] cursor-pointer text-sm font-semibold transition-all hover:bg-white hover:shadow-[0_0_12px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full h-10 px-4 rounded-md border-none bg-[#ededed] text-[#0a0a0a] cursor-pointer text-sm font-semibold transition-all hover:bg-white hover:shadow-[0_0_12px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
     >
+      {loading && <Dots size="xs" />}
       {children}
     </button>
   );

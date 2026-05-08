@@ -73,6 +73,22 @@ export interface UploadAndSubmitParams {
   parentId?: string;
   /** Processing mode: 'ocr_parse' (Smart Parse) or 'raw' (Raw Storage) */
   mode?: 'ocr_parse' | 'raw';
+  /**
+   * Upload progress callback. `loaded` and `total` are bytes;
+   * `percent` is `0..100` rounded. Fired on the underlying
+   * `XMLHttpRequest.upload`'s `progress` event, so it tracks the
+   * client-side outbound transfer (not server-side processing).
+   * Per-file progress is not available because the whole batch
+   * goes in one multipart POST — every placeholder in a batch
+   * shares the same percent.
+   */
+  onProgress?: (loaded: number, total: number, percent: number) => void;
+  /**
+   * Optional AbortSignal. Aborting it kills the in-flight XHR;
+   * the returned promise rejects with a "cancelled" error so
+   * callers can mark their placeholders as cancelled vs. failed.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ETLHealthResponse {
@@ -241,4 +257,42 @@ export async function getETLTaskStatus(
   }
 
   return await response.json();
+}
+
+/**
+ * Cancel an in-flight ETL task.
+ *
+ * Backend currently only supports cancellation for `source_type=file`
+ * (see `backend/src/ingest/service.py::cancel_task`). SaaS tasks
+ * (notion / github / gmail / …) silently no-op server-side, so callers
+ * that want a cancel-or-dismiss UX should fall back to local removal
+ * via `removeTaskById` when this returns `false`.
+ */
+export async function cancelETLTask(
+  taskId: string,
+  sourceType: 'file' | string = 'file',
+  accessToken?: string,
+): Promise<boolean> {
+  const token = accessToken || (await getAccessToken());
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
+
+  const response = await fetch(
+    `/api/ingest?path=tasks/${taskId}&source_type=${sourceType}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+
+  if (response.status === 404) {
+    // Task already terminal / unknown — treat as "nothing to cancel"
+    return false;
+  }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Cancel task failed: ${errorText}`);
+  }
+  return true;
 }

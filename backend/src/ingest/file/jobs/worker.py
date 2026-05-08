@@ -27,7 +27,11 @@ from arq.connections import RedisSettings
 from src.infra.llm.service import LLMService
 from src.infra.s3.service import S3Service
 from src.ingest.file.config import etl_config
-from src.ingest.file.jobs.jobs import etl_ocr_job, etl_postprocess_job
+from src.ingest.file.jobs.jobs import (
+    etl_finalize_upload_job,
+    etl_ocr_job,
+    etl_postprocess_job,
+)
 from src.ingest.file.ocr import get_ocr_provider
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.repository import ETLTaskRepositorySupabase
@@ -67,7 +71,12 @@ async def shutdown(ctx: dict) -> None:
 
 
 class WorkerSettings:
-    functions = [etl_ocr_job, etl_postprocess_job]  # noqa: RUF012
+    # ``etl_finalize_upload_job`` lives alongside the OCR/postprocess
+    # jobs because it shares the same worker context (S3 service, task
+    # repo, runtime state repo) and Redis queue. It's invoked after a
+    # browser-direct-to-S3 upload completes; see
+    # ``ingest.file.jobs.jobs.etl_finalize_upload_job`` for the flow.
+    functions = [etl_ocr_job, etl_postprocess_job, etl_finalize_upload_job]  # noqa: RUF012
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(etl_config.etl_redis_url)

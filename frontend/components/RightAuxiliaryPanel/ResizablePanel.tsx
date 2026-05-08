@@ -8,6 +8,16 @@ interface ResizablePanelProps {
   defaultWidth?: number;
   minWidth?: number;
   maxWidth?: number;
+  /**
+   * Pull the panel upward by this many pixels while keeping its bottom
+   * anchored to the body row. Used by data-page right sheets so their
+   * header replaces the page header's right slot instead of hanging
+   * underneath it.
+   */
+  topOffset?: number;
+  zIndex?: number;
+  borderLeftColor?: string;
+  background?: string;
 }
 
 const DEFAULT_WIDTH = 450;
@@ -20,6 +30,10 @@ export function ResizablePanel({
   defaultWidth = DEFAULT_WIDTH,
   minWidth = MIN_WIDTH,
   maxWidth = MAX_WIDTH,
+  topOffset = 0,
+  zIndex = 20,
+  borderLeftColor = '#2a2a2a',
+  background = '#111111',
 }: ResizablePanelProps) {
   const [width, setWidth] = useState(defaultWidth);
   const [isResizing, setIsResizing] = useState(false);
@@ -67,15 +81,15 @@ export function ResizablePanel({
         width: isVisible ? width : 0,
         display: 'flex',
         flexDirection: 'column',
-        top: 0,
+        top: -topOffset,
         right: 0,
         bottom: 0,
-        borderLeft: isVisible ? '1px solid #2a2a2a' : 'none',
-        background: '#111111',
+        borderLeft: isVisible ? `1px solid ${borderLeftColor}` : 'none',
+        background,
         position: 'absolute',
         overflow: 'hidden',
         transition: isResizing ? 'none' : 'width 0.2s ease',
-        zIndex: 20,
+        zIndex,
         pointerEvents: isVisible || isResizing ? 'auto' : 'none',
       }}
     >

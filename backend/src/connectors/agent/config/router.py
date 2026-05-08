@@ -116,7 +116,7 @@ def list_agents(
     # PERFORMANCE (P-5): batch-resolve every bash_access path once instead of
     # forcing the client to issue a second N-fan-out round trip
     # (fetchNodeInfoBatch).
-    paths = {b.path for a in agents for b in a.bash_accesses if b.path}
+    paths = {b.path for a in agents for b in a.bash_accesses if b.path is not None}
     node_info: dict[str, dict] = {}
     for p in paths:
         try:

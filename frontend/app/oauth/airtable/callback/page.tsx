@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { airtableCallback } from '@/lib/oauthApi';
+import { PageLoading } from '@/components/loading';
 
 function AirtableCallbackContent() {
   const searchParams = useSearchParams();
@@ -103,18 +104,7 @@ function AirtableCallbackContent() {
 
 export default function AirtableCallbackPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: '100vh',
-            background: '#0a0a0a',
-            color: '#CDCDCD',
-      }}>
-          <div>Loading...</div>
-        </div>
-    }>
+    <Suspense fallback={<PageLoading />}>
       <AirtableCallbackContent />
     </Suspense>
   );

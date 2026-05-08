@@ -8,6 +8,7 @@ import {
   refreshToolsAndMcp,
 } from '@/lib/hooks/useData';
 import { deleteTool, type McpV2Instance } from '@/lib/mcpApi';
+import { PageLoading } from '@/components/loading';
 
 export default function ToolsListPage() {
   const router = useRouter();
@@ -58,16 +59,8 @@ export default function ToolsListPage() {
 
   if (loading) {
     return (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#525252',
-        }}
-      >
-        Loading...
+      <div style={{ flex: 1 }}>
+        <PageLoading variant="fill" />
       </div>
     );
   }

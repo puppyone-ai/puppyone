@@ -1,13 +1,20 @@
 'use client';
 
 import React, { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { Editor, rootCtx, defaultValueCtx, editorViewCtx } from '@milkdown/core';
+import {
+  Editor,
+  rootCtx,
+  defaultValueCtx,
+  editorViewCtx,
+  editorViewOptionsCtx,
+} from '@milkdown/core';
 import { commonmark } from '@milkdown/preset-commonmark';
 import { gfm } from '@milkdown/preset-gfm';
 import { listener, listenerCtx } from '@milkdown/plugin-listener';
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react';
 import { $prose } from '@milkdown/utils';
 import { Plugin, PluginKey } from '@milkdown/prose/state';
+import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 
 // Custom dark theme CSS
 // Design: line-height 24px + margin 8px = 40px visual rhythm
@@ -21,7 +28,7 @@ const darkThemeStyles = `
     padding: 24px 32px;
     box-sizing: border-box;
     outline: none;
-    max-width: 800px;
+    max-width: ${PROJECT_CONTENT_RAIL_WIDTH}px;
     margin: 0 auto;
   }
 
@@ -360,12 +367,28 @@ const taskListClickPlugin = $prose(() => {
 });
 
 function MilkdownEditorContent({ defaultValue, onChange, readOnly }: MilkdownEditorContentProps) {
+  // Snapshot the initial readOnly into a ref. ``useEditor`` runs
+  // its callback once and we don't want stale-closure surprises:
+  // the live update path below pushes any later changes into the
+  // running editor view via ``setProps``.
+  const readOnlyRef = useRef(readOnly);
+  readOnlyRef.current = readOnly;
+
   const { get } = useEditor((root) => {
     return Editor.make()
       .config((ctx) => {
         ctx.set(rootCtx, root);
         ctx.set(defaultValueCtx, defaultValue);
-        
+
+        // Tell ProseMirror whether typing should be accepted. The
+        // ``editable`` predicate is re-invoked on every input
+        // event, so we read from the ref instead of capturing the
+        // ``readOnly`` prop value at editor-construction time.
+        ctx.update(editorViewOptionsCtx, (prev) => ({
+          ...prev,
+          editable: () => !readOnlyRef.current,
+        }));
+
         if (onChange) {
           ctx.get(listenerCtx).markdownUpdated((_, markdown) => {
             onChange(markdown);
@@ -377,6 +400,23 @@ function MilkdownEditorContent({ defaultValue, onChange, readOnly }: MilkdownEdi
       .use(listener)
       .use(taskListClickPlugin);
   }, []);
+
+  // Keep the running editor in sync when ``readOnly`` toggles
+  // (e.g. user flips Live view ↔ Read only via the picker). We
+  // call ``setProps`` so ProseMirror re-checks editable on the
+  // next event, and refresh attributes so the cursor doesn't
+  // remain on a now-locked surface.
+  useEffect(() => {
+    const editor = get();
+    if (!editor) return;
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      view.setProps({ editable: () => !readOnlyRef.current });
+      // Force ProseMirror to re-render its decorations so the
+      // contenteditable attribute on the dom flips immediately.
+      view.updateState(view.state);
+    });
+  }, [readOnly, get]);
 
   return <Milkdown />;
 }

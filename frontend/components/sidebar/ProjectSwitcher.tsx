@@ -22,6 +22,13 @@ export type ProjectSwitcherProps = {
   onGoHome: () => void;
   onHoverProject?: (projectId: string) => void;
   isCollapsed?: boolean;
+  // Display label to use for the trigger when `currentProject` is null
+  // (i.e. we're at /home or another /(main) page outside any project).
+  // Typically the org name; falls back to "puppyone" when undefined so
+  // the switcher still has something to render in unauthenticated /
+  // pre-org states. Used both for the row text and for the first-letter
+  // glyph so org view renders the same blue letter-chip as project view.
+  globalLabel?: string;
 };
 
 export function ProjectSwitcher({
@@ -31,6 +38,7 @@ export function ProjectSwitcher({
   onGoHome,
   onHoverProject,
   isCollapsed = false,
+  globalLabel,
 }: ProjectSwitcherProps) {
   const t = useTranslations('sidebar');
   const [isOpen, setIsOpen] = useState(false);
@@ -73,13 +81,21 @@ export function ProjectSwitcher({
     return null;
   }
 
-  const displayName = currentProject ? currentProject.name : 'puppyone';
+  const displayName = currentProject?.name ?? globalLabel ?? 'puppyone';
   const isInProject = currentProject !== null;
 
   // First-letter glyph for the chip — uppercase, single character.
-  // Mirrors the showcase AppShell which renders e.g. "A" for
+  // Resolution order: project name → org / global label → 'P'. Same
+  // letter is used in both the trigger and the dropdown's
+  // "go to organization" row when no project is selected, so the
+  // identity glyph stays visually constant across surfaces. Mirrors
+  // the showcase AppShell which renders e.g. "A" for
   // "Acme Finance Team".
-  const firstLetter = (currentProject?.name?.[0] || 'P').toUpperCase();
+  const firstLetter = (
+    currentProject?.name?.[0] ||
+    globalLabel?.[0] ||
+    'P'
+  ).toUpperCase();
 
   return (
     <div className='relative flex-1 min-w-0'>
@@ -97,32 +113,24 @@ export function ProjectSwitcher({
           isOpen ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
         )}
       >
-        {/* Identity glyph — 18×18 chip. Project view shows a
-            cyan→blue gradient chip with the workspace initial; home
-            view shows the puppyone brand mark. The dropdown rows
-            below reuse the same chip spec so the active workspace
-            stays visually constant from trigger → menu. */}
-        {isInProject ? (
-          <span
-            aria-hidden
-            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
-            style={{
-              background: BRAND_BLUE,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              letterSpacing: 0,
-            }}
-          >
-            {firstLetter}
-          </span>
-        ) : (
-          <img
-            src='/puppyone-logo.svg'
-            alt=''
-            width={18}
-            height={18}
-            className='flex-shrink-0 rounded-[4px]'
-          />
-        )}
+        {/* Identity glyph — 18×18 brand-blue chip carrying the
+            workspace's first letter. Same chip in both project and
+            org/global view so the rail looks identical across
+            navigation; the only thing that changes is the letter
+            inside (project initial vs. org initial). The dropdown
+            rows below reuse the same chip spec so the active
+            workspace stays visually constant from trigger → menu. */}
+        <span
+          aria-hidden
+          className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
+          style={{
+            background: BRAND_BLUE,
+            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            letterSpacing: 0,
+          }}
+        >
+          {firstLetter}
+        </span>
 
         <span className='flex-1 truncate text-left text-[13px] font-medium text-[#fafafa]'>
           {displayName}
@@ -174,9 +182,13 @@ export function ProjectSwitcher({
         >
           {/* Go to organization — action-oriented label rather than
               echoing the org name (which would visually collide with
-              project rows). The puppyone logo + the verb-led label
-              make it unambiguous that this navigates *out* of any
-              project context, back to the org view. */}
+              project rows). The org-initial letter chip + the
+              verb-led label make it unambiguous that this navigates
+              *out* of any project context, back to the org view.
+              Uses the same blue letter-chip spec as the project rows
+              below so the dropdown reads as one consistent set
+              (rather than mixing a detailed logo glyph with flat
+              letter chips). */}
           <div className='p-1' style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <button
               type='button'
@@ -186,13 +198,17 @@ export function ProjectSwitcher({
               }}
               className={dropdownRowClass(!isInProject)}
             >
-              <img
-                src='/puppyone-logo.svg'
-                alt=''
-                width={18}
-                height={18}
-                className='flex-shrink-0 rounded-[4px]'
-              />
+              <span
+                aria-hidden
+                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
+                style={{
+                  background: BRAND_BLUE,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  letterSpacing: 0,
+                }}
+              >
+                {(globalLabel?.[0] || 'P').toUpperCase()}
+              </span>
               <span className={dropdownLabelClass(!isInProject)}>
                 {t('goToOrganization')}
               </span>

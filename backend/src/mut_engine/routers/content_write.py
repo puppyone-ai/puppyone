@@ -141,7 +141,7 @@ async def move(
 
 @write_router.post(
     "/{project_id}/rm",
-    summary="Delete (move to .trash)",
+    summary="Delete (move to .trash, single or batch)",
 )
 async def remove(
     project_id: str,
@@ -150,8 +150,44 @@ async def remove(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
+    """Soft-delete (default) or permanent-delete one or more paths.
+
+    Single-path mode (``body.path``): preserved for backward
+    compatibility — same response shape as before, including the
+    legacy ``old_path`` / ``new_path`` keys.
+
+    Multi-path mode (``body.paths``): batches every move into one
+    commit per scope. Response includes ``paths`` (originals)
+    and ``trash_paths`` (per-item .trash destinations) so the UI
+    can offer per-item undo.
+    """
     ensure_write_access(project_service, current_user, project_id)
     who = f"user:{current_user.user_id}"
+
+    paths = body.paths
+    if paths:
+        clean = [validate_path(p) for p in paths if p]
+        if not clean:
+            raise HTTPException(status_code=400, detail="paths is empty")
+
+        if body.permanent:
+            result = await ops.delete(project_id, clean, who=who)
+            return ApiResponse.success(data={
+                "commit_id": result.commit_id,
+                "paths": clean,
+            })
+
+        result = await ops.bulk_trash(project_id, clean, who=who)
+        trash_paths = [
+            p for p in result.paths if p.startswith(".trash/")
+            or "/.trash/" in p
+        ]
+        return ApiResponse.success(data={
+            "commit_id": result.commit_id,
+            "paths": clean,
+            "trash_paths": trash_paths,
+        })
+
     clean_path = validate_path(body.path)
 
     if body.permanent:

@@ -8,6 +8,7 @@ import {
   type FileVersionInfo,
   type MutCommitChange,
 } from '@/lib/contentTreeApi';
+import { InlineLoading } from '@/components/loading';
 
 interface VersionHistoryPanelProps {
   nodeId: string;  // File path (Mut path)
@@ -326,8 +327,8 @@ export function VersionHistoryPanel({
         )}
 
         {!history && !historyError && (
-          <div style={{ padding: 24, textAlign: 'center', color: '#52525b', fontSize: 13 }}>
-            Loading...
+          <div style={{ padding: 24, display: 'flex', justifyContent: 'center' }}>
+            <InlineLoading />
           </div>
         )}
 

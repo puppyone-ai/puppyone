@@ -12,6 +12,7 @@ import { McpInstanceInfo } from './McpInstanceInfo';
 import { treePathToJsonPointer } from '../lib/jsonPointer';
 import { McpInstance } from '../lib/mcpApi';
 import { createTable } from '../lib/projectsApi';
+import { Dots } from './loading';
 
 interface McpBarProps {
   projectId?: string;
@@ -739,8 +740,9 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                       alignItems: 'center',
                     }}
                   >
-                    <span style={{ fontSize: 10, color: '#CDCDCD' }}>
-                      Processing...
+                    <span style={{ fontSize: 10, color: '#CDCDCD', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <Dots size='xs' />
+                      Processing…
                     </span>
                     <span style={{ fontSize: 10, color: '#94a3b8' }}>
                       {Math.round(importProgress)}%
@@ -807,6 +809,10 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                       : 'pointer',
                   transition: 'background 0.15s',
                   marginTop: 6,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
                 }}
                 onMouseEnter={e => {
                   if (
@@ -829,7 +835,8 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                   }
                 }}
               >
-                {isImporting ? 'Importing...' : 'Import'}
+                {isImporting && <Dots size='xs' />}
+                {isImporting ? 'Importing…' : 'Import'}
               </button>
             </div>
           )}

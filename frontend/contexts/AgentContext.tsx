@@ -110,6 +110,7 @@ interface AgentContextValue {
   selectedCapabilities: Set<string>;
   
   // Actions
+  refreshAgents: () => Promise<void>;
   selectAgent: (agentId: string | null) => void;
   saveAgent: (name: string, icon: string, capabilities: string[]) => void;
   deleteAgent: (agentId: string) => void;
@@ -203,106 +204,106 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
   // Legacy isChatOpen computed from sidebarMode (internal only)
   const isChatOpen = sidebarMode !== 'closed';
 
-  // 页面加载时从数据库获取 agents（按 project_id 过滤）
-  useEffect(() => {
-    const loadAgents = async () => {
-      // 必须有 projectId 才能加载 agents
-      if (!projectId) {
-        setSavedAgents([]);
-        return;
-      }
-      
-      try {
-        const agents = await get<Array<{
+  const refreshAgents = useCallback(async () => {
+    // 必须有 projectId 才能加载 agents
+    if (!projectId) {
+      setSavedAgents([]);
+      return;
+    }
+
+    try {
+      const agents = await get<Array<{
+        id: string;
+        name: string;
+        icon: string;
+        type: string;
+        mcp_api_key?: string;
+        trigger_type?: string;
+        trigger_config?: TriggerConfig;
+        task_content?: string;
+        task_path?: string;
+        external_config?: ExternalConfig;
+        bash_accesses?: Array<{
           id: string;
-          name: string;
-          icon: string;
-          type: string;
-          mcp_api_key?: string;
-          trigger_type?: string;
-          trigger_config?: TriggerConfig;
-          task_content?: string;
-          task_path?: string;
-          external_config?: ExternalConfig;
-          bash_accesses?: Array<{
-            id: string;
-            path: string;
-            readonly: boolean;
-            // PERFORMANCE (P-5): backend now inlines node metadata to avoid a
-            // second round-trip. Older backends omit these fields, in which
-            // case we fall back to fetchNodeInfoBatch below.
-            node_name?: string;
-            node_type?: string;
-          }>;
-        }>>(`/api/v1/agent-config/?project_id=${projectId}`);
+          path: string;
+          readonly: boolean;
+          // PERFORMANCE (P-5): backend now inlines node metadata to avoid a
+          // second round-trip. Older backends omit these fields, in which
+          // case we fall back to fetchNodeInfoBatch below.
+          node_name?: string;
+          node_type?: string;
+        }>;
+      }>>(`/api/v1/agent-config/?project_id=${projectId}`);
 
-        const hasInlineNodeInfo = agents.every(a =>
-          (a.bash_accesses || []).every(b => b.node_name !== undefined)
-        );
+      const hasInlineNodeInfo = agents.every(a =>
+        (a.bash_accesses || []).every(b => b.node_name !== undefined)
+      );
 
-        // Only fall back to the legacy batch resolver when the server didn't
-        // inline node metadata (e.g. during a staged backend rollout).
-        let nodeInfoMap = new Map<string, NodeInfo>();
-        if (!hasInlineNodeInfo) {
-          const allNodeIds = agents.flatMap(a => (a.bash_accesses || []).map(b => b.path));
-          nodeInfoMap = await fetchNodeInfoBatch(allNodeIds, projectId);
-        }
+      // Only fall back to the legacy batch resolver when the server didn't
+      // inline node metadata (e.g. during a staged backend rollout).
+      let nodeInfoMap = new Map<string, NodeInfo>();
+      if (!hasInlineNodeInfo) {
+        const allNodeIds = agents.flatMap(a => (a.bash_accesses || []).map(b => b.path));
+        nodeInfoMap = await fetchNodeInfoBatch(allNodeIds, projectId);
+      }
 
-        const loadedAgents: SavedAgent[] = agents.map(a => {
-          const bashAccesses = a.bash_accesses || [];
+      const loadedAgents: SavedAgent[] = agents.map(a => {
+        const bashAccesses = a.bash_accesses || [];
 
-          const resources: AccessResource[] = bashAccesses.map(bash => {
-            // Prefer inline node metadata; fall back to the lookup map.
-            const inlineName = bash.node_name;
-            const inlineType = bash.node_type;
-            const nodeInfo = nodeInfoMap.get(bash.path);
-            const name = inlineName ?? nodeInfo?.name;
-            const type = (inlineType ?? nodeInfo?.type) as NodeInfo['type'] | undefined;
-            return {
-              path: bash.path,
-              nodeName: name || bash.path.substring(0, 8) + '...',
-              nodeType: type ? mapNodeType(type) : 'folder',
-              readonly: bash.readonly,
-            };
-          });
-          
+        const resources: AccessResource[] = bashAccesses.map(bash => {
+          // Prefer inline node metadata; fall back to the lookup map.
+          const inlineName = bash.node_name;
+          const inlineType = bash.node_type;
+          const nodeInfo = nodeInfoMap.get(bash.path);
+          const name = inlineName ?? nodeInfo?.name;
+          const type = (inlineType ?? nodeInfo?.type) as NodeInfo['type'] | undefined;
           return {
-            id: a.id,
-            name: a.name,
-            icon: a.icon,
-            type: (a.type as AgentType) || 'chat',
-            capabilities: resources.map(r => `resource:${r.path}`),
-            mcp_api_key: a.mcp_api_key,
-            // Schedule Agent 新字段
-            trigger_type: (a.trigger_type as TriggerType) || 'manual',
-            trigger_config: a.trigger_config,
-            task_content: a.task_content,
-            task_path: a.task_path,
-            external_config: a.external_config,
-            resources,
+            path: bash.path,
+            nodeName: name || (bash.path ? `${bash.path.substring(0, 8)}...` : 'Root'),
+            nodeType: type ? mapNodeType(type) : 'folder',
+            readonly: bash.readonly,
           };
         });
-        
-        setSavedAgents(loadedAgents);
-        console.log('Loaded agents from database:', loadedAgents.length, 'for project:', projectId);
-        // Auto-complete onboarding step when agents exist
-        if (loadedAgents.length > 0 && typeof window !== 'undefined') {
-          try {
-            const KEY = 'puppyone_onboarding_v1';
-            const state = JSON.parse(localStorage.getItem(KEY) || '{"hasSeenWelcome":true,"completedSteps":[],"dismissedChecklist":false}');
-            if (!state.completedSteps.includes('agent')) {
-              state.completedSteps.push('agent');
-              localStorage.setItem(KEY, JSON.stringify(state));
-            }
-          } catch {}
-        }
-      } catch (error) {
-        console.error('Failed to load agents:', error);
+
+        return {
+          id: a.id,
+          name: a.name,
+          icon: a.icon,
+          type: (a.type as AgentType) || 'chat',
+          capabilities: resources.map(r => `resource:${r.path}`),
+          mcp_api_key: a.mcp_api_key,
+          // Schedule Agent 新字段
+          trigger_type: (a.trigger_type as TriggerType) || 'manual',
+          trigger_config: a.trigger_config,
+          task_content: a.task_content,
+          task_path: a.task_path,
+          external_config: a.external_config,
+          resources,
+        };
+      });
+
+      setSavedAgents(loadedAgents);
+      console.log('Loaded agents from database:', loadedAgents.length, 'for project:', projectId);
+      // Auto-complete onboarding step when agents exist
+      if (loadedAgents.length > 0 && typeof window !== 'undefined') {
+        try {
+          const KEY = 'puppyone_onboarding_v1';
+          const state = JSON.parse(localStorage.getItem(KEY) || '{"hasSeenWelcome":true,"completedSteps":[],"dismissedChecklist":false}');
+          if (!state.completedSteps.includes('agent')) {
+            state.completedSteps.push('agent');
+            localStorage.setItem(KEY, JSON.stringify(state));
+          }
+        } catch {}
       }
-    };
-    
-    loadAgents();
+    } catch (error) {
+      console.error('Failed to load agents:', error);
+    }
   }, [projectId]);
+
+  // 页面加载时从数据库获取 agents（按 project_id 过滤）
+  useEffect(() => {
+    refreshAgents();
+  }, [refreshAgents]);
 
   // Select agent — callable from ANY state → always goes to deployed
   const selectAgent = useCallback((agentId: string | null) => {
@@ -773,6 +774,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         draftCapabilities,
         draftResources,
         selectedCapabilities,
+        refreshAgents,
         
         // Sync frequency mode
         draftSyncMode,

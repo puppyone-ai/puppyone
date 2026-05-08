@@ -10,6 +10,7 @@ import {
 import { useProjects } from '@/lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { FONT, TOOL_TYPE_CONFIG } from '@/lib/toolConfig';
+import { Dots } from '@/components/loading';
 
 // Header 高度 (包含 border)
 const HEADER_HEIGHT = 45;
@@ -249,7 +250,6 @@ export function LibraryView({
 
   return (
     <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Header - 45px + 1px border = 46px total */}
         <div
@@ -1140,27 +1140,8 @@ export function LibraryView({
                     gap: 6,
                   }}
                 >
-                  {creating && (
-                    <svg
-                      width='12'
-                      height='12'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      style={{ animation: 'spin 1s linear infinite' }}
-                    >
-                      <circle
-                        cx='12'
-                        cy='12'
-                        r='10'
-                        stroke='currentColor'
-                        strokeWidth='3'
-                        strokeLinecap='round'
-                        strokeDasharray='32'
-                        strokeDashoffset='12'
-                      />
-                    </svg>
-                  )}
-                  {creating ? 'Creating...' : 'Create & Add'}
+                  {creating && <Dots size='xs' />}
+                  {creating ? 'Creating…' : 'Create & Add'}
                 </button>
               </div>
             </div>
@@ -1306,27 +1287,8 @@ export function LibraryView({
                     gap: 6,
                   }}
                 >
-                  {saving && (
-                    <svg
-                      width='12'
-                      height='12'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      style={{ animation: 'spin 1s linear infinite' }}
-                    >
-                      <circle
-                        cx='12'
-                        cy='12'
-                        r='10'
-                        stroke='currentColor'
-                        strokeWidth='3'
-                        strokeLinecap='round'
-                        strokeDasharray='32'
-                        strokeDashoffset='12'
-                      />
-                    </svg>
-                  )}
-                  {saving ? 'Saving...' : 'Save'}
+                  {saving && <Dots size='xs' />}
+                  {saving ? 'Saving…' : 'Save'}
                 </button>
               </div>
             </div>

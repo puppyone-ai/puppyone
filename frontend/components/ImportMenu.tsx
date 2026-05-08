@@ -4,12 +4,13 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { ImportModal } from './editors/table/components/ImportModal';
-import { uploadAndSubmit } from '../lib/etlApi';
+import { uploadFiles } from '../lib/uploadApi';
+import { Dots } from './loading';
 import {
   addPendingTasks,
-  replacePlaceholderTasks,
-  removeFailedPlaceholders,
-  removeAllPlaceholdersForTable,
+  updateTaskStatusById,
+  updateTaskProgress,
+  replaceTaskId,
 } from './BackgroundTaskNotifier';
 import { FileImportDialog } from './FileImportDialog';
 
@@ -349,89 +350,101 @@ export function ImportMenu({
   }, [onLog]);
 
   // Handler for file import dialog confirmation
+  //
+  // The ``mode`` arg used to switch between OCR Smart Parse and raw
+  // upload, but Smart Parse is paused server-side (see
+  // config.ENABLE_OCR) so we treat every request as raw and route
+  // through the direct-to-S3 multipart pipeline.
   const handleFileImportConfirm = useCallback(async (
-    importFiles: File[], 
-    mode: 'ocr_parse' | 'raw'
+    importFiles: File[],
+    _mode: 'ocr_parse' | 'raw',
   ) => {
     setFileImportDialogOpen(false);
     if (!projectId || importFiles.length === 0) return;
+    if (!session?.access_token) {
+      onLog?.('error', 'Not authenticated');
+      return;
+    }
 
     setIsImporting(true);
     setIsOpen(false);
+    onLog?.('info', `Uploading ${importFiles.length} file(s)...`);
+
+    let succeededCount = 0;
+    let failedCount = 0;
+    const placeholderIds: string[] = [];
 
     try {
-      onLog?.('info', `Uploading ${importFiles.length} file(s)...`);
-
-      // 添加占位任务到右下角进度面板
-        const baseTimestamp = Date.now();
-      const placeholderGroupId = `upload-${baseTimestamp}`;
-      const placeholderTasks = importFiles.map((file, index) => ({
-          taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-          projectId: projectId,
-        tableId: placeholderGroupId,
-        tableName: file.name,
-          filename: file.name,
-          status: 'pending' as const,
-        taskType: 'file' as const,
-        }));
-        addPendingTasks(placeholderTasks);
-
-      if (!session?.access_token) {
-        throw new Error('Not authenticated');
-          }
-
-      // 直接上传文件到后端，后端负责创建所有节点
-      // 不再前端先创建 table/folder —— 这会导致重复记录
-            const response = await uploadAndSubmit(
-              {
-          projectId: projectId,
-          files: importFiles,
-          mode: mode,
-          // parent_id 未指定，后端创建在根级别
-              },
-              session.access_token
+      const results = await uploadFiles(
+        // No parent_path: ImportMenu uploads land at project root.
+        // The dialog that calls into a specific folder uses
+        // TableManageDialog with ``parentId`` instead.
+        { projectId, files: importFiles, parentPath: null },
+        session.access_token,
+        {
+          onUploadStart: (files) => {
+            files.forEach((f) => {
+              const tmpId = `tmp-${crypto.randomUUID()}`;
+              placeholderIds[f.fileIndex] = tmpId;
+            });
+            addPendingTasks(
+              files.map((f) => ({
+                taskId: placeholderIds[f.fileIndex],
+                projectId,
+                tableName: f.filename,
+                filename: f.filename,
+                status: 'uploading',
+                taskType: 'file',
+              })),
             );
-
-      // 用真实任务替换占位任务
-      const filenameMap = new Map<string, string>();
-      importFiles.forEach(f => filenameMap.set(f.name, f.name));
-
-            const realTasks = response.items
-              .filter(item => item.status !== 'failed')
-              .map(item => ({
-                taskId: String(item.task_id),
-                projectId: projectId,
-          tableId: placeholderGroupId,
-          tableName: filenameMap.get(item.filename!) || item.filename!,
-                filename: filenameMap.get(item.filename!) || item.filename!,
-                status: (item.status === 'completed' ? 'completed' : 'pending') as any,
-          taskType: 'file' as const,
-              }));
-
-            if (realTasks.length > 0) {
-        replacePlaceholderTasks(placeholderGroupId, realTasks);
+          },
+          onTaskCreated: ({ fileIndex, taskId }) => {
+            const tmpId = placeholderIds[fileIndex];
+            if (tmpId) {
+              replaceTaskId(tmpId, taskId);
+              placeholderIds[fileIndex] = taskId;
             }
+          },
+          onProgress: (taskId, _loaded, _total, percent) => {
+            updateTaskProgress(taskId, percent);
+          },
+          onAllPartsUploaded: (taskId) => {
+            updateTaskStatusById(taskId, 'finalizing');
+          },
+          onTaskCompleted: (taskId) => {
+            updateTaskStatusById(taskId, 'completed');
+          },
+          onTaskFailed: (taskId, error) => {
+            updateTaskStatusById(taskId, 'failed', { error });
+          },
+        },
+      );
 
-      const failedFiles = response.items.filter(item => item.status === 'failed');
-            if (failedFiles.length > 0) {
-              console.warn('Some files failed to upload:', failedFiles);
-        onLog?.('warning', `${failedFiles.length} file(s) failed to upload`);
-              const failedFileNames = failedFiles.map(
-                f => filenameMap.get(f.filename!) || f.filename!
-              );
-        removeFailedPlaceholders(placeholderGroupId, failedFileNames);
-            }
+      succeededCount = results.filter(r => r.status === 'completed').length;
+      failedCount = results.filter(r => r.status === 'failed').length;
 
-      const successCount = response.items.filter(i => i.status !== 'failed').length;
-      onLog?.('success', `${successCount} file(s) uploaded successfully!`);
+      if (failedCount > 0) {
+        onLog?.('warning', `${failedCount} file(s) failed to upload`);
+      }
+      if (succeededCount > 0) {
+        onLog?.(
+          'success',
+          `${succeededCount} file(s) uploaded successfully!`,
+        );
+      }
+
       onProjectsRefresh?.();
       setTableName('');
-      setIsImporting(false);
     } catch (error) {
-      onLog?.(
-        'error',
-        `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      // /upload/init failed — the placeholders we spawned never
+      // got real IDs. Mark them failed so they don't sit forever.
+      const errMsg =
+        error instanceof Error ? error.message : 'Unknown error';
+      placeholderIds.forEach((id) => {
+        if (id) updateTaskStatusById(id, 'failed', { error: errMsg });
+      });
+      onLog?.('error', `Import failed: ${errMsg}`);
+    } finally {
       setIsImporting(false);
     }
   }, [projectId, session?.access_token, onLog, onProjectsRefresh]);
@@ -528,9 +541,10 @@ export function ImportMenu({
               /* Progress View */
               <div style={{ padding: '20px 16px', textAlign: 'center' }}>
                 <div
-                  style={{ fontSize: 14, color: '#9ca3af', marginBottom: 10 }}
+                  style={{ fontSize: 14, color: '#9ca3af', marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  Importing... {Math.round(importProgress)}%
+                  <Dots size='xs' />
+                  Importing… {Math.round(importProgress)}%
                 </div>
                 <div
                   style={{

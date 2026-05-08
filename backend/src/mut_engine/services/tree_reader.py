@@ -13,36 +13,15 @@ from dataclasses import dataclass
 from mut.core.object_store import ObjectStore
 from mut.core.tree import read_tree, tree_to_flat
 
+from src.infra.file_formats import detect_mime, detect_node_type
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_error
 
-
-def detect_type(name: str) -> str:
-    if name.endswith(".json"):
-        return "json"
-    if name.endswith((".md", ".markdown")):
-        return "markdown"
-    return "file"
-
-
-def detect_mime(name: str) -> str:
-    ext = os.path.splitext(name)[1].lower()
-    return {
-        ".json": "application/json",
-        ".md": "text/markdown",
-        ".markdown": "text/markdown",
-        ".txt": "text/plain",
-        ".html": "text/html",
-        ".css": "text/css",
-        ".js": "application/javascript",
-        ".ts": "application/typescript",
-        ".py": "text/x-python",
-        ".pdf": "application/pdf",
-        ".png": "image/png",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".svg": "image/svg+xml",
-    }.get(ext, "application/octet-stream")
+# `detect_type` is re-exported (alias of `detect_node_type`) so the
+# many existing imports of `tree_reader.detect_type` keep working.
+# All format knowledge lives in `src.infra.file_formats`.
+detect_type = detect_node_type
+__all__ = ["detect_type", "detect_mime", "MutEntry", "MutTreeReader"]
 
 
 @dataclass

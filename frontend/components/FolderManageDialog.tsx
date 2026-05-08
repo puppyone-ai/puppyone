@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { createFolder } from '../lib/contentTreeApi';
+import { Dots } from './loading';
 
 type FolderManageDialogProps = {
   projectId: string; // 所属项目 ID
@@ -254,9 +255,13 @@ export function FolderManageDialog({
                 fontSize: 16,
                 fontWeight: 500,
                 cursor: loading || !name.trim() ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              {loading ? 'Creating...' : 'Create Folder'}
+              {loading && <Dots size='xs' />}
+              {loading ? 'Creating…' : 'Create Folder'}
             </button>
           </div>
         </form>

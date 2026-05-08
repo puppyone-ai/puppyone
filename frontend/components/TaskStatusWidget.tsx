@@ -4,15 +4,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   isTerminalStatus,
   getStatusDisplayText,
+  cancelETLTask,
   ETLTaskStatus,
 } from '../lib/etlApi';
 import {
   getAllPendingTasks,
   clearAllTasks,
+  removeTaskById,
   PendingTask,
   TaskType,
 } from './BackgroundTaskNotifier';
 import {
+  ACTIVITY_BG,
+  ACTIVITY_BORDER,
+  ACTIVITY_SHADOW,
+  ACTIVITY_WIDTH,
   activityCardStyle,
   activityHeaderStyle,
   activityTitleStyle,
@@ -20,7 +26,20 @@ import {
 import { ActivityIconButton } from './ActivityIconButton';
 
 interface TaskWithStatus extends PendingTask {
-  displayStatus: ETLTaskStatus['status'] | 'uploading' | 'downloading' | 'extracting' | 'creating_nodes';
+  displayStatus:
+    | ETLTaskStatus['status']
+    | 'uploading'
+    | 'finalizing'
+    | 'downloading'
+    | 'extracting'
+    | 'creating_nodes';
+  /**
+   * Best-known upload progress 0..100 for the ``uploading`` phase.
+   * Backed by ``PendingTask.progress`` but copied here so the widget
+   * can render even if the field is briefly absent during a state
+   * transition.
+   */
+  displayProgress?: number;
 }
 
 interface TaskStatusWidgetProps {
@@ -43,9 +62,22 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
   // 从 sessionStorage 加载任务
   const loadTasks = useCallback(() => {
     const allTasks = getAllPendingTasks();
-    const tasksWithStatus: TaskWithStatus[] = allTasks.map(t => ({
+    // Newest first: matches the chat-app / activity-feed convention
+    // where the most recent action sits at the top of the list and
+    // pushes older items down. Without this, dropping 5 PDFs in a row
+    // shows them in upload-start order, which makes spotting the new
+    // task you just added require scrolling past finished ones.
+    const sorted = [...allTasks].sort((a, b) => b.timestamp - a.timestamp);
+    const tasksWithStatus: TaskWithStatus[] = sorted.map(t => ({
       ...t,
-      displayStatus: t.taskId.startsWith('-') ? 'uploading' : t.status || 'pending',
+      // Legacy negative-prefix placeholder IDs still get treated as
+      // ``uploading`` for back-compat with any sessionStorage left
+      // over from the old flow. New uploads set ``status``
+      // explicitly via ``updateTaskStatusById`` / ``addPendingTasks``.
+      displayStatus: t.taskId.startsWith('-')
+        ? 'uploading'
+        : t.status || 'pending',
+      displayProgress: t.progress,
     }));
     setTasks(tasksWithStatus);
 
@@ -63,11 +95,30 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
     loadTasks();
 
     const handleUpdate = () => loadTasks();
+    // Lightweight progress-only updates skip the full reload to
+    // avoid a re-render storm during a multipart upload (parts can
+    // fire ``progress`` dozens of times per second). Patch only
+    // the affected row's ``displayProgress`` in-place.
+    const handleProgress = (e: Event) => {
+      const detail = (e as CustomEvent<{ taskId: string; progress: number }>)
+        .detail;
+      if (!detail) return;
+      setTasks(prev =>
+        prev.map(t =>
+          t.taskId === detail.taskId
+            ? { ...t, displayProgress: detail.progress }
+            : t,
+        ),
+      );
+    };
+
     window.addEventListener('etl-tasks-updated', handleUpdate);
+    window.addEventListener('etl-task-progress', handleProgress);
     window.addEventListener('storage', handleUpdate);
 
     return () => {
       window.removeEventListener('etl-tasks-updated', handleUpdate);
+      window.removeEventListener('etl-task-progress', handleProgress);
       window.removeEventListener('storage', handleUpdate);
     };
   }, [loadTasks]);
@@ -79,6 +130,27 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
     setIsExpanded(false);
   }, []);
 
+  // Per-task removal. For processing FILE tasks we ALSO call the
+  // backend cancel endpoint (the worker honors it via the `cancelled`
+  // terminal state). For SaaS tasks the backend doesn't expose cancel,
+  // so removal is purely local (the in-flight job will still finish
+  // server-side, the user just hides it from this widget).
+  const handleRemoveTask = useCallback(async (task: TaskWithStatus) => {
+    const isProcessing = !isTaskTerminal(task.displayStatus);
+    const isFileTask = !task.taskType || task.taskType === 'file';
+    if (isProcessing && isFileTask && !task.taskId.startsWith('-') && !task.taskId.startsWith('placeholder-')) {
+      try {
+        await cancelETLTask(task.taskId, 'file');
+      } catch (e) {
+        // Cancel failure is non-fatal — we still remove from the
+        // widget. The next status poll will re-add it if the task
+        // is somehow still alive on the server.
+        console.warn('[TaskStatusWidget] cancel failed:', e);
+      }
+    }
+    removeTaskById(task.taskId);
+  }, []);
+
   // 无任务时不显示
   if (tasks.length === 0) {
     return null;
@@ -87,6 +159,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
   const processingCount = tasks.filter(
     t => !isTaskTerminal(t.displayStatus)
   ).length;
+  const allTerminal = processingCount === 0;
   const failedCount = tasks.filter(t => t.displayStatus === 'failed').length;
 
   // Position styles based on inline prop
@@ -110,25 +183,34 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+        @keyframes widget-progress-pulse {
+          0%, 100% { opacity: 0.55; }
+          50%      { opacity: 1; }
+        }
       `}</style>
 
       {!isExpanded ? (
-        /* 收起状态：小圆圈 */
+        /* Collapsed pill — shares the same surface tokens as the
+           Getting Started checklist so the bottom-right activity stack
+           reads as one unified language. */
         <button
           onClick={() => setIsExpanded(true)}
           style={{
             display: 'flex',
             alignItems: 'center',
-          gap: 10,
-          width: 300,
-          minHeight: 44,
-          padding: '8px 12px',
-          background: '#1e1e22',
-          border: '1px solid rgba(255,255,255,0.11)',
-          borderRadius: 10,
+            gap: 10,
+            width: ACTIVITY_WIDTH,
+            minHeight: 38,
+            padding: '8px 14px',
+            background: ACTIVITY_BG,
+            border: ACTIVITY_BORDER,
+            borderRadius: 999,
             cursor: 'pointer',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.42)',
+            boxShadow: ACTIVITY_SHADOW,
+            backdropFilter: 'blur(28px) saturate(160%)',
+            WebkitBackdropFilter: 'blur(28px) saturate(160%)',
             position: 'relative',
+            color: '#e4e4e7',
           }}
         >
           {processingCount > 0 ? (
@@ -219,25 +301,33 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-              {/* 收起按钮 */}
+              {/* Collapse — always available */}
               <ActivityIconButton
-                kind="minimize"
-                title="Minimize"
+                kind="collapse"
+                title="Collapse"
                 onClick={() => setIsExpanded(false)}
               />
-              {/* 清空按钮 */}
-              <ActivityIconButton
-                kind="close"
-                title="Clear"
-                onClick={handleClear}
-              />
+              {/* Clear — only when every task has reached a terminal
+                  state, so the user can never accidentally lose track
+                  of an in-flight upload by clicking the wrong button. */}
+              {allTerminal && (
+                <ActivityIconButton
+                  kind="close"
+                  title="Clear all"
+                  onClick={handleClear}
+                />
+              )}
             </div>
           </div>
 
-          {/* 任务列表 - 简化版，无底部统计 */}
+          {/* Task list */}
           <div style={{ maxHeight: 220, overflowY: 'auto' }}>
             {tasks.map(task => (
-              <TaskRow key={task.taskId} task={task} />
+              <TaskRow
+                key={task.taskId}
+                task={task}
+                onRemove={() => handleRemoveTask(task)}
+              />
             ))}
           </div>
         </div>
@@ -299,10 +389,17 @@ function getSaasStatusText(status: string): string {
 }
 
 /** 单个任务行 */
-function TaskRow({ task }: { task: TaskWithStatus }) {
+function TaskRow({
+  task,
+  onRemove,
+}: {
+  task: TaskWithStatus;
+  onRemove: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
   const isSaasTask = task.taskType && task.taskType !== 'file';
   const SaasIcon = isSaasTask && task.taskType ? SaasIcons[task.taskType] : null;
-  
+
   const getStatusColor = () => {
     switch (task.displayStatus) {
       case 'completed':
@@ -311,6 +408,12 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
         return '#f87171';
       case 'uploading':
         return '#fbbf24';
+      case 'finalizing':
+        // Same palette family as ``processing`` — the user crossed
+        // the "bytes uploaded" threshold so the row should advance
+        // visually to the cool blue, signalling "the work is on
+        // the server now, just waiting for it to land".
+        return '#3b82f6';
       default:
         return '#3b82f6';
     }
@@ -320,12 +423,14 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
 
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 10,
         padding: '9px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
+        borderBottom: '1px solid rgba(255,255,255,0.04)',
       }}
     >
       {/* 状态图标 */}
@@ -385,7 +490,7 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
         )}
       </div>
 
-      {/* 文件名和状态 */}
+      {/* Filename + status */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
@@ -400,9 +505,108 @@ function TaskRow({ task }: { task: TaskWithStatus }) {
           {task.filename}
         </div>
         <div style={{ color: getStatusColor(), fontSize: 11, lineHeight: '16px', marginTop: 1 }}>
-          {isSaasTask ? getSaasStatusText(task.displayStatus) : getStatusDisplayText(task.displayStatus as ETLTaskStatus['status'] | 'uploading')}
+          {(() => {
+            if (isSaasTask) return getSaasStatusText(task.displayStatus);
+            if (
+              task.displayStatus === 'uploading' &&
+              typeof task.displayProgress === 'number'
+            ) {
+              return `Uploading ${task.displayProgress}%`;
+            }
+            if (task.displayStatus === 'finalizing') return 'Finalizing…';
+            if (task.displayStatus === 'failed' && task.error) {
+              return `Failed — ${task.error}`;
+            }
+            return getStatusDisplayText(
+              task.displayStatus as ETLTaskStatus['status'] | 'uploading',
+            );
+          })()}
         </div>
+        {/*
+          Progress bar — drawn during ``uploading`` (real progress
+          ticks 0..100 from XHR.upload.progress) AND during
+          ``finalizing`` (a 100% solid bar with a subtle pulse to
+          signal "byte transfer is done, waiting on the server"
+          rather than abruptly removing the bar mid-task).
+        */}
+        {(task.displayStatus === 'uploading' ||
+          task.displayStatus === 'finalizing') &&
+          typeof task.displayProgress === 'number' && (
+            <div
+              style={{
+                marginTop: 4,
+                width: '100%',
+                height: 3,
+                background: 'rgba(255,255,255,0.08)',
+                borderRadius: 2,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width:
+                    task.displayStatus === 'finalizing'
+                      ? '100%'
+                      : `${task.displayProgress}%`,
+                  height: '100%',
+                  background:
+                    task.displayStatus === 'finalizing'
+                      ? '#3b82f6'
+                      : '#fbbf24',
+                  transition: 'width 0.2s ease',
+                  // Subtle pulse during finalize tells the user the
+                  // server is actively working — without it, a static
+                  // 100% bar reads as "stuck", which is exactly the
+                  // bug we're fixing.
+                  animation:
+                    task.displayStatus === 'finalizing'
+                      ? 'widget-progress-pulse 1.4s ease-in-out infinite'
+                      : undefined,
+                }}
+              />
+            </div>
+          )}
       </div>
+
+      {/* Per-row action — cancel for in-flight tasks, remove for done.
+          Visible at low opacity always so the affordance is discoverable
+          without being noisy; brightens on row hover. */}
+      <button
+        type="button"
+        aria-label={isProcessing ? 'Cancel task' : 'Remove from list'}
+        title={isProcessing ? 'Cancel' : 'Remove'}
+        onClick={(e) => { e.stopPropagation(); onRemove(); }}
+        style={{
+          flexShrink: 0,
+          width: 22,
+          height: 22,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0,
+          border: 'none',
+          borderRadius: 5,
+          background: 'transparent',
+          cursor: 'pointer',
+          color: hovered ? '#d4d4d8' : '#52525b',
+          opacity: hovered ? 1 : 0.6,
+          transition: 'color 0.12s ease, opacity 0.12s ease, background 0.12s ease',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+      >
+        {isProcessing ? (
+          /* Stop square — communicates "halt the in-flight job". */
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" aria-hidden>
+            <rect x="1.5" y="1.5" width="7" height="7" rx="1" />
+          </svg>
+        ) : (
+          /* Cross — communicates "remove this row from the list". */
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden>
+            <path d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+        )}
+      </button>
     </div>
   );
 }

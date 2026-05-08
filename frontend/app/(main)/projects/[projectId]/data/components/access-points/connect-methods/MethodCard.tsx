@@ -1,0 +1,363 @@
+'use client';
+
+import { useState, type ReactNode } from 'react';
+import {
+  COLOR_BG_CARD,
+  COLOR_BG_HOVER,
+  COLOR_BORDER,
+  COLOR_BORDER_HOVER,
+  COLOR_FG,
+  COLOR_FG_DIM,
+  COLOR_FG_MUTED,
+} from '../tokens';
+import { AgentIcon, SyncIcon, TerminalIcon } from './icons';
+import type { MethodMeta } from './meta';
+
+/**
+ * MethodCard — wrapper for one connection method.
+ *
+ * Header layout (left to right):
+ *
+ *   [icon] [title + subtitle]                          [toggle]
+ *
+ * Body visibility is **a pure function of the toggle**:
+ *
+ *   - active  → body expanded
+ *   - paused  → body collapsed
+ *
+ * There is no separate user-controlled expand/collapse affordance —
+ * the toggle is the single source of truth. The previous round had a
+ * chevron that let the user pin the body open/closed independently of
+ * the toggle, which created confusing combinations like
+ * "active-but-collapsed" or "paused-but-expanded". The user called
+ * this out as redundant: if I turn it off I want it out of the way;
+ * if I turn it on I want to see how to use it. The toggle alone now
+ * carries both meanings.
+ *
+ * Other behaviours:
+ *
+ *   - Toggle is the only interactive element. The header chrome is a
+ *     plain `<div>` (not a `<button>`) — clicking on the title /
+ *     subtitle / icon does nothing, which prevents the "looks
+ *     clickable but isn't" trap.
+ *   - Toggle is wired to the connector's `status` field via the
+ *     `pauseConnector` / `resumeConnector` API (the parent owns the
+ *     request; we just emit `onToggle`).
+ *   - When the method is paused, the icon, title, and subtitle dim,
+ *     and the subtitle picks up a "(paused)" suffix so the off state
+ *     reads at a glance even without the body for context.
+ */
+export function MethodCard({
+  meta,
+  children,
+  active = true,
+  togglePending = false,
+  onToggle,
+}: {
+  readonly meta: MethodMeta;
+  readonly children: ReactNode;
+  /** Current connector status — true when `status === 'active'`. When
+   *  `false`, the card renders in its paused appearance with the body
+   *  hidden. Defaults to `true` for legacy callers that don't pass
+   *  per-connector state (in that case the body is always shown,
+   *  matching the pre-toggle behaviour). */
+  readonly active?: boolean;
+  /** Set while a pause/resume request is in flight. De-dupes rapid
+   *  re-clicks while the first request is still resolving. */
+  readonly togglePending?: boolean;
+  /** Click handler for the toggle. When omitted, the toggle is not
+   *  rendered and the body is always shown — used by callers that
+   *  don't yet have a connector to pause/resume (legacy / CLI before
+   *  the DB trigger that auto-provisions a `cli` connector). */
+  readonly onToggle?: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  // Single source of truth: body visibility = active state. No
+  // useState, no manual override.
+  const expanded = active;
+
+  return (
+    <div
+      style={{
+        borderRadius: 10,
+        border: `1px solid ${expanded || hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
+        background: expanded ? COLOR_BG_HOVER : COLOR_BG_CARD,
+        overflow: 'hidden',
+        transition: 'border-color 0.15s, background 0.15s',
+      }}
+    >
+      {/* Header is a plain <div>, NOT a button. Mouse hover still
+          updates the card border so the user gets a faint "this is a
+          live card" cue, but no click handler — only the toggle on
+          the right is interactive. */}
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          width: '100%',
+          padding: '10px 12px',
+          color: COLOR_FG,
+        }}
+      >
+        <MethodIcon meta={meta} active={active} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              // Title dims a touch when paused, but stays readable —
+              // we use the muted greyscale FG so it doesn't disappear.
+              color: active ? COLOR_FG : COLOR_FG_MUTED,
+              lineHeight: 1.3,
+            }}
+          >
+            {meta.title}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: COLOR_FG_DIM,
+              lineHeight: 1.45,
+              marginTop: 2,
+            }}
+          >
+            {meta.subtitle}
+            {!active && (
+              <span style={{ marginLeft: 6, color: COLOR_FG_DIM }}>
+                · paused
+              </span>
+            )}
+          </div>
+        </div>
+        {onToggle && (
+          <MethodToggle
+            active={active}
+            pending={togglePending}
+            accent={meta.accent}
+            accentBg={meta.accentBg}
+            accentBorder={meta.accentBorder}
+            onClick={onToggle}
+            label={`${active ? 'Pause' : 'Resume'} ${meta.title}`}
+          />
+        )}
+      </div>
+      {expanded && (
+        <div
+          style={{
+            borderTop: `1px solid ${COLOR_BORDER}`,
+            padding: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MethodIcon({
+  meta,
+  active,
+}: {
+  readonly meta: MethodMeta;
+  readonly active: boolean;
+}) {
+  return (
+    <div
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        // Paused state strips the per-method accent and falls back to
+        // a neutral surface — same convention as AccessPointRow's
+        // built-in glyph. Only an *active* method earns its colour.
+        background: active ? meta.accentBg : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${active ? meta.accentBorder : 'rgba(255,255,255,0.08)'}`,
+        color: active ? meta.accent : COLOR_FG_DIM,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        opacity: active ? 1 : 0.65,
+        transition: 'background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
+      }}
+      aria-hidden
+    >
+      {meta.id === 'terminal' && <TerminalIcon />}
+      {meta.id === 'sync' && <SyncIcon />}
+      {meta.id === 'agent' && <AgentIcon />}
+    </div>
+  );
+}
+
+/**
+ * MethodToggle — compact on/off switch for a method card.
+ *
+ * 32×18 track, 14×14 thumb. Active state uses the method's accent
+ * (cyan / green / purple from METHOD_META) so the colour identity is
+ * consistent with the icon container above. Paused state falls back
+ * to neutral grey so the off position reads from a distance.
+ *
+ * Optimistic UI contract: the parent flips `active` immediately on
+ * click — the actual pause / resume API call runs fire-and-forget in
+ * the background. The `pending` prop only deduplicates concurrent
+ * requests (it blocks a second click while the first is in flight)
+ * — it does NOT visually disable the switch. Visually disabling it
+ * would defeat the point of optimistic UI: to the user the action
+ * already succeeded the moment the thumb slid across.
+ *
+ * Note on event propagation: the parent header is now a plain <div>
+ * (not a <button>), so click bubbling no longer triggers a card-level
+ * toggle. The `stopPropagation` is kept defensively in case the
+ * surrounding chrome ever wires up a click handler — it's cheap and
+ * correctly scopes the click to the switch itself.
+ */
+function MethodToggle({
+  active,
+  pending,
+  accent,
+  accentBg,
+  accentBorder,
+  onClick,
+  label,
+}: {
+  readonly active: boolean;
+  readonly pending: boolean;
+  readonly accent: string;
+  readonly accentBg: string;
+  readonly accentBorder: string;
+  readonly onClick: () => void;
+  readonly label: string;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <span
+      role="switch"
+      aria-checked={active}
+      aria-label={label}
+      title={label}
+      tabIndex={0}
+      onClick={(e) => {
+        e.stopPropagation();
+        // `pending` is for de-duping rapid double-clicks while the
+        // first request is still in flight — the click is silently
+        // dropped (no visual cue) because by the time the user
+        // clicked again the optimistic state already reflects what
+        // they wanted.
+        if (pending) return;
+        onClick();
+      }}
+      onKeyDown={(e) => {
+        // Space / Enter toggle — treat the switch like a real form
+        // control even though it's a span (we'd use <button> but the
+        // parent row is also a button, and nesting buttons is
+        // semantically illegal).
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (pending) return;
+          onClick();
+        }
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        width: 32,
+        height: 18,
+        borderRadius: 999,
+        cursor: 'pointer',
+        background: active ? accentBg : 'rgba(255,255,255,0.06)',
+        border: `1px solid ${
+          active
+            ? hovered
+              ? accent
+              : accentBorder
+            : hovered
+              ? 'rgba(255,255,255,0.20)'
+              : 'rgba(255,255,255,0.10)'
+        }`,
+        transition: 'background 0.15s ease, border-color 0.15s ease',
+        flexShrink: 0,
+        outline: 'none',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: 1,
+          left: active ? 15 : 1,
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          background: active ? accent : COLOR_FG_DIM,
+          transition: 'left 0.18s ease, background 0.15s ease',
+        }}
+      />
+    </span>
+  );
+}
+
+/**
+ * SectionHeader — the `Connect` eyebrow above the method stack.
+ */
+export function SectionHeader({
+  eyebrow,
+  description,
+}: {
+  readonly eyebrow: string;
+  readonly description?: string;
+}) {
+  return (
+    <div style={{ padding: '0 2px' }}>
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: COLOR_FG_MUTED,
+          textTransform: 'uppercase',
+          letterSpacing: 0.6,
+        }}
+      >
+        {eyebrow}
+      </div>
+      {description && (
+        <div style={{ fontSize: 11, color: COLOR_FG_DIM, marginTop: 4, lineHeight: 1.5 }}>
+          {description}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * NoAccessKeyNotice — banner shown when scope.access_key is empty.
+ * All three method cards are degenerate without it, so we surface the
+ * fix path inline rather than letting the cards render unusable copy.
+ */
+export function NoAccessKeyNotice() {
+  return (
+    <div
+      style={{
+        borderRadius: 8,
+        border: `1px solid rgba(245,158,11,0.25)`,
+        background: 'rgba(245,158,11,0.06)',
+        color: '#fcd34d',
+        fontSize: 12,
+        lineHeight: 1.5,
+        padding: '10px 12px',
+      }}
+    >
+      This scope has no access key issued. Regenerate one from scope settings to enable any of these methods.
+    </div>
+  );
+}

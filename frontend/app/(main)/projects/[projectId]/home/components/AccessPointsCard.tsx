@@ -2,6 +2,7 @@
 
 import type { useRouter } from 'next/navigation';
 import { ArrowRight, ArrowLeft, ArrowLeftRight } from 'lucide-react';
+import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import { T } from '../lib/tokens';
 import { PROVIDER_LABELS, getApDirection } from '../lib/constants';
 import type { DashboardConnection } from '../lib/types';
@@ -54,7 +55,17 @@ export function AccessPointsCard({
   router: ReturnType<typeof useRouter>;
   connections: DashboardConnection[];
 }) {
-  const total = connections.length;
+  // Filter out agent connectors when the in-app chat agent feature
+  // is hidden (see `frontend/lib/featureFlags.ts`). The connectors
+  // still exist on the server (auto-INSERTed per scope by the DB
+  // trigger) but we don't list them in the home overview while the
+  // surface is hidden — the row would link to /access?ap=<id> which
+  // also filters them out, so the click would land on an empty
+  // detail panel.
+  const visibleConnections = AI_AGENT_ENABLED
+    ? connections
+    : connections.filter((c) => c.provider !== 'agent');
+  const total = visibleConnections.length;
 
   return (
     <div
@@ -173,7 +184,7 @@ export function AccessPointsCard({
             No integrations configured.
           </div>
         ) : (
-          connections.map((conn) => {
+          visibleConnections.map((conn) => {
             const direction = getApDirection(conn);
             const label = conn.name || PROVIDER_LABELS[conn.provider] || conn.provider;
             const scope = conn.path || '';

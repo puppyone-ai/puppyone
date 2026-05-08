@@ -1,24 +1,22 @@
 'use client';
 
 import React from 'react';
-import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
-import type { EditorType, ViewType } from '@/components/ProjectsHeader';
-import type { MarkdownViewMode } from '@/components/editors/markdown';
+import { resolveFormat } from '@/lib/fileFormats';
+import type { EditorType } from '@/components/ProjectsHeader';
 
 interface BottomBarProps {
-  viewType: ViewType;
-  setViewType: (v: ViewType) => void;
+  /** JSON viewer sub-mode: structured table vs raw Monaco. Only
+   *  rendered when the active file is a `json-table` format. */
   editorType: EditorType;
   setEditorType: (e: EditorType) => void;
-  markdownViewMode: MarkdownViewMode;
-  setMarkdownViewMode: (m: MarkdownViewMode) => void;
+  /** True when the right panel is showing the editor (vs. the file
+   *  tree / dashboard). Hides toggles when no editor is mounted. */
   isEditorView: boolean;
-  activeNodeType: string;
-  activeProject: any;
-  currentTableData: any;
-  markdownContent: string;
-  isVersionHistoryOpen?: boolean;
-  onOpenVersionHistory?: () => void;
+  /** Path of the currently active file. Drives file-format resolution
+   *  for deciding which view-mode toggle to show. */
+  activeNodeId?: string;
+  activeMimeType?: string | null;
+  activeProject: { id: string } | null;
 }
 
 const toggleGroupStyle: React.CSSProperties = {
@@ -46,62 +44,45 @@ function ToggleButton({ active, onClick, title, children }: {
 }
 
 export function BottomBar({
-  viewType, setViewType,
   editorType, setEditorType,
-  markdownViewMode, setMarkdownViewMode,
-  isEditorView, activeNodeType, activeProject,
-  currentTableData, markdownContent,
-  isVersionHistoryOpen, onOpenVersionHistory,
+  isEditorView, activeNodeId, activeMimeType, activeProject,
 }: BottomBarProps) {
-  const nodeConfig = activeNodeType ? getNodeTypeConfig(activeNodeType) : null;
-  const showJsonToggle = isEditorView && activeProject
-    && nodeConfig?.renderAs !== 'markdown'
-    && activeNodeType !== 'github'
-    && !(['file', 'image'].includes(nodeConfig?.renderAs ?? '') && !currentTableData?.data && !markdownContent);
-  const showMarkdownToggle = isEditorView && activeProject && nodeConfig?.renderAs === 'markdown';
+  // Resolve the file format from the active path — extension first,
+  // mime fallback. The format is what tells us which (if any) view-mode
+  // toggle is meaningful for the current viewer.
+  const format = activeNodeId
+    ? resolveFormat({ name: activeNodeId, mimeType: activeMimeType ?? null })
+    : null;
+  const showJsonToggle =
+    isEditorView && activeProject && format?.defaultViewer === 'json-table';
+
+  // Markdown's WYSIWYG/Source toggle now lives in the editor's
+  // invisible header (see ``EditorArea.tsx``) — it doesn't appear
+  // here anymore. JSON's table/raw toggle stays put because the
+  // json-table viewer ships its own surface that isn't a candidate
+  // for the same header treatment.
+  if (!showJsonToggle) return null;
 
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '4px 8px', flexShrink: 0,
     }}>
-      {/* Left: view toggle + editor type toggles */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {/* JSON: Table / Raw JSON */}
-        {showJsonToggle && (
-          <div style={toggleGroupStyle}>
-            <ToggleButton active={editorType === 'table'} onClick={() => setEditorType('table')} title="Table view">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" />
-              </svg>
-            </ToggleButton>
-            <ToggleButton active={editorType === 'monaco'} onClick={() => setEditorType('monaco')} title="Raw JSON">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M7 4C5.5 4 4 5 4 7s1.5 2.5 1.5 5S4 17 4 17c0 2 1.5 3 3 3" strokeLinecap="round" />
-                <path d="M17 4c1.5 0 3 1 3 3s-1.5 2.5-1.5 5 1.5 5 1.5 5c0 2-1.5 3-3 3" strokeLinecap="round" />
-              </svg>
-            </ToggleButton>
-          </div>
-        )}
-
-        {/* Markdown: WYSIWYG / Source */}
-        {showMarkdownToggle && (
-          <div style={toggleGroupStyle}>
-            <ToggleButton active={markdownViewMode === 'wysiwyg'} onClick={() => setMarkdownViewMode('wysiwyg')} title="WYSIWYG">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-            </ToggleButton>
-            <ToggleButton active={markdownViewMode === 'source'} onClick={() => setMarkdownViewMode('source')} title="Source">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>
-            </ToggleButton>
-          </div>
-        )}
+        <div style={toggleGroupStyle}>
+          <ToggleButton active={editorType === 'table'} onClick={() => setEditorType('table')} title="Table view">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </ToggleButton>
+          <ToggleButton active={editorType === 'monaco'} onClick={() => setEditorType('monaco')} title="Raw JSON">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M7 4C5.5 4 4 5 4 7s1.5 2.5 1.5 5S4 17 4 17c0 2 1.5 3 3 3" strokeLinecap="round" />
+              <path d="M17 4c1.5 0 3 1 3 3s-1.5 2.5-1.5 5 1.5 5 1.5 5c0 2-1.5 3-3 3" strokeLinecap="round" />
+            </svg>
+          </ToggleButton>
+        </div>
       </div>
 
       <div />

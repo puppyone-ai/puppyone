@@ -3,13 +3,22 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { stat, readFile } from '@/lib/contentTreeApi';
-import { getNodeTypeConfig } from '@/lib/nodeTypeConfig';
+import { isFolderType } from '@/lib/nodeTypeConfig';
+import { resolveFormat, isTextLikeCategory, UNKNOWN_FORMAT } from '@/lib/fileFormats';
 import { setPendingActiveId } from '../components/explorer';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 
+/**
+ * Seed the `activeNodeType` (the *node* type, not the file format)
+ * for an instant render before stat returns. Driven by the file-format
+ * registry: any markdown format → 'markdown' nodeType, any JSON format
+ * → 'json' nodeType, everything else → 'file'. Folders are handled
+ * by `typeHint`, so this never returns 'folder'.
+ */
 function inferTypeFromName(name: string): string {
-  if (/\.json$/i.test(name)) return 'json';
-  if (/\.md$/i.test(name)) return 'markdown';
+  const fmt = resolveFormat({ name, mimeType: null });
+  if (fmt.id === 'markdown') return 'markdown';
+  if (fmt.id === 'json') return 'json';
   return 'file';
 }
 
@@ -33,8 +42,7 @@ function applyFileState(
     setFolderBreadcrumbs: (v: Array<{ id: string; name: string }>) => void;
   },
 ) {
-  const isFolder = getNodeTypeConfig(resolvedType).renderAs === 'folder';
-  if (isFolder) {
+  if (isFolderType(resolvedType)) {
     setters.setCurrentFolderPath(fullPath);
     setters.setFolderBreadcrumbs(breadcrumbs);
     setters.setActiveNodeId('');
@@ -69,8 +77,12 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
   const [activePreviewType, setActivePreviewType] = useState<string | null>(null);
   const [activeMimeType, setActiveMimeType] = useState<string | null>(null);
 
-  const [markdownContent, setMarkdownContent] = useState<string>('');
-  const [isLoadingMarkdown, setIsLoadingMarkdown] = useState(false);
+  // `textContent` holds the raw UTF-8 contents of the active file
+  // when its file format is text-like (markdown / code / yaml / csv /
+  // plaintext). It's empty when the active node is a folder, an
+  // image, a PDF, or another binary.
+  const [textContent, setTextContent] = useState<string>('');
+  const [isLoadingText, setIsLoadingText] = useState(false);
   const [markdownViewMode, setMarkdownViewMode] = useState<MarkdownViewMode>('wysiwyg');
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,7 +102,7 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
     async function resolve() {
       if (path.length === 0) {
         setIsResolvingPath(false);
-        setIsLoadingMarkdown(false);
+        setIsLoadingText(false);
         setPendingActiveId(null);
         setCurrentFolderPath(null);
         setFolderBreadcrumbs([]);
@@ -98,35 +110,51 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
         setActiveNodeType('');
         setActivePreviewType(null);
         setActiveMimeType(null);
-        setMarkdownContent('');
+        setTextContent('');
         return;
       }
 
       const fullPath = path.join('/');
       const breadcrumbs = buildBreadcrumbs(path);
+      const fileName = path[path.length - 1] ?? '';
+
+      // Resolve the file format up front from the filename alone —
+      // extension is enough for ~99% of files, so we don't need to
+      // wait for the stat round-trip to know what to fetch / render.
+      const fmtFromName = resolveFormat({ name: fileName, mimeType: null });
 
       // When a type hint is available (sidebar click), render immediately
       // without waiting for the stat round-trip.
       if (typeHint) {
         applyFileState(fullPath, typeHint, path, breadcrumbs, setters);
         setPendingActiveId(null);
-        setIsResolvingPath(false);
+        setActiveMimeType(null);
+        // Page-level spinner needs to stay up only when:
+        //   - typeHint says it's a file, AND
+        //   - extension didn't match anything in the registry, AND
+        //   - we still need stat to give us a server-side mime
+        // Otherwise the registry already knows what viewer to mount,
+        // and the viewer's internal loader takes over.
+        const isFolderHint = isFolderType(typeHint);
+        const needsStatToDispatch =
+          !isFolderHint && fmtFromName.id === UNKNOWN_FORMAT.id;
+        setIsResolvingPath(needsStatToDispatch);
       } else {
         setIsResolvingPath(true);
       }
 
-      // When typeHint is available, start readFile in parallel with stat
-      // so the user sees content as fast as possible.
-      const inferredType = typeHint || inferTypeFromName(path[path.length - 1]);
-      const inferredRenderAs = getNodeTypeConfig(inferredType).renderAs;
-      const shouldReadFile = inferredRenderAs === 'markdown';
+      // Pre-fetch the text content in parallel with stat for any
+      // text-like format. The previous version only did this for
+      // markdown — but code/yaml/csv/plaintext all want it too.
+      const inferredType = typeHint || inferTypeFromName(fileName);
+      const shouldReadFile =
+        !isFolderType(inferredType) && isTextLikeCategory(fmtFromName);
       if (shouldReadFile) {
-        setIsLoadingMarkdown(true);
+        setIsLoadingText(true);
       } else {
-        setIsLoadingMarkdown(false);
+        setIsLoadingText(false);
       }
 
-      // Fire stat and (if likely needed) readFile in parallel
       const statPromise = stat(projectId, fullPath).catch((err) => {
         console.error('[usePathResolver] stat failed:', fullPath, err);
         return null;
@@ -163,8 +191,8 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
           setActiveNodeType('');
           setActivePreviewType(null);
           setActiveMimeType(null);
-          setMarkdownContent('');
-          setIsLoadingMarkdown(false);
+          setTextContent('');
+          setIsLoadingText(false);
         }
         setIsResolvingPath(false);
         return;
@@ -174,32 +202,35 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
       setActiveMimeType(resolvedMime);
       setPendingActiveId(null);
 
-      const renderAs = getNodeTypeConfig(resolvedType).renderAs;
-      const isTextMime = resolvedMime?.startsWith('text/') && resolvedMime !== 'text/markdown';
+      // Re-resolve format with mime now that we have it — covers the
+      // "unknown extension but server-detected mime" edge case.
+      const fmtFinal = resolveFormat({ name: fileName, mimeType: resolvedMime });
+      const finalNeedsText =
+        !isFolderType(resolvedType) && isTextLikeCategory(fmtFinal);
 
-      if (renderAs === 'markdown' || isTextMime) {
-        // If we already fetched in parallel, use that result
+      if (finalNeedsText) {
         if (fileContent !== null) {
-          setMarkdownContent(typeof fileContent.content_text === 'string' ? fileContent.content_text : '');
-          setIsLoadingMarkdown(false);
+          setTextContent(typeof fileContent.content_text === 'string' ? fileContent.content_text : '');
+          setIsLoadingText(false);
         } else {
-          // Fallback: fetch now (e.g. mime turned out to be text after stat)
-          setIsLoadingMarkdown(true);
+          // Fallback: fetch now (e.g. extension unknown, mime arrived as
+          // text/* via stat).
+          setIsLoadingText(true);
           try {
             const content = await readFile(projectId, fullPath);
             if (cancelled) return;
-            setMarkdownContent(typeof content.content_text === 'string' ? content.content_text : '');
+            setTextContent(typeof content.content_text === 'string' ? content.content_text : '');
           } catch (readErr) {
             if (cancelled) return;
             console.error('[usePathResolver] Failed to load text content:', readErr);
-            setMarkdownContent('');
+            setTextContent('');
           } finally {
-            if (!cancelled) setIsLoadingMarkdown(false);
+            if (!cancelled) setIsLoadingText(false);
           }
         }
       } else {
-        setMarkdownContent('');
-        setIsLoadingMarkdown(false);
+        setTextContent('');
+        setIsLoadingText(false);
       }
 
       if (!cancelled) setIsResolvingPath(false);
@@ -213,8 +244,8 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
       const guessedType = typeHint || inferTypeFromName(path[path.length - 1] ?? '');
       applyFileState(fullPath, guessedType, path, breadcrumbs, setters);
       setPendingActiveId(null);
-      setMarkdownContent('');
-      setIsLoadingMarkdown(false);
+      setTextContent('');
+      setIsLoadingText(false);
       setIsResolvingPath(false);
     });
 
@@ -231,9 +262,9 @@ export function usePathResolver(projectId: string, rawPath: string[]) {
     activeNodeType,
     activePreviewType,
     activeMimeType,
-    markdownContent,
-    setMarkdownContent,
-    isLoadingMarkdown,
+    textContent,
+    setTextContent,
+    isLoadingText,
     markdownViewMode,
     setMarkdownViewMode,
   };
