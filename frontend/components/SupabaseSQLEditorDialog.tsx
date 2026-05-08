@@ -8,6 +8,7 @@ import {
   type TableInfo,
   type TablePreview,
 } from '../lib/dbConnectorApi';
+import { Dots, InlineLoading } from './loading';
 
 type SupabaseTablePickerDialogProps = {
   projectId: string;
@@ -210,7 +211,7 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {tablesLoading && (
-                <div style={{ padding: '12px 14px', fontSize: 13, color: '#525252' }}>Loading...</div>
+                <div style={{ padding: '12px 14px' }}><InlineLoading /></div>
               )}
               {tables.map(t => (
                 <div
@@ -399,9 +400,11 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                       color: isSaving ? 'rgba(0,0,0,0.4)' : '#000',
                       cursor: isSaving ? 'not-allowed' : 'pointer',
                       fontSize: 13, fontWeight: 600,
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
                     }}
                   >
-                    {isSaving ? 'Saving...' : `Save "${selectedTable}" to Project`}
+                    {isSaving && <Dots size='xs' />}
+                    {isSaving ? 'Saving…' : `Save "${selectedTable}" to Project`}
                   </button>
                 </div>
               </>

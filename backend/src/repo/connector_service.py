@@ -1,17 +1,17 @@
 """Business logic for connectors.
 
 Responsibilities:
-  - Refuse to create cli/agent connectors via the API (those are auto-created
-    by the DB trigger when a scope is INSERTed; this layer enforces that
-    they're "claim, don't create" from the user's perspective).
+  - Refuse to create cli/agent/filesystem connectors via the API (those are
+    auto-created by the DB trigger when a scope is INSERTed; this layer
+    enforces that they're "claim, don't create" from the user's perspective).
   - Default `name` from provider if not given.
-  - Validate direction against provider capabilities (cli/agent must be
-    bidirectional; OAuth-backed providers must pick inbound or outbound).
+  - Validate direction against provider capabilities (cli/agent/filesystem
+    must be bidirectional; OAuth-backed providers must pick inbound or
+    outbound).
   - Coordinate execution (Step 2-Run-Now): hand off to engine.execute().
 """
 
 from __future__ import annotations
-
 from typing import Any, Optional
 
 from src.exceptions import BusinessException, NotFoundException
@@ -19,10 +19,14 @@ from src.repo.connector_repository import ConnectorRepository
 from src.repo.models import Connector
 
 
-PROVIDERS_BIDIRECTIONAL = frozenset({"cli", "agent"})
-# Providers we know can both pull and push (today, only filesystem within
-# the new scope-binding world; for the redesign we represent CLI=bidirectional).
-# OAuth-backed third-party providers must pick inbound OR outbound at create time.
+PROVIDERS_BIDIRECTIONAL = frozenset({"cli", "agent", "filesystem"})
+# The three built-in connection methods that every scope ships with:
+#   - cli         — direct mut CLI commands against the remote tree
+#   - agent       — in-app chat agent that can read/write the scope
+#   - filesystem  — local-folder bidirectional sync via the MUT protocol
+# All three are auto-created by the DB trigger on repo_scopes INSERT and are
+# undeletable via the API (pause/resume only). OAuth-backed third-party
+# providers must pick inbound OR outbound at create time.
 PROVIDERS_OAUTH_BACKED = frozenset({
     "notion", "gmail", "google_sheets", "google_docs",
     "google_calendar", "google_drive", "google_search_console",
@@ -76,8 +80,8 @@ class ConnectorService:
         trigger: Optional[dict[str, Any]],
         created_by: Optional[str],
     ) -> Connector:
-        # Built-in cli / agent rows are auto-created by the DB trigger; the
-        # API never creates them.
+        # Built-in cli / agent / filesystem rows are auto-created by the DB
+        # trigger; the API never creates them.
         if provider in PROVIDERS_BIDIRECTIONAL:
             raise BusinessException(
                 f"'{provider}' connectors are auto-created per scope. "
@@ -87,8 +91,8 @@ class ConnectorService:
         # Direction validation.
         if direction == "bidirectional":
             raise BusinessException(
-                "Only built-in 'cli' and 'agent' connectors are "
-                "bidirectional. Third-party providers must choose "
+                "Only built-in 'cli', 'agent', and 'filesystem' connectors "
+                "are bidirectional. Third-party providers must choose "
                 "'inbound' (import) or 'outbound' (export)."
             )
 
@@ -134,14 +138,55 @@ class ConnectorService:
             patch.pop(forbidden, None)
         return self._repo.update(connector_id, patch)
 
+    def activate_agent_connector(self, connector_id: str) -> Optional[Connector]:
+        """Activate the built-in chat Agent connector for a scope.
+
+        The default AI Agent is an in-app chat runtime, not an external MCP
+        endpoint. Activation claims the auto-created ``provider='agent'``
+        connector by writing the chat-agent metadata and scope binding into
+        config. ``/agent-config`` then exposes the row as a normal saved
+        Agent, and the frontend can open ``agent_chat`` directly.
+        """
+        existing = self._repo.get(connector_id)
+        if existing is None:
+            return None
+        if existing.provider != "agent":
+            raise BusinessException("Only built-in agent connectors can be activated.")
+
+        from src.repo.scope_repository import RepoScopeRepository
+        scope = RepoScopeRepository().get(existing.scope_id)
+        if scope is None or scope.project_id != existing.project_id:
+            raise NotFoundException("Agent scope not found")
+
+        config = dict(existing.config or {})
+        config.setdefault("name", existing.name or scope.name or "AI Agent")
+        config.setdefault("icon", "✨")
+        config["type"] = "chat"
+        config["activated"] = True
+        config["scope"] = {
+            "id": scope.id,
+            "path": scope.path,
+            "exclude": scope.exclude,
+            "mode": scope.mode,
+        }
+
+        return self._repo.update(
+            connector_id,
+            {
+                "config": config,
+                "status": "active",
+            },
+        )
+
     def delete(self, connector_id: str) -> None:
         existing = self._repo.get(connector_id)
         if existing is None:
             raise NotFoundException("Connector not found")
         if existing.is_builtin:
             raise BusinessException(
-                "Built-in cli/agent connectors are managed by their scope. "
-                "Delete the scope to remove them, or pause the connector instead."
+                "Built-in cli/agent/filesystem connectors are managed by "
+                "their scope. Delete the scope to remove them, or pause the "
+                "connector instead."
             )
         self._repo.delete(connector_id)
 
@@ -159,9 +204,9 @@ class ConnectorService:
         Heavy lifting lives in connectors/datasource/engine.py — we just
         kick it off here and return the run id.
 
-        Built-in cli/agent connectors don't have a "run now" semantic —
-        they're conduits for the user's own writes, not pollers. The
-        engine returns None for those; we surface a clear 400 here so
+        Built-in cli/agent/filesystem connectors don't have a "run now"
+        semantic — they're conduits for the user's own writes, not pollers.
+        The engine returns None for those; we surface a clear 400 here so
         the UI doesn't render a useless run button.
         """
         connector = self._repo.get(connector_id)
@@ -169,7 +214,8 @@ class ConnectorService:
             raise NotFoundException("Connector not found")
         if connector.is_builtin:
             raise BusinessException(
-                "Built-in cli/agent connectors don't have a manual run."
+                "Built-in cli/agent/filesystem connectors don't have a "
+                "manual run."
             )
         if connector.status == "paused":
             raise BusinessException("Connector is paused; resume it first")

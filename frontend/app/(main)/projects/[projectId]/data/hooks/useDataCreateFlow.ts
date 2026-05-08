@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { mutate as swrMutate } from 'swr';
 import { mkdir, writeFile, listDir, type NodeInfo, type NodeType } from '@/lib/contentTreeApi';
-import { refreshAllContentNodes } from '@/lib/hooks/useData';
+import { refreshFolderNodes } from '@/lib/hooks/useData';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { ensureExpanded } from '../components/explorer';
 
@@ -12,8 +12,8 @@ import { ensureExpanded } from '../components/explorer';
  * Build a placeholder NodeInfo for optimistic insertion into the tree
  * before the backend write completes (instant feedback).
  *
- * After the write the caller issues refreshAllContentNodes which
- * re-fetches every tree key including __shallow_1. With the backend
+ * After the write the caller issues refreshFolderNodes which
+ * re-fetches just the affected parent folder listing. With the backend
  * root_hash cache TTL at 100 ms — shorter than any realistic write
  * round-trip — the re-fetch always sees the committed state, so the
  * placeholder is replaced with server-confirmed data without jitter.
@@ -119,7 +119,7 @@ interface UseDataCreateFlowOptions {
   projectId: string;
   currentFolderId: string | null;
   navigateTo: (nextPath: string[], typeHint?: string) => void;
-  openSyncCreatePanel: () => void;
+  openSyncCreatePanel: (targetScopePath?: string | null) => void;
   openSyncSetting: (provider: string, target?: AccessResource) => void;
 }
 
@@ -338,7 +338,7 @@ export function useDataCreateFlow({
           await mkdir(projectId, fullPath);
         }
 
-        await refreshAllContentNodes(projectId);
+        await refreshFolderNodes(projectId, parentPath);
         const resourceNodeType: 'folder' | 'json' | 'file' =
           nodeType === 'markdown' ? 'file' : nodeType;
 
@@ -388,7 +388,7 @@ export function useDataCreateFlow({
           nodeType: 'folder',
           readonly: false,
         });
-        openSyncCreatePanel();
+        openSyncCreatePanel(accessTargetPath);
       } else {
         void handleCreateAndSync(provider);
       }
@@ -471,10 +471,10 @@ export function useDataCreateFlow({
 
         try {
           await mkdir(projectId, folderPath);
-          await refreshAllContentNodes(projectId);
+          await refreshFolderNodes(projectId, parentPath);
         } catch (err) {
           console.error('Failed to create folder:', err);
-          await refreshAllContentNodes(projectId);
+          await refreshFolderNodes(projectId, parentPath);
         }
       },
       onCreateBlankJson: async () => {
@@ -502,10 +502,10 @@ export function useDataCreateFlow({
         try {
           await writeFile(projectId, filePath, {}, 'json');
           navigateTo(filePath.split('/').filter(Boolean), 'json');
-          await refreshAllContentNodes(projectId);
+          await refreshFolderNodes(projectId, parentPath);
         } catch (err) {
           console.error('Failed to create JSON:', err);
-          await refreshAllContentNodes(projectId);
+          await refreshFolderNodes(projectId, parentPath);
         }
       },
       onCreateBlankMarkdown: async () => {
@@ -533,10 +533,10 @@ export function useDataCreateFlow({
         try {
           await writeFile(projectId, filePath, '', 'markdown');
           navigateTo(filePath.split('/').filter(Boolean), 'markdown');
-          await refreshAllContentNodes(projectId);
+          await refreshFolderNodes(projectId, parentPath);
         } catch (err) {
           console.error('Failed to create markdown:', err);
-          await refreshAllContentNodes(projectId);
+          await refreshFolderNodes(projectId, parentPath);
         }
       },
       onImportFromFiles: () => {

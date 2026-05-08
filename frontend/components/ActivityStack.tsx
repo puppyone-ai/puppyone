@@ -25,13 +25,13 @@ export function ActivityStack({
       aria-label="Activity"
       style={{
         position: 'fixed',
-        right: 24,
-        bottom: 24,
+        right: 12,
+        bottom: 12,
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-end',
-        gap: 10,
+        gap: 8,
         pointerEvents: 'none',
       }}
     >

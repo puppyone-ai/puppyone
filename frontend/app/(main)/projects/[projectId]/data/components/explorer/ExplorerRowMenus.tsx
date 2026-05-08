@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import type { SyncEndpointInfo } from './types';
 
 function SyncSourceIcon({ size = 16, isEmpty = false }: { size?: number; isEmpty?: boolean }) {
@@ -201,124 +201,160 @@ export function ItemContextMenu({
             border: '1px solid rgba(255,255,255,0.1)',
             borderRadius: 8,
             boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-            minWidth: 140,
+            minWidth: 160,
             padding: '4px 0',
             fontSize: 13,
           }}
         >
           {onRename && !isSynced && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(e) => {
-                e.stopPropagation();
+            <RowMenuItem
+              label="Rename"
+              icon={
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                </svg>
+              }
+              onClick={() => {
                 setOpen(false);
                 onRename(itemId, itemName);
               }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '7px 14px',
-                background: 'transparent',
-                border: 'none',
-                color: '#d4d4d8',
-                cursor: 'pointer',
-                fontSize: 13,
-                textAlign: 'left',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2">
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-              Rename
-            </button>
+            />
           )}
 
           {onDownload && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(e) => {
-                e.stopPropagation();
+            <RowMenuItem
+              label="Download"
+              icon={
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              }
+              onClick={() => {
                 setOpen(false);
                 onDownload(itemId, itemName);
               }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '7px 14px',
-                background: 'transparent',
-                border: 'none',
-                color: '#d4d4d8',
-                cursor: 'pointer',
-                fontSize: 13,
-                textAlign: 'left',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              Download
-            </button>
+            />
           )}
 
           {onDelete && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={(e) => {
-                e.stopPropagation();
+            <RowMenuItem
+              label="Delete"
+              destructive
+              icon={
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+              }
+              onClick={() => {
                 setOpen(false);
                 onDelete(itemId, itemName);
               }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                width: '100%',
-                padding: '7px 14px',
-                background: 'transparent',
-                border: 'none',
-                color: '#ef4444',
-                cursor: 'pointer',
-                fontSize: 13,
-                textAlign: 'left',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M3 6h18" />
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-              </svg>
-              Delete
-            </button>
+            />
           )}
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Shared menu-item primitive for ExplorerRow popups.
+ *
+ * Styling intentionally mirrors the `MenuItem` used inside
+ * `CreateMenu` — same 32px row height, 13px label, 6px-radius
+ * floating hover, 4px lateral inset. The two popups (this row's
+ * `Rename / Download / Delete` and the `+` button's create
+ * picker) used to drift apart visually because each declared its
+ * own ad-hoc styles inline; consolidating them here means any
+ * future tweak propagates to both surfaces and the menus stay in
+ * the same family.
+ *
+ * We keep the underlying tag as `<button>` (CreateMenu uses a
+ * `<div>`) so the `role="menuitem"` is on a natively-focusable
+ * element; the user's mental model is that these are real,
+ * keyboard-reachable actions ("Delete this file"), unlike the
+ * create picker where the items are mostly mouse-driven submenu
+ * hovers.
+ */
+function RowMenuItem({
+  icon,
+  label,
+  onClick,
+  destructive,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: (e: ReactMouseEvent) => void;
+  destructive?: boolean;
+}) {
+  // Destructive items keep a tinted text + icon color on default,
+  // and shift to a red-tinted hover background instead of the
+  // neutral white wash so the affordance reads as "this will
+  // remove something". Non-destructive items follow the same
+  // neutral pattern as CreateMenu's MenuItem exactly.
+  const baseColor = destructive ? '#ef4444' : '#e4e4e7';
+  const hoverBg = destructive ? 'rgba(239,68,68,0.10)' : 'rgba(255,255,255,0.08)';
+
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick(e);
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        // calc(100% - 8px) + margin '0 4px' reproduces CreateMenu's
+        // `<div>` items, which rely on natural 100%-width-of-parent
+        // div behavior + 4px lateral margin. <button> doesn't fill
+        // its parent by default, so we widen explicitly.
+        width: 'calc(100% - 8px)',
+        height: 32,
+        margin: '0 4px',
+        padding: '0 12px',
+        background: 'transparent',
+        border: 'none',
+        borderRadius: 6,
+        color: baseColor,
+        cursor: 'pointer',
+        fontSize: 13,
+        textAlign: 'left',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = hoverBg;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = 'transparent';
+      }}
+    >
+      <span
+        style={{
+          display: 'flex',
+          width: 14,
+          height: 14,
+          alignItems: 'center',
+          justifyContent: 'center',
+          // 0.7 opacity matches CreateMenu's icon treatment so
+          // every leading glyph reads at the same visual weight
+          // regardless of the underlying SVG's stroke color.
+          // Destructive items use 0.85 to keep the red recognizable
+          // — at 0.7 it blended into the menu chrome on dark BGs.
+          opacity: destructive ? 0.85 : 0.7,
+          color: baseColor,
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </span>
+      <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
+    </button>
   );
 }

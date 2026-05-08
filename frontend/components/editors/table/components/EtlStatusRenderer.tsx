@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { PendingTask } from '../../../BackgroundTaskNotifier';
+import { PulseGrid } from '@/components/loading';
 
 // ============================================
 // Types
@@ -103,45 +104,17 @@ export function PendingTaskRenderer({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        color: '#3b82f6',
       }}
     >
-      {/* 简洁的旋转加载符 */}
-      <svg
-        width='14'
-        height='14'
-        viewBox='0 0 14 14'
-        fill='none'
-        style={{
-          animation: 'etl-spin 1s linear infinite',
-          flexShrink: 0,
-        }}
-      >
-        <style>{`
-          @keyframes etl-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-        <circle
-          cx='7'
-          cy='7'
-          r='5'
-          stroke='currentColor'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeDasharray='24 8'
-        />
-      </svg>
-
+      <PulseGrid size='sm' tone='info' />
       <span
         style={{
-          fontSize: 14,
+          fontSize: 13,
           color: '#6b7280',
           fontStyle: 'italic',
         }}
       >
-        Processing...
+        Processing…
       </span>
     </div>
   );

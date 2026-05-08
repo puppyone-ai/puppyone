@@ -1,18 +1,23 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  resolveDataTransferSnapshot,
+  snapshotDataTransfer,
+} from '@/lib/dropFiles';
 import type { ProjectInfo } from '../lib/projectsApi';
 import { updateTable, deleteTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { ImportModal } from './editors/table/components/ImportModal';
-import { uploadAndSubmit, getETLHealth } from '../lib/etlApi';
+import { uploadFiles } from '../lib/uploadApi';
+import { Dots } from './loading';
 import {
   addPendingTasks,
-  replacePlaceholderTasks,
-  removeFailedPlaceholders,
-  removeAllPlaceholdersForTable,
+  updateTaskStatusById,
+  updateTaskProgress,
+  replaceTaskId,
 } from './BackgroundTaskNotifier';
 import { type CrawlOptions } from '../lib/importApi';
 import CrawlOptionsPanel from './CrawlOptionsPanel';
@@ -50,7 +55,10 @@ export function TableManageDialog({
   const [loading, setLoading] = useState(false);
   const [startOption] = useState<StartOption>(defaultStartOption);
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  // ``File[]`` rather than ``FileList`` — folder drops produce
+  // synthesized File arrays (the entry-walker can't return a real
+  // FileList) and we want one shape for both code paths.
+  const [selectedFiles, setSelectedFiles] = useState<File[] | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
   const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>({
@@ -59,51 +67,12 @@ export function TableManageDialog({
     crawlEntireDomain: true,
     sitemap: 'include',
   });
-  const [importMode, setImportMode] = useState<'smart' | 'raw' | 'structured'>('smart');
-  const [workerOnline, setWorkerOnline] = useState<boolean | null>(null);
-  const [checkingWorker, setCheckingWorker] = useState(false);
+  // Import mode is fixed at 'raw' for now — the OCR / Smart Parse
+  // pipeline is paused on the backend (see `config.ENABLE_OCR`).
+  // We deliberately keep no state for this so the picker UI can't
+  // be revived by accident; reintroducing the choice is a single
+  // local refactor when the backend pipeline comes back online.
 
-  // File stats for smart mode detection
-  const fileStats = useRef({ textCount: 0, binaryCount: 0 });
-
-  useEffect(() => {
-    if (startOption === 'documents' && selectedFiles && selectedFiles.length > 0) {
-      let textCount = 0;
-      let binaryCount = 0;
-      const textExts = new Set([
-        'txt', 'md', 'json', 'js', 'ts', 'jsx', 'tsx', 'py', 'java', 'html', 'css', 'xml', 'yaml', 'yml', 'csv'
-      ]);
-
-      Array.from(selectedFiles).forEach(f => {
-        const ext = f.name.split('.').pop()?.toLowerCase() || '';
-        if (textExts.has(ext)) {
-          textCount++;
-        } else {
-          binaryCount++;
-        }
-      });
-      
-      fileStats.current = { textCount, binaryCount };
-
-      // Check worker health if binary files exist
-      if (binaryCount > 0) {
-        setCheckingWorker(true);
-        getETLHealth()
-          .then(health => {
-            const isOnline = health.file_worker.worker_count > 0;
-            setWorkerOnline(isOnline);
-            if (!isOnline) setImportMode('raw');
-          })
-          .catch(() => {
-            setWorkerOnline(false);
-            setImportMode('raw');
-          })
-          .finally(() => setCheckingWorker(false));
-      } else {
-        setWorkerOnline(true); // Assuming ok if only text files
-      }
-    }
-  }, [selectedFiles, startOption]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -126,37 +95,48 @@ export function TableManageDialog({
     e.preventDefault(); e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation(); setIsDragging(false);
-    const files = e.dataTransfer.files;
-    if (files && files.length > 0) {
-      setSelectedFiles(files);
-      if (!name.trim()) {
-        const firstFile = files[0];
-        if (firstFile.webkitRelativePath) {
-          const folderName = firstFile.webkitRelativePath.split('/')[0];
-          setName(folderName);
-        } else {
-          const fn = firstFile.name;
-          setName(fn.substring(0, fn.lastIndexOf('.')) || fn);
-        }
+  // Reusable: pick a sensible Context name from the first file's
+  // path. For folder drops we want the FOLDER name, not the first
+  // file inside it; for plain file drops we strip the extension.
+  const inferNameFromFiles = useCallback(
+    (files: File[]) => {
+      if (name.trim()) return;
+      const firstFile = files[0];
+      if (!firstFile) return;
+      if (firstFile.webkitRelativePath) {
+        const folderName = firstFile.webkitRelativePath.split('/')[0];
+        setName(folderName);
+      } else {
+        const fn = firstFile.name;
+        setName(fn.substring(0, fn.lastIndexOf('.')) || fn);
       }
-    }
-  }, [name]);
+    },
+    [name],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      // Snapshot synchronously: see lib/dropFiles.ts. Without this,
+      // dragging a folder produces "1 file, 0 KB" instead of
+      // walking into its contents.
+      const snapshot = snapshotDataTransfer(e.nativeEvent);
+      void resolveDataTransferSnapshot(snapshot).then((files) => {
+        if (files.length === 0) return;
+        setSelectedFiles(files);
+        inferNameFromFiles(files);
+      });
+    },
+    [inferNameFromFiles],
+  );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFiles(e.target.files);
-      if (!name.trim()) {
-        const firstFile = e.target.files[0];
-        if (firstFile.webkitRelativePath) {
-          const folderName = firstFile.webkitRelativePath.split('/')[0];
-          setName(folderName);
-        } else {
-          const fn = firstFile.name;
-          setName(fn.substring(0, fn.lastIndexOf('.')) || fn);
-        }
-      }
+      const files = Array.from(e.target.files);
+      setSelectedFiles(files);
+      inferNameFromFiles(files);
     }
   };
 
@@ -169,10 +149,9 @@ export function TableManageDialog({
     await handleFinalSubmit();
   };
 
-  const handleFinalSubmit = async (overrideMode?: 'smart' | 'raw' | 'structured') => {
+  const handleFinalSubmit = async () => {
     try {
       setLoading(true);
-      const effectiveMode = overrideMode || importMode;
 
       if (mode === 'edit' && tableId) {
         await updateTable(projectId || '', tableId, name.trim());
@@ -186,56 +165,110 @@ export function TableManageDialog({
           throw new Error('Missing project ID or auth');
         }
 
-        const backendMode = effectiveMode === 'smart' ? 'ocr_parse' : 'raw';
         const files = Array.from(selectedFiles);
+        // ``parentId`` here is actually the parent MUT path (the
+        // explorer passes its current folder path through this prop;
+        // the name is a holdover from the legacy `parent_id` field).
+        // We treat empty string as "root".
+        const parentPath = (parentId || '').trim();
 
-        const baseTimestamp = Date.now();
-        const placeholderGroupId = `upload-${baseTimestamp}`;
-        const placeholderTasks = files.map((file, index) => ({
-          taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-          projectId: projectId,
-          tableId: placeholderGroupId,
-          tableName: file.name,
-          filename: file.name,
-          status: 'pending' as const,
-        }));
-        addPendingTasks(placeholderTasks);
-
+        // Optimistic refresh while we kick off the upload. The
+        // authoritative refresh happens AFTER the worker writes the
+        // file into MUT (driven by the BackgroundTaskNotifier
+        // ``etl-task-completed`` event listener elsewhere in the
+        // app, plus an explicit refresh below for snappier UX).
         await refreshProjects(currentOrg?.id);
         onClose();
 
-        setTimeout(async () => {
+        // Direct-to-S3 upload pipeline. We don't await this — the
+        // dialog has already closed and the user follows progress
+        // via TaskStatusWidget. Errors are surfaced into the widget
+        // through ``onTaskFailed``; we only need a top-level catch
+        // for unexpected issues (e.g. the init call failing before
+        // any task IDs were created).
+        //
+        // Why background instead of awaited:
+        //   - User wants to keep working while the upload runs
+        //   - Multipart uploads of GB-scale files take minutes
+        //   - The widget owns progress UX from here
+        (async () => {
+          const placeholderIds: string[] = [];
           try {
-            const response = await uploadAndSubmit(
-              { projectId, files, mode: backendMode, parentId: parentId || undefined },
-              session!.access_token
+            await uploadFiles(
+              {
+                projectId,
+                files,
+                parentPath: parentPath || null,
+              },
+              session!.access_token,
+              {
+                // Spawn placeholder rows the instant the dialog
+                // closes — without this the widget stays empty for
+                // the 2–5s init takes on a cold backend.
+                onUploadStart: (entries) => {
+                  entries.forEach((f) => {
+                    const tmpId = `tmp-${crypto.randomUUID()}`;
+                    placeholderIds[f.fileIndex] = tmpId;
+                  });
+                  addPendingTasks(
+                    entries.map((f) => ({
+                      taskId: placeholderIds[f.fileIndex],
+                      projectId,
+                      tableId: undefined,
+                      tableName: f.filename,
+                      filename: f.filename,
+                      status: 'uploading',
+                    })),
+                  );
+                },
+                onTaskCreated: ({ fileIndex, taskId }) => {
+                  const tmpId = placeholderIds[fileIndex];
+                  if (tmpId) {
+                    replaceTaskId(tmpId, taskId);
+                    placeholderIds[fileIndex] = taskId;
+                  }
+                },
+                onProgress: (taskId, _loaded, _total, percent) => {
+                  updateTaskProgress(taskId, percent);
+                },
+                onAllPartsUploaded: (taskId) => {
+                  // Bytes are in S3 — server is now writing into MUT.
+                  // ``finalizing`` keeps the row visibly active so it
+                  // doesn't read as "Uploading 100%" frozen.
+                  updateTaskStatusById(taskId, 'finalizing');
+                },
+                onTaskCompleted: (taskId) => {
+                  // Inline finalize: /upload/complete returns 200
+                  // only after MUT has the bytes, so the task is
+                  // already COMPLETED in the DB.
+                  updateTaskStatusById(taskId, 'completed');
+                },
+                onTaskFailed: (taskId, error) => {
+                  updateTaskStatusById(taskId, 'failed', { error });
+                },
+              },
             );
-
-            const realTasks = response.items
-              .filter(item => item.status !== 'failed')
-              .map(item => ({
-                taskId: String(item.task_id),
-                projectId: projectId,
-                tableId: placeholderGroupId,
-                tableName: item.filename!,
-                filename: item.filename!,
-                status: (item.status === 'completed' ? 'completed' : 'pending') as any,
-              }));
-
-            if (realTasks.length > 0) {
-              replacePlaceholderTasks(placeholderGroupId, realTasks);
-            }
-
-            const failedFiles = response.items.filter(item => item.status === 'failed');
-            if (failedFiles.length > 0) {
-              console.warn('Some files failed:', failedFiles);
-              removeFailedPlaceholders(placeholderGroupId, failedFiles.map(f => f.filename!));
-            }
-          } catch (etlError) {
-            console.error('File upload failed:', etlError);
-            removeAllPlaceholdersForTable(placeholderGroupId);
+          } catch (uploadError) {
+            // /upload/init failed — flip every placeholder to
+            // ``failed`` so the widget surfaces a stable terminal
+            // state instead of leaving uploading rows orphaned.
+            const errMsg =
+              uploadError instanceof Error
+                ? uploadError.message
+                : String(uploadError);
+            placeholderIds.forEach((id) => {
+              if (id) updateTaskStatusById(id, 'failed', { error: errMsg });
+            });
+            console.error('Direct-to-S3 upload init failed:', uploadError);
+          } finally {
+            // Refresh once the upload pipeline returns — most of the
+            // time the worker hasn't written to MUT yet, so this is
+            // a cosmetic refresh; the BackgroundTaskNotifier will
+            // emit ``projects-refresh`` once the worker actually
+            // completes, which kicks the tree to update for real.
+            await refreshProjects(currentOrg?.id);
           }
-        }, 100);
+        })();
 
         return;
       }
@@ -334,8 +367,9 @@ export function TableManageDialog({
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={onClose} style={buttonStyle(false)}>Cancel</button>
-              <button onClick={handleDelete} disabled={loading} style={buttonStyle(true, true)}>
-                {loading ? 'Deleting...' : 'Delete'}
+              <button onClick={handleDelete} disabled={loading} style={{ ...buttonStyle(true, true), display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                {loading && <Dots size="xs" tone="danger" />}
+                {loading ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           </div>
@@ -362,236 +396,211 @@ export function TableManageDialog({
                   />
                   
                   {selectedFiles && selectedFiles.length > 0 ? (
-                    <div style={{ border: '1px solid #3F3F46', borderRadius: 8, background: '#27272A', overflow: 'hidden' }}>
-                      <div style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #3F3F46', background: 'rgba(255,255,255,0.02)' }}>
-                         <span style={{ fontSize: 12, color: '#A1A1AA' }}>{selectedFiles.length} files selected</span>
-                         <button type="button" onClick={() => { setSelectedFiles(null); setName(''); }} style={{ background: 'none', border: 'none', color: '#A1A1AA', fontSize: 12, cursor: 'pointer', padding: '2px 6px' }}>Clear</button>
+                    <div
+                      style={{
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 8,
+                        background: '#18181B',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          padding: '8px 12px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          borderBottom: '1px solid rgba(255,255,255,0.06)',
+                        }}
+                      >
+                        <span style={{ fontSize: 12, color: '#A1A1AA' }}>
+                          {selectedFiles.length} file{selectedFiles.length === 1 ? '' : 's'} selected
+                        </span>
+                        <button
+                          type='button'
+                          onClick={() => {
+                            setSelectedFiles(null);
+                            setName('');
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: '#71717A',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            transition: 'color 0.12s, background 0.12s',
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.color = '#E4E4E7';
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.color = '#71717A';
+                            e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          Clear
+                        </button>
                       </div>
-                      <div style={{ maxHeight: 180, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {Array.from(selectedFiles).slice(0, 5).map((file, i) => (
-                           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 4, background: 'rgba(255,255,255,0.03)' }}>
-                              <span style={{ fontSize: 16, color: '#E4E4E7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                              <span style={{ fontSize: 11, color: '#71717A', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{(file.size/1024).toFixed(0)}KB</span>
-                           </div>
-                        ))}
-                        {selectedFiles.length > 5 && <div style={{ fontSize: 11, color: '#71717A', textAlign: 'center', padding: 4 }}>+{selectedFiles.length - 5} more</div>}
+                      <div
+                        style={{
+                          maxHeight: 180,
+                          overflowY: 'auto',
+                          padding: '6px 8px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 2,
+                        }}
+                      >
+                        {Array.from(selectedFiles)
+                          .slice(0, 5)
+                          .map((file, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '6px 8px',
+                                borderRadius: 4,
+                              }}
+                            >
+                              {/*
+                                Filename was rendered at 16px, which
+                                fought with the rest of the product's
+                                13px content scale and made the file
+                                list look like a different surface.
+                                Dropped to 13px for parity.
+                              */}
+                              <span
+                                style={{
+                                  fontSize: 13,
+                                  color: '#E4E4E7',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  flex: 1,
+                                  minWidth: 0,
+                                }}
+                              >
+                                {file.name}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  color: '#71717A',
+                                  whiteSpace: 'nowrap',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {(file.size / 1024).toFixed(0)} KB
+                              </span>
+                            </div>
+                          ))}
+                        {selectedFiles.length > 5 && (
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: '#71717A',
+                              textAlign: 'center',
+                              padding: 4,
+                            }}
+                          >
+                            + {selectedFiles.length - 5} more
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
                     <div
                       ref={dropzoneRef}
-                      onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDragOver={handleDragOver} onDrop={handleDrop}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
                       style={{
-                        padding: '24px',
+                        padding: '28px 20px',
                         border: '1px dashed',
-                        borderColor: isDragging ? '#3B82F6' : '#3F3F46',
+                        borderColor: isDragging ? '#60A5FA' : 'rgba(255,255,255,0.14)',
                         borderRadius: 8,
-                        background: isDragging ? 'rgba(59,130,246,0.1)' : '#27272A',
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
-                        transition: 'all 0.15s'
+                        // No solid fill — the dashed border alone
+                        // signals "drop here", letting the dialog's
+                        // own surface read through. The previous
+                        // `#27272A` fill made the dropzone look like
+                        // a separate panel slammed onto the dialog.
+                        background: isDragging ? 'rgba(96,165,250,0.06)' : 'transparent',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 12,
+                        transition: 'all 0.15s',
                       }}
                     >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={isDragging ? '#3B82F6' : '#71717A'} strokeWidth="1.5">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      <svg
+                        width='22'
+                        height='22'
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke={isDragging ? '#60A5FA' : '#71717A'}
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      >
+                        <path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'></path>
+                        <polyline points='17 8 12 3 7 8'></polyline>
+                        <line x1='12' y1='3' x2='12' y2='15'></line>
                       </svg>
-                      <div style={{ fontSize: 14, color: '#A1A1AA' }}>Drag and drop files or folders here</div>
-                      <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ fontSize: 13, color: '#A1A1AA', textAlign: 'center' }}>
+                        Drag and drop files or folders here
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
                         <button
-                          type="button"
+                          type='button'
                           onClick={() => fileInputRef.current?.click()}
-                          style={{
-                            padding: '7px 16px',
-                            borderRadius: 6,
-                            border: '1px solid #3F3F46',
-                            background: '#18181B',
-                            color: '#E4E4E7',
-                            fontSize: 13,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
+                          style={dropzoneActionButton}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)';
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#27272A'; e.currentTarget.style.borderColor = '#52525B'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = '#18181B'; e.currentTarget.style.borderColor = '#3F3F46'; }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                          }}
                         >
                           Upload Files
                         </button>
                         <button
-                          type="button"
+                          type='button'
                           onClick={() => folderInputRef.current?.click()}
-                          style={{
-                            padding: '7px 16px',
-                            borderRadius: 6,
-                            border: '1px solid #3F3F46',
-                            background: '#18181B',
-                            color: '#E4E4E7',
-                            fontSize: 13,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
+                          style={dropzoneActionButton}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)';
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#27272A'; e.currentTarget.style.borderColor = '#52525B'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = '#18181B'; e.currentTarget.style.borderColor = '#3F3F46'; }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                          }}
                         >
                           Upload Folder
                         </button>
                       </div>
-                      <div style={{ fontSize: 12, color: '#71717A' }}>Supports PDF, MD, CSV, JSON</div>
                     </div>
                   )}
 
                   {selectedFiles && selectedFiles.length > 0 && (
-                     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        {/* Name Input */}
-                     <div>
-                           <label style={{ ...labelStyle, marginBottom: 6 }}>Context Name</label>
-                           <input 
-                             type='text' 
-                             value={name} 
-                             onChange={e => setName(e.target.value)} 
-                             style={{ ...inputStyle, height: 36 }} 
-                             placeholder="Enter a name for this context..."
-                           />
-                        </div>
-
-                        {/* Mode Selection UI - Action Buttons Grid */}
-                        <div>
-                          <label style={{ ...labelStyle, marginBottom: 8 }}>Import Method</label>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                            
-                            {/* Raw Storage Action */}
-                            <button
-                              type="button"
-                              onClick={() => setImportMode('raw')}
-                              disabled={loading || !name.trim()}
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '16px 12px',
-                                borderRadius: 8,
-                                border: importMode === 'raw' ? '1px solid #E4E4E7' : '1px solid #3F3F46',
-                                background: importMode === 'raw' ? 'rgba(255,255,255,0.05)' : '#27272A',
-                                cursor: (loading || !name.trim()) ? 'not-allowed' : 'pointer',
-                                opacity: (loading || !name.trim()) ? 0.5 : 1,
-                                transition: 'all 0.15s',
-                                textAlign: 'center',
-                                height: 'auto',
-                                minHeight: 90
-                              }}
-                              onMouseEnter={e => {
-                                if (!(loading || !name.trim())) {
-                                  if (importMode !== 'raw') {
-                                    e.currentTarget.style.background = '#3F3F46';
-                                    e.currentTarget.style.borderColor = '#52525B';
-                                  }
-                                }
-                              }}
-                              onMouseLeave={e => {
-                                if (importMode !== 'raw') {
-                                  e.currentTarget.style.background = '#27272A';
-                                  e.currentTarget.style.borderColor = '#3F3F46';
-                                }
-                              }}
-                            >
-                              <div style={{ color: importMode === 'raw' ? '#E4E4E7' : '#A1A1AA', marginBottom: 8 }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                  <polyline points="17 8 12 3 7 8"></polyline>
-                                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                                </svg>
-                              </div>
-                              <div style={{ fontWeight: 600, fontSize: 13, color: '#E4E4E7', marginBottom: 4 }}>Raw Storage</div>
-                              <div style={{ fontSize: 11, color: '#71717A', lineHeight: 1.3 }}>
-                                Store as-is. Faster, no OCR.
-                              </div>
-                            </button>
-
-                            {/* Smart Parse Action */}
-                            <button
-                              type="button"
-                              onClick={() => workerOnline !== false && setImportMode('smart')}
-                              disabled={loading || workerOnline === false || !name.trim()}
-                              style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '16px 12px',
-                                borderRadius: 8,
-                                border: importMode === 'smart' ? '1px solid #3B82F6' : '1px solid #3F3F46',
-                                background: importMode === 'smart' ? 'rgba(59, 130, 246, 0.15)' : '#27272A',
-                                cursor: (loading || workerOnline === false || !name.trim()) ? 'not-allowed' : 'pointer',
-                                opacity: (loading || workerOnline === false || !name.trim()) ? 0.5 : 1,
-                                transition: 'all 0.15s',
-                                textAlign: 'center',
-                                height: 'auto',
-                                minHeight: 90,
-                                position: 'relative'
-                              }}
-                              onMouseEnter={e => {
-                                if (!(loading || workerOnline === false || !name.trim())) {
-                                  if (importMode !== 'smart') {
-                                    e.currentTarget.style.background = '#3F3F46';
-                                    e.currentTarget.style.borderColor = '#52525B';
-                                  }
-                                }
-                              }}
-                              onMouseLeave={e => {
-                                if (importMode !== 'smart') {
-                                  e.currentTarget.style.background = '#27272A';
-                                  e.currentTarget.style.borderColor = '#3F3F46';
-                                }
-                              }}
-                            >
-                              {/* Recommended Badge */}
-                              <div style={{
-                                position: 'absolute',
-                                top: -8,
-                                background: '#3B82F6',
-                                color: 'white',
-                                fontSize: 9,
-                                fontWeight: 700,
-                                padding: '2px 6px',
-                                borderRadius: 10,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.05em'
-                              }}>
-                                Recommended
-                              </div>
-
-                              <div style={{ color: importMode === 'smart' ? '#60A5FA' : '#A1A1AA', marginBottom: 8 }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                  <polyline points="14 2 14 8 20 8"></polyline>
-                                  <line x1="16" y1="13" x2="8" y2="13"></line>
-                                  <line x1="16" y1="17" x2="8" y2="17"></line>
-                                  <polyline points="10 9 9 9 8 9"></polyline>
-                                </svg>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                <span style={{ fontWeight: 600, fontSize: 13, color: '#E4E4E7' }}>Smart Parse</span>
-                                {workerOnline === false && (
-                                  <span style={{ fontSize: 9, color: '#F87171', background: 'rgba(239,68,68,0.1)', padding: '1px 4px', borderRadius: 2 }}>
-                                    Offline
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: 11, color: importMode === 'smart' ? '#93C5FD' : '#71717A', lineHeight: 1.3 }}>
-                                OCR & AI structure. Best for chat.
-                              </div>
-                            </button>
-                          </div>
-                          
-                          {/* Worker Status */}
-                          {checkingWorker && (
-                             <div style={{ marginTop: 8, fontSize: 11, color: '#71717A', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
-                               <div style={{ width: 8, height: 8, borderRadius: '50%', border: '2px solid #71717A', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></div>
-                               Checking service availability...
-                             </div>
-                          )}
-                        </div>
-                     </div>
+                    <div>
+                      <label style={labelStyle}>Context Name</label>
+                      <input
+                        type='text'
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        style={inputStyle}
+                        placeholder='Enter a name for this context…'
+                      />
+                    </div>
                   )}
                 </>
               )}
@@ -642,7 +651,7 @@ export function TableManageDialog({
                 }
                 style={buttonStyle(true)}
               >
-                {mode === 'edit' ? 'Save Changes' : startOption === 'documents' ? (importMode === 'smart' ? 'Start Parse' : 'Start Import') : 'Import'}
+                {mode === 'edit' ? 'Save Changes' : startOption === 'documents' ? 'Start Import' : 'Import'}
               </button>
             </div>
           </form>
@@ -666,39 +675,72 @@ export function TableManageDialog({
   );
 }
 
+// Aligned with the rest of the product's tokens — section labels
+// across the data explorer / access panel use this same uppercase
+// 11px treatment ("ALL SCOPES IN THIS …", "CONNECT", "INTEGRATIONS").
+// The dialog used to use 12px lower-case labels which read as a
+// different design family.
 const labelStyle: React.CSSProperties = {
-  fontSize: 12,
-  fontWeight: 500,
-  color: '#A1A1AA',
+  fontSize: 11,
+  fontWeight: 600,
+  color: '#71717A',
+  textTransform: 'uppercase',
+  letterSpacing: '0.05em',
   marginBottom: 8,
-  display: 'block'
+  display: 'block',
 };
 
+// Form-field styling matched to the menu / sidebar surfaces
+// (#0e0e0e family). The previous version used a brighter
+// `#27272A` fill that read as a sunken card on the dialog
+// background and 16px text that towered over the explorer rows
+// (13px) launching the dialog. 13px keeps the dialog visually
+// at parity with everything else.
 const inputStyle: React.CSSProperties = {
   width: '100%',
   height: 32,
   padding: '0 12px',
-  background: '#27272A',
-  border: '1px solid #3F3F46',
+  background: '#18181B',
+  border: '1px solid rgba(255,255,255,0.10)',
   borderRadius: 6,
   color: '#E4E4E7',
-  fontSize: 16,
+  fontSize: 13,
   outline: 'none',
   transition: 'border-color 0.15s',
-  boxSizing: 'border-box'
+  boxSizing: 'border-box',
+};
+
+// Used inside the dropzone for `Upload Files` / `Upload Folder`.
+// Lighter than the footer primary so the visual hierarchy stays
+// "primary action lives in the footer" — the dropzone buttons are
+// shortcut affordances, not the call-to-action.
+const dropzoneActionButton: React.CSSProperties = {
+  height: 30,
+  padding: '0 14px',
+  borderRadius: 6,
+  border: '1px solid rgba(255,255,255,0.10)',
+  background: 'transparent',
+  color: '#E4E4E7',
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: 'pointer',
+  transition: 'background 0.15s, border-color 0.15s',
 };
 
 const buttonStyle = (primary: boolean, danger = false): React.CSSProperties => ({
   height: '32px',
-  padding: '0 12px',
+  padding: '0 14px',
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
   borderRadius: 6,
-  border: '1px solid transparent',
+  border: primary || danger ? '1px solid transparent' : '1px solid rgba(255,255,255,0.10)',
   background: danger ? 'rgba(239,68,68,0.15)' : primary ? '#E4E4E7' : 'transparent',
   color: danger ? '#ef4444' : primary ? '#18181B' : '#A1A1AA',
-  fontSize: 16,
+  // 13px keeps dialog buttons at the same scale as menu items,
+  // tabs, and explorer rows. Was 16px which made the footer
+  // dominate the dialog.
+  fontSize: 13,
   fontWeight: 500,
   cursor: 'pointer',
   transition: 'all 0.15s',

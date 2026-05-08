@@ -326,7 +326,6 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
 
   return (
     <>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {/* Header */}
         <div style={{

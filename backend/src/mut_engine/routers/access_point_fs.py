@@ -9,20 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
-import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
 from src.common_schemas import ApiResponse
+from src.mut_engine.dependencies import get_mut_ops
 from src.mut_engine.routers.access_point import resolve_access_point
 from src.mut_engine.routers.content_write import _serialize_content
 from src.mut_engine.schemas import MkdirRequest, MoveRequest, RemoveRequest, WriteFileRequest
 from src.mut_engine.server.validation import validate_content_size, validate_path
 from src.mut_engine.services.ops import MutOps
-from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ephemeral_client import MutEphemeralClient
-from src.mut_engine.services.hooks import push_and_finalize
 
 
 router = APIRouter(prefix="/ap-fs", tags=["access-point-fs"])
@@ -167,34 +164,6 @@ def _operator(auth: dict) -> str:
     return f"access_point:{auth.get('agent', 'unknown')}"
 
 
-async def _push_scope(
-    project_id: str,
-    auth: dict,
-    *,
-    modified: dict[str, bytes] | None = None,
-    deleted: list[str] | None = None,
-    message: str,
-) -> dict:
-    from src.mut_engine.dependencies import get_repo_manager_standalone
-
-    repo_manager = get_repo_manager_standalone()
-    client = MutEphemeralClient(repo_manager, project_id, auth)
-    await asyncio.to_thread(client.clone)
-    return await push_and_finalize(
-        client,
-        project_id,
-        repo_manager=repo_manager,
-        modified=modified,
-        deleted=deleted,
-        message=message,
-        who=_operator(auth),
-    )
-
-
-def _commit_id(result: dict) -> str:
-    return result.get("commit_id") or result.get("new_commit_id") or ""
-
-
 @router.get("/ls", response_model=ApiResponse)
 async def list_dir(
     path: str = Query("", description="Path relative to the access point scope"),
@@ -315,6 +284,7 @@ async def write_file(
     body: WriteFileRequest,
     x_access_key: str | None = Header(None, alias="X-Access-Key"),
     x_mut_user: str | None = Header(None, alias="X-Mut-User"),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     project_id, auth, scope = await _resolve_auth(x_access_key, x_mut_user)
     _ensure_writable(scope)
@@ -325,20 +295,22 @@ async def write_file(
 
     stored_rel_path, content_bytes = _serialize_content(rel_path, body.content, body.node_type)
     validate_content_size(content_bytes)
-    result = await _push_scope(
-        project_id,
-        auth,
-        modified={stored_rel_path: content_bytes},
-        message=body.message or f"ap write {rel_path}",
-    )
+
     full_path = _join_scope(scope["path"], stored_rel_path)
+    result = await ops.write_file(
+        project_id,
+        full_path,
+        content_bytes,
+        who=_operator(auth),
+        message=body.message or f"ap write {stored_rel_path}",
+    )
     return ApiResponse.success(data={
         "path": stored_rel_path,
         "mut_path": full_path,
         "scope": _scope_payload(scope),
-        "commit_id": _commit_id(result),
-        "merged": result.get("merged", False),
-        "conflicts": result.get("conflicts", 0),
+        "commit_id": result.commit_id,
+        "merged": False,
+        "conflicts": 0,
     })
 
 
@@ -347,6 +319,7 @@ async def mkdir(
     body: MkdirRequest,
     x_access_key: str | None = Header(None, alias="X-Access-Key"),
     x_mut_user: str | None = Header(None, alias="X-Mut-User"),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     project_id, auth, scope = await _resolve_auth(x_access_key, x_mut_user)
     _ensure_writable(scope)
@@ -356,17 +329,17 @@ async def mkdir(
     _assert_not_excluded(rel_path, scope)
 
     full_path = _join_scope(scope["path"], rel_path)
-    result = await _push_scope(
+    result = await ops.mkdir(
         project_id,
-        auth,
-        modified={f"{rel_path}/.keep": b""},
+        full_path,
+        who=_operator(auth),
         message=f"ap mkdir {rel_path}",
     )
     return ApiResponse.success(data={
         "path": rel_path,
         "mut_path": full_path,
         "scope": _scope_payload(scope),
-        "commit_id": _commit_id(result),
+        "commit_id": result.commit_id,
     })
 
 
@@ -375,6 +348,7 @@ async def move(
     body: MoveRequest,
     x_access_key: str | None = Header(None, alias="X-Access-Key"),
     x_mut_user: str | None = Header(None, alias="X-Mut-User"),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     project_id, auth, scope = await _resolve_auth(x_access_key, x_mut_user)
     _ensure_writable(scope)
@@ -387,42 +361,29 @@ async def move(
 
     old_full = _join_scope(scope["path"], old_rel)
     new_full = _join_scope(scope["path"], new_rel)
-    from src.mut_engine.dependencies import get_repo_manager_standalone
-
-    repo_manager = get_repo_manager_standalone()
-    client = MutEphemeralClient(repo_manager, project_id, auth)
-    files = await asyncio.to_thread(client.clone)
-    modified: dict[str, bytes] = {}
-    deleted: list[str] = []
-    if old_rel in files:
-        modified[new_rel] = files[old_rel]
-        deleted.append(old_rel)
-    else:
-        prefix = f"{old_rel}/"
-        for path, content in files.items():
-            if path.startswith(prefix):
-                suffix = path[len(old_rel):]
-                modified[f"{new_rel}{suffix}"] = content
-                deleted.append(path)
-    if not deleted:
+    if ops.stat(project_id, old_full) is None:
         raise HTTPException(status_code=404, detail=f"Path not found: {old_rel}")
 
-    result = await push_and_finalize(
-        client,
-        project_id,
-        repo_manager=repo_manager,
-        modified=modified,
-        deleted=deleted,
-        message=body.message or f"ap move {old_rel} -> {new_rel}",
-        who=_operator(auth),
-    )
+    try:
+        result = await ops.move(
+            project_id,
+            old_full,
+            new_full,
+            who=_operator(auth),
+            message=body.message or f"ap move {old_rel} -> {new_rel}",
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     return ApiResponse.success(data={
         "old_path": old_rel,
         "new_path": new_rel,
         "old_mut_path": old_full,
         "new_mut_path": new_full,
         "scope": _scope_payload(scope),
-        "commit_id": _commit_id(result),
+        "commit_id": result.commit_id,
     })
 
 
@@ -431,6 +392,7 @@ async def remove(
     body: RemoveRequest,
     x_access_key: str | None = Header(None, alias="X-Access-Key"),
     x_mut_user: str | None = Header(None, alias="X-Mut-User"),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     project_id, auth, scope = await _resolve_auth(x_access_key, x_mut_user)
     _ensure_writable(scope)
@@ -440,59 +402,50 @@ async def remove(
     _assert_not_excluded(rel_path, scope)
 
     full_path = _join_scope(scope["path"], rel_path)
-    from src.mut_engine.dependencies import get_repo_manager_standalone
-
-    repo_manager = get_repo_manager_standalone()
-    client = MutEphemeralClient(repo_manager, project_id, auth)
-    files = await asyncio.to_thread(client.clone)
-    targets: list[str] = []
-    if rel_path in files:
-        targets.append(rel_path)
-    else:
-        prefix = f"{rel_path}/"
-        targets.extend(path for path in files if path.startswith(prefix))
-    if not targets:
+    if ops.stat(project_id, full_path) is None:
         raise HTTPException(status_code=404, detail=f"Path not found: {rel_path}")
 
     if body.permanent:
-        result = await push_and_finalize(
-            client,
-            project_id,
-            repo_manager=repo_manager,
-            deleted=targets,
-            message=f"ap delete {rel_path}",
-            who=_operator(auth),
-        )
+        try:
+            result = await ops.permanent_delete(
+                project_id,
+                full_path,
+                who=_operator(auth),
+                message=f"ap delete {rel_path}",
+            )
+        except FileNotFoundError as e:
+            raise HTTPException(status_code=404, detail=str(e))
         return ApiResponse.success(data={
             "path": rel_path,
             "mut_path": full_path,
             "scope": _scope_payload(scope),
-            "commit_id": _commit_id(result),
+            "commit_id": result.commit_id,
         })
 
-    basename = rel_path.rsplit("/", 1)[-1] if "/" in rel_path else rel_path
-    scoped_trash_rel = f".trash/{basename}_{int(time.time())}"
-    scoped_trash_full = _join_scope(scope["path"], scoped_trash_rel)
-    modified = {}
-    for path in targets:
-        suffix = path[len(rel_path):]
-        modified[f"{scoped_trash_rel}{suffix}"] = files[path]
+    try:
+        result = await ops.trash(
+            project_id,
+            full_path,
+            who=_operator(auth),
+            message=f"ap trash {rel_path}",
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-    result = await push_and_finalize(
-        client,
-        project_id,
-        repo_manager=repo_manager,
-        modified=modified,
-        deleted=targets,
-        message=f"ap trash {rel_path}",
-        who=_operator(auth),
+    # ``MutOps.trash`` returns ``paths=[original_full, trash_full]``; pick the
+    # entry that actually lands in ``.trash/`` so we can report both the original
+    # and the trash destination back to the CLI.
+    trash_full = next(
+        (p for p in result.paths if "/.trash/" in p or p.startswith(".trash/")),
+        "",
     )
+    new_rel = _relative_to_scope(trash_full, scope["path"]) if trash_full else ""
 
     return ApiResponse.success(data={
         "path": rel_path,
         "mut_path": full_path,
-        "new_path": scoped_trash_rel,
-        "new_mut_path": scoped_trash_full,
+        "new_path": new_rel,
+        "new_mut_path": trash_full,
         "scope": _scope_payload(scope),
-        "commit_id": _commit_id(result),
+        "commit_id": result.commit_id,
     })

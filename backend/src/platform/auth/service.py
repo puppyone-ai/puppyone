@@ -114,6 +114,19 @@ class AuthService:
                 else:
                     log_error(f"JWKS token verification error: {e}")
 
+        # If both verification paths failed, ``claims_dict`` is None.
+        # A naive ``TokenClaims(**None)`` would crash with a confusing
+        # "argument after ** must be a mapping" TypeError that ends up
+        # in user-facing error toasts. Raise a clean "expired/invalid"
+        # error instead so the frontend can route users to a
+        # re-authentication flow without leaking the internal failure.
+        if not claims_dict:
+            log_debug("Token verification failed (local + JWKS exhausted)")
+            raise AuthException(
+                message="Invalid or expired token — please sign in again",
+                code=ErrorCode.TOKEN_EXPIRED,
+            )
+
         # Parse claims
         try:
             claims = TokenClaims(**claims_dict)

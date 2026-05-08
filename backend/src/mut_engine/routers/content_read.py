@@ -6,7 +6,7 @@ import json as _json
 from urllib.parse import quote
 from zipfile import ZIP_DEFLATED
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from zipstream import ZipStream
@@ -126,6 +126,7 @@ def read_file(
 )
 def raw_file(
     project_id: str,
+    request: Request,
     path: str = Query(..., description="File path"),
     ops: MutOps = Depends(get_mut_ops),
     project_service: ProjectService = Depends(get_project_service),
@@ -144,12 +145,120 @@ def raw_file(
     mime = detect_mime(clean_path) if entry else "application/octet-stream"
 
     filename = clean_path.rsplit("/", 1)[-1] if "/" in clean_path else clean_path
-    return Response(
+    return _serve_file_bytes(
+        request=request,
         content=content,
         media_type=mime,
+        filename=filename,
+        disposition="inline",
+        cache_control="private, max-age=3600",
+    )
+
+
+def _content_disposition_inline(filename: str) -> str:
+    """Build an inline Content-Disposition that supports UTF-8 names."""
+    safe_filename = filename.replace('"', "")
+    ascii_fallback = safe_filename.encode("ascii", errors="replace").decode("ascii")
+    encoded = quote(safe_filename, safe="")
+    return f'inline; filename="{ascii_fallback}"; filename*=UTF-8\'\'{encoded}'
+
+
+def _parse_byte_range(range_header: str, total: int) -> tuple[int, int] | None:
+    """Parse a single HTTP bytes range.
+
+    Returns inclusive `(start, end)` or None for invalid/unsupported
+    ranges. Multi-range responses are intentionally unsupported:
+    browsers only need single-range media seeks for audio/video.
+    """
+    if not range_header.startswith("bytes=") or "," in range_header:
+        return None
+
+    spec = range_header.removeprefix("bytes=").strip()
+    if "-" not in spec:
+        return None
+
+    start_raw, end_raw = spec.split("-", 1)
+    try:
+        if start_raw == "":
+            suffix_len = int(end_raw)
+            if suffix_len <= 0:
+                return None
+            start = max(total - suffix_len, 0)
+            end = total - 1
+        else:
+            start = int(start_raw)
+            end = int(end_raw) if end_raw else total - 1
+            if start < 0 or end < start:
+                return None
+            end = min(end, total - 1)
+    except ValueError:
+        return None
+
+    if total <= 0 or start >= total:
+        return None
+    return start, end
+
+
+def _serve_file_bytes(
+    *,
+    request: Request,
+    content: bytes,
+    media_type: str,
+    filename: str,
+    disposition: str,
+    cache_control: str,
+) -> Response:
+    """Serve bytes with optional single-range support.
+
+    This makes signed inline media URLs work with native browser
+    audio/video controls. The current MUT object-store read still
+    materializes the blob before slicing; the browser no longer has
+    to `fetch -> blob` the whole file before playback starts, and it
+    can issue normal seek/range requests.
+    """
+    total = len(content)
+    if disposition == "attachment":
+        content_disposition = _content_disposition_attachment(filename)
+    else:
+        content_disposition = _content_disposition_inline(filename)
+
+    base_headers = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": cache_control,
+        "Content-Disposition": content_disposition,
+    }
+
+    range_header = request.headers.get("range")
+    if range_header:
+        parsed = _parse_byte_range(range_header, total)
+        if parsed is None:
+            return Response(
+                status_code=416,
+                headers={
+                    **base_headers,
+                    "Content-Range": f"bytes */{total}",
+                },
+            )
+
+        start, end = parsed
+        body = content[start : end + 1]
+        return Response(
+            content=body,
+            status_code=206,
+            media_type=media_type,
+            headers={
+                **base_headers,
+                "Content-Length": str(len(body)),
+                "Content-Range": f"bytes {start}-{end}/{total}",
+            },
+        )
+
+    return Response(
+        content=content,
+        media_type=media_type,
         headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "private, max-age=3600",
+            **base_headers,
+            "Content-Length": str(total),
         },
     )
 
@@ -189,6 +298,15 @@ class DownloadSignResponse(BaseModel):
     expires_at: int = Field(..., description="Unix timestamp when the token expires")
 
 
+class InlineSignRequest(BaseModel):
+    path: str = Field(..., description="File path within the project")
+
+
+class InlineSignResponse(BaseModel):
+    url: str = Field(..., description="Pre-signed inline preview URL (valid for ~5 minutes)")
+    expires_at: int = Field(..., description="Unix timestamp when the token expires")
+
+
 @read_router.post(
     "/{project_id}/download/sign",
     response_model=ApiResponse[DownloadSignResponse],
@@ -222,12 +340,93 @@ def sign_download(
     )
 
 
+@read_router.post(
+    "/{project_id}/inline/sign",
+    response_model=ApiResponse[InlineSignResponse],
+    summary="Mint a signed URL for inline media/PDF preview",
+)
+def sign_inline(
+    project_id: str,
+    body: InlineSignRequest,
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Authenticated step for embedding protected files in native
+    browser elements (`<audio>`, `<video>`, `<iframe>`).
+
+    These elements cannot attach our Bearer header, so we issue the
+    same short-lived HMAC token as downloads but return an inline
+    endpoint instead of an attachment endpoint.
+    """
+    ensure_project_access(project_service, current_user, project_id)
+    clean_path = validate_path(body.path)
+
+    token, expires_at = issue_token(
+        project_id=project_id,
+        path=clean_path,
+        user_id=current_user.user_id,
+    )
+
+    url = (
+        f"/api/v1/content/{project_id}/inline"
+        f"?path={quote(clean_path, safe='')}&token={quote(token, safe='')}"
+    )
+
+    return ApiResponse.success(
+        data=InlineSignResponse(url=url, expires_at=expires_at)
+    )
+
+
+@read_router.get(
+    "/{project_id}/inline",
+    summary="Serve a token-authenticated file inline for native previews",
+)
+def inline_file(
+    project_id: str,
+    request: Request,
+    path: str = Query(..., description="File path"),
+    token: str = Query(..., description="Signed token from /inline/sign"),
+    ops: MutOps = Depends(get_mut_ops),
+):
+    try:
+        claims = verify_token(token)
+    except DownloadTokenError as exc:
+        raise HTTPException(status_code=401, detail=f"invalid token: {exc}")
+
+    clean_path = validate_path(path)
+    if claims.project_id != project_id or claims.path != clean_path:
+        raise HTTPException(status_code=403, detail="token does not match request")
+
+    entry = ops.stat(project_id, clean_path)
+    if not entry or entry.type == "folder":
+        raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
+
+    try:
+        content = ops.read_file(project_id, clean_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
+
+    from src.mut_engine.services.tree_reader import detect_mime
+    mime = detect_mime(clean_path) or "application/octet-stream"
+    filename = entry.name or clean_path.rsplit("/", 1)[-1] or "preview"
+
+    return _serve_file_bytes(
+        request=request,
+        content=content,
+        media_type=mime,
+        filename=filename,
+        disposition="inline",
+        cache_control="private, no-store",
+    )
+
+
 @read_router.get(
     "/{project_id}/download",
     summary="Download a file or folder (folders are streamed as zip)",
 )
 def download(
     project_id: str,
+    request: Request,
     path: str = Query(..., description="File or folder path"),
     token: str = Query(..., description="Signed token from /download/sign"),
     ops: MutOps = Depends(get_mut_ops),
@@ -329,14 +528,13 @@ def download(
     mime = detect_mime(clean_path) or "application/octet-stream"
     filename = entry.name or clean_path.rsplit("/", 1)[-1] or "download"
 
-    return Response(
+    return _serve_file_bytes(
+        request=request,
         content=content,
         media_type=mime,
-        headers={
-            "Content-Disposition": _content_disposition_attachment(filename),
-            "Cache-Control": "private, no-store",
-            "Content-Length": str(len(content)),
-        },
+        filename=filename,
+        disposition="attachment",
+        cache_control="private, no-store",
     )
 
 

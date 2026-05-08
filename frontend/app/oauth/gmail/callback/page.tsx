@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { gmailCallback } from '@/lib/oauthApi';
+import { PageLoading } from '@/components/loading';
 
 function GmailCallbackContent() {
   const searchParams = useSearchParams();
@@ -108,18 +109,7 @@ function GmailCallbackContent() {
 
 export default function GmailCallbackPage() {
   return (
-    <Suspense fallback={
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: '#0a0a0a',
-        color: '#CDCDCD',
-      }}>
-        <div>Loading...</div>
-      </div>
-    }>
+    <Suspense fallback={<PageLoading />}>
       <GmailCallbackContent />
     </Suspense>
   );

@@ -1,12 +1,13 @@
 'use client';
 
+import type { CSSProperties, MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import type { OnboardingStep } from '@/lib/hooks/useOnboarding';
+import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import {
   ACTIVITY_BG,
   ACTIVITY_BORDER,
-  ACTIVITY_RADIUS,
   ACTIVITY_SHADOW,
   ACTIVITY_WIDTH,
   activityCardStyle,
@@ -84,14 +85,46 @@ interface Props {
   inline?: boolean;
 }
 
+// Brand blue — applied surgically (progress fill + completed checks +
+// active "you are here" dot). Three small, contained surfaces is enough
+// to feel like PuppyOne; a fourth (filled CTA) is what made the panel
+// read as a marketing widget last time, so the CTA stays as a neutral
+// ghost button on purpose.
+const ACCENT = '#3b82f6';
+const PROGRESS_FILL = ACCENT;
+const PROGRESS_TRACK = 'rgba(255,255,255,0.06)';
+const NEXT_RING = 'rgba(255,255,255,0.55)';
+const PENDING_RING = 'rgba(255,255,255,0.18)';
+
 export function GettingStartedPanel({ projectId, inline = false }: Readonly<Props>) {
   const router = useRouter();
   const { completedSteps, collapsedChecklist, dismissedChecklist, dismissChecklist, openChecklist, collapseChecklist, resetWelcome } = useOnboarding();
 
-  const done = completedSteps.length;
-  const total = STEP_DEFS.length;
+  // Filter out steps belonging to features that are currently hidden
+  // by feature flag (see `frontend/lib/featureFlags.ts`). The
+  // underlying step IDs in `useOnboarding` still exist and can be
+  // marked complete server-side — we just don't show them in the
+  // checklist while the feature is hidden, so progress and "next
+  // step" arithmetic match what the user can actually do.
+  const visibleSteps = STEP_DEFS.filter((step) => {
+    if (!AI_AGENT_ENABLED && (step.id === 'agent' || step.id === 'chat')) {
+      return false;
+    }
+    return true;
+  });
+  const visibleStepIds = new Set(visibleSteps.map((s) => s.id));
+  // Re-scope progress to only-visible steps. If we counted hidden
+  // completions we'd give the user "credit" for invisible work and
+  // the bar would jump.
+  const visibleCompletedCount = completedSteps.filter((id) =>
+    visibleStepIds.has(id),
+  ).length;
+  const done = visibleCompletedCount;
+  const total = visibleSteps.length;
   const pct = Math.round((done / total) * 100);
-  const nextIdx = STEP_DEFS.findIndex(s => !completedSteps.includes(s.id));
+  const nextIdx = visibleSteps.findIndex(
+    (s) => !completedSteps.includes(s.id),
+  );
 
   if (collapsedChecklist || dismissedChecklist) {
     return (
@@ -100,28 +133,47 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
         style={{
           ...(inline
             ? {}
-            : { position: 'fixed' as const, bottom: 24, right: 24, zIndex: 100 }),
-          display: 'flex', alignItems: 'center', gap: 8,
+            : { position: 'fixed' as const, bottom: 12, right: 12, zIndex: 100 }),
+          display: 'flex', alignItems: 'center', gap: 10,
           width: ACTIVITY_WIDTH,
-          minHeight: 44,
-          padding: '8px 12px', borderRadius: ACTIVITY_RADIUS,
-          background: ACTIVITY_BG, border: ACTIVITY_BORDER,
-          color: '#e4e4e7', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          minHeight: 38,
+          padding: '8px 14px',
+          borderRadius: 999,
+          background: ACTIVITY_BG,
+          border: ACTIVITY_BORDER,
+          color: '#e4e4e7',
+          fontSize: 12,
+          fontWeight: 500,
+          letterSpacing: '-0.01em',
+          cursor: 'pointer',
           boxShadow: ACTIVITY_SHADOW,
+          backdropFilter: 'blur(28px) saturate(160%)',
+          WebkitBackdropFilter: 'blur(28px) saturate(160%)',
           boxSizing: 'border-box',
+          transition: 'background 0.12s ease, border-color 0.12s ease',
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = 'rgba(30, 30, 34, 0.9)';
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = ACTIVITY_BG;
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
         }}
       >
         <div style={{
-          width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-          background: `conic-gradient(#3b82f6 ${pct}%, rgba(255,255,255,0.1) 0)`,
+          width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+          background: `conic-gradient(${PROGRESS_FILL} ${pct}%, ${PROGRESS_TRACK} 0)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{ width: 10, height: 10, borderRadius: '50%', background: ACTIVITY_BG }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(22,22,26,0.95)' }} />
         </div>
-        <span style={{ ...activityTitleStyle, flex: 1, textAlign: 'left' }}>
+        <span style={{ flex: 1, textAlign: 'left' }}>
           Getting started
         </span>
-        <span style={{ ...activitySubtleTextStyle, whiteSpace: 'nowrap' }}>{done}/{total}</span>
+        <span style={{ ...activitySubtleTextStyle, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+          {done}/{total}
+        </span>
       </button>
     );
   }
@@ -130,97 +182,141 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
     <div style={{
       ...(inline
         ? {}
-        : { position: 'fixed' as const, bottom: 24, right: 24, zIndex: 100 }),
+        : { position: 'fixed' as const, bottom: 12, right: 12, zIndex: 100 }),
       ...activityCardStyle,
     }}>
       {/* Header */}
       <div style={activityHeaderStyle}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ ...activityTitleStyle, marginBottom: 8 }}>
-            Getting started
+          <div style={{
+            ...activityTitleStyle,
+            marginBottom: 8,
+            display: 'flex', alignItems: 'baseline', gap: 8,
+          }}>
+            <span>Getting started</span>
+            <span style={{
+              ...activitySubtleTextStyle,
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {done}/{total}
+            </span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ flex: 1, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.08)' }}>
-              <div style={{ height: '100%', borderRadius: 2, background: '#3b82f6', width: `${pct}%`, transition: 'width 0.4s ease' }} />
-            </div>
-            <span style={{ ...activitySubtleTextStyle, whiteSpace: 'nowrap' }}>{done}/{total}</span>
+          <div style={{
+            height: 3, borderRadius: 2,
+            background: PROGRESS_TRACK,
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%', borderRadius: 2,
+              background: PROGRESS_FILL,
+              width: `${pct}%`,
+              transition: 'width 0.4s ease',
+            }} />
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, alignSelf: 'flex-start' }}>
           <ActivityIconButton
             kind="collapse"
             title="Collapse"
             onClick={collapseChecklist}
           />
-          <ActivityIconButton
-            kind="close"
-            title="Already familiar, don't show again"
-            onClick={dismissChecklist}
-          />
         </div>
       </div>
 
       {/* Steps */}
-      <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-        {STEP_DEFS.map((step, i) => {
+      <div style={{ maxHeight: 360, overflowY: 'auto', padding: '4px 0' }}>
+        {visibleSteps.map((step, i) => {
           const completed = completedSteps.includes(step.id);
           const isNext = i === nextIdx;
-          const circleAccent = isNext ? '#3b82f6' : 'rgba(255,255,255,0.15)';
-          const circleBorder = completed ? 'none' : `1.5px solid ${circleAccent}`;
-          const labelColorActive = isNext ? '#f4f4f5' : '#71717a';
-          const labelColor = completed ? '#3f3f46' : labelColorActive;
+          const labelColor = completed
+            ? '#52525b'
+            : isNext
+              ? '#fafafa'
+              : '#a1a1aa';
           const href = step.getHref?.(projectId);
           return (
             <div
               key={step.id}
               style={{
-                padding: isNext ? '10px 12px' : '8px 12px',
-                borderBottom: i < STEP_DEFS.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
-                background: isNext ? 'rgba(59,130,246,0.06)' : 'transparent',
+                padding: isNext ? '10px 14px 12px' : '7px 14px',
+                background: isNext ? 'rgba(255,255,255,0.035)' : 'transparent',
                 display: 'flex', gap: 10, alignItems: 'flex-start',
+                position: 'relative',
               }}
             >
+              {/* Step indicator */}
               <div style={{
-                width: 18, height: 18, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-                border: circleBorder, background: completed ? '#3b82f6' : 'transparent',
+                width: 16, height: 16, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+                border: completed
+                  ? 'none'
+                  : `1.5px solid ${isNext ? NEXT_RING : PENDING_RING}`,
+                background: completed ? ACCENT : 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'border-color 0.15s ease',
               }}>
                 {completed && (
-                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                    <path d="M2.5 6l2.5 2.5L9.5 4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
                 {!completed && isNext && (
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6' }} />
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: ACCENT }} />
                 )}
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{
-                  fontSize: 13, lineHeight: '18px', fontWeight: isNext ? 600 : 400,
+                  fontSize: 12.5,
+                  lineHeight: '17px',
+                  fontWeight: isNext ? 500 : 400,
+                  letterSpacing: '-0.005em',
                   color: labelColor,
                   textDecoration: completed ? 'line-through' : 'none',
+                  textDecorationColor: 'rgba(82, 82, 91, 0.6)',
                   marginBottom: isNext ? 4 : 0,
                 }}>
                   {step.label}
                 </div>
                 {isNext && !completed && (
                   <>
-                    <div style={{ ...activitySubtleTextStyle, color: '#a1a1aa', marginBottom: 8 }}>
+                    <div style={{
+                      ...activitySubtleTextStyle,
+                      color: '#a1a1aa',
+                      marginBottom: 10,
+                      lineHeight: '15px',
+                    }}>
                       {step.description}
                     </div>
                     {step.actionLabel && href && (
                       <button
                         onClick={() => router.push(href)}
                         style={{
-                          height: 28, fontSize: 12, fontWeight: 500, color: '#fff',
-                          background: '#2563eb', border: 'none',
-                          borderRadius: 6, padding: '0 12px', cursor: 'pointer',
+                          height: 26,
+                          fontSize: 11.5,
+                          fontWeight: 500,
+                          letterSpacing: '-0.005em',
+                          color: '#fafafa',
+                          background: 'rgba(255,255,255,0.06)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: 6,
+                          padding: '0 10px',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          transition: 'background 0.12s ease, border-color 0.12s ease',
                         }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#1d4ed8')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '#2563eb')}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.10)';
+                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+                        }}
                       >
-                        {step.actionLabel} →
+                        {step.actionLabel}
+                        <span style={{ opacity: 0.55 }}>→</span>
                       </button>
                     )}
                   </>
@@ -231,21 +327,55 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
         })}
       </div>
 
-      {/* Footer */}
-      <div style={{ padding: '9px 12px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button
-          onClick={dismissChecklist}
-          style={{ ...activitySubtleTextStyle, color: '#52525b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-        >
-          Already familiar, don&apos;t show again
-        </button>
+      {/* Footer — two symmetrical low-priority actions both ending in
+          "again" / "now". Header is now collapse-only, so dismiss lives
+          here paired with the intro replay. */}
+      <div style={{
+        padding: '8px 12px',
+        borderTop: '1px solid rgba(255,255,255,0.04)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 8,
+      }}>
         <button
           onClick={resetWelcome}
-          style={{ ...activitySubtleTextStyle, color: '#52525b', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          style={footerLinkStyle}
+          onMouseEnter={onFooterLinkEnter}
+          onMouseLeave={onFooterLinkLeave}
         >
           Watch intro again
+        </button>
+        <button
+          onClick={dismissChecklist}
+          style={footerLinkStyle}
+          onMouseEnter={onFooterLinkEnter}
+          onMouseLeave={onFooterLinkLeave}
+        >
+          Don&apos;t show again
         </button>
       </div>
     </div>
   );
+}
+
+const footerLinkStyle: CSSProperties = {
+  fontSize: 11,
+  lineHeight: '16px',
+  letterSpacing: '-0.005em',
+  color: '#71717a',
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  padding: '2px 4px',
+  borderRadius: 4,
+  transition: 'color 0.12s ease',
+};
+
+function onFooterLinkEnter(e: MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.color = '#d4d4d8';
+}
+
+function onFooterLinkLeave(e: MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.color = '#71717a';
 }

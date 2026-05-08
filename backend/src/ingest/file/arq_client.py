@@ -46,3 +46,20 @@ class ETLArqClient:
             "etl_postprocess_job", task_id, _queue_name=self.queue_name
         )
         return job.job_id
+
+    async def enqueue_finalize_upload(self, task_id: str | int) -> str:
+        """
+        Enqueue the post-upload finalization job for a direct-to-S3
+        multipart upload.
+
+        Triggered from ``/upload/complete``: by the time we enqueue,
+        the bytes are already assembled in S3 (the browser PUT them
+        directly via presigned URLs). This worker job pulls those
+        bytes from S3 and writes them into MUT, decoupling MUT
+        latency from the user-visible upload progress.
+        """
+        redis = await self.get_pool()
+        job = await redis.enqueue_job(
+            "etl_finalize_upload_job", task_id, _queue_name=self.queue_name
+        )
+        return job.job_id

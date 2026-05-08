@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { uploadAndSubmit } from '@/lib/etlApi';
+import { uploadFiles } from '@/lib/uploadApi';
 import {
   addPendingTasks,
-  replacePlaceholderTasks,
-  removeFailedPlaceholders,
+  updateTaskStatusById,
+  updateTaskProgress,
+  replaceTaskId,
 } from '@/components/BackgroundTaskNotifier';
 import { refreshAllContentNodes } from '@/lib/hooks/useData';
 
@@ -25,57 +26,89 @@ export function useFileImport(
   const [fileImportTarget, setFileImportTarget] = useState<FileImportTarget>(ROOT_IMPORT_TARGET);
   const latestTargetRef = useRef<FileImportTarget>(ROOT_IMPORT_TARGET);
 
+  // Sidebar drag/drop = backend-proxied multipart upload, same path
+  // the explorer dialog uses. Bytes go browser → Next.js → FastAPI
+  // → S3, the backend writes them into MUT, and the
+  // BackgroundTaskNotifier polls the resulting task IDs to terminal
+  // state.
   const uploadFilesToTarget = useCallback(async (
     importFiles: File[],
     target: FileImportTarget,
   ) => {
     if (importFiles.length === 0) return;
-    const targetPath = target.path?.trim() || undefined;
-    const baseTimestamp = Date.now();
-    const placeholderGroupId = `upload-${baseTimestamp}`;
-    const placeholderTasks = importFiles.map((file, index) => ({
-      taskId: `placeholder-${baseTimestamp}-${index}-${Math.random().toString(36).slice(2, 8)}`,
-      projectId,
-      tableId: placeholderGroupId,
-      tableName: file.name,
-      filename: file.name,
-      status: 'pending' as const,
-      taskType: 'file' as const,
-    }));
-    addPendingTasks(placeholderTasks);
+    if (!accessToken) {
+      console.error('File import skipped: not authenticated');
+      return;
+    }
+    const targetPath = target.path?.trim() || null;
+
+    // Placeholder IDs spawned in ``onUploadStart`` so the widget
+    // appears the instant the user drops a file. Swapped in
+    // ``onTaskCreated`` once /upload/init returns the real ID.
+    const placeholderIds: string[] = [];
 
     try {
-      if (!accessToken) throw new Error('Not authenticated');
-      const response = await uploadAndSubmit(
-        // Sidebar drag/drop is filesystem-like: files are stored as-is.
-        // OCR/Smart Parse is intentionally out of this flow for now.
-        { projectId, files: importFiles, mode: 'raw', parentPath: targetPath },
+      await uploadFiles(
+        { projectId, files: importFiles, parentPath: targetPath },
         accessToken,
+        {
+          onUploadStart: (files) => {
+            files.forEach((f) => {
+              const tmpId = `tmp-${crypto.randomUUID()}`;
+              placeholderIds[f.fileIndex] = tmpId;
+            });
+            addPendingTasks(
+              files.map((f) => ({
+                taskId: placeholderIds[f.fileIndex],
+                projectId,
+                tableName: f.filename,
+                filename: f.filename,
+                status: 'uploading',
+                taskType: 'file',
+              })),
+            );
+          },
+          onTaskCreated: ({ fileIndex, taskId }) => {
+            const tmpId = placeholderIds[fileIndex];
+            if (tmpId) {
+              replaceTaskId(tmpId, taskId);
+              placeholderIds[fileIndex] = taskId;
+            }
+          },
+          onProgress: (taskId, _loaded, _total, percent) => {
+            updateTaskProgress(taskId, percent);
+          },
+          onAllPartsUploaded: (taskId) => {
+            // Bytes are in S3, server is now writing into MUT.
+            // Show "Finalizing…" until /upload/complete returns,
+            // otherwise the row sits at "Uploading 100%" looking
+            // stuck for the multi-second finalize window.
+            updateTaskStatusById(taskId, 'finalizing');
+          },
+          onTaskCompleted: (taskId) => {
+            // Inline finalize: by the time /upload/complete returns
+            // 200, the task is COMPLETED in the DB. Skip the
+            // ``pending`` -> poll -> ``completed`` round-trip.
+            updateTaskStatusById(taskId, 'completed');
+          },
+          onTaskFailed: (taskId, error) => {
+            updateTaskStatusById(taskId, 'failed', { error });
+          },
+        },
       );
-
-      const filenameMap = new Map(importFiles.map(f => [f.name, f.name]));
-      const realTasks = response.items
-        .filter((item: any) => item.status !== 'failed')
-        .map((item: any) => ({
-          taskId: String(item.task_id),
-          projectId,
-          tableId: placeholderGroupId,
-          tableName: filenameMap.get(item.filename!) || item.filename!,
-          filename: filenameMap.get(item.filename!) || item.filename!,
-          status: (item.status === 'completed' ? 'completed' : 'pending') as any,
-          taskType: 'file' as const,
-        }));
-      if (realTasks.length > 0) replacePlaceholderTasks(placeholderGroupId, realTasks);
-
-      const failedFiles = response.items.filter((item: any) => item.status === 'failed');
-      if (failedFiles.length > 0) {
-        const failedNames = failedFiles.map((f: any) => filenameMap.get(f.filename!) || f.filename!);
-        removeFailedPlaceholders(placeholderGroupId, failedNames);
-      }
-
-      refreshAllContentNodes(projectId);
     } catch (err) {
+      // ``uploadFiles`` only throws if /upload/init fails (per-file
+      // failures go through ``onTaskFailed`` above). The placeholders
+      // we spawned in ``onUploadStart`` never got real IDs, so flip
+      // them to ``failed`` here — otherwise they'd sit as
+      // ``uploading`` until the 30-minute stale sweeper kicks in.
+      const errMsg = err instanceof Error ? err.message : String(err);
+      placeholderIds.forEach((id) => {
+        if (id) updateTaskStatusById(id, 'failed', { error: errMsg });
+      });
       console.error('File import failed:', err);
+    } finally {
+      refreshAllContentNodes(projectId);
     }
   }, [projectId, accessToken]);
 

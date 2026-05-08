@@ -11,6 +11,7 @@ import {
   type McpToolType,
   TOOL_INFO,
 } from '../lib/mcpApi';
+import { Dots } from './loading';
 
 /**
  * NodeAccessPanel - Node-level Tool configuration panel
@@ -150,12 +151,7 @@ function CheckIcon() {
 }
 
 function LoadingIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ animation: 'spin 1s linear infinite' }}>
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeDasharray="28" strokeDashoffset="8" />
-      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-    </svg>
-  );
+  return <Dots size="xs" />;
 }
 
 // ============================================

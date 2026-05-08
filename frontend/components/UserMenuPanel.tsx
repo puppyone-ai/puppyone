@@ -18,6 +18,38 @@ import {
   openOAuthPopup,
   type SaasType,
 } from '../lib/oauthApi';
+import { InlineLoading } from './loading';
+import packageJson from '../package.json';
+
+// Single source of truth for the product version shown in the
+// About card. Pulled from `package.json` so a `npm version` bump
+// propagates here automatically — no hardcoded "1.0.0" drift.
+const APP_VERSION = (packageJson as { version: string }).version;
+
+// ─── Local design tokens ─────────────────────────────────────────────
+//
+// The original panel used a one-off palette (gradient cards, #2a2a2a
+// borders, vivid #22c55e everywhere) that read as a different product
+// from the rest of the app. We now mirror the same neutral palette
+// used by the access page (`./access/lib/tokens.ts`) — same hairline
+// alpha, same text greys, same card surface — so flipping into this
+// modal feels like the same product surface, not a separate dialog.
+const T = {
+  cardBg: 'rgba(255,255,255,0.02)',
+  cardBorder: 'rgba(255,255,255,0.06)',
+  cardBorderHover: 'rgba(255,255,255,0.10)',
+  border: 'rgba(255,255,255,0.08)',
+  rowHoverBg: 'rgba(255,255,255,0.04)',
+  text1: '#fafafa',
+  text2: '#a1a1aa',
+  text3: '#52525b',
+  success: '#22c55e',
+  danger: '#ef4444',
+  fontSans:
+    'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+  fontMono:
+    'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+} as const;
 
 interface UserMenuPanelProps {
   isOpen: boolean;
@@ -112,9 +144,9 @@ const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
   );
 
 const statusColors: Record<PlatformStatusType, string> = {
-  connected: '#22c55e',
-  disconnected: '#595959',
-  error: '#ef4444',
+  connected: T.success,
+  disconnected: T.text3,
+  error: T.danger,
 };
 
 export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
@@ -394,6 +426,12 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
 
   if (!isRendered) return null;
 
+  // Left-rail nav row. Pulls its row spec from the AppSidebar so the
+  // two rails look like the same widget when stacked. 32px tall,
+  // 13px / 500 active label, translucent fills (white/[0.06] active,
+  // white/[0.03] hover) — replaces the earlier hardcoded `#1F1F1F`
+  // active block which read as a different visual language than the
+  // rest of the app.
   const NavBtn = ({
     id,
     label,
@@ -402,41 +440,57 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     id: 'account' | 'integrations' | 'about';
     label: string;
     icon?: React.ReactNode;
-  }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      style={{
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '8px 8px',
-        borderRadius: '6px',
-        border: 'none',
-        background: activeTab === id ? '#1F1F1F' : 'transparent',
-        color: activeTab === id ? '#E5E5E5' : '#9CA3AF',
-        cursor: 'pointer',
-        transition: 'all 150ms ease',
-        fontSize: '13px',
-        textAlign: 'left',
-      }}
-      onMouseEnter={e => {
-        if (activeTab !== id) {
-          e.currentTarget.style.background = '#1A1A1A';
-          e.currentTarget.style.color = '#E5E5E5';
-        }
-      }}
-      onMouseLeave={e => {
-        if (activeTab !== id) {
+  }) => {
+    const isActive = activeTab === id;
+    return (
+      <button
+        onClick={() => setActiveTab(id)}
+        style={{
+          width: '100%',
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          padding: '0 10px',
+          borderRadius: 6,
+          border: 'none',
+          background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
+          color: isActive ? T.text1 : T.text2,
+          cursor: 'pointer',
+          transition: 'background 150ms ease, color 150ms ease',
+          fontSize: 13,
+          fontWeight: isActive ? 500 : 400,
+          fontFamily: T.fontSans,
+          textAlign: 'left',
+        }}
+        onMouseEnter={e => {
+          if (isActive) return;
+          e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+          e.currentTarget.style.color = T.text1;
+        }}
+        onMouseLeave={e => {
+          if (isActive) return;
           e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#9CA3AF';
-        }
-      }}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
+          e.currentTarget.style.color = T.text2;
+        }}
+      >
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 16,
+            height: 16,
+            flexShrink: 0,
+            color: isActive ? T.text1 : T.text2,
+          }}
+        >
+          {icon}
+        </span>
+        <span style={{ flex: 1, minWidth: 0, color: 'inherit' }}>{label}</span>
+      </button>
+    );
+  };
 
   // Social links
   const socialLinks = [
@@ -548,7 +602,14 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
         }}
       />
 
-      {/* Panel */}
+      {/* Panel — flat dark surface with a translucent hairline. The
+          earlier copy used a 140° gradient (`rgba(22,22,22,0.98) →
+          rgba(14,14,14,0.98)`) plus a hardcoded `#2a2a2a` border,
+          which is a treatment nothing else in the product uses; it
+          made the modal feel like a different surface from
+          everything around it. The flat `#161618` over `T.border`
+          + a soft drop-shadow now matches the rest of the chrome
+          (page cards, dropdown menus, dialogs). */}
       <div
         onClick={e => e.stopPropagation()}
         style={{
@@ -560,12 +621,11 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           width: 'min(720px, 96vw)',
           height: '480px',
           overflow: 'hidden',
-          background:
-            'linear-gradient(140deg, rgba(22,22,22,0.98) 0%, rgba(14,14,14,0.98) 100%)',
-          border: '1px solid #2a2a2a',
-          borderRadius: '16px',
+          background: '#161618',
+          border: `1px solid ${T.border}`,
+          borderRadius: 14,
           boxShadow:
-            '0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)',
+            '0 20px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)',
           transition: 'all 400ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
@@ -573,16 +633,18 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           style={{
             display: 'flex',
             height: '100%',
-            fontSize: '13px',
-            color: '#D4D4D4',
+            fontSize: 13,
+            color: T.text1,
+            fontFamily: T.fontSans,
           }}
         >
-          {/* Left Navigation */}
+          {/* Left Navigation — uses the same border-alpha as every
+              other rail divider in the product. */}
           <div
             style={{
-              width: '176px',
+              width: 176,
               height: '100%',
-              borderRight: '1px solid #2f2f2f',
+              borderRight: `1px solid ${T.border}`,
               background: 'transparent',
               padding: '12px 0',
             }}
@@ -591,7 +653,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '2px',
+                gap: 2,
                 padding: '0 8px',
               }}
             >
@@ -661,27 +723,38 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              paddingLeft: '24px',
-              paddingRight: '16px',
-              paddingTop: '24px',
-              paddingBottom: '24px',
+              padding: '20px 20px 24px',
               overflowY: 'auto',
               minHeight: 0,
             }}
           >
-            {/* Header */}
+            {/* Tab heading — 14px / 600 / `T.text1`. A notch smaller
+                than the previous 16px so the heading doesn't shout
+                over the 15px card titles directly below it
+                (workspace name / "Free" plan), and the modal feels
+                like the same scale as the page-level Settings header
+                (13px / 500 across /(main)). */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-start',
-                marginBottom: '12px',
+                marginBottom: 14,
               }}
             >
               <div
-                style={{ fontSize: '16px', fontWeight: 600, color: '#e6e6e6' }}
+                style={{
+                  fontSize: 14,
+                  fontWeight: 600,
+                  color: T.text1,
+                  letterSpacing: '-0.005em',
+                }}
               >
-                {activeTab === 'account' ? 'Account' : activeTab === 'integrations' ? 'Integrations' : 'About'}
+                {activeTab === 'account'
+                  ? 'Account'
+                  : activeTab === 'integrations'
+                  ? 'Integrations'
+                  : 'About'}
               </div>
             </div>
 
@@ -691,17 +764,19 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '16px',
+                  gap: 12,
                 }}
               >
-                {/* Account info card */}
+                {/* Account info card — neutral surface, no gradient.
+                    Uses the same `cardBg / cardBorder` pair as the
+                    access-page connector cards so the panel reads as
+                    one consistent product chrome. */}
                 <div
                   style={{
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 12,
-                    background:
-                      'linear-gradient(135deg, #0a0a0a 0%, #121212 100%)',
-                    padding: 32,
+                    border: `1px solid ${T.cardBorder}`,
+                    borderRadius: 10,
+                    background: T.cardBg,
+                    padding: 20,
                   }}
                 >
                   <div
@@ -717,19 +792,27 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: 6,
+                        gap: 4,
+                        minWidth: 0,
                       }}
                     >
                       <div
                         style={{
-                          color: '#e5e5e5',
-                          fontSize: 18,
-                          fontWeight: 700,
+                          color: T.text1,
+                          fontSize: 15,
+                          fontWeight: 600,
+                          lineHeight: 1.3,
                         }}
                       >
                         {userName}
                       </div>
-                      <div style={{ color: '#8a8a8a', fontSize: 12 }}>
+                      <div
+                        style={{
+                          color: T.text2,
+                          fontSize: 12,
+                          fontFamily: T.fontMono,
+                        }}
+                      >
                         {email}
                       </div>
                     </div>
@@ -737,59 +820,69 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                       type='button'
                       onClick={signOut}
                       style={{
-                        height: 32,
-                        padding: '0 12px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        height: 26,
+                        padding: '0 10px',
                         borderRadius: 6,
-                        border: '1px solid #2a2a2a',
+                        border: `1px solid ${T.border}`,
                         background: 'transparent',
-                        color: '#e5e5e5',
+                        color: T.text2,
                         fontSize: 12,
-                        fontWeight: 600,
+                        fontWeight: 500,
+                        fontFamily: T.fontSans,
                         cursor: 'pointer',
+                        whiteSpace: 'nowrap',
                         transition:
-                          'background 0.2s ease, border-color 0.2s ease',
+                          'background 150ms ease, border-color 150ms ease, color 150ms ease',
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.background =
-                          'rgba(255,255,255,0.06)';
-                        e.currentTarget.style.borderColor = '#3a3a3a';
+                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+                        e.currentTarget.style.color = T.text1;
                       }}
                       onMouseLeave={e => {
                         e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.borderColor = '#2a2a2a';
+                        e.currentTarget.style.borderColor = T.border;
+                        e.currentTarget.style.color = T.text2;
                       }}
                     >
-                      Logout
+                      Sign out
                     </button>
                   </div>
                 </div>
 
-                {/* Subscription card */}
+                {/* Subscription card — same surface treatment.
+                    Plan label uses the same overline/value pattern as
+                    the project dashboard cards (small caps-ish label,
+                    larger value). */}
                 <div
                   style={{
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 12,
-                    background:
-                      'linear-gradient(135deg, #0a0a0a 0%, #121212 100%)',
-                    padding: 32,
+                    border: `1px solid ${T.cardBorder}`,
+                    borderRadius: 10,
+                    background: T.cardBg,
+                    padding: 20,
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <div
                       style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: '#8a8a8a',
+                        fontSize: 11,
+                        fontWeight: 500,
+                        color: T.text3,
                         marginBottom: 6,
+                        letterSpacing: '0.04em',
+                        textTransform: 'uppercase',
                       }}
                     >
                       Plan
                     </div>
                     <div
                       style={{
-                        fontSize: 18,
-                        fontWeight: 700,
-                        color: '#e5e5e5',
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: T.text1,
                       }}
                     >
                       Free
@@ -797,14 +890,14 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                     <div
                       style={{
                         height: 1,
-                        background: '#2a2a2a',
+                        background: T.cardBorder,
                         margin: '12px 0',
                       }}
                     />
                     <div
                       style={{
                         fontSize: 12,
-                        color: '#8a8a8a',
+                        color: T.text2,
                         lineHeight: 1.6,
                       }}
                     >
@@ -817,21 +910,43 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
 
             {/* Integrations Tab */}
             {activeTab === 'integrations' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ fontSize: 12, color: '#8a8a8a', marginBottom: 4 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: T.text2,
+                    marginBottom: 4,
+                    lineHeight: 1.5,
+                  }}
+                >
                   Connect your accounts to import data from external services.
                 </div>
 
                 {isInitialLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, color: '#666' }}>
-                    Loading...
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 40,
+                    }}
+                  >
+                    <InlineLoading />
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div
+                    style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                  >
                     {platformConfigs.map(platform => {
                       const state = platformStates[platform.id];
                       const isConnected = state.status === 'connected';
-                      
+                      const isError = state.status === 'error';
+                      const dotColor = isConnected
+                        ? T.success
+                        : isError
+                          ? T.danger
+                          : T.text3;
+
                       return (
                         <div
                           key={platform.id}
@@ -839,45 +954,100 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                             display: 'flex',
                             alignItems: 'center',
                             gap: 12,
-                            padding: '12px 16px',
-                            borderRadius: 10,
-                            border: '1px solid #2a2a2a',
-                            background: 'linear-gradient(135deg, #0a0a0a 0%, #121212 100%)',
+                            padding: '10px 14px',
+                            borderRadius: 8,
+                            border: `1px solid ${T.cardBorder}`,
+                            background: T.cardBg,
                             transition: 'border-color 150ms ease',
                           }}
-                          onMouseEnter={e => { e.currentTarget.style.borderColor = '#3a3a3a'; }}
-                          onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2a'; }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.borderColor =
+                              T.cardBorderHover;
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.borderColor = T.cardBorder;
+                          }}
                         >
-                          {/* Icon */}
-                          <div style={{ color: isConnected ? '#22c55e' : '#666', flexShrink: 0 }}>
+                          {/* Provider icon — kept neutral regardless
+                              of connection status so the row's identity
+                              (Gmail / GitHub / …) reads first; status
+                              is communicated by the dot+text pair on
+                              the right of the name. */}
+                          <div
+                            style={{
+                              color: T.text2,
+                              flexShrink: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 20,
+                              height: 20,
+                            }}
+                          >
                             {platform.icon}
                           </div>
-                          
-                          {/* Name and status */}
+
+                          {/* Name + status — status uses the dot+text
+                              pattern from the sidebar footer (`● shortId`)
+                              so the modal feels native to the rest of
+                              the chrome instead of glowing green. */}
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 500, color: '#e5e5e5' }}>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 500,
+                                color: T.text1,
+                                lineHeight: 1.3,
+                              }}
+                            >
                               {platform.name}
                             </div>
-                            <div style={{ 
-                              fontSize: 11, 
-                              color: statusColors[state.status],
-                              marginTop: 2,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}>
-                              {state.isLoading ? (
-                                <span style={{ color: '#666' }}>{state.label}</span>
-                              ) : (
-                                state.label
-                              )}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                marginTop: 3,
+                                fontSize: 11,
+                                color: T.text2,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}
+                            >
+                              <span
+                                aria-hidden
+                                style={{
+                                  flexShrink: 0,
+                                  width: 6,
+                                  height: 6,
+                                  borderRadius: '50%',
+                                  background: dotColor,
+                                  boxShadow: isConnected
+                                    ? `0 0 5px ${dotColor}`
+                                    : 'none',
+                                  opacity: state.isLoading ? 0.5 : 1,
+                                }}
+                              />
+                              <span
+                                style={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  color: state.isLoading
+                                    ? T.text3
+                                    : statusColors[state.status],
+                                }}
+                              >
+                                {state.label}
+                              </span>
                             </div>
                           </div>
 
-                          {/* Toggle */}
                           <IntegrationToggle
                             checked={isConnected}
-                            onChange={(checked) => handlePlatformToggle(platform.id, checked)}
+                            onChange={checked =>
+                              handlePlatformToggle(platform.id, checked)
+                            }
                             disabled={state.isLoading}
                           />
                         </div>
@@ -894,91 +1064,102 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '16px',
+                  gap: 12,
                 }}
               >
                 <div
                   style={{
-                    border: '1px solid #2a2a2a',
-                    borderRadius: 12,
-                    background:
-                      'linear-gradient(135deg, #0a0a0a 0%, #121212 100%)',
-                    padding: 32,
+                    border: `1px solid ${T.cardBorder}`,
+                    borderRadius: 10,
+                    background: T.cardBg,
+                    padding: 20,
                   }}
                 >
-                  {/* Version */}
+                  {/* Identity row — real `/puppyone-logo.svg` (the
+                      same asset rendered in the collapsed sidebar
+                      chip) instead of the placeholder gradient block
+                      with a generic "stack" glyph. Version is pulled
+                      from `package.json` at import time so a future
+                      `npm version` bump propagates here automatically. */}
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 12,
-                      marginBottom: 24,
+                      gap: 14,
+                      marginBottom: 20,
                     }}
                   >
+                    <img
+                      src='/puppyone-logo.svg'
+                      alt='PuppyOne'
+                      width={44}
+                      height={44}
+                      style={{ display: 'block', flexShrink: 0 }}
+                    />
                     <div
                       style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 12,
-                        background:
-                          'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                         display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        flexDirection: 'column',
+                        gap: 2,
+                        minWidth: 0,
                       }}
                     >
-                      <svg
-                        width='24'
-                        height='24'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='white'
-                        strokeWidth='2'
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                      >
-                        <path d='M12 2L2 7l10 5 10-5-10-5z' />
-                        <path d='M2 17l10 5 10-5' />
-                        <path d='M2 12l10 5 10-5' />
-                      </svg>
-                    </div>
-                    <div>
                       <div
                         style={{
-                          fontSize: 16,
-                          fontWeight: 700,
-                          color: '#e5e5e5',
+                          fontSize: 15,
+                          fontWeight: 600,
+                          color: T.text1,
+                          letterSpacing: '-0.01em',
                         }}
                       >
                         PuppyOne
                       </div>
-                      <div style={{ fontSize: 12, color: '#8a8a8a' }}>
-                        Version 1.0.0
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: T.text3,
+                          fontFamily: T.fontMono,
+                          letterSpacing: '0.02em',
+                        }}
+                      >
+                        Version {APP_VERSION}
                       </div>
                     </div>
                   </div>
 
-                  {/* Divider */}
                   <div
                     style={{
                       height: 1,
-                      background: '#2a2a2a',
-                      margin: '0 0 20px 0',
+                      background: T.cardBorder,
+                      margin: '0 0 16px 0',
                     }}
                   />
 
-                  {/* Social Links */}
+                  {/* Social links — every button is a strict 32px tall
+                      ghost row to match the rest of the product's
+                      button rhythm (Sign-out button above, Pause /
+                      Resume in the access detail pane, GhostButton
+                      across the page-shell). Width is content-fit; the
+                      row wraps onto a second line at narrow widths. */}
                   <div
                     style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: '#8a8a8a',
-                      marginBottom: 12,
+                      fontSize: 11,
+                      fontWeight: 500,
+                      color: T.text3,
+                      marginBottom: 10,
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
                     }}
                   >
                     Connect with us
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                    }}
+                  >
                     {socialLinks.map(link => (
                       <a
                         key={link.name}
@@ -986,31 +1167,52 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         target='_blank'
                         rel='noopener noreferrer'
                         style={{
-                          display: 'flex',
+                          display: 'inline-flex',
                           alignItems: 'center',
-                          gap: 8,
-                          padding: '8px 14px',
-                          borderRadius: 8,
-                          border: '1px solid #333',
+                          gap: 6,
+                          height: 26,
+                          padding: '0 10px',
+                          borderRadius: 6,
+                          border: `1px solid ${T.border}`,
                           background: 'transparent',
-                          color: '#cfcfcf',
-                          fontSize: 14,
+                          color: T.text2,
+                          fontSize: 12,
+                          fontWeight: 500,
+                          fontFamily: T.fontSans,
                           textDecoration: 'none',
-                          transition: 'all 150ms ease',
+                          transition:
+                            'background 150ms ease, border-color 150ms ease, color 150ms ease',
+                          boxSizing: 'border-box',
                         }}
                         onMouseEnter={e => {
-                          e.currentTarget.style.background =
-                            'rgba(255,255,255,0.06)';
-                          e.currentTarget.style.borderColor = '#444';
-                          e.currentTarget.style.color = '#fff';
+                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+                          e.currentTarget.style.color = T.text1;
                         }}
                         onMouseLeave={e => {
                           e.currentTarget.style.background = 'transparent';
-                          e.currentTarget.style.borderColor = '#333';
-                          e.currentTarget.style.color = '#cfcfcf';
+                          e.currentTarget.style.borderColor = T.border;
+                          e.currentTarget.style.color = T.text2;
                         }}
                       >
-                        {link.icon}
+                        {/* Wrapper sized to the SVGs in `socialLinks`
+                            (16×16). Doesn't clip; just provides a
+                            stable inline-flex slot for the glyph. */}
+                        <span
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 14,
+                            height: 14,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {React.cloneElement(link.icon as React.ReactElement, {
+                            width: 14,
+                            height: 14,
+                          })}
+                        </span>
                         <span>{link.name}</span>
                       </a>
                     ))}
@@ -1045,32 +1247,50 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           <div
             style={{
               position: 'relative',
-              background: '#1a1a1a',
-              border: '1px solid #2a2a2a',
+              background: '#161618',
+              border: `1px solid ${T.border}`,
               borderRadius: 12,
-              padding: 24,
+              padding: 20,
               width: 'min(400px, 90vw)',
-              boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04)',
+              fontFamily: T.fontSans,
             }}
           >
-            <div style={{ fontSize: 15, fontWeight: 600, color: '#e5e5e5', marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: T.text1, marginBottom: 6 }}>
               Disconnect {getPlatformName(disconnectConfirmation.platformId)}?
             </div>
-            <div style={{ fontSize: 13, color: '#8a8a8a', marginBottom: 20 }}>
+            <div style={{ fontSize: 12, color: T.text2, marginBottom: 18, lineHeight: 1.55 }}>
               You will need to re-authorize to import data from this service again.
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 onClick={closeDisconnectModal}
                 style={{
-                  padding: '8px 16px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 26,
+                  padding: '0 10px',
                   borderRadius: 6,
-                  border: '1px solid #2a2a2a',
+                  border: `1px solid ${T.border}`,
                   background: 'transparent',
-                  color: '#e5e5e5',
-                  fontSize: 13,
+                  color: T.text2,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  fontFamily: T.fontSans,
                   cursor: 'pointer',
+                  transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+                  e.currentTarget.style.color = T.text1;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.borderColor = T.border;
+                  e.currentTarget.style.color = T.text2;
                 }}
               >
                 Cancel
@@ -1079,14 +1299,30 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                 type="button"
                 onClick={handleDisconnectConfirm}
                 style={{
-                  padding: '8px 16px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 26,
+                  padding: '0 12px',
                   borderRadius: 6,
-                  border: 'none',
-                  background: '#ef4444',
-                  color: '#fff',
-                  fontSize: 13,
+                  border: '1px solid rgba(239,68,68,0.32)',
+                  background: 'rgba(239,68,68,0.12)',
+                  color: '#fca5a5',
+                  fontSize: 12,
                   fontWeight: 500,
+                  fontFamily: T.fontSans,
                   cursor: 'pointer',
+                  transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = 'rgba(239,68,68,0.2)';
+                  e.currentTarget.style.borderColor = 'rgba(239,68,68,0.45)';
+                  e.currentTarget.style.color = '#fff';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = 'rgba(239,68,68,0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(239,68,68,0.32)';
+                  e.currentTarget.style.color = '#fca5a5';
                 }}
               >
                 Disconnect

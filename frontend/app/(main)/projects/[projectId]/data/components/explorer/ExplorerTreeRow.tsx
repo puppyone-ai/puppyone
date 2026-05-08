@@ -2,14 +2,19 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
-import { getNodeTypeConfig, getSyncSource, getSyncSourceIcon, isSyncedType } from '@/lib/nodeTypeConfig';
+import { getNodeTypeConfig, getSyncSource, getSyncSourceIcon, isSyncedType, isFolderType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
+import {
+  resolveDataTransferSnapshot,
+  snapshotDataTransfer,
+} from '@/lib/dropFiles';
 import type { ContentType } from '../views/GridView';
 import type { FileImportTarget } from '../../hooks/useFileImport';
 import { ensureExpanded, toggleExpanded, useIsExpanded } from './explorerState';
 import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
+import { Dots } from '@/components/loading';
 
 const FILE_DROP_TARGET_BG = 'rgba(255, 255, 255, 0.11)';
 const FILE_DROP_SCOPE_BG = 'rgba(255, 255, 255, 0.04)';
@@ -88,7 +93,7 @@ function FileIcon({
 
   if (BadgeIcon) return <BadgeIcon size={size} />;
 
-  switch (config.renderAs) {
+  switch (config.iconCategory) {
     case 'markdown':
       return <MarkdownIcon />;
     case 'json':
@@ -111,7 +116,7 @@ function getSyncDirectionArrow(
 function getTypeExtension(type: string): string | null {
   const config = getNodeTypeConfig(type);
 
-  switch (config.renderAs) {
+  switch (config.iconCategory) {
     case 'json':
       return '.json';
     case 'markdown':
@@ -182,7 +187,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   activeFileDropTargetPath,
   onFileDragTarget,
 }: ExplorerTreeRowProps) {
-  const isFolder = getNodeTypeConfig(item.type).renderAs === 'folder';
+  const isFolder = isFolderType(item.type);
   const isSynced = item.is_synced;
   const expanded = useIsExpanded(item.id) && isFolder;
   const rowRef = useRef<HTMLDivElement>(null);
@@ -248,7 +253,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
         ? 'rgba(52, 211, 153, 0.14)'
         : 'rgba(59, 130, 246, 0.15)'
       : isRowActive || isAnyCreateMenuOpen
-        ? '#2a2a2a'
+        // Translucent overlay rather than opaque #2a2a2a — the
+        // earlier opaque colour was almost identical to the tree
+        // line (#27272a vs #2a2a2a, a 3-unit-per-channel delta) AND
+        // it covered the parent's continuation line that runs
+        // through the row, so a selected leaf looked visually
+        // disconnected from its sibling chain. An rgba overlay keeps
+        // the lines showing through naturally and stays consistent
+        // with every other "special" state (hover, drop target,
+        // search highlight) which all already use rgba.
+        ? 'rgba(255,255,255,0.085)'
         : 'transparent';
   const staticColor = isDropTarget || isFileDropTarget
     ? '#f4f4f5'
@@ -290,10 +304,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
     event.preventDefault();
     event.stopPropagation();
 
-    const files = Array.from(event.dataTransfer.files);
-    if (files.length > 0) {
-      onFilesDrop?.(files, fileDropTarget);
-    }
+    // Snapshot synchronously — see lib/dropFiles.ts. Reading
+    // ``dataTransfer.files`` directly would treat a dropped folder
+    // as a single 0-byte "file" and silently lose every real file
+    // inside.
+    const snapshot = snapshotDataTransfer(event.nativeEvent);
+    void resolveDataTransferSnapshot(snapshot).then((files) => {
+      if (files.length > 0) {
+        onFilesDrop?.(files, fileDropTarget);
+      }
+    });
     onFileDragTarget?.(null);
     return true;
   }, [fileDropTarget, onFileDragTarget, onFilesDrop]);
@@ -543,8 +563,8 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             />
           )}
           {loading && children.length === 0 ? (
-            <div style={{ paddingLeft: childTextPadding, paddingTop: 4, paddingBottom: 4, color: '#666', fontSize: 12 }}>
-              Loading...
+            <div style={{ paddingLeft: childTextPadding, paddingTop: 4, paddingBottom: 4 }}>
+              <Dots size="xs" />
             </div>
           ) : childItems.length > 0 ? (
             childItems.map((child, idx) => (

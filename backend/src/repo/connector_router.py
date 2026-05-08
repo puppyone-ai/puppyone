@@ -128,6 +128,28 @@ def update_connector(
 
 
 @router.post(
+    "/{connector_id}/activate-agent",
+    response_model=ApiResponse[ConnectorOut],
+    summary="Activate the built-in AI Agent connector",
+)
+def activate_agent_connector(
+    connector_id: str,
+    project: Project = Depends(get_verified_project),
+    service: ConnectorService = Depends(get_connector_service),
+):
+    existing = service.get(connector_id)
+    if existing is None or existing.project_id != str(project.id):
+        raise HTTPException(status_code=404, detail="Connector not found")
+    try:
+        updated = service.activate_agent_connector(connector_id)
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Connector not found after activation")
+    return ApiResponse.success(data=_to_out(updated), message="Agent connector activated")
+
+
+@router.post(
     "/{connector_id}/run",
     response_model=ApiResponse[dict],
     summary="Trigger a connector run now",

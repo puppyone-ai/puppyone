@@ -9,6 +9,7 @@ import {
   refreshToolsAndMcp,
 } from '@/lib/hooks/useData';
 import { deleteMcpV2 } from '@/lib/mcpApi';
+import { PageLoading } from '@/components/loading';
 
 export default function ServerDetailPage({
   params,
@@ -58,16 +59,8 @@ export default function ServerDetailPage({
 
   if (loading) {
     return (
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#525252',
-        }}
-      >
-        Loading...
+      <div style={{ flex: 1 }}>
+        <PageLoading variant="fill" />
       </div>
     );
   }

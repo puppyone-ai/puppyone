@@ -35,13 +35,6 @@ interface SyncProviderDef {
 
 type EndpointTypeId = 'mcp' | 'sandbox';
 
-interface AgentOptionDef {
-  id: AgentTypeId;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-}
-
 interface EndpointOptionDef {
   id: EndpointTypeId;
   label: string;
@@ -53,9 +46,19 @@ interface EndpointOptionDef {
    Provider & Agent Definitions
    ================================================================ */
 
-const AGENT_OPTIONS: AgentOptionDef[] = [
-  { id: 'chat', label: 'Chat Agent', description: 'Interactive AI assistant with data access', icon: <span style={{ fontSize: 14 }}>💬</span> },
-];
+// NOTE (2026-05-08): The picker no longer offers "Chat Agent" or
+// "Machine Folder (filesystem)" as creatable connectors — both are
+// promoted to per-scope built-ins by the unified-access migration
+// (see `20260508000000_filesystem_builtin_connector.sql`). Each
+// scope auto-provisions one CLI / Sync / Agent connector via the DB
+// trigger, and the user reaches the agent / sync config from the
+// scope's detail panel (the Connect block's MethodCards) instead of
+// minting a new top-level connector here.
+//
+// The deeper config branches (`if selectedAgentType` and the
+// `selectedSyncProvider === 'filesystem'` branch) stay live to serve
+// `presetAgentType` and `pendingSyncProvider` deep-link paths set
+// upstream — the picker UI is what's gone, not the config code.
 
 const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
   { id: 'mcp', label: 'MCP Server', description: 'Model Context Protocol endpoint', icon: <McpMini /> },
@@ -217,11 +220,13 @@ function CreateView({
   const [deployError, setDeployError] = useState<string | null>(null);
   const [syncConfigValues, setSyncConfigValues] = useState<Record<string, string>>({});
 
+  // Picker section toggles. Keys correspond to the three remaining
+  // sections (inbound SaaS sources / terminal / endpoint exposure) —
+  // the deprecated `sync` (Machine Folder) and `agent` (Chat Agent)
+  // sections were removed when those connectors became built-ins.
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     inbound: true,
-    sync: true,
     tools: true,
-    agent: true,
     build: true,
   });
 
@@ -263,7 +268,7 @@ function CreateView({
 
   // CRITICAL: handleSelect*/handleBack must NOT clear draftResources.
   // The previous version called `setDraftResources([])` on every
-  // provider/agent/endpoint pick, which silently wiped any target
+  // provider/endpoint pick, which silently wiped any target
   // pre-filled by an external caller (sidebar Connect button, per-row
   // plug button, etc.).  Symptom: user clicked the plug on a folder
   // row, panel opened with that folder set as target, user clicked a
@@ -274,14 +279,6 @@ function CreateView({
   // Only handleBack-then-explicit-cancel-and-reopen would justify
   // clearing target, and that flow already runs through
   // setDraftResources upstream from page.tsx.
-  const handleSelectAgentType = (type: AgentTypeId) => {
-    setSelectedAgentType(type);
-    setSelectedEndpointType(null);
-    setSelectedSyncProvider(null);
-    setDraftType('chat');
-    setDisplayName('');
-    setDeployError(null);
-  };
 
   const handleSelectEndpointType = (type: EndpointTypeId) => {
     setSelectedEndpointType(type);
@@ -325,12 +322,12 @@ function CreateView({
       const name = displayName.trim() || 'Chat Agent';
       const agentId = await deployAgent(name, '💬');
       if (agentId) {
-        openPanel({ type: 'agent_chat', agentId });
+        openPanel({ type: 'agent_chat', agentId, nodeId: draftResources[0]?.path ?? scopeBoundary });
       }
     } finally {
       setDeploying(false);
     }
-  }, [selectedAgentType, displayName, deploying, deployAgent, openPanel]);
+  }, [selectedAgentType, displayName, deploying, deployAgent, openPanel, draftResources, scopeBoundary]);
 
   // Deploy endpoint (MCP / Sandbox)
   const handleEndpointDeploy = useCallback(async () => {
@@ -725,27 +722,44 @@ function CreateView({
   const sinkComingSoon = (a: { id: string }, b: { id: string }) =>
     Number(COMING_SOON_PROVIDERS.has(a.id)) - Number(COMING_SOON_PROVIDERS.has(b.id));
   const inboundProviders = syncProviders.filter(p => p.direction === 'inbound').sort(sinkComingSoon);
-  const bidirectionalProviders = syncProviders.filter(p => p.direction === 'bidirectional').sort(sinkComingSoon);
 
-  // Default: show provider picker
+  // Default: show provider picker.
+  //
+  // Three remaining sections after the 2026-05-08 cleanup:
+  //   1. Sync data from a source — third-party SaaS pulls (Gmail,
+  //      Notion, Google Docs, etc.). Filesystem isn't here even
+  //      though it's `bidirectional` because it's a built-in.
+  //   2. Connect via terminal — currently SSH-only "coming soon"
+  //      placeholder; the local CLI is auto-provisioned per scope.
+  //   3. Expose data — MCP / Sandbox endpoint placeholders ("coming
+  //      soon").
+  //
+  // What we removed (and why):
+  //   - "Sync data with a folder / Machine Folder" — Machine Folder
+  //     was the filesystem connector; filesystem is now built-in
+  //     (one auto-provisioned per scope by the DB trigger).
+  //   - "Share data with an AI Agent / Chat Agent" — agent is now
+  //     built-in too. Users reach the chat runtime from the scope's
+  //     detail page (the Connect block's "AI Agent" MethodCard),
+  //     not by minting a top-level Chat Agent connector here.
   return (
     <PanelShell title="New access" onClose={onClose} onBack={onBack}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          
+
           {/* 1. Sync data from a source */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <DirectionalSectionLabel 
-              type="inbound" 
-              title="Sync data from a source" 
+            <DirectionalSectionLabel
+              type="inbound"
+              title="Sync data from a source"
               hint="Gmail, Notion, GitHub..."
               isExpanded={expandedSections.inbound}
               onClick={() => toggleSection('inbound')}
             />
             {expandedSections.inbound && (
-              <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 4, 
-                paddingLeft: 24, 
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 4,
+                paddingLeft: 24,
                 paddingRight: 4,
                 paddingBottom: 12,
                 paddingTop: 4
@@ -767,44 +781,19 @@ function CreateView({
             )}
           </div>
 
-          {/* 2. Sync data with a folder */}
+          {/* 2. Connect via terminal */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <DirectionalSectionLabel 
-              type="sync" 
-              title="Sync data with a folder" 
-              hint="OpenClaw, Hermes Agent"
-              isExpanded={expandedSections.sync}
-              onClick={() => toggleSection('sync')}
-            />
-            {expandedSections.sync && (
-              <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 4, 
-                paddingLeft: 24, 
-                paddingRight: 4,
-                paddingBottom: 12,
-                paddingTop: 4
-              }}>
-                {bidirectionalProviders.map(p => (
-                  <ProviderRow key={p.id} icon={p.icon} label={p.label} description={p.description}
-                    onClick={() => handleSelectSyncProvider(p.id)} />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 3. Connect via terminal */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <DirectionalSectionLabel 
-              type="tools" 
-              title="Connect via terminal" 
+            <DirectionalSectionLabel
+              type="tools"
+              title="Connect via terminal"
               hint="Cursor, Claude Code, Codex"
               isExpanded={expandedSections.tools}
               onClick={() => toggleSection('tools')}
             />
             {expandedSections.tools && (
-              <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 4, 
-                paddingLeft: 24, 
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 4,
+                paddingLeft: 24,
                 paddingRight: 4,
                 paddingBottom: 12,
                 paddingTop: 4
@@ -820,49 +809,19 @@ function CreateView({
             )}
           </div>
 
-          {/* 4. Share data with an AI Agent */}
+          {/* 3. Expose data */}
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <DirectionalSectionLabel 
-              type="agent" 
-              title="Share data with an AI Agent" 
-              hint="built-in assistants"
-              isExpanded={expandedSections.agent}
-              onClick={() => toggleSection('agent')}
-            />
-            {expandedSections.agent && (
-              <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 4, 
-                paddingLeft: 24, 
-                paddingRight: 4,
-                paddingBottom: 12,
-                paddingTop: 4
-              }}>
-                {AGENT_OPTIONS.map(opt => (
-                  <ProviderRow
-                    key={opt.id}
-                    icon={opt.icon}
-                    label={opt.label}
-                    description={opt.description}
-                    onClick={() => handleSelectAgentType(opt.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* 5. Expose data */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <DirectionalSectionLabel 
-              type="build" 
-              title="Expose data" 
+            <DirectionalSectionLabel
+              type="build"
+              title="Expose data"
               hint="MCP, Sandbox"
               isExpanded={expandedSections.build}
               onClick={() => toggleSection('build')}
             />
             {expandedSections.build && (
-              <div style={{ 
-                display: 'flex', flexDirection: 'column', gap: 4, 
-                paddingLeft: 24, 
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 4,
+                paddingLeft: 24,
                 paddingRight: 4,
                 paddingBottom: 12,
                 paddingTop: 4
@@ -902,24 +861,24 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DirectionalSectionLabel({ type, title, hint, isExpanded, onClick }: { 
-  type: 'inbound' | 'sync' | 'tools' | 'agent' | 'build', 
-  title: string, 
+function DirectionalSectionLabel({ type, title, hint, isExpanded, onClick }: {
+  // Picker post-cleanup: only `inbound` (SaaS pulls), `tools` (terminal),
+  // and `build` (endpoint exposure) remain. `sync` (Machine Folder) and
+  // `agent` (Chat Agent) sections were removed when those connectors
+  // were promoted to per-scope built-ins by the 2026-05-08 migration.
+  type: 'inbound' | 'tools' | 'build',
+  title: string,
   hint?: string,
   isExpanded: boolean,
-  onClick: () => void 
+  onClick: () => void
 }) {
   const [hovered, setHovered] = useState(false);
   let iconContent;
 
   if (type === 'inbound') {
     iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
-  } else if (type === 'sync') {
-    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>;
   } else if (type === 'tools') {
     iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>;
-  } else if (type === 'agent') {
-    iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a4 4 0 0 1 4 4v2a4 4 0 0 1-8 0V6a4 4 0 0 1 4-4z"></path><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="6" r="1"></circle></svg>;
   } else {
     iconContent = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>;
   }

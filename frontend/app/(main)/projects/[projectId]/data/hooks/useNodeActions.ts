@@ -2,9 +2,13 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
-import { downloadNode, moveFile, removeFile, type NodeInfo } from '@/lib/contentTreeApi';
-import { refreshAllContentNodes } from '@/lib/hooks/useData';
+import { downloadNode, moveFile, removeFile, bulkRemoveFiles, type NodeInfo } from '@/lib/contentTreeApi';
+import { refreshFolderNodes } from '@/lib/hooks/useData';
 import { ensureExpanded } from '../components/explorer';
+
+function parentOf(path: string): string {
+  return path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+}
 
 export function useNodeActions(projectId: string, currentFolderPath: string | null) {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -36,10 +40,11 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     setRenameError(null);
     try {
       const oldPath = renameTarget.id;
-      const parentDir = oldPath.includes('/') ? oldPath.substring(0, oldPath.lastIndexOf('/')) : '';
+      const parentDir = parentOf(oldPath);
       const newPath = parentDir ? `${parentDir}/${newName}` : newName;
       await moveFile(projectId, oldPath, newPath);
-      refreshAllContentNodes(projectId);
+      // Same parent folder, only one listing to refresh.
+      refreshFolderNodes(projectId, parentDir);
       setRenameDialogOpen(false);
       setRenameTarget(null);
     } catch (err: unknown) {
@@ -61,7 +66,7 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
         deletingPathsRef.current.add(path);
         showToast(`Deleting "${name}"...`);
         await removeFile(projectId, path);
-        refreshAllContentNodes(projectId);
+        refreshFolderNodes(projectId, parentOf(path));
         showToast(`Deleted "${name}"`);
       } catch (err) {
         console.error('Failed to delete:', err);
@@ -69,6 +74,40 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
       } finally {
         deletingPathsRef.current.delete(path);
       }
+    }
+  }, [projectId, showToast]);
+
+  /**
+   * Multi-select bulk delete.
+   *
+   * Frontend bundles the selected paths into a single ``/rm`` POST
+   * (``paths`` array), which the backend turns into one MUT commit
+   * per scope via ``bulk_trash``. Selecting 50 files = 1 round-trip,
+   * 1 commit, 1 audit entry — not 50.
+   */
+  const handleBulkDelete = useCallback(async (paths: string[]): Promise<void> => {
+    const clean = paths.filter(Boolean);
+    if (!clean.length) return;
+    const inFlight = clean.filter((p) => deletingPathsRef.current.has(p));
+    if (inFlight.length) {
+      showToast(`${inFlight.length} item(s) still deleting...`, 'error');
+      return;
+    }
+    try {
+      clean.forEach((p) => deletingPathsRef.current.add(p));
+      showToast(`Deleting ${clean.length} item(s)...`);
+      await bulkRemoveFiles(projectId, clean);
+      // Each unique parent listing changed; rest of the tree is untouched.
+      const parents = Array.from(new Set(clean.map(parentOf)));
+      refreshFolderNodes(projectId, ...parents);
+      showToast(`Deleted ${clean.length} item(s)`);
+    } catch (err) {
+      console.error('Failed to bulk delete:', err);
+      const msg = (err as { message?: string })?.message || 'Failed to delete items';
+      showToast(msg, 'error');
+      throw err;
+    } finally {
+      clean.forEach((p) => deletingPathsRef.current.delete(p));
     }
   }, [projectId, showToast]);
 
@@ -126,9 +165,10 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
       const name = nodePath.includes('/') ? nodePath.substring(nodePath.lastIndexOf('/') + 1) : nodePath;
       const newPath = targetFolderPath ? `${targetFolderPath}/${name}` : name;
       await moveFile(projectId, nodePath, newPath);
-      refreshAllContentNodes(projectId);
+      // Source parent + target parent are the only two listings that changed.
+      refreshFolderNodes(projectId, sourceParentPath, targetFolderPath);
     } catch (err: unknown) {
-      refreshAllContentNodes(projectId);
+      refreshFolderNodes(projectId, sourceParentPath, targetFolderPath);
       const msg = (err as { message?: string })?.message || 'Failed to move item';
       showToast(msg, 'error');
     }
@@ -156,5 +196,6 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     toast, showToast,
     toolPanelTarget, setToolPanelTarget,
     handleDelete, handleDownload, handleCreateTool,
+    handleBulkDelete,
   };
 }

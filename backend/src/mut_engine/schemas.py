@@ -51,8 +51,15 @@ class MoveRequest(BaseModel):
 
 
 class RemoveRequest(BaseModel):
-    """Delete request"""
-    path: str
+    """Delete request.
+
+    Either ``path`` (single) or ``paths`` (multi-select) may be set.
+    If both are set, ``paths`` wins. Multi-path soft-delete batches
+    every move into a single commit per scope, so removing 50 files
+    costs one MUT commit, not 50.
+    """
+    path: str = ""
+    paths: list[str] | None = None
     permanent: bool = False  # True = permanent delete, False = move to .trash
 
 
