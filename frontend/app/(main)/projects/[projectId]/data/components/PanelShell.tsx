@@ -24,77 +24,82 @@ interface PanelShellProps {
   onClose: () => void;
   onBack?: () => void;
   headerRight?: React.ReactNode;
+  /** Render only the body. Used when the page-level header owns the
+   *  panel chrome (Access side sheet in the data page). */
+  hideHeader?: boolean;
   children: React.ReactNode;
 }
 
-export function PanelShell({ title, subtitle, icon, onClose, onBack, headerRight, children }: PanelShellProps) {
+export function PanelShell({ title, subtitle, icon, onClose, onBack, headerRight, hideHeader = false, children }: PanelShellProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{
-        height: 46, minHeight: 46, display: 'flex', alignItems: 'center', gap: 8,
-        padding: '0 12px',
-        // Match the data page header's bottom divider exactly so a
-        // top-aligned right sheet reads as the header's right segment,
-        // not as a second panel header sitting underneath it.
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        flexShrink: 0,
-      }}>
-        {/* Back / close use the shared ActivityIconButton chrome so the
-            panel header reads as one consistent affordance family with
-            the floating activity widgets and other panels (per
-            2026-05-08 UX feedback: don't ship 3 different icon-button
-            visuals across the chrome). */}
-        {onBack && (
-          <ActivityIconButton kind="back" title="Back" onClick={onBack} />
-        )}
-        {icon && <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>}
-        <div
-          style={{
-            flex: 1,
-            minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            gap: 1,
-          }}
-        >
+      {!hideHeader && (
+        <div style={{
+          height: 46, minHeight: 46, display: 'flex', alignItems: 'center', gap: 8,
+          padding: '0 12px',
+          // Match the data page header's bottom divider exactly so a
+          // top-aligned right sheet reads as the header's right segment,
+          // not as a second panel header sitting underneath it.
+          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          flexShrink: 0,
+        }}>
+          {/* Back / close use the shared ActivityIconButton chrome so the
+              panel header reads as one consistent affordance family with
+              the floating activity widgets and other panels (per
+              2026-05-08 UX feedback: don't ship 3 different icon-button
+              visuals across the chrome). */}
+          {onBack && (
+            <ActivityIconButton kind="back" title="Back" onClick={onBack} />
+          )}
+          {icon && <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>}
           <div
             style={{
-              fontSize: 13,
-              fontWeight: 600,
-              color: '#e4e4e7',
-              lineHeight: '18px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              flex: 1,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              gap: 1,
             }}
-            // `title` attr only when caller passes a plain string —
-            // ReactNode titles compose their own tooltip semantics if
-            // they need any.
-            title={typeof title === 'string' ? title : undefined}
           >
-            {title}
-          </div>
-          {subtitle && (
             <div
               style={{
-                fontSize: 11,
-                fontWeight: 400,
-                color: '#71717a',
-                lineHeight: '14px',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#e4e4e7',
+                lineHeight: '18px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
               }}
-              title={subtitle}
+              // `title` attr only when caller passes a plain string —
+              // ReactNode titles compose their own tooltip semantics if
+              // they need any.
+              title={typeof title === 'string' ? title : undefined}
             >
-              {subtitle}
+              {title}
             </div>
-          )}
+            {subtitle && (
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 400,
+                  color: '#71717a',
+                  lineHeight: '14px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={subtitle}
+              >
+                {subtitle}
+              </div>
+            )}
+          </div>
+          {headerRight}
+          <ActivityIconButton kind="close" title="Close panel" onClick={onClose} />
         </div>
-        {headerRight}
-        <ActivityIconButton kind="close" title="Close panel" onClick={onClose} />
-      </div>
+      )}
       <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
         {children}
       </div>

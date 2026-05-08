@@ -18,6 +18,8 @@ interface ResizablePanelProps {
   zIndex?: number;
   borderLeftColor?: string;
   background?: string;
+  width?: number;
+  onWidthChange?: (width: number) => void;
 }
 
 const DEFAULT_WIDTH = 450;
@@ -34,8 +36,15 @@ export function ResizablePanel({
   zIndex = 20,
   borderLeftColor = '#2a2a2a',
   background = '#111111',
+  width: controlledWidth,
+  onWidthChange,
 }: ResizablePanelProps) {
-  const [width, setWidth] = useState(defaultWidth);
+  const [internalWidth, setInternalWidth] = useState(defaultWidth);
+  const width = controlledWidth ?? internalWidth;
+  const setWidth = (nextWidth: number) => {
+    if (controlledWidth === undefined) setInternalWidth(nextWidth);
+    onWidthChange?.(nextWidth);
+  };
   const [isResizing, setIsResizing] = useState(false);
   const [isResizeHovered, setIsResizeHovered] = useState(false);
   const [dragStart, setDragStart] = useState<{

@@ -92,6 +92,8 @@ interface DataPageRightPanelProps {
     resource: { path: string; nodeName: string; nodeType: 'folder'; readonly: boolean },
   ) => void;
   onDataUpdate: () => Promise<void>;
+  panelWidth?: number;
+  onPanelWidthChange?: (width: number) => void;
 }
 
 export function DataPageRightPanel({
@@ -122,6 +124,8 @@ export function DataPageRightPanel({
   onOpenPanel,
   onOpenSyncSetting,
   onDataUpdate,
+  panelWidth,
+  onPanelWidthChange,
 }: DataPageRightPanelProps) {
   // For access_list, the panel always tracks the *current file-tree
   // folder* (one-way: file tree → panel) so the user's reading context
@@ -255,15 +259,19 @@ export function DataPageRightPanel({
   // "button in header, panel hanging underneath" split. DocumentEditor
   // keeps the legacy body-only behaviour because it is an auxiliary
   // editing surface, not page chrome.
-  const isTopAlignedSheet = !editorTarget && panelState.type !== 'none';
+  const isAccessPanel = !editorTarget && panelState.type === 'access_list';
+  const isPageSheet = !editorTarget && panelState.type !== 'none';
+  const isTopAlignedSheet = isPageSheet && !isAccessPanel;
 
   return (
     <ResizablePanel
       isVisible={!!editorTarget || panelState.type !== 'none'}
       topOffset={isTopAlignedSheet ? 46 : 0}
       zIndex={isTopAlignedSheet ? 80 : 20}
-      borderLeftColor={isTopAlignedSheet ? 'rgba(255,255,255,0.08)' : '#2a2a2a'}
-      background={isTopAlignedSheet ? '#0e0e0e' : '#111111'}
+      borderLeftColor={isPageSheet ? 'rgba(255,255,255,0.08)' : '#2a2a2a'}
+      background={isPageSheet ? '#0e0e0e' : '#111111'}
+      width={panelWidth}
+      onWidthChange={onPanelWidthChange}
     >
       {editorTarget && (
         <DocumentEditor
@@ -360,6 +368,7 @@ export function DataPageRightPanel({
             onOpenPanel({ type: 'access_list', view: 'detail', selectedScopeId: scope.id })
           }
           onMutated={onScopeMutated}
+          hideHeader={isAccessPanel}
         />
       )}
 
@@ -401,6 +410,7 @@ export function DataPageRightPanel({
               : undefined
           }
           onClose={onClose}
+          hideHeader={isAccessPanel}
           onAddRequested={() => {
             // "+ Add integration" opens the create panel pre-filled with
             // the current scope path. Will route through the new

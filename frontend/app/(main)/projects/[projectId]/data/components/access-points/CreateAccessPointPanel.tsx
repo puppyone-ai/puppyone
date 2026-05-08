@@ -65,6 +65,7 @@ interface Props {
    *  panel into Pp.2a Detail of the new scope. */
   readonly onCreated: (scope: RepoScope) => void;
   readonly onMutated: () => Promise<unknown>;
+  readonly hideHeader?: boolean;
 }
 
 export function CreateAccessPointPanel({
@@ -75,6 +76,7 @@ export function CreateAccessPointPanel({
   onBack,
   onCreated,
   onMutated,
+  hideHeader = false,
 }: Props) {
   const [path, setPath] = useState<string>(() => normalizePath(prefillPath));
   const [creating, setCreating] = useState(false);
@@ -169,6 +171,7 @@ export function CreateAccessPointPanel({
       subtitle="Promote a folder to an access point"
       onClose={onClose}
       onBack={onBack}
+      hideHeader={hideHeader}
     >
       <div
         style={{

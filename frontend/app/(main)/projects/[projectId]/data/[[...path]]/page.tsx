@@ -73,6 +73,7 @@ import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import { AccessPointsHeaderButton } from '../components/access-points';
+import { buildScopeMetaLine } from '../components/access-points/labels';
 import { SelectionActionBar } from '../components/SelectionActionBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { DataPageRightPanel, type EditorTarget } from '../components/right-panel';
@@ -80,10 +81,13 @@ import { usePanelStore } from '../usePanelStore';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
 import { PageLoading } from '@/components/loading';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
 
 interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
 }
+
+const DEFAULT_RIGHT_PANEL_WIDTH = 450;
 
 function decodePath(segments: string[]): string[] {
   return segments.map(s => {
@@ -286,9 +290,44 @@ export default function DataPage({ params }: DataPageProps) {
 
   // ───── Panel State (Zustand store, fully decoupled from URL) ─────
   const { panel: panelState, openPanel, closePanel, togglePanel } = usePanelStore();
+  const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
 
   const activeSyncNodeId = panelState.type === 'sync_config' ? panelState.nodeId ?? null : null;
   const activeSyncId = activeSyncNodeId !== null ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
+
+  // Access side sheet header state. When Access is open, the page
+  // header's right slot becomes the panel header and the panel body
+  // renders below it without its own PanelShell header.
+  const isAccessPanelOpen = panelState.type === 'access_list';
+  const accessPanelScopePath = currentFolderId || '';
+  const accessDrilledScope = isAccessPanelOpen && panelState.selectedScopeId
+    ? scopes.find((s) => s.id === panelState.selectedScopeId) ?? null
+    : null;
+  const accessFolderScope = matchScopeForPath(accessPanelScopePath, scopes);
+  const accessListView: 'overview' | 'detail' | 'create' =
+    isAccessPanelOpen && panelState.view === 'create'
+      ? 'create'
+      : isAccessPanelOpen && panelState.view === 'overview'
+        ? 'overview'
+        : accessDrilledScope || accessFolderScope
+          ? 'detail'
+          : 'overview';
+  const accessHeaderScope =
+    isAccessPanelOpen && accessListView === 'detail'
+      ? accessDrilledScope ?? accessFolderScope
+      : null;
+  const accessHeaderTitle = accessListView === 'create'
+    ? 'Create access point'
+    : accessHeaderScope
+      ? accessHeaderScope.name
+      : 'Access';
+  const accessHeaderSubtitle = accessListView === 'create'
+    ? 'Promote a folder to an access point'
+    : accessHeaderScope
+      ? buildScopeMetaLine(accessHeaderScope)
+      : undefined;
+  const showAccessHeaderBack =
+    isAccessPanelOpen && (accessListView === 'create' || accessListView === 'detail');
 
   // ───── Navigation (path only, panel state is independent) ─────
 
@@ -839,25 +878,104 @@ export default function DataPage({ params }: DataPageProps) {
             borderLeft: '1px solid rgba(255,255,255,0.08)',
             background: '#0e0e0e',
             height: '100%',
+            width: isAccessPanelOpen ? rightPanelWidth : undefined,
+            flexShrink: 0,
           }}>
-            <AccessPointsHeaderButton
-              // Project-level scope count, not per-folder integration
-              // count. The button is a global entry to Pp.1 Overview;
-              // its number should reflect the project's total access
-              // surface ("you have 5 access points") rather than
-              // whatever scope the file-tree cursor happens to match
-              // (per 2026-05-08 UX spec).
-              scopeCount={scopes.length}
-              isOpen={panelState.type === 'access_list'}
-              // Header chip is the canonical entry to Pp.1 Overview:
-              // clicking "Access" always lands on the management home
-              // page, never auto-resolves into Detail. Toggle is
-              // type-only for access_list (see usePanelStore): the
-              // panel auto-syncs to the current folder, so reopening
-              // with a different nodeId would otherwise re-open
-              // instead of closing.
-              onClick={() => togglePanel({ type: 'access_list', view: 'overview' })}
-            />
+            {isAccessPanelOpen ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  minWidth: 0,
+                }}
+              >
+                {showAccessHeaderBack && (
+                  <ActivityIconButton
+                    kind="back"
+                    title="Back"
+                    onClick={() => openPanel({ type: 'access_list', view: 'overview' })}
+                  />
+                )}
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    gap: 1,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 8,
+                      minWidth: 0,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: '#e4e4e7',
+                      lineHeight: '18px',
+                    }}
+                    title={accessHeaderTitle}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {accessHeaderTitle}
+                    </span>
+                    {accessListView === 'overview' && (
+                      <span
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 400,
+                          color: '#71717a',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {scopes.length}
+                      </span>
+                    )}
+                  </div>
+                  {accessHeaderSubtitle && (
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 400,
+                        color: '#71717a',
+                        lineHeight: '14px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={accessHeaderSubtitle}
+                    >
+                      {accessHeaderSubtitle}
+                    </div>
+                  )}
+                </div>
+                <ActivityIconButton kind="close" title="Close panel" onClick={closeRightPanel} />
+              </div>
+            ) : (
+              <AccessPointsHeaderButton
+                // Project-level scope count, not per-folder integration
+                // count. The button is a global entry to Pp.1 Overview;
+                // its number should reflect the project's total access
+                // surface ("you have 5 access points") rather than
+                // whatever scope the file-tree cursor happens to match
+                // (per 2026-05-08 UX spec).
+                scopeCount={scopes.length}
+                isOpen={false}
+                // Header chip is the canonical entry to Pp.1 Overview:
+                // clicking "Access" always lands on the management home
+                // page, never auto-resolves into Detail. Toggle is
+                // type-only for access_list (see usePanelStore): the
+                // panel auto-syncs to the current folder, so reopening
+                // with a different nodeId would otherwise re-open
+                // instead of closing.
+                onClick={() => togglePanel({ type: 'access_list', view: 'overview' })}
+              />
+            )}
           </div>
         </div>
 
@@ -1113,6 +1231,8 @@ export default function DataPage({ params }: DataPageProps) {
           onOpenPanel={openPanel}
           onOpenSyncSetting={openSyncSetting}
           onDataUpdate={async () => { await refreshTable(); }}
+          panelWidth={rightPanelWidth}
+          onPanelWidthChange={setRightPanelWidth}
         />
         </div>
       </div>

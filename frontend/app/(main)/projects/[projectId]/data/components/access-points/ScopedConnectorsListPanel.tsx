@@ -113,6 +113,7 @@ interface Props {
    *  the create form lands pre-filled and the user is one click from
    *  promoting a folder. */
   readonly onCreateRequested: () => void;
+  readonly hideHeader?: boolean;
 }
 
 export function ScopedConnectorsListPanel({
@@ -132,6 +133,7 @@ export function ScopedConnectorsListPanel({
   onSelectScope,
   onBack,
   onCreateRequested,
+  hideHeader = false,
 }: Props) {
   const cliConnector = useMemo(
     () => connectors.find((c) => c.provider === 'cli'),
@@ -337,6 +339,7 @@ export function ScopedConnectorsListPanel({
       onClose={handleClose}
       onBack={onBack ? handleBack : undefined}
       headerRight={headerRight}
+      hideHeader={hideHeader}
     >
       <div
         style={{
@@ -357,6 +360,17 @@ export function ScopedConnectorsListPanel({
             gap: 18,
           }}
         >
+          {hideHeader && headerRight && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                minHeight: 24,
+              }}
+            >
+              {headerRight}
+            </div>
+          )}
           {scope ? (
             <>
               {settingsOpen && (
