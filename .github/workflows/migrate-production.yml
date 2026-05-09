@@ -33,8 +33,18 @@ jobs:
 
       - name: Smoke test — verify critical triggers
         env:
-          DATABASE_URL: postgresql://postgres:${{ secrets.PRODUCTION_DB_PASSWORD }}@db.${{ secrets.PRODUCTION_PROJECT_ID }}.supabase.co:5432/postgres
-        run: psql "$DATABASE_URL" -f supabase/tests/smoke_test_triggers.sql
+          PGPASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+          PGHOST: db.${{ secrets.PRODUCTION_PROJECT_ID }}.supabase.co
+        run: |
+          set -euo pipefail
+          command -v dig >/dev/null || sudo apt-get update -qq && sudo apt-get install -y -qq dnsutils
+          IPV4=$(dig +short A "$PGHOST" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n1 || true)
+          if [ -z "$IPV4" ]; then
+            echo "::error::Could not resolve IPv4 A record for ${PGHOST}"
+            exit 1
+          fi
+          psql "hostaddr=${IPV4} host=${PGHOST} port=5432 dbname=postgres user=postgres sslmode=require" \
+            -f supabase/tests/smoke_test_triggers.sql
 
       - name: Detect schema drift
         run: |
@@ -49,6 +59,7 @@ jobs:
 
       - name: Notify on failure (email)
         if: failure()
+        continue-on-error: true
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com

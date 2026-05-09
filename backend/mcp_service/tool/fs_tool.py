@@ -7,7 +7,7 @@ Tools:
   cat   — read file content
   write — write/create file
   mkdir — create directory
-  rm    — soft delete (move to .trash)
+  rm    — remove file or directory
 """
 
 from __future__ import annotations
@@ -156,7 +156,7 @@ class FsToolImplementation:
         if scope and self._is_readonly(accesses):
             return {"error": f"Read-only access: {path}"}
 
-        result = await self.rpc.trash(project_id, normalized, acting_user_id=acting_user_id)
+        result = await self.rpc.delete(project_id, normalized, acting_user_id=acting_user_id)
         result["path"] = path
         return result
 

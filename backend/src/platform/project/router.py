@@ -148,13 +148,18 @@ def get_project(
 ):
     entries = ops.list_dir(str(project.id), "")
     sb = get_supabase_client()
-    conn_count = len(
-        sb.table("access_points")
+    # Post-redesign: integrations live in `connectors`; exclude built-in cli/agent
+    # so the count matches `list_projects` badges.
+    conn_rows = (
+        sb.table("connectors")
         .select("id")
         .eq("project_id", str(project.id))
+        .not_.in_("provider", ["cli", "agent"])
         .execute()
         .data
+        or []
     )
+    conn_count = len(conn_rows)
     return ApiResponse.success(
         data=_convert_to_project_out(project, entries, access_point_count=conn_count),
         message="Project retrieved successfully",

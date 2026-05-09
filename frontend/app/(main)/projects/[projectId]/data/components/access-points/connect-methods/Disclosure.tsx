@@ -34,20 +34,20 @@ export function Disclosure({
           alignItems: 'center',
           gap: 6,
           alignSelf: 'flex-start',
-          padding: '4px 8px',
+          padding: '6px 8px',
           marginLeft: -8,
           background: 'transparent',
           border: 'none',
           color: hovered || open ? COLOR_FG : COLOR_FG_DIM,
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: 500,
           cursor: 'pointer',
           transition: 'color 0.12s',
         }}
       >
         <svg
-          width={11}
-          height={11}
+          width={13}
+          height={13}
           viewBox="0 0 12 12"
           fill="none"
           stroke="currentColor"

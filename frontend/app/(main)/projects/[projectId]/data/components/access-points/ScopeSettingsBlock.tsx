@@ -11,9 +11,6 @@ import {
 import { Dots } from '@/components/loading';
 import { PathBreadcrumb } from './PathBreadcrumb';
 import {
-  COLOR_ACCENT_BG_FAINT,
-  COLOR_ACCENT_BORDER,
-  COLOR_ACCENT_TEXT_BRIGHT,
   COLOR_BG_CARD,
   COLOR_BG_SUNKEN,
   COLOR_BORDER,
@@ -25,8 +22,6 @@ import {
   COLOR_FG,
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
-  COLOR_SUCCESS,
-  COLOR_SUCCESS_BORDER,
   FONT_MONO,
 } from './tokens';
 
@@ -254,8 +249,6 @@ export function ScopeSettingsBlock({
         gap: 10,
       }}
     >
-      <SectionEyebrow>Settings</SectionEyebrow>
-
       {/* ① Permissions — top, prominent. The single most consequential
           knob in this panel: flips R/W for Terminal CLI, Local Sync,
           AI Agent, and every integration bound to this scope, all at
@@ -295,7 +288,7 @@ export function ScopeSettingsBlock({
           <CodeChip>.env</CodeChip>.
         </FieldHelp>
         {excludes.length === 0 ? (
-          <div style={{ fontSize: 11, color: COLOR_FG_DIM, padding: '2px 0' }}>
+          <div style={{ fontSize: 13, color: COLOR_FG_DIM, padding: '2px 0' }}>
             None — all files in this scope are included.
           </div>
         ) : (
@@ -318,9 +311,9 @@ export function ScopeSettingsBlock({
                     border: `1px solid ${COLOR_BORDER}`,
                     borderRadius: 6,
                     color: COLOR_FG,
-                    fontSize: 12,
+                    fontSize: 13,
                     fontFamily: FONT_MONO,
-                    padding: '5px 8px',
+                    padding: '6px 8px',
                     outline: 'none',
                   }}
                 />
@@ -341,8 +334,8 @@ export function ScopeSettingsBlock({
           onClick={() => setExcludes([...excludes, ''])}
           style={{
             alignSelf: 'flex-start',
-            padding: '4px 10px',
-            fontSize: 11,
+            padding: '6px 10px',
+            fontSize: 13,
             fontWeight: 500,
             color: COLOR_FG_MUTED,
             background: 'transparent',
@@ -382,7 +375,7 @@ export function ScopeSettingsBlock({
               flex: 1,
               minWidth: 0,
               fontFamily: FONT_MONO,
-              fontSize: 12,
+              fontSize: 13,
               color: scope.access_key ? COLOR_FG : COLOR_FG_DIM,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -414,8 +407,8 @@ export function ScopeSettingsBlock({
             onClick={handleRotate}
             disabled={rotating || !scope.access_key}
             style={{
-              padding: '5px 12px',
-              fontSize: 11,
+              padding: '6px 12px',
+              fontSize: 13,
               fontWeight: 500,
               color: confirmRotate ? COLOR_DANGER_FAINT : COLOR_FG,
               background: confirmRotate
@@ -441,7 +434,7 @@ export function ScopeSettingsBlock({
                 : 'Regenerate'}
           </button>
           {confirmRotate && !rotating && (
-            <span style={{ fontSize: 11, color: COLOR_DANGER_FAINT }}>
+            <span style={{ fontSize: 13, color: COLOR_DANGER_FAINT }}>
               Will invalidate all current CLI / Sync clients.
             </span>
           )}
@@ -480,23 +473,23 @@ export function ScopeSettingsBlock({
         <FieldLabel>Identity</FieldLabel>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <ReadOnlyRow label="Path">
-            <div style={{ fontSize: 12, color: COLOR_FG }}>
+            <div style={{ fontSize: 13, color: COLOR_FG }}>
               <PathBreadcrumb path={scope.path} isRoot={scope.is_root} muted={false} />
             </div>
           </ReadOnlyRow>
           <ReadOnlyRow label="Type">
-            <span style={{ fontSize: 12, color: COLOR_FG_MUTED }}>
+            <span style={{ fontSize: 13, color: COLOR_FG_MUTED }}>
               {scope.is_root ? 'Root scope' : 'Subtree scope'}
             </span>
           </ReadOnlyRow>
           <ReadOnlyRow label="Created">
-            <span style={{ fontSize: 12, color: COLOR_FG_MUTED }}>
+            <span style={{ fontSize: 13, color: COLOR_FG_MUTED }}>
               {formatTimestamp(scope.created_at)}
             </span>
           </ReadOnlyRow>
           {scope.updated_at !== scope.created_at && (
             <ReadOnlyRow label="Updated">
-              <span style={{ fontSize: 12, color: COLOR_FG_MUTED }}>
+              <span style={{ fontSize: 13, color: COLOR_FG_MUTED }}>
                 {formatTimestamp(scope.updated_at)}
               </span>
             </ReadOnlyRow>
@@ -520,8 +513,8 @@ export function ScopeSettingsBlock({
           title={scope.is_root ? 'Root scope cannot be deleted' : undefined}
           style={{
             alignSelf: 'flex-start',
-            padding: '5px 12px',
-            fontSize: 12,
+            padding: '6px 12px',
+            fontSize: 13,
             fontWeight: 500,
             color: scope.is_root
               ? COLOR_FG_DIM
@@ -560,7 +553,7 @@ export function ScopeSettingsBlock({
       {error && (
         <div
           style={{
-            fontSize: 12,
+            fontSize: 13,
             color: COLOR_DANGER_FAINT,
             padding: '8px 12px',
             borderRadius: 6,
@@ -590,7 +583,7 @@ export function ScopeSettingsBlock({
             border: `1px solid ${COLOR_BORDER_HOVER}`,
           }}
         >
-          <span style={{ fontSize: 12, color: COLOR_FG_MUTED, flex: 1 }}>
+          <span style={{ fontSize: 13, color: COLOR_FG_MUTED, flex: 1 }}>
             Unsaved changes
           </span>
           <button
@@ -598,8 +591,8 @@ export function ScopeSettingsBlock({
             onClick={handleDiscard}
             disabled={saving}
             style={{
-              padding: '5px 12px',
-              fontSize: 12,
+              padding: '6px 12px',
+              fontSize: 13,
               color: COLOR_FG,
               background: 'rgba(255,255,255,0.04)',
               border: `1px solid ${COLOR_BORDER_HOVER}`,
@@ -614,12 +607,12 @@ export function ScopeSettingsBlock({
             onClick={handleSave}
             disabled={saving}
             style={{
-              padding: '5px 14px',
-              fontSize: 12,
+              padding: '6px 14px',
+              fontSize: 13,
               fontWeight: 600,
               color: '#0a0a0a',
-              background: saving ? COLOR_BORDER_HOVER : COLOR_SUCCESS,
-              border: `1px solid ${saving ? COLOR_BORDER_HOVER : COLOR_SUCCESS_BORDER}`,
+              background: saving ? COLOR_BORDER_HOVER : COLOR_FG,
+              border: `1px solid ${saving ? COLOR_BORDER_HOVER : COLOR_FG}`,
               borderRadius: 6,
               cursor: saving ? 'default' : 'pointer',
               display: 'inline-flex',
@@ -638,23 +631,6 @@ export function ScopeSettingsBlock({
 
 // ── Sub-components ────────────────────────────────────────────────────────
 
-function SectionEyebrow({ children }: { readonly children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 10,
-        fontWeight: 600,
-        color: COLOR_FG_MUTED,
-        textTransform: 'uppercase',
-        letterSpacing: 0.6,
-        padding: '0 2px',
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
 function Card({
   children,
   danger = false,
@@ -667,11 +643,11 @@ function Card({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 10,
         padding: 12,
         borderRadius: 8,
         border: `1px solid ${danger ? COLOR_DANGER_BORDER : COLOR_BORDER}`,
-        background: danger ? 'rgba(248,113,113,0.04)' : COLOR_BG_CARD,
+        background: COLOR_BG_CARD,
       }}
     >
       {children}
@@ -689,10 +665,9 @@ function FieldLabel({
   return (
     <div
       style={{
-        fontSize: 11,
+        fontSize: 13,
         fontWeight: 600,
         color: danger ? COLOR_DANGER_FAINT : COLOR_FG,
-        letterSpacing: 0.2,
       }}
     >
       {children}
@@ -704,8 +679,8 @@ function FieldHelp({ children }: { readonly children: React.ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 11,
-        lineHeight: 1.5,
+        fontSize: 13,
+        lineHeight: 1.45,
         color: COLOR_FG_DIM,
       }}
     >
@@ -719,7 +694,7 @@ function CodeChip({ children }: { readonly children: React.ReactNode }) {
     <code
       style={{
         fontFamily: FONT_MONO,
-        fontSize: 10.5,
+        fontSize: 13,
         padding: '1px 5px',
         borderRadius: 3,
         background: COLOR_BG_SUNKEN,
@@ -745,7 +720,7 @@ function ReadOnlyRow({
         style={{
           width: 64,
           flexShrink: 0,
-          fontSize: 11,
+          fontSize: 13,
           color: COLOR_FG_DIM,
         }}
       >
@@ -781,8 +756,8 @@ function PermissionOption({
         gap: 8,
         padding: '10px 12px',
         borderRadius: 8,
-        border: `1px solid ${active ? COLOR_ACCENT_BORDER : COLOR_BORDER}`,
-        background: active ? COLOR_ACCENT_BG_FAINT : COLOR_BG_SUNKEN,
+        border: `1px solid ${active ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
+        background: active ? 'rgba(255,255,255,0.055)' : COLOR_BG_SUNKEN,
         textAlign: 'left',
         cursor: 'pointer',
         transition: 'border-color 150ms ease, background 150ms ease',
@@ -793,7 +768,7 @@ function PermissionOption({
         style={{
           flexShrink: 0,
           marginTop: 1,
-          color: active ? COLOR_ACCENT_TEXT_BRIGHT : COLOR_FG_MUTED,
+          color: active ? COLOR_FG : COLOR_FG_MUTED,
         }}
       >
         {icon}
@@ -801,14 +776,14 @@ function PermissionOption({
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
         <span
           style={{
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 600,
-            color: active ? COLOR_ACCENT_TEXT_BRIGHT : COLOR_FG,
+            color: COLOR_FG,
           }}
         >
           {label}
         </span>
-        <span style={{ fontSize: 11, color: COLOR_FG_DIM, lineHeight: 1.4 }}>
+        <span style={{ fontSize: 13, color: COLOR_FG_DIM, lineHeight: 1.4 }}>
           {hint}
         </span>
       </span>

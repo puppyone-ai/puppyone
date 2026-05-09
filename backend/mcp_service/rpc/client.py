@@ -474,15 +474,15 @@ class InternalApiClient:
         except httpx.RequestError as e:
             raise RuntimeError(f"移动文件失败: {str(e)}") from e
 
-    async def trash(
+    async def delete(
         self,
         project_id: str,
         path: str,
         acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Soft-delete a file or folder (move to .trash)."""
+        """Delete a file or folder from the MUT tree."""
         try:
-            url = f"{self.base_url}/internal/nodes/trash"
+            url = f"{self.base_url}/internal/nodes/rm"
             payload = {"project_id": project_id, "path": path}
             response = await self._client.post(
                 url, json=payload, headers=_acting_user_header(acting_user_id),

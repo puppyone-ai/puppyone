@@ -677,11 +677,11 @@ class TestP2_5_ReadFileNavigates:
             reader.read_file("test-proj", "ghost.txt")
 
 
-class TestP2_7_TrashReturns404:
-    """P2-7: Trashing a nonexistent file should raise FileNotFoundError."""
+class TestDeleteMissingPath:
+    """Deleting a nonexistent path is an idempotent no-op at MutOps level."""
 
     @pytest.mark.asyncio
-    async def test_trash_missing_path_raises(self, server_repo):
+    async def test_delete_missing_path_is_noop(self, server_repo):
         from src.mut_engine.services.ops import MutOps
         from src.mut_engine.server.repo_manager import MutRepoManager
 
@@ -689,8 +689,9 @@ class TestP2_7_TrashReturns404:
         mock_repos.get_server_repo.return_value = server_repo
 
         ops = MutOps(mock_repos)
-        with pytest.raises(FileNotFoundError):
-            await ops.trash("test-proj", "nonexistent.txt", who="test")
+        result = await ops.delete("test-proj", ["nonexistent.txt"], who="test")
+
+        assert result.commit_id == ""
 
 
 class TestP2_10_HookExceptionLogging:

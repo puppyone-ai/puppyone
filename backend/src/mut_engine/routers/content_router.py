@@ -4,8 +4,8 @@ Provides POSIX-like file system operations (ls, cat, write, mkdir, mv, rm)
 on the MUT content tree. Used by the frontend Web UI and internal services.
 
 Split into sub-modules for maintainability:
-  content_read.py     — ls, cat, stat, tree, trash
-  content_write.py    — write, mkdir, mv, rm, restore, bulk-write
+  content_read.py     — ls, cat, stat, tree
+  content_write.py    — write, mkdir, mv, rm, bulk-write
   content_history.py  — versions, version-content, diff, rollback
 """
 

@@ -453,7 +453,7 @@ content_router — Content API（面向前端和内部服务）：
   POST /api/v1/content/{project_id}/write    → MutOps.write_file()
   POST /api/v1/content/{project_id}/mkdir    → MutOps.mkdir()
   POST /api/v1/content/{project_id}/mv       → MutOps.move()
-  POST /api/v1/content/{project_id}/rm       → MutOps.trash()
+  POST /api/v1/content/{project_id}/rm       → MutOps.delete()
   GET  /api/v1/content/{project_id}/ls       → MutOps.list_dir()
   GET  /api/v1/content/{project_id}/cat      → MutOps.read_file()
 

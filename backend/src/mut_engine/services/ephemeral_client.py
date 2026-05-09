@@ -95,7 +95,7 @@ class MutEphemeralClient:
         Heavy: walks every reachable blob and downloads its bytes from
         S3, then re-uploads them as base64 across the in-process clone
         boundary. Use only when callers actually need the file content
-        (move / trash / hard-delete need to relocate or read existing
+        (move / hard-delete need to relocate or read existing
         files). Pure-write ops (mkdir / write_file / bulk_write / delete
         by path) should use ``clone_lite`` instead — that builds a
         ``{path: blob_hash}`` map by walking the tree without ever

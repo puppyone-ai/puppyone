@@ -315,10 +315,7 @@ def _build_fs_tools_list(accesses: list[dict[str, Any]]) -> list[mcp_types.Tool]
             ),
             mcp_types.Tool(
                 name="rm",
-                description=(
-                    "Remove a file or folder (moves to trash, recoverable). "
-                    "Does NOT permanently delete."
-                ),
+                description="Remove a file or folder from the current tree.",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -507,7 +504,6 @@ def build_starlette_app(*, json_response: bool = True) -> Starlette:
                         acting_user_id=acting_user_id,
                     )
                 elif name == "rm":
-                    # Use agent_id as user_id (for trash folder ownership)
                     agent_id = config.get("agent", {}).get("id", "system")
                     result = await fs_tool.rm(
                         project_id, fs_accesses,

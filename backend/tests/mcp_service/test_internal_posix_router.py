@@ -35,7 +35,6 @@ class FakeMutOps:
         self._read_file_map: dict[str, bytes] = {}
         self.write_file = AsyncMock()
         self.mkdir = AsyncMock()
-        self.trash = AsyncMock()
         self.move = AsyncMock()
         self.delete = AsyncMock()
 
@@ -115,9 +114,9 @@ def test_resolve_node_path_virtual_root(client, ops):
     assert resp.json() == {"virtual_root": True, "path": "/"}
 
 
-def test_list_node_children_filters_trash(client, ops):
+def test_list_node_children_returns_dot_entries(client, ops):
     ops._list_dir_map["docs"] = [
-        FakeMutEntry(name=".trash", path="docs/.trash", type="folder", children_count=0),
+        FakeMutEntry(name=".internal", path="docs/.internal", type="folder", children_count=0),
         FakeMutEntry(name="readme.md", path="docs/readme.md", type="markdown", size_bytes=42),
     ]
 
@@ -130,7 +129,7 @@ def test_list_node_children_filters_trash(client, ops):
     body = resp.json()
     assert body["path"] == "docs"
     names = [c["name"] for c in body["children"]]
-    assert ".trash" not in names
+    assert ".internal" in names
     assert "readme.md" in names
 
 
@@ -151,12 +150,12 @@ def test_read_node_content_json_returns_content(client, ops):
     assert body["content"] == {"users": []}
 
 
-def test_read_node_content_folder_returns_children_without_trash(client, ops):
+def test_read_node_content_folder_returns_dot_children(client, ops):
     ops._stat_map["docs"] = FakeMutEntry(
         name="docs", path="docs", type="folder",
     )
     ops._list_dir_map["docs"] = [
-        FakeMutEntry(name=".trash", path="docs/.trash", type="folder"),
+        FakeMutEntry(name=".internal", path="docs/.internal", type="folder"),
         FakeMutEntry(name="guide.md", path="docs/guide.md", type="markdown", size_bytes=100),
     ]
 
@@ -169,7 +168,7 @@ def test_read_node_content_folder_returns_children_without_trash(client, ops):
     body = resp.json()
     assert body["type"] == "folder"
     names = [c["name"] for c in body["children"]]
-    assert ".trash" not in names
+    assert ".internal" in names
     assert "guide.md" in names
 
 
@@ -238,19 +237,25 @@ def test_create_node_rejects_unsupported_type(client, ops):
     assert "Unsupported node type" in resp.json()["detail"]
 
 
-def test_trash_node_success(client, ops, monkeypatch):
+def test_remove_node_success(client, ops, monkeypatch):
     import src.internal.router as _r
     monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
+    ops._stat_map["readme.md"] = FakeMutEntry(
+        name="readme.md", path="readme.md", type="markdown",
+    )
+    ops.delete.return_value = SimpleNamespace(commit_id="c1")
 
     resp = client.post(
-        "/internal/nodes/trash",
+        "/internal/nodes/rm",
         json={"project_id": "proj-1", "path": "readme.md"},
         headers={"X-Internal-Secret": "ignored"},
     )
 
     assert resp.status_code == 200
     assert resp.json()["removed"] is True
-    ops.trash.assert_awaited_once()
+    ops.delete.assert_awaited_once_with(
+        "proj-1", ["readme.md"], who="mcp_agent", message="delete readme.md",
+    )
 
 
 def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkeypatch):

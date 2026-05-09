@@ -199,29 +199,61 @@ def _compute_node_counts(ops: MutOps, project_id: str) -> DashboardNodeCounts:
 USAGE_BUCKET_DAYS = 14
 
 
+def _connector_preview_key(cfg: dict, provider: str) -> str | None:
+    """Map redesign `connectors.config` to a single credential string for dashboard preview."""
+    if not cfg:
+        return None
+    if provider == "agent":
+        return cfg.get("mcp_api_key")
+    if provider == "mcp":
+        return cfg.get("api_key")
+    if provider == "sandbox":
+        return cfg.get("access_key")
+    if provider == "filesystem":
+        return None
+    return None
+
+
 def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
+    """Load dashboard rows from `connectors` (access_points table was dropped post-2026-05)."""
     conn_rows = (
-        sb.table("access_points")
-        .select("id, provider, config, path, direction, status, access_key, trigger, last_synced_at, error_message, created_at")
+        sb.table("connectors")
+        .select(
+            "id, provider, name, direction, status, trigger, config, "
+            "error_message, created_at, last_run_at"
+        )
         .eq("project_id", project_id)
         .order("created_at")
         .execute()
-    ).data
+    ).data or []
 
     connections: list[DashboardConnection] = []
     for r in conn_rows:
         cfg = r.get("config") or {}
-        name = cfg.get("name") or cfg.get("sync_url") or r["provider"]
+        scope = cfg.get("scope") or {}
+        path_val = scope.get("path")
+        path = path_val if path_val not in (None, "") else None
+        name = r.get("name") or cfg.get("name") or cfg.get("sync_url") or r["provider"]
+        preview_key = _connector_preview_key(cfg, r["provider"])
+        last_run = r.get("last_run_at")
+        if last_run is None:
+            last_synced = None
+        elif isinstance(last_run, str):
+            last_synced = last_run
+        elif hasattr(last_run, "isoformat"):
+            last_synced = last_run.isoformat()
+        else:
+            last_synced = str(last_run)
         connections.append(DashboardConnection(
             id=r["id"],
             provider=r["provider"],
             name=name,
-            path=r.get("path"),
+            path=path,
             direction=r.get("direction"),
             status=r.get("status", "active"),
-            access_key=_mask_key(r.get("access_key"), r.get("provider")),
+            access_key=_mask_key(preview_key, r.get("provider")),
             trigger=r.get("trigger"),
-            last_synced_at=r.get("last_synced_at"),
+            last_synced_at=last_synced,
             error_message=r.get("error_message"),
             created_at=r.get("created_at"),
         ))
@@ -239,11 +271,11 @@ def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
 def _fetch_usage_buckets(
     sb, ap_ids: list[str], days: int = USAGE_BUCKET_DAYS,
 ) -> dict[str, list[int]]:
-    """Return per-AP daily invocation counts for the last ``days`` days.
+    """Return per-connector daily invocation counts for the last ``days`` days.
 
-    Source: ``sync_runs.access_point_id`` + ``started_at``.  Buckets are aligned
+    Source: ``connector_runs.connector_id`` + ``started_at``.  Buckets are aligned
     oldest → newest (index 0 = ``today - (days-1)``, last index = today) in UTC.
-    APs with no runs in the window get a zero-filled list.
+    Connectors with no runs in the window get a zero-filled list.
     """
     buckets: dict[str, list[int]] = {ap_id: [0] * days for ap_id in ap_ids}
     if not ap_ids:
@@ -256,18 +288,20 @@ def _fetch_usage_buckets(
 
     try:
         rows = (
-            sb.table("sync_runs")
-            .select("access_point_id, started_at")
-            .in_("access_point_id", ap_ids)
+            sb.table("connector_runs")
+            .select("connector_id, started_at")
+            .in_("connector_id", ap_ids)
             .gte("started_at", cutoff.isoformat())
             .execute()
         ).data or []
     except Exception:
-        logger.exception("[Dashboard] sync_runs aggregation failed; returning zero buckets")
+        logger.exception(
+            "[Dashboard] connector_runs aggregation failed; returning zero buckets"
+        )
         return buckets
 
     for r in rows:
-        ap_id = r.get("access_point_id")
+        ap_id = r.get("connector_id")
         started = r.get("started_at")
         if not ap_id or not started or ap_id not in buckets:
             continue
