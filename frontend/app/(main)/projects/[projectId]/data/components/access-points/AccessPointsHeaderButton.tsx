@@ -29,34 +29,31 @@ const TYPOGRAPHY = {
 //   - Provider stack glyph dropped: it was a per-scope concern and
 //     conflicted with the new global semantic.
 //
-// 2026-05-08 second pass — "stop floating":
-//   The cyan tint at rest made the chip read as an always-on CTA in
-//   the corner of the page, jarring against the otherwise quiet dark
-//   chrome. New rest state has no fill and a muted label; only the
-//   chain glyph keeps its cyan as a brand anchor. Hover steps up to
-//   a neutral white wash, and active (panel open) lights the full
-//   cyan tint so the open-state still reads as state-bearing.
-//   Combined with the vertical hairline added to the header slot in
-//   ``data/[[...path]]/page.tsx``, the button now sits inside a
-//   defined "right zone" instead of floating.
+// 2026-05-09 pass — keep Access discoverable:
+//   Access scopes are the core product action on the Data page, so the
+//   header entry needs a visible resting state. Keep it understated:
+//   border + icon carry the signal, not a glowing CTA treatment.
 const STATES = {
   resting: {
-    bg: 'transparent',
-    text: '#a3a3a3',
-    countText: '#737373',
+    bg: 'rgba(255,255,255,0.035)',
+    border: 'rgba(103,232,249,0.18)',
+    text: '#d4d4d8',
+    countText: '#a1a1aa',
     iconStroke: '#67e8f9',
   },
   hover: {
-    bg: 'rgba(255,255,255,0.05)',
-    text: '#e4e4e7',
-    countText: '#a3a3a3',
+    bg: 'rgba(255,255,255,0.06)',
+    border: 'rgba(103,232,249,0.28)',
+    text: '#f4f4f5',
+    countText: '#d4d4d8',
     iconStroke: '#a5f3fc',
   },
   active: {
-    bg: 'rgba(34,211,238,0.10)',
-    text: '#67e8f9',
-    countText: 'rgba(103,232,249,0.7)',
-    iconStroke: '#67e8f9',
+    bg: 'rgba(34,211,238,0.08)',
+    border: 'rgba(103,232,249,0.32)',
+    text: '#f4f4f5',
+    countText: '#d4d4d8',
+    iconStroke: '#a5f3fc',
   },
 } as const;
 
@@ -95,11 +92,11 @@ export function AccessPointsHeaderButton({
         height: 30,
         padding: '0 12px 0 10px',
         borderRadius: 8,
-        border: 'none',
+        border: `1px solid ${state.border}`,
         background: state.bg,
         color: state.text,
         cursor: 'pointer',
-        transition: 'background 0.15s ease, color 0.15s ease',
+        transition: 'background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
         whiteSpace: 'nowrap',
       }}
     >

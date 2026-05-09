@@ -212,6 +212,8 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false, clientKind = "c
         ? (usesAccessKey ? "Invalid or expired access key." : "Invalid or expired token. Run `puppyone auth login`.")
         : res.status === 404
         ? "Check the resource ID or path."
+        : res.status === 409
+        ? "The remote scope changed before this write landed. Pull the latest state or use `mut pull`, resolve, `mut commit`, and `mut push`."
         : undefined;
 
       throw new ApiError(res.status, "API_ERROR", detail, hint);
@@ -271,5 +273,6 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false, clientKind = "c
     raw: rawRequest,
     upload,
     getAuthHeaders,
+    getChannelHeaders: () => ({ ...channelHeaders }),
   };
 }

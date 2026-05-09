@@ -133,6 +133,22 @@ class CachedStorageBackend(StorageBackend):
                 self._cache[h] = data
         return data
 
+    def get_range(self, h: str, start: int = 0, limit: int | None = None) -> tuple[bytes, int]:
+        """Return a byte range without forcing a full download when possible."""
+        with _cache_lock:
+            cached = self._cache.get(h)
+        if cached is not None:
+            end = len(cached) if limit is None else min(len(cached), start + limit)
+            return cached[start:end], len(cached)
+
+        get_range = getattr(self._inner, "get_range", None)
+        if callable(get_range):
+            return get_range(h, start=start, limit=limit)
+
+        data = self.get(h)
+        end = len(data) if limit is None else min(len(data), start + limit)
+        return data[start:end], len(data)
+
     def put(self, h: str, data: bytes) -> None:
         # Content-addressed: if the hash is already in the cache,
         # the inner backend has the same bytes (we put them there
@@ -192,6 +208,22 @@ class S3StorageBackend(StorageBackend):
                 raise ObjectNotFoundError(f"object not found in S3: {h}") from e
             raise
 
+    def get_range(self, h: str, start: int = 0, limit: int | None = None) -> tuple[bytes, int]:
+        try:
+            return _run_async(
+                self._s3.download_file_range(
+                    self._key_for(h),
+                    start=start,
+                    limit=limit,
+                )
+            )
+        except ObjectNotFoundError:
+            raise
+        except Exception as e:
+            if _is_not_found_error(e):
+                raise ObjectNotFoundError(f"object not found in S3: {h}") from e
+            raise
+
     def put(self, h: str, data: bytes) -> None:
         try:
             _run_async(self._do_put(self._key_for(h), data))
@@ -240,6 +272,19 @@ class S3StorageBackend(StorageBackend):
         key = self._key_for(h)
         try:
             return await self._s3.download_file(key)
+        except ObjectNotFoundError:
+            raise
+        except Exception as e:
+            if _is_not_found_error(e):
+                raise ObjectNotFoundError(f"object not found in S3: {h}") from e
+            raise
+
+    async def async_get_range(
+        self, h: str, start: int = 0, limit: int | None = None
+    ) -> tuple[bytes, int]:
+        key = self._key_for(h)
+        try:
+            return await self._s3.download_file_range(key, start=start, limit=limit)
         except ObjectNotFoundError:
             raise
         except Exception as e:

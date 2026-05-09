@@ -325,6 +325,47 @@ class S3Service:
             self._handle_client_error(e, "download_file")
             raise
 
+    async def download_file_range(
+        self, key: str, start: int = 0, limit: int | None = None
+    ) -> tuple[bytes, int]:
+        """
+        Download a byte range from a file using S3's native Range support.
+
+        Returns:
+            tuple: (content, total_object_size)
+        """
+        if start < 0:
+            start = 0
+
+        try:
+            metadata = await self.get_file_metadata(key)
+            total = metadata.size
+            if start >= total or limit == 0:
+                return b"", total
+
+            kwargs = {
+                "Bucket": self.bucket_name,
+                "Key": key,
+            }
+            if start > 0 or limit is not None:
+                end = total - 1 if limit is None else min(total - 1, start + limit - 1)
+                kwargs["Range"] = f"bytes={start}-{end}"
+
+            response = await self._run_sync(self.client.get_object, **kwargs)
+            content = await self._run_sync(response["Body"].read)
+
+            logger.info(
+                "File range downloaded successfully: %s (%s/%s bytes)",
+                key,
+                len(content),
+                total,
+            )
+            return content, total
+
+        except ClientError as e:
+            self._handle_client_error(e, "download_file")
+            raise
+
     async def download_file_stream(
         self, key: str, chunk_size: int = 8192
     ) -> AsyncIterator[bytes]:

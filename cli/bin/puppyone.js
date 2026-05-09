@@ -11,8 +11,8 @@ import { registerAccess } from "../src/commands/access.js";
 import { registerGateway } from "../src/commands/gateway.js";
 import { registerChat } from "../src/commands/chat.js";
 import { registerConfig } from "../src/commands/config-cmd.js";
-import { registerData } from "../src/commands/data.js";
-import { registerAp, registerFs } from "../src/commands/ap.js";
+import { registerAp } from "../src/commands/ap/index.js";
+import { registerFs } from "../src/commands/fs/index.js";
 import { registerGlobalCommands } from "../src/commands/global.js";
 
 program
@@ -37,8 +37,7 @@ registerGateway(program);
 registerChat(program);
 registerConfig(program);
 
-// ─── Data Plane Commands ─────────────────────────────────
-registerData(program);
+// ─── Filesystem Commands ─────────────────────────────────
 registerAp(program);
 registerFs(program);
 

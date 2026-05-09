@@ -19,12 +19,14 @@ from mut.core.object_store import ObjectStore
 
 from src.mut_engine.services.tree_splice import (
     splice_batch,
+    splice_copy,
     splice_mkdir,
     splice_move,
     splice_multi_put_refs,
     splice_put_blob,
     splice_put_blob_ref,
     splice_remove,
+    splice_touch,
 )
 
 
@@ -212,7 +214,7 @@ class TestRemove:
 
 
 class TestMove:
-    """move / rename / trash / restore semantics."""
+    """move / rename semantics."""
 
     def test_move_file_within_same_dir(self, store, empty_root):
         r1, _ = splice_put_blob(store, empty_root, "a.md", b"hello")
@@ -249,14 +251,14 @@ class TestMove:
         assert deleted == {"old/a.md", "old/b.md", "old/sub/c.md"}
         assert added == {"new/a.md", "new/b.md", "new/sub/c.md"}
 
-    def test_move_to_trash(self, store, empty_root):
+    def test_move_to_nested_directory(self, store, empty_root):
         r1, _ = splice_put_blob(store, empty_root, "report.md", b"data")
 
-        r2, changes = splice_move(store, r1, "report.md", ".trash/report_123")
+        r2, changes = splice_move(store, r1, "report.md", "archive/report_123")
 
-        assert _files(store, r2) == {".trash/report_123": b"data"}
+        assert _files(store, r2) == {"archive/report_123": b"data"}
         assert ("delete", "report.md") in changes
-        assert ("add", ".trash/report_123") in changes
+        assert ("add", "archive/report_123") in changes
 
     def test_move_overwrites_destination(self, store, empty_root):
         r1, _ = splice_put_blob(store, empty_root, "a.md", b"alpha")
@@ -282,6 +284,91 @@ class TestMove:
 
         assert r2 == r1
         assert changes == []
+
+
+# ══════════════════════════════════════════════════
+# splice_copy
+# ══════════════════════════════════════════════════
+
+
+class TestCopy:
+    """copy semantics: duplicate references without blob rewrites."""
+
+    def test_copy_file(self, store, empty_root):
+        r1, _ = splice_put_blob(store, empty_root, "a.md", b"hello")
+        before = store.count()[0]
+
+        r2, changes = splice_copy(store, r1, "a.md", "b.md")
+        after = store.count()[0]
+
+        assert _files(store, r2) == {"a.md": b"hello", "b.md": b"hello"}
+        assert changes == [("add", "b.md")]
+        assert after - before <= 1
+
+    def test_copy_folder_reuses_subtree(self, store, empty_root):
+        r1, _ = splice_put_blob(store, empty_root, "docs/a.md", b"A")
+        r2, _ = splice_put_blob(store, r1, "docs/sub/b.md", b"B")
+        before = store.count()[0]
+
+        r3, changes = splice_copy(store, r2, "docs", "docs-copy")
+        after = store.count()[0]
+
+        assert _files(store, r3) == {
+            "docs/a.md": b"A",
+            "docs/sub/b.md": b"B",
+            "docs-copy/a.md": b"A",
+            "docs-copy/sub/b.md": b"B",
+        }
+        assert sorted(changes) == sorted([
+            ("add", "docs-copy/a.md"),
+            ("add", "docs-copy/sub/b.md"),
+        ])
+        assert after - before <= 1
+
+    def test_copy_overwrites_destination(self, store, empty_root):
+        r1, _ = splice_put_blob(store, empty_root, "a.md", b"alpha")
+        r2, _ = splice_put_blob(store, r1, "b.md", b"beta")
+
+        r3, changes = splice_copy(store, r2, "a.md", "b.md")
+
+        assert _files(store, r3) == {"a.md": b"alpha", "b.md": b"alpha"}
+        assert ("delete", "b.md") in changes
+        assert ("add", "b.md") in changes
+
+    def test_copy_missing_source_raises(self, store, empty_root):
+        with pytest.raises(FileNotFoundError):
+            splice_copy(store, empty_root, "missing.md", "dst.md")
+
+    def test_copy_directory_into_itself_raises(self, store, empty_root):
+        r1, _ = splice_put_blob(store, empty_root, "docs/a.md", b"A")
+
+        with pytest.raises(ValueError, match="into itself"):
+            splice_copy(store, r1, "docs", "docs/sub/docs")
+
+
+# ══════════════════════════════════════════════════
+# splice_touch
+# ══════════════════════════════════════════════════
+
+
+class TestTouch:
+    def test_touch_existing_file_returns_same_root_with_update_change(self, store, empty_root):
+        r1, _ = splice_put_blob(store, empty_root, "a.md", b"A")
+
+        r2, changes = splice_touch(store, r1, ["a.md"])
+
+        assert r2 == r1
+        assert changes == [("update", "a.md")]
+
+    def test_touch_missing_file_raises(self, store, empty_root):
+        with pytest.raises(FileNotFoundError):
+            splice_touch(store, empty_root, ["missing.md"])
+
+    def test_touch_directory_raises(self, store, empty_root):
+        r1, _ = splice_put_blob(store, empty_root, "docs/a.md", b"A")
+
+        with pytest.raises(ValueError, match="is a directory"):
+            splice_touch(store, r1, ["docs"])
 
 
 # ══════════════════════════════════════════════════

@@ -73,7 +73,6 @@ import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import { AccessPointsHeaderButton } from '../components/access-points';
-import { buildScopeMetaLine } from '../components/access-points/labels';
 import { SelectionActionBar } from '../components/SelectionActionBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { DataPageRightPanel, type EditorTarget } from '../components/right-panel';
@@ -321,11 +320,7 @@ export default function DataPage({ params }: DataPageProps) {
     : accessHeaderScope
       ? accessHeaderScope.name
       : 'Access';
-  const accessHeaderSubtitle = accessListView === 'create'
-    ? 'Promote a folder to an access point'
-    : accessHeaderScope
-      ? buildScopeMetaLine(accessHeaderScope)
-      : undefined;
+  const accessHeaderSubtitle = undefined;
   const showAccessHeaderBack =
     isAccessPanelOpen && (accessListView === 'create' || accessListView === 'detail');
 

@@ -21,7 +21,7 @@ from src.utils.logger import log_error
 # many existing imports of `tree_reader.detect_type` keep working.
 # All format knowledge lives in `src.infra.file_formats`.
 detect_type = detect_node_type
-__all__ = ["detect_type", "detect_mime", "MutEntry", "MutTreeReader"]
+__all__ = ["detect_type", "detect_mime", "MutBlobRead", "MutEntry", "MutTreeReader"]
 
 
 @dataclass
@@ -34,6 +34,17 @@ class MutEntry:
     size_bytes: int | None = None
     mime_type: str | None = None
     children_count: int | None = None
+    created_at: str | None = None
+    modified_at: str | None = None
+
+
+@dataclass
+class MutBlobRead:
+    """Bytes read from a MUT blob, plus the full blob size."""
+    content: bytes
+    total_size: int
+    content_hash: str
+    ranged: bool = False
 
 
 class MutTreeReader:
@@ -46,7 +57,9 @@ class MutTreeReader:
     def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
 
-    def list_dir(self, project_id: str, path: str = "") -> list[MutEntry]:
+    def list_dir(
+        self, project_id: str, path: str = "", *, include_size: bool = False
+    ) -> list[MutEntry]:
         """List directory contents (similar to ls).
 
         Reads the Mut tree object directly and returns a list of child entries.
@@ -74,24 +87,38 @@ class MutTreeReader:
             return []
 
         result = [
-            self._build_entry(repo.store, name, typ, hash_val, path)
+            self._build_entry(
+                repo.store, name, typ, hash_val, path,
+                include_size=include_size,
+            )
             for name, (typ, hash_val) in entries.items()
             if name != ".keep"
         ]
         result.sort(key=lambda e: (e.type != "folder", e.name.lower()))
         return result
 
-    def _build_entry(self, store, name: str, typ: str,
-                     hash_val: str, parent_path: str) -> MutEntry:
+    def _build_entry(
+        self,
+        store,
+        name: str,
+        typ: str,
+        hash_val: str,
+        parent_path: str,
+        *,
+        include_size: bool = False,
+    ) -> MutEntry:
         entry_path = f"{parent_path}/{name}" if parent_path else name
         if typ == "T":
             return MutEntry(
                 name=name, path=entry_path, type="folder",
+                size_bytes=0 if include_size else None,
                 children_count=self._count_children(store, hash_val),
             )
         return MutEntry(
             name=name, path=entry_path, type=detect_type(name),
-            content_hash=hash_val, mime_type=detect_mime(name),
+            content_hash=hash_val,
+            size_bytes=self._blob_size(store, hash_val) if include_size else None,
+            mime_type=detect_mime(name),
         )
 
     def read_file(self, project_id: str, path: str) -> bytes:
@@ -110,7 +137,60 @@ class MutTreeReader:
 
         return repo.store.get(blob_hash)
 
-    def stat(self, project_id: str, path: str) -> MutEntry | None:
+    def read_file_range(
+        self,
+        project_id: str,
+        path: str,
+        *,
+        start: int = 0,
+        limit: int | None = None,
+    ) -> MutBlobRead:
+        """Read a byte range from a file content blob when the backend supports it."""
+        try:
+            repo = self._repos.get_repo(project_id)
+            root_hash = repo.history.get_root_hash()
+        except Exception as e:
+            raise FileNotFoundError(f"Project {project_id} is not initialized: {e}")
+        if not root_hash:
+            raise FileNotFoundError(f"Project {project_id} has no content")
+
+        blob_hash = self._resolve_blob(repo.store, root_hash, path)
+        if not blob_hash:
+            raise FileNotFoundError(f"File not found: {path}")
+
+        if start <= 0 and limit is None:
+            content = repo.store.get(blob_hash)
+            return MutBlobRead(
+                content=content,
+                total_size=len(content),
+                content_hash=blob_hash,
+                ranged=False,
+            )
+
+        backend = getattr(repo.store, "_backend", None)
+        get_range = getattr(backend, "get_range", None)
+        if callable(get_range):
+            content, total = get_range(blob_hash, start=max(0, start), limit=limit)
+            return MutBlobRead(
+                content=content,
+                total_size=total,
+                content_hash=blob_hash,
+                ranged=True,
+            )
+
+        content = repo.store.get(blob_hash)
+        safe_start = max(0, start)
+        end = len(content) if limit is None else min(len(content), safe_start + limit)
+        return MutBlobRead(
+            content=content[safe_start:end],
+            total_size=len(content),
+            content_hash=blob_hash,
+            ranged=False,
+        )
+
+    def stat(
+        self, project_id: str, path: str, *, include_size: bool = False
+    ) -> MutEntry | None:
         """Get information for a single entry (similar to stat)."""
         try:
             repo = self._repos.get_repo(project_id)
@@ -122,7 +202,10 @@ class MutTreeReader:
             return None
 
         if not path:
-            return MutEntry(name="", path="", type="folder")
+            return MutEntry(
+                name="", path="", type="folder",
+                size_bytes=0 if include_size else None,
+            )
 
         parent_path = os.path.dirname(path)
         name = os.path.basename(path)
@@ -149,6 +232,7 @@ class MutTreeReader:
                 name=name,
                 path=path,
                 type="folder",
+                size_bytes=0 if include_size else None,
                 children_count=child_count,
             )
 
@@ -157,15 +241,24 @@ class MutTreeReader:
             path=path,
             type=detect_type(name),
             content_hash=hash_val,
+            size_bytes=self._blob_size(repo.store, hash_val) if include_size else None,
             mime_type=detect_mime(name),
         )
 
     def list_tree(
-        self, project_id: str, path: str = "", max_depth: int = -1
+        self,
+        project_id: str,
+        path: str = "",
+        max_depth: int = -1,
+        *,
+        include_size: bool = False,
+        max_entries: int | None = None,
     ) -> list[MutEntry]:
         """Recursively list the directory tree (for a full tree view).
 
         max_depth = -1 means unlimited recursion.
+        max_entries limits returned entries to protect object-store backed
+        scopes from unbounded recursive walks.
         """
         try:
             repo = self._repos.get_repo(project_id)
@@ -183,7 +276,11 @@ class MutTreeReader:
                 return []
 
         result: list[MutEntry] = []
-        self._walk_tree(repo.store, tree_hash, path, result, 0, max_depth)
+        self._walk_tree(
+            repo.store, tree_hash, path, result, 0, max_depth,
+            include_size=include_size,
+            max_entries=max_entries,
+        )
         return result
 
     def exists(self, project_id: str, path: str) -> bool:
@@ -268,6 +365,12 @@ class MutTreeReader:
         except Exception:
             return 0
 
+    def _blob_size(self, store: ObjectStore, blob_hash: str) -> int:
+        try:
+            return len(store.get(blob_hash))
+        except Exception:
+            return 0
+
     def _walk_tree(
         self,
         store: ObjectStore,
@@ -276,7 +379,12 @@ class MutTreeReader:
         result: list[MutEntry],
         depth: int,
         max_depth: int,
+        *,
+        include_size: bool = False,
+        max_entries: int | None = None,
     ) -> None:
+        if max_entries is not None and len(result) >= max_entries:
+            return
         if max_depth >= 0 and depth > max_depth:
             return
 
@@ -288,6 +396,8 @@ class MutTreeReader:
         for name, (typ, hash_val) in sorted(entries.items()):
             if name == ".keep":
                 continue
+            if max_entries is not None and len(result) >= max_entries:
+                return
 
             entry_path = f"{prefix}/{name}" if prefix else name
 
@@ -297,10 +407,13 @@ class MutTreeReader:
                     name=name,
                     path=entry_path,
                     type="folder",
+                    size_bytes=0 if include_size else None,
                     children_count=child_count,
                 ))
                 self._walk_tree(
-                    store, hash_val, entry_path, result, depth + 1, max_depth
+                    store, hash_val, entry_path, result, depth + 1, max_depth,
+                    include_size=include_size,
+                    max_entries=max_entries,
                 )
             else:
                 result.append(MutEntry(
@@ -308,5 +421,6 @@ class MutTreeReader:
                     path=entry_path,
                     type=detect_type(name),
                     content_hash=hash_val,
+                    size_bytes=self._blob_size(store, hash_val) if include_size else None,
                     mime_type=detect_mime(name),
                 ))

@@ -286,11 +286,32 @@ def get_mut_auth(
         credentials.credentials, project_id, user_identity=user_identity,
     )
 
-    # ── Stage 2: channel pause enforcement ───────────────────────────────
-    channel = (request.headers.get("x-puppy-client") or "").strip().lower()
+    enforce_channel_pause(
+        auth, request.headers.get("x-puppy-client"),
+        log_prefix="[Auth]",
+    )
+
+    return auth
+
+
+def enforce_channel_pause(
+    auth: dict,
+    channel: str | None,
+    *,
+    log_prefix: str = "[Auth]",
+) -> None:
+    """Reject requests for paused built-in connectors.
+
+    Access keys resolve to a repo scope, while pause/resume is represented on
+    the scope-bound connector row (``connectors.provider`` = ``cli`` or
+    ``filesystem``). Keeping this gate in one helper makes the legacy
+    ``/api/v1/mut/{project_id}``, access-key ``/mut/ap`` and scoped
+    ``/ap-fs`` routes enforce the same rule.
+    """
+    normalized_channel = (channel or "").strip().lower()
     scope = auth.get("_scope") or {}
     scope_id = scope.get("id")
-    if channel in _KNOWN_CHANNELS and scope_id and scope_id != "_root":
+    if normalized_channel in _KNOWN_CHANNELS and scope_id and scope_id != "_root":
         # JWT auth (member access) returns _scope.id='_root' as a virtual
         # scope marker, not a real repo_scopes row, so we skip the check
         # there — JWT users see the full project tree by membership and
@@ -298,7 +319,7 @@ def get_mut_auth(
         # returns a real scope_id, which is the only case we enforce.
         try:
             connector = ConnectorRepository().get_by_scope_provider(
-                scope_id, channel,
+                scope_id, normalized_channel,
             )
         except Exception as e:
             # Defensive: if the lookup fails (e.g. transient DB blip), we
@@ -306,22 +327,20 @@ def get_mut_auth(
             # Log and fail open — pause stays as informational on this
             # request, the next one re-tries.
             log_error(
-                f"[Auth] Channel-pause lookup failed for scope={scope_id} "
-                f"channel={channel}: {e}; failing open"
+                f"{log_prefix} Channel-pause lookup failed for scope={scope_id} "
+                f"channel={normalized_channel}: {e}; failing open"
             )
             connector = None
 
         if connector is not None and connector.status == "paused":
             log_warning(
-                f"[Auth] Rejected {channel} request to scope={scope_id}: "
+                f"{log_prefix} Rejected {normalized_channel} request to scope={scope_id}: "
                 f"connector {connector.id} is paused"
             )
             raise HTTPException(
                 status_code=403,
                 detail=(
-                    f"The '{channel}' connector for this scope is paused. "
+                    f"The '{normalized_channel}' connector for this scope is paused. "
                     "Resume it from the Access page to re-enable this channel."
                 ),
             )
-
-    return auth

@@ -1,8 +1,8 @@
 """Integration tests for the typed-write path: MutOps + direct_writer.
 
 These tests exercise the full happy path of every typed op
-(``write_file``, ``delete``, ``mkdir``, ``move``, ``trash``,
-``restore``, ``permanent_delete``, ``bulk_write``) against a real
+(``write_file``, ``delete``, ``mkdir``, ``move``,
+``permanent_delete``, ``bulk_write``) against a real
 ``PuppyOneServerRepo`` whose history/audit/scope managers are
 in-memory fakes from ``test_server_repo``. No Supabase, no S3 —
 just the orchestration logic + the tree splice + CAS dance.
@@ -16,7 +16,7 @@ What we're verifying:
   paths.
 - The graft hook fires after each commit (this was the
   ``mut_root_hash`` drift class of bugs).
-- Folder ``move`` / ``trash`` / ``permanent_delete`` do NOT
+- Folder ``move`` / ``permanent_delete`` do NOT
   re-encode the subtree — the same blob/tree hashes are reused.
 """
 
@@ -28,6 +28,7 @@ import pytest
 from mut.core import tree as tree_mod
 from mut.core.object_store import ObjectStore
 
+from src.mut_engine.services.direct_writer import ConcurrentMutationError
 from src.mut_engine.services.ops import BlobRef, MissingBlobError, MutOps
 from src.mut_engine.server.repo_manager import MutRepoManager
 
@@ -181,6 +182,28 @@ class TestWriteFile:
             {"path": "x.md", "action": "update"},
         ]
 
+    @pytest.mark.asyncio
+    async def test_stale_base_commit_rejected_without_overwrite(self, ops, server_repo):
+        first = await ops.write_file(
+            "test-proj", "x.md", b"v1", who="user:test",
+        )
+        second = await ops.write_file(
+            "test-proj", "x.md", b"v2", who="user:test",
+            base_commit_id=first.commit_id,
+        )
+        commits_after_second = _commit_count(server_repo)
+
+        with pytest.raises(ConcurrentMutationError) as exc:
+            await ops.write_file(
+                "test-proj", "x.md", b"stale", who="user:test",
+                base_commit_id=first.commit_id,
+            )
+
+        assert exc.value.expected_head_commit_id == first.commit_id
+        assert exc.value.current_head_commit_id == second.commit_id
+        assert _commit_count(server_repo) == commits_after_second
+        assert _files_in_root(server_repo) == {"x.md": b"v2"}
+
 
 # ══════════════════════════════════════════════════
 # delete + permanent_delete
@@ -293,128 +316,6 @@ class TestMove:
         assert last["type"] == "move"
         assert last["detail"]["old_path"] == "a.md"
         assert last["detail"]["new_path"] == "b.md"
-
-
-# ══════════════════════════════════════════════════
-# trash + restore
-# ══════════════════════════════════════════════════
-
-
-class TestTrash:
-    @pytest.mark.asyncio
-    async def test_trash_moves_to_trash_dir(self, ops, server_repo):
-        await ops.write_file("test-proj", "report.md", b"data", who="u")
-
-        result = await ops.trash("test-proj", "report.md", who="u")
-
-        files = _files_in_root(server_repo)
-        assert "report.md" not in files
-        # The new path is .trash/report.md_<timestamp>.
-        trash_keys = [k for k in files if k.startswith(".trash/report.md_")]
-        assert len(trash_keys) == 1
-        assert files[trash_keys[0]] == b"data"
-        assert any(p.startswith(".trash/") for p in result.paths)
-
-    @pytest.mark.asyncio
-    async def test_restore_returns_file_to_original_path(
-        self, ops, server_repo,
-    ):
-        await ops.write_file("test-proj", "report.md", b"data", who="u")
-        trash_result = await ops.trash("test-proj", "report.md", who="u")
-        trash_full = next(
-            p for p in trash_result.paths if p.startswith(".trash/")
-        )
-
-        await ops.restore(
-            "test-proj", trash_full, "report.md", who="u",
-        )
-
-        files = _files_in_root(server_repo)
-        assert files == {"report.md": b"data"}
-
-
-# ══════════════════════════════════════════════════
-# bulk_trash
-# ══════════════════════════════════════════════════
-
-
-class TestBulkTrash:
-    @pytest.mark.asyncio
-    async def test_bulk_trash_moves_all_to_trash_in_one_commit(
-        self, ops, server_repo,
-    ):
-        await ops.write_file("test-proj", "a.md", b"A", who="u")
-        await ops.write_file("test-proj", "b.md", b"B", who="u")
-        await ops.write_file("test-proj", "c.md", b"C", who="u")
-        commits_before = _commit_count(server_repo)
-
-        await ops.bulk_trash(
-            "test-proj", ["a.md", "b.md", "c.md"], who="u",
-        )
-
-        assert _commit_count(server_repo) == commits_before + 1
-        files = _files_in_root(server_repo)
-        assert "a.md" not in files
-        assert "b.md" not in files
-        assert "c.md" not in files
-        # All three should be in .trash with their original content.
-        trashed_a = next(
-            (k for k in files if k.startswith(".trash/a.md_")), None,
-        )
-        trashed_b = next(
-            (k for k in files if k.startswith(".trash/b.md_")), None,
-        )
-        trashed_c = next(
-            (k for k in files if k.startswith(".trash/c.md_")), None,
-        )
-        assert trashed_a and files[trashed_a] == b"A"
-        assert trashed_b and files[trashed_b] == b"B"
-        assert trashed_c and files[trashed_c] == b"C"
-
-    @pytest.mark.asyncio
-    async def test_bulk_trash_disambiguates_duplicate_basenames(
-        self, ops, server_repo,
-    ):
-        await ops.write_file("test-proj", "a/foo.md", b"A", who="u")
-        await ops.write_file("test-proj", "b/foo.md", b"B", who="u")
-
-        await ops.bulk_trash(
-            "test-proj", ["a/foo.md", "b/foo.md"], who="u",
-        )
-
-        files = _files_in_root(server_repo)
-        # Both entries land in .trash without overwriting each other.
-        trashed = sorted(
-            k for k in files if k.startswith(".trash/foo.md_")
-        )
-        assert len(trashed) == 2
-        contents = sorted(files[k] for k in trashed)
-        assert contents == [b"A", b"B"]
-
-    @pytest.mark.asyncio
-    async def test_bulk_trash_audit_logs_op_type(
-        self, ops, server_repo,
-    ):
-        await ops.write_file("test-proj", "x.md", b"x", who="alice")
-        await ops.write_file("test-proj", "y.md", b"y", who="alice")
-
-        await ops.bulk_trash(
-            "test-proj", ["x.md", "y.md"], who="user:alice",
-        )
-
-        last = _last_audit(server_repo)
-        assert last["type"] == "bulk_trash"
-        assert last["agent"] == "user:alice"
-        assert last["detail"]["paths"] == ["x.md", "y.md"]
-
-    @pytest.mark.asyncio
-    async def test_bulk_trash_empty_list_is_noop(
-        self, ops, server_repo,
-    ):
-        commits_before = _commit_count(server_repo)
-        result = await ops.bulk_trash("test-proj", [], who="u")
-        assert result.commit_id == ""
-        assert _commit_count(server_repo) == commits_before
 
 
 # ══════════════════════════════════════════════════

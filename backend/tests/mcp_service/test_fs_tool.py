@@ -15,7 +15,7 @@ def _rpc(**overrides):
     rpc.read_file = AsyncMock(return_value=overrides.get("read_file", {}))
     rpc.write_file = AsyncMock(return_value=overrides.get("write_file", {}))
     rpc.mkdir = AsyncMock(return_value=overrides.get("mkdir_result", {}))
-    rpc.trash = AsyncMock(return_value=overrides.get("trash_result", {}))
+    rpc.delete = AsyncMock(return_value=overrides.get("delete_result", {}))
     rpc.stat = AsyncMock(return_value=overrides.get("stat_result", {}))
     return rpc
 
@@ -148,15 +148,15 @@ async def test_mkdir_empty_path_error():
 
 
 @pytest.mark.asyncio
-async def test_rm_calls_trash():
-    """rm should call rpc.trash."""
-    rpc = _rpc(trash_result={"path": "docs/x.md", "removed": True})
+async def test_rm_calls_delete():
+    """rm should call rpc.delete."""
+    rpc = _rpc(delete_result={"path": "docs/x.md", "removed": True})
     fs = FsToolImplementation(rpc)
 
     result = await fs.rm("proj-1", [], "/docs/x.md", user_id="agent-1")
 
     assert result["removed"] is True
-    rpc.trash.assert_awaited_once_with("proj-1", "docs/x.md", acting_user_id=None)
+    rpc.delete.assert_awaited_once_with("proj-1", "docs/x.md", acting_user_id=None)
 
 
 @pytest.mark.asyncio

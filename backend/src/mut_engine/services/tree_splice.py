@@ -13,7 +13,7 @@ Cost: ``O(D)`` per mutation where ``D`` is the depth of the affected path
 ``handle_push``, which flattens the whole tree to bytes for 3-way merge —
 every push there costs ``O(N)`` blob reads where ``N`` is the file count.
 
-Move / rename / trash / restore do **not** download blob contents. They
+Move / rename operations do **not** download blob contents. They
 relocate tree-node hashes only. Folder rename of a 1000-file subtree
 costs the same as a 1-file rename.
 
@@ -464,6 +464,115 @@ def splice_move(
     return new_root, changes
 
 
+def splice_copy(
+    store: ObjectStore,
+    root_hash: str,
+    old_rel: str,
+    new_rel: str,
+) -> tuple[str, list[Change]]:
+    """Copy a file or folder by reusing tree/blob hashes.
+
+    This is the copy counterpart to :func:`splice_move`: it inserts the
+    existing source entry at the destination without downloading or
+    re-uploading blob bytes. If ``new_rel`` exists it is replaced and the
+    overwritten paths are reported as deletes in the changes list.
+    """
+    src_parts = _split_path(old_rel)
+    dst_parts = _split_path(new_rel)
+    if not src_parts or not dst_parts:
+        raise ValueError("copy requires non-empty source and destination")
+    if src_parts == dst_parts:
+        return root_hash, []
+
+    src_spine_path = src_parts[:-1]
+    src_spine, src_found = _walk_spine(store, root_hash, src_spine_path)
+    if src_spine_path and (not src_found or src_found[-1] is None):
+        raise FileNotFoundError(f"source not found: {old_rel}")
+
+    src_parent_hash = root_hash if not src_spine_path else src_found[-1][1]
+    src_parent_entries = dict(_read_tree_or_empty(store, src_parent_hash))
+    if src_parts[-1] not in src_parent_entries:
+        raise FileNotFoundError(f"source not found: {old_rel}")
+
+    copied_entry = src_parent_entries[src_parts[-1]]
+    if copied_entry[0] == "T":
+        src_prefix = old_rel.strip("/")
+        dst_clean = new_rel.strip("/")
+        if dst_clean.startswith(f"{src_prefix}/"):
+            raise ValueError(
+                f"cannot copy directory {old_rel!r} into itself: {new_rel!r}",
+            )
+
+    dst_spine_path = dst_parts[:-1]
+    dst_spine, dst_found = _walk_spine(store, root_hash, dst_spine_path)
+    if dst_spine_path and dst_found and dst_found[-1] is not None:
+        dst_parent_hash = dst_found[-1][1]
+    elif not dst_spine_path:
+        dst_parent_hash = root_hash
+    else:
+        dst_parent_hash = ""
+
+    dst_parent_entries = dict(_read_tree_or_empty(store, dst_parent_hash))
+    overwriting = dst_parent_entries.get(dst_parts[-1])
+    overwritten_paths: list[str] = []
+    if overwriting is not None:
+        overwritten_paths = _collect_affected_paths(
+            store, overwriting, new_rel.strip("/"),
+        )
+        if overwriting == copied_entry:
+            return root_hash, []
+
+    dst_parent_entries[dst_parts[-1]] = copied_entry
+
+    if not dst_spine_path:
+        new_root = tree_mod.write_tree(store, dst_parent_entries)
+    else:
+        new_root = _rebuild_spine(
+            store, dst_spine, dst_spine_path, dst_parent_entries,
+        )
+
+    affected_new = _collect_affected_paths(store, copied_entry, new_rel.strip("/"))
+    changes: list[Change] = []
+    changes.extend(("delete", p) for p in overwritten_paths)
+    changes.extend(("add", p) for p in affected_new)
+    if new_root == root_hash:
+        return root_hash, []
+    return new_root, changes
+
+
+def splice_touch(
+    store: ObjectStore,
+    root_hash: str,
+    rel_paths: Iterable[str],
+) -> tuple[str, list[Change]]:
+    """Record an mtime-only update for existing files.
+
+    The tree shape and blob hashes are intentionally unchanged; callers must
+    allow same-tree commits so history/audit still capture the touch event.
+    """
+    changes: list[Change] = []
+    for raw in rel_paths:
+        parts = _split_path(raw)
+        if not parts:
+            raise ValueError("touch requires non-empty paths")
+
+        spine_path = parts[:-1]
+        _spine, found = _walk_spine(store, root_hash, spine_path)
+        if spine_path and (not found or found[-1] is None):
+            raise FileNotFoundError(f"path not found: {raw}")
+
+        parent_hash = root_hash if not spine_path else found[-1][1]
+        parent_entries = _read_tree_or_empty(store, parent_hash)
+        entry = parent_entries.get(parts[-1])
+        if entry is None:
+            raise FileNotFoundError(f"path not found: {raw}")
+        if entry[0] == "T":
+            raise ValueError(f"is a directory: {raw}")
+        changes.append(("update", raw.strip("/")))
+
+    return root_hash, changes
+
+
 def splice_mkdir(
     store: ObjectStore,
     root_hash: str,
@@ -665,8 +774,8 @@ def splice_batch(
       - ``("mv",      old_rel, new_rel)``
 
     Each op is applied in order against the running root. The final
-    root is returned with the union of all changes — bulk-write /
-    bulk-trash APIs use this so N writes + M deletes + K moves
+    root is returned with the union of all changes — bulk-write
+    uses this so N writes + M deletes + K moves
     against a single scope produce one commit.
 
     Optimization: consecutive runs of ``put`` / ``put_ref`` ops are
