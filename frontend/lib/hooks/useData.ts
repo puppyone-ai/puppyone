@@ -238,11 +238,15 @@ export function refreshFolderNodes(
   const unique = Array.from(
     new Set(folderPaths.map((p) => p ?? '')),
   );
-  return Promise.all(
-    unique.map((folderPath) =>
+  // ExplorerSidebar reads rootNodes from useShallowTree (key __shallow_1),
+  // which is NOT covered by the per-folder keys below. Always revalidate it
+  // so the sidebar reflects mutations immediately.
+  return Promise.all([
+    mutate(['tree', projectId, '__shallow_1'], undefined, { revalidate: true }),
+    ...unique.map((folderPath) =>
       mutate(['tree', projectId, folderPath], undefined, { revalidate: true }),
     ),
-  );
+  ]);
 }
 
 /**
