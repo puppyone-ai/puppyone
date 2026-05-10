@@ -1,4 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  TABLE_LEFT_GUTTER,
+  TABLE_RIGHT_GUTTER,
+  TABLE_RESIZE_HEADER_HEIGHT,
+} from '../constants';
 
 // ============================================
 // Table Resize Header
@@ -91,12 +96,12 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
       <style jsx>{`
         .table-header {
           position: relative;
-          height: 32px;
-          margin-left: 32px; /* Matches editor padding */
-          margin-right: 8px;
+          height: ${TABLE_RESIZE_HEADER_HEIGHT}px;
+          margin-left: ${TABLE_LEFT_GUTTER}px;
+          margin-right: ${TABLE_RIGHT_GUTTER}px;
           display: flex;
-          align-items: center;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          align-items: flex-end;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           background: transparent;
           font-family:
             'Plus Jakarta Sans',
@@ -129,13 +134,15 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
           z-index: 10;
           /* Visual line */
           display: flex;
+          align-items: flex-end;
           justify-content: center;
+          padding-bottom: 3px;
         }
 
         .resize-handle::after {
           content: '';
           width: 2px;
-          height: 12px; /* Shorten to look like a handle/tick mark */
+          height: 9px;
           border-radius: 1px;
           background: rgba(255, 255, 255, 0.2);
           transition: all 0.15s;
@@ -144,14 +151,14 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
         /* Show handles more clearly when hovering the header area */
         .table-header:hover .resize-handle::after {
           background: rgba(255, 255, 255, 0.4);
-          height: 16px; /* Grow slightly on hover hint */
+          height: 13px;
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
           background: #528bff !important;
           width: 3px; /* Thicker on interaction */
-          height: 100%; /* Full height when dragging for precision visual */
+          height: calc(100% - 2px);
           border-radius: 0;
           box-shadow: 0 0 4px rgba(82, 139, 255, 0.5);
         }

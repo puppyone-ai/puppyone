@@ -13,7 +13,14 @@ import { TableResizeHeader } from './components/TableResizeHeader';
 import { VirtualRow } from './components/VirtualRow';
 import { McpToolPermissions } from '../../../lib/mcpApi';
 import { FlatNode, JsonValue, ConfiguredAccessPoint } from './types';
-import { ROW_HEIGHT, DEFAULT_KEY_WIDTH, MAX_DEPTH_LEVELS } from './constants';
+import {
+  ROW_HEIGHT,
+  DEFAULT_KEY_WIDTH,
+  MAX_DEPTH_LEVELS,
+  TABLE_LEFT_GUTTER,
+  TABLE_RIGHT_GUTTER,
+  TABLE_SCROLLBAR_RIGHT,
+} from './constants';
 import { useJsonTreeActions } from './hooks/useJsonTreeActions';
 
 interface TreeLineVirtualEditorProps {
@@ -477,8 +484,8 @@ export default function TableDiscreteEditor({
             flex: 1,
             position: 'relative',
             overflow: 'hidden', // Disable native scroll
-            paddingLeft: 32,
-            paddingRight: 8,
+            paddingLeft: TABLE_LEFT_GUTTER,
+            paddingRight: TABLE_RIGHT_GUTTER,
           }}
           onWheel={handleWheel}
         >
@@ -489,8 +496,8 @@ export default function TableDiscreteEditor({
               style={{
                 position: 'absolute',
                 top: offsetY,
-                left: 32, // Matches paddingLeft of container
-                right: 8,
+                left: TABLE_LEFT_GUTTER,
+                right: TABLE_RIGHT_GUTTER,
                 height: ROW_HEIGHT,
               }}
             >
@@ -525,7 +532,7 @@ export default function TableDiscreteEditor({
             className='custom-scrollbar-track'
             style={{
               position: 'absolute',
-              right: 4, // 稍微离右边远一点点
+              right: TABLE_SCROLLBAR_RIGHT,
               top: 4, // 上下留白
               bottom: 4,
               width: 6, // 加宽到 6px
