@@ -2,12 +2,10 @@
 
 import React, { useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
-import { PageLoading } from '@/components/loading';
+import { EditorLoadingSurface } from '@/components/loading';
 
 const MONACO_LOADING = (
-  <div style={{ width: '100%', height: '100%', background: '#0e0e0e' }}>
-    <PageLoading variant="fill" />
-  </div>
+  <EditorLoadingSurface />
 );
 
 const DARK_THEME_CONFIG = {

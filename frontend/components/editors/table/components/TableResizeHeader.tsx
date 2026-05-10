@@ -3,6 +3,8 @@ import {
   TABLE_LEFT_GUTTER,
   TABLE_RIGHT_GUTTER,
   TABLE_RESIZE_HEADER_HEIGHT,
+  TABLE_RESIZE_HANDLE_HIT_HEIGHT,
+  TABLE_RESIZE_HANDLE_HIT_WIDTH,
 } from '../constants';
 
 // ============================================
@@ -121,28 +123,26 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
           height: 100%;
           position: relative;
           white-space: nowrap;
-          overflow: hidden;
+          overflow: visible;
           text-overflow: ellipsis;
         }
 
         .resize-handle {
           position: absolute;
-          top: 0;
-          bottom: 0;
-          width: 8px; /* Hit area */
+          bottom: -1px;
+          width: ${TABLE_RESIZE_HANDLE_HIT_WIDTH}px;
+          height: ${TABLE_RESIZE_HANDLE_HIT_HEIGHT}px;
           cursor: col-resize;
           z-index: 10;
-          /* Visual line */
           display: flex;
           align-items: flex-end;
           justify-content: center;
-          padding-bottom: 3px;
         }
 
         .resize-handle::after {
           content: '';
           width: 2px;
-          height: 9px;
+          height: 8px;
           border-radius: 1px;
           background: rgba(255, 255, 255, 0.2);
           transition: all 0.15s;
@@ -151,14 +151,14 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
         /* Show handles more clearly when hovering the header area */
         .table-header:hover .resize-handle::after {
           background: rgba(255, 255, 255, 0.4);
-          height: 13px;
+          height: 10px;
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
           background: #528bff !important;
           width: 3px; /* Thicker on interaction */
-          height: calc(100% - 2px);
+          height: 18px;
           border-radius: 0;
           box-shadow: 0 0 4px rgba(82, 139, 255, 0.5);
         }
@@ -183,7 +183,7 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
               {/* KEY label removed */}
               <div
                 className={`resize-handle ${draggingDepth === depth ? 'active' : ''}`}
-                style={{ right: -4 }} /* Center on border */
+                style={{ right: -(TABLE_RESIZE_HANDLE_HIT_WIDTH / 2) }} /* Center on border */
                 onMouseDown={e => handleMouseDown(e, depth)}
               />
             </div>

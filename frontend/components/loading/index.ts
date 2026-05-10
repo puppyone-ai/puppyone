@@ -40,6 +40,9 @@ export type { InlineLoadingProps } from './InlineLoading';
 export { PageLoading } from './PageLoading';
 export type { PageLoadingProps } from './PageLoading';
 
+export { EditorLoadingSurface } from './EditorLoadingSurface';
+export type { EditorLoadingSurfaceProps } from './EditorLoadingSurface';
+
 export {
   Skeleton,
   SkeletonBlock,

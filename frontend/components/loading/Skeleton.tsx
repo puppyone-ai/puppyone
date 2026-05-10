@@ -198,6 +198,10 @@ export function SkeletonEditor() {
     <div
       style={{
         flex: 1,
+        width: '100%',
+        minWidth: 0,
+        height: '100%',
+        minHeight: 0,
         padding: '32px 40px',
         display: 'flex',
         flexDirection: 'column',

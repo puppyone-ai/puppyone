@@ -2,7 +2,7 @@
 
 import Editor, { OnMount, Monaco } from '@monaco-editor/react';
 import { useRef, useCallback } from 'react';
-import { PageLoading } from '@/components/loading';
+import { EditorLoadingSurface } from '@/components/loading';
 
 /**
  * Monaco's default loading state is a spinning ring while worker
@@ -12,9 +12,7 @@ import { PageLoading } from '@/components/loading';
  * loader takes over from the generic Monaco spinner.
  */
 const MONACO_LOADING = (
-  <div style={{ width: '100%', height: '100%', background: '#0e0e0e' }}>
-    <PageLoading variant="fill" />
-  </div>
+  <EditorLoadingSurface />
 );
 
 const DARK_THEME_CONFIG = {
