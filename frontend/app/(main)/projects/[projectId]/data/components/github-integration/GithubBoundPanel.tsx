@@ -16,7 +16,7 @@ import {
   type GithubIntegrationStatus,
   type GithubSyncRunResult,
 } from '@/lib/githubIntegrationApi';
-import { T } from '../tokens';
+import { T } from './tokens';
 
 interface Props {
   projectId: string;

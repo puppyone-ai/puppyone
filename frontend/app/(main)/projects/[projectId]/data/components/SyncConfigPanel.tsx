@@ -9,6 +9,7 @@ import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/co
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
 import { SyncPreview } from '@/components/agent/views/configs/SyncPreview';
 import { PanelShell } from './PanelShell';
+import { GithubIntegrationPanel } from './github-integration/GithubIntegrationPanel';
 import { usePanelStore } from '../usePanelStore';
 import type { SaasType } from '@/lib/oauthApi';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
@@ -67,8 +68,13 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
 
 // Providers whose backend code exists but isn't production-ready yet.
 // Rendered as disabled "Coming soon" rows; remove an id here to re-enable.
+//
+// Note (mut-git branch): the LEGACY scope-level GitHub connector
+// (URL-based one-shot ZIP fetch via the ``connectors`` table) is now
+// re-enabled. The NEW project-level GitHub Integration with branch
+// binding + bidirectional import/export lives under
+// ``/projects/{id}/integrations`` and is unrelated to this list.
 const COMING_SOON_PROVIDERS: ReadonlySet<string> = new Set([
-  'github',
   'google_search_console',
 ]);
 
@@ -582,6 +588,23 @@ function CreateView({
 
   // If a sync provider is selected, show config
   if (selectedSyncProvider) {
+    // GitHub is the project-level git-branch binding (≠ legacy scope-level
+    // URL-import connector). It's surfaced under this same picker so all
+    // third-party flows live in one place, but the underlying API +
+    // storage live in ``github_integrations``, not ``connectors``.
+    // Re-uses the panel wrapper from when this UI had its own top-level
+    // route at ``/projects/{id}/integrations`` (deleted 2026-05-10 in
+    // favour of this consolidated entry point).
+    if (selectedSyncProvider === 'github') {
+      return (
+        <PanelShell title="GitHub" onClose={onClose} onBack={handleBack}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
+            <GithubIntegrationPanel projectId={projectId} />
+          </div>
+        </PanelShell>
+      );
+    }
+
     if (selectedSyncProvider === 'filesystem') {
       return (
         <PanelShell title="Machine Folder" onClose={onClose} onBack={handleBack}>

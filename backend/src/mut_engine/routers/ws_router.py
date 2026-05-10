@@ -27,7 +27,7 @@ from starlette.websockets import WebSocketState
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.auth import PuppyOneAuthenticator
 from src.mut_engine.server.notifications import NotificationManager
-from src.utils.logger import log_error, log_info
+from src.utils.logger import log_debug, log_error
 
 ws_router = APIRouter(prefix="/api/v1/mut")
 
@@ -112,7 +112,10 @@ async def mut_ws(websocket: WebSocket, project_id: str):
         await websocket.accept(subprotocol=accept_subprotocol)
     else:
         await websocket.accept()
-    log_info(
+    # Debug-level: a successful upgrade is the happy path and there can
+    # be many of them per session (one per tab navigation in dev). Keep
+    # auth-failure paths at info/error so problems still stand out.
+    log_debug(
         f"[MUT-WS] connected project={project_id} agent={agent} "
         f"scope={scope_path!r}"
     )
@@ -136,4 +139,4 @@ async def mut_ws(websocket: WebSocket, project_id: str):
                 break
     finally:
         await manager.unregister(conn)
-        log_info(f"[MUT-WS] disconnected project={project_id} agent={agent}")
+        log_debug(f"[MUT-WS] disconnected project={project_id} agent={agent}")

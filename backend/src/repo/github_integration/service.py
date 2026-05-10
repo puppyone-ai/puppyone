@@ -15,6 +15,7 @@ from src.repo.github_integration.repository import (
     GithubIntegrationRepository, GithubSyncLogRepository,
 )
 from src.repo.github_integration.schemas import (
+    GithubBranchList, GithubBranchSummary,
     GithubExportRequest, GithubImportRequest, GithubIntegrationCreate,
     GithubIntegrationStatus, GithubIntegrationUpdate, GithubRepoList,
     GithubRepoSummary, GithubSyncLogEntry, GithubSyncLogList,
@@ -68,7 +69,7 @@ class GithubIntegrationService:
         if not existing:
             raise GithubIntegrationNotFound(project_id)
         merged = {**existing}
-        for field, value in payload.dict(exclude_unset=True).items():
+        for field, value in payload.model_dump(exclude_unset=True).items():
             merged[field] = value
         if merged.get("auto_import") and not merged.get("webhook_secret"):
             raise ValueError(
@@ -115,6 +116,41 @@ class GithubIntegrationService:
             )
             for r in repos
         ])
+
+    async def list_repo_branches(
+        self, oauth_connection_id: int, owner: str, name: str,
+    ) -> GithubBranchList:
+        """List branches for a repo so the UI picker can populate its
+        dropdown. The default branch is flagged inline so the picker
+        can pre-select it without a second round-trip."""
+        oauth = await _load_oauth_token(oauth_connection_id)
+        if not oauth:
+            raise GithubIntegrationNotFound(
+                f"oauth_connection {oauth_connection_id}"
+            )
+        api = GithubApi(oauth["access_token"])
+        try:
+            # We need both the branch list and the repo metadata to flag
+            # which branch is default. ``get_branch_head`` per branch
+            # would be N+1; instead, hit ``/repos/{owner}/{name}`` once.
+            raw_branches = await api.list_branches(owner, name)
+            repo_meta = await api.get_repo_meta(owner, name)
+            default_branch = repo_meta.get("default_branch") or ""
+        finally:
+            await api.aclose()
+        return GithubBranchList(
+            repo_owner=owner,
+            repo_name=name,
+            branches=[
+                GithubBranchSummary(
+                    name=b.get("name", ""),
+                    sha=(b.get("commit") or {}).get("sha", ""),
+                    protected=bool(b.get("protected", False)),
+                    is_default=b.get("name", "") == default_branch,
+                )
+                for b in raw_branches
+            ],
+        )
 
     # ── sync triggers ─────────────────────────────
 

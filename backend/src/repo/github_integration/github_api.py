@@ -103,12 +103,47 @@ class GithubApi:
                 break
         return repos
 
+    async def get_repo_meta(self, owner: str, repo: str) -> dict:
+        """Return the repo's metadata blob (default_branch, private,
+        permissions, ...). One round-trip; the branch picker uses this
+        to flag the GitHub-side default branch in the dropdown without
+        a per-branch ``get_branch_head`` N+1.
+        """
+        r = await self._client.get(f"/repos/{owner}/{repo}")
+        self._raise_for_status(r)
+        return r.json()
+
     async def get_branch_head(self, owner: str, repo: str, branch: str) -> dict:
         r = await self._client.get(
             f"/repos/{owner}/{repo}/branches/{branch}",
         )
         self._raise_for_status(r)
         return r.json()
+
+    async def list_branches(
+        self, owner: str, repo: str, *,
+        per_page: int = 100, max_pages: int = 5,
+    ) -> list[dict]:
+        """Return the repo's branches.
+
+        GitHub's ``/repos/{owner}/{repo}/branches`` is paginated and the
+        large monorepos easily exceed 100 entries, so we walk pages until
+        we either drain the list or hit ``max_pages`` (which caps the
+        worst-case latency at ``max_pages × per_page_round_trip`` and
+        keeps the picker UI snappy).
+        """
+        branches: list[dict] = []
+        for page in range(1, max_pages + 1):
+            r = await self._client.get(
+                f"/repos/{owner}/{repo}/branches",
+                params={"per_page": per_page, "page": page},
+            )
+            self._raise_for_status(r)
+            batch = r.json() or []
+            branches.extend(batch)
+            if len(batch) < per_page:
+                break
+        return branches
 
     async def get_tree_recursive(
         self, owner: str, repo: str, tree_sha: str,
@@ -224,5 +259,12 @@ class GithubApi:
         doc = (payload.get("documentation_url")
                if isinstance(payload, dict) else None)
         if r.status_code == 401:
-            log_warning("[GithubApi] token rejected by GitHub (401)")
+            # 401 from GitHub almost always means the stored OAuth token
+            # was revoked / expired. Log loudly with hint so ops can act
+            # (today: tell user to re-authorize; future: trigger refresh
+            # flow against ``oauth_connections.refresh_token``).
+            log_warning(
+                f"[GithubApi] 401 from GitHub — access token likely "
+                f"revoked or expired: {message}"
+            )
         raise GithubApiError(r.status_code, message, doc)

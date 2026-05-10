@@ -15,7 +15,7 @@ import {
   type SyncDirection,
   type SyncStatus,
 } from '@/lib/githubIntegrationApi';
-import { T } from '../tokens';
+import { T } from './tokens';
 
 interface Props {
   projectId: string;

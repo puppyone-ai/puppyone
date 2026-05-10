@@ -21,10 +21,12 @@ delivers to a single URL):
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
+from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
 from src.repo.github_integration.schemas import (
+    GithubBranchList,
     GithubExportRequest, GithubImportRequest, GithubIntegrationCreate,
     GithubIntegrationStatus, GithubIntegrationUpdate,
     GithubRepoList, GithubSyncLogList, GithubSyncRunResult,
@@ -34,6 +36,20 @@ from src.repo.github_integration.service import (
 )
 from src.repo.github_integration.webhook import WebhookRejection, handle_webhook
 from src.utils.logger import log_error, log_info
+
+# All authenticated endpoints below return ``ApiResponse[T]`` rather than
+# the raw payload — the frontend's ``apiClient.apiRequest`` reads
+# ``data.code !== 0`` to decide success/failure and falls back to the
+# string "API request failed" when the envelope is missing. The webhook
+# receiver is the lone exception (raw 200 ack expected by GitHub).
+
+# Shared 404 detail strings — kept as module-level constants so the same
+# wording is used everywhere a binding lookup misses (frontend matches
+# on this exact text in some flows; changing one site without the others
+# would silently break those checks).
+_DETAIL_NOT_CONFIGURED = "github integration not configured"
+_DETAIL_NOT_FOUND = "github integration not found"
+_DETAIL_OAUTH_NOT_FOUND = "oauth connection not found"
 
 
 # Per-project router — gated by JWT.
@@ -56,14 +72,15 @@ def _service() -> GithubIntegrationService:
 # ── Project-scoped routes ──────────────────────────────
 
 
-@router.post("/connect", response_model=GithubIntegrationStatus)
+@router.post("/connect", response_model=ApiResponse[GithubIntegrationStatus])
 async def connect(
     project_id: str,
     payload: GithubIntegrationCreate,
     user=Depends(get_current_user),
-) -> GithubIntegrationStatus:
+) -> ApiResponse[GithubIntegrationStatus]:
     try:
-        return await _service().connect(project_id, payload)
+        result = await _service().connect(project_id, payload)
+        return ApiResponse.success(data=result, message="github integration connected")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
@@ -71,42 +88,45 @@ async def connect(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.patch("", response_model=GithubIntegrationStatus)
+@router.patch("", response_model=ApiResponse[GithubIntegrationStatus])
 async def update(
     project_id: str,
     payload: GithubIntegrationUpdate,
     user=Depends(get_current_user),
-) -> GithubIntegrationStatus:
+) -> ApiResponse[GithubIntegrationStatus]:
     try:
-        return await _service().update(project_id, payload)
+        result = await _service().update(project_id, payload)
+        return ApiResponse.success(data=result, message="github integration updated")
     except GithubIntegrationNotFound:
-        raise HTTPException(status_code=404, detail="github integration not found")
+        raise HTTPException(status_code=404, detail=_DETAIL_NOT_FOUND)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("", response_model=ApiResponse[dict])
 async def disconnect(
     project_id: str,
     user=Depends(get_current_user),
-):
+) -> ApiResponse[dict]:
     await _service().disconnect(project_id)
+    return ApiResponse.success(data={}, message="github integration disconnected")
 
 
-@router.get("/status", response_model=GithubIntegrationStatus | None)
+@router.get("/status", response_model=ApiResponse[GithubIntegrationStatus | None])
 async def get_status(
     project_id: str,
     user=Depends(get_current_user),
-) -> GithubIntegrationStatus | None:
-    return await _service().status(project_id)
+) -> ApiResponse[GithubIntegrationStatus | None]:
+    result = await _service().status(project_id)
+    return ApiResponse.success(data=result, message="github integration status retrieved")
 
 
-@router.get("/repos", response_model=GithubRepoList)
+@router.get("/repos", response_model=ApiResponse[GithubRepoList])
 async def list_repos(
     project_id: str,
     oauth_connection_id: int = Query(..., description="The user's GitHub OAuth row id"),
     user=Depends(get_current_user),
-) -> GithubRepoList:
+) -> ApiResponse[GithubRepoList]:
     """List the OAuth user's GitHub repositories.
 
     The OAuth connection id is supplied explicitly so the UI can drive
@@ -115,51 +135,81 @@ async def list_repos(
     integration row and reused for imports/exports.
     """
     try:
-        return await _service().list_user_repos(oauth_connection_id)
+        result = await _service().list_user_repos(oauth_connection_id)
+        return ApiResponse.success(data=result, message="repositories retrieved")
     except GithubIntegrationNotFound:
-        raise HTTPException(status_code=404, detail="oauth connection not found")
+        raise HTTPException(status_code=404, detail=_DETAIL_OAUTH_NOT_FOUND)
     except Exception as e:  # noqa: BLE001
         log_error(f"[GithubIntegration] list_repos failed: {e}")
         raise HTTPException(status_code=502, detail=f"GitHub API: {e}")
 
 
-@router.post("/import", response_model=GithubSyncRunResult)
+@router.get("/branches", response_model=ApiResponse[GithubBranchList])
+async def list_branches(
+    project_id: str,
+    oauth_connection_id: int = Query(..., description="The user's GitHub OAuth row id"),
+    repo_owner: str = Query(..., min_length=1),
+    repo_name: str = Query(..., min_length=1),
+    user=Depends(get_current_user),
+) -> ApiResponse[GithubBranchList]:
+    """List branches for a (owner, repo) pair.
+
+    Drives the connect-form's branch dropdown. ``oauth_connection_id``
+    is the same query param shape as ``/repos`` so the frontend can
+    pass the OAuth id it already has cached.
+    """
+    try:
+        result = await _service().list_repo_branches(
+            oauth_connection_id, repo_owner, repo_name,
+        )
+        return ApiResponse.success(data=result, message="branches retrieved")
+    except GithubIntegrationNotFound:
+        raise HTTPException(status_code=404, detail=_DETAIL_OAUTH_NOT_FOUND)
+    except Exception as e:  # noqa: BLE001
+        log_error(f"[GithubIntegration] list_branches failed: {e}")
+        raise HTTPException(status_code=502, detail=f"GitHub API: {e}")
+
+
+@router.post("/import", response_model=ApiResponse[GithubSyncRunResult])
 async def import_now(
     project_id: str,
     payload: GithubImportRequest,
     user=Depends(get_current_user),
-) -> GithubSyncRunResult:
+) -> ApiResponse[GithubSyncRunResult]:
     try:
-        return await _service().import_now(project_id, payload)
+        result = await _service().import_now(project_id, payload)
+        return ApiResponse.success(data=result, message="github import completed")
     except GithubIntegrationNotFound:
-        raise HTTPException(status_code=404, detail="github integration not configured")
+        raise HTTPException(status_code=404, detail=_DETAIL_NOT_CONFIGURED)
 
 
-@router.post("/export", response_model=GithubSyncRunResult)
+@router.post("/export", response_model=ApiResponse[GithubSyncRunResult])
 async def export_now(
     project_id: str,
     payload: GithubExportRequest,
     user=Depends(get_current_user),
-) -> GithubSyncRunResult:
+) -> ApiResponse[GithubSyncRunResult]:
     try:
-        return await _service().export_now(project_id, payload)
+        result = await _service().export_now(project_id, payload)
+        return ApiResponse.success(data=result, message="github export completed")
     except GithubIntegrationNotFound:
-        raise HTTPException(status_code=404, detail="github integration not configured")
+        raise HTTPException(status_code=404, detail=_DETAIL_NOT_CONFIGURED)
 
 
-@router.get("/sync-log", response_model=GithubSyncLogList)
+@router.get("/sync-log", response_model=ApiResponse[GithubSyncLogList])
 async def sync_log(
     project_id: str,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     user=Depends(get_current_user),
-) -> GithubSyncLogList:
+) -> ApiResponse[GithubSyncLogList]:
     try:
-        return await _service().list_sync_log(
+        result = await _service().list_sync_log(
             project_id, limit=limit, offset=offset,
         )
+        return ApiResponse.success(data=result, message="sync log retrieved")
     except GithubIntegrationNotFound:
-        raise HTTPException(status_code=404, detail="github integration not configured")
+        raise HTTPException(status_code=404, detail=_DETAIL_NOT_CONFIGURED)
 
 
 # ── Webhook receiver ───────────────────────────────────

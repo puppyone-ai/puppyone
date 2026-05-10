@@ -140,21 +140,6 @@ export const AppSidebar = memo(function AppSidebar({
           </svg>
         ),
       },
-      {
-        id: 'integrations',
-        label: t('integrations'),
-        icon: (
-          // Linked-rings glyph — two interlocked rings reading as
-          // "this project is bound to an external system." Same square
-          // footprint (24-grid, ~18×18 visible) as the surrounding
-          // history-clock / monitor-rect / settings-gear icons so the
-          // rail keeps a single consistent family.
-          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <circle cx='8.5' cy='12' r='5' />
-            <circle cx='15.5' cy='12' r='5' />
-          </svg>
-        ),
-      },
       // HIDDEN: Toolkit nav item temporarily disabled
       // {
       //   id: 'toolkit',
@@ -201,8 +186,6 @@ export const AppSidebar = memo(function AppSidebar({
             router.push(`/projects/${activeProject.id}/history`);
           } else if (viewId === 'monitor') {
             router.push(`/projects/${activeProject.id}/monitor`);
-          } else if (viewId === 'integrations') {
-            router.push(`/projects/${activeProject.id}/integrations`);
           } else if (viewId === 'toolkit') {
             router.push(`/projects/${activeProject.id}/toolkit`);
           } else if (viewId === 'settings') {
@@ -216,7 +199,6 @@ export const AppSidebar = memo(function AppSidebar({
             access: `/projects/${id}/access`,
             history: `/projects/${id}/history`,
             monitor: `/projects/${id}/monitor`,
-            integrations: `/projects/${id}/integrations`,
             toolkit: `/projects/${id}/toolkit`,
             settings: `/projects/${id}/settings`,
           };

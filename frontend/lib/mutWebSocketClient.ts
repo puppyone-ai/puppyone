@@ -25,6 +25,15 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 const _MIN_RECONNECT_DELAY_MS = 1_000;
 const _MAX_RECONNECT_DELAY_MS = 30_000;
 const _RECONNECT_JITTER_MS = 500;
+/** Force a reconnect this many seconds before the JWT's ``exp``. The
+ *  server checked auth at the upgrade handshake and never re-verifies,
+ *  so a long-idle socket can technically outlive its token. Cycling
+ *  early lets ``_connect`` pick up the fresh token supabase-js has
+ *  already auto-refreshed. */
+const _TOKEN_REFRESH_MARGIN_SECS = 60;
+/** Hard cap on the recycle delay. If a token reports an absurdly far
+ *  ``exp`` (or we fail to decode it), don't schedule a 30-day timer. */
+const _MAX_TOKEN_LIFETIME_MS = 60 * 60 * 1000; // 1h
 
 /**
  * Server → client commit_update frame. Mirrors
@@ -62,6 +71,12 @@ interface ProjectConnection {
   handlers: Set<MutNotificationHandler>;
   reconnectAttempts: number;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
+  /** Scheduled timer that proactively recycles the socket before its
+   *  upgrade-time JWT expires. Without this, a session left open for
+   *  many hours holds a connection past the token's ``exp`` — the
+   *  server accepted it at handshake and never re-verifies. Cleared
+   *  on tear-down. */
+  refreshTimer: ReturnType<typeof setTimeout> | null;
   /** Bumped on each ``connect()`` call so stale callbacks (from a
    *  socket whose lifetime ended) can detect they're obsolete and
    *  not schedule a reconnect on top of an already-replaced socket. */
@@ -86,6 +101,7 @@ function _getOrCreate(projectId: string): ProjectConnection {
       handlers: new Set(),
       reconnectAttempts: 0,
       reconnectTimer: null,
+      refreshTimer: null,
       generation: 0,
     };
     _connections.set(projectId, conn);
@@ -99,6 +115,62 @@ function _backoffDelayMs(attempt: number): number {
     _MIN_RECONNECT_DELAY_MS * Math.pow(2, attempt),
   );
   return base + Math.random() * _RECONNECT_JITTER_MS;
+}
+
+/** Pull the ``exp`` claim out of a JWT without verifying. We trust
+ *  it because we (a) just got it from supabase-js's session storage,
+ *  and (b) only use it to decide *when to recycle* — server-side auth
+ *  is what actually enforces validity. Returns ``null`` if the token
+ *  is malformed; the caller falls back to ``_MAX_TOKEN_LIFETIME_MS``. */
+function _decodeJwtExpMs(token: string): number | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    // Base64url → base64 → utf-8 JSON. ``atob`` is fine for ASCII
+    // claims; if anyone ever puts unicode in ``exp`` we have bigger
+    // problems.
+    const payload = JSON.parse(
+      atob(parts[1].replaceAll('-', '+').replaceAll('_', '/')),
+    );
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function _scheduleTokenRefresh(
+  projectId: string,
+  conn: ProjectConnection,
+  token: string,
+): void {
+  if (conn.refreshTimer) {
+    clearTimeout(conn.refreshTimer);
+    conn.refreshTimer = null;
+  }
+  const expMs = _decodeJwtExpMs(token);
+  let delayMs: number;
+  if (expMs === null) {
+    // Couldn't decode — fall back to "recycle after the cap" so we
+    // never hold a connection forever on a stale token.
+    delayMs = _MAX_TOKEN_LIFETIME_MS;
+  } else {
+    const remainingMs = expMs - Date.now() - _TOKEN_REFRESH_MARGIN_SECS * 1000;
+    delayMs = Math.min(_MAX_TOKEN_LIFETIME_MS, Math.max(60_000, remainingMs));
+  }
+  const myGen = conn.generation;
+  conn.refreshTimer = setTimeout(() => {
+    if (conn.generation !== myGen) return; // a newer connect already replaced us
+    conn.refreshTimer = null;
+    if (conn.socket) {
+      // ``onclose`` will schedule the reconnect, which in turn calls
+      // ``getApiAccessToken()`` to pick up the post-refresh JWT.
+      try {
+        conn.socket.close(1000, 'token-refresh');
+      } catch {
+        /* ignore */
+      }
+    }
+  }, delayMs);
 }
 
 async function _connect(projectId: string, conn: ProjectConnection): Promise<void> {
@@ -136,6 +208,11 @@ async function _connect(projectId: string, conn: ProjectConnection): Promise<voi
     if (conn.generation !== myGen) return;  // stale callback
     conn.state = 'open';
     conn.reconnectAttempts = 0;
+    // Schedule a forced reconnect ~60s before this token expires so
+    // the next handshake picks up the supabase-js-refreshed JWT,
+    // closing the "long-idle socket outlives its token" gap. Tied to
+    // ``myGen`` so a teardown / re-open cycle replaces the timer.
+    _scheduleTokenRefresh(projectId, conn, token);
   };
 
   socket.onmessage = (ev) => {
@@ -191,6 +268,10 @@ function _teardown(projectId: string, conn: ProjectConnection): void {
   if (conn.reconnectTimer) {
     clearTimeout(conn.reconnectTimer);
     conn.reconnectTimer = null;
+  }
+  if (conn.refreshTimer) {
+    clearTimeout(conn.refreshTimer);
+    conn.refreshTimer = null;
   }
   conn.generation += 1;  // invalidate any in-flight callbacks
   if (conn.socket) {

@@ -177,20 +177,39 @@ export async function openOAuthPopup(saasType: SaasType): Promise<boolean> {
 // router's outer except). Each callback page must read `state` from
 // `searchParams` and forward it here.
 
+/** Stash the originating page so the OAuth callback page can navigate
+ *  back after success. Same-origin sessionStorage survives the
+ *  bounce through github.com / google.com / etc.
+ *
+ *  The OAuth callback pages call ``window.close()`` first (in case
+ *  the dance was started from a popup) and fall back to this URL
+ *  otherwise. Without this, full-nav OAuth completions used to leave
+ *  the user on a stuck "this window will close automatically" page. */
+const _OAUTH_RETURN_KEY = 'oauth_return_to';
+function _stashOAuthReturn(): void {
+  if (globalThis.window === undefined) return;
+  try {
+    const here = globalThis.location.pathname + globalThis.location.search;
+    sessionStorage.setItem(_OAUTH_RETURN_KEY, here);
+  } catch {
+    /* sessionStorage may be blocked; the callback falls back to /home */
+  }
+}
+
 // --- Notion ---
 export const getNotionAuthUrl  = () => oauth.notion.getAuthUrl();
 export const notionCallback    = (code: string, state?: string) =>
   oauth.notion.callback(code, state ? { state } : undefined);
 export const getNotionStatus   = () => oauth.notion.getStatus();
 export const disconnectNotion  = () => oauth.notion.disconnect();
-export const connectNotion     = async () => { window.location.href = await oauth.notion.getAuthUrl(); };
+export const connectNotion     = async () => { _stashOAuthReturn(); globalThis.location.href = await oauth.notion.getAuthUrl(); };
 
 // --- GitHub ---
 export const getGithubStatus   = () => oauth.github.getStatus();
 export const githubCallback    = (code: string, state?: string) =>
   oauth.github.callback(code, state ? { state } : undefined);
 export const disconnectGithub  = () => oauth.github.disconnect();
-export const connectGithub     = async () => { window.location.href = await oauth.github.getAuthUrl(); };
+export const connectGithub     = async () => { _stashOAuthReturn(); globalThis.location.href = await oauth.github.getAuthUrl(); };
 
 // --- Gmail ---
 export const gmailCallback     = (code: string, state?: string) =>

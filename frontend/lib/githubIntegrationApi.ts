@@ -73,6 +73,22 @@ export interface GithubRepoList {
   repos: GithubRepoSummary[];
 }
 
+// ── Branch discovery (drives the connect-form dropdown) ──
+
+export interface GithubBranchSummary {
+  name: string;
+  sha: string;
+  protected: boolean;
+  /** True for the repo's default branch — picker pre-selects this. */
+  is_default: boolean;
+}
+
+export interface GithubBranchList {
+  repo_owner: string;
+  repo_name: string;
+  branches: GithubBranchSummary[];
+}
+
 // ── Manual sync trigger ───────────────────────────────
 
 export interface GithubImportRequest {
@@ -174,6 +190,26 @@ export function listGithubRepos(
     oauth_connection_id: String(oauthConnectionId),
   });
   return get<GithubRepoList>(`${_projectBase(projectId)}/repos?${qs}`);
+}
+
+/**
+ * List branches for a (owner, repo) pair so the connect-form can
+ * populate its dropdown. Returns branches with ``is_default=true``
+ * flagging the GitHub-side default branch (not necessarily the same as
+ * ``projects.bound_git_branch``).
+ */
+export function listGithubBranches(
+  projectId: string,
+  oauthConnectionId: number,
+  repoOwner: string,
+  repoName: string,
+): Promise<GithubBranchList> {
+  const qs = new URLSearchParams({
+    oauth_connection_id: String(oauthConnectionId),
+    repo_owner: repoOwner,
+    repo_name: repoName,
+  });
+  return get<GithubBranchList>(`${_projectBase(projectId)}/branches?${qs}`);
 }
 
 export function importGithubBranch(

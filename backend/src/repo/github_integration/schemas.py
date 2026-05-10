@@ -131,3 +131,23 @@ class GithubRepoSummary(BaseModel):
 
 class GithubRepoList(BaseModel):
     repos: list[GithubRepoSummary]
+
+
+# ── Branch discovery ──────────────────────────────────
+
+
+class GithubBranchSummary(BaseModel):
+    """Single row in the branch picker. ``protected`` is a hint surfaced
+    to the UI so the user can avoid binding to a branch they can't push
+    to without a PR. ``is_default`` lets the picker pre-select the
+    repo's default branch without a second round-trip."""
+    name: str
+    sha: str
+    protected: bool = False
+    is_default: bool = False
+
+
+class GithubBranchList(BaseModel):
+    repo_owner: str
+    repo_name: str
+    branches: list[GithubBranchSummary]

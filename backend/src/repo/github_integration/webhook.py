@@ -152,11 +152,32 @@ async def _maybe_dispatch(
     from src.repo.github_integration.importer import import_branch
     coro = import_branch(integration, branch=pushed_branch,
                          force=False, triggered_by="webhook")
+
+    def _on_done(task: "asyncio.Task") -> None:
+        # Without this callback, exceptions raised inside the import
+        # coroutine die silently in ``Task.__del__`` (asyncio reports
+        # "Task exception was never retrieved" but the message is easy
+        # to miss in production logs and there is no surface in the
+        # github_sync_log table). Promote the exception to a real log
+        # line keyed by integration so ops can correlate against the
+        # GitHub webhook delivery id (``X-GitHub-Delivery``).
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            log_error(
+                f"[GithubWebhook] background import failed "
+                f"integration={integ_id}: {exc!r}"
+            )
+
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(coro)
+        task = loop.create_task(coro)
+        task.add_done_callback(_on_done)
     except RuntimeError:
-        # No running loop — sync caller. Run to completion.
+        # No running loop — sync caller. Run to completion. ``asyncio.run``
+        # raises any exception directly so the caller sees the failure;
+        # no extra wrapping needed.
         asyncio.run(coro)
 
     return {"integration_id": integ_id, "status": "queued"}

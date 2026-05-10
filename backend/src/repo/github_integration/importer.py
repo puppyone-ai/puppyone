@@ -27,6 +27,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
+import httpx
+
 from src.connectors.datasource.oauth.repository import OAuthRepository
 from src.mut_engine.dependencies import get_repo_manager_standalone
 from src.mut_engine.services.direct_writer import apply_mutation
@@ -111,6 +113,15 @@ async def import_branch(
         return await _record_failure(
             sync_log, integration_id,
             error=f"GitHub API error: {e}",
+        )
+    except (httpx.TimeoutException, httpx.NetworkError) as e:
+        # GitHub API momentarily unreachable / DNS down / TLS reset.
+        # Distinguish from a 4xx so the user knows to retry rather than
+        # reconfigure. Surface the exception class name so ops can
+        # bucket transient timeouts vs. proxy resets.
+        return await _record_failure(
+            sync_log, integration_id,
+            error=f"GitHub API unreachable ({type(e).__name__}): {e}",
         )
     except ImportConflict as e:
         result = GithubSyncRunResult(
@@ -212,8 +223,16 @@ async def _do_import(
         },
     )
 
-    mut_commit_id = write_result.commit_id or ""
-    files_changed = len(write_result.paths or files.keys())
+    # ``apply_mutation`` returns an empty ``commit_id`` when the splice
+    # was a no-op (importing unchanged content). Store that as NULL in
+    # the sync log rather than ``""`` so the column is honest about
+    # "no commit was produced" — the schema's TEXT nullable column was
+    # designed for exactly this case (failed exports + no-op imports).
+    mut_commit_id = write_result.commit_id or None
+    # Count actual changed paths. ``write_result.paths`` is always a
+    # list (never None); an empty list legitimately means "no-op" and
+    # should report 0, not fall back to "every input file".
+    files_changed = len(write_result.paths)
 
     await sync_log.record(
         integration_id, direction="import", status="success",
@@ -228,7 +247,8 @@ async def _do_import(
 
     log_info(
         f"[GithubImport] done integration={integration_id} "
-        f"git_sha={git_sha[:12]} mut_commit={mut_commit_id[:12]} "
+        f"git_sha={git_sha[:12]} "
+        f"mut_commit={(mut_commit_id or 'no-op')[:12]} "
         f"files={files_changed}"
     )
 
@@ -330,14 +350,29 @@ def _make_overwrite_splice(files: dict[str, bytes]):
 
 
 async def _load_oauth_token(oauth_id: int) -> Optional[dict]:
-    """Pull access_token (refreshing on demand) for the bound OAuth row."""
+    """Pull access_token (refreshing on demand) for the bound OAuth row.
+
+    Uses :meth:`OAuthRepository.get_by_id` which is async-native, returns
+    a typed ``OAuthConnection``, and avoids the older raw-table-query
+    path that depended on a private ``.client`` attribute the repository
+    doesn't expose.
+    """
     try:
         repo = OAuthRepository()
-        rows = await _to_thread(
-            lambda: repo.client.table("oauth_connections")
-            .select("*").eq("id", oauth_id).limit(1).execute().data
-        )
-        return rows[0] if rows else None
+        connection = await repo.get_by_id(oauth_id)
+        if not connection:
+            return None
+        # The importer downstream only needs ``access_token`` plus a
+        # couple of identity fields for the GithubApi constructor; flatten
+        # the model to a dict so call sites don't need to know about
+        # OAuthConnection's pydantic shape.
+        return {
+            "id": connection.id,
+            "access_token": connection.access_token,
+            "refresh_token": connection.refresh_token,
+            "expires_at": connection.expires_at,
+            "workspace_name": connection.workspace_name,
+        }
     except Exception as e:
         log_error(f"[GithubImport] oauth lookup failed: {e}")
         return None

@@ -144,6 +144,7 @@
     "github": {
       "heading": "GitHub",
       "description": "Bind this project to a GitHub branch. Imports overwrite the bound MUT scope; exports push the scope back as a single commit.",
+      "scopeNote": "GitHub binding is project-wide — applies to the whole repo regardless of which scope opened this panel.",
       "notConnectedAccount": "Connect a GitHub account first",
       "connectAccount": "Connect GitHub account",
       "manageAccount": "Manage in account settings",
@@ -185,6 +186,8 @@
       "filesChanged": "{count, plural, one {# file} other {# files}}",
       "loadingRepos": "Loading repositories…",
       "noRepos": "No repositories visible from this account.",
+      "loadingBranches": "Loading branches…",
+      "noBranches": "Repository has no branches",
       "errorGeneric": "Something went wrong. Please try again."
     }
   },

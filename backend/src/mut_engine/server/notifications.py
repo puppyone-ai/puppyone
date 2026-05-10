@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket
 
-from src.utils.logger import log_info, log_warning
+from src.utils.logger import log_debug, log_info, log_warning
 
 
 @dataclass
@@ -96,7 +96,10 @@ class NotificationManager:
         )
         async with self._lock:
             self._conns[(project_id, scope_norm)].append(conn)
-        log_info(
+        # Per-client lifecycle is debug-only — there can be many of
+        # these per session. Broadcast events stay at info so
+        # ``commit_update`` fan-out is still visible at default level.
+        log_debug(
             f"[NotificationManager] registered client_id={conn.client_id} "
             f"project={project_id} scope={scope_norm!r} agent={agent}"
         )
@@ -112,7 +115,7 @@ class NotificationManager:
                     pass
                 if not bucket:
                     self._conns.pop((conn.project_id, conn.scope_path), None)
-        log_info(
+        log_debug(
             f"[NotificationManager] unregistered client_id={conn.client_id}"
         )
 
