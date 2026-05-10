@@ -36,7 +36,6 @@ interface TreeLineVirtualEditorProps {
   onAccessPointRemove?: (path: string) => void;
   projectId?: number;
   tableId?: number;
-  onImportSuccess?: () => void;
   onOpenDocument?: (path: string, value: string) => void;
   onCreateTool?: (jsonPath: string, value: any) => void;
 }
@@ -134,7 +133,6 @@ export default function TableDiscreteEditor({
   onAccessPointRemove,
   projectId,
   tableId,
-  onImportSuccess,
   onOpenDocument,
   onCreateTool,
 }: TreeLineVirtualEditorProps) {
@@ -570,11 +568,8 @@ export default function TableDiscreteEditor({
       <NodeContextMenu
         state={contextMenu}
         json={json}
-        projectId={projectId}
-        tableId={tableId}
         onClose={() => setContextMenu(prev => ({ ...prev, visible: false }))}
         onChange={onChange}
-        onImportSuccess={onImportSuccess}
         onCreateTool={onCreateTool}
       />
     </div>
