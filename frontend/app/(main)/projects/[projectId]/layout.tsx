@@ -2,6 +2,7 @@
 
 import React, { use } from 'react';
 import { AgentProvider } from '@/contexts/AgentContext';
+import { MutWebSocketProvider } from '@/contexts/MutWebSocketContext';
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext';
 
 
@@ -38,7 +39,9 @@ export default function ProjectLayout({
   return (
     <AgentProvider projectId={projectId}>
       <WorkspaceProvider>
-        <ProjectLayoutInner projectId={projectId}>{children}</ProjectLayoutInner>
+        <MutWebSocketProvider projectId={projectId}>
+          <ProjectLayoutInner projectId={projectId}>{children}</ProjectLayoutInner>
+        </MutWebSocketProvider>
       </WorkspaceProvider>
     </AgentProvider>
   );

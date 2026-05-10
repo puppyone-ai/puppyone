@@ -11,6 +11,10 @@ export interface OAuthStatusResponse {
   username?: string;
   email?: string;
   connected_at?: string;
+  /** ``oauth_connections.id`` of the row backing this status. Used by
+   *  feature UIs that need to address a specific connection (e.g. the
+   *  GitHub-integration repo picker). ``null`` when ``connected: false``. */
+  connection_id?: number | null;
 }
 
 export interface OAuthCallbackResponse {

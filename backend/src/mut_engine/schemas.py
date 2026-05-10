@@ -5,9 +5,13 @@ All data types used by the PuppyOne platform layer:
 1. Tree API request/response schemas
 2. Commit history, diff, and rollback schemas
 
-Identity model (as of 20260418):
-    Commits are identified by a 16-hex commit_id (SHA256 over
-    scope_path | scope_hash | created_at_iso | who).
+Identity model (post mut/feat/git-format-storage):
+    Commits are identified by a 40-hex SHA-1 commit_id — the SHA-1
+    over the git ``commit`` object body produced by ``encode_commit``
+    (tree + parent + author/committer lines + message). On disk the
+    commit body is stored as a zlib-compressed loose object whose
+    SHA-1 is exactly this commit_id, so PuppyOne and any standard git
+    tool agree byte-for-byte.
     The old integer `version` columns / fields are gone.
     Clients that need to represent "no prior state" send an
     empty string "" as the base_commit_id.

@@ -16,10 +16,20 @@ export type ProjectInfo = {
   name: string;
   description?: string;
   visibility?: 'org' | 'private';
+  /** Default git branch for new GitHub bindings & MUT clones. The
+   *  backend defaults to ``'main'``; legacy projects may not have the
+   *  field yet, hence optional on the wire. */
+  bound_git_branch?: string;
   nodes: NodeInfo[];
   updated_at?: string;
   access_point_count?: number;
 };
+
+export interface UpdateProjectPayload {
+  name?: string;
+  description?: string;
+  bound_git_branch?: string;
+}
 
 // 保留 TableInfo 用于兼容性
 export type TableInfo = {
@@ -86,12 +96,19 @@ export async function getProjectTemplates(): Promise<ProjectTemplateInfo[]> {
 
 export async function updateProject(
   projectId: string,
-  name?: string,
-  description?: string
+  payloadOrName?: UpdateProjectPayload | string,
+  description?: string,
 ): Promise<ProjectInfo> {
+  // Backwards-compat: legacy callers passed positional ``(name, description)``.
+  // New callers pass a single ``{ name?, description?, bound_git_branch? }``
+  // object so additional fields don't force an N-arg signature blow-up.
+  const body: UpdateProjectPayload =
+    typeof payloadOrName === 'object' && payloadOrName !== null
+      ? payloadOrName
+      : { name: payloadOrName, description };
   return apiRequest<ProjectInfo>(`/api/v1/projects/${projectId}`, {
     method: 'PUT',
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify(body),
   });
 }
 

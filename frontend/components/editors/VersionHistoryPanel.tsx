@@ -181,7 +181,7 @@ function CommitRow({
               fontSize: 10, color: '#3f3f46', marginLeft: 'auto',
               fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
             }}>
-              {commit.root_hash.slice(0, 10)}
+              {commit.root_hash.slice(0, 12)}
             </span>
           )}
         </div>

@@ -17,6 +17,36 @@ const WelcomeModal = dynamic(
   () => import('@/components/onboarding/WelcomeModal').then(m => ({ default: m.WelcomeModal })),
   { ssr: false }
 );
+
+// Per-project subroute → nav id. Order matters: the first matching
+// segment wins, so place sub-tabs that share a substring with another
+// (e.g. ``/settings`` is contained in nothing else here, ``/data`` is
+// also the catch-all) appropriately. Kept as a flat table so adding a
+// new tab is one line and the cognitive complexity of ``activeView``
+// stays inside the linter cap.
+const _PROJECT_VIEWS: ReadonlyArray<readonly [string, string]> = [
+  ['/toolkit', 'toolkit'],
+  ['/history', 'history'],
+  ['/access', 'access'],
+  ['/monitor', 'monitor'],
+  ['/integrations', 'integrations'],
+  ['/settings', 'settings'],
+  ['/data', 'data'],
+];
+
+function _resolveActiveView(pathname: string | null): string {
+  if (!pathname) return 'data';
+  if (pathname.startsWith('/tools-and-server')) return 'tools';
+  if (pathname.startsWith('/settings')) return 'settings';
+  if (pathname.startsWith('/home')) return 'home';
+  if (pathname.includes('/projects/')) {
+    for (const [segment, view] of _PROJECT_VIEWS) {
+      if (pathname.includes(segment)) return view;
+    }
+    return 'data';
+  }
+  return 'home';
+}
 const MainLayoutInner = memo(function MainLayoutInner({
   children,
 }: {
@@ -41,20 +71,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
   const onboarding = useOnboarding();
 
   const activeView = useMemo(() => {
-    if (!pathname) return 'data';
-    if (pathname.startsWith('/tools-and-server')) return 'tools';
-    if (pathname.startsWith('/settings')) return 'settings';
-    if (pathname.startsWith('/home')) return 'home';
-    if (pathname.includes('/projects/')) {
-      if (pathname.includes('/toolkit')) return 'toolkit';
-      if (pathname.includes('/history')) return 'history';
-      if (pathname.includes('/access')) return 'access';
-      if (pathname.includes('/monitor')) return 'monitor';
-      if (pathname.includes('/settings')) return 'settings';
-      if (pathname.includes('/data')) return 'data';
-      return 'data';
-    }
-    return 'home';
+    return _resolveActiveView(pathname);
   }, [pathname]);
 
   const userInitial = (session?.user?.email?.[0] || 'U').toUpperCase();

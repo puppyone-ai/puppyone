@@ -37,6 +37,7 @@ from mut.server.handlers import (
     handle_negotiate,
     handle_pull,
     handle_push,
+    handle_scopes,
 )
 
 from src.mut_engine.server.repo_manager import MutRepoManager
@@ -341,6 +342,27 @@ async def ap_rollback(access_key: str, request: Request):
     await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(f"[AP] rollback ap={access_key[:8]}... target={result.get('target_commit_id')}")
+    return JSONResponse(result)
+
+
+@ap_router.post("/{access_key}/scopes")
+async def ap_scopes(access_key: str, request: Request):
+    """List visible scopes for the credential bound to this access key."""
+    try:
+        project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
+        body = await request.json()
+        result = await asyncio.to_thread(
+            _invoke, handle_scopes, repo_manager, project_id, auth, body,
+        )
+    except HTTPException:
+        raise
+    except ClientTooOldError as e:
+        _raise_too_old(e)
+    except Exception as e:
+        log_error(f"[AP] scopes failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Scopes failed: {e}")
+
+    log_info(f"[AP] scopes ap={access_key[:8]}...")
     return JSONResponse(result)
 
 

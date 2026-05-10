@@ -41,7 +41,7 @@ from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
 from mut.core.object_store import ObjectStore
-from mut.server.history import compute_commit_id
+from mut.foundation.git_format import encode_commit
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_error, log_info, log_warning
@@ -101,6 +101,84 @@ class _ScopeLockRegistry:
 
 
 _locks = _ScopeLockRegistry()
+
+
+# ── Commit object construction ──────────────────────
+#
+# Pre-git-format-storage we used ``mut.server.history.compute_commit_id``,
+# a deterministic 16-hex SHA-256 of (scope, hash, time, who). The new
+# mut wire contract (commit ``3b81887`` on branch ``feat/git-format-storage``)
+# replaces that with a real git commit object whose SHA-1 IS the commit_id.
+# The same shape lives in ``mut.server.handlers._make_commit``; we
+# inline the logic here rather than importing a private symbol to keep
+# the dependency surface explicit.
+
+def _format_git_time(created_at_iso: str) -> tuple[str, str]:
+    """Convert ISO 8601 → ``("<unix_seconds>", "<+HHMM>")``.
+
+    Falls back to "now / +0000" on parse error so a malformed input
+    can't take down the write path.
+    """
+    try:
+        dt = datetime.fromisoformat(created_at_iso.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        dt = datetime.now(timezone.utc)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    ts = int(dt.timestamp())
+    offset = dt.utcoffset()
+    if offset is None:
+        return str(ts), "+0000"
+    secs = int(offset.total_seconds())
+    sign = "+" if secs >= 0 else "-"
+    secs = abs(secs)
+    return str(ts), f"{sign}{secs // 3600:02d}{(secs % 3600) // 60:02d}"
+
+
+def _identity_for_git(who: str) -> str:
+    """Wrap a bare agent id in git's ``<email>`` shape so the commit
+    object passes ``git fsck`` cleanly.
+
+    Match what the remote ``mut/`` server-side helper does (see
+    ``mut.server.handlers._make_commit`` on branch
+    ``feat/git-format-storage``).
+    """
+    identity = (who or "anonymous").strip()
+    if "<" in identity:
+        return identity
+    slug = identity.replace(" ", "-").lower() or "anonymous"
+    return f"{identity} <{slug}@puppyone>"
+
+
+def _build_git_commit(
+    repo,
+    *,
+    tree_sha: str,
+    parent_sha: str,
+    who: str,
+    message: str,
+    created_at_iso: str,
+) -> str:
+    """Build a real git commit object pointing at *tree_sha* (with
+    *parent_sha* if non-empty), store it in the project's ObjectStore,
+    and return its SHA-1 hex (the new ``commit_id``).
+
+    The commit object lives in S3 alongside blobs and trees — pulled
+    by clients in clone/pull responses so ``refs/remotes/origin/main``
+    on the client side resolves to a present object.
+    """
+    ts, tz = _format_git_time(created_at_iso)
+    identity = _identity_for_git(who)
+    commit_body = encode_commit(
+        tree_sha1=tree_sha,
+        parent_sha1=parent_sha or None,
+        author=identity,
+        author_time=f"{ts} {tz}",
+        committer=identity,
+        committer_time=f"{ts} {tz}",
+        message=message or "(no message)",
+    )
+    return repo.store.put_commit(commit_body)
 
 
 # ── CAS retry tuning ──────────────────────────────────
@@ -214,11 +292,21 @@ async def _apply_under_lock(
         created_at_iso = datetime.now(timezone.utc).isoformat(
             timespec="microseconds",
         )
-        new_commit_id = compute_commit_id(
-            scope_path=scope_norm,
-            scope_hash=new_scope_hash,
-            created_at_iso=created_at_iso,
+        # Parent commit comes from the scope's current head — mirrors
+        # what ``mut.server.handlers._push_cas_attempt`` does so the
+        # commit DAG on the client side is linear and connected.
+        parent_sha = await asyncio.to_thread(
+            repo.get_scope_head_commit_id, scope_norm,
+        ) or ""
+
+        new_commit_id = await asyncio.to_thread(
+            _build_git_commit,
+            repo,
+            tree_sha=new_scope_hash,
+            parent_sha=parent_sha,
             who=who,
+            message=message,
+            created_at_iso=created_at_iso,
         )
 
         cas_ok = await asyncio.to_thread(

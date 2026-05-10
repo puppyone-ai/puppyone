@@ -7,14 +7,14 @@ S3 ObjectStore + Supabase History/Audit/Scope instead of a local filesystem.
 Key design:
   - All reads go through root_hash (global tree) for cross-scope visibility
   - CAS on scope_hash for concurrency control (no application-level locks)
-  - Commits are identified by a 16-hex commit_id (hash of metadata), not
-    an integer counter. Linear history is preserved by ordering commits
-    on (created_at ASC, commit_id ASC).
+  - Commits are identified by a 40-hex SHA-1 commit_id (the git
+    ``commit`` object's hash, stored as a loose object in the project
+    ObjectStore). Linear history is preserved by ordering commits on
+    (created_at ASC, commit_id ASC).
 """
 
 from __future__ import annotations
 
-import json
 import threading
 from collections import OrderedDict
 from typing import ClassVar
@@ -22,6 +22,9 @@ from typing import ClassVar
 from mut.core.object_store import ObjectStore
 from mut.core.protocol import normalize_path
 from mut.core.tree import read_tree, tree_to_flat
+from mut.foundation.git_format import (
+    MODE_DIR, MODE_FILE, TreeEntry, encode_tree,
+)
 from mut.server.scope_manager import ScopeManager
 
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
@@ -321,7 +324,7 @@ class PuppyOneServerRepo:
             else:
                 return root_hash
 
-        return self.store.put(json.dumps({}, sort_keys=True).encode())
+        return self.store.put_tree(encode_tree([]))
 
     def build_full_tree(self) -> str:
         if self._last_scope_build:
@@ -333,14 +336,16 @@ class PuppyOneServerRepo:
             parts = prefix.split("/")
             current = scope_tree_hash
             for part in reversed(parts):
-                entries = {part: ["T", current]}
-                current = self.store.put(json.dumps(entries, sort_keys=True).encode())
+                # Wrap the inner tree in a directory entry — git tree
+                # binary format ``<mode> <name>\x00<sha1_bytes>`` per entry.
+                entry = TreeEntry(name=part, mode=MODE_DIR, sha1_hex=current)
+                current = self.store.put_tree(encode_tree([entry]))
             return current
 
         root = self.get_root_hash()
         if root:
             return root
-        return self.store.put(json.dumps({}, sort_keys=True).encode())
+        return self.store.put_tree(encode_tree([]))
 
     # ── Internal helpers ──
 
@@ -369,7 +374,10 @@ class PuppyOneServerRepo:
             d = nested
             for p in parts[:-1]:
                 d = d.setdefault(p, {})
-            blob_hash = self.store.put(content)
+            # ``store.put`` is the back-compat alias that frames raw
+            # bytes as a git blob and returns the SHA-1 of the framed
+            # bytes — exactly what we want for file content here.
+            blob_hash = self.store.put_blob(content)
             d[parts[-1]] = ("B", blob_hash)
         return _write_nested_tree(self.store, nested)
 
@@ -386,11 +394,24 @@ def _is_excluded(full_rel: str, excludes: list[str]) -> bool:
 
 
 def _write_nested_tree(store: ObjectStore, node: dict) -> str:
-    entries: dict = {}
+    """Build a git tree object from a nested ``{name: ("B"|"T", hash) | dict}``
+    structure.
+
+    Mirrors the helper in ``mut/server/repo.py:_write_nested_tree`` —
+    we duplicate it here to keep the PuppyOne dependency surface on
+    public mut API only (no private helpers imported across the
+    repository boundary).
+    """
+    entries: list[TreeEntry] = []
     for name, val in sorted(node.items()):
         if isinstance(val, tuple):
-            entries[name] = list(val)
+            kind, sub_hash = val
+            entries.append(TreeEntry(
+                name=name,
+                mode=MODE_FILE if kind == "B" else MODE_DIR,
+                sha1_hex=sub_hash,
+            ))
         else:
             sub_hash = _write_nested_tree(store, val)
-            entries[name] = ["T", sub_hash]
-    return store.put(json.dumps(entries, sort_keys=True).encode())
+            entries.append(TreeEntry(name=name, mode=MODE_DIR, sha1_hex=sub_hash))
+    return store.put_tree(encode_tree(entries))

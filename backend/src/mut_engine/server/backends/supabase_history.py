@@ -4,9 +4,10 @@ SupabaseHistoryManager — PostgreSQL implementation of Mut History
 Storage layout
 ──────────────
 * ``mut_commits`` — one row per commit, keyed by (project_id, commit_id).
-  ``commit_id`` is the 16-hex SHA256 of
-  ``scope_path | scope_hash | created_at_iso | who`` as computed by
-  :meth:`mut.server.history.HistoryManager.compute_commit_id`.
+  ``commit_id`` is the 40-hex SHA-1 of the git ``commit`` object body
+  (built by :func:`mut.foundation.git_format.encode_commit` and stored
+  in the project's ``ObjectStore``). PuppyOne and any standard git tool
+  derive the same id from the same commit body byte-for-byte.
 
 * ``mut_scope_state`` — per-scope pointer. Holds the latest
   ``scope_hash`` (content fingerprint, CAS target) and
@@ -325,9 +326,10 @@ class SupabaseHistoryManager:
     ) -> None:
         """Persist a commit.
 
-        ``commit_id`` is the 16-hex SHA256 identifier. The caller is
-        expected to have computed it already (handlers do this right
-        before calling us, so the value ends up in the audit log too).
+        ``commit_id`` is the 40-hex SHA-1 of the git ``commit`` object
+        body. The caller is expected to have computed it already
+        (handlers / direct_writer do this right before calling us, so
+        the value ends up in the audit log too).
         """
         if not commit_id:
             raise ValueError("commit_id is required")
