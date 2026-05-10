@@ -57,12 +57,13 @@ function getTypeInfo(value: JsonValue): { type: string; color: string } {
 const styles = {
   contextMenu: {
     position: 'fixed',
-    background: '#1a1a1e',
-    border: '1px solid #333',
+    background: 'rgba(28, 28, 30, 0.98)',
+    backdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,0.1)',
     borderRadius: 8,
-    padding: 4,
+    padding: '4px 0',
     minWidth: 160,
-    boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
     zIndex: 1000,
     fontFamily:
       "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
@@ -72,23 +73,39 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    width: '100%',
+    width: 'calc(100% - 8px)',
     height: 32,
+    margin: '0 4px',
     padding: '0 12px',
     background: 'transparent',
     border: 'none',
-    borderRadius: 4,
-    color: isDestructive ? '#f87171' : '#d4d4d4',
-    fontSize: 12,
+    borderRadius: 6,
+    color: isDestructive ? '#ef4444' : '#e4e4e7',
+    fontSize: 13,
     fontFamily: 'inherit',
     cursor: 'pointer',
     textAlign: 'left',
+    transition: 'background 0.1s',
   }),
 
   menuDivider: {
     height: 1,
-    background: '#333',
-    margin: '4px 0',
+    background: 'rgba(255,255,255,0.08)',
+    margin: '4px 8px',
+  } as CSSProperties,
+
+  submenu: {
+    position: 'absolute',
+    left: '100%',
+    top: 0,
+    marginLeft: 4,
+    background: 'rgba(28, 28, 30, 0.98)',
+    backdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8,
+    padding: '4px 0',
+    minWidth: 160,
+    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
   } as CSSProperties,
 };
 
@@ -101,7 +118,6 @@ interface MenuItemProps {
   label: string;
   destructive?: boolean;
   hasSubmenu?: boolean;
-  onHover?: (show: boolean) => void;
 }
 
 function MenuItem({
@@ -110,7 +126,6 @@ function MenuItem({
   label,
   destructive = false,
   hasSubmenu = false,
-  onHover,
 }: MenuItemProps) {
   return (
     <button
@@ -118,9 +133,8 @@ function MenuItem({
       onClick={onClick}
       onMouseEnter={e => {
         e.currentTarget.style.background = destructive
-          ? 'rgba(248,113,113,0.1)'
-          : 'rgba(255,255,255,0.05)';
-        onHover?.(true);
+          ? 'rgba(239,68,68,0.10)'
+          : 'rgba(255,255,255,0.08)';
       }}
       onMouseLeave={e => {
         e.currentTarget.style.background = 'transparent';
@@ -128,27 +142,31 @@ function MenuItem({
     >
       <span
         style={{
-          width: 16,
+          width: 14,
+          height: 14,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          opacity: destructive ? 0.85 : 0.7,
+          color: destructive ? '#ef4444' : '#e4e4e7',
+          flexShrink: 0,
         }}
       >
         {icon}
       </span>
-      <span style={{ flex: 1 }}>{label}</span>
+      <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
       {hasSubmenu && (
         <svg
-          width='10'
-          height='10'
-          viewBox='0 0 10 10'
+          width='14'
+          height='14'
+          viewBox='0 0 24 24'
           fill='none'
           style={{ opacity: 0.5 }}
         >
-          <path
-            d='M3.5 2L6.5 5L3.5 8'
+          <polyline
+            points='9 18 15 12 9 6'
             stroke='currentColor'
-            strokeWidth='1.2'
+            strokeWidth='2'
             strokeLinecap='round'
             strokeLinejoin='round'
           />
@@ -235,38 +253,11 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
     }
   }, []);
 
-  const [showImportSubmenu, setShowImportSubmenu] = useState(false);
-  const showImportTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const hideImportTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // 延迟显示/隐藏 Import 子菜单
-  const handleImportHover = useCallback((show: boolean) => {
-    if (show) {
-      if (hideImportTimerRef.current) {
-        clearTimeout(hideImportTimerRef.current);
-        hideImportTimerRef.current = null;
-      }
-      showImportTimerRef.current = setTimeout(() => {
-        setShowImportSubmenu(true);
-      }, 150);
-    } else {
-      if (showImportTimerRef.current) {
-        clearTimeout(showImportTimerRef.current);
-        showImportTimerRef.current = null;
-      }
-      hideImportTimerRef.current = setTimeout(() => {
-        setShowImportSubmenu(false);
-      }, 100);
-    }
-  }, []);
-
   // 清理定时器
   useEffect(() => {
     return () => {
       if (showTimerRef.current) clearTimeout(showTimerRef.current);
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      if (showImportTimerRef.current) clearTimeout(showImportTimerRef.current);
-      if (hideImportTimerRef.current) clearTimeout(hideImportTimerRef.current);
     };
   }, []);
 
@@ -289,84 +280,9 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
 
   if (!state.visible) return null;
 
-  // Import 子菜单
-  const ImportSubmenu = () => (
-    <div
-      style={{
-        position: 'absolute',
-        left: '100%',
-        top: 0,
-        marginLeft: 4,
-        background: '#1a1a1e',
-        border: '1px solid #333',
-        borderRadius: 8,
-        padding: 4,
-        minWidth: 140,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-      }}
-      onMouseEnter={() => handleImportHover(true)}
-      onMouseLeave={() => handleImportHover(false)}
-    >
-      <MenuItem
-        onClick={() => onAction('import-url')}
-        icon={
-          <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-            <path
-              d='M7 2v8M11 6L7 2 3 6'
-              stroke='currentColor'
-              strokeWidth='1.2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            />
-            <path
-              d='M2 12h10'
-              stroke='currentColor'
-              strokeWidth='1.2'
-              strokeLinecap='round'
-            />
-          </svg>
-        }
-        label='From URL...'
-      />
-      <MenuItem
-        onClick={() => onAction('import-file')}
-        icon={
-          <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-            <path
-              d='M9 1H3a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5L9 1z'
-              stroke='currentColor'
-              strokeWidth='1.2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            />
-            <path
-              d='M9 1v4h4'
-              stroke='currentColor'
-              strokeWidth='1.2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            />
-          </svg>
-        }
-        label='From File...'
-      />
-    </div>
-  );
-
   const TurnIntoSubmenu = () => (
     <div
-      style={{
-        position: 'absolute',
-        left: '100%',
-        top: 0,
-        marginLeft: 4,
-        background: '#1a1a1e',
-        border: '1px solid #333',
-        borderRadius: 8,
-        padding: 4,
-        minWidth: 140,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-      }}
+      style={styles.submenu}
       onMouseEnter={() => handleTurnIntoHover(true)}
       onMouseLeave={() => handleTurnIntoHover(false)}
     >
@@ -486,38 +402,6 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
         }
         label='Copy path'
       />
-
-      <div style={styles.menuDivider} />
-
-      {/* 数据操作 - Import Submenu */}
-      <div
-        style={{ position: 'relative' }}
-        onMouseEnter={() => handleImportHover(true)}
-        onMouseLeave={() => handleImportHover(false)}
-      >
-        <MenuItem
-          icon={
-            <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
-              <path
-                d='M7 10V3M7 3L4 6M7 3l3 3'
-                stroke='currentColor'
-                strokeWidth='1.2'
-                strokeLinecap='round'
-                strokeLinejoin='round'
-              />
-              <path
-                d='M2 10v1.5A1.5 1.5 0 003.5 13h7a1.5 1.5 0 001.5-1.5V10'
-                stroke='currentColor'
-                strokeWidth='1.2'
-                strokeLinecap='round'
-              />
-            </svg>
-          }
-          label='Import Data'
-          hasSubmenu
-        />
-        {showImportSubmenu && <ImportSubmenu />}
-      </div>
 
       <div style={styles.menuDivider} />
 

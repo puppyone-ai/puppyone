@@ -79,6 +79,9 @@ function lineDiff(a: string[], b: string[]): DiffLine[] {
 // the "Binary file" placeholder. Keep both fallbacks so the function
 // stays robust if the wire shape ever shifts.
 function fileToLines(detail: FileVersionDetail): string[] | null {
+  if (detail.is_binary) {
+    return null;
+  }
   if (detail.content_text != null) {
     return detail.content_text.split('\n');
   }
@@ -149,6 +152,13 @@ function parseOperator(who: string): { type: string; id: string } {
     return { type, id: rest.join(':') };
   }
   return { type: who || 'system', id: '' };
+}
+
+function formatOperatorLabel(type: string): string {
+  if (type === 'user') return 'User';
+  if (type === 'agent') return 'Agent';
+  if (type === 'sync') return 'Sync';
+  return 'System';
 }
 
 // ─── Vertical commit node (Linear Audit Trail) ───
@@ -418,14 +428,15 @@ interface FileDiffBlockProps {
 }
 
 function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiffBlockProps) {
-  const tone = OP_TONE[change.op] ?? OP_TONE.modified;
+  const op = change.op;
+  const tone = OP_TONE[op] ?? OP_TONE.modified;
   const ext = fileExtClass(change.path);
 
   // Fetch current content for added/modified; previous content for
   // modified/deleted. SWR keys are scoped per (path, commit) so a
   // parent fetch can be reused across rows.
-  const needsCurrent = change.op === 'added' || change.op === 'modified';
-  const needsParent = (change.op === 'modified' || change.op === 'deleted') && !!parentCommitId;
+  const needsCurrent = op === 'added' || op === 'modified';
+  const needsParent = (op === 'modified' || op === 'deleted') && !!parentCommitId;
 
   const { data: currentDetail, error: currentErr } = useSWR(
     needsCurrent ? ['ver-content', projectId, change.path, commitId] : null,
@@ -448,11 +459,11 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
   if (currentErr || parentErr) {
     placeholder = 'Failed to load diff';
   } else if (!isLoading) {
-    if (change.op === 'added') {
+    if (op === 'added') {
       const cur = currentDetail ? fileToLines(currentDetail) : null;
       if (cur) lines = cur.map((text) => ({ kind: 'add' as const, text }));
       else placeholder = 'Binary file or unchanged metadata';
-    } else if (change.op === 'deleted') {
+    } else if (op === 'deleted') {
       const prev = parentDetail ? fileToLines(parentDetail) : null;
       if (prev) lines = prev.map((text) => ({ kind: 'remove' as const, text }));
       else if (!parentCommitId) placeholder = 'No previous version available';
@@ -526,7 +537,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
             color: tone.fg,
           }}
         >
-          {change.op}
+          {op}
         </span>
       </div>
 
@@ -576,6 +587,122 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
   );
 }
 
+function CommitDetail({
+  commit,
+  projectId,
+  parentCommitId,
+}: {
+  commit: MutCommitInfo;
+  projectId: string;
+  parentCommitId: string | null;
+}) {
+  const { type, id } = parseOperator(commit.who);
+  const opColors: Record<string, { bg: string; text: string; border: string }> = {
+    user: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
+    agent: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
+    sync: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
+    system: { bg: 'bg-zinc-500/10', text: 'text-zinc-400', border: 'border-zinc-500/20' },
+  };
+  const opColor = opColors[type] || opColors.system;
+
+  return (
+    <div className="p-6 md:p-8 mx-auto" style={{ maxWidth: PROJECT_CONTENT_RAIL_WIDTH }}>
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex items-center gap-3">
+          <span
+            className="text-lg font-medium text-white font-mono"
+            title={commit.commit_id}
+          >
+            {commit.commit_id.slice(0, 8)}
+          </span>
+          <span className="text-sm text-zinc-400">
+            {commit.message || '(no message)'}
+          </span>
+        </div>
+
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${opColor.bg} ${opColor.text} ${opColor.border} font-medium`}>
+            {formatOperatorLabel(type)}
+            {id && <span className="opacity-70 font-normal font-mono">{id.slice(0, 8)}</span>}
+          </span>
+
+          <span
+            className="text-xs text-zinc-500 font-medium"
+            title={formatFullTime(commit.created_at)}
+          >
+            {formatTime(commit.created_at)}
+          </span>
+
+          {commit.root_hash && (
+            <span className="text-xs text-zinc-600 font-mono bg-white/[0.03] px-2 py-1 rounded border border-white/[0.05]">
+              {commit.root_hash.slice(0, 10)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {commit.changes.length > 0 ? (
+        <>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              fontSize: 11,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              color: '#71717a',
+              marginBottom: 16,
+              paddingBottom: 14,
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <span>
+              {commit.changes.length} file
+              {commit.changes.length !== 1 ? 's' : ''} changed
+            </span>
+          </div>
+          {commit.changes.map((change, i) => (
+            <FileDiffBlock
+              key={`${change.path}-${i}`}
+              change={change}
+              projectId={projectId}
+              commitId={commit.commit_id}
+              parentCommitId={parentCommitId}
+            />
+          ))}
+        </>
+      ) : (
+        <div className="px-6 py-12 text-center text-zinc-500 text-sm border border-white/[0.06] rounded-xl">
+          No file changes in this commit
+        </div>
+      )}
+
+      {commit.conflicts.length > 0 && (
+        <div className="mt-4 bg-amber-500/[0.02] border border-amber-500/20 rounded-xl p-4">
+          <div className="text-xs font-medium text-amber-500 mb-3 flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            Merge Conflicts ({commit.conflicts.length})
+          </div>
+          <div className="space-y-1.5">
+            {commit.conflicts.map((conflict, i) => (
+              <div key={i} className="text-xs font-mono text-zinc-400 flex items-center gap-2 bg-black/20 p-2 rounded border border-white/[0.02]">
+                <span className="text-zinc-300">{conflict.path}</span>
+                <span className="text-zinc-600">-</span>
+                <span className="text-amber-500/80">{conflict.strategy}</span>
+                {conflict.kept && <span className="text-zinc-500">(kept: {conflict.kept})</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ───
 
 export default function HistoryPage({ params }: HistoryPageProps) {
@@ -606,6 +733,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   const sortedCommits = useMemo(() => [...commits].reverse(), [commits]);
 
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
 
   const accessPoints = useMemo(() => {
     const counts = new Map<string, number>();
@@ -617,6 +746,34 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       return { who, type, id, count };
     }).sort((a, b) => b.count - a.count);
   }, [commits]);
+
+  const activeAccessPoint = useMemo(
+    () => accessPoints.find(ap => ap.who === activeFilter) ?? null,
+    [accessPoints, activeFilter],
+  );
+
+  useEffect(() => {
+    if (!filterMenuOpen) return;
+
+    function closeOnOutside(event: MouseEvent) {
+      if (!filterMenuRef.current?.contains(event.target as Node)) {
+        setFilterMenuOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setFilterMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [filterMenuOpen]);
 
   const filteredCommits = useMemo(() => {
     let filtered = sortedCommits;
@@ -740,10 +897,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             {/* Filter Header */}
             {accessPoints.length > 1 && (
               <div className="flex flex-col border-b border-white/[0.04] bg-[#0e0e0e]">
-                {/* Access Point Tabs */}
-                <div className="px-3 h-[40px] min-h-[40px] flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none' }}>
+                <div className="px-3 h-[44px] min-h-[44px] flex items-center gap-2">
                   <button
-                    onClick={() => setActiveFilter(null)}
+                    onClick={() => {
+                      setActiveFilter(null);
+                      setFilterMenuOpen(false);
+                    }}
                     className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                       activeFilter === null 
                         ? 'bg-white/[0.1] text-zinc-100' 
@@ -752,25 +911,95 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   >
                     All
                   </button>
-                  {accessPoints.map(ap => {
-                    const { color } = getTrackInfo(ap.who);
-                    const label = ap.type === 'user' ? 'User' : ap.type === 'agent' ? 'Agent' : ap.type === 'sync' ? 'Sync' : 'System';
-                    const isSelected = activeFilter === ap.who;
-                    return (
-                      <button
-                        key={ap.who}
-                        onClick={() => setActiveFilter(ap.who)}
-                        className={`flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
-                          isSelected 
-                            ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]' 
-                            : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
-                        }`}
+
+                  <div ref={filterMenuRef} className="relative min-w-0 flex-1">
+                    <button
+                      onClick={() => setFilterMenuOpen(open => !open)}
+                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+                        activeFilter
+                          ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]'
+                          : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
+                      }`}
+                      title={activeAccessPoint?.who ?? 'Filter by actor'}
+                      aria-haspopup="menu"
+                      aria-expanded={filterMenuOpen}
+                    >
+                      {activeAccessPoint ? (
+                        <>
+                          <span style={{ color: getTrackInfo(activeAccessPoint.who).color, fontSize: 8 }}>●</span>
+                          <span className="truncate">
+                            {formatOperatorLabel(activeAccessPoint.type)}
+                            {activeAccessPoint.id && (
+                              <span className="ml-1 opacity-70 font-mono font-normal">
+                                {activeAccessPoint.id.slice(0, 8)}
+                              </span>
+                            )}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="truncate text-zinc-400">
+                          Actors
+                          <span className="ml-1 font-mono opacity-60">{accessPoints.length}</span>
+                        </span>
+                      )}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`ml-auto flex-shrink-0 opacity-60 transition-transform ${filterMenuOpen ? 'rotate-180' : ''}`}
                       >
-                        <span style={{ color, fontSize: 8 }}>●</span>
-                        {label} {ap.id && <span className="opacity-70 font-mono font-normal">{ap.id.slice(0, 4)}</span>}
-                      </button>
-                    );
-                  })}
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    {filterMenuOpen && (
+                      <div
+                        role="menu"
+                        className="absolute left-0 right-0 top-[30px] z-50 overflow-hidden rounded-md border border-white/[0.08] bg-[#151515] shadow-xl"
+                      >
+                        <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
+                          {accessPoints.map(ap => {
+                            const { color } = getTrackInfo(ap.who);
+                            const isSelected = activeFilter === ap.who;
+                            return (
+                              <button
+                                key={ap.who}
+                                role="menuitemradio"
+                                aria-checked={isSelected}
+                                onClick={() => {
+                                  setActiveFilter(ap.who);
+                                  setFilterMenuOpen(false);
+                                }}
+                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors ${
+                                  isSelected
+                                    ? 'bg-white/[0.08] text-zinc-100'
+                                    : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
+                                }`}
+                              >
+                                <span style={{ color, fontSize: 8 }}>●</span>
+                                <span className="min-w-0 flex-1 truncate">
+                                  {formatOperatorLabel(ap.type)}
+                                  {ap.id && (
+                                    <span className="ml-1 opacity-70 font-mono font-normal">
+                                      {ap.id.slice(0, 8)}
+                                    </span>
+                                  )}
+                                </span>
+                                <span className="flex-shrink-0 font-mono text-[10px] opacity-50">
+                                  {ap.count}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -781,138 +1010,28 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   key={commit.commit_id}
                   commit={commit}
                   nextCommit={i < filteredCommits.length - 1 ? filteredCommits[i + 1] : undefined}
-                  isSelected={commit.commit_id === selectedCommitId}
-                  isHead={Boolean(headCommitId) && commit.commit_id === headCommitId}
+                  isSelected={selectedCommitId === commit.commit_id}
+                  isHead={commit.commit_id === headCommitId}
                   onClick={() => setSelectedCommitId(commit.commit_id)}
                 />
               ))}
             </div>
           </ResizableSidebarColumn>
 
-          {/* Right: Detail panel: commit info + file tree */}
-          <div className="flex-1 overflow-auto bg-[#0e0e0e]">
+          {/* Right: Commit Detail */}
+          <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-[#0e0e0e]">
             {selectedCommit ? (
-              <div className="p-6 md:p-8 mx-auto" style={{ maxWidth: PROJECT_CONTENT_RAIL_WIDTH }}>
-                {/* Commit info header */}
-                <div className="flex flex-wrap items-center gap-4 mb-6">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="text-lg font-medium text-white font-mono"
-                      title={selectedCommit.commit_id}
-                    >
-                      {selectedCommit.commit_id.slice(0, 8)}
-                    </span>
-                    <span className="text-sm text-zinc-400">
-                      {selectedCommit.message || '(no message)'}
-                    </span>
-                  </div>
-                  
-                  <div className="ml-auto flex flex-wrap items-center gap-3">
-                    {/* Operator badge */}
-                    {(() => {
-                      const { type, id } = parseOperator(selectedCommit.who);
-                      const opColors: Record<string, { bg: string; text: string; border: string }> = {
-                        user: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
-                        agent: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-                        sync: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
-                        system: { bg: 'bg-zinc-500/10', text: 'text-zinc-400', border: 'border-zinc-500/20' },
-                      };
-                      const c = opColors[type] || opColors.system;
-                      return (
-                        <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${c.bg} ${c.text} ${c.border} font-medium`}>
-                          {type.charAt(0).toUpperCase() + type.slice(1)}
-                          {id && <span className="opacity-70 font-normal font-mono">{id.slice(0, 8)}</span>}
-                        </span>
-                      );
-                    })()}
-                    
-                    <span
-                      className="text-xs text-zinc-500 font-medium"
-                      title={formatFullTime(selectedCommit.created_at)}
-                    >
-                      {formatTime(selectedCommit.created_at)}
-                    </span>
-                    
-                    {selectedCommit.root_hash && (
-                      <span className="text-xs text-zinc-600 font-mono bg-white/[0.03] px-2 py-1 rounded border border-white/[0.05]">
-                        {selectedCommit.root_hash.slice(0, 10)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* File diff blocks — one per changed file. Each block
-                    lazy-loads its content (current + parent) and renders
-                    a line-level +/- diff. Matches the showcase layout. */}
-                {selectedCommit.changes.length > 0 ? (
-                  <>
-                    {(() => {
-                      const totalAdded = 0;
-                      const totalRemoved = 0;
-                      return (
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 12,
-                            fontSize: 11,
-                            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                            color: '#71717a',
-                            marginBottom: 16,
-                            paddingBottom: 14,
-                            borderBottom: '1px solid rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <span>
-                            {selectedCommit.changes.length} file
-                            {selectedCommit.changes.length !== 1 ? 's' : ''} changed
-                          </span>
-                        </div>
-                      );
-                    })()}
-                    {selectedCommit.changes.map((change, i) => (
-                      <FileDiffBlock
-                        key={`${change.path}-${i}`}
-                        change={change}
-                        projectId={projectId}
-                        commitId={selectedCommit.commit_id}
-                        parentCommitId={parentCommitId}
-                      />
-                    ))}
-                  </>
-                ) : (
-                  <div className="px-6 py-12 text-center text-zinc-500 text-sm border border-white/[0.06] rounded-xl">
-                    No file changes in this commit
-                  </div>
-                )}
-
-                {/* Conflicts section */}
-                {selectedCommit.conflicts.length > 0 && (
-                  <div className="mt-4 bg-amber-500/[0.02] border border-amber-500/20 rounded-xl p-4">
-                    <div className="text-xs font-medium text-amber-500 mb-3 flex items-center gap-2">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-                        <line x1="12" y1="9" x2="12" y2="13"/>
-                        <line x1="12" y1="17" x2="12.01" y2="17"/>
-                      </svg>
-                      Merge Conflicts ({selectedCommit.conflicts.length})
-                    </div>
-                    <div className="space-y-1.5">
-                      {selectedCommit.conflicts.map((c, i) => (
-                        <div key={i} className="text-xs font-mono text-zinc-400 flex items-center gap-2 bg-black/20 p-2 rounded border border-white/[0.02]">
-                          <span className="text-zinc-300">{c.path}</span>
-                          <span className="text-zinc-600">—</span>
-                          <span className="text-amber-500/80">{c.strategy}</span>
-                          {c.kept && <span className="text-zinc-500">(kept: {c.kept})</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <CommitDetail
+                commit={selectedCommit}
+                projectId={projectId}
+                parentCommitId={parentCommitId}
+              />
             ) : (
-              <div className="flex items-center justify-center h-full text-zinc-600 text-sm">
-                Select a commit to view changes
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                height: '100%', color: '#52525b', fontSize: 13,
+              }}>
+                Select a commit
               </div>
             )}
           </div>

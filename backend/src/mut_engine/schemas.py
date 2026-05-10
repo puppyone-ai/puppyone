@@ -16,7 +16,7 @@ Identity model (as of 20260418):
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -167,12 +167,23 @@ class TreeResponse(BaseModel):
 # Commit history schemas
 # ============================================================
 
+class MutCommitChange(BaseModel):
+    """A single file change in a commit.
+
+    ``action`` is the MUT-native operation stored in history rows.
+    ``op`` is the stable Git-style UI/API operation label.
+    """
+    path: str
+    action: Literal["add", "update", "delete"] = "update"
+    op: Literal["added", "modified", "deleted"] = "modified"
+
+
 class FileVersionInfo(BaseModel):
     """History list item for a single commit."""
     commit_id: str
     who: str = ""
     message: str = ""
-    changes: list[dict] = []
+    changes: list[MutCommitChange] = []
     conflicts: list[dict] = []
     root_hash: str = ""
     scope_hash: str = ""
@@ -217,16 +228,6 @@ class RollbackRequest(BaseModel):
     """Rollback request — restore the scope to the state at
     target_commit_id by creating a new forward commit."""
     target_commit_id: str
-
-
-# ============================================================
-# Project-level Mut Commit History
-# ============================================================
-
-class MutCommitChange(BaseModel):
-    """A single file change in a commit"""
-    path: str
-    op: str  # "added" | "modified" | "deleted"
 
 
 class MutCommitConflict(BaseModel):

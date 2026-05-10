@@ -208,6 +208,11 @@ export const VirtualRow = React.memo(function VirtualRow({
     ? 'rgba(255, 167, 61, 0.4)'
     : BORDER_COLOR;
   const keyBorderLeftWidth = isKeyBorderHighlighted ? 1 : 1;
+  const isMenuButtonActive = !!isContextMenuOpen;
+  const menuButtonBackground = isMenuButtonActive
+    ? 'rgba(255,255,255,0.1)'
+    : 'transparent';
+  const menuButtonColor = isMenuButtonActive ? '#ddd' : '#999';
 
   if (isRootNode) {
     return (
@@ -260,28 +265,31 @@ export const VirtualRow = React.memo(function VirtualRow({
           <button
             style={{
               position: 'absolute',
-              left: 28,
+              left: 30,
               top: '50%',
               transform: 'translateY(-50%)',
-              width: 26,
-              height: 26,
+              width: 22,
+              height: 22,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(255, 255, 255, 0.1)',
+              background: menuButtonBackground,
               border: 'none',
               borderRadius: 4,
               cursor: 'pointer',
               opacity: hovered || !!isContextMenuOpen ? 1 : 0,
-              color: '#e5e5e5',
-              transition: 'all 0.1s',
+              color: menuButtonColor,
+              padding: 0,
+              transition: 'background 0.1s, color 0.1s, opacity 0.15s',
               zIndex: 10,
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+              e.currentTarget.style.color = '#ddd';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.background = menuButtonBackground;
+              e.currentTarget.style.color = menuButtonColor;
             }}
             onMouseDown={handleMenuClick}
           >
@@ -452,27 +460,30 @@ export const VirtualRow = React.memo(function VirtualRow({
           <button
             style={{
               position: 'absolute',
-              right: 1,
+              right: 3,
               top: '50%',
               transform: 'translateY(-50%)',
-              width: 26,
-              height: 26,
+              width: 22,
+              height: 22,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(255, 255, 255, 0.1)',
+              background: menuButtonBackground,
               border: 'none',
               borderRadius: 4,
               cursor: 'pointer',
               opacity: hovered || !!isContextMenuOpen ? 1 : 0,
-              color: '#e5e5e5',
-              transition: 'all 0.1s',
+              color: menuButtonColor,
+              padding: 0,
+              transition: 'background 0.1s, color 0.1s, opacity 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+              e.currentTarget.style.color = '#ddd';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.background = menuButtonBackground;
+              e.currentTarget.style.color = menuButtonColor;
             }}
             onMouseDown={handleMenuClick}
           >
