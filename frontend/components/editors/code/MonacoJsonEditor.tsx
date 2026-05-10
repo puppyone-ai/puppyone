@@ -15,6 +15,9 @@ const MONACO_LOADING = (
   <EditorLoadingSurface />
 );
 
+const JSON_SOURCE_FONT =
+  "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace";
+
 const DARK_THEME_CONFIG = {
   base: 'vs-dark' as const,
   inherit: true,
@@ -107,17 +110,36 @@ export function MonacoJsonEditor({
       loading={MONACO_LOADING}
       options={{
         minimap: { enabled: false },
-        fontSize: 14,
-        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+        fontSize: 13,
+        fontFamily: JSON_SOURCE_FONT,
+        fontWeight: '400',
+        lineHeight: 20,
         lineNumbers: 'on',
+        lineNumbersMinChars: 3,
         scrollBeyondLastLine: false,
         automaticLayout: true,
         tabSize: 2,
         wordWrap: 'on',
+        padding: { top: 16, bottom: 40 },
         folding: true,
         bracketPairColorization: { enabled: true },
         formatOnPaste: true,
         formatOnType: true,
+        renderLineHighlight: 'none',
+        overviewRulerBorder: false,
+        hideCursorInOverviewRuler: true,
+        scrollbar: {
+          vertical: 'auto',
+          horizontal: 'hidden',
+          verticalScrollbarSize: 8,
+        },
+        quickSuggestions: false,
+        suggestOnTriggerCharacters: false,
+        acceptSuggestionOnEnter: 'off',
+        tabCompletion: 'off',
+        wordBasedSuggestions: 'off',
+        renderWhitespace: 'none',
+        guides: { indentation: false },
       }}
     />
   );
