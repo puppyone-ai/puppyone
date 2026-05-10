@@ -79,6 +79,9 @@ function lineDiff(a: string[], b: string[]): DiffLine[] {
 // the "Binary file" placeholder. Keep both fallbacks so the function
 // stays robust if the wire shape ever shifts.
 function fileToLines(detail: FileVersionDetail): string[] | null {
+  if (detail.is_binary) {
+    return null;
+  }
   if (detail.content_text != null) {
     return detail.content_text.split('\n');
   }
@@ -418,14 +421,15 @@ interface FileDiffBlockProps {
 }
 
 function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiffBlockProps) {
-  const tone = OP_TONE[change.op] ?? OP_TONE.modified;
+  const op = change.op;
+  const tone = OP_TONE[op] ?? OP_TONE.modified;
   const ext = fileExtClass(change.path);
 
   // Fetch current content for added/modified; previous content for
   // modified/deleted. SWR keys are scoped per (path, commit) so a
   // parent fetch can be reused across rows.
-  const needsCurrent = change.op === 'added' || change.op === 'modified';
-  const needsParent = (change.op === 'modified' || change.op === 'deleted') && !!parentCommitId;
+  const needsCurrent = op === 'added' || op === 'modified';
+  const needsParent = (op === 'modified' || op === 'deleted') && !!parentCommitId;
 
   const { data: currentDetail, error: currentErr } = useSWR(
     needsCurrent ? ['ver-content', projectId, change.path, commitId] : null,
@@ -448,11 +452,11 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
   if (currentErr || parentErr) {
     placeholder = 'Failed to load diff';
   } else if (!isLoading) {
-    if (change.op === 'added') {
+    if (op === 'added') {
       const cur = currentDetail ? fileToLines(currentDetail) : null;
       if (cur) lines = cur.map((text) => ({ kind: 'add' as const, text }));
       else placeholder = 'Binary file or unchanged metadata';
-    } else if (change.op === 'deleted') {
+    } else if (op === 'deleted') {
       const prev = parentDetail ? fileToLines(parentDetail) : null;
       if (prev) lines = prev.map((text) => ({ kind: 'remove' as const, text }));
       else if (!parentCommitId) placeholder = 'No previous version available';
@@ -526,7 +530,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
             color: tone.fg,
           }}
         >
-          {change.op}
+          {op}
         </span>
       </div>
 

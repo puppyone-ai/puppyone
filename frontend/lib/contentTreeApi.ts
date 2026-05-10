@@ -7,6 +7,11 @@
  */
 
 import { apiRequest, getApiAccessToken } from './apiClient';
+import {
+  normalizeMutCommitChange,
+  type MutChangeAction,
+  type MutChangeOp,
+} from './mutHistory';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 
@@ -703,6 +708,9 @@ export interface FileVersionDetail {
   path: string;
   commit_id: string;
   type: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  is_binary?: boolean;
   content?: any;
   content_text?: string | null;
 }
@@ -747,9 +755,10 @@ export async function getVersionHistory(
     limit: String(limit),
     since_commit_id: sinceCommitId,
   });
-  return treeRequest<VersionHistoryResponse>(
+  const response = await treeRequest<VersionHistoryResponse>(
     `/api/v1/content/${projectId}/commits?${params}`
   );
+  return normalizeHistoryResponse(response);
 }
 
 export async function getVersionContent(
@@ -800,7 +809,8 @@ export async function diffVersions(
 
 export interface MutCommitChange {
   path: string;
-  op: string;
+  action: MutChangeAction;
+  op: MutChangeOp;
 }
 
 export interface MutCommitConflict {
@@ -829,6 +839,18 @@ export interface MutProjectHistoryResponse {
   total: number;
 }
 
+function normalizeHistoryResponse<
+  T extends { commits: Array<{ changes: MutCommitChange[] }> },
+>(response: T): T {
+  return {
+    ...response,
+    commits: response.commits.map((commit) => ({
+      ...commit,
+      changes: (commit.changes || []).map(normalizeMutCommitChange),
+    })),
+  };
+}
+
 export async function getProjectHistory(
   projectId: string,
   limit: number = 50,
@@ -838,9 +860,10 @@ export async function getProjectHistory(
     limit: String(limit),
     since_commit_id: sinceCommitId,
   });
-  return treeRequest<MutProjectHistoryResponse>(
+  const response = await treeRequest<MutProjectHistoryResponse>(
     `/api/v1/content/${projectId}/commits?${params}`
   );
+  return normalizeHistoryResponse(response);
 }
 
 // === Audit Logs API ===
