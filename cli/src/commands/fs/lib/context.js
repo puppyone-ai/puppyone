@@ -44,5 +44,6 @@ export function createApClient(cmd) {
 
 export async function extraHeaders(cmd) {
   const opts = collectOpts(cmd);
-  return opts.mutUser ? { "X-Mut-User": opts.mutUser } : {};
+  const actor = opts.actor;
+  return actor ? { "X-Mut-User": actor } : {};
 }

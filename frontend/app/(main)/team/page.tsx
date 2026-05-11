@@ -8,6 +8,8 @@ import {
   removeMember,
 } from '@/lib/organizationsApi';
 import { PageLoading, Dots } from '@/components/loading';
+import { OrganizationPageShell } from '@/components/organization/OrganizationPageShell';
+import { Mail, Send, Trash2, X } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner',
@@ -20,28 +22,6 @@ const ROLE_COLORS: Record<string, string> = {
   member: '#3b82f6',
   viewer: '#6b7280',
 };
-
-// SVG Icons
-const MailIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-    <polyline points="22,6 12,13 2,6"></polyline>
-  </svg>
-);
-
-const TrashIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="3 6 5 6 21 6"></polyline>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-  </svg>
-);
-
-const SendIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="22" y1="2" x2="11" y2="13"></line>
-    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-  </svg>
-);
 
 export default function TeamPage() {
   const { currentOrg, members, myRole, refreshMembers } = useOrganization();
@@ -105,65 +85,61 @@ export default function TeamPage() {
   }
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto flex justify-center">
-      <div className="w-full max-w-4xl">
-        
-        {/* Header Section */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-xl font-semibold text-[#eee] tracking-tight">Team</h1>
-            <p className="text-sm text-[#666] mt-1">
-              Manage members and their access to {currentOrg.name}.
-            </p>
-          </div>
-        </div>
-
+    <OrganizationPageShell
+      title="Team"
+      description={`Manage members and their access to ${currentOrg.name}.`}
+      actions={
+        isOwner && !showInvite ? (
+          <button
+            onClick={() => setShowInvite(true)}
+            className="flex h-8 items-center gap-2 rounded-md bg-white px-3 text-[14px] font-medium text-black transition-colors hover:bg-[#e8e8e8]"
+          >
+            <Mail size={14} strokeWidth={2} />
+            Invite Member
+          </button>
+        ) : null
+      }
+    >
         {/* Feedback */}
         {feedback && (
-          <div className={`flex justify-between items-center px-4 py-3 mb-6 rounded-lg text-sm font-medium border ${feedback.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-green-500/10 border-green-500/30 text-green-400'}`} style={{ animation: 'dialog-fade-in 0.2s ease-out' }}>
+          <div className={`mb-6 flex items-center justify-between rounded-[8px] border px-4 py-3 text-[13px] font-medium ${feedback.type === 'error' ? 'border-red-500/25 bg-red-500/[0.08] text-red-400' : 'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-400'}`} style={{ animation: 'dialog-fade-in 0.2s ease-out' }}>
             {feedback.msg}
-            <button onClick={() => setFeedback(null)} className="opacity-80 hover:opacity-100 flex"><TrashIcon /></button>
+            <button onClick={() => setFeedback(null)} className="flex opacity-75 transition-opacity hover:opacity-100">
+              <X size={14} strokeWidth={2} />
+            </button>
           </div>
         )}
 
         {/* Main Card */}
-        <div className="border border-[#27272a] rounded-xl overflow-hidden bg-[#09090b] shadow-sm">
+        <div className="overflow-hidden rounded-[8px] border border-white/[0.08] bg-[#101010]">
           
           {/* Card Header */}
-          <div className="px-6 py-5 border-b border-[#1f1f23] flex justify-between items-center">
+          <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4">
             <div>
-              <h2 className="text-sm font-medium text-[#e4e4e7] mb-1">Organization Members</h2>
-              <div className="text-sm text-[#71717a]">
+              <h2 className="mb-1 text-[14px] font-medium text-[#e4e4e7]">Members</h2>
+              <div className="text-[13px] text-[#71717a]">
                 {members.length} / {currentOrg.seat_limit} seats used in your {currentOrg.plan} plan.
               </div>
             </div>
-            {isOwner && !showInvite && (
-              <button 
-                onClick={() => setShowInvite(true)} 
-                className="flex items-center gap-2 rounded-md bg-white text-black px-3 h-8 text-sm font-medium hover:bg-gray-200 transition-all"
-              >
-                <MailIcon /> Invite Member
-              </button>
-            )}
           </div>
 
           {/* Invite Form */}
           {showInvite && (
-            <div className="px-6 py-4 bg-[#141416] border-b border-[#1f1f23]" style={{ animation: 'dialog-fade-in 0.15s ease-out' }}>
+            <div className="border-b border-white/[0.08] bg-[#141414] px-5 py-4" style={{ animation: 'dialog-fade-in 0.15s ease-out' }}>
               <div className="flex gap-3">
                 <input
                   type="email"
                   placeholder="Email address"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
-                  className="flex-1 bg-[#09090b] border border-[#27272a] rounded-md px-3 h-8 text-[#e4e4e7] text-sm outline-none focus:border-[#52525b] transition-colors"
+                  className="h-8 flex-1 rounded-md border border-white/[0.1] bg-[#0b0b0b] px-3 text-[14px] text-[#e4e4e7] outline-none transition-colors placeholder:text-[#52525b] focus:border-[#52525b]"
                   onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
                   autoFocus
                 />
                 <select
                   value={inviteRole}
                   onChange={(e) => setInviteRole(e.target.value as 'member' | 'viewer')}
-                  className="w-32 bg-[#09090b] border border-[#27272a] rounded-md px-3 h-8 text-[#e4e4e7] text-sm outline-none focus:border-[#52525b] transition-colors"
+                  className="h-8 w-32 rounded-md border border-white/[0.1] bg-[#0b0b0b] px-3 text-[14px] text-[#e4e4e7] outline-none transition-colors focus:border-[#52525b]"
                 >
                   <option value="member">Member</option>
                   <option value="viewer">Viewer</option>
@@ -171,14 +147,14 @@ export default function TeamPage() {
                 <button
                   onClick={handleInvite}
                   disabled={inviting || !inviteEmail.trim()}
-                  className={`flex items-center gap-2 rounded-md bg-white text-black px-3 h-8 text-sm font-medium transition-all ${inviting || !inviteEmail.trim() ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'}`}
+                  className={`flex h-8 items-center gap-2 rounded-md bg-white px-3 text-[14px] font-medium text-black transition-colors ${inviting || !inviteEmail.trim() ? 'cursor-not-allowed opacity-50' : 'hover:bg-[#e8e8e8]'}`}
                 >
-                  {inviting ? <Dots size="xs" /> : <SendIcon />}
+                  {inviting ? <Dots size="xs" /> : <Send size={14} strokeWidth={2} />}
                   {inviting ? 'Sending…' : 'Send Invite'}
                 </button>
                 <button 
                   onClick={() => setShowInvite(false)} 
-                  className="flex items-center gap-2 rounded-md bg-[#18181b] border border-[#27272a] text-[#e4e4e7] px-3 h-8 text-sm font-medium hover:bg-[#27272a] transition-all"
+                  className="flex h-8 items-center gap-2 rounded-md border border-white/[0.1] bg-[#1a1a1a] px-3 text-[14px] font-medium text-[#d4d4d8] transition-colors hover:bg-[#232323]"
                 >
                   Cancel
                 </button>
@@ -194,24 +170,24 @@ export default function TeamPage() {
               const isLast = index === members.length - 1;
               
               return (
-                <div key={m.id} className={`flex justify-between items-center px-6 py-4 bg-[#09090b] ${isLast ? '' : 'border-b border-[#1f1f23]'}`}>
+                <div key={m.id} className={`flex items-center justify-between px-5 py-4 ${isLast ? '' : 'border-b border-white/[0.06]'}`}>
                   <div className="flex items-center gap-4">
                     {m.avatar_url ? (
-                      <img src={m.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      <img src={m.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-[#27272a] flex items-center justify-center text-sm font-semibold text-[#a1a1aa]">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#242428] text-[13px] font-semibold text-[#a1a1aa]">
                         {initial}
                       </div>
                     )}
                     <div>
-                      <div className="text-sm font-medium text-[#e4e4e7] flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-[14px] font-medium text-[#e4e4e7]">
                         {name}
                         {m.role === 'owner' && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 uppercase font-semibold tracking-wider">Owner</span>
+                          <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500">Owner</span>
                         )}
                       </div>
                       {m.email && m.display_name && (
-                        <div className="text-sm text-[#71717a] mt-0.5">{m.email}</div>
+                        <div className="mt-0.5 text-[13px] text-[#71717a]">{m.email}</div>
                       )}
                     </div>
                   </div>
@@ -223,27 +199,27 @@ export default function TeamPage() {
                           <select
                             value={m.role}
                             onChange={(e) => handleRoleChange(m.user_id, e.target.value)}
-                            className="pl-3 pr-7 py-1.5 h-8 text-sm bg-transparent border-transparent cursor-pointer appearance-none outline-none"
+                            className="h-8 cursor-pointer appearance-none border-transparent bg-transparent py-1.5 pl-3 pr-7 text-[14px] outline-none"
                             style={{ color: ROLE_COLORS[m.role] || '#e4e4e7' }}
                           >
                             <option value="member" className="text-[#e4e4e7] bg-[#09090b]">Member</option>
                             <option value="viewer" className="text-[#e4e4e7] bg-[#09090b]">Viewer</option>
                           </select>
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#52525b]">
+                          <div className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#52525b]">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                           </div>
                         </div>
-                        <div className="w-px h-5 bg-[#27272a]"></div>
+                        <div className="h-5 w-px bg-white/[0.08]"></div>
                         <button
                           onClick={() => handleRemove(m.user_id, name)}
-                          className="text-[#71717a] hover:text-red-500 p-1 flex items-center transition-colors"
+                          className="flex items-center p-1 text-[#71717a] transition-colors hover:text-red-500"
                           title="Remove member"
                         >
-                          <TrashIcon />
+                          <Trash2 size={14} strokeWidth={2} />
                         </button>
                       </>
                     ) : (
-                      <span className="text-sm font-medium" style={{ color: ROLE_COLORS[m.role] || '#71717a' }}>
+                      <span className="text-[14px] font-medium" style={{ color: ROLE_COLORS[m.role] || '#71717a' }}>
                         {ROLE_LABELS[m.role] || m.role}
                       </span>
                     )}
@@ -253,7 +229,6 @@ export default function TeamPage() {
             })}
           </div>
         </div>
-      </div>
 
       <style jsx>{`
         @keyframes dialog-fade-in {
@@ -261,6 +236,6 @@ export default function TeamPage() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
-    </div>
+    </OrganizationPageShell>
   );
 }

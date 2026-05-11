@@ -2,7 +2,7 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
-import { getScopeBaseCommit, post } from "../lib/http.js";
+import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerRmdirCommand(fs) {
@@ -21,7 +21,7 @@ export function registerRmdirCommand(fs) {
 
       for (const cleanPath of cleanPaths) {
         try {
-          const baseCommitId = await getScopeBaseCommit(client, cleanPath, headers);
+          const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
           const result = await post(client, "/ap-fs/rmdir", {
             path: cleanPath,
             parents: !!opts.parents,

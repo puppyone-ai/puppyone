@@ -2,7 +2,7 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
-import { getScopeBaseCommit, post } from "../lib/http.js";
+import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 import { statPath } from "../lib/remote.js";
 
@@ -47,7 +47,7 @@ export function registerRmCommand(fs) {
 
       let result = null;
       if (existingPaths.length) {
-        const baseCommitId = await getScopeBaseCommit(client, existingPaths[0], headers);
+        const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
         result = await post(client, "/ap-fs/rm", {
           path: existingPaths[0],
           paths: existingPaths,

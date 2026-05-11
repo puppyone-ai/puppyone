@@ -1,4 +1,4 @@
-import { ApiError } from "../../../api.js";
+import { ApiError, parseApiErrorPayload } from "../../../api.js";
 
 export async function get(client, path, query, headers = {}) {
   if (!Object.keys(headers).length) return client.get(path, query);
@@ -16,12 +16,8 @@ export async function rawGet(client, path, query, headers = {}) {
     : await rawRequestWithExtraHeaders(client, "GET", path, null, query, headers);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    let detail = text;
-    try {
-      const parsed = JSON.parse(text);
-      detail = parsed.detail ?? parsed.message ?? text;
-    } catch {}
-    throw new ApiError(res.status, "API_ERROR", detail);
+    const parsedError = parseApiErrorPayload(text);
+    throw new ApiError(res.status, parsedError.code, parsedError.message, undefined, parsedError.data);
   }
   return res;
 }
@@ -38,23 +34,24 @@ export async function rawPostBytes(client, path, content, query = {}, headers = 
   );
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    let detail = text;
-    try {
-      const parsed = JSON.parse(text);
-      detail = parsed.detail ?? parsed.message ?? text;
-    } catch {}
-    throw new ApiError(res.status, "API_ERROR", detail);
+    const parsedError = parseApiErrorPayload(text);
+    throw new ApiError(res.status, parsedError.code, parsedError.message, undefined, parsedError.data);
   }
   const json = await res.json();
   if (json.code !== 0) {
-    throw new ApiError(0, "API_BIZ_ERROR", json.message ?? "Unknown error");
+    const code = typeof json.data?.error_code === "string" ? json.data.error_code : "API_BIZ_ERROR";
+    throw new ApiError(0, code, json.message ?? "Unknown error", undefined, json.data);
   }
   return json.data;
 }
 
-export async function getScopeBaseCommit(client, path, headers = {}) {
-  const stat = await get(client, "/ap-fs/stat", { path }, headers);
+export async function getCurrentScopeBaseCommit(client, headers = {}) {
+  const stat = await get(client, "/ap-fs/stat", { path: "" }, headers);
   return stat.scope_head_commit_id ?? stat.head_commit_id ?? "";
+}
+
+export async function getScopeBaseCommit(client, _path, headers = {}) {
+  return getCurrentScopeBaseCommit(client, headers);
 }
 
 export async function requestWithExtraHeaders(client, method, path, body, query, extraHeaders) {
@@ -73,19 +70,16 @@ export async function requestWithExtraHeaders(client, method, path, body, query,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    let detail = text;
-    try {
-      const parsed = JSON.parse(text);
-      detail = parsed.detail ?? parsed.message ?? text;
-    } catch {}
+    const parsedError = parseApiErrorPayload(text);
     const hint = res.status === 409
-      ? "The remote scope changed before this write landed. Pull the latest state or use `mut pull`, resolve, `mut commit`, and `mut push`."
+      ? "The remote scope changed before this write landed. Re-read the target path, reapply your change, and run the command again."
       : undefined;
-    throw new ApiError(res.status, "API_ERROR", detail, hint);
+    throw new ApiError(res.status, parsedError.code, parsedError.message, hint, parsedError.data);
   }
   const json = await res.json();
   if (json.code !== 0) {
-    throw new ApiError(0, "API_BIZ_ERROR", json.message ?? "Unknown error");
+    const code = typeof json.data?.error_code === "string" ? json.data.error_code : "API_BIZ_ERROR";
+    throw new ApiError(0, code, json.message ?? "Unknown error", undefined, json.data);
   }
   return json.data;
 }

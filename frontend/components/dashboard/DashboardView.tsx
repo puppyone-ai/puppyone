@@ -9,6 +9,7 @@ import {
   PROJECT_CARD_MIN_WIDTH,
 } from './ProjectCard';
 import { PageLoading } from '@/components/loading';
+import { OrganizationPageShell } from '@/components/organization/OrganizationPageShell';
 import type { ProjectInfo } from '@/lib/projectsApi';
 
 export interface DashboardViewProps {
@@ -36,47 +37,46 @@ export function DashboardView({
   }
 
   if (projects.length === 0) {
-    return <EmptyDashboard onCreateClick={onCreateClick} />;
+    return (
+      <OrganizationPageShell
+        title={t('title')}
+        description={t('subtitle', { count: projects.length })}
+      >
+        <EmptyDashboard onCreateClick={onCreateClick} />
+      </OrganizationPageShell>
+    );
   }
 
   return (
-    <div className='flex-1 p-8 overflow-y-auto flex flex-col'>
-      <div className='w-full max-w-[900px] mx-auto'>
-        <div className='mb-10'>
-          <h1 className='text-2xl font-semibold text-[#eee] tracking-tight'>
-            {t('title')}
-          </h1>
-          <p className='text-sm text-[#555] mt-1.5'>
-            {t('subtitle', { count: projects.length })}
-          </p>
-        </div>
-
-        <div
-          className='grid'
-          style={{
-            gridTemplateColumns: `repeat(auto-fill, minmax(${PROJECT_CARD_MIN_WIDTH}px, 1fr))`,
-            gap: PROJECT_CARD_GAP,
-            justifyItems: 'center',
-          }}
-        >
-          {projects.map(project => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onClick={() => onProjectClick(project.id)}
-            />
-          ))}
-          <NewProjectCard onClick={onCreateClick} />
-        </div>
+    <OrganizationPageShell
+      title={t('title')}
+      description={t('subtitle', { count: projects.length })}
+    >
+      <div
+        className='grid'
+        style={{
+          gridTemplateColumns: `repeat(auto-fill, minmax(${PROJECT_CARD_MIN_WIDTH}px, 1fr))`,
+          gap: PROJECT_CARD_GAP,
+          justifyItems: 'center',
+        }}
+      >
+        {projects.map(project => (
+          <ProjectCard
+            key={project.id}
+            project={project}
+            onClick={() => onProjectClick(project.id)}
+          />
+        ))}
+        <NewProjectCard onClick={onCreateClick} />
       </div>
-    </div>
+    </OrganizationPageShell>
   );
 }
 
 function EmptyDashboard({ onCreateClick }: Readonly<{ onCreateClick: () => void }>) {
   const t = useTranslations('home');
   return (
-    <div className='flex-1 flex flex-col items-center justify-center px-8 py-12'>
+    <div className='flex min-h-[420px] flex-col items-center justify-center px-8 py-12'>
       <div style={{ textAlign: 'center', marginBottom: 36, maxWidth: 520 }}>
         <p style={{ fontSize: 13, color: '#777', margin: 0, lineHeight: 1.6 }}>
           {t('emptyDescription')}

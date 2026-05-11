@@ -2,15 +2,15 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 
 const SEMANTICS = {
-  summary: "PuppyOne FS is a Unix-like scoped cloud filesystem backed by MUT/MAT history, not a local POSIX filesystem.",
+  summary: "PuppyOne FS is a Unix-like scoped cloud Context Drive, not a local POSIX filesystem.",
   guarantees: [
-    "All mutating fs commands go through /ap-fs and backend MutOps/MAT history.",
+    "Mutating fs commands apply directly to the cloud Context Drive and are recorded in PuppyOne version history and audit logs.",
     "Read commands are scoped by the active Access Point and respect excluded paths.",
-    "rm removes paths from the current tree; recovery is through MUT history/rollback, not a .trash directory.",
+    "rm removes paths from the current tree; recovery is through PuppyOne version history/rollback, not a .trash directory.",
   ],
   differences: [
     "chmod/chown/chgrp, inode/device semantics, symlinks, sockets, and hard links are not POSIX-modeled.",
-    "mtime/ctime are derived from MUT history, not S3 object LastModified.",
+    "mtime/ctime are derived from PuppyOne version history, not local filesystem timestamps.",
     "size fields may require blob metadata; avoid large recursive size scans unless needed.",
     "Recursive tree/find/ls -R responses expose complete/truncated/returned_count/limit fields in --json and should be narrowed with -L, -maxdepth, or --limit.",
     "upload/download are PuppyOne bridge commands, so their recursive forms expose --max-depth and --limit as resource controls.",
@@ -20,7 +20,7 @@ const SEMANTICS = {
     "--json output exposes complete/truncated/returned_count/limit/truncation_reason for scripts and agents.",
     "Prefer explicit paths over scanning the access point root.",
     "Use tree -L <n>, find -maxdepth <n>, and --limit for recursive commands.",
-    "Use head/tail for previews; /ap-fs/raw uses backend object-store range reads when available.",
+    "Use head/tail for previews; raw file reads support range reads when available.",
   ],
 };
 

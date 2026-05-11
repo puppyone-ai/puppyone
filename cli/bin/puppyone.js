@@ -18,7 +18,8 @@ import { registerGlobalCommands } from "../src/commands/global.js";
 program
   .name("puppyone")
   .description("PuppyOne CLI — cloud file system for AI agents")
-  .version(version, "-V, --version");
+  .version(version, "-V, --version")
+  .enablePositionalOptions();
 
 program
   .option("-u, --api-url <url>", "PuppyOne API URL (overrides config)")

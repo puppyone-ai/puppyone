@@ -23,8 +23,8 @@ export function registerFs(program) {
     .option("--access-key <key>", "Access Point key override")
     .option("-u, --api-url <url>", "PuppyOne API URL override")
     .option("--profile <name>", "Access Point profile override")
-    .option("--mut-user <user>", "Acting user identity for user-bound access keys")
-    .addHelpText("after", "\nPuppyOne FS is Unix-like but scoped and MUT/MAT-backed. Run `puppyone fs semantics` for agent-facing differences and resource limits.");
+    .option("--actor <user>", "Acting user identity for user-bound access keys")
+    .addHelpText("after", "\nPuppyOne FS is Unix-like, scoped, and audit-backed. Run `puppyone fs semantics` for agent-facing differences and resource limits.");
 
   registerFsCommands(fs);
 }
