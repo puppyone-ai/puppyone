@@ -296,11 +296,11 @@ def graft_or_merge_subtree(repo, scope_path, new_scope_hash):
 | ------------------------- | ------------------------------------------------------------------------- |
 | `server/server_repo.py` | `_scope_hash_from_history` 用 `WHERE scope_path = ?` 过滤，不限 10 条 |
 
-#### 3.8 trash/restore 空文件检查（P2-7）
+#### 3.8 legacy soft-delete 空文件检查（P2-7）
 
 | 文件                | 改动                                                                                |
 | ------------------- | ----------------------------------------------------------------------------------- |
-| `services/ops.py` | `files.get(path, b"")` → 先检查 key 是否存在，不存在 raise `FileNotFoundError` |
+| `services/ops.py` | 删除树内软删除路径；恢复统一走版本历史 |
 
 ---
 
@@ -429,7 +429,7 @@ Phase 4（端点 Bug）      ← Phase 1 完成后可能自动修复
 | 3.5   | `routers/content_history.py`                                            | 错误码                        |
 | 3.6   | `services/ops.py` + `services/hooks.py`                               | 异常日志                      |
 | 3.7   | `server/server_repo.py`                                                 | scope fallback 修复           |
-| 3.8   | `services/ops.py`                                                       | trash 空文件检查              |
+| 3.8   | `services/ops.py`                                                       | legacy soft-delete 清理       |
 | 4.1   | 排查 `ops.delete`                                                       | bug fix                       |
 | 4.2   | 排查 `admin.compute_diff`                                               | bug fix                       |
 

@@ -85,11 +85,11 @@ async def test_read_write_and_mkdir_success(rpc_client: InternalApiClient):
 
 
 @pytest.mark.asyncio
-async def test_trash_http_error_is_wrapped(rpc_client: InternalApiClient):
-    url = "http://main-service/internal/nodes/trash"
+async def test_delete_http_error_is_wrapped(rpc_client: InternalApiClient):
+    url = "http://main-service/internal/nodes/rm"
     rpc_client._client.post = AsyncMock(
         return_value=_response("POST", url, 500, text='{"detail":"boom"}')
     )
 
     with pytest.raises(RuntimeError, match="删除失败: HTTP 500"):
-        await rpc_client.trash("proj-1", "readme.md")
+        await rpc_client.delete("proj-1", "readme.md")

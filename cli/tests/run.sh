@@ -122,8 +122,8 @@ echo -e "${CYAN}PuppyOne CLI Integration Tests${NC}"
 echo "CLI: $CLI"
 
 # Check backend is reachable (health may return 503 if MCP remote is down, but that's OK)
-HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:9090/health 2>/dev/null || echo "000")
-if [ "$HTTP_CODE" = "000" ]; then
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:9090/health 2>/dev/null || true)
+if [ -z "$HTTP_CODE" ] || [ "$HTTP_CODE" = "000" ]; then
   echo -e "${RED}ERROR: Backend not running at localhost:9090${NC}"
   echo "Start it: cd backend && uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload"
   exit 1
@@ -163,6 +163,62 @@ if section "basic"; then
   assert_exit 0 "puppyone access --help" $CLI access --help
   assert_exit 0 "puppyone chat --help" $CLI chat --help
   assert_exit 0 "puppyone config --help" $CLI config --help
+  assert_exit 0 "puppyone fs --help" $CLI fs --help
+  assert_exit 0 "puppyone fs ls --help" $CLI fs ls --help
+  assert_output_contains "recursive" "fs ls help advertises recursive listing" $CLI fs ls --help
+  assert_output_contains "names begin with" "fs ls help advertises dot entries" $CLI fs ls --help
+  assert_output_contains "one entry per line" "fs ls help advertises one-column output" $CLI fs ls --help
+  assert_output_contains "paths" "fs ls help advertises multi-path support" $CLI fs ls --help
+  assert_output_contains "human-readable" "fs ls help advertises human-readable sizes" $CLI fs ls --help
+  assert_output_contains "sort by modification time" "fs ls help advertises time sort" $CLI fs ls --help
+  assert_output_contains "list directories themselves" "fs ls help advertises directory mode" $CLI fs ls --help
+  assert_output_contains "classify" "fs ls help advertises classify mode" $CLI fs ls --help
+  assert_exit 0 "puppyone fs cat --help" $CLI fs cat --help
+  assert_output_contains "paths" "fs cat help advertises multi-path support" $CLI fs cat --help
+  assert_exit 0 "puppyone fs head --help" $CLI fs head --help
+  assert_output_contains "first part" "fs head help describes head output" $CLI fs head --help
+  assert_output_contains "lines" "fs head help advertises line count" $CLI fs head --help
+  assert_exit 0 "puppyone fs tail --help" $CLI fs tail --help
+  assert_output_contains "last part" "fs tail help describes tail output" $CLI fs tail --help
+  assert_output_contains "bytes" "fs tail help advertises byte count" $CLI fs tail --help
+  assert_exit 0 "puppyone fs tree --help" $CLI fs tree --help
+  assert_output_contains "Unix tree compatibility" "fs tree help advertises level alias" $CLI fs tree --help
+  assert_output_contains "directories only" "fs tree help advertises directory-only mode" $CLI fs tree --help
+  assert_output_contains "level <n>" "fs tree help advertises -L level option" $CLI fs tree --help
+  assert_exit 0 "puppyone fs find --help" $CLI fs find --help
+  assert_output_contains "name <pattern>" "fs find help advertises name expression" $CLI fs find --help
+  assert_output_contains "iname" "fs find help advertises case-insensitive name expression" $CLI fs find --help
+  assert_output_contains "mindepth" "fs find help advertises mindepth expression" $CLI fs find --help
+  assert_output_contains "maxdepth" "fs find help advertises maxdepth expression" $CLI fs find --help
+  assert_exit 0 "puppyone fs mkdir --help" $CLI fs mkdir --help
+  assert_output_contains "parents" "fs mkdir help advertises parents option" $CLI fs mkdir --help
+  assert_output_contains "paths" "fs mkdir help advertises multi-path support" $CLI fs mkdir --help
+  assert_exit 0 "puppyone fs touch --help" $CLI fs touch --help
+  assert_output_contains "empty file" "fs touch help advertises empty-file create" $CLI fs touch --help
+  assert_exit 0 "puppyone fs upload --help" $CLI fs upload --help
+  assert_output_contains "local source" "fs upload help advertises local source" $CLI fs upload --help
+  assert_output_contains "max-depth" "fs upload help advertises recursive max-depth" $CLI fs upload --help
+  assert_output_contains "limit" "fs upload help advertises recursive limit" $CLI fs upload --help
+  assert_exit 0 "puppyone fs download --help" $CLI fs download --help
+  assert_output_contains "local destination" "fs download help advertises local destination" $CLI fs download --help
+  assert_output_contains "max-depth" "fs download help advertises recursive max-depth" $CLI fs download --help
+  assert_output_contains "limit" "fs download help advertises recursive limit" $CLI fs download --help
+  assert_exit 0 "puppyone fs cp --help" $CLI fs cp --help
+  assert_output_contains "recursive" "fs cp help advertises recursive copy" $CLI fs cp --help
+  assert_output_contains "no-clobber" "fs cp help advertises no-clobber option" $CLI fs cp --help
+  assert_output_contains "target-directory" "fs cp help advertises target-directory option" $CLI fs cp --help
+  assert_exit 0 "puppyone fs mv --help" $CLI fs mv --help
+  assert_output_contains "no-clobber" "fs mv help advertises no-clobber option" $CLI fs mv --help
+  assert_output_contains "source path(s)" "fs mv help advertises multi-source support" $CLI fs mv --help
+  assert_output_contains "no-target-directory" "fs mv help advertises no-target-directory option" $CLI fs mv --help
+  assert_exit 0 "puppyone fs rm --help" $CLI fs rm --help
+  assert_output_contains "paths" "fs rm help advertises multi-path support" $CLI fs rm --help
+  assert_exit 0 "puppyone fs rmdir --help" $CLI fs rmdir --help
+  assert_output_contains "empty directories" "fs rmdir help describes empty-directory removal" $CLI fs rmdir --help
+  assert_output_contains "parents" "fs rmdir help advertises parents option" $CLI fs rmdir --help
+  assert_exit 0 "fs golden output contract" node "$CLI_DIR/tests/fs_golden.test.mjs"
+  assert_exit 1 "puppyone data is not registered" $CLI data ls
+  assert_output_contains "unknown command 'data'" "data behaves like an unknown command" $CLI data ls
 fi
 
 # ── 2. Auth ──────────────────────────────────────────────────
@@ -180,8 +236,7 @@ fi
 if section "access"; then
   assert_exit 0 "access providers --help" $CLI access providers --help
   assert_exit 0 "access add --help" $CLI access add --help
-  assert_output_contains " --link" "access add --help advertises --link option" $CLI access add --help
-  assert_output_contains "mut connect" "access add --help mentions mut connect (one-shot link)" $CLI access add --help
+  assert_output_contains "Context Drive path scope" "access add help describes scoped Context Drive access" $CLI access add --help
 
   if $LOGGED_IN; then
     assert_exit 0 "access providers lists providers" $CLI access providers

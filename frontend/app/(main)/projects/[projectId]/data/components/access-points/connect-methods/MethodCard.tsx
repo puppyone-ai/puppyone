@@ -3,12 +3,13 @@
 import { useState, type ReactNode } from 'react';
 import {
   COLOR_BG_CARD,
-  COLOR_BG_HOVER,
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
   COLOR_FG,
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
+  COLOR_SUCCESS,
+  COLOR_SUCCESS_BORDER,
 } from '../tokens';
 import { AgentIcon, SyncIcon, TerminalIcon } from './icons';
 import type { MethodMeta } from './meta';
@@ -80,8 +81,8 @@ export function MethodCard({
     <div
       style={{
         borderRadius: 10,
-        border: `1px solid ${expanded || hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-        background: expanded ? COLOR_BG_HOVER : COLOR_BG_CARD,
+        border: `1px solid ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
+        background: expanded ? COLOR_BG_CARD : 'rgba(255,255,255,0.012)',
         overflow: 'hidden',
         transition: 'border-color 0.15s, background 0.15s',
       }}
@@ -96,32 +97,43 @@ export function MethodCard({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
+          gap: 8,
           width: '100%',
-          padding: '10px 12px',
+          minHeight: 42,
+          padding: '8px 12px',
           color: COLOR_FG,
         }}
       >
         <MethodIcon meta={meta} active={active} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 7,
+          }}
+        >
+          <span
             style={{
+              flexShrink: 0,
               fontSize: 13,
               fontWeight: 600,
-              // Title dims a touch when paused, but stays readable —
-              // we use the muted greyscale FG so it doesn't disappear.
               color: active ? COLOR_FG : COLOR_FG_MUTED,
               lineHeight: 1.3,
             }}
           >
             {meta.title}
-          </div>
-          <div
+          </span>
+          <span
             style={{
-              fontSize: 11,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 12,
               color: COLOR_FG_DIM,
               lineHeight: 1.45,
-              marginTop: 2,
             }}
           >
             {meta.subtitle}
@@ -130,15 +142,12 @@ export function MethodCard({
                 · paused
               </span>
             )}
-          </div>
+          </span>
         </div>
         {onToggle && (
           <MethodToggle
             active={active}
             pending={togglePending}
-            accent={meta.accent}
-            accentBg={meta.accentBg}
-            accentBorder={meta.accentBorder}
             onClick={onToggle}
             label={`${active ? 'Pause' : 'Resume'} ${meta.title}`}
           />
@@ -171,14 +180,11 @@ function MethodIcon({
   return (
     <div
       style={{
-        width: 32,
-        height: 32,
-        borderRadius: 8,
-        // Paused state strips the per-method accent and falls back to
-        // a neutral surface — same convention as AccessPointRow's
-        // built-in glyph. Only an *active* method earns its colour.
-        background: active ? meta.accentBg : 'rgba(255,255,255,0.04)',
-        border: `1px solid ${active ? meta.accentBorder : 'rgba(255,255,255,0.08)'}`,
+        width: 24,
+        height: 24,
+        borderRadius: 7,
+        background: active ? meta.accentBg : 'rgba(255,255,255,0.025)',
+        border: `1px solid ${active ? meta.accentBorder : COLOR_BORDER}`,
         color: active ? meta.accent : COLOR_FG_DIM,
         display: 'flex',
         alignItems: 'center',
@@ -199,10 +205,8 @@ function MethodIcon({
 /**
  * MethodToggle — compact on/off switch for a method card.
  *
- * 32×18 track, 14×14 thumb. Active state uses the method's accent
- * (cyan / green / purple from METHOD_META) so the colour identity is
- * consistent with the icon container above. Paused state falls back
- * to neutral grey so the off position reads from a distance.
+ * 32×18 track, 14×14 thumb. Active state uses a single restrained
+ * success colour, while paused falls back to neutral grey.
  *
  * Optimistic UI contract: the parent flips `active` immediately on
  * click — the actual pause / resume API call runs fire-and-forget in
@@ -221,17 +225,11 @@ function MethodIcon({
 function MethodToggle({
   active,
   pending,
-  accent,
-  accentBg,
-  accentBorder,
   onClick,
   label,
 }: {
   readonly active: boolean;
   readonly pending: boolean;
-  readonly accent: string;
-  readonly accentBg: string;
-  readonly accentBorder: string;
   readonly onClick: () => void;
   readonly label: string;
 }) {
@@ -275,12 +273,12 @@ function MethodToggle({
         height: 18,
         borderRadius: 999,
         cursor: 'pointer',
-        background: active ? accentBg : 'rgba(255,255,255,0.06)',
+        background: active ? 'rgba(52,211,153,0.10)' : 'rgba(255,255,255,0.06)',
         border: `1px solid ${
           active
             ? hovered
-              ? accent
-              : accentBorder
+              ? COLOR_SUCCESS
+              : COLOR_SUCCESS_BORDER
             : hovered
               ? 'rgba(255,255,255,0.20)'
               : 'rgba(255,255,255,0.10)'
@@ -299,7 +297,7 @@ function MethodToggle({
           width: 14,
           height: 14,
           borderRadius: '50%',
-          background: active ? accent : COLOR_FG_DIM,
+          background: active ? COLOR_SUCCESS : COLOR_FG_DIM,
           transition: 'left 0.18s ease, background 0.15s ease',
         }}
       />
@@ -321,17 +319,15 @@ export function SectionHeader({
     <div style={{ padding: '0 2px' }}>
       <div
         style={{
-          fontSize: 10,
-          fontWeight: 600,
-          color: COLOR_FG_MUTED,
-          textTransform: 'uppercase',
-          letterSpacing: 0.6,
+          fontSize: 13,
+          fontWeight: 500,
+          color: COLOR_FG_DIM,
         }}
       >
         {eyebrow}
       </div>
       {description && (
-        <div style={{ fontSize: 11, color: COLOR_FG_DIM, marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: COLOR_FG_DIM, marginTop: 4, lineHeight: 1.45 }}>
           {description}
         </div>
       )}
@@ -352,7 +348,7 @@ export function NoAccessKeyNotice() {
         border: `1px solid rgba(245,158,11,0.25)`,
         background: 'rgba(245,158,11,0.06)',
         color: '#fcd34d',
-        fontSize: 12,
+        fontSize: 13,
         lineHeight: 1.5,
         padding: '10px 12px',
       }}

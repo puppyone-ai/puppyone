@@ -7,7 +7,7 @@ not directly touch ``MutEphemeralClient`` or ``MutTreeReader``.
 
 Architecture:
     Each typed write op (``write_file``, ``delete``, ``mkdir``, ``move``,
-    ``trash``, ``restore``, ``permanent_delete``, ``bulk_write``)
+    ``permanent_delete``, ``bulk_write``)
     constructs an O(D) tree splice via ``services.tree_splice`` and
     routes it through ``services.direct_writer.apply_mutation`` for
     atomic CAS + history + audit + graft. No ``clone_lite``, no full
@@ -29,7 +29,6 @@ Usage:
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 
 from src.mut_engine.server.repo_manager import MutRepoManager
@@ -38,10 +37,12 @@ from src.mut_engine.services.direct_writer import apply_mutation
 from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
 from src.mut_engine.services.tree_splice import (
     splice_batch,
+    splice_copy,
     splice_mkdir,
     splice_move,
     splice_put_blob,
     splice_remove,
+    splice_touch,
 )
 
 
@@ -110,6 +111,7 @@ class MutOps:
         who: str,
         scope: str = "",
         message: str = "",
+        base_commit_id: str | None = None,
     ) -> WriteResult:
         """Write a single file (create or update).
 
@@ -133,6 +135,7 @@ class MutOps:
             message=message or f"write {path}",
             op_type="write_file",
             audit_detail={"path": path, "size": len(content)},
+            expected_head_commit_id=base_commit_id,
         )
         return _to_result(result, [path])
 
@@ -143,6 +146,7 @@ class MutOps:
         who: str,
         scope: str = "",
         message: str = "",
+        base_commit_id: str | None = None,
     ) -> WriteResult:
         """Delete one or more files.
 
@@ -154,14 +158,18 @@ class MutOps:
         clean = [validate_path(p) for p in paths]
         if scope:
             return await self._delete_in_scope(
-                project_id, scope, clean, who, message,
+                project_id, scope, clean, who, message, base_commit_id,
             )
 
         groups = self._group_paths_by_scope(project_id, clean)
+        if base_commit_id is not None and len(groups) > 1:
+            raise ValueError(
+                "base_commit_id is ambiguous for multi-scope delete operations"
+            )
         first_result: WriteResult | None = None
         for target_scope, rel_paths in groups.items():
             r = await self._delete_in_scope(
-                project_id, target_scope, rel_paths, who, message,
+                project_id, target_scope, rel_paths, who, message, base_commit_id,
             )
             first_result = first_result or r
         return first_result or WriteResult(paths=clean)
@@ -173,6 +181,7 @@ class MutOps:
         rel_paths: list[str],
         who: str,
         message: str,
+        base_commit_id: str | None = None,
     ) -> WriteResult:
         def splice_fn(store, root_hash):
             return splice_remove(store, root_hash, rel_paths)
@@ -183,6 +192,7 @@ class MutOps:
             message=message or f"delete {len(rel_paths)} files",
             op_type="delete",
             audit_detail={"paths": rel_paths},
+            expected_head_commit_id=base_commit_id,
         )
         full_paths = [
             self._join_scope_path(scope, p) for p in rel_paths
@@ -196,6 +206,7 @@ class MutOps:
         who: str,
         scope: str = "",
         message: str = "",
+        base_commit_id: str | None = None,
     ) -> WriteResult:
         """Create a directory (writes a ``.keep`` placeholder).
 
@@ -223,6 +234,7 @@ class MutOps:
             message=message or f"mkdir {path}",
             op_type="mkdir",
             audit_detail={"path": path},
+            expected_head_commit_id=base_commit_id,
         )
         return _to_result(result, [path])
 
@@ -234,6 +246,7 @@ class MutOps:
         who: str,
         scope: str = "",
         message: str = "",
+        base_commit_id: str | None = None,
     ) -> WriteResult:
         """Move / rename a file or folder.
 
@@ -267,6 +280,7 @@ class MutOps:
             message=message or f"move {old_path} → {new_path}",
             op_type="move",
             audit_detail={"old_path": old_path, "new_path": new_path},
+            expected_head_commit_id=base_commit_id,
         )
 
         # Best-effort secondary index update — keeps access_points and
@@ -285,6 +299,85 @@ class MutOps:
             )
 
         return _to_result(result, [old_path, new_path])
+
+    async def copy(
+        self,
+        project_id: str,
+        old_path: str,
+        new_path: str,
+        who: str,
+        scope: str = "",
+        message: str = "",
+        base_commit_id: str | None = None,
+    ) -> WriteResult:
+        """Copy a file or folder without downloading blob contents."""
+        old_path = validate_path(old_path)
+        new_path = validate_path(new_path)
+
+        if scope:
+            old_scope, old_rel = scope, old_path
+            new_scope, new_rel = scope, new_path
+        else:
+            old_scope, old_rel = self._select_write_scope(project_id, old_path)
+            new_scope, new_rel = self._select_write_scope(project_id, new_path)
+
+        if old_scope != new_scope:
+            raise ValueError(
+                f"cross-scope copy not supported: "
+                f"{old_path!r} (scope={old_scope!r}) -> "
+                f"{new_path!r} (scope={new_scope!r})",
+            )
+
+        def splice_fn(store, root_hash):
+            return splice_copy(store, root_hash, old_rel, new_rel)
+
+        result = await apply_mutation(
+            self._repos, project_id, old_scope, splice_fn,
+            who=who,
+            message=message or f"copy {old_path} -> {new_path}",
+            op_type="copy",
+            audit_detail={"old_path": old_path, "new_path": new_path},
+            expected_head_commit_id=base_commit_id,
+        )
+        return _to_result(result, [old_path, new_path])
+
+    async def touch(
+        self,
+        project_id: str,
+        paths: list[str],
+        who: str,
+        scope: str = "",
+        message: str = "",
+        base_commit_id: str | None = None,
+    ) -> WriteResult:
+        """Update mtime for existing files without changing blob content."""
+        clean = [validate_path(p) for p in paths]
+        if not clean:
+            return WriteResult()
+
+        if scope:
+            target_scope = scope
+            rel_paths = clean
+        else:
+            groups = self._group_paths_by_scope(project_id, clean)
+            if len(groups) != 1:
+                raise ValueError("touch across multiple scopes is not supported")
+            target_scope, rel_paths = next(iter(groups.items()))
+
+        def splice_fn(store, root_hash):
+            return splice_touch(store, root_hash, rel_paths)
+
+        result = await apply_mutation(
+            self._repos, project_id, target_scope, splice_fn,
+            who=who,
+            message=message or f"touch {len(clean)} files",
+            op_type="touch",
+            audit_detail={"paths": clean},
+            expected_head_commit_id=base_commit_id,
+            allow_same_tree_commit=True,
+        )
+        full_paths = [self._join_scope_path(target_scope, p) for p in rel_paths]
+        return _to_result(result, full_paths)
 
     async def bulk_write(
         self,
@@ -596,178 +689,6 @@ class MutOps:
                     f"object store; refusing to commit a dangling tree"
                 )
 
-    async def trash(
-        self,
-        project_id: str,
-        path: str,
-        who: str,
-        scope: str = "",
-        message: str = "",
-    ) -> WriteResult:
-        """Soft-delete: move to ``.trash/{basename}_{timestamp}``.
-
-        For folders, the entire subtree is moved by hash — no blob
-        contents are downloaded.
-        """
-        path = validate_path(path)
-        basename = path.rsplit("/", 1)[-1] if "/" in path else path
-
-        if scope:
-            target_scope, rel_path = scope, path
-        else:
-            target_scope, rel_path = self._select_write_scope(project_id, path)
-
-        trash_rel = f".trash/{basename}_{int(time.time())}"
-        trash_full = self._join_scope_path(target_scope, trash_rel)
-
-        def splice_fn(store, root_hash):
-            return splice_move(store, root_hash, rel_path, trash_rel)
-
-        result = await apply_mutation(
-            self._repos, project_id, target_scope, splice_fn,
-            who=who,
-            message=message or f"trash {basename}",
-            op_type="trash",
-            audit_detail={"path": path, "trash_path": trash_full},
-        )
-        return _to_result(result, [path, trash_full])
-
-    async def bulk_trash(
-        self,
-        project_id: str,
-        paths: list[str],
-        who: str,
-        scope: str = "",
-        message: str = "",
-    ) -> WriteResult:
-        """Soft-delete multiple files/folders in one commit per scope.
-
-        Each path is moved to ``.trash/{basename}_{timestamp}`` within
-        the scope it belongs to. When two selected items share a
-        basename (e.g. ``/a/foo.md`` + ``/b/foo.md``), the second is
-        suffixed ``_2`` etc. so they don't overwrite each other.
-        Cross-scope batches split into one commit per scope (same rule
-        as ``delete`` and ``bulk_write``).
-        """
-        if not paths:
-            return WriteResult()
-
-        clean = [validate_path(p) for p in paths]
-        timestamp = int(time.time())
-
-        if scope:
-            return await self._bulk_trash_in_scope(
-                project_id, scope, clean, who, message, timestamp,
-            )
-
-        groups = self._group_paths_by_scope(project_id, clean)
-        first_result: WriteResult | None = None
-        for target_scope, rel_paths in groups.items():
-            r = await self._bulk_trash_in_scope(
-                project_id, target_scope, rel_paths, who, message, timestamp,
-            )
-            first_result = first_result or r
-        return first_result or WriteResult(paths=clean)
-
-    async def _bulk_trash_in_scope(
-        self,
-        project_id: str,
-        scope: str,
-        rel_paths: list[str],
-        who: str,
-        message: str,
-        timestamp: int,
-    ) -> WriteResult:
-        ops: list[tuple] = []
-        trash_full_paths: list[str] = []
-        seen: dict[str, int] = {}
-        for rel in rel_paths:
-            basename = rel.rsplit("/", 1)[-1] if "/" in rel else rel
-            base_trash = f".trash/{basename}_{timestamp}"
-            count = seen.get(base_trash, 0)
-            seen[base_trash] = count + 1
-            trash_rel = (
-                base_trash if count == 0 else f"{base_trash}_{count + 1}"
-            )
-            ops.append(("mv", rel, trash_rel))
-            trash_full_paths.append(
-                self._join_scope_path(scope, trash_rel),
-            )
-
-        if not ops:
-            return WriteResult()
-
-        def splice_fn(store, root_hash):
-            return splice_batch(store, root_hash, ops)
-
-        result = await apply_mutation(
-            self._repos, project_id, scope, splice_fn,
-            who=who,
-            message=message or f"trash {len(rel_paths)} items",
-            op_type="bulk_trash",
-            audit_detail={
-                "paths": rel_paths,
-                "trash_paths": trash_full_paths,
-            },
-        )
-        original_full_paths = [
-            self._join_scope_path(scope, p) for p in rel_paths
-        ]
-        return _to_result(
-            result, original_full_paths + trash_full_paths,
-        )
-
-    async def restore(
-        self,
-        project_id: str,
-        trash_path: str,
-        original_path: str,
-        who: str,
-        scope: str = "",
-        message: str = "",
-    ) -> WriteResult:
-        """Restore from ``.trash`` back to the original path.
-
-        Both paths must live in the same scope (trash lives inside
-        each scope). Cross-scope restore is rejected — the caller
-        must move the entry across scopes via a separate explicit op.
-        """
-        trash_path = validate_path(trash_path)
-        original_path = validate_path(original_path)
-
-        if scope:
-            trash_scope, trash_rel = scope, trash_path
-            orig_scope, orig_rel = scope, original_path
-        else:
-            trash_scope, trash_rel = self._select_write_scope(
-                project_id, trash_path,
-            )
-            orig_scope, orig_rel = self._select_write_scope(
-                project_id, original_path,
-            )
-
-        if trash_scope != orig_scope:
-            raise ValueError(
-                f"cross-scope restore not supported: "
-                f"trash={trash_path!r} (scope={trash_scope!r}) → "
-                f"original={original_path!r} (scope={orig_scope!r})",
-            )
-
-        def splice_fn(store, root_hash):
-            return splice_move(store, root_hash, trash_rel, orig_rel)
-
-        result = await apply_mutation(
-            self._repos, project_id, trash_scope, splice_fn,
-            who=who,
-            message=message or f"restore {original_path}",
-            op_type="restore",
-            audit_detail={
-                "trash_path": trash_path,
-                "original_path": original_path,
-            },
-        )
-        return _to_result(result, [original_path, trash_path])
-
     async def permanent_delete(
         self,
         project_id: str,
@@ -775,8 +696,9 @@ class MutOps:
         who: str,
         scope: str = "",
         message: str = "",
+        base_commit_id: str | None = None,
     ) -> WriteResult:
-        """Hard-delete a file or folder (no trash).
+        """Delete a file or folder from the current tree.
 
         Files are removed by unlinking the entry; folders drop the
         whole subtree pointer in one tree write — no recursive blob
@@ -797,6 +719,7 @@ class MutOps:
             message=message or f"delete {path}",
             op_type="permanent_delete",
             audit_detail={"path": path},
+            expected_head_commit_id=base_commit_id,
         )
         return _to_result(result, [path])
 
@@ -807,21 +730,108 @@ class MutOps:
     def read_file(self, project_id: str, path: str) -> bytes:
         return self._reader.read_file(project_id, path.strip("/"))
 
-    def list_dir(self, project_id: str, path: str = "") -> list[MutEntry]:
-        return self._reader.list_dir(project_id, path.strip("/"))
+    def read_file_range(
+        self,
+        project_id: str,
+        path: str,
+        *,
+        start: int = 0,
+        limit: int | None = None,
+    ):
+        return self._reader.read_file_range(
+            project_id,
+            path.strip("/"),
+            start=start,
+            limit=limit,
+        )
+
+    def list_dir(
+        self, project_id: str, path: str = "", *, include_size: bool = False
+    ) -> list[MutEntry]:
+        return self._reader.list_dir(
+            project_id, path.strip("/"), include_size=include_size,
+        )
 
     def list_tree(
-        self, project_id: str, path: str = "", max_depth: int = -1,
+        self,
+        project_id: str,
+        path: str = "",
+        max_depth: int = -1,
+        *,
+        include_size: bool = False,
+        max_entries: int | None = None,
     ) -> list[MutEntry]:
         return self._reader.list_tree(
             project_id, path.strip("/"), max_depth=max_depth,
+            include_size=include_size,
+            max_entries=max_entries,
         )
 
-    def stat(self, project_id: str, path: str) -> MutEntry | None:
-        return self._reader.stat(project_id, path.strip("/"))
+    def stat(
+        self, project_id: str, path: str, *, include_size: bool = False
+    ) -> MutEntry | None:
+        return self._reader.stat(
+            project_id, path.strip("/"), include_size=include_size,
+        )
 
     def get_head_commit_id(self, project_id: str) -> str:
         return self._reader.get_head_commit_id(project_id)
+
+    def get_scope_head_commit_id(self, project_id: str, scope_path: str) -> str:
+        repo = self._repos.get_server_repo(project_id)
+        return repo.get_scope_head_commit_id((scope_path or "").strip("/")) or ""
+
+    def get_scope_head_commit_id_for_path(
+        self, project_id: str, path: str,
+    ) -> str:
+        scope_path, _rel_path = self._select_write_scope(
+            project_id, validate_path(path),
+        )
+        return self.get_scope_head_commit_id(project_id, scope_path)
+
+    def get_path_timestamps(
+        self,
+        project_id: str,
+        paths: list[str],
+        *,
+        limit: int = 5000,
+    ) -> dict[str, dict[str, str]]:
+        clean_paths = {(p or "").strip("/") for p in paths}
+        timestamps: dict[str, dict[str, str]] = {
+            p: {"created_at": "", "modified_at": ""} for p in clean_paths
+        }
+        if not clean_paths:
+            return timestamps
+
+        try:
+            repo = self._repos.get_server_repo(project_id)
+            commits = repo.get_history_since("", limit=limit)
+        except Exception:
+            return timestamps
+
+        for commit in commits:
+            ts = str(commit.get("created_at") or commit.get("time") or "")
+            if not ts:
+                continue
+            changes = commit.get("changes") or []
+            if not isinstance(changes, list):
+                continue
+            for change in changes:
+                path = str(change.get("path") or "").strip("/")
+                if not path and "" not in clean_paths:
+                    continue
+                affected = {path, ""}
+                parts = [part for part in path.split("/") if part]
+                for index in range(1, len(parts)):
+                    affected.add("/".join(parts[:index]))
+                for affected_path in affected & clean_paths:
+                    row = timestamps[affected_path]
+                    if not row["created_at"] and change.get("action") == "add":
+                        row["created_at"] = ts
+                    if not row["created_at"] and affected_path != path:
+                        row["created_at"] = ts
+                    row["modified_at"] = ts
+        return timestamps
 
     def get_root_hash(self, project_id: str) -> str:
         return self._reader.get_root_hash(project_id)
@@ -976,9 +986,7 @@ def _to_result(
     The two dataclasses already match field-for-field — this function
     exists so a future schema change in ``direct_writer`` can be
     absorbed without touching every call site, and so we can override
-    the ``paths`` list with the caller's preferred presentation
-    (e.g. trash returns ``[original, trash_path]`` rather than the
-    full splice changes set).
+    the ``paths`` list with the caller's preferred presentation.
     """
     return WriteResult(
         commit_id=raw.commit_id,

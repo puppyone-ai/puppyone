@@ -2,12 +2,10 @@
 
 import { useState } from 'react';
 import {
-  COLOR_ACCENT_BG_FAINT,
-  COLOR_ACCENT_BORDER,
   COLOR_BG_DASHED,
+  COLOR_BORDER,
   COLOR_BORDER_HOVER,
   COLOR_FG,
-  COLOR_FG_DIM,
   COLOR_FG_MUTED,
 } from './tokens';
 
@@ -56,11 +54,12 @@ export function CreateAccessPointCTACard({
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          padding: '14px',
+          gap: 10,
+          minHeight: 52,
+          padding: '10px 12px',
           borderRadius: 8,
-          border: `1px dashed ${hovered ? COLOR_ACCENT_BORDER : COLOR_BORDER_HOVER}`,
-          background: hovered ? COLOR_ACCENT_BG_FAINT : COLOR_BG_DASHED,
+          border: `1px dashed ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
+          background: hovered ? 'rgba(255,255,255,0.035)' : COLOR_BG_DASHED,
           color: COLOR_FG,
           cursor: 'pointer',
           textAlign: 'left',
@@ -72,23 +71,21 @@ export function CreateAccessPointCTACard({
         <div
           style={{
             display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
             flex: 1,
             minWidth: 0,
           }}
         >
-          <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.3 }}>
-            Promote a folder to an access point
-          </div>
           <div
             style={{
-              fontSize: 11,
-              color: COLOR_FG_DIM,
-              lineHeight: 1.5,
+              fontSize: 13,
+              fontWeight: 500,
+              lineHeight: 1.3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
-            Enable CLI, AI agent, and third-party integrations bound to it.
+            Promote a folder to an access point
           </div>
         </div>
         <ChevronRightIcon hovered={hovered} />
@@ -109,7 +106,7 @@ function PlusIcon() {
         height: 28,
         borderRadius: 6,
         background: 'rgba(255,255,255,0.04)',
-        color: '#a5f3fc',
+        color: COLOR_FG_MUTED,
         flexShrink: 0,
       }}
     >

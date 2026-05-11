@@ -68,12 +68,10 @@ import { useExternalFileDropCatcher } from '@/lib/hooks/useExternalFileDropCatch
 
 // Extracted components
 import { EditorArea } from '../components/EditorArea';
-import { BottomBar } from '../components/BottomBar';
 import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import { AccessPointsHeaderButton } from '../components/access-points';
-import { buildScopeMetaLine } from '../components/access-points/labels';
 import { SelectionActionBar } from '../components/SelectionActionBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { DataPageRightPanel, type EditorTarget } from '../components/right-panel';
@@ -321,11 +319,7 @@ export default function DataPage({ params }: DataPageProps) {
     : accessHeaderScope
       ? accessHeaderScope.name
       : 'Access';
-  const accessHeaderSubtitle = accessListView === 'create'
-    ? 'Promote a folder to an access point'
-    : accessHeaderScope
-      ? buildScopeMetaLine(accessHeaderScope)
-      : undefined;
+  const accessHeaderSubtitle = undefined;
   const showAccessHeaderBack =
     isAccessPanelOpen && (accessListView === 'create' || accessListView === 'detail');
 
@@ -1107,6 +1101,7 @@ export default function DataPage({ params }: DataPageProps) {
                   onSave={saveEditor}
                   setMarkdownViewMode={setMarkdownViewMode}
                   editorType={editorType}
+                  setEditorType={setEditorType}
                   configuredAccessPoints={configuredAccessPoints}
                   onActiveTableChange={(nodePath: string) => {
                     navigateTo(nodePath.split('/').filter(Boolean));
@@ -1188,14 +1183,6 @@ export default function DataPage({ params }: DataPageProps) {
             )}
           </div>
 
-          <BottomBar
-            editorType={editorType}
-            setEditorType={setEditorType}
-            isEditorView={isEditorView}
-            activeNodeId={activeNodeId}
-            activeMimeType={activeMimeType}
-            activeProject={activeProject}
-          />
         </div>
 
         {/* Right Panel */}

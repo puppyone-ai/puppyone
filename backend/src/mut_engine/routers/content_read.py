@@ -1,4 +1,4 @@
-"""Content Read API — ls, cat, stat, tree, trash, raw, download."""
+"""Content Read API — ls, cat, stat, tree, raw, download."""
 
 from __future__ import annotations
 
@@ -24,7 +24,6 @@ from src.mut_engine.schemas import (
     ListDirResponse,
     ReadFileResponse,
     StatResponse,
-    TrashListResponse,
     TreeResponse,
 )
 from src.mut_engine.server.validation import validate_path
@@ -36,16 +35,10 @@ from src.platform.project.service import ProjectService
 
 read_router = APIRouter()
 
-_TRASH_DIR = ".trash"
-_TRASH_PREFIX = f"{_TRASH_DIR}/"
-
-
-def _exclude_trash(entries: list) -> list:
+def _exclude_hidden(entries: list) -> list:
     return [
         e for e in entries
-        if e.path != _TRASH_DIR
-        and not e.path.startswith(_TRASH_PREFIX)
-        and _TRASH_PREFIX not in e.path
+        if not any(part.startswith(".") for part in e.path.strip("/").split("/") if part)
     ]
 
 
@@ -65,7 +58,7 @@ def list_dir(
     clean_path = validate_path(path)
 
     entries = ops.list_dir(project_id, clean_path)
-    entries = _exclude_trash(entries)
+    entries = _exclude_hidden(entries)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=ListDirResponse(
@@ -440,8 +433,7 @@ def download(
       immediately and shows real byte progress (instead of waiting for
       the whole zip to be buffered server-side).
 
-    Trash entries (`.trash/...`) are excluded from folder archives so
-    users don't get deleted leftovers in their downloads.
+    Hidden entries are excluded from folder archives.
     """
     try:
         claims = verify_token(token)
@@ -481,7 +473,7 @@ def download(
             # record once all entries are done.
             zs = ZipStream(compress_type=ZIP_DEFLATED)
             for e in entries:
-                if e.path == ".trash" or e.path.startswith(".trash/"):
+                if any(part.startswith(".") for part in e.path.strip("/").split("/") if part):
                     continue
                 rel_path = e.path[len(prefix_with_slash):] if prefix_with_slash else e.path
                 if not rel_path:
@@ -557,6 +549,8 @@ def stat(
 ):
     ensure_project_access(project_service, current_user, project_id)
     clean_path = validate_path(path)
+    head_commit_id = ops.get_head_commit_id(project_id)
+    scope_head_commit_id = ops.get_scope_head_commit_id_for_path(project_id, clean_path)
 
     entry = ops.stat(project_id, clean_path)
     if not entry:
@@ -565,6 +559,8 @@ def stat(
             type="",
             name="",
             exists=False,
+            head_commit_id=head_commit_id,
+            scope_head_commit_id=scope_head_commit_id,
         ))
 
     return ApiResponse.success(data=StatResponse(
@@ -576,6 +572,8 @@ def stat(
         mime_type=entry.mime_type,
         children_count=entry.children_count,
         exists=True,
+        head_commit_id=head_commit_id,
+        scope_head_commit_id=scope_head_commit_id,
     ))
 
 
@@ -596,30 +594,11 @@ def full_tree(
     clean_path = validate_path(path)
 
     entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
-    entries = _exclude_trash(entries)
+    entries = _exclude_hidden(entries)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=TreeResponse(
         path=clean_path,
         entries=[entry_to_response(e) for e in entries],
         head_commit_id=head_commit_id,
-    ))
-
-
-@read_router.get(
-    "/{project_id}/trash",
-    response_model=ApiResponse[TrashListResponse],
-    summary="List trash bin contents",
-)
-def list_trash(
-    project_id: str,
-    ops: MutOps = Depends(get_mut_ops),
-    project_service: ProjectService = Depends(get_project_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    ensure_project_access(project_service, current_user, project_id)
-
-    entries = ops.list_dir(project_id, _TRASH_DIR)
-    return ApiResponse.success(data=TrashListResponse(
-        entries=[entry_to_response(e) for e in entries],
     ))

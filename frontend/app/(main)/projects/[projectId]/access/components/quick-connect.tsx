@@ -24,6 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import { T } from '../lib/tokens';
@@ -90,32 +91,13 @@ function TerminalCliBody({
   const accessKey = scope.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
 
-  const installLine = 'npm install -g puppyone';
-  const loginLine = `printf '%s' '${accessKey || '<access-key>'}' | puppyone ap login ${profileName} --api-url ${apiBase} --access-key-stdin`;
-  const useLines = [
-    'puppyone fs ls',
-    'puppyone fs cat README.md',
-    'echo "hello" | puppyone fs write notes/hello.md --type markdown',
-  ];
-  const prompt = [
-    `Use this PuppyOne folder Access Point from terminal.`,
-    ``,
-    `Scope: ${scopeName}`,
-    ``,
-    `Recommended: direct remote filesystem commands through the PuppyOne CLI. No local clone is needed.`,
-    `\`\`\`bash`,
-    installLine,
-    loginLine,
-    ...useLines,
-    `\`\`\``,
-    ``,
-    `Only use MUT if the user asks for a local folder copy or ongoing two-way sync.`,
-    `MUT endpoint: ${cloneUrl}`,
-    ``,
-    `Do not create a new access point unless I ask for one.`,
-  ].join('\n');
+  const { installLine, loginLine, exploreLines, fileLines, prompt } = buildTerminalCliPrompt({
+    apiBase,
+    accessKey,
+    profileName,
+    scopeName,
+  });
 
   return (
     <>
@@ -126,7 +108,8 @@ function TerminalCliBody({
         steps={[
           { title: 'Install once', lines: [installLine] },
           { title: 'Sign in to this scope', lines: [loginLine] },
-          { title: 'Read & write files', lines: useLines },
+          { title: 'Explore safely', lines: exploreLines },
+          { title: 'Read & write files', lines: fileLines },
         ]}
       />
     </>

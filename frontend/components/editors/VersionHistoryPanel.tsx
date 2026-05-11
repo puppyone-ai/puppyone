@@ -83,7 +83,7 @@ function ChangeSummary({ changes }: { changes: MutCommitChange[] }) {
   const summary = useMemo(() => {
     const counts = { added: 0, modified: 0, deleted: 0 };
     for (const c of changes) {
-      if (c.op in counts) counts[c.op as keyof typeof counts]++;
+      counts[c.op]++;
     }
     return counts;
   }, [changes]);
@@ -195,30 +195,33 @@ function CommitRow({
               {commit.changes.length} file{commit.changes.length !== 1 ? 's' : ''} changed
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {commit.changes.map((change, i) => (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '3px 6px', borderRadius: 4, fontSize: 11,
-                }}>
-                  <span style={{
-                    width: 6, height: 6, borderRadius: 2,
-                    background: OP_COLORS[change.op] || '#71717a',
-                    flexShrink: 0,
-                  }} />
-                  <span style={{
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                    color: '#a1a1aa',
+              {commit.changes.map((change, i) => {
+                const op = change.op;
+                return (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '3px 6px', borderRadius: 4, fontSize: 11,
                   }}>
-                    {change.path}
-                  </span>
-                  <span style={{
-                    fontSize: 9, color: OP_COLORS[change.op] || '#71717a',
-                    marginLeft: 'auto', flexShrink: 0,
-                  }}>
-                    {change.op}
-                  </span>
-                </div>
-              ))}
+                    <span style={{
+                      width: 6, height: 6, borderRadius: 2,
+                      background: OP_COLORS[op] || '#71717a',
+                      flexShrink: 0,
+                    }} />
+                    <span style={{
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                      color: '#a1a1aa',
+                    }}>
+                      {change.path}
+                    </span>
+                    <span style={{
+                      fontSize: 9, color: OP_COLORS[op] || '#71717a',
+                      marginLeft: 'auto', flexShrink: 0,
+                    }}>
+                      {op}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>

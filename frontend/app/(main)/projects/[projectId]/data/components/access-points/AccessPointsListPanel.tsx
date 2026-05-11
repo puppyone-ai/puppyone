@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { accessPointProfileSlug, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import { PanelShell } from '../PanelShell';
 import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
@@ -30,30 +31,14 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
 
   if (ep.provider === 'filesystem' && accessKey) {
     const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
-    const profileName = scopeName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '') || 'folder';
-    const prompt = [
-      `Use this PuppyOne folder Access Point from terminal.`,
-      ``,
-      `Access Point: ${displayName}`,
-      `Scope: ${scopeName}`,
-      ``,
-      `Recommended: direct remote filesystem commands (no local clone needed).`,
-      `printf '%s' '${accessKey}' | puppyone ap login ${profileName} --api-url ${apiBase} --access-key-stdin`,
-      `puppyone fs ls`,
-      `puppyone fs cat <file.md>`,
-      `echo "hello" | puppyone fs write notes/hello.md --type markdown`,
-      ``,
-      `Use MUT when you want a local folder backup or ongoing two-way sync.`,
-      `mut connect ${cloneUrl} --credential ${accessKey}`,
-      ``,
-      `Endpoint URL: ${cloneUrl}`,
-      `Credential: ${accessKey}`,
-      ``,
-      `Do not create a new access point unless I ask for one.`,
-    ].join('\n');
+    const profileName = accessPointProfileSlug(scopeName);
+    const { prompt } = buildTerminalCliPrompt({
+      apiBase,
+      accessKey,
+      profileName,
+      scopeName,
+      accessPointName: displayName,
+    });
     return {
       primary: {
         title: 'PuppyOne CLI',

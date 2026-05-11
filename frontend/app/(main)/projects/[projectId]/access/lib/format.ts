@@ -10,6 +10,7 @@
 
 import type { Connector } from '@/lib/repoApi';
 import type { NodeInfo } from '@/lib/contentTreeApi';
+import { accessPointProfileSlug } from '@/lib/accessPointCliPrompt';
 import {
   PROVIDER_LABELS,
   type ConnectorGroupKey,
@@ -108,12 +109,7 @@ export function getPrimaryAction(status: string): { label: string; icon: 'pause'
 // ─── Slug ────────────────────────────────────────────────────────────
 
 export function profileSlug(name: string): string {
-  return (
-    name
-      .toLowerCase()
-      .replaceAll(/[^a-z0-9]+/g, '-')
-      .replaceAll(/^-+|-+$/g, '') || 'folder'
-  );
+  return accessPointProfileSlug(name);
 }
 
 // ─── Connector configuration table ───────────────────────────────────

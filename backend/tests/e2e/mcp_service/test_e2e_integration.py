@@ -500,7 +500,7 @@ class TestPosixTools:
         assert "Updated" in content
 
     def test_12_rm_file(self, mcp_session: McpSession, main_client: httpx.Client, internal_headers: dict, test_agent: dict):
-        """rm 删除文件（通过 Internal API 直接软删除，绕过 MCP 的 agent_id → created_by FK 问题）"""
+        """rm 删除文件（通过 Internal API 直接删除）"""
         # 先通过 MCP 解析路径拿到 path
         resolve_result = mcp_session.call_tool("cat", {"path": "/subfolder/notes.md"})
         path = resolve_result.get("path")
@@ -508,12 +508,10 @@ class TestPosixTools:
 
         # 通过 Internal API 直接删除（使用 "system" 作为 user_id 避免 FK 约束问题）
         resp = main_client.post(
-            f"/internal/nodes/{path}/trash",
+            "/internal/nodes/rm",
             headers=internal_headers,
-            json={"project_id": test_agent["project_id"], "user_id": "system"},
+            json={"project_id": test_agent["project_id"], "path": path, "user_id": "system"},
         )
-        # 注意: soft_delete 在创建 .trash 文件夹时 created_by 使用 user_id，
-        # 如果 user_id 不在 users 表中会触发 FK 约束。这里用 "system" 也可能失败。
         if resp.status_code == 200:
             data = resp.json()
             print(f"  rm /subfolder/notes.md (via internal): removed={data.get('removed')}")
@@ -668,9 +666,9 @@ class TestInternalAPI:
 
         # 清理
         main_client.post(
-            f"/internal/nodes/{path}/trash",
+            "/internal/nodes/rm",
             headers=internal_headers,
-            json={"project_id": project_id, "user_id": "e2e-test"},
+            json={"project_id": project_id, "path": path, "user_id": "e2e-test"},
         )
 
     def test_move_node(
@@ -707,8 +705,8 @@ class TestInternalAPI:
 
         # 清理
         for nid in [file_id, src_id, dst_id]:
-            main_client.post(f"/internal/nodes/{nid}/trash", headers=internal_headers,
-                json={"project_id": project_id, "user_id": "e2e-test"})
+            main_client.post("/internal/nodes/rm", headers=internal_headers,
+                json={"project_id": project_id, "path": nid, "user_id": "e2e-test"})
 
     def test_agent_by_mcp_key(
         self, main_client: httpx.Client, internal_headers: dict, test_agent: dict,

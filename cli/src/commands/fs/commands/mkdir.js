@@ -1,0 +1,33 @@
+import { withErrors } from "../../../helpers.js";
+import { createOutput } from "../../../output.js";
+import { createApClient, extraHeaders } from "../lib/context.js";
+import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
+import { scopedPath } from "../lib/paths.js";
+
+export function registerMkdirCommand(fs) {
+  fs
+    .command("mkdir")
+    .description("Create a directory within the access point scope")
+    .argument("<paths...>", "directory path(s) relative to the access point scope")
+    .option("-p, --parents", "create parent directories as needed; no error if already exists")
+    .action(withErrors(async (paths, opts, cmd) => {
+      const out = createOutput(cmd);
+      const client = createApClient(cmd);
+      const headers = await extraHeaders(cmd);
+      const results = [];
+      for (const path of paths) {
+        const cleanPath = scopedPath(path);
+        const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
+        const result = await post(client, "/ap-fs/mkdir", {
+          path: cleanPath,
+          base_commit_id: baseCommitId,
+          parents: !!opts.parents,
+        }, headers);
+        results.push(result);
+      }
+      if (out.json) {
+        if (results.length === 1) out.success(results[0]);
+        else out.success({ results });
+      }
+    }));
+}

@@ -385,7 +385,6 @@ async def list_node_children(
         _enforce_acting_user_project_access(request, project_id)
         path = path.strip("/")
         entries = ops.list_dir(project_id, path)
-        entries = [e for e in entries if e.name != ".trash"]
 
         return {
             "path": path,
@@ -435,7 +434,6 @@ async def read_node_content(
 
         if entry.type == "folder":
             children = ops.list_dir(project_id, path)
-            children = [c for c in children if c.name != ".trash"]
             base["children"] = [
                 {
                     "name": c.name,
@@ -608,18 +606,16 @@ async def create_node(
 
 
 @router.post(
-    "/nodes/trash",
-    summary="Soft delete (via MutOps)",
-    description="Move file or directory to .trash",
+    "/nodes/rm",
+    summary="Delete file or directory",
+    description="Remove file or directory from the MUT tree",
     dependencies=[Depends(verify_internal_secret)],
 )
-async def trash_node(
+async def remove_node(
     payload: Dict[str, Any],
     request: Request,
 ):
     """
-    Soft delete: move to .trash via MutOps.
-
     payload:
         project_id: str
         path: str
@@ -633,17 +629,18 @@ async def trash_node(
 
         if not path:
             raise HTTPException(status_code=400, detail="path is required")
-
-        basename = path.rsplit("/", 1)[-1] if "/" in path else path
         ops = create_mut_ops()
-        await ops.trash(
+        if ops.stat(project_id, path) is None:
+            raise HTTPException(status_code=404, detail=f"Path not found: {path}")
+
+        result = await ops.delete(
             project_id,
-            path,
+            [path],
             who=user_id,
-            message=f"trash {basename}",
+            message=f"delete {path}",
         )
 
-        return {"path": path, "removed": True, "message": "Moved to trash"}
+        return {"path": path, "removed": True, "commit_id": result.commit_id}
     except HTTPException:
         raise
     except AppException as e:

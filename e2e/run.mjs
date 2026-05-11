@@ -3,7 +3,6 @@
  *
  *   node run.mjs                          # run all scenarios
  *   node run.mjs --scenario connect-gmail # run one
- *   node run.mjs --publish                # run all + copy to puppydoc
  */
 import fs from 'fs';
 import path from 'path';
@@ -14,7 +13,6 @@ import { parseMarkdownScenario } from './lib/parser.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCENARIOS_DIR = path.join(__dirname, 'scenarios');
 const RESULTS_DIR = path.join(__dirname, 'results');
-const PUBLISH_DIR = path.join(__dirname, '../puppydoc/public/screenshots');
 
 async function loadScenarios(filter) {
   const files = fs.readdirSync(SCENARIOS_DIR).filter((f) => f.endsWith('.md') || f.endsWith('.mjs'));
@@ -70,26 +68,12 @@ async function runScenario(scenario, scenarioDir) {
   return results;
 }
 
-function publishResults(allResults) {
-  console.log('\n📤 Publishing to puppydoc/public/screenshots/...');
-  for (const [scenarioName, results] of Object.entries(allResults)) {
-    const destDir = path.join(PUBLISH_DIR, scenarioName);
-    fs.mkdirSync(destDir, { recursive: true });
-    for (const r of results) {
-      if (!r.ok) continue;
-      const filename = path.basename(r.screenshot);
-      const dest = path.join(destDir, filename);
-      fs.copyFileSync(r.screenshot, dest);
-      console.log(`   ${scenarioName}/${filename}`);
-    }
-  }
-  console.log('✅ Published. MDX: /screenshots/<scenario>/<step>.png');
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const scenarioFilter = args.includes('--scenario') ? args[args.indexOf('--scenario') + 1] : null;
-  const shouldPublish = args.includes('--publish');
+  if (args.includes('--publish')) {
+    console.warn('\n⚠️  --publish was removed. Screenshots stay in e2e/results.');
+  }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const resultsDir = path.join(RESULTS_DIR, timestamp);
@@ -123,12 +107,6 @@ async function main() {
   }
   console.log(`\n${totalPass} passed, ${totalFail} failed`);
   console.log(`📁 ${resultsDir}`);
-
-  if (shouldPublish && totalFail === 0) {
-    publishResults(allResults);
-  } else if (shouldPublish && totalFail > 0) {
-    console.log('\n⚠️  Skipped publish — fix failures first.');
-  }
 
   process.exit(totalFail > 0 ? 1 : 0);
 }

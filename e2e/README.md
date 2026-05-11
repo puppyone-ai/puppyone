@@ -24,8 +24,8 @@ npm test
 # 5. Run one scenario
 npm run test:one -- connect-gmail
 
-# 6. Run + publish screenshots to puppydoc
-npm run publish
+# 6. Review screenshots
+# Results are written under e2e/results/<timestamp>/
 ```
 
 ## Directory Structure

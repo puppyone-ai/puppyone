@@ -64,6 +64,26 @@ class WriteResult:
     is_noop: bool = False
 
 
+class ConcurrentMutationError(RuntimeError):
+    """Raised when a caller supplied a stale scope head precondition."""
+
+    def __init__(
+        self,
+        *,
+        scope_path: str,
+        expected_head_commit_id: str,
+        current_head_commit_id: str,
+    ):
+        self.scope_path = scope_path
+        self.expected_head_commit_id = expected_head_commit_id
+        self.current_head_commit_id = current_head_commit_id
+        super().__init__(
+            "Scope changed since the command started. Pull the latest state "
+            "or use the MUT merge workflow (`mut pull`, resolve if needed, "
+            "then `mut commit` and `mut push`)."
+        )
+
+
 # ── Concurrency: per-(project, scope) async lock cache ─────────
 
 
@@ -125,6 +145,8 @@ async def apply_mutation(
     message: str,
     op_type: str,
     audit_detail: dict | None = None,
+    expected_head_commit_id: str | None = None,
+    allow_same_tree_commit: bool = False,
 ) -> WriteResult:
     """Apply a tree-splice mutation atomically.
 
@@ -168,6 +190,8 @@ async def apply_mutation(
             message=message,
             op_type=op_type,
             audit_detail=audit_detail or {},
+            expected_head_commit_id=expected_head_commit_id,
+            allow_same_tree_commit=allow_same_tree_commit,
             started_ms=started_ms,
         )
 
@@ -182,6 +206,8 @@ async def _apply_under_lock(
     message: str,
     op_type: str,
     audit_detail: dict,
+    expected_head_commit_id: str | None,
+    allow_same_tree_commit: bool,
     started_ms: int,
 ) -> WriteResult:
     repo = repo_manager.get_server_repo(project_id)
@@ -190,6 +216,16 @@ async def _apply_under_lock(
     last_error: Exception | None = None
     for attempt in range(_MAX_CAS_ATTEMPTS):
         old_scope_hash = repo.get_scope_hash(scope_norm) or ""
+        current_head_commit_id = repo.get_scope_head_commit_id(scope_norm) or ""
+        if (
+            expected_head_commit_id is not None
+            and current_head_commit_id != expected_head_commit_id
+        ):
+            raise ConcurrentMutationError(
+                scope_path=scope_norm,
+                expected_head_commit_id=expected_head_commit_id,
+                current_head_commit_id=current_head_commit_id,
+            )
 
         # Run the pure splice on a worker thread (the splice may do
         # synchronous S3 reads via ``repo.store`` — S3StorageBackend's
@@ -198,7 +234,7 @@ async def _apply_under_lock(
             splice, repo.store, old_scope_hash,
         )
 
-        if not changes or new_scope_hash == old_scope_hash:
+        if not changes or (new_scope_hash == old_scope_hash and not allow_same_tree_commit):
             elapsed = int(time.time() * 1000) - started_ms
             log_info(
                 f"[direct_writer][{op_type}] noop "

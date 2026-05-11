@@ -16,7 +16,7 @@ Identity model (as of 20260418):
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -27,20 +27,25 @@ from pydantic import BaseModel
 class WriteFileRequest(BaseModel):
     """Write file request.
 
-    `base_commit_id` is the client's expectation of the current
-    scope head. Empty string means "I have no base / this is the
-    first write". Mismatches trigger server-side three-way merge.
+    ``base_commit_id`` is an optional precondition: when provided, the
+    backend atomically verifies it is still the current scope head before
+    committing. A mismatch returns 409 so one-shot REST/CLI writes never
+    silently overwrite another collaborator. Omit it only for callers that
+    intentionally accept last-writer-wins semantics or use the MUT merge
+    protocol separately.
     """
     path: str
     content: Any
     message: str = ""
-    base_commit_id: str = ""
+    base_commit_id: str | None = None
     node_type: str = "json"  # json | markdown | file
 
 
 class MkdirRequest(BaseModel):
     """Create directory request"""
     path: str
+    base_commit_id: str | None = None
+    parents: bool = False
 
 
 class MoveRequest(BaseModel):
@@ -48,25 +53,52 @@ class MoveRequest(BaseModel):
     old_path: str
     new_path: str
     message: str = ""
+    base_commit_id: str | None = None
+    no_clobber: bool = False
+    target_directory: bool = False
+    no_target_directory: bool = False
+
+
+class CopyRequest(BaseModel):
+    """Copy request"""
+    old_path: str
+    new_path: str
+    message: str = ""
+    base_commit_id: str | None = None
+    recursive: bool = False
+    no_clobber: bool = False
+    target_directory: bool = False
+    no_target_directory: bool = False
+
+
+class TouchRequest(BaseModel):
+    """Touch/create empty files request"""
+    path: str = ""
+    paths: list[str] | None = None
+    base_commit_id: str | None = None
 
 
 class RemoveRequest(BaseModel):
     """Delete request.
 
     Either ``path`` (single) or ``paths`` (multi-select) may be set.
-    If both are set, ``paths`` wins. Multi-path soft-delete batches
-    every move into a single commit per scope, so removing 50 files
-    costs one MUT commit, not 50.
+    If both are set, ``paths`` wins. Deletes remove paths from the
+    current tree; recovery is handled through MUT history/rollback.
     """
     path: str = ""
     paths: list[str] | None = None
-    permanent: bool = False  # True = permanent delete, False = move to .trash
+    permanent: bool = True  # Deprecated compatibility field; delete is always permanent.
+    force: bool = False
+    recursive: bool = False
+    base_commit_id: str | None = None
 
 
-class RestoreRequest(BaseModel):
-    """Restore from .trash request"""
-    trash_path: str
-    original_path: str
+class RmdirRequest(BaseModel):
+    """Remove empty directories request."""
+    path: str = ""
+    paths: list[str] | None = None
+    parents: bool = False
+    base_commit_id: str | None = None
 
 
 class BulkWriteItem(BaseModel):
@@ -124,6 +156,8 @@ class StatResponse(BaseModel):
     mime_type: str | None = None
     children_count: int | None = None
     exists: bool = True
+    head_commit_id: str = ""
+    scope_head_commit_id: str = ""
 
 
 class TreeResponse(BaseModel):
@@ -133,21 +167,27 @@ class TreeResponse(BaseModel):
     head_commit_id: str = ""
 
 
-class TrashListResponse(BaseModel):
-    """Trash bin contents"""
-    entries: list[MutEntryResponse]
-
-
 # ============================================================
 # Commit history schemas
 # ============================================================
+
+class MutCommitChange(BaseModel):
+    """A single file change in a commit.
+
+    ``action`` is the MUT-native operation stored in history rows.
+    ``op`` is the stable Git-style UI/API operation label.
+    """
+    path: str
+    action: Literal["add", "update", "delete"] = "update"
+    op: Literal["added", "modified", "deleted"] = "modified"
+
 
 class FileVersionInfo(BaseModel):
     """History list item for a single commit."""
     commit_id: str
     who: str = ""
     message: str = ""
-    changes: list[dict] = []
+    changes: list[MutCommitChange] = []
     conflicts: list[dict] = []
     root_hash: str = ""
     scope_hash: str = ""
@@ -192,16 +232,6 @@ class RollbackRequest(BaseModel):
     """Rollback request — restore the scope to the state at
     target_commit_id by creating a new forward commit."""
     target_commit_id: str
-
-
-# ============================================================
-# Project-level Mut Commit History
-# ============================================================
-
-class MutCommitChange(BaseModel):
-    """A single file change in a commit"""
-    path: str
-    op: str  # "added" | "modified" | "deleted"
 
 
 class MutCommitConflict(BaseModel):

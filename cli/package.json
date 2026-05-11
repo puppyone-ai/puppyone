@@ -1,6 +1,6 @@
 {
   "name": "puppyone",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "PuppyOne CLI — cloud file system for AI Agents",
   "type": "module",
   "bin": {

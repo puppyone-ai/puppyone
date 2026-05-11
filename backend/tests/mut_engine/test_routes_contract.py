@@ -13,7 +13,7 @@ The MUT access-point URL is part of our **public client contract**:
     `puppyone access add` output.
   * The frontend (Sync/Filesystem detail views) shows these URLs in copy-
     paste boxes.
-  * Public docs (puppydoc) and AGENTS.md reference these URLs verbatim.
+  * AGENTS.md and the docs/ tree reference these URLs verbatim.
 
 This test failed twice already in production after well-meaning refactors
 silently dropped the `/api/v1` prefix from the access-point router. Each
