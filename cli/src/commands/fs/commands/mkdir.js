@@ -1,7 +1,7 @@
 import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
-import { getScopeBaseCommit, post } from "../lib/http.js";
+import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerMkdirCommand(fs) {
@@ -17,7 +17,7 @@ export function registerMkdirCommand(fs) {
       const results = [];
       for (const path of paths) {
         const cleanPath = scopedPath(path);
-        const baseCommitId = await getScopeBaseCommit(client, cleanPath, headers);
+        const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
         const result = await post(client, "/ap-fs/mkdir", {
           path: cleanPath,
           base_commit_id: baseCommitId,

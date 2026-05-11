@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
+import { Command } from "commander";
 
+import { ApiError } from "../src/api.js";
+import {
+  buildCopyMoveIntents,
+  isNoClobber,
+  resolveOverwritePromptPath,
+} from "../src/commands/fs/lib/operation-intent.js";
 import { pathError } from "../src/commands/fs/lib/errors.js";
 import {
   renderFlatLs,
@@ -103,3 +110,112 @@ assert.deepEqual(Object.keys(recursiveJsonShape), [
   "returned_count",
   "truncation_reason",
 ]);
+
+assert.deepEqual(buildCopyMoveIntents(["a.md", "docs/"], {}, "cp"), [
+  {
+    oldPath: "a.md",
+    newPath: "docs",
+    targetDirectory: true,
+    noTargetDirectory: false,
+  },
+]);
+
+assert.deepEqual(buildCopyMoveIntents(["a.md", "b.md", "docs"], {}, "cp"), [
+  {
+    oldPath: "a.md",
+    newPath: "docs",
+    targetDirectory: true,
+    noTargetDirectory: false,
+  },
+  {
+    oldPath: "b.md",
+    newPath: "docs",
+    targetDirectory: true,
+    noTargetDirectory: false,
+  },
+]);
+
+assert.deepEqual(buildCopyMoveIntents(["a.md", "docs"], { targetDirectory: false }, "mv"), [
+  {
+    oldPath: "a.md",
+    newPath: "docs",
+    targetDirectory: false,
+    noTargetDirectory: true,
+  },
+]);
+
+assert.throws(
+  () => buildCopyMoveIntents(["a.md", "b.md", "docs"], { targetDirectory: false }, "cp"),
+  ApiError,
+);
+
+assert.deepEqual(buildCopyMoveIntents(["a.md"], { targetDirectory: "docs" }, "cp"), [
+  {
+    oldPath: "a.md",
+    newPath: "docs",
+    targetDirectory: true,
+    noTargetDirectory: false,
+  },
+]);
+
+assert.equal(isNoClobber({ clobber: false }), true);
+assert.equal(isNoClobber({ noClobber: true }), true);
+assert.equal(isNoClobber({ clobber: true }), false);
+
+assert.equal(
+  await resolveOverwritePromptPath(async (path) => {
+    if (path === "docs") return { exists: true, type: "folder" };
+    if (path === "docs/a.md") return { exists: true, type: "markdown" };
+    return { exists: false, type: "" };
+  }, {
+    oldPath: "a.md",
+    newPath: "docs",
+    targetDirectory: true,
+    noTargetDirectory: false,
+  }),
+  "docs/a.md",
+);
+
+{
+  const program = new Command();
+  program.exitOverride();
+  program.enablePositionalOptions();
+  program.option("-p, --project <id>");
+
+  const fs = program.command("fs");
+  let parsed = null;
+  fs
+    .command("mkdir")
+    .argument("<paths...>")
+    .option("-p, --parents")
+    .action((paths, opts) => {
+      parsed = { paths, parents: opts.parents };
+    });
+
+  program.parse(["node", "puppyone", "fs", "mkdir", "-p", "a/b/c"]);
+  assert.deepEqual(parsed, { paths: ["a/b/c"], parents: true });
+}
+
+{
+  const program = new Command();
+  program.exitOverride();
+  program.enablePositionalOptions();
+
+  const fs = program.command("fs");
+  let parsed = null;
+  fs
+    .command("cp")
+    .argument("<paths...>")
+    .option("-T, --no-target-directory")
+    .option("-t, --target-directory <dir>")
+    .option("-n, --no-clobber")
+    .action((paths, opts) => {
+      parsed = { paths, opts };
+    });
+
+  program.parse(["node", "puppyone", "fs", "cp", "-T", "-n", "a.md", "docs"]);
+  assert.deepEqual(parsed, {
+    paths: ["a.md", "docs"],
+    opts: { targetDirectory: false, clobber: false },
+  });
+}

@@ -3,7 +3,8 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
-import { getScopeBaseCommit, rawPostBytes } from "../lib/http.js";
+import { getCurrentScopeBaseCommit, rawPostBytes } from "../lib/http.js";
+import { isNoClobber } from "../lib/operation-intent.js";
 import { parseNonNegativeOption, parsePositiveOption } from "../lib/options.js";
 import { scopedPath } from "../lib/paths.js";
 import { resolveTransferDestination, statPath } from "../lib/remote.js";
@@ -66,11 +67,11 @@ export function registerUploadCommand(fs) {
             for (const file of files) {
               const remotePath = joinRemoteRelative(remoteBase, file.relativePath);
               const existing = await statPath(client, remotePath, headers);
-              if (existing.exists && opts.noClobber && !opts.force) {
+              if (existing.exists && isNoClobber(opts) && !opts.force) {
                 results.push({ local_path: file.localPath, path: remotePath, skipped: true });
                 continue;
               }
-              const baseCommitId = await getScopeBaseCommit(client, remotePath, headers);
+              const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
               const content = await readFile(file.localPath);
               const result = await rawPostBytes(client, "/ap-fs/upload", content, {
                 path: remotePath,
@@ -88,11 +89,11 @@ export function registerUploadCommand(fs) {
             client, nodePath.basename(localSource), remoteDst, headers, { multipleSources },
           );
           const existing = await statPath(client, remotePath, headers);
-          if (existing.exists && opts.noClobber && !opts.force) {
+          if (existing.exists && isNoClobber(opts) && !opts.force) {
             results.push({ local_path: localSource, path: remotePath, skipped: true });
             continue;
           }
-          const baseCommitId = await getScopeBaseCommit(client, remotePath, headers);
+          const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
           const content = await readFile(localSource);
           const result = await rawPostBytes(client, "/ap-fs/upload", content, {
             path: remotePath,

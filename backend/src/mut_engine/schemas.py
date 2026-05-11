@@ -55,6 +55,8 @@ class MoveRequest(BaseModel):
     message: str = ""
     base_commit_id: str | None = None
     no_clobber: bool = False
+    target_directory: bool = False
+    no_target_directory: bool = False
 
 
 class CopyRequest(BaseModel):
@@ -65,6 +67,8 @@ class CopyRequest(BaseModel):
     base_commit_id: str | None = None
     recursive: bool = False
     no_clobber: bool = False
+    target_directory: bool = False
+    no_target_directory: bool = False
 
 
 class TouchRequest(BaseModel):

@@ -685,6 +685,45 @@ async def test_cp_existing_directory_target_copies_inside_it(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_cp_explicit_target_directory_requires_directory(monkeypatch):
+    _patch_auth(monkeypatch)
+    ops = _FakeOps(stats={"a.txt": _entry("a.txt", "file")})
+
+    with pytest.raises(HTTPException) as exc:
+        await apfs.copy(
+            apfs.CopyRequest(old_path="a.txt", new_path="missing", target_directory=True),
+            x_access_key="key",
+            x_mut_user=None,
+            x_puppy_client=None,
+            ops=ops,
+        )
+
+    assert exc.value.status_code == 400
+    assert "Not a directory" in str(exc.value.detail)
+    assert ops.copies == []
+
+
+@pytest.mark.asyncio
+async def test_cp_explicit_root_target_directory_uses_plain_child_path(monkeypatch):
+    _patch_auth(monkeypatch)
+    ops = _FakeOps(stats={
+        "": _entry("", "folder"),
+        "a.txt": _entry("a.txt", "file"),
+    })
+
+    result = await apfs.copy(
+        apfs.CopyRequest(old_path="a.txt", new_path=".", target_directory=True),
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=ops,
+    )
+
+    assert result.data["new_path"] == "a.txt"
+    assert ops.copies[0]["new_path"] == "a.txt"
+
+
+@pytest.mark.asyncio
 async def test_cp_directory_requires_recursive(monkeypatch):
     _patch_auth(monkeypatch)
     ops = _FakeOps(stats={"docs": _entry("docs", "folder")})
@@ -721,6 +760,54 @@ async def test_cp_no_clobber_skips_existing_destination(monkeypatch):
     assert result.data["skipped"] is True
     assert result.data["commit_id"] == ""
     assert ops.copies == []
+
+
+@pytest.mark.asyncio
+async def test_mv_no_target_directory_rejects_existing_directory(monkeypatch):
+    _patch_auth(monkeypatch)
+    ops = _FakeOps(stats={
+        "a.txt": _entry("a.txt", "file"),
+        "dir": _entry("dir", "folder"),
+    })
+
+    with pytest.raises(HTTPException) as exc:
+        await apfs.move(
+            apfs.MoveRequest(old_path="a.txt", new_path="dir", no_target_directory=True),
+            x_access_key="key",
+            x_mut_user=None,
+            x_puppy_client=None,
+            ops=ops,
+        )
+
+    assert exc.value.status_code == 400
+    assert "Is a directory" in str(exc.value.detail)
+    assert ops.moves == []
+
+
+@pytest.mark.asyncio
+async def test_mv_no_target_directory_no_clobber_skips_existing_directory(monkeypatch):
+    _patch_auth(monkeypatch)
+    ops = _FakeOps(stats={
+        "a.txt": _entry("a.txt", "file"),
+        "dir": _entry("dir", "folder"),
+    })
+
+    result = await apfs.move(
+        apfs.MoveRequest(
+            old_path="a.txt",
+            new_path="dir",
+            no_target_directory=True,
+            no_clobber=True,
+        ),
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=ops,
+    )
+
+    assert result.data["skipped"] is True
+    assert result.data["commit_id"] == ""
+    assert ops.moves == []
 
 
 @pytest.mark.asyncio

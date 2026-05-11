@@ -1,16 +1,43 @@
 import { resolveAuth, loadConfig, saveConfig, getTargetAuth, saveTargetAuth } from "./config.js";
 
 export class ApiError extends Error {
-  constructor(status, code, message, hint) {
+  constructor(status, code, message, hint, data) {
     super(message);
     this.status = status;
     this.code = code;
     this.hint = hint;
+    this.data = data;
   }
 }
 
-// Channel header. The backend's MUT auth dependency
-// (mut_engine/server/auth.py:get_mut_auth) uses this to decide which
+export function parseApiErrorPayload(text, fallbackCode = "API_ERROR") {
+  let message = text || "Request failed";
+  let code = fallbackCode;
+  let data = null;
+
+  try {
+    const parsed = JSON.parse(text);
+    const detail = parsed.detail;
+    data = parsed.data ?? (detail && typeof detail === "object" ? detail : null);
+
+    if (detail && typeof detail === "object") {
+      message = detail.message ?? detail.detail ?? JSON.stringify(detail);
+      if (typeof detail.code === "string") code = detail.code;
+      if (typeof detail.error_code === "string") code = detail.error_code;
+    } else {
+      message = parsed.message ?? detail ?? message;
+    }
+
+    if (data && typeof data === "object") {
+      if (typeof data.code === "string") code = data.code;
+      if (typeof data.error_code === "string") code = data.error_code;
+    }
+  } catch {}
+
+  return { code, message: String(message), data };
+}
+
+// Channel header. The backend access-key auth dependency uses this to decide which
 // connector's `status` to consult when enforcing pause/resume.
 //   "cli"        — manual mut commands typed into a terminal
 //   "filesystem" — the local-folder sync daemon (set by daemon code path)
@@ -191,7 +218,8 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false, clientKind = "c
         if (retryFinal.ok) {
           const json = await retryFinal.json();
           if (json.code !== 0) {
-            throw new ApiError(0, "API_BIZ_ERROR", json.message ?? "Unknown error");
+            const code = typeof json.data?.error_code === "string" ? json.data.error_code : "API_BIZ_ERROR";
+            throw new ApiError(0, code, json.message ?? "Unknown error", undefined, json.data);
           }
           return json.data;
         }
@@ -201,11 +229,7 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false, clientKind = "c
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      let detail = text;
-      try {
-        const parsed = JSON.parse(text);
-        detail = parsed.detail ?? parsed.message ?? text;
-      } catch {}
+      const parsedError = parseApiErrorPayload(text);
 
       const usesAccessKey = currentAuthHeaders["X-Access-Key"] != null;
       const hint = res.status === 401
@@ -213,15 +237,16 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false, clientKind = "c
         : res.status === 404
         ? "Check the resource ID or path."
         : res.status === 409
-        ? "The remote scope changed before this write landed. Pull the latest state or use `mut pull`, resolve, `mut commit`, and `mut push`."
+        ? "The remote scope changed before this write landed. Re-read the target path, reapply your change, and run the command again."
         : undefined;
 
-      throw new ApiError(res.status, "API_ERROR", detail, hint);
+      throw new ApiError(res.status, parsedError.code, parsedError.message, hint, parsedError.data);
     }
 
     const json = await res.json();
     if (json.code !== 0) {
-      throw new ApiError(0, "API_BIZ_ERROR", json.message ?? "Unknown error");
+      const code = typeof json.data?.error_code === "string" ? json.data.error_code : "API_BIZ_ERROR";
+      throw new ApiError(0, code, json.message ?? "Unknown error", undefined, json.data);
     }
 
     return json.data;

@@ -1,7 +1,7 @@
 import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
-import { getScopeBaseCommit, post } from "../lib/http.js";
+import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerTouchCommand(fs) {
@@ -14,7 +14,7 @@ export function registerTouchCommand(fs) {
       const client = createApClient(cmd);
       const headers = await extraHeaders(cmd);
       const cleanPaths = paths.map(scopedPath);
-      const baseCommitId = await getScopeBaseCommit(client, cleanPaths[0], headers);
+      const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
       const result = await post(client, "/ap-fs/touch", {
         path: cleanPaths[0],
         paths: cleanPaths,

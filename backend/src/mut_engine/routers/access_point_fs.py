@@ -99,6 +99,22 @@ def _ensure_writable(scope: dict) -> None:
         raise HTTPException(status_code=403, detail="Access point is read-only")
 
 
+def _fs_error(
+    status_code: int,
+    error_code: str,
+    message: str,
+    *,
+    path: str | None = None,
+) -> HTTPException:
+    detail: dict[str, Any] = {
+        "error_code": error_code,
+        "message": message,
+    }
+    if path is not None:
+        detail["path"] = path
+    return HTTPException(status_code=status_code, detail=detail)
+
+
 def _clean_relative(path: str | None) -> str:
     raw = (path or "").strip()
     if raw in ("", "/", "."):
@@ -214,11 +230,57 @@ def _basename(path: str) -> str:
     return path.rstrip("/").rsplit("/", 1)[-1]
 
 
+def _destination_child_path(directory_rel: str, old_rel: str) -> str:
+    child_name = _basename(old_rel)
+    clean_dir = directory_rel.rstrip("/")
+    return f"{clean_dir}/{child_name}" if clean_dir else child_name
+
+
 def _dirname(path: str) -> str:
     clean = path.strip("/")
     if not clean or "/" not in clean:
         return ""
     return clean.rsplit("/", 1)[0]
+
+
+def _resolve_copy_move_destination(
+    project_id: str,
+    scope: dict,
+    ops: MutOps,
+    old_rel: str,
+    new_rel: str,
+    *,
+    target_directory: bool,
+    no_target_directory: bool,
+) -> tuple[str, str, Any | None]:
+    if target_directory and no_target_directory:
+        raise HTTPException(
+            status_code=400,
+            detail="target_directory and no_target_directory cannot both be true",
+        )
+
+    new_full = _join_scope(scope["path"], new_rel)
+    new_entry = ops.stat(project_id, new_full)
+
+    if target_directory:
+        if new_entry is None or new_entry.type != "folder":
+            raise _fs_error(
+                400,
+                "NOT_A_DIRECTORY",
+                f"Not a directory: {new_rel or '.'}",
+                path=new_rel,
+            )
+        new_rel = _destination_child_path(new_rel, old_rel)
+        _assert_not_excluded(new_rel, scope)
+        new_full = _join_scope(scope["path"], new_rel)
+        new_entry = ops.stat(project_id, new_full)
+    elif new_entry and new_entry.type == "folder" and not no_target_directory:
+        new_rel = _destination_child_path(new_rel, old_rel)
+        _assert_not_excluded(new_rel, scope)
+        new_full = _join_scope(scope["path"], new_rel)
+        new_entry = ops.stat(project_id, new_full)
+
+    return new_rel, new_full, new_entry
 
 
 def _is_directory_empty(project_id: str, path: str, ops: MutOps) -> bool:
@@ -784,7 +846,7 @@ async def move(
     _ensure_writable(scope)
     old_rel = _clean_relative(body.old_path)
     new_rel = _clean_relative(body.new_path)
-    if not old_rel or not new_rel:
+    if not old_rel:
         raise HTTPException(status_code=400, detail="Both old_path and new_path are required")
     _assert_not_excluded(old_rel, scope)
     _assert_not_excluded(new_rel, scope)
@@ -792,15 +854,17 @@ async def move(
     old_full = _join_scope(scope["path"], old_rel)
     old_entry = ops.stat(project_id, old_full)
     if old_entry is None:
-        raise HTTPException(status_code=404, detail=f"Path not found: {old_rel}")
+        raise _fs_error(404, "NOT_FOUND", f"Path not found: {old_rel}", path=old_rel)
 
-    new_full = _join_scope(scope["path"], new_rel)
-    new_entry = ops.stat(project_id, new_full)
-    if new_entry and new_entry.type == "folder":
-        new_rel = f"{new_rel.rstrip('/')}/{_basename(old_rel)}"
-        _assert_not_excluded(new_rel, scope)
-        new_full = _join_scope(scope["path"], new_rel)
-        new_entry = ops.stat(project_id, new_full)
+    new_rel, new_full, new_entry = _resolve_copy_move_destination(
+        project_id,
+        scope,
+        ops,
+        old_rel,
+        new_rel,
+        target_directory=body.target_directory,
+        no_target_directory=body.no_target_directory,
+    )
 
     if new_entry is not None:
         if body.no_clobber:
@@ -814,10 +878,12 @@ async def move(
                 "skipped": True,
                 "reason": "destination exists",
             })
+        if body.no_target_directory and new_entry.type == "folder":
+            raise _fs_error(400, "IS_DIRECTORY", f"Is a directory: {new_rel}", path=new_rel)
         if new_entry.type == "folder" and old_entry.type != "folder":
-            raise HTTPException(status_code=400, detail=f"Is a directory: {new_rel}")
+            raise _fs_error(400, "IS_DIRECTORY", f"Is a directory: {new_rel}", path=new_rel)
         if new_entry.type != "folder" and old_entry.type == "folder":
-            raise HTTPException(status_code=400, detail=f"Not a directory: {new_rel}")
+            raise _fs_error(400, "NOT_A_DIRECTORY", f"Not a directory: {new_rel}", path=new_rel)
 
     try:
         result = await ops.move(
@@ -859,7 +925,7 @@ async def copy(
     _ensure_writable(scope)
     old_rel = _clean_relative(body.old_path)
     new_rel = _clean_relative(body.new_path)
-    if not old_rel or not new_rel:
+    if not old_rel:
         raise HTTPException(status_code=400, detail="Both old_path and new_path are required")
     _assert_not_excluded(old_rel, scope)
     _assert_not_excluded(new_rel, scope)
@@ -867,17 +933,19 @@ async def copy(
     old_full = _join_scope(scope["path"], old_rel)
     old_entry = ops.stat(project_id, old_full)
     if old_entry is None:
-        raise HTTPException(status_code=404, detail=f"Path not found: {old_rel}")
+        raise _fs_error(404, "NOT_FOUND", f"Path not found: {old_rel}", path=old_rel)
     if old_entry.type == "folder" and not body.recursive:
-        raise HTTPException(status_code=400, detail=f"Is a directory: {old_rel}")
+        raise _fs_error(400, "IS_DIRECTORY", f"Is a directory: {old_rel}", path=old_rel)
 
-    new_full = _join_scope(scope["path"], new_rel)
-    new_entry = ops.stat(project_id, new_full)
-    if new_entry and new_entry.type == "folder":
-        new_rel = f"{new_rel.rstrip('/')}/{_basename(old_rel)}"
-        _assert_not_excluded(new_rel, scope)
-        new_full = _join_scope(scope["path"], new_rel)
-        new_entry = ops.stat(project_id, new_full)
+    new_rel, new_full, new_entry = _resolve_copy_move_destination(
+        project_id,
+        scope,
+        ops,
+        old_rel,
+        new_rel,
+        target_directory=body.target_directory,
+        no_target_directory=body.no_target_directory,
+    )
 
     if new_entry is not None:
         if body.no_clobber:
@@ -891,10 +959,12 @@ async def copy(
                 "skipped": True,
                 "reason": "destination exists",
             })
+        if body.no_target_directory and new_entry.type == "folder":
+            raise _fs_error(400, "IS_DIRECTORY", f"Is a directory: {new_rel}", path=new_rel)
         if new_entry.type == "folder" and old_entry.type != "folder":
-            raise HTTPException(status_code=400, detail=f"Is a directory: {new_rel}")
+            raise _fs_error(400, "IS_DIRECTORY", f"Is a directory: {new_rel}", path=new_rel)
         if new_entry.type != "folder" and old_entry.type == "folder":
-            raise HTTPException(status_code=400, detail=f"Not a directory: {new_rel}")
+            raise _fs_error(400, "NOT_A_DIRECTORY", f"Not a directory: {new_rel}", path=new_rel)
 
     try:
         result = await ops.copy(

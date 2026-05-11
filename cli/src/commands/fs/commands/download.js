@@ -5,6 +5,7 @@ import { createApClient, extraHeaders } from "../lib/context.js";
 import { readRawBuffer } from "../lib/content-read.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
 import { get } from "../lib/http.js";
+import { isNoClobber } from "../lib/operation-intent.js";
 import { parseNonNegativeOption, parsePositiveOption } from "../lib/options.js";
 import { basename, scopedPath, stripRootPath } from "../lib/paths.js";
 import { statPath } from "../lib/remote.js";
@@ -76,7 +77,7 @@ export function registerDownloadCommand(fs) {
               const { buffer } = await readRawBuffer(client, entry.path, headers);
               const written = await writeLocalFile(localPath, buffer, {
                 force: !!opts.force,
-                noClobber: !!opts.noClobber && !opts.force,
+                noClobber: isNoClobber(opts) && !opts.force,
               });
               results.push({ path: entry.path, local_path: localPath, skipped: !written });
             }
@@ -88,7 +89,7 @@ export function registerDownloadCommand(fs) {
           const { buffer } = await readRawBuffer(client, remoteSource, headers);
           const written = await writeLocalFile(localPath, buffer, {
             force: !!opts.force,
-            noClobber: !!opts.noClobber && !opts.force,
+            noClobber: isNoClobber(opts) && !opts.force,
           });
           results.push({ path: remoteSource, local_path: localPath, skipped: !written });
         } catch (e) {

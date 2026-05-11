@@ -2,9 +2,13 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
-import { getScopeBaseCommit, post } from "../lib/http.js";
-import { scopedPath } from "../lib/paths.js";
-import { promptYesNo, resolveMoveDestination, statPath } from "../lib/remote.js";
+import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
+import {
+  buildCopyMoveIntents,
+  isNoClobber,
+  resolveOverwritePromptPath,
+} from "../lib/operation-intent.js";
+import { promptYesNo, statPath } from "../lib/remote.js";
 
 export function registerMvCommand(fs) {
   fs
@@ -18,42 +22,42 @@ export function registerMvCommand(fs) {
     .option("-t, --target-directory <dir>", "move all sources into dir")
     .option("-m, --message <msg>", "commit message")
     .action(withErrors(async (paths, opts, cmd) => {
+      const options = cmd?.opts?.() ?? opts ?? {};
       const out = createOutput(cmd);
-      if (!paths || (!opts.targetDirectory && paths.length < 2) || (opts.targetDirectory && paths.length < 1)) {
-        out.error("MISSING_OPERAND", "mv requires at least a source and destination.");
+      let intents;
+      try {
+        intents = buildCopyMoveIntents(paths, options, "mv");
+      } catch (error) {
+        out.error(error.code || "INVALID_ARGUMENT", error.message);
         return;
       }
       const client = createApClient(cmd);
       const headers = await extraHeaders(cmd);
-      const sources = opts.targetDirectory ? paths : paths.slice(0, -1);
-      const dst = opts.targetDirectory || paths[paths.length - 1];
-      const multipleSources = sources.length > 1;
       const results = [];
       const errors = [];
 
-      for (const src of sources) {
-        const oldPath = scopedPath(src);
+      for (const intent of intents) {
+        const { oldPath, newPath } = intent;
         try {
-          const newPath = await resolveMoveDestination(
-            client, oldPath, dst, headers, {
-              multipleSources: multipleSources || !!opts.targetDirectory,
-              noTargetDirectory: !!opts.noTargetDirectory,
-            },
-          );
-          if (opts.interactive) {
-            const dstStat = await statPath(client, newPath, headers);
-            if (dstStat.exists && !await promptYesNo(`overwrite '${newPath}'?`)) {
-              results.push({ old_path: oldPath, new_path: newPath, skipped: true, reason: "not overwritten" });
+          if (options.interactive) {
+            const promptPath = await resolveOverwritePromptPath(
+              (path) => statPath(client, path, headers),
+              intent,
+            );
+            if (promptPath && !await promptYesNo(`overwrite '${promptPath}'?`)) {
+              results.push({ old_path: oldPath, new_path: promptPath, skipped: true, reason: "not overwritten" });
               continue;
             }
           }
-          const baseCommitId = await getScopeBaseCommit(client, oldPath, headers);
+          const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
           const result = await post(client, "/ap-fs/mv", {
             old_path: oldPath,
             new_path: newPath,
             base_commit_id: baseCommitId,
-            no_clobber: !!opts.noClobber && !opts.force,
-            message: opts.message || `ap move ${oldPath} -> ${newPath}`,
+            no_clobber: isNoClobber(options) && !options.force,
+            target_directory: !!intent.targetDirectory,
+            no_target_directory: !!intent.noTargetDirectory,
+            message: options.message || `ap move ${oldPath} -> ${newPath}`,
           }, headers);
           results.push(result);
         } catch (e) {
