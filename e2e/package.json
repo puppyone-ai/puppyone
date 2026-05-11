@@ -6,8 +6,7 @@
   "scripts": {
     "save-session": "node lib/save-session.mjs",
     "test": "node run.mjs",
-    "test:one": "node run.mjs --scenario",
-    "publish": "node run.mjs --publish"
+    "test:one": "node run.mjs --scenario"
   },
   "dependencies": {
     "@browserbasehq/stagehand": "^3.1.0",

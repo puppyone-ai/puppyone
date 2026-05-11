@@ -410,7 +410,6 @@ Both the frontend (`app/api/sandbox/route.ts`) and backend (`src/infra/sandbox/`
 |-----------|-------------|
 | `docs/` | Project-level documentation |
 | `assert/` | Static assets |
-| `puppydoc/` | Documentation resources |
 | `scripts/` | Utility scripts |
 | `todo/` | Todo items |
 | `.github/` | GitHub Actions & CI |
