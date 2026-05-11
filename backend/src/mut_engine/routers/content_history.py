@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.common_schemas import ApiResponse
 from src.mut_engine.dependencies import get_mut_admin_service, get_mut_ops, get_repo_manager
+from src.mut_engine.history_changes import normalize_history_changes
 from src.mut_engine.routers._content_helpers import ensure_project_access, ensure_write_access
 from src.mut_engine.schemas import (
     DiffResponse,
@@ -78,7 +79,7 @@ async def get_commits(
             commit_id=e.get("commit_id", ""),
             who=e.get("who", ""),
             message=e.get("message", ""),
-            changes=e.get("changes") or [],
+            changes=normalize_history_changes(e.get("changes")),
             conflicts=e.get("conflicts") or [],
             root_hash=e.get("root_hash", ""),
             scope_path=e.get("scope_path", ""),
@@ -119,24 +120,35 @@ async def get_commit_content(
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    from src.mut_engine.services.tree_reader import detect_type
+    from src.mut_engine.services.tree_reader import detect_mime, detect_type
+    from src.mut_engine.text_detection import is_binary_content
+
     node_type = detect_type(clean_path)
+    mime_type = detect_mime(clean_path)
+    base = {
+        "path": clean_path,
+        "commit_id": commit_id,
+        "type": node_type,
+        "mime_type": mime_type,
+        "size_bytes": len(content),
+    }
 
     if node_type == "json":
         try:
             return ApiResponse.success(data={
-                "path": clean_path,
-                "commit_id": commit_id,
-                "type": "json",
+                **base,
+                "is_binary": False,
                 "content": _json.loads(content.decode("utf-8")),
             })
         except ValueError:
             pass
 
+    if is_binary_content(content, node_type=node_type, mime_type=mime_type):
+        return ApiResponse.success(data={**base, "is_binary": True})
+
     return ApiResponse.success(data={
-        "path": clean_path,
-        "commit_id": commit_id,
-        "type": node_type,
+        **base,
+        "is_binary": False,
         "content_text": content.decode("utf-8", errors="replace"),
     })
 

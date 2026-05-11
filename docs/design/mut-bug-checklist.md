@@ -224,14 +224,14 @@
 | **Consequence** | Theoretical TOCTOU window. Mitigated by CAS being the primary write path, but `set_scope_version` and `set_scope_hash` still use this. |
 | **Fix** | Use single-statement upsert with `ON CONFLICT ... SET` that only updates the specific field, or route all updates through the CAS RPC. |
 
-### P2-7: `trash` / `restore` silently creates empty blob for non-existent files
+### P2-7: legacy soft-delete path could create empty blobs
 
 | Key | Value |
 |-----|-------|
 | **File** | `backend/src/mut_engine/services/ops.py` (L215-216) |
 | **Root cause** | `files.get(path, b"")` returns empty bytes when path doesn't exist in the cloned file set. |
-| **Consequence** | Trashing a file that was already deleted (or typo in path) doesn't return 404 — it creates a 0-byte ghost file in `.trash/`. |
-| **Fix** | Check if path exists in `files` before operating; raise `FileNotFoundError` if not. |
+| **Consequence** | Legacy soft-delete could materialize a 0-byte ghost file. |
+| **Fix** | Removed tree-internal soft-delete; delete now removes paths from the current tree and recovery uses version history. |
 
 ### P2-8: `scope.py` doesn't resolve `..` path segments
 

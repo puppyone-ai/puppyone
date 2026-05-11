@@ -14,7 +14,7 @@
 /**
  * High-level category of a file. Used by:
  * - `FileImportDialog` for "X text / Y binary" stats
- * - `BottomBar` for deciding which view-mode toggle to show
+ * - editor chrome for deciding which view-mode toggle to show
  * - `usePathResolver` for deciding whether to pre-fetch text content
  *
  * NOT used for picking the actual viewer — that's `defaultViewer` below.

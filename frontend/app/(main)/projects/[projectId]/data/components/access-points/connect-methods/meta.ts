@@ -21,7 +21,7 @@ export const METHOD_META: Record<MethodId, MethodMeta> = {
   terminal: {
     id: 'terminal',
     title: 'Terminal CLI',
-    subtitle: 'Read & write directly from your terminal — no local clone.',
+    subtitle: 'Direct terminal access',
     accent: '#93c5fd',
     accentBg: 'rgba(96,165,250,0.12)',
     accentBorder: 'rgba(96,165,250,0.22)',
@@ -29,7 +29,7 @@ export const METHOD_META: Record<MethodId, MethodMeta> = {
   sync: {
     id: 'sync',
     title: 'Local Sync',
-    subtitle: 'Mirror this folder to a local directory with two-way sync.',
+    subtitle: 'Two-way folder sync',
     accent: '#34d399',
     accentBg: 'rgba(52,211,153,0.12)',
     accentBorder: 'rgba(52,211,153,0.22)',
@@ -37,7 +37,7 @@ export const METHOD_META: Record<MethodId, MethodMeta> = {
   agent: {
     id: 'agent',
     title: 'AI Agent',
-    subtitle: 'Open an in-app chat agent scoped to this folder.',
+    subtitle: 'Scoped chat agent',
     accent: '#c4b5fd',
     accentBg: 'rgba(167,139,250,0.12)',
     accentBorder: 'rgba(167,139,250,0.22)',

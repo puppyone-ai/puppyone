@@ -2,15 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { PageLoading } from '@/components/loading';
+import { EditorLoadingSurface } from '@/components/loading';
 
 // Shared loader for both Markdown editor variants — keeps the
 // fallback identical whether Monaco (~2.1MB) or Milkdown is being
 // pulled, so users don't see a different placeholder per mode.
 const EditorLoader = () => (
-  <div style={{ height: '100%', background: '#0e0e0e' }}>
-    <PageLoading variant="fill" label="Loading editor…" />
-  </div>
+  <EditorLoadingSurface label="Loading editor..." />
 );
 
 // Dynamically import Monaco — only loads when user switches to source mode (~2.1MB)

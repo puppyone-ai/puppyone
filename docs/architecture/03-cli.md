@@ -2,7 +2,7 @@
 
 PuppyOne 有两个 CLI 工具，职责分明：
 
-- **`puppyone`** — 控制平面 + 远程直接 CRUD（登录、项目管理、Access Point 管理、`puppyone data` 远程文件操作）
+- **`puppyone`** — 控制平面 + Access Point scoped filesystem 操作（登录、项目管理、Access Point 管理、`puppyone fs` 文件操作）
 - **`mut`** — 数据平面（clone、commit、push、pull——本地工作目录 + sync 协议）
 
 **核心原则：所有对 MUT tree 的读写都必须经过 MUT 引擎（MutOps），不允许绕过。**
@@ -153,9 +153,23 @@ MUT 只认这个 URL，不知道背后是什么平台或项目。
 
 ---
 
-## 2. PuppyOne CLI（控制平面）
+## 2. PuppyOne CLI（控制平面 + scoped FS）
 
-PuppyOne CLI 只做控制平面操作——管理项目和 Access Point，不直接读写数据。
+PuppyOne CLI 管理项目和 Access Point，并通过 `puppyone fs` 提供
+Access Point scoped filesystem 操作。文件操作统一到 `fs`。
+
+`puppyone fs` 是 Unix-like，但不是本地 POSIX filesystem：底层是
+MUT/MAT-backed tree + object store。所有写操作必须经由 `/ap-fs/*` 后端端点
+进入 MutOps/MAT history；CLI 不能直接改 tree 或绕开版本记录。递归读命令默认有
+资源保护，返回可能带 `truncated`，Agent 应优先使用 `tree -L`、
+`find -maxdepth` 和 `--limit` 缩小扫描范围。`upload -r` / `download -r`
+是 PuppyOne 的本地/云端桥接命令，不是 POSIX 原生命令，因此也暴露
+`--max-depth` 和 `--limit` 控制资源使用。运行
+`puppyone fs semantics` 可查看面向 Agent 的差异说明。
+
+输出契约遵循 Unix 习惯：默认模式下 stdout 只放主结果，warning / 截断诊断走
+stderr，避免污染管道；`--json` 模式才暴露 PuppyOne 扩展字段，例如
+`complete`、`truncated`、`returned_count`、`limit`、`truncation_reason`。
 
 ### 命令总览
 
@@ -177,19 +191,29 @@ puppyone
 │   ├── key <id>                   查看/重新生成 access key
 │   ├── refresh <id>               立即触发一次同步
 │   └── logs <id>                  查看同步日志
-├── data                           远程直接文件操作（CRUD on MUT tree）
-│   ├── ls [path]                  列目录
-│   ├── cat <path>                 读文件
-│   ├── tree [path]                目录树
-│   ├── stat <path>                文件信息
+├── ap                             Access Point profile 管理
+│   ├── login <profile>
+│   ├── use <profile>
+│   ├── list
+│   ├── current
+│   ├── logout <profile>
+│   └── clear
+├── fs                             Access Point scoped 文件操作
+│   ├── ls [paths...]              列目录 / 文件本身
+│   ├── cat <paths...>             原样读文件；JSON 输出才结构化
+│   ├── head / tail <paths...>     读文件开头 / 结尾
+│   ├── tree [-d] [-L n] [path]    目录树；-d 只列目录
+│   ├── find [path] [expr]         查找路径
+│   ├── stat [path]                文件信息
 │   ├── write <path>               写文件
-│   ├── touch <path>               创建空文件
-│   ├── mkdir <path>               创建目录
-│   ├── cp <src> <dst>             复制
-│   ├── mv <src> <dst>             移动/重命名
-│   ├── rm <path>                  删除（默认进回收站）
-│   ├── trash                      查看回收站
-│   └── restore <path>             从回收站恢复
+│   ├── mkdir [-p] <paths...>      创建目录
+│   ├── rmdir [-p] <paths...>      删除空目录
+│   ├── touch <paths...>           创建空文件 / 更新时间
+│   ├── upload / download          本地文件系统和云端 scoped FS 桥接
+│   ├── cp <src...> <dst>          复制
+│   ├── mv <src...> <dst>          移动/重命名
+│   ├── rm [-r] [-f] <paths...>    删除
+│   └── semantics                  Agent-facing Unix compatibility notes
 ├── chat [agent-id]                与 Agent 聊天
 ├── status                         项目总览
 └── config                         CLI 配置
@@ -448,7 +472,12 @@ mut clone https://api.puppyone.com/api/v1/mut/ap/ak_team123 ./wiki
 | `auth.js` | `puppyone login/logout/whoami` | 认证 |
 | `project.js` | `puppyone project` | 项目 CRUD |
 | `access.js` | `puppyone access` | Access Point 统一管理 |
-| `data.js` | `puppyone data` | 远程直接文件操作（见 `docs/cli/data.md`） |
+| `ap/index.js` | `puppyone ap` | AP 命令域注册 |
+| `ap/profiles.js` | `puppyone ap login/use/list/current/logout/clear` | Access Point profile 管理 |
+| `fs/index.js` | `puppyone fs` and `puppyone ap <fs-subcommand>` | FS 命令域注册 |
+| `fs/commands/*.js` | `ls/tree/find/cat/head/tail/stat/write/mkdir/rmdir/touch/upload/download/cp/mv/rm` | 单个 FS 子命令实现 |
+| `fs/lib/*.js` | shared FS helpers | AP context、HTTP、路径、渲染、内容读取、本地传输 |
+| `ap.js` | compatibility re-export | 兼容旧 import，不承载业务逻辑 |
 | `chat.js` | `puppyone chat` | Agent 聊天 |
 | `config-cmd.js` | `puppyone config` | CLI 配置 |
 | `global.js` | `puppyone status` | 全局状态 |
@@ -473,7 +502,7 @@ mut clone https://api.puppyone.com/api/v1/mut/ap/ak_team123 ./wiki
 | 文件 | 原因 |
 |------|------|
 | `openclaw.js` | 已废弃的品牌名 + 调用不存在的旧端点 |
-| `fs.js` | 已由 `data.js`（`puppyone data`）替代 |
+| `data.js` | 旧 Data Plane 命令已移除；文件操作统一到 `puppyone fs` |
 | `table.js` | 数据平面操作，应使用 `mut` |
 | `mcp.js` | 合并到 `access` |
 | `sandbox.js` | 合并到 `access` |

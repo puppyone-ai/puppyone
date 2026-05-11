@@ -14,13 +14,11 @@
  *   ② Integrations               — third-party providers (notion / gmail
  *                                  / github / url / ...) with a + Add CTA
  *
- * The header carries a [⚙ Settings] toggle; clicking it mounts the
- * ScopeSettingsBlock above ① (Permissions → Excludes → Access key →
- * Name → Identity → Danger zone) and the toggle picks up the active
- * accent. Settings stays collapsed by default because the detail
- * page's primary task is "use this access" — Connect / Integrations —
- * and Settings is a secondary, infrequent activity (per 2026-05-08
- * UX decision).
+ * The header is intentionally one line. Path lives in a quiet body
+ * metadata block above ①, with the permission mode as a small status
+ * next to the path and Settings as the action on the right. Clicking
+ * Settings mounts the ScopeSettingsBlock above ① (Permissions →
+ * Excludes → Access key → Name → Identity → Danger zone).
  *
  * Dirty edits in Settings get reported up via onDirtyChange; the
  * panel's [⚙ Settings] toggle and [×] close button confirm before
@@ -36,24 +34,23 @@
  * decides which of those to mount based on the current scope state.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { PanelShell } from '../PanelShell';
+import { FolderIcon } from '../explorer';
 import { ConnectorCard } from './ConnectorCard';
 import { ScopeSettingsBlock } from './ScopeSettingsBlock';
 import { AllAccessPointsList } from './AllAccessPointsList';
 import { CreateAccessPointCTACard } from './CreateAccessPointCTACard';
 import { ConnectMethodsBlock } from './ConnectMethods';
-import { buildScopeMetaLine, getApiBase } from './labels';
+import { getApiBase } from './labels';
 import {
-  COLOR_ACCENT_BG_FAINT,
-  COLOR_ACCENT_BORDER,
-  COLOR_ACCENT_TEXT_BRIGHT,
   COLOR_BG_DASHED,
   COLOR_BORDER_HOVER,
   COLOR_FG,
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
+  COLOR_SUCCESS,
   PANEL_BG,
 } from './tokens';
 import type { ProviderIconLookup } from './types';
@@ -169,11 +166,10 @@ export function ScopedConnectorsListPanel({
   );
   const apiBase = useMemo(() => getApiBase(), []);
 
-  // Lift the Settings expand/collapse state up here so the [⚙ Settings]
-  // affordance can live in the panel header (PanelShell.headerRight)
-  // alongside the close button. Always collapse when the user navigates
-  // to a different scope — otherwise a stale Settings context would
-  // carry over (with stale dirty state, etc.).
+  // Lift the Settings expand/collapse state up here so the header
+  // affordance and dirty handling stay stable. Always collapse when
+  // the user navigates to a different scope — otherwise a stale
+  // Settings context would carry over.
   const [settingsOpen, setSettingsOpen] = useState(false);
   // Reported up by ScopeSettingsBlock — used to gate the panel chrome
   // ([⚙ Settings] toggle / [×] close) so we don't silently drop
@@ -260,9 +256,8 @@ export function ScopedConnectorsListPanel({
   // line; it belongs in the headline.) Subtitle stays empty in this
   // state — the panel header alone is enough headline.
   //
-  // Scope-selected state: header is the scope's name, with the inline
-  // path / mode / exclude-count summary collapsed into the subtitle —
-  // body free of a redundant identity band.
+  // Scope-selected state: header is only the scope's name. Path,
+  // permission mode, and Settings live in the body metadata block.
   const headerTitle: ReactNode = scope ? (
     scope.name
   ) : (
@@ -280,18 +275,11 @@ export function ScopedConnectorsListPanel({
       </span>
     </span>
   );
-  const headerSubtitle = scope ? buildScopeMetaLine(scope) : undefined;
+  const headerSubtitle = undefined;
 
-  // [⚙ Settings] in headerRight is the single entry point to the scope
-  // configuration sub-panel. Toggle is dirty-aware: when settings is
-  // open and the form has unsaved changes, the toggle confirms before
-  // collapsing (see handleToggleSettings). When open, the toggle
-  // shows the active accent treatment so the user can spot which
-  // mode the panel is in. A small "•" badge appears next to the
-  // label when dirty so users see at a glance "you have unsaved
-  // changes here" — important if they've scrolled the body and the
-  // inline Save footer is below the fold.
-  const headerRight = scope ? (
+  // [Settings] is the action for the current path metadata. It stays
+  // next to the mode label instead of living in the global header.
+  const settingsButton = scope ? (
     <button
       type="button"
       onClick={handleToggleSettings}
@@ -300,18 +288,20 @@ export function ScopedConnectorsListPanel({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        padding: '4px 10px',
-        fontSize: 11,
+        height: 32,
+        padding: '0 12px',
+        fontSize: 13,
         fontWeight: 500,
-        color: settingsOpen ? COLOR_ACCENT_TEXT_BRIGHT : COLOR_FG,
+        color: settingsOpen ? COLOR_FG : COLOR_FG_MUTED,
         background: settingsOpen
-          ? COLOR_ACCENT_BG_FAINT
-          : 'rgba(255,255,255,0.06)',
-        border: `1px solid ${settingsOpen ? COLOR_ACCENT_BORDER : COLOR_BORDER_HOVER}`,
-        borderRadius: 6,
+          ? 'rgba(255,255,255,0.10)'
+          : 'rgba(255,255,255,0.055)',
+        border: 'none',
+        borderRadius: 8,
         cursor: 'pointer',
         flexShrink: 0,
-        transition: 'background 150ms ease, border-color 150ms ease, color 150ms ease',
+        whiteSpace: 'nowrap',
+        transition: 'background 150ms ease, color 150ms ease',
       }}
     >
       <SettingsGearIcon />
@@ -325,7 +315,7 @@ export function ScopedConnectorsListPanel({
             width: 6,
             height: 6,
             borderRadius: 999,
-            background: COLOR_ACCENT_TEXT_BRIGHT,
+            background: COLOR_SUCCESS,
           }}
         />
       )}
@@ -338,7 +328,6 @@ export function ScopedConnectorsListPanel({
       subtitle={headerSubtitle}
       onClose={handleClose}
       onBack={onBack ? handleBack : undefined}
-      headerRight={headerRight}
       hideHeader={hideHeader}
     >
       <div
@@ -360,19 +349,12 @@ export function ScopedConnectorsListPanel({
             gap: 18,
           }}
         >
-          {hideHeader && headerRight && (
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'flex-end',
-                minHeight: 24,
-              }}
-            >
-              {headerRight}
-            </div>
-          )}
           {scope ? (
             <>
+              {settingsButton && (
+                <ScopeSummaryBar scope={scope} settingsButton={settingsButton} />
+              )}
+
               {settingsOpen && (
                 <ScopeSettingsBlock
                   scope={scope}
@@ -414,11 +396,9 @@ export function ScopedConnectorsListPanel({
                 >
                   <div
                     style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: COLOR_FG_MUTED,
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.6,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: COLOR_FG_DIM,
                     }}
                   >
                     Integrations
@@ -427,8 +407,9 @@ export function ScopedConnectorsListPanel({
                     type="button"
                     onClick={onAddRequested}
                     style={{
-                      padding: '4px 10px',
-                      fontSize: 11,
+                      height: 32,
+                      padding: '6px 10px',
+                      fontSize: 13,
                       fontWeight: 500,
                       color: COLOR_FG,
                       background: 'rgba(255,255,255,0.06)',
@@ -445,7 +426,7 @@ export function ScopedConnectorsListPanel({
                 {integrations.length === 0 ? (
                   <div
                     style={{
-                      fontSize: 12,
+                      fontSize: 13,
                       color: COLOR_FG_DIM,
                       padding: '14px',
                       textAlign: 'center',
@@ -496,6 +477,168 @@ export function ScopedConnectorsListPanel({
         </div>
       </div>
     </PanelShell>
+  );
+}
+
+function ScopeSummaryBar({
+  scope,
+  settingsButton,
+}: {
+  scope: RepoScope;
+  settingsButton: ReactNode;
+}) {
+  const modeLabel = scope.mode === 'rw' ? 'Read & Write' : 'Read-only';
+  const pathSegments = scope.path === ''
+    ? []
+    : scope.path.split('/').filter(Boolean);
+  const pathTitle = scope.path === '' ? '/' : `/${scope.path}`;
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) auto',
+        alignItems: 'start',
+        columnGap: 20,
+        padding: '4px 8px 0',
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 7,
+          minWidth: 0,
+        }}
+      >
+        <ScopeMetaLabel>Path</ScopeMetaLabel>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
+          <ScopePathTrail segments={pathSegments} title={pathTitle} />
+          <span
+            style={{
+              flexShrink: 0,
+              fontSize: 12,
+              fontWeight: 500,
+              color: COLOR_FG_DIM,
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {modeLabel}
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          alignSelf: 'end',
+          flexShrink: 0,
+        }}
+      >
+        {settingsButton}
+      </div>
+    </div>
+  );
+}
+
+function ScopeMetaLabel({ children }: { readonly children: ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 13,
+        fontWeight: 500,
+        color: COLOR_FG_DIM,
+        lineHeight: 1.25,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ScopePathTrail({
+  segments,
+  title,
+}: {
+  segments: readonly string[];
+  title: string;
+}) {
+  const items = segments.length > 0 ? segments : ['Root'];
+
+  return (
+    <div
+      title={title}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        minWidth: 0,
+        overflow: 'hidden',
+      }}
+    >
+      {items.map((segment, index) => (
+        <Fragment key={`${segment}-${index}`}>
+          {index > 0 && (
+            <span
+              aria-hidden
+              style={{
+                flexShrink: 0,
+                color: COLOR_FG_DIM,
+                fontSize: 13,
+                lineHeight: 1,
+              }}
+            >
+              /
+            </span>
+          )}
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              minWidth: 0,
+              flexShrink: index === items.length - 1 ? 1 : 0,
+              color: index === items.length - 1 ? COLOR_FG : COLOR_FG_MUTED,
+              fontSize: 13,
+              fontWeight: index === items.length - 1 ? 600 : 500,
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span
+              aria-hidden
+              style={{
+                display: 'inline-flex',
+                width: 15,
+                height: 15,
+                flexShrink: 0,
+              }}
+            >
+              <FolderIcon />
+            </span>
+            <span
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {segment}
+            </span>
+          </span>
+        </Fragment>
+      ))}
+    </div>
   );
 }
 

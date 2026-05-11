@@ -85,7 +85,6 @@ content_router.py (607 lines)
     content_read.py     ← ls, cat, stat, tree, search (~150 lines)
     content_write.py    ← write, mkdir, mv, rm (~150 lines)
     content_history.py  ← versions, diff, rollback (~100 lines)
-    content_trash.py    ← trash, restore, permanent_delete (~80 lines)
 ```
 
 ### 2.2 Extract Duplicated Patterns
@@ -130,7 +129,7 @@ def _async_wrap(sync_fn):
 
 ### 2.3 Eliminate Code Duplication in `ops.py`
 
-`move()`, `trash()`, `restore()` share ~80% identical code (clone → modify → push):
+`move()` and delete variants share the same typed-splice → commit pattern:
 
 ```python
 # Extract common pattern

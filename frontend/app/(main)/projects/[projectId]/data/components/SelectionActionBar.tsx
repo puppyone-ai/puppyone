@@ -5,8 +5,7 @@
  * items are multi-selected.
  *
  * Anchored bottom-center so it doesn't fight with the per-item action
- * menu (top-right) or the breadcrumb (top). Bypasses the BottomBar
- * (view/editor switches) by sitting just above it.
+ * menu (top-right) or the breadcrumb/editor chrome (top).
  *
  * Visible only when ``count > 0``. The Esc / Delete hotkeys are wired
  * by the parent — this component is purely presentational.

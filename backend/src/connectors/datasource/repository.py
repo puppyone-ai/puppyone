@@ -130,12 +130,17 @@ class SyncRepository:
         )
         return self._to_model(response.data[0]) if response.data else None
 
-    def get_by_path(self, path: str) -> Optional[Sync]:
-        """Get the first sync binding for a path (exact match)."""
-        response = (
-            self.client.table(self.TABLE)
-            .select("*").eq("path", path).limit(1).execute()
-        )
+    def get_by_path(self, path: str, project_id: str | None = None) -> Optional[Sync]:
+        """Get the first sync binding for a path (exact match).
+
+        ``project_id`` is optional for legacy callers, but new access-point
+        creation must pass it. A bare path is not globally unique across
+        projects, and returning another project's access key is a security bug.
+        """
+        query = self.client.table(self.TABLE).select("*").eq("path", path)
+        if project_id:
+            query = query.eq("project_id", project_id)
+        response = query.limit(1).execute()
         return self._to_model(response.data[0]) if response.data else None
 
     def find_owner_by_path(self, file_path: str) -> Optional[Sync]:

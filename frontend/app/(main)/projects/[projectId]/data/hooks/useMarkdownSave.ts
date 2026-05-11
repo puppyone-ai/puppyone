@@ -36,7 +36,7 @@ import {
  * site in `page.tsx` already has a markdown-shaped vocabulary
  * baked into prop names (`markdownContent`, `handleMarkdownChange`,
  * `markdownSaveStatus` flow through to `EditorArea` and the
- * old `BottomBar`). Renaming everything to the generic-T vocabulary
+ * editor chrome). Renaming everything to the generic-T vocabulary
  * would touch a dozen files for no UX win. The shell hides the
  * generic and keeps the existing call-site shape.
  */

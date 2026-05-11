@@ -55,6 +55,7 @@ mypy.ini
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+frontend/logs/
 
 # local env files
 # Ignore all real env files; keep only templates

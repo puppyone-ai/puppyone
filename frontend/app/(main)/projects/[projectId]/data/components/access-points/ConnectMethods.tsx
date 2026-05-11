@@ -267,7 +267,6 @@ export function ConnectMethodsBlock({
             accessKey={accessKey}
             profileName={profileName}
             scopeName={scopeName}
-            cloneUrl={cloneUrl}
           />
         </MethodCard>
 

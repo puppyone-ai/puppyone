@@ -16,7 +16,7 @@
 import dynamic from 'next/dynamic';
 import { ComponentType } from 'react';
 import { EditorSkeleton } from '@/components/Skeleton';
-import { PageLoading } from '@/components/loading';
+import { EditorLoadingSurface } from '@/components/loading';
 import type { GenericViewerId } from '@/lib/fileFormats/types';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 
@@ -59,11 +59,7 @@ export interface ViewerDefinition {
 }
 
 const EditorLoading = () => <EditorSkeleton />;
-const PageLoadingFallback = () => (
-  <div style={{ height: '100%', background: '#0e0e0e' }}>
-    <PageLoading variant="fill" />
-  </div>
-);
+const PageLoadingFallback = () => <EditorLoadingSurface />;
 
 // Each viewer is a thin adapter from `ViewerProps` to the
 // component's native API. This keeps the components themselves

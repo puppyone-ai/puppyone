@@ -134,63 +134,17 @@ OUT=$($CLI project current $COMMON 2>&1 || true)
 check "project current" "$?"
 
 # ============================================================
-section "3. Data Commands"
+section "3. Data Command Removed"
 # ============================================================
 
 PROJECT_FLAG="-p $PROJECT_ID"
 
-# Write file
-OUT=$($CLI data write /test.md --content "# CLI Test" $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data write" "$?"
-
-# Write JSON
-OUT=$($CLI data write /config.json --content '{"version":1}' $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data write json" "$?"
-
-# Mkdir
-OUT=$($CLI data mkdir /test-dir $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data mkdir" "$?"
-
-# Write nested
-OUT=$($CLI data write /test-dir/nested.txt --content "nested content" $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data write nested" "$?"
-
-# Ls root
-OUT=$($CLI data ls / $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data ls root" "$?"
-
-# Ls dir
-OUT=$($CLI data ls /test-dir $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data ls dir" "$?"
-
-# Cat file
-OUT=$($CLI data cat /config.json $COMMON $PROJECT_FLAG 2>&1 || true)
-HAS_VERSION=$(echo "$OUT" | grep -c "version" || echo "0")
-check "data cat" "$([ $HAS_VERSION -gt 0 ] && echo 0 || echo 1)"
-
-# Stat
-OUT=$($CLI data stat /config.json $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data stat" "$?"
-
-# Tree
-OUT=$($CLI data tree / $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data tree" "$?"
-
-# Cp
-OUT=$($CLI data cp /config.json /config-backup.json $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data cp" "$?"
-
-# Mv
-OUT=$($CLI data mv /config-backup.json /config-moved.json $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data mv" "$?"
-
-# Rm (trash)
-OUT=$($CLI data rm /config-moved.json $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data rm (trash)" "$?"
-
-# Trash list
-OUT=$($CLI data trash $COMMON $PROJECT_FLAG 2>&1 || true)
-check "data trash list" "$?"
+OUT=$($CLI data ls / $COMMON $PROJECT_FLAG 2>&1 && echo "__UNEXPECTED_SUCCESS__" || true)
+if echo "$OUT" | grep -q "unknown command 'data'"; then
+    check "data command is absent" "0"
+else
+    check "data command is absent" "1"
+fi
 
 # ============================================================
 section "4. Access Point Commands"

@@ -348,6 +348,14 @@ cli/
 │   │   ├── org.js              # Organization management
 │   │   ├── project.js          # Project management
 │   │   ├── access.js           # Unified Access Point management (all access types)
+│   │   ├── ap/                 # Access Point profile command domain
+│   │   │   ├── index.js        # ap command registration
+│   │   │   └── profiles.js     # login/use/list/current/logout/clear
+│   │   ├── fs/                 # Access Point scoped filesystem command domain
+│   │   │   ├── index.js        # fs command registration
+│   │   │   ├── commands/       # ls/tree/find/cat/head/tail/stat/write/mkdir/touch/cp/mv/rm/upload/download
+│   │   │   └── lib/            # shared FS context/http/path/render/read/transfer helpers
+│   │   ├── ap.js               # Compatibility re-export only
 │   │   ├── chat.js             # Agent chat (SSE streaming)
 │   │   ├── config-cmd.js       # CLI configuration
 │   │   ├── global.js           # Global commands (status/ps)
@@ -373,6 +381,8 @@ puppyone access add filesystem /docs   # Mount local folder sync
 puppyone access ls                     # List all access points
 puppyone status                        # Project dashboard
 puppyone chat                          # Chat with an agent
+puppyone fs semantics                  # Unix compatibility notes + resource limits for agents
+puppyone fs rmdir empty-dir            # Remove an empty scoped directory through MUT/MAT
 ```
 
 See `docs/architecture/03-cli.md` for full reference.
@@ -400,7 +410,6 @@ Both the frontend (`app/api/sandbox/route.ts`) and backend (`src/infra/sandbox/`
 |-----------|-------------|
 | `docs/` | Project-level documentation |
 | `assert/` | Static assets |
-| `puppydoc/` | Documentation resources |
 | `scripts/` | Utility scripts |
 | `todo/` | Todo items |
 | `.github/` | GitHub Actions & CI |

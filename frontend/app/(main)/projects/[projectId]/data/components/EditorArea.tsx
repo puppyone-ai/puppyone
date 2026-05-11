@@ -41,6 +41,8 @@ interface EditorAreaProps {
   /** Markdown-only: WYSIWYG vs source toggle. */
   markdownViewMode: MarkdownViewMode;
   setMarkdownViewMode: (mode: MarkdownViewMode) => void;
+  /** JSON-only: structured table vs raw source view. */
+  setEditorType: (mode: EditorType) => void;
   /** Called by editable text viewers (currently just markdown) when
    *  the user types. */
   onTextChange: (content: string) => void;
@@ -66,6 +68,7 @@ export function EditorArea({
   saveStatus,
   markdownViewMode,
   setMarkdownViewMode,
+  setEditorType,
   onTextChange,
   onSave,
   editorType,
@@ -101,19 +104,27 @@ export function EditorArea({
   // plumbing, so it can't go through the generic VIEWERS registry.
   if (format.defaultViewer === 'json-table') {
     return (
-      <ProjectWorkspaceView
-        projectId={activeProject.id}
-        project={activeProject}
-        activeTableId={activeNodeId}
-        onActiveTableChange={onActiveTableChange}
-        onTreePathChange={() => {}}
-        editorType={editorType}
-        configuredAccessPoints={configuredAccessPoints}
-        onAccessPointChange={onAccessPointChange}
-        onAccessPointRemove={onAccessPointRemove}
-        onOpenDocument={onOpenDocument}
-        onCreateTool={onCreateTool}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <JsonInvisibleHeader
+          editorType={editorType}
+          onEditorTypeChange={setEditorType}
+        />
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <ProjectWorkspaceView
+            projectId={activeProject.id}
+            project={activeProject}
+            activeTableId={activeNodeId}
+            onActiveTableChange={onActiveTableChange}
+            onTreePathChange={() => {}}
+            editorType={editorType}
+            configuredAccessPoints={configuredAccessPoints}
+            onAccessPointChange={onAccessPointChange}
+            onAccessPointRemove={onAccessPointRemove}
+            onOpenDocument={onOpenDocument}
+            onCreateTool={onCreateTool}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -226,10 +237,40 @@ function InvisibleHeader({
   );
 }
 
+function JsonInvisibleHeader({
+  editorType,
+  onEditorTypeChange,
+}: {
+  readonly editorType: EditorType;
+  readonly onEditorTypeChange: (m: EditorType) => void;
+}) {
+  return (
+    <div
+      style={{
+        height: 40,
+        flexShrink: 0,
+        display: 'grid',
+        gridTemplateColumns: '1fr auto 1fr',
+        alignItems: 'center',
+        padding: '0 14px',
+      }}
+    >
+      <div />
+      <div />
+      <div style={{ justifySelf: 'end' }}>
+        <JsonViewModePicker
+          mode={editorType}
+          onChange={onEditorTypeChange}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ── View-mode picker ────────────────────────────────────────────
 
-interface ViewOption {
-  value: MarkdownViewMode;
+interface ModeOption<TMode extends string> {
+  value: TMode;
   label: string;
   Icon: React.FC;
 }
@@ -239,10 +280,15 @@ interface ViewOption {
 //   - ``Live view``  : visual rendering, edit-as-you-type (Milkdown).
 //   - ``Source``     : raw markdown text, edit the source.
 //   - ``Read only``  : visual rendering, locked (no editing).
-const VIEW_OPTIONS: ViewOption[] = [
+const VIEW_OPTIONS: ModeOption<MarkdownViewMode>[] = [
   { value: 'wysiwyg', label: 'Live view', Icon: PencilIcon },
   { value: 'source',  label: 'Source',    Icon: CodeIcon   },
   { value: 'preview', label: 'Read only', Icon: EyeIcon    },
+];
+
+const JSON_VIEW_OPTIONS: ModeOption<EditorType>[] = [
+  { value: 'table', label: 'Table view', Icon: TableIcon },
+  { value: 'monaco', label: 'Source', Icon: BracesIcon },
 ];
 
 /**
@@ -266,6 +312,28 @@ function ViewModePicker({
   readonly mode: MarkdownViewMode;
   readonly onChange: (m: MarkdownViewMode) => void;
 }) {
+  return <ModePicker mode={mode} onChange={onChange} options={VIEW_OPTIONS} />;
+}
+
+function JsonViewModePicker({
+  mode,
+  onChange,
+}: {
+  readonly mode: EditorType;
+  readonly onChange: (m: EditorType) => void;
+}) {
+  return <ModePicker mode={mode} onChange={onChange} options={JSON_VIEW_OPTIONS} />;
+}
+
+function ModePicker<TMode extends string>({
+  mode,
+  onChange,
+  options,
+}: {
+  readonly mode: TMode;
+  readonly onChange: (m: TMode) => void;
+  readonly options: readonly ModeOption<TMode>[];
+}) {
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -287,7 +355,8 @@ function ViewModePicker({
     };
   }, [open]);
 
-  const current = VIEW_OPTIONS.find((o) => o.value === mode) ?? VIEW_OPTIONS[0];
+  const current = options.find((o) => o.value === mode) ?? options[0];
+  if (!current) return null;
   const TriggerIcon = current.Icon;
 
   return (
@@ -347,8 +416,8 @@ function ViewModePicker({
             zIndex: 40,
           }}
         >
-          {VIEW_OPTIONS.map((opt) => (
-            <ViewOptionRow
+          {options.map((opt) => (
+            <ModeOptionRow
               key={opt.value}
               option={opt}
               active={opt.value === mode}
@@ -364,12 +433,12 @@ function ViewModePicker({
   );
 }
 
-function ViewOptionRow({
+function ModeOptionRow<TMode extends string>({
   option,
   active,
   onSelect,
 }: {
-  readonly option: ViewOption;
+  readonly option: ModeOption<TMode>;
   readonly active: boolean;
   readonly onSelect: () => void;
 }) {
@@ -387,8 +456,6 @@ function ViewOptionRow({
         alignItems: 'center',
         gap: 8,
         width: '100%',
-        // Tight rows — single-line labels in a calm list, not a
-        // menu of headlines.
         padding: '5px 8px',
         background: hovered ? 'rgba(255,255,255,0.05)' : 'transparent',
         border: 'none',
@@ -401,9 +468,6 @@ function ViewOptionRow({
         transition: 'background 0.1s ease',
       }}
     >
-      {/* Mode icon — same glyph as the trigger uses when this mode
-       *  is active. Grey on inactive rows, slightly brighter on the
-       *  active row to mirror the trigger's hover feedback. */}
       <span
         style={{
           display: 'inline-flex',
@@ -451,6 +515,26 @@ function CodeIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="16 18 22 12 16 6" />
       <polyline points="8 6 2 12 8 18" />
+    </svg>
+  );
+}
+
+function TableIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="3" y1="15" x2="21" y2="15" />
+      <line x1="9" y1="3" x2="9" y2="21" />
+    </svg>
+  );
+}
+
+function BracesIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 4C5.5 4 4 5 4 7s1.5 2.5 1.5 5S4 17 4 17c0 2 1.5 3 3 3" />
+      <path d="M17 4c1.5 0 3 1 3 3s-1.5 2.5-1.5 5 1.5 5 1.5 5c0 2-1.5 3-3 3" />
     </svg>
   );
 }

@@ -38,6 +38,8 @@ function _resolveActiveView(pathname: string | null): string {
   if (pathname.startsWith('/tools-and-server')) return 'tools';
   if (pathname.startsWith('/settings')) return 'settings';
   if (pathname.startsWith('/home')) return 'home';
+  if (pathname.startsWith('/team')) return 'team';
+  if (pathname.startsWith('/billing')) return 'billing';
   if (pathname.includes('/projects/')) {
     for (const [segment, view] of _PROJECT_VIEWS) {
       if (pathname.includes(segment)) return view;

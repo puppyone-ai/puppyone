@@ -1,4 +1,4 @@
-"""Content Write API — write, mkdir, mv, rm, restore, bulk-write."""
+"""Content Write API — write, mkdir, mv, rm, bulk-write."""
 
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from src.mut_engine.schemas import (
     MkdirRequest,
     MoveRequest,
     RemoveRequest,
-    RestoreRequest,
     WriteFileRequest,
 )
 from src.mut_engine.server.validation import validate_content_size, validate_path
+from src.mut_engine.services.direct_writer import ConcurrentMutationError
 from src.mut_engine.services.ops import MutOps
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -78,10 +78,14 @@ async def write_file_endpoint(
     )
     validate_content_size(content_bytes)
     who = f"user:{current_user.user_id}"
-    result = await ops.write_file(
-        project_id, clean_path, content_bytes,
-        who=who, message=body.message or f"edit {clean_path}",
-    )
+    try:
+        result = await ops.write_file(
+            project_id, clean_path, content_bytes,
+            who=who, message=body.message or f"edit {clean_path}",
+            base_commit_id=body.base_commit_id,
+        )
+    except ConcurrentMutationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
     return ApiResponse.success(data={
         "commit_id": result.commit_id,
@@ -104,7 +108,13 @@ async def mkdir(
 ):
     ensure_write_access(project_service, current_user, project_id)
     who = f"user:{current_user.user_id}"
-    result = await ops.mkdir(project_id, body.path, who=who)
+    try:
+        result = await ops.mkdir(
+            project_id, body.path, who=who,
+            base_commit_id=body.base_commit_id,
+        )
+    except ConcurrentMutationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return ApiResponse.success(data={"path": validate_path(body.path), "commit_id": result.commit_id})
 
 
@@ -128,9 +138,12 @@ async def move(
         result = await ops.move(
             project_id, old_clean, new_clean,
             who=who, message=body.message or f"moved {old_clean} → {new_clean}",
+            base_commit_id=body.base_commit_id,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ConcurrentMutationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
 
     return ApiResponse.success(data={
         "commit_id": result.commit_id,
@@ -141,7 +154,7 @@ async def move(
 
 @write_router.post(
     "/{project_id}/rm",
-    summary="Delete (move to .trash, single or batch)",
+    summary="Delete files or directories",
 )
 async def remove(
     project_id: str,
@@ -150,17 +163,7 @@ async def remove(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Soft-delete (default) or permanent-delete one or more paths.
-
-    Single-path mode (``body.path``): preserved for backward
-    compatibility — same response shape as before, including the
-    legacy ``old_path`` / ``new_path`` keys.
-
-    Multi-path mode (``body.paths``): batches every move into one
-    commit per scope. Response includes ``paths`` (originals)
-    and ``trash_paths`` (per-item .trash destinations) so the UI
-    can offer per-item undo.
-    """
+    """Delete one or more paths from the current MUT tree."""
     ensure_write_access(project_service, current_user, project_id)
     who = f"user:{current_user.user_id}"
 
@@ -169,68 +172,37 @@ async def remove(
         clean = [validate_path(p) for p in paths if p]
         if not clean:
             raise HTTPException(status_code=400, detail="paths is empty")
-
-        if body.permanent:
-            result = await ops.delete(project_id, clean, who=who)
-            return ApiResponse.success(data={
-                "commit_id": result.commit_id,
-                "paths": clean,
-            })
-
-        result = await ops.bulk_trash(project_id, clean, who=who)
-        trash_paths = [
-            p for p in result.paths if p.startswith(".trash/")
-            or "/.trash/" in p
-        ]
+        if not body.force:
+            missing = [p for p in clean if ops.stat(project_id, p) is None]
+            if missing:
+                raise HTTPException(status_code=404, detail=f"Path not found: {missing[0]}")
+        try:
+            result = await ops.delete(
+                project_id, clean, who=who,
+                base_commit_id=body.base_commit_id,
+            )
+        except ConcurrentMutationError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
         return ApiResponse.success(data={
             "commit_id": result.commit_id,
             "paths": clean,
-            "trash_paths": trash_paths,
         })
 
     clean_path = validate_path(body.path)
-
-    if body.permanent:
-        result = await ops.permanent_delete(project_id, clean_path, who=who)
-        return ApiResponse.success(data={
-            "commit_id": result.commit_id,
-            "path": clean_path,
-        })
-    else:
-        result = await ops.trash(project_id, clean_path, who=who)
-        trash_path = [p for p in result.paths if p.startswith(".trash/")]
-        return ApiResponse.success(data={
-            "commit_id": result.commit_id,
-            "path": clean_path,
-            "old_path": clean_path,
-            "new_path": trash_path[0] if trash_path else "",
-        })
-
-
-@write_router.post(
-    "/{project_id}/restore",
-    summary="Restore from .trash",
-)
-async def restore(
-    project_id: str,
-    body: RestoreRequest,
-    ops: MutOps = Depends(get_mut_ops),
-    project_service: ProjectService = Depends(get_project_service),
-    current_user: CurrentUser = Depends(get_current_user),
-):
-    ensure_write_access(project_service, current_user, project_id)
-    clean_trash = validate_path(body.trash_path)
-    clean_original = validate_path(body.original_path)
-    who = f"user:{current_user.user_id}"
-
-    result = await ops.restore(
-        project_id, clean_trash, clean_original, who=who,
-    )
-
+    if not body.force and ops.stat(project_id, clean_path) is None:
+        raise HTTPException(status_code=404, detail=f"Path not found: {clean_path}")
+    try:
+        result = await ops.permanent_delete(
+            project_id, clean_path, who=who,
+            base_commit_id=body.base_commit_id,
+        )
+    except ConcurrentMutationError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     return ApiResponse.success(data={
         "commit_id": result.commit_id,
-        "old_path": clean_trash,
-        "new_path": clean_original,
+        "path": clean_path,
     })
 
 

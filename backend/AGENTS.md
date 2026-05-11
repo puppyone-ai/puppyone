@@ -119,8 +119,6 @@ class MutWriteService:
     async def move_file(project_id, old_path, new_path, operator, message) -> MoveResult
     async def move_folder(project_id, old_path, new_path, operator, message) -> MoveResult
     async def mkdir(project_id, path, operator) -> WriteResult
-    async def trash(project_id, path, operator) -> MoveResult
-    async def restore(project_id, trash_path, original_path, operator) -> MoveResult
     async def delete_folder(project_id, path, operator, message) -> DeleteResult
     async def read_file(project_id, path) -> bytes
     async def get_commit_history(project_id, path, limit, since_commit_id) -> list[dict]

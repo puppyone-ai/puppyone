@@ -97,7 +97,7 @@ class FilesystemService:
         The CLI uses this key to access the MUT protocol at
         /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate.
         """
-        existing = self._sync_repo.get_by_path(path)
+        existing = self._sync_repo.get_by_path(path, project_id=project_id)
         if existing and existing.provider == "filesystem":
             return existing
 

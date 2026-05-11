@@ -13,9 +13,6 @@
  *   access schema <p> (discover available fields from backend)
  */
 
-import { spawn } from "node:child_process";
-import { existsSync, statSync } from "node:fs";
-import { resolve as pathResolve } from "node:path";
 import { createClient } from "../api.js";
 import { createOutput } from "../output.js";
 import { requireProject, withErrors, formatDate } from "../helpers.js";
@@ -277,10 +274,10 @@ export function registerAccess(program) {
         }
       } catch { /* fall through */ }
 
-      out.info("\n  Platform types (MUT native protocol):\n");
+      out.info("\n  Built-in access types:\n");
       out.table([
-        { provider: "direct", name: "Direct Access", description: "Generic MUT clone/push/pull" },
-        { provider: "agent", name: "AI Agent", description: "LLM agent with MUT read/write" },
+        { provider: "direct", name: "Direct Access", description: "Scoped Context Drive access" },
+        { provider: "agent", name: "AI Agent", description: "LLM agent with scoped read/write access" },
         { provider: "mcp", name: "MCP Endpoint", description: "Model Context Protocol server" },
         { provider: "sandbox", name: "Sandbox", description: "Isolated code execution" },
         { provider: "filesystem", name: "Local Folder Sync", description: "Bidirectional local ↔ cloud" },
@@ -375,8 +372,7 @@ export function registerAccess(program) {
     .argument("[source]", "source URL, path, or name (depends on type)")
     .option("--name <name>", "access point name")
     .option("--folder <folder>", "target folder path in project (for syncs)")
-    .option("--scope <scope>", "MUT tree path scope (default: /)")
-    .option("--link <local-path>", "(filesystem only) connect this local folder right after creating the access point — runs `mut connect` for you")
+    .option("--scope <scope>", "Context Drive path scope (default: /)")
     .option("--permission <perm>", "permission: read | write | rw", "rw")
     .option("--mode <mode>", "sync mode: import_once | manual | scheduled", "import_once")
     .option("--model <model>", "LLM model (for agent type)")
@@ -418,17 +414,10 @@ export function registerAccess(program) {
         out.done("done");
         out.info("");
 
-        const apBase = data.ap_base || `/api/v1/mut/ap/${data.access_key}`;
-        const accessUrl = `${client.baseUrl}${apBase}`;
-
-        if (opts.link) {
-          await _runMutConnect(out, opts.link, accessUrl, data.access_key);
-        } else {
-          _showProviderGuidance(out, {
-            id: data.access_point_id || data.sync_id, provider, access_key: data.access_key,
-            path: data.path, ap_base: data.ap_base,
-          }, client.baseUrl);
-        }
+        _showProviderGuidance(out, {
+          id: data.access_point_id || data.sync_id, provider, access_key: data.access_key,
+          path: data.path, ap_base: data.ap_base,
+        }, client.baseUrl);
         out.success?.({ access: data });
         return;
       }
@@ -895,74 +884,31 @@ function _showSandboxGuidance(out, endpoint) {
   out.info(`    (use via Agent or API)`);
 }
 
-/**
- * Wrap up `mut connect <url> --credential <key>` for the user.
- *
- * Strategy:
- *   1. Validate localPath exists and is a directory.
- *   2. spawn `mut connect ...` in that cwd.
- *   3. If `mut` exits with ENOENT-flavoured "command not found", print a
- *      friendly install hint and return without throwing.
- *   4. If `mut connect` exists but errors with "unknown command" (older mutai
- *      < 0.1.7 has only `mut link access`), retry with `mut link access`.
- */
-async function _runMutConnect(out, localPath, accessUrl, accessKey) {
-  const abs = pathResolve(localPath);
-  if (!existsSync(abs)) {
-    out.error("LINK_PATH_MISSING", `Folder not found: ${abs}`,
-      "Pass a path that already exists, e.g. --link ./docs");
-    return;
-  }
-  if (!statSync(abs).isDirectory()) {
-    out.error("LINK_NOT_A_DIR", `Not a directory: ${abs}`,
-      "--link must point to a folder");
-    return;
-  }
+function _profileSlug(name) {
+  return (name || "access-point")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "access-point";
+}
 
+function _shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`;
+}
+
+function _showFsGuidance(out, connection, baseUrl, profileFallback = "file-access") {
+  const key = connection.access_key;
+  if (!key) return;
+  const profile = _profileSlug(connection.path || connection.name || profileFallback);
+  out.info(`\n  Access Key: ${key}`);
+  out.info("  (save this key — it won't be shown again)\n");
+  out.info("  \u2500 Use from PuppyOne CLI:");
+  out.info("    npm install -g puppyone@latest");
+  out.info(`    printf '%s' ${_shellQuote(key)} | puppyone ap login ${_shellQuote(profile)} --api-url ${_shellQuote(baseUrl)} --access-key-stdin`);
+  out.info("    puppyone fs semantics");
+  out.info("    puppyone fs ls -la");
+  out.info("    puppyone fs tree -L 2");
+  out.info("    puppyone fs cat <path-from-ls>");
   out.info("");
-  out.step(`Linking local folder ${abs} to the access point...`);
-
-  const tryRun = (args) => new Promise((resolveRun) => {
-    const child = spawn("mut", args, { cwd: abs, stdio: "inherit" });
-    let spawnErr = null;
-    child.on("error", (err) => { spawnErr = err; });
-    child.on("close", (code) => resolveRun({ code, spawnErr }));
-  });
-
-  const first = await tryRun(["connect", accessUrl, "--credential", accessKey]);
-
-  if (first.spawnErr && first.spawnErr.code === "ENOENT") {
-    out.info("");
-    out.error("MUT_NOT_INSTALLED", "Couldn't find the `mut` CLI on your PATH.",
-      "Install it once and re-run with --link, or run the printed mut command manually:\n"
-      + "  pip install mutai\n"
-      + `  cd ${abs} && mut connect ${accessUrl} --credential ${accessKey}`);
-    return;
-  }
-
-  if (first.code === 0) {
-    out.info("");
-    out.done(`Linked. Future runs: cd ${abs} && mut pull / mut push`);
-    return;
-  }
-
-  // mut connect not recognized → fall back to legacy `mut link access`
-  // (mutai < 0.1.7 only ships the older command).
-  out.info("");
-  out.info("  `mut connect` not recognized — falling back to `mut link access`...");
-  const second = await tryRun(["link", "access", accessUrl, "--credential", accessKey]);
-
-  if (second.spawnErr || second.code !== 0) {
-    out.error("MUT_LINK_FAILED",
-      `mut linking failed (exit code ${second.code ?? "?"}).`,
-      "Run the command manually to see the full error:\n"
-      + `  cd ${abs} && mut connect ${accessUrl} --credential ${accessKey}\n`
-      + "  (or upgrade mutai: pip install -U mutai)");
-    return;
-  }
-  out.info("");
-  out.done(`Linked. Future runs: cd ${abs} && mut pull / mut push`);
-  out.info("  (Tip: upgrade to mutai >= 0.1.7 to use `mut connect` directly.)");
 }
 
 function _showProviderGuidance(out, connection, baseUrl) {
@@ -977,32 +923,9 @@ function _showProviderGuidance(out, connection, baseUrl) {
   } else if (provider === "sandbox") {
     out.info("  \u2500 Execute via Agent or API.\n");
   } else if (provider === "filesystem" && key) {
-    const apBase = connection.ap_base || `/api/v1/mut/ap/${key}`;
-    const accessUrl = `${baseUrl}${apBase}`;
-    out.info("  \u2500 Pick one: clone fresh or connect existing");
-    out.info("");
-    out.info("    A. New folder (no local files yet):");
-    out.info(`       mut clone ${accessUrl} --credential ${key}`);
-    out.info("");
-    out.info("    B. Existing folder (use the files you already have):");
-    out.info("       cd /path/to/your/folder");
-    out.info(`       mut connect ${accessUrl} --credential ${key}`);
-    out.info("");
-    out.info("  \u2500 Or have us run option B for you next time:");
-    out.info(`    puppyone access add filesystem ${connection.path || "<scope>"} --link /path/to/your/folder`);
-    out.info("");
-    out.info("  \u2500 Then commit and push:");
-    out.info("    mut commit -m \"message\" && mut push");
-    out.info("");
-    out.info("  \u2500 Retrieve key later:");
-    out.info(`    puppyone access key ${connection.id}\n`);
+    _showFsGuidance(out, connection, baseUrl, "filesystem");
   } else if (provider === "direct" && key) {
-    out.info(`\n  Access Key: ${key}\n`);
-    out.info("  \u2500 Scoped filesystem commands:");
-    out.info(`    puppyone ap login file-access --access-key-stdin`);
-    out.info(`    puppyone fs ls`);
-    out.info(`    puppyone fs cat README.md`);
-    out.info(`    echo "hello" | puppyone fs write notes/hello.md\n`);
+    _showFsGuidance(out, connection, baseUrl, "direct");
   } else {
     out.info("  \u2500 Management:");
     out.info(`    Refresh: puppyone access refresh ${id}`);

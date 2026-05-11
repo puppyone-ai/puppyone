@@ -16,31 +16,29 @@ Three big changes: a remote file system you can operate from terminal, a unified
 
 ---
 
-## 1. `puppyone data` — Operate Your Cloud Workspace from the Terminal
+## 1. `puppyone fs` — Operate Your Cloud Workspace from the Terminal
 
 **What this is**: PuppyOne stores your data in a cloud file system (folders, JSON, Markdown, files). Previously, you could only browse and edit this through the web UI. Now you can do everything from the terminal.
 
 **Why it matters**: AI coding tools like Claude Code and Cursor work in the terminal. Scripts run in the terminal. CI/CD pipelines run in the terminal. Now they can all read and write your PuppyOne workspace directly.
 
 ```bash
-puppyone data ls /docs              # list files in a folder
-puppyone data cat /docs/readme.md   # read a file
-puppyone data write /config.json '{"model": "gpt-4"}'  # create or update
-puppyone data mkdir /new-folder     # create a folder
-puppyone data tree /                # see the full workspace tree
-puppyone data cp /src/a.md /backup/ # copy
-puppyone data mv /old /new          # move or rename
-puppyone data trash /temp.json      # soft delete (recoverable)
-puppyone data restore /temp.json    # undo a delete
+puppyone fs ls docs                         # list files in a folder
+puppyone fs cat docs/readme.md              # read a file
+puppyone fs write config.json --content '{"model": "gpt-4"}'
+puppyone fs mkdir new-folder                # create a folder
+puppyone fs tree                            # see the scoped tree
+puppyone fs mv old new                      # move or rename
+puppyone fs rm temp.json                    # soft delete
 ```
 
 Every command also supports `--json` for structured output, so you can pipe it into scripts or feed it to AI agents:
 
 ```bash
-puppyone data ls /docs --json | jq '.entries[].name'
+puppyone fs ls docs --json | jq '.entries[].name'
 ```
 
-Full command list: `ls`, `cat`, `tree`, `stat`, `write`, `touch`, `mkdir`, `cp`, `mv`, `rm`, `trash`, `restore`.
+Full command list: `ls`, `cat`, `tree`, `stat`, `write`, `mkdir`, `mv`, `rm`.
 
 ---
 
@@ -119,7 +117,7 @@ npm install -g puppyone@latest
 | `puppyone connect add filesystem /path` | `puppyone access add filesystem /path` |
 | `puppyone status` (showed daemon status) | `puppyone access ls` (shows all access points) |
 | Background daemon auto-synced files | `mut push` / `mut pull` (you control when) |
-| No way to read/write cloud files from CLI | `puppyone data ls`, `cat`, `write`, `tree`, etc. |
+| No way to read/write cloud files from CLI | `puppyone fs ls`, `cat`, `write`, `tree`, etc. |
 
 ---
 
@@ -129,7 +127,8 @@ npm install -g puppyone@latest
 npm install -g puppyone
 puppyone auth login
 puppyone project use "My Project"
-puppyone data ls /
+puppyone ap login default
+puppyone fs ls
 ```
 
 Learn more: [puppyone.ai](https://puppyone.ai)

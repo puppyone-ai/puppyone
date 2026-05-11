@@ -9,6 +9,22 @@ from src.exceptions import AppException, ErrorCode
 from src.utils.request_context import request_id_var
 
 
+def _http_error_code(status_code: int) -> ErrorCode:
+    if status_code == 401:
+        return ErrorCode.UNAUTHORIZED
+    if status_code == 403:
+        return ErrorCode.FORBIDDEN
+    if status_code == 404:
+        return ErrorCode.NOT_FOUND
+    if status_code == 409:
+        return ErrorCode.VERSION_CONFLICT
+    if status_code == 422:
+        return ErrorCode.VALIDATION_ERROR
+    if status_code >= 500:
+        return ErrorCode.INTERNAL_SERVER_ERROR
+    return ErrorCode.BAD_REQUEST
+
+
 def app_exception_handler(request: Request, exc: AppException):
     """Handle custom application exceptions"""
     # Note: AppException (4xx/business errors) should also be logged by default for troubleshooting.
@@ -38,11 +54,20 @@ def app_exception_handler(request: Request, exc: AppException):
 
 def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """Handle FastAPI/Starlette HTTPException"""
+    detail = exc.detail
+    data = None
+    if isinstance(detail, dict):
+        message = str(detail.get("message") or detail.get("detail") or "Request failed")
+        data = detail
+    else:
+        message = str(detail)
+
     resp = JSONResponse(
         status_code=exc.status_code,
         content=ApiResponse.error(
-            code=ErrorCode.BAD_REQUEST,  # Default mapping to BAD_REQUEST, or subdivide by exc.status_code
-            message=str(exc.detail),
+            code=_http_error_code(exc.status_code),
+            message=message,
+            data=data,
         ).model_dump(),
     )
     rid = request_id_var.get()

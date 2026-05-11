@@ -12,11 +12,9 @@ import { CheckIcon, CopyIcon } from './icons';
 /**
  * PromptBlock — the headline action of every connection method.
  *
- * Most users in 2026 are working in Claude Code / Cursor / Codex and just
- * want to hand their AI agent a prompt explaining how to drive PuppyOne;
- * the agent then runs install / login / use itself. So we lead with this
- * block. The prompt text is shown in a dark box with a fade-out, followed
- * by a standard white button to copy it to the clipboard.
+ * Prompt text is shown in a compact code box with a clear centered copy
+ * action. Keep the button obvious, but avoid the oversized glow/shadow
+ * treatment.
  */
 export function PromptBlock({
   prompt,
@@ -40,7 +38,7 @@ export function PromptBlock({
     <div
       style={{
         position: 'relative',
-        height: 140,
+        height: 132,
         borderRadius: 8,
         border: `1px solid ${COLOR_BORDER}`,
         background: COLOR_BG_SUNKEN,
@@ -50,11 +48,12 @@ export function PromptBlock({
       <pre
         style={{
           margin: 0,
-          padding: '12px 14px 48px 14px',
+          padding: '12px 14px 46px 14px',
           fontFamily: FONT_MONO,
           fontSize: 11,
           lineHeight: 1.6,
           color: COLOR_FG_MUTED,
+          opacity: 0.58,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
@@ -66,10 +65,21 @@ export function PromptBlock({
         aria-hidden
         style={{
           position: 'absolute',
+          inset: 0,
+          background: 'rgba(0,0,0,0.34)',
+          pointerEvents: 'none',
+          zIndex: 1,
+        }}
+      />
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
           inset: 'auto 0 0 0',
-          height: 64,
+          height: 58,
           background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, ${COLOR_BG_SUNKEN} 100%)`,
           pointerEvents: 'none',
+          zIndex: 2,
         }}
       />
       <div
@@ -78,6 +88,7 @@ export function PromptBlock({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
+          zIndex: 3,
         }}
       >
         <button
@@ -90,25 +101,22 @@ export function PromptBlock({
             alignItems: 'center',
             justifyContent: 'center',
             gap: 7,
-            height: 30,
+            height: 32,
             padding: '0 14px',
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 600,
-            letterSpacing: '-0.005em',
             color: copied ? '#15803d' : '#0a0a0a',
             background: copied
               ? '#bbf7d0'
               : hovered
                 ? '#ffffff'
-                : 'rgba(250,250,250,0.94)',
-            border: 'none',
+                : 'rgba(250,250,250,0.96)',
+            border: '1px solid rgba(255,255,255,0.16)',
             borderRadius: 999,
             cursor: 'pointer',
             whiteSpace: 'nowrap',
-            boxShadow: hovered
-              ? '0 0 36px rgba(0,0,0,0.55), 0 8px 22px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.16)'
-              : '0 0 28px rgba(0,0,0,0.45), 0 5px 16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)',
-            transition: 'background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.28)',
+            transition: 'background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 13, height: 13 }}>

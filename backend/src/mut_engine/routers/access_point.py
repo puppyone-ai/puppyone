@@ -41,6 +41,7 @@ from mut.server.handlers import (
 )
 
 from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.server.auth import enforce_channel_pause
 from src.mut_engine.services.hooks import run_post_push_hook
 from src.utils.logger import log_error, log_info
 
@@ -186,6 +187,11 @@ async def _resolve_and_validate(access_key: str, request: Request) -> tuple[str,
                 status_code=401,
                 detail="User identity mismatch: key is bound to a different user",
             )
+
+    enforce_channel_pause(
+        auth, request.headers.get("x-puppy-client"),
+        log_prefix="[AP]",
+    )
 
     repo_manager = _get_repo_manager()
     return project_id, auth, repo_manager

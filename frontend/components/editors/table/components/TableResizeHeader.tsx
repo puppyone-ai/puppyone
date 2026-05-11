@@ -1,4 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  TABLE_LEFT_GUTTER,
+  TABLE_RIGHT_GUTTER,
+  TABLE_RESIZE_HEADER_HEIGHT,
+  TABLE_RESIZE_HANDLE_HIT_HEIGHT,
+  TABLE_RESIZE_HANDLE_HIT_WIDTH,
+} from '../constants';
 
 // ============================================
 // Table Resize Header
@@ -91,12 +98,12 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
       <style jsx>{`
         .table-header {
           position: relative;
-          height: 32px;
-          margin-left: 32px; /* Matches editor padding */
-          margin-right: 8px;
+          height: ${TABLE_RESIZE_HEADER_HEIGHT}px;
+          margin-left: ${TABLE_LEFT_GUTTER}px;
+          margin-right: ${TABLE_RIGHT_GUTTER}px;
           display: flex;
-          align-items: center;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          align-items: flex-end;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
           background: transparent;
           font-family:
             'Plus Jakarta Sans',
@@ -116,26 +123,26 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
           height: 100%;
           position: relative;
           white-space: nowrap;
-          overflow: hidden;
+          overflow: visible;
           text-overflow: ellipsis;
         }
 
         .resize-handle {
           position: absolute;
-          top: 0;
-          bottom: 0;
-          width: 8px; /* Hit area */
+          bottom: -1px;
+          width: ${TABLE_RESIZE_HANDLE_HIT_WIDTH}px;
+          height: ${TABLE_RESIZE_HANDLE_HIT_HEIGHT}px;
           cursor: col-resize;
           z-index: 10;
-          /* Visual line */
           display: flex;
+          align-items: flex-end;
           justify-content: center;
         }
 
         .resize-handle::after {
           content: '';
           width: 2px;
-          height: 12px; /* Shorten to look like a handle/tick mark */
+          height: 8px;
           border-radius: 1px;
           background: rgba(255, 255, 255, 0.2);
           transition: all 0.15s;
@@ -144,14 +151,14 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
         /* Show handles more clearly when hovering the header area */
         .table-header:hover .resize-handle::after {
           background: rgba(255, 255, 255, 0.4);
-          height: 16px; /* Grow slightly on hover hint */
+          height: 10px;
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
           background: #528bff !important;
           width: 3px; /* Thicker on interaction */
-          height: 100%; /* Full height when dragging for precision visual */
+          height: 18px;
           border-radius: 0;
           box-shadow: 0 0 4px rgba(82, 139, 255, 0.5);
         }
@@ -176,7 +183,7 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
               {/* KEY label removed */}
               <div
                 className={`resize-handle ${draggingDepth === depth ? 'active' : ''}`}
-                style={{ right: -4 }} /* Center on border */
+                style={{ right: -(TABLE_RESIZE_HANDLE_HIT_WIDTH / 2) }} /* Center on border */
                 onMouseDown={e => handleMouseDown(e, depth)}
               />
             </div>
