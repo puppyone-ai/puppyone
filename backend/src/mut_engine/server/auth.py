@@ -120,7 +120,14 @@ class PuppyOneAuthenticator:
     def _try_jwt(self, token: str) -> dict | None:
         try:
             from src.platform.auth.service import AuthService
-            auth_svc = AuthService(SupabaseClient())
+            # AuthService expects the *underlying* supabase-py ``Client``
+            # (which exposes ``.auth.get_claims`` for the JWKS fallback),
+            # not our ``SupabaseClient`` wrapper. Passing the wrapper
+            # silently falls back to the local JWT path until the JWKS
+            # branch is reached, then crashes with
+            # ``'SupabaseClient' object has no attribute 'auth'`` and the
+            # caller treats every JWT as invalid.
+            auth_svc = AuthService(SupabaseClient().client)
             user = auth_svc.get_current_user(token)
             return {"user_id": user.user_id}
         except HTTPException:

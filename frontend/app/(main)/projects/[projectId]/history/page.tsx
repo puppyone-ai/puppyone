@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useMemo, useEffect, useRef } from 'react';
+import { use, useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
@@ -13,6 +13,7 @@ import {
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { InlineLoading, PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
+import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
 
 // ─── Line diff utility ───────────────────────────────────────────────
 //
@@ -203,7 +204,7 @@ function VerticalCommitNode({
   const activeColor = isSelected ? currentInfo.color : '#52525b';
   const svgWidth = LINE_X + 10;
 
-  const shortId = commit.commit_id ? commit.commit_id.slice(0, 8) : '';
+  const shortId = commit.commit_id ? commit.commit_id.slice(0, 12) : '';
 
   return (
     <div style={{ position: 'relative', height: ROW_HEIGHT }}>
@@ -709,11 +710,25 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   const { projectId } = use(params);
   const { session } = useAuth();
 
-  const { data: history, error } = useSWR(
+  const { data: history, error, mutate: mutateHistory } = useSWR(
     session ? ['project-history', projectId] : null,
     () => getProjectHistory(projectId, 100),
     { revalidateOnFocus: false },
   );
+
+  // Refetch the commit list whenever the server pushes a commit_update
+  // for this project. Replaces the old "wait for the user to refocus
+  // the tab" behaviour — pushes/imports/exports from any other client
+  // (sandbox, agent, GitHub webhook) now show up live.
+  //
+  // The per-commit content cache (``['ver-content', projectId, path,
+  // commitId]``) is content-addressable and immutable: a specific
+  // commit at a specific path doesn't change when a *newer* commit
+  // lands, so we deliberately don't invalidate it here.
+  const onCommitUpdate = useCallback(() => {
+    void mutateHistory();
+  }, [mutateHistory]);
+  useCommitUpdates(onCommitUpdate);
 
   // We deliberately ignore SWR's `isLoading` here: it's only true
   // *while a fetch is in flight*. Before the SWR key becomes truthy
@@ -836,7 +851,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   title={history.head_commit_id}
                   style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
                 >
-                  {history.head_commit_id.slice(0, 8)}
+                  {history.head_commit_id.slice(0, 12)}
                 </span></>
               )}
             </span>

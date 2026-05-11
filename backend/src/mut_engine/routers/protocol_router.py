@@ -22,6 +22,7 @@ from mut.server.handlers import (
     handle_negotiate,
     handle_pull,
     handle_push,
+    handle_scopes,
 )
 
 from src.mut_engine.dependencies import get_repo_manager
@@ -100,29 +101,32 @@ async def mut_push(
 
     # Parallel object upload — consolidates the negotiate + push dedup flow.
     #
-    # Without this: negotiate checks exists(h) × N serially, returns missing list.
-    # Client sends only missing objects. Then _store_incoming_objects inside
-    # handle_push calls put(data) → _do_put → file_exists(h) AGAIN + upload(h).
-    # That's 2 × N serial S3 calls for objects that negotiate already confirmed missing.
+    # Wire format (post feat/git-format-storage in mut/): each ``objects``
+    # entry is ``{<sha1_hex>: <base64-of-zlib-loose-bytes>}``. The hash is
+    # the SHA-1 of the framed git object header+content; the value is the
+    # zlib-compressed loose-object bytes.  We must store the loose bytes
+    # verbatim under the supplied hash — re-deriving the hash from the
+    # bytes (as the old code did via ``hash_bytes(raw)``) would compute
+    # SHA-1(blob<size>\0<loose_bytes>) instead of the correct identity.
     #
-    # With this: we upload all objects in parallel here (20 concurrent),
-    # then clear body["objects"] so _store_incoming_objects iterates an empty dict.
-    # Saves: N serial HEAD checks + N serial PUTs → replaced by N parallel PUTs.
+    # Without this optimisation: negotiate checks exists(h) × N serially,
+    # then handle_push calls put_loose(h, data) again × N serially. With
+    # parallel upload we collapse the 2N round trips into N parallel PUTs
+    # and clear ``body["objects"]`` so ``_store_incoming_objects`` becomes
+    # a no-op.
     import base64
     objects_b64 = body.get("objects", {})
     if objects_b64:
         repo = repo_manager.get_server_repo(project_id)
-        if hasattr(repo.store, "async_put_many"):
-            decoded = {}
-            for h, b64 in objects_b64.items():
-                raw = base64.b64decode(b64)
-                # ObjectStore.put(data) computes hash internally via hash_bytes(data).
-                # We need to store under that computed hash, not the client-provided key.
-                from mut.foundation.hash import hash_bytes as mut_hash
-                real_hash = mut_hash(raw)
-                decoded[real_hash] = raw
-            await repo.store.async_put_many(decoded, skip_exists=True)
-            # Clear objects so handle_push's _store_incoming_objects is a no-op
+        # ``ObjectStore`` itself doesn't expose batch upload — go through
+        # the underlying ``S3StorageBackend`` (or whatever store wraps).
+        backend = getattr(repo.store, "_backend", None)
+        if backend is not None and hasattr(backend, "async_put_many"):
+            decoded = {
+                h: base64.b64decode(b64) for h, b64 in objects_b64.items()
+            }
+            await backend.async_put_many(decoded, skip_exists=True)
+            # Clear so handle_push's ``_store_incoming_objects`` is a no-op.
             body["objects"] = {}
 
     try:
@@ -205,20 +209,19 @@ async def mut_negotiate(
         return JSONResponse({"missing": []})
 
     repo = repo_manager.get_server_repo(project_id)
-    store = repo.store
+    backend = getattr(repo.store, "_backend", None)
 
-    # Parallel existence check — 20x faster than serial for many objects
-    if hasattr(store, "async_exists_many"):
-        existing = await store.async_exists_many(hashes)
+    # Parallel existence check on the backend — 20x faster than serial.
+    if backend is not None and hasattr(backend, "async_exists_many"):
+        existing = await backend.async_exists_many(hashes)
         missing = [h for h in hashes if h not in existing]
-    else:
-        # Fallback to serial (non-S3 stores)
-        result = await asyncio.to_thread(
-            _invoke, handle_negotiate, repo_manager, project_id, auth, body,
-        )
-        return JSONResponse(result)
+        return JSONResponse({"missing": missing})
 
-    return JSONResponse({"missing": missing})
+    # Fallback to serial via the standard handler (non-S3 stores).
+    result = await asyncio.to_thread(
+        _invoke, handle_negotiate, repo_manager, project_id, auth, body,
+    )
+    return JSONResponse(result)
 
 
 @router.post("/{project_id}/rollback")
@@ -253,6 +256,36 @@ async def mut_rollback(
         f"[MUT] rollback project={project_id} agent={auth['agent']} "
         f"target={result.get('target_commit_id')} new={result.get('new_commit_id')}"
     )
+    return JSONResponse(result)
+
+
+@router.post("/{project_id}/scopes")
+async def mut_scopes(
+    project_id: str,
+    request: Request,
+    auth: dict = Depends(get_mut_auth),
+    repo_manager: MutRepoManager = Depends(get_repo_manager),
+):
+    """List the scope this credential is bound to + descendants.
+
+    Mirrors ``mut.server.handlers.handle_scopes`` — returns
+    ``{"owned": ScopeInfo, "descendants": [ScopeInfo]}``. Read-only;
+    safe to call from any auth context that already passed ``get_mut_auth``.
+    """
+    body = await request.json()
+    try:
+        result = await asyncio.to_thread(
+            _invoke, handle_scopes, repo_manager, project_id, auth, body,
+        )
+    except ClientTooOldError as e:
+        _raise_too_old(e)
+    except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        log_error(f"[MUT] scopes failed for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Scopes failed: {e}")
+
+    log_info(f"[MUT] scopes project={project_id} agent={auth['agent']}")
     return JSONResponse(result)
 
 

@@ -421,6 +421,10 @@ def create_app() -> FastAPI:
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
     from src.mut_engine.routers.protocol_router import router as mut_protocol_router
     app.include_router(mut_protocol_router, tags=["mut-protocol"])
+    # WebSocket /ws — server→client commit_update notifications. Required
+    # by ``mut listen`` on the new feat/git-format-storage branch.
+    from src.mut_engine.routers.ws_router import ws_router as mut_ws_router
+    app.include_router(mut_ws_router, tags=["mut-ws"])
     from src.mut_engine.routers.access_point import ap_router
     # Canonical public URL: /api/v1/mut/ap/{access_key}/{clone|push|pull|negotiate|...}
     # See backend/src/mut_engine/_routes.py for the contract.
@@ -437,6 +441,15 @@ def create_app() -> FastAPI:
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
     from src.connectors.datasource.router import router as sync_router
     app.include_router(sync_router, prefix="/api/v1", tags=["sync"])
+    # GitHub Integration: bind a project to a (repo, branch) pair, run
+    # imports/exports, receive webhooks. Two routers because the webhook
+    # callback isn't per-project.
+    from src.repo.github_integration.router import (
+        router as github_integration_router,
+        webhook_router as github_webhook_router,
+    )
+    app.include_router(github_integration_router, tags=["github-integration"])
+    app.include_router(github_webhook_router, tags=["github-integration"])
     from src.connectors.filesystem.router import router as filesystem_router
     app.include_router(filesystem_router, tags=["filesystem"])
     from src.platform.auth.router import router as auth_router

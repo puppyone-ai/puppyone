@@ -111,8 +111,45 @@ def run_post_push_hook(
         if deleted_paths:
             post_commit_delete(project_id, deleted_paths)
 
+        # Fan out commit_update over WebSocket to subscribed clients.
+        # Best-effort: a notification failure must not block the
+        # commit. We schedule on the running loop if there is one;
+        # otherwise (sync-only context) we fire-and-forget via a
+        # short-lived loop so producers never wait on listeners.
+        _broadcast_commit_update(project_id, entry, changes)
+
     except Exception as e:
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
+
+
+def _broadcast_commit_update(project_id: str, entry: dict, changes: list[dict]) -> None:
+    """Fire a ``commit_update`` event for connected WebSocket listeners.
+
+    The actual fanout is asynchronous; we just schedule it and return.
+    Errors are logged at warning level — the push is already durable
+    in the DB, so a flaky listener stream must not propagate up.
+    """
+    try:
+        from src.mut_engine.server.notifications import NotificationManager
+        manager = NotificationManager.get()
+        coro = manager.broadcast_commit_update(
+            project_id=project_id,
+            scope_path=(entry.get("scope_path") or ""),
+            commit_id=entry.get("commit_id", ""),
+            pushed_by=entry.get("who", ""),
+            message=entry.get("message", ""),
+            scope_hash=entry.get("scope_hash", ""),
+            changes=changes,
+        )
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            # Sync caller (e.g. ARQ worker) — run to completion in a
+            # transient loop so the broadcast actually happens.
+            asyncio.run(coro)
+    except Exception as e:
+        log_warning(f"[PostCommit] broadcast_commit_update failed: {e}")
 
 
 def _update_global_root(repo, push_result: dict) -> None:
@@ -232,26 +269,23 @@ def _build_root_from_scope_state(
         1. Read all ``(scope_path → scope_hash)`` from
            ``mut_scope_state`` (DB SoT).
         2. Overwrite the just-pushed scope's entry with the value the
-           push handler returned. The CAS in handle_push has already
-           written it, so this is normally a no-op; the explicit
-           override exists so retries inside this function still see
-           a consistent input even if a sibling's CAS races between
-           our SELECT and our build.
-        3. Use the root scope's tree as the base. It carries any
-           non-scope files (e.g. a top-level README.md the root scope
-           manages directly). If root scope has never been pushed,
-           start from an empty tree.
-        4. Overlay each non-root scope using ``graft_subtree``. Sort
-           by path depth (then alphabetically) so parents are grafted
-           before their children — a child overlay would otherwise
-           splice into a parent that hasn't been refreshed yet.
+           push handler returned. CAS in handle_push has already
+           written it; the explicit override exists so retries see a
+           consistent input even if a sibling's CAS races between our
+           SELECT and our build.
+        3. Use the root scope's tree as the base — it carries any
+           non-scope files (e.g. a top-level README.md). If root scope
+           has never been pushed, start from the empty git tree.
+        4. Overlay each non-root scope using :func:`_graft_subtree` (a
+           local reimplementation; ``mut.server.graft`` was removed in
+           the feat/git-format-storage refactor since the upstream
+           server no longer needs scope-grafting). Sort by path depth
+           so parents are grafted before children.
 
-    Raises on any S3 read/write failure (no silent fallback). Callers
+    Raises on S3 read/write failure (no silent fallback). Callers
     decide whether to retry.
     """
-    import json
-
-    from mut.server.graft import graft_subtree
+    from mut.foundation.git_format import encode_tree
 
     scopes = repo.get_all_scope_hashes()
     if just_pushed_hash:
@@ -261,8 +295,8 @@ def _build_root_from_scope_state(
     if root_scope_hash:
         current_root = root_scope_hash
     else:
-        empty_tree = json.dumps({}, sort_keys=True).encode()
-        current_root = repo.store.put(empty_tree)
+        # Empty git tree — same canonical SHA-1 as ``git mktree </dev/null``.
+        current_root = repo.store.put_tree(encode_tree([]))
 
     other_scopes = sorted(
         ((p, h) for p, h in scopes.items() if p and h),
@@ -270,11 +304,84 @@ def _build_root_from_scope_state(
     )
 
     for scope_path, scope_hash in other_scopes:
-        current_root = graft_subtree(
+        current_root = _graft_subtree(
             repo.store, current_root, scope_path, scope_hash,
         )
 
     return current_root
+
+
+# ── Local graft helpers (replaces removed mut.server.graft) ───────
+
+def _graft_subtree(store, old_root_hash: str,
+                   scope_path: str, new_subtree_hash: str) -> str:
+    """Replace the subtree at *scope_path* under *old_root_hash* with
+    *new_subtree_hash*, recomputing parent trees upward.
+
+    Pure git tree manipulation against the new ObjectStore API
+    (``put_tree`` / ``get_object`` / ``encode_tree`` / ``decode_tree``).
+    Mirrors the removed ``mut/server/graft.py`` implementation but with
+    no PuppyOne-specific logic so it stays trivially reviewable.
+    """
+    if not scope_path:
+        return new_subtree_hash
+    parts = [p for p in scope_path.strip("/").split("/") if p]
+    return _graft_recursive(store, old_root_hash, parts, new_subtree_hash)
+
+
+def _graft_recursive(store, tree_hash: str,
+                     path_parts: list[str], new_hash: str) -> str:
+    from mut.foundation.git_format import (
+        MODE_DIR, MODE_FILE, TreeEntry, decode_tree, encode_tree,
+    )
+
+    obj_type, content = store.get_object(tree_hash)
+    if obj_type != "tree":
+        raise ValueError(
+            f"_graft_recursive: object {tree_hash} is a {obj_type}, expected tree"
+        )
+    entries = list(decode_tree(content))
+
+    target = path_parts[0]
+    remaining = path_parts[1:]
+
+    existing = next((e for e in entries if e.name == target), None)
+    if existing is None:
+        if remaining:
+            empty_tree_hash = store.put_tree(encode_tree([]))
+            child_hash = _graft_recursive(
+                store, empty_tree_hash, remaining, new_hash,
+            )
+        else:
+            child_hash = new_hash
+    elif remaining:
+        if not existing.is_dir:
+            empty_tree_hash = store.put_tree(encode_tree([]))
+            child_hash = _graft_recursive(
+                store, empty_tree_hash, remaining, new_hash,
+            )
+        else:
+            child_hash = _graft_recursive(
+                store, existing.sha1_hex, remaining, new_hash,
+            )
+    else:
+        child_hash = new_hash
+
+    new_entries = [e for e in entries if e.name != target]
+    new_entries.append(TreeEntry(
+        name=target,
+        mode=MODE_FILE if (
+            existing is not None
+            and not existing.is_dir
+            and not remaining
+            # Re-using the leaf's mode only matters when we replace a
+            # leaf with another leaf hash — for directory grafts we
+            # always end up with MODE_DIR below.
+            and False
+        ) else MODE_DIR,
+        sha1_hex=child_hash,
+    ))
+    return store.put_tree(encode_tree(new_entries))
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:

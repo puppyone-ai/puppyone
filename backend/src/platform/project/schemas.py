@@ -23,6 +23,7 @@ class ProjectOut(BaseModel):
     id: str
     name: str
     description: str | None = None
+    bound_git_branch: str = "main"
     nodes: list[NodeInfo] = []
     updated_at: str | None = None
     access_point_count: int = 0
@@ -44,6 +45,7 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     visibility: str | None = None
+    bound_git_branch: str | None = None
 
 
 class ProjectMemberOut(BaseModel):

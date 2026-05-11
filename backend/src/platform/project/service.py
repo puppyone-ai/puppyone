@@ -114,6 +114,7 @@ class ProjectService:
         project_id: str,
         name: str | None,
         description: str | None,
+        bound_git_branch: str | None = None,
     ) -> Project:
         """
         Update a project
@@ -122,6 +123,7 @@ class ProjectService:
             project_id: Project ID
             name: Project name (optional)
             description: Project description (optional)
+            bound_git_branch: Default git branch (optional)
 
         Returns:
             Updated Project object
@@ -133,6 +135,7 @@ class ProjectService:
             project_id=project_id,
             name=name,
             description=description,
+            bound_git_branch=bound_git_branch,
         )
         if not updated:
             raise NotFoundException(

@@ -12,9 +12,11 @@ import {
   addProjectMember,
   updateProjectMemberRole,
   removeProjectMember,
+  updateProject,
   updateProjectVisibility,
   type ProjectMember,
 } from '@/lib/projectsApi';
+import { useTranslations } from 'next-intl';
 import { PageLoading } from '@/components/loading';
 
 interface SettingsPageProps {
@@ -108,6 +110,14 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
   const [visibility, setVisibility] = useState<'org' | 'private'>('org');
+
+  // Inline editor state for ``bound_git_branch``. Mirrors what the
+  // backend has when no edit is in flight; the input only commits on
+  // explicit save so a stray keystroke can't mutate the project.
+  const tProjSettings = useTranslations('projectSettings');
+  const [boundBranchInput, setBoundBranchInput] = useState('');
+  const [boundBranchEditing, setBoundBranchEditing] = useState(false);
+  const [boundBranchSaving, setBoundBranchSaving] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [addRole, setAddRole] = useState<'editor' | 'viewer'>('editor');
@@ -133,6 +143,39 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
       setVisibility(currentProject.visibility as 'org' | 'private');
     }
   }, [currentProject?.visibility]);
+
+  useEffect(() => {
+    // Don't trample an in-flight edit if the projects list refetches
+    // while the user is mid-keystroke.
+    if (!boundBranchEditing) {
+      setBoundBranchInput(currentProject?.bound_git_branch || 'main');
+    }
+  }, [currentProject?.bound_git_branch, boundBranchEditing]);
+
+  const handleBoundBranchSave = async () => {
+    const next = boundBranchInput.trim();
+    if (!next) {
+      setFeedback({ type: 'error', msg: 'Branch cannot be empty' });
+      return;
+    }
+    if (next === (currentProject?.bound_git_branch || 'main')) {
+      setBoundBranchEditing(false);
+      return;
+    }
+    setBoundBranchSaving(true);
+    try {
+      await updateProject(projectId, { bound_git_branch: next });
+      await refreshProjects();
+      setBoundBranchEditing(false);
+      setFeedback({ type: 'success', msg: 'Default branch updated.' });
+      setTimeout(() => setFeedback(null), 2500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update branch';
+      setFeedback({ type: 'error', msg });
+    } finally {
+      setBoundBranchSaving(false);
+    }
+  };
 
   const handleVisibilityChange = async (newVis: 'org' | 'private') => {
     try {
@@ -311,6 +354,88 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                   >
                     <EditIcon /> Edit
                   </button>
+                </div>
+              </div>
+              <div style={{ ...row, borderBottom: `1px solid ${T.cardBorder}` }}>
+                <div>
+                  <label style={labelStyle}>{tProjSettings('boundGitBranch')}</label>
+                  <div style={descStyle}>{tProjSettings('boundGitBranchHint')}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {boundBranchEditing ? (
+                    <>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={boundBranchInput}
+                        onChange={(e) => setBoundBranchInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleBoundBranchSave();
+                          if (e.key === 'Escape') {
+                            setBoundBranchEditing(false);
+                            setBoundBranchInput(currentProject.bound_git_branch || 'main');
+                          }
+                        }}
+                        disabled={boundBranchSaving}
+                        style={{
+                          background: 'rgba(0,0,0,0.28)',
+                          border: `1px solid ${T.cardBorder}`,
+                          borderRadius: 5,
+                          color: T.text1,
+                          fontFamily: T.fontMono,
+                          fontSize: 12,
+                          padding: '5px 9px',
+                          width: 180,
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        onClick={() => void handleBoundBranchSave()}
+                        disabled={boundBranchSaving}
+                        onMouseEnter={onGhostEnter}
+                        onMouseLeave={onGhostLeave}
+                        style={btnGhost}
+                      >
+                        {boundBranchSaving ? '…' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBoundBranchEditing(false);
+                          setBoundBranchInput(currentProject.bound_git_branch || 'main');
+                        }}
+                        disabled={boundBranchSaving}
+                        onMouseEnter={onGhostEnter}
+                        onMouseLeave={onGhostLeave}
+                        style={btnGhost}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <code
+                        style={{
+                          fontSize: 12,
+                          color: T.text1,
+                          background: 'rgba(0,0,0,0.28)',
+                          padding: '5px 9px',
+                          borderRadius: 5,
+                          border: `1px solid ${T.cardBorder}`,
+                          fontFamily: T.fontMono,
+                        }}
+                      >
+                        {currentProject.bound_git_branch || 'main'}
+                      </code>
+                      <button
+                        onClick={() => setBoundBranchEditing(true)}
+                        onMouseEnter={onGhostEnter}
+                        onMouseLeave={onGhostLeave}
+                        style={btnGhost}
+                      >
+                        <EditIcon /> Edit
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               <div style={row}>

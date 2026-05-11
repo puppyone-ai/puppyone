@@ -678,8 +678,10 @@ export async function getNodeContent(
 // === Commit History API ===
 // These types match the Mut-Native commit-based model.
 // The backend returns commit history from mut_commits table.
-// Commits are identified by opaque 16-hex `commit_id` strings — we no longer
-// expose monotonic integer versions on the wire.
+// Post mut/feat/git-format-storage: commits are identified by 40-hex SHA-1
+// over the git ``commit`` object body (same hash any standard git tool
+// derives from the same commit body byte-for-byte). The old monotonic
+// integer ``version`` is gone.
 
 export interface FileVersionInfo {
   commit_id: string;
