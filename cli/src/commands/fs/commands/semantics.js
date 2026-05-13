@@ -13,6 +13,7 @@ const SEMANTICS = {
     "mtime/ctime are derived from PuppyOne version history, not local filesystem timestamps.",
     "size fields may require blob metadata; avoid large recursive size scans unless needed.",
     "Recursive tree/find/ls -R responses expose complete/truncated/returned_count/limit fields in --json and should be narrowed with -L, -maxdepth, or --limit.",
+    "grep is a live scoped text search in V1: it accepts common Unix grep flags, scans current tree text blobs with resource caps, skips binary/non-text files, and exposes complete/truncated metadata in --json.",
     "upload/download are PuppyOne bridge commands, so their recursive forms expose --max-depth and --limit as resource controls.",
   ],
   resource_guidance: [

@@ -5,6 +5,7 @@ Defines business domain models for Project
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -25,6 +26,10 @@ class Project(BaseModel):
             "default ref for the MUT clone command. Doesn't affect "
             "existing bindings (each binding stores its own branch)."
         ),
+    )
+    protocol_mode: Literal["git", "mut", "both"] = Field(
+        default="git",
+        description="Adapter exposure: git, mut, or both. Version storage is unchanged.",
     )
     created_by: str | None = Field(None, description="Creator user ID")
     created_at: datetime = Field(..., description="Creation time")

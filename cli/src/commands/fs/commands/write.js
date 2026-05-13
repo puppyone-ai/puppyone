@@ -1,7 +1,7 @@
 import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, detectNodeType, extraHeaders } from "../lib/context.js";
-import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
+import { post } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerWriteCommand(fs) {
@@ -12,6 +12,7 @@ export function registerWriteCommand(fs) {
     .option("--content <text>", "inline content string")
     .option("--file <local-path>", "read content from a local file")
     .option("--type <type>", "node type: json | markdown | file (auto-detected from extension)")
+    .option("--base-commit <sha>", "optional scope head precondition")
     .option("-m, --message <msg>", "commit message")
     .action(withErrors(async (path, opts, cmd) => {
       const out = createOutput(cmd);
@@ -35,12 +36,11 @@ export function registerWriteCommand(fs) {
       }
 
       const nodeType = opts.type || detectNodeType(cleanPath);
-      const baseCommitId = await getCurrentScopeBaseCommit(client, headers);
       const result = await post(client, "/ap-fs/write", {
         path: cleanPath,
         content,
         node_type: nodeType,
-        base_commit_id: baseCommitId,
+        base_commit_id: opts.baseCommit || null,
         message: opts.message || `ap edit ${cleanPath}`,
       }, headers);
 

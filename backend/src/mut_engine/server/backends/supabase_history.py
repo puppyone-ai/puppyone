@@ -154,6 +154,22 @@ class SupabaseHistoryManager:
         data = _safe_data(resp)
         return data.get("scope_hash", "") if data else ""
 
+    def get_scope_state(self, scope_path: str) -> tuple[str, str]:
+        """Return ``(scope_hash, head_commit_id)`` with one DB round trip."""
+        scope_path = _normalize(scope_path)
+        resp = (
+            self._client.table(self.SCOPE_STATE_TABLE)
+            .select("scope_hash, head_commit_id")
+            .eq("project_id", self._project_id)
+            .eq("scope_path", scope_path)
+            .maybe_single()
+            .execute()
+        )
+        data = _safe_data(resp)
+        if not data:
+            return "", ""
+        return data.get("scope_hash", "") or "", data.get("head_commit_id", "") or ""
+
     def set_scope_hash(self, scope_path: str, h: str) -> None:
         scope_path = _normalize(scope_path)
         self._upsert_scope_state(scope_path, scope_hash=h)
@@ -267,6 +283,206 @@ class SupabaseHistoryManager:
                 "the cas_update_root_hash function. Original error: "
                 f"{e}"
             ) from e
+
+    def publish_scope_update(
+        self,
+        *,
+        scope_path: str,
+        old_scope_hash: str,
+        new_scope_hash: str,
+        commit_id: str,
+        who: str,
+        message: str,
+        changes: list,
+        conflicts: list | None,
+        created_at_iso: str,
+        audit_event_type: str,
+        audit_agent_id: str,
+        audit_detail: dict,
+    ) -> bool:
+        """Atomically publish scope head, history, audit, and outbox rows."""
+
+        scope_path = _normalize(scope_path)
+        try:
+            resp = self._client.rpc("publish_mut_scope_update", {
+                "p_project_id": self._project_id,
+                "p_scope_path": scope_path,
+                "p_old_hash": old_scope_hash or "",
+                "p_new_hash": new_scope_hash,
+                "p_head_commit_id": commit_id,
+                "p_who": who,
+                "p_message": message or "",
+                "p_event_type": audit_event_type,
+                "p_changes": changes or [],
+                "p_conflicts": _serialize_conflicts(conflicts) if conflicts else None,
+                "p_created_at": created_at_iso or "",
+                "p_audit_agent_id": audit_agent_id,
+                "p_audit_detail": audit_detail or {},
+            }).execute()
+            data = resp.data
+            if isinstance(data, bool):
+                ok = data
+            elif isinstance(data, list) and data:
+                ok = bool(data[0])
+            else:
+                ok = False
+            if ok:
+                for attr in ("_head_cid_cache", "_root_hash_cache"):
+                    if hasattr(self, attr):
+                        delattr(self, attr)
+            return ok
+        except Exception as e:
+            log_error(
+                f"[Publish] publish_mut_scope_update RPC failed for "
+                f"scope='{scope_path}': {e}. Deploy the SQL migration first."
+            )
+            raise RuntimeError(
+                "atomic publish RPC not available — version writes require "
+                "publish_mut_scope_update. Original error: "
+                f"{e}"
+            ) from e
+
+    def record_version_index(
+        self,
+        *,
+        scope_path: str,
+        source_commit_id: str,
+        source_scope_hash: str,
+        project_root_hash: str,
+        project_view_commit_id: str,
+    ) -> None:
+        """Persist the scope-commit → project-view-commit graft mapping."""
+
+        if not source_commit_id or not project_view_commit_id:
+            return
+        data = {
+            "project_id": self._project_id,
+            "scope_path": _normalize(scope_path),
+            "source_commit_id": source_commit_id,
+            "source_scope_hash": source_scope_hash or "",
+            "project_root_hash": project_root_hash or "",
+            "project_view_commit_id": project_view_commit_id,
+        }
+        self._client.table("mut_version_index").upsert(
+            data,
+            on_conflict="project_id,source_commit_id",
+        ).execute()
+
+    def get_latest_project_view_commit_id(self) -> str:
+        resp = (
+            self._client.table("mut_version_index")
+            .select("project_view_commit_id")
+            .eq("project_id", self._project_id)
+            .order("created_at", desc=True)
+            .order("id", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = _safe_data(resp) or []
+        return rows[0].get("project_view_commit_id", "") if rows else ""
+
+    def list_object_gc_roots(self) -> list[str]:
+        """Return durable roots that make Git objects reachable.
+
+        Used by the object GC mark phase. The method deliberately gathers
+        roots from DB facts rather than from the object store itself: current
+        scope refs, the project root, and all recorded commit rows are the
+        authoritative publish surface.
+        """
+
+        roots: list[str] = []
+        try:
+            data = (
+                self._client.table("projects")
+                .select("mut_root_hash")
+                .eq("id", self._project_id)
+                .maybe_single()
+                .execute()
+            )
+            project = _safe_data(data) or {}
+            roots.append(project.get("mut_root_hash", ""))
+        except Exception as exc:  # noqa: BLE001
+            log_error(f"[MutHistory] object GC project roots failed: {exc}")
+
+        try:
+            for row in _select_all(
+                self._client,
+                self.SCOPE_STATE_TABLE,
+                "scope_hash, head_commit_id",
+                project_id=self._project_id,
+            ):
+                roots.extend([row.get("scope_hash", ""), row.get("head_commit_id", "")])
+        except Exception as exc:  # noqa: BLE001
+            log_error(f"[MutHistory] object GC scope roots failed: {exc}")
+
+        try:
+            for row in _select_all(
+                self._client,
+                self.TABLE,
+                "commit_id, root_hash, scope_hash",
+                project_id=self._project_id,
+            ):
+                roots.extend([
+                    row.get("commit_id", ""),
+                    row.get("root_hash", ""),
+                    row.get("scope_hash", ""),
+                ])
+        except Exception as exc:  # noqa: BLE001
+            log_error(f"[MutHistory] object GC history roots failed: {exc}")
+
+        return roots
+
+    def list_version_index_roots(self) -> list[dict]:
+        """Return persistent subtree/history graft roots for object GC."""
+
+        try:
+            return _select_all(
+                self._client,
+                "mut_version_index",
+                (
+                    "source_commit_id, source_scope_hash, "
+                    "project_root_hash, project_view_commit_id"
+                ),
+                project_id=self._project_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log_warning(f"[MutHistory] object GC version-index roots unavailable: {exc}")
+            return []
+
+    def list_pending_outbox_roots(self) -> list[dict]:
+        """Return unprocessed durable side-effect rows that must pin objects."""
+
+        try:
+            return _select_all_query(
+                lambda: (
+                    self._client.table("mut_version_outbox")
+                    .select("commit_id, payload")
+                    .eq("project_id", self._project_id)
+                    .is_("processed_at", "null")
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            log_warning(f"[MutHistory] object GC outbox roots unavailable: {exc}")
+            return []
+
+    def list_pending_conflict_roots(self) -> list[dict]:
+        """Return pending conflict metadata that may reference promoted roots."""
+
+        try:
+            return [
+                row.get("metadata") or {}
+                for row in _select_all_query(
+                    lambda: (
+                        self._client.table("audit_logs")
+                        .select("metadata")
+                        .eq("project_id", self._project_id)
+                        .like("action", "%conflict_pending%")
+                    )
+                )
+            ]
+        except Exception as exc:  # noqa: BLE001
+            log_warning(f"[MutHistory] object GC pending-conflict roots unavailable: {exc}")
+            return []
 
     # ── Scope History Queries ──
 
@@ -457,6 +673,43 @@ def _normalize(scope_path: str) -> str:
     rule as a second layer of defense.
     """
     return scope_path.strip("/") if scope_path else ""
+
+
+def _select_all(
+    client,
+    table: str,
+    columns: str,
+    *,
+    project_id: str,
+    page_size: int = 1000,
+) -> list[dict]:
+    return _select_all_query(
+        lambda: client.table(table).select(columns).eq("project_id", project_id),
+        page_size=page_size,
+    )
+
+
+def _select_all_query(query_factory, *, page_size: int = 1000) -> list[dict]:
+    rows: list[dict] = []
+    start = 0
+    page_size = max(1, min(int(page_size), 1000))
+    while True:
+        query = query_factory()
+        resp = query.range(start, start + page_size - 1).execute()
+        batch = _safe_data(resp) or []
+        rows.extend(batch)
+        if len(batch) < page_size:
+            return rows
+        start += page_size
+
+
+def _serialize_conflicts(conflicts: list | None) -> list:
+    from dataclasses import asdict
+
+    return [
+        asdict(c) if hasattr(c, "__dataclass_fields__") else c
+        for c in (conflicts or [])
+    ]
 
 
 def _parse_json_fields(entry: dict) -> None:

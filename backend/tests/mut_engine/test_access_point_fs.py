@@ -1,8 +1,10 @@
+import hashlib
 import json
 from types import SimpleNamespace
 
 import pytest
 from mut.core.object_store import ObjectStore, StorageBackend
+from mut.foundation.git_format import MODE_FILE, TreeEntry, encode_tree
 
 from fastapi import HTTPException
 
@@ -87,6 +89,9 @@ class _FakeOps:
         self.touches = []
         self.deletes = []
         self.writes = []
+        self.stat_calls = []
+        self.head_calls = 0
+        self.scope_head_calls = 0
 
     def read_file(self, _project_id, path):
         if path not in self.files:
@@ -107,6 +112,7 @@ class _FakeOps:
         )
 
     def stat(self, _project_id, path, *, include_size=False):
+        self.stat_calls.append({"path": path, "include_size": include_size})
         return self.stats.get(path)
 
     def list_dir(self, _project_id, _path, *, include_size=False):
@@ -123,9 +129,11 @@ class _FakeOps:
         return self.tree_entries[:max_entries]
 
     def get_head_commit_id(self, _project_id):
+        self.head_calls += 1
         return "head"
 
     def get_scope_head_commit_id(self, _project_id, _scope_path):
+        self.scope_head_calls += 1
         return "scope-head"
 
     def get_path_timestamps(self, _project_id, paths, *, limit=5000):
@@ -138,7 +146,8 @@ class _FakeOps:
         }
 
     async def write_file(
-        self, project_id, path, content, *, who, scope, message, base_commit_id=None
+        self, project_id, path, content, *, who, scope, message,
+        base_commit_id=None, defer_projection=False
     ):
         self.writes.append({
             "project_id": project_id,
@@ -148,11 +157,13 @@ class _FakeOps:
             "scope": scope,
             "message": message,
             "base_commit_id": base_commit_id,
+            "defer_projection": defer_projection,
         })
         return SimpleNamespace(commit_id="write-commit")
 
     async def mkdir(
-        self, project_id, path, *, who, scope, message, base_commit_id=None
+        self, project_id, path, *, who, scope, message,
+        base_commit_id=None, defer_projection=False
     ):
         self.mkdirs.append({
             "project_id": project_id,
@@ -161,11 +172,13 @@ class _FakeOps:
             "scope": scope,
             "message": message,
             "base_commit_id": base_commit_id,
+            "defer_projection": defer_projection,
         })
         return SimpleNamespace(commit_id="mkdir-commit")
 
     async def move(
-        self, project_id, old_path, new_path, *, who, scope, message, base_commit_id=None
+        self, project_id, old_path, new_path, *, who, scope, message,
+        base_commit_id=None, defer_projection=False
     ):
         self.moves.append({
             "project_id": project_id,
@@ -175,11 +188,13 @@ class _FakeOps:
             "scope": scope,
             "message": message,
             "base_commit_id": base_commit_id,
+            "defer_projection": defer_projection,
         })
         return SimpleNamespace(commit_id="move-commit")
 
     async def copy(
-        self, project_id, old_path, new_path, *, who, scope, message, base_commit_id=None
+        self, project_id, old_path, new_path, *, who, scope, message,
+        base_commit_id=None, defer_projection=False
     ):
         self.copies.append({
             "project_id": project_id,
@@ -189,11 +204,13 @@ class _FakeOps:
             "scope": scope,
             "message": message,
             "base_commit_id": base_commit_id,
+            "defer_projection": defer_projection,
         })
         return SimpleNamespace(commit_id="copy-commit")
 
     async def touch(
-        self, project_id, paths, *, who, scope, message, base_commit_id=None
+        self, project_id, paths, *, who, scope, message,
+        base_commit_id=None, defer_projection=False
     ):
         self.touches.append({
             "project_id": project_id,
@@ -202,11 +219,13 @@ class _FakeOps:
             "scope": scope,
             "message": message,
             "base_commit_id": base_commit_id,
+            "defer_projection": defer_projection,
         })
         return SimpleNamespace(commit_id="touch-commit")
 
     async def delete(
-        self, project_id, paths, *, who, scope, message, base_commit_id=None
+        self, project_id, paths, *, who, scope, message,
+        base_commit_id=None, defer_projection=False
     ):
         self.deletes.append({
             "project_id": project_id,
@@ -215,6 +234,7 @@ class _FakeOps:
             "scope": scope,
             "message": message,
             "base_commit_id": base_commit_id,
+            "defer_projection": defer_projection,
         })
         return SimpleNamespace(commit_id="delete-commit")
 
@@ -242,10 +262,10 @@ def test_filter_entries_can_include_dot_entries():
 
 def test_tree_reader_includes_size_only_when_requested(tmp_path):
     store = ObjectStore(tmp_path / "objects")
-    blob_hash = store.put(b"hello")
-    root_hash = store.put(
-        json.dumps({"hello.txt": ["B", blob_hash]}, sort_keys=True).encode()
-    )
+    blob_hash = store.put_blob(b"hello")
+    root_hash = store.put_tree(encode_tree([
+        TreeEntry(name="hello.txt", mode=MODE_FILE, sha1_hex=blob_hash),
+    ]))
 
     class _History:
         def get_root_hash(self):
@@ -273,13 +293,13 @@ def test_tree_reader_includes_size_only_when_requested(tmp_path):
     assert stat_entry.size_bytes == 5
 
 
-def test_tree_reader_uses_backend_range_read(tmp_path):
+def test_tree_reader_ranges_decoded_git_blob_content(tmp_path):
     backend = _RangeBackend()
     store = ObjectStore(tmp_path / "objects", backend=backend)
-    blob_hash = store.put(b"abcdef")
-    root_hash = store.put(
-        json.dumps({"blob.bin": ["B", blob_hash]}, sort_keys=True).encode()
-    )
+    blob_hash = store.put_blob(b"abcdef")
+    root_hash = store.put_tree(encode_tree([
+        TreeEntry(name="blob.bin", mode=MODE_FILE, sha1_hex=blob_hash),
+    ]))
 
     class _History:
         def get_root_hash(self):
@@ -303,7 +323,66 @@ def test_tree_reader_uses_backend_range_read(tmp_path):
     assert result.content == b"cde"
     assert result.total_size == 6
     assert result.ranged is True
-    assert backend.ranges == [{"hash": blob_hash, "start": 2, "limit": 3}]
+    assert backend.ranges == []
+
+
+def test_tree_reader_reads_legacy_raw_json_tree_and_blob(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    blob = b"legacy bytes"
+    blob_hash = hashlib.sha1(blob).hexdigest()
+    tree_raw = json.dumps({"legacy.txt": ["B", blob_hash]}).encode("utf-8")
+    root_hash = hashlib.sha1(tree_raw).hexdigest()
+    store.put_loose(blob_hash, blob)
+    store.put_loose(root_hash, tree_raw)
+
+    class _History:
+        def get_root_hash(self):
+            return root_hash
+
+    class _Repo:
+        pass
+
+    repo = _Repo()
+    repo.history = _History()
+    repo.store = store
+
+    class _Repos:
+        def get_repo(self, project_id):
+            return repo
+
+    reader = MutTreeReader(_Repos())
+
+    entries = reader.list_dir("project-id", include_size=True)
+    assert [entry.path for entry in entries] == ["legacy.txt"]
+    assert entries[0].size_bytes == len(blob)
+    assert reader.read_file("project-id", "legacy.txt") == blob
+
+
+def test_tree_reader_scope_methods_read_scope_head_without_root_projection(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    blob_hash = store.put_blob(b"scope bytes")
+    scope_hash = store.put_tree(encode_tree([
+        TreeEntry(name="inside.txt", mode=MODE_FILE, sha1_hex=blob_hash),
+    ]))
+
+    class _Repo:
+        def __init__(self):
+            self.store = store
+
+        def get_scope_hash(self, scope_path):
+            assert scope_path == "Scope"
+            return scope_hash
+
+    class _Repos:
+        def get_server_repo(self, project_id):
+            return _Repo()
+
+    reader = MutTreeReader(_Repos())
+
+    entries = reader.list_dir_in_scope("project-id", "Scope")
+    assert [entry.path for entry in entries] == ["Scope/inside.txt"]
+    assert reader.stat_in_scope("project-id", "Scope", "inside.txt").path == "Scope/inside.txt"
+    assert reader.read_file_in_scope("project-id", "Scope", "inside.txt") == b"scope bytes"
 
 
 @pytest.mark.asyncio
@@ -404,6 +483,56 @@ async def test_upload_writes_raw_bytes_through_mut_ops(monkeypatch):
     assert result.data["size_bytes"] == 6
     assert ops.writes[0]["path"] == "bin.dat"
     assert ops.writes[0]["content"] == b"\x00bytes"
+    assert ops.writes[0]["defer_projection"] is True
+
+
+@pytest.mark.asyncio
+async def test_write_defers_projection_for_cli_latency(monkeypatch):
+    _patch_auth(monkeypatch)
+    ops = _FakeOps()
+
+    result = await apfs.write_file(
+        apfs.WriteFileRequest(
+            path="note.md",
+            content="hello",
+            node_type="markdown",
+            base_commit_id="base",
+        ),
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=ops,
+    )
+
+    assert result.data["commit_id"] == "write-commit"
+    assert ops.writes[0]["path"] == "note.md"
+    assert ops.writes[0]["base_commit_id"] == "base"
+    assert ops.writes[0]["defer_projection"] is True
+
+
+@pytest.mark.asyncio
+async def test_root_stat_uses_scope_head_fast_path(monkeypatch):
+    _patch_auth(monkeypatch, scope_path="docs")
+    ops = _FakeOps(stats={"docs": _entry("docs", "folder")})
+
+    result = await apfs.stat(
+        path="",
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=ops,
+    )
+
+    assert result.data["exists"] is True
+    assert result.data["type"] == "folder"
+    assert result.data["path"] == ""
+    assert result.data["mut_path"] == "docs"
+    assert result.data["head_commit_id"] == "scope-head"
+    assert result.data["scope_head_commit_id"] == "scope-head"
+    assert result.data["metadata_source"] == "scope_state"
+    assert ops.scope_head_calls == 1
+    assert ops.head_calls == 0
+    assert ops.stat_calls == []
 
 
 @pytest.mark.asyncio
@@ -503,6 +632,177 @@ async def test_tree_missing_path_raises_not_found(monkeypatch):
         )
 
     assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_grep_live_scans_text_files(monkeypatch):
+    _patch_auth(monkeypatch)
+    result = await apfs.grep(
+        pattern="hello",
+        path="",
+        regex=False,
+        ignore_case=False,
+        include_hidden=False,
+        max_depth=-1,
+        limit=10,
+        max_files=10,
+        max_bytes=1000,
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=_FakeOps(
+            stats={"": _entry("", "folder")},
+            tree=[
+                _entry("README.md", "markdown"),
+                _entry("image.png", "file"),
+            ],
+            files={"README.md": b"hello\nworld\nhello again\n"},
+        ),
+    )
+
+    assert result.data["complete"] is True
+    assert result.data["returned_count"] == 2
+    assert result.data["scanned_files"] == 1
+    assert result.data["skipped"]["non_text"] == 1
+    assert [m["line_number"] for m in result.data["matches"]] == [1, 3]
+    assert result.data["matches"][1]["line_text"] == "hello again"
+    assert result.data["head_commit_id"] == "scope-head"
+
+
+@pytest.mark.asyncio
+async def test_grep_regex_and_ignore_case(monkeypatch):
+    _patch_auth(monkeypatch)
+    result = await apfs.grep(
+        pattern=r"hello\s+\w+",
+        path="README.md",
+        regex=True,
+        ignore_case=True,
+        include_hidden=False,
+        max_depth=-1,
+        limit=10,
+        max_files=10,
+        max_bytes=1000,
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=_FakeOps(
+            stats={"README.md": _entry("README.md", "markdown")},
+            files={"README.md": b"HELLO PuppyOne\nbye\n"},
+        ),
+    )
+
+    assert result.data["returned_count"] == 1
+    assert result.data["matches"][0]["match_start"] == 0
+    assert result.data["matches"][0]["line_text"] == "HELLO PuppyOne"
+
+
+@pytest.mark.asyncio
+async def test_grep_result_limit_marks_truncated(monkeypatch):
+    _patch_auth(monkeypatch)
+    result = await apfs.grep(
+        pattern="x",
+        path="",
+        regex=False,
+        ignore_case=False,
+        include_hidden=False,
+        max_depth=-1,
+        limit=1,
+        max_files=10,
+        max_bytes=1000,
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=_FakeOps(
+            stats={"": _entry("", "folder")},
+            tree=[_entry("a.md", "markdown", size_bytes=None)],
+            files={"a.md": b"x\nx\n"},
+        ),
+    )
+
+    assert result.data["complete"] is False
+    assert result.data["truncated"] is True
+    assert result.data["truncation_reason"] == "result_limit_exceeded"
+    assert result.data["returned_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_grep_unix_flags_only_matching_max_count_and_globs(monkeypatch):
+    _patch_auth(monkeypatch)
+    result = await apfs.grep(
+        pattern=r"alpha|beta",
+        path="",
+        regex=True,
+        ignore_case=False,
+        invert_match=False,
+        only_matching=True,
+        include_hidden=False,
+        include="*.md",
+        exclude="",
+        exclude_dir="",
+        max_depth=-1,
+        max_count=2,
+        limit=10,
+        max_files=10,
+        max_bytes=1000,
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=_FakeOps(
+            stats={"": _entry("", "folder")},
+            tree=[
+                _entry("docs/a.md", "markdown"),
+                _entry("docs/b.txt", "file"),
+            ],
+            files={
+                "docs/a.md": b"alpha beta\nalpha\n",
+                "docs/b.txt": b"alpha\n",
+            },
+        ),
+    )
+
+    assert result.data["complete"] is True
+    assert result.data["returned_count"] == 2
+    assert result.data["matches"][0]["match_text"] == "alpha"
+    assert result.data["matches"][1]["match_text"] == "beta"
+    assert result.data["files"] == [
+        {
+            "path": "docs/a.md",
+            "mut_path": "docs/a.md",
+            "match_count": 2,
+            "content_hash": None,
+        },
+    ]
+    assert result.data["matched_files"] == 1
+
+
+@pytest.mark.asyncio
+async def test_grep_invert_match_returns_non_matching_lines(monkeypatch):
+    _patch_auth(monkeypatch)
+    result = await apfs.grep(
+        pattern="skip",
+        path="README.md",
+        regex=False,
+        ignore_case=False,
+        invert_match=True,
+        only_matching=False,
+        include_hidden=False,
+        max_depth=-1,
+        max_count=0,
+        limit=10,
+        max_files=10,
+        max_bytes=1000,
+        x_access_key="key",
+        x_mut_user=None,
+        x_puppy_client=None,
+        ops=_FakeOps(
+            stats={"README.md": _entry("README.md", "markdown")},
+            files={"README.md": b"keep\nskip\nalso keep\n"},
+        ),
+    )
+
+    assert result.data["returned_count"] == 2
+    assert [m["line_text"] for m in result.data["matches"]] == ["keep", "also keep"]
+    assert result.data["files"][0]["match_count"] == 2
 
 
 @pytest.mark.asyncio
@@ -641,6 +941,7 @@ async def test_touch_missing_file_writes_empty_file_through_mut_ops(monkeypatch)
         "scope": "",
         "message": "ap touch new.txt",
         "base_commit_id": "base",
+        "defer_projection": True,
     }]
 
 

@@ -46,12 +46,11 @@ class PuppyOneServerRepo:
     # advance — older entries fall out FIFO-style.
     #
     # Why class-level rather than instance-level: ``get_server_repo``
-    # mints a fresh PuppyOneServerRepo on every API request, but
-    # ``handle_push`` calls ``list_scope_files`` AGAIN on every CAS
-    # retry inside the same request, AND the next request also
-    # benefits from the cache as long as nothing mutated the scope.
-    # Putting the dict on the class gives both behaviours from one
-    # cache.
+    # mints a fresh PuppyOneServerRepo on every API request, but version
+    # submissions may read the same scope tree multiple times during merge/CAS
+    # retry, AND the next request also benefits from the cache as long as
+    # nothing mutated the scope. Putting the dict on the class gives both
+    # behaviours from one cache.
     _scope_files_cache: ClassVar[OrderedDict[tuple[str, str, str], dict[str, bytes]]] = OrderedDict()
     _scope_files_cache_lock: ClassVar[threading.Lock] = threading.Lock()
     _SCOPE_FILES_CACHE_MAX: ClassVar[int] = 32
@@ -121,6 +120,21 @@ class PuppyOneServerRepo:
     def get_scope_hash(self, scope_path: str) -> str:
         return self.history.get_scope_hash(scope_path)
 
+    def get_scope_state(self, scope_path: str) -> tuple[str, str]:
+        """Return ``(scope_hash, head_commit_id)`` for one scope.
+
+        Supabase can serve this in one query. Older/test backends can keep
+        implementing the individual getters and still satisfy this façade.
+        """
+        get_state = getattr(self.history, "get_scope_state", None)
+        if callable(get_state):
+            scope_hash, head_commit_id = get_state(scope_path)
+            return scope_hash or "", head_commit_id or ""
+        return (
+            self.get_scope_hash(scope_path) or "",
+            self.get_scope_head_commit_id(scope_path) or "",
+        )
+
     def get_all_scope_hashes(self) -> dict[str, str]:
         """Snapshot of every scope's current hash for this project.
 
@@ -173,6 +187,90 @@ class PuppyOneServerRepo:
             created_at_iso=created_at_iso,
         )
 
+    def publish_scope_update(
+        self,
+        *,
+        scope_path: str,
+        old_scope_hash: str,
+        new_scope_hash: str,
+        commit_id: str,
+        who: str,
+        message: str,
+        changes: list,
+        conflicts: list | None,
+        created_at_iso: str,
+        audit_event_type: str,
+        audit_agent_id: str,
+        audit_detail: dict,
+    ) -> bool:
+        """Publish the accepted version transaction.
+
+        Supabase-backed repos delegate to a single SQL RPC that updates the
+        scope ref, history, audit, and outbox atomically. Test/in-memory repos
+        without that RPC keep the same interface and use the existing CAS path.
+        """
+
+        publish = getattr(self.history, "publish_scope_update", None)
+        if callable(publish):
+            return publish(
+                scope_path=scope_path,
+                old_scope_hash=old_scope_hash,
+                new_scope_hash=new_scope_hash,
+                commit_id=commit_id,
+                who=who,
+                message=message,
+                changes=changes,
+                conflicts=conflicts,
+                created_at_iso=created_at_iso,
+                audit_event_type=audit_event_type,
+                audit_agent_id=audit_agent_id,
+                audit_detail=audit_detail,
+            )
+
+        if not self.cas_update_scope(
+            scope_path,
+            old_scope_hash,
+            new_scope_hash,
+            head_commit_id=commit_id,
+        ):
+            return False
+        self.record_history(
+            commit_id,
+            who,
+            message,
+            scope_path,
+            changes,
+            conflicts,
+            scope_hash=new_scope_hash,
+            created_at_iso=created_at_iso,
+        )
+        self.set_head_commit_id(commit_id)
+        self.record_audit(audit_event_type, audit_agent_id, audit_detail)
+        return True
+
+    def record_version_index(
+        self,
+        *,
+        scope_path: str,
+        source_commit_id: str,
+        source_scope_hash: str,
+        project_root_hash: str,
+        project_view_commit_id: str,
+    ) -> None:
+        record = getattr(self.history, "record_version_index", None)
+        if callable(record):
+            record(
+                scope_path=scope_path,
+                source_commit_id=source_commit_id,
+                source_scope_hash=source_scope_hash,
+                project_root_hash=project_root_hash,
+                project_view_commit_id=project_view_commit_id,
+            )
+
+    def get_latest_project_view_commit_id(self) -> str:
+        latest = getattr(self.history, "get_latest_project_view_commit_id", None)
+        return latest() if callable(latest) else ""
+
     def get_history_since(
         self, since_commit_id: str,
         scope_path: str | None = None, limit: int = 0,
@@ -214,8 +312,8 @@ class PuppyOneServerRepo:
         Cached on (project_id, scope_path, scope_hash). The cost we're
         avoiding is one ``read_tree`` per tree node plus one ``store.get``
         per blob — on a project with a 26 MB blob this was a 19-second
-        round-trip, hit twice per push (once here, once by handle_push's
-        ``_flatten_tree_to_bytes``). Cache hits return in microseconds.
+        round-trip, hit repeatedly during version merge and scope reads.
+        Cache hits return in microseconds.
         """
         scope_path = normalize_path(scope.get("path", ""))
         scope_hash = self.get_scope_hash(scope_path)

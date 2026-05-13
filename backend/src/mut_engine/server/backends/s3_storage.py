@@ -19,10 +19,13 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import cachetools
 
 from mut.core.object_store import StorageBackend
+from mut.foundation.git_format import decode_object, hash_object
 from mut.foundation.error import ObjectNotFoundError
 
 try:
@@ -79,9 +82,8 @@ def _run_async(coro):
 # LRU is keyed by content hash, so cached objects are immutable —
 # we can cache aggressively and the only cost is RAM. Tree nodes are
 # tiny (a few KB) but blob payloads can be tens of MB on real
-# projects, and they're hit twice per push (once by handle_push's
-# _flatten_tree_to_bytes for the incoming snapshot, once by
-# _push_cas_attempt's list_scope_files for the current scope state).
+# projects, and version submissions can hit them repeatedly while flattening
+# incoming/current/base trees for server-side merge and CAS retry.
 # A 1 MB threshold meant a 26 MB user blob fell through both passes
 # and triggered two 19-second S3 GETs per push. Lifting the
 # per-object threshold to ~64 MB lets large blobs land in the LRU
@@ -93,6 +95,10 @@ _CACHEABLE_THRESHOLD = 64 * 1024 * 1024  # cache up to 64 MB per object
 
 _global_cache: cachetools.LRUCache | None = None
 _cache_lock = threading.Lock()
+_ACTIVE_WRITE_BATCH: ContextVar["ObjectWriteBatch | None"] = ContextVar(
+    "mut_object_write_batch",
+    default=None,
+)
 
 
 def _get_global_cache() -> cachetools.LRUCache:
@@ -123,6 +129,11 @@ class CachedStorageBackend(StorageBackend):
         self._cache = _get_global_cache()
 
     def get(self, h: str) -> bytes:
+        active_batch = _ACTIVE_WRITE_BATCH.get()
+        if active_batch is not None and active_batch.backend is self:
+            pending = active_batch.get(h)
+            if pending is not None:
+                return pending
         with _cache_lock:
             cached = self._cache.get(h)
         if cached is not None:
@@ -153,11 +164,18 @@ class CachedStorageBackend(StorageBackend):
         # Content-addressed: if the hash is already in the cache,
         # the inner backend has the same bytes (we put them there
         # ourselves on a previous call). Skip the S3 HEAD round-trip.
-        # This is what makes the second pass of handle_push (which
-        # re-puts every blob via _build_tree_from_files) free.
+        # This is what makes repeated tree rebuilds that re-put already-known
+        # blobs effectively free.
         with _cache_lock:
             already_cached = h in self._cache
         if already_cached:
+            return
+        active_batch = _ACTIVE_WRITE_BATCH.get()
+        if active_batch is not None and active_batch.backend is self:
+            active_batch.put(h, data)
+            if len(data) < _CACHEABLE_THRESHOLD:
+                with _cache_lock:
+                    self._cache[h] = data
             return
         self._inner.put(h, data)
         if len(data) < _CACHEABLE_THRESHOLD:
@@ -165,6 +183,13 @@ class CachedStorageBackend(StorageBackend):
                 self._cache[h] = data
 
     def exists(self, h: str) -> bool:
+        active_batch = _ACTIVE_WRITE_BATCH.get()
+        if (
+            active_batch is not None
+            and active_batch.backend is self
+            and active_batch.has(h)
+        ):
+            return True
         with _cache_lock:
             if h in self._cache:
                 return True
@@ -173,6 +198,12 @@ class CachedStorageBackend(StorageBackend):
     def all_hashes(self) -> list[str]:
         return self._inner.all_hashes()
 
+    def all_hashes_with_metadata(self) -> dict[str, dict]:
+        getter = getattr(self._inner, "all_hashes_with_metadata", None)
+        if callable(getter):
+            return getter()
+        return {h: {} for h in self.all_hashes()}
+
     def count(self) -> tuple[int, int]:
         return self._inner.count()
 
@@ -180,6 +211,72 @@ class CachedStorageBackend(StorageBackend):
         with _cache_lock:
             self._cache.pop(h, None)
         return self._inner.delete(h)
+
+
+class ObjectWriteBatch:
+    """Stage content-addressed object writes and flush them as one batch."""
+
+    def __init__(self, backend: CachedStorageBackend):
+        self.backend = backend
+        self._objects: dict[str, bytes] = {}
+
+    def put(self, h: str, data: bytes) -> None:
+        _verify_loose_hash(h, data)
+        self._objects[h] = data
+
+    def get(self, h: str) -> bytes | None:
+        return self._objects.get(h)
+
+    def has(self, h: str) -> bool:
+        return h in self._objects
+
+    def flush(self) -> None:
+        objects = dict(self._objects)
+        if not objects:
+            return
+        inner = self.backend._inner
+        async_put_many = getattr(inner, "async_put_many", None)
+        if callable(async_put_many):
+            _run_async(async_put_many(objects, skip_exists=True))
+        else:
+            for h, data in objects.items():
+                inner.put(h, data)
+        self._objects.clear()
+
+
+@contextmanager
+def stage_object_writes(store_or_backend):
+    """Stage ObjectStore writes for a synchronous version transaction.
+
+    A Git object id is a hash of the object body, so accepted operation
+    writes can safely compute all blob/tree/commit ids first, then upload
+    those immutable objects in parallel immediately before publishing the
+    scope ref. This keeps the publish boundary synchronous while removing
+    avoidable serial S3 latency from tiny CLI writes.
+    """
+    backend = getattr(store_or_backend, "_backend", store_or_backend)
+    if not isinstance(backend, CachedStorageBackend):
+        yield None
+        return
+
+    batch = ObjectWriteBatch(backend)
+    token = _ACTIVE_WRITE_BATCH.set(batch)
+    try:
+        yield batch
+    finally:
+        _ACTIVE_WRITE_BATCH.reset(token)
+
+
+def _verify_loose_hash(expected_hash: str, data: bytes) -> None:
+    try:
+        obj_type, content = decode_object(data)
+        actual_hash = hash_object(obj_type, content)
+    except Exception as e:
+        raise StorageWriteError(f"invalid git loose object for {expected_hash}: {e}") from e
+    if actual_hash != expected_hash:
+        raise StorageWriteError(
+            f"content-addressed object mismatch: expected {expected_hash}, got {actual_hash}",
+        )
 
 
 # ═══════════════════════════════════════════════
@@ -241,18 +338,52 @@ class S3StorageBackend(StorageBackend):
 
     def all_hashes(self) -> list[str]:
         try:
-            items, _, _, _ = _run_async(
-                self._s3.list_files(prefix=f"{self._prefix}/", max_keys=_MAX_LIST_KEYS)
-            )
             hashes = []
-            for item in items:
-                parts = item.key.removeprefix(f"{self._prefix}/").split("/")
-                if len(parts) == 2:
-                    hashes.append(parts[0] + parts[1])
+            for item in self._list_all_object_items():
+                object_id = self._hash_from_key(item.key)
+                if object_id:
+                    hashes.append(object_id)
             return hashes
         except Exception as e:
             log_error(f"[MutS3] Failed to list hashes: {e}")
             raise
+
+    def all_hashes_with_metadata(self) -> dict[str, dict]:
+        """Return object ids and S3 metadata needed by conservative GC."""
+        try:
+            result: dict[str, dict] = {}
+            for item in self._list_all_object_items():
+                object_id = self._hash_from_key(item.key)
+                if object_id:
+                    result[object_id] = {
+                        "last_modified": item.last_modified,
+                        "size": item.size,
+                    }
+            return result
+        except Exception as e:
+            log_error(f"[MutS3] Failed to list hash metadata: {e}")
+            raise
+
+    def _list_all_object_items(self) -> list:
+        items = []
+        token = None
+        while True:
+            page, _, token, truncated = _run_async(
+                self._s3.list_files(
+                    prefix=f"{self._prefix}/",
+                    max_keys=_MAX_LIST_KEYS,
+                    continuation_token=token,
+                )
+            )
+            items.extend(page)
+            if not truncated or not token:
+                return items
+
+    def _hash_from_key(self, key: str) -> str:
+        parts = key.removeprefix(f"{self._prefix}/").split("/")
+        if len(parts) != 2:
+            return ""
+        return parts[0] + parts[1]
 
     def count(self) -> tuple[int, int]:
         hashes = self.all_hashes()
@@ -330,7 +461,13 @@ class S3StorageBackend(StorageBackend):
                 else:
                     await self._do_put(key, data)
 
-        await asyncio.gather(*[_upload(h, d) for h, d in objects.items()], return_exceptions=True)
+        results = await asyncio.gather(
+            *[_upload(h, d) for h, d in objects.items()],
+            return_exceptions=True,
+        )
+        errors = [item for item in results if isinstance(item, Exception)]
+        if errors:
+            raise errors[0]
 
     async def async_exists_many(self, hashes: list[str], concurrency: int = 20) -> set[str]:
         """Check existence of multiple objects in parallel. Returns set of existing hashes."""

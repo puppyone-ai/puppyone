@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import base64
+import asyncio
 from datetime import UTC
 
 from mut.core.protocol import PROTOCOL_VERSION
@@ -25,9 +26,9 @@ from mut.server.handlers import (
     handle_clone,
     handle_negotiate,
     handle_pull,
-    handle_push,
 )
 
+from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
@@ -331,9 +332,11 @@ class MutEphemeralClient:
         )
 
         t2 = _time.monotonic()
-        result = handle_push(repo, self._auth, body)
+        result = _run_async_from_sync(
+            submit_mut_push(self._repo_manager, self._project_id, self._auth, body)
+        )
         log_info(
-            f"{op_tag} handle_push returned "
+            f"{op_tag} engine push returned "
             f"status={result.get('status', '?')} "
             f"commit={(result.get('commit_id') or '')[:12] or '<empty>'} "
             f"merged={result.get('merged', False)} "
@@ -607,6 +610,36 @@ def _content_hash(data: bytes) -> str:
     :func:`_put_blob`.
     """
     return hash_object("blob", data)
+
+
+def _run_async_from_sync(coro):
+    """Run an adapter coroutine from this intentionally synchronous client."""
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    # Defensive fallback for accidental direct calls from an event-loop thread.
+    # The usual callers already wrap ``MutEphemeralClient.push`` in
+    # ``asyncio.to_thread``.
+    import threading
+
+    result: dict = {}
+    error: list[BaseException] = []
+
+    def _runner() -> None:
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:  # noqa: BLE001 - shuttle to caller
+            error.append(exc)
+
+    thread = threading.Thread(target=_runner, name="mut-ephemeral-push", daemon=True)
+    thread.start()
+    thread.join()
+    if error:
+        raise error[0]
+    return result.get("value")
 
 
 def _now_iso() -> str:

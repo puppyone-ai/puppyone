@@ -9,17 +9,15 @@ Architecture:
     Each typed write op (``write_file``, ``delete``, ``mkdir``, ``move``,
     ``permanent_delete``, ``bulk_write``)
     constructs an O(D) tree splice via ``services.tree_splice`` and
-    routes it through ``services.direct_writer.apply_mutation`` for
-    atomic CAS + history + audit + graft. No ``clone_lite``, no full
-    blob downloads, no 3-way merge.
+    routes it through the Git-native transaction engine for atomic
+    per-scope CAS + history + audit + graft. No ``clone_lite``, no full
+    blob downloads, no protocol-handler publish path.
 
     Read ops resolve straight against the persisted Merkle root via
     ``MutTreeReader`` (S3-cached tree-node reads only, no flattening).
 
-    External CLI / sync clients still use the MUT protocol via
-    ``/api/v1/mut/*`` (with merge semantics for divergent local
-    state) — that path lives in ``protocol_router`` and is unaffected
-    by this module.
+    External protocol clients submit version intents through adapters.
+    Product operations do not own publish semantics directly.
 
 Usage:
     ops = MutOps(repo_manager)
@@ -31,9 +29,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
+from src.mut_engine.domain.intents import OperationWriteIntent
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.validation import validate_path
-from src.mut_engine.services.direct_writer import apply_mutation
 from src.mut_engine.services.tree_reader import MutEntry, MutTreeReader
 from src.mut_engine.services.tree_splice import (
     splice_batch,
@@ -98,9 +97,38 @@ class MutOps:
     def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
         self._reader = MutTreeReader(repo_manager)
+        self._engine = GitNativeTransactionEngine(repo_manager)
+
+    async def _apply_operation(
+        self,
+        project_id: str,
+        scope: str,
+        splice_fn,
+        *,
+        who: str,
+        message: str,
+        op_type: str,
+        audit_detail: dict | None = None,
+        expected_head_commit_id: str | None = None,
+        allow_same_tree_commit: bool = False,
+        defer_projection: bool = False,
+    ):
+        intent = OperationWriteIntent(
+            project_id=project_id,
+            scope_path=scope,
+            actor=who,
+            source_channel="papi",
+            operation_type=op_type,
+            message=message,
+            audit_detail=audit_detail or {},
+            expected_head_commit_id=expected_head_commit_id,
+            allow_same_tree_commit=allow_same_tree_commit,
+            defer_projection=defer_projection,
+        )
+        return await self._engine.apply_operation(intent, splice_fn)
 
     # ══════════════════════════════════════════════
-    # Write operations — typed splice → direct_writer
+    # Write operations — typed splice → Git-native transaction engine
     # ══════════════════════════════════════════════
 
     async def write_file(
@@ -112,6 +140,7 @@ class MutOps:
         scope: str = "",
         message: str = "",
         base_commit_id: str | None = None,
+        defer_projection: bool = False,
     ) -> WriteResult:
         """Write a single file (create or update).
 
@@ -129,13 +158,14 @@ class MutOps:
         def splice_fn(store, root_hash):
             return splice_put_blob(store, root_hash, rel_path, content)
 
-        result = await apply_mutation(
-            self._repos, project_id, target_scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, target_scope, splice_fn,
             who=who,
             message=message or f"write {path}",
             op_type="write_file",
             audit_detail={"path": path, "size": len(content)},
             expected_head_commit_id=base_commit_id,
+            defer_projection=defer_projection,
         )
         return _to_result(result, [path])
 
@@ -147,6 +177,7 @@ class MutOps:
         scope: str = "",
         message: str = "",
         base_commit_id: str | None = None,
+        defer_projection: bool = False,
     ) -> WriteResult:
         """Delete one or more files.
 
@@ -159,6 +190,7 @@ class MutOps:
         if scope:
             return await self._delete_in_scope(
                 project_id, scope, clean, who, message, base_commit_id,
+                defer_projection,
             )
 
         groups = self._group_paths_by_scope(project_id, clean)
@@ -170,6 +202,7 @@ class MutOps:
         for target_scope, rel_paths in groups.items():
             r = await self._delete_in_scope(
                 project_id, target_scope, rel_paths, who, message, base_commit_id,
+                defer_projection,
             )
             first_result = first_result or r
         return first_result or WriteResult(paths=clean)
@@ -182,17 +215,19 @@ class MutOps:
         who: str,
         message: str,
         base_commit_id: str | None = None,
+        defer_projection: bool = False,
     ) -> WriteResult:
         def splice_fn(store, root_hash):
             return splice_remove(store, root_hash, rel_paths)
 
-        result = await apply_mutation(
-            self._repos, project_id, scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, scope, splice_fn,
             who=who,
             message=message or f"delete {len(rel_paths)} files",
             op_type="delete",
             audit_detail={"paths": rel_paths},
             expected_head_commit_id=base_commit_id,
+            defer_projection=defer_projection,
         )
         full_paths = [
             self._join_scope_path(scope, p) for p in rel_paths
@@ -207,6 +242,7 @@ class MutOps:
         scope: str = "",
         message: str = "",
         base_commit_id: str | None = None,
+        defer_projection: bool = False,
     ) -> WriteResult:
         """Create a directory (writes a ``.keep`` placeholder).
 
@@ -228,13 +264,14 @@ class MutOps:
         def splice_fn(store, root_hash):
             return splice_mkdir(store, root_hash, rel_dir)
 
-        result = await apply_mutation(
-            self._repos, project_id, target_scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, target_scope, splice_fn,
             who=who,
             message=message or f"mkdir {path}",
             op_type="mkdir",
             audit_detail={"path": path},
             expected_head_commit_id=base_commit_id,
+            defer_projection=defer_projection,
         )
         return _to_result(result, [path])
 
@@ -247,6 +284,7 @@ class MutOps:
         scope: str = "",
         message: str = "",
         base_commit_id: str | None = None,
+        defer_projection: bool = False,
     ) -> WriteResult:
         """Move / rename a file or folder.
 
@@ -274,13 +312,14 @@ class MutOps:
         def splice_fn(store, root_hash):
             return splice_move(store, root_hash, old_rel, new_rel)
 
-        result = await apply_mutation(
-            self._repos, project_id, old_scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, old_scope, splice_fn,
             who=who,
             message=message or f"move {old_path} → {new_path}",
             op_type="move",
             audit_detail={"old_path": old_path, "new_path": new_path},
             expected_head_commit_id=base_commit_id,
+            defer_projection=defer_projection,
         )
 
         # Best-effort secondary index update — keeps access_points and
@@ -309,6 +348,7 @@ class MutOps:
         scope: str = "",
         message: str = "",
         base_commit_id: str | None = None,
+        defer_projection: bool = False,
     ) -> WriteResult:
         """Copy a file or folder without downloading blob contents."""
         old_path = validate_path(old_path)
@@ -331,13 +371,14 @@ class MutOps:
         def splice_fn(store, root_hash):
             return splice_copy(store, root_hash, old_rel, new_rel)
 
-        result = await apply_mutation(
-            self._repos, project_id, old_scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, old_scope, splice_fn,
             who=who,
             message=message or f"copy {old_path} -> {new_path}",
             op_type="copy",
             audit_detail={"old_path": old_path, "new_path": new_path},
             expected_head_commit_id=base_commit_id,
+            defer_projection=defer_projection,
         )
         return _to_result(result, [old_path, new_path])
 
@@ -349,6 +390,7 @@ class MutOps:
         scope: str = "",
         message: str = "",
         base_commit_id: str | None = None,
+        defer_projection: bool = False,
     ) -> WriteResult:
         """Update mtime for existing files without changing blob content."""
         clean = [validate_path(p) for p in paths]
@@ -367,14 +409,15 @@ class MutOps:
         def splice_fn(store, root_hash):
             return splice_touch(store, root_hash, rel_paths)
 
-        result = await apply_mutation(
-            self._repos, project_id, target_scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, target_scope, splice_fn,
             who=who,
             message=message or f"touch {len(clean)} files",
             op_type="touch",
             audit_detail={"paths": clean},
             expected_head_commit_id=base_commit_id,
             allow_same_tree_commit=True,
+            defer_projection=defer_projection,
         )
         full_paths = [self._join_scope_path(target_scope, p) for p in rel_paths]
         return _to_result(result, full_paths)
@@ -387,6 +430,7 @@ class MutOps:
         scope: str = "",
         deleted: list[str] | None = None,
         message: str = "",
+        defer_projection: bool = False,
     ) -> WriteResult:
         """Batch write + optional batch delete in one commit per scope.
 
@@ -402,7 +446,7 @@ class MutOps:
                 project_id, scope,
                 {k: clean[k] for k in clean},
                 clean_del,
-                who, message,
+                who, message, defer_projection,
             )
 
         write_groups = self._group_paths_by_scope(
@@ -421,6 +465,7 @@ class MutOps:
             r = await self._bulk_write_in_scope(
                 project_id, target_scope,
                 rel_files, rel_dels, who, message,
+                defer_projection,
             )
             first_result = first_result or r
         return first_result or WriteResult(
@@ -435,6 +480,7 @@ class MutOps:
         rel_dels: list[str],
         who: str,
         message: str,
+        defer_projection: bool = False,
     ) -> WriteResult:
         ops: list[tuple] = []
         ops.extend(("put", path, content) for path, content in rel_files.items())
@@ -445,8 +491,8 @@ class MutOps:
         def splice_fn(store, root_hash):
             return splice_batch(store, root_hash, ops)
 
-        result = await apply_mutation(
-            self._repos, project_id, scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, scope, splice_fn,
             who=who,
             message=message or f"bulk write {len(rel_files)} files",
             op_type="bulk_write",
@@ -454,6 +500,7 @@ class MutOps:
                 "writes": len(rel_files),
                 "deletes": len(rel_dels),
             },
+            defer_projection=defer_projection,
         )
         full_paths = [
             self._join_scope_path(scope, p)
@@ -510,12 +557,12 @@ class MutOps:
         uses S3 ``CopyObject`` to put the blob at the MUT key without
         ever loading it into the backend process.
 
-        Implementation note: we deliberately bypass ``apply_mutation``
+        Implementation note: we deliberately bypass the transaction engine
         here. A pure stage doesn't change any tree, so the scope
-        lock + ``scope_hash`` DB read that ``apply_mutation`` does
+        lock + ``scope_hash`` DB read that a write transaction does
         upfront would be wasted work. Instead we go straight to the
-        ObjectStore — exactly what ``apply_mutation`` would do
-        internally for the blob-write step.
+        ObjectStore — exactly what the write path does internally for
+        the blob-write step.
         """
         repo = self._repos.get_server_repo(project_id)
         store = repo.store
@@ -615,8 +662,8 @@ class MutOps:
             return splice_batch(store, root_hash, ops)
 
         total_size = sum(r.size for r in rel_refs.values())
-        result = await apply_mutation(
-            self._repos, project_id, scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, scope, splice_fn,
             who=who,
             message=message or f"bulk write {len(rel_refs)} files",
             op_type="bulk_write",
@@ -713,8 +760,8 @@ class MutOps:
         def splice_fn(store, root_hash):
             return splice_remove(store, root_hash, [rel_path])
 
-        result = await apply_mutation(
-            self._repos, project_id, target_scope, splice_fn,
+        result = await self._apply_operation(
+            project_id, target_scope, splice_fn,
             who=who,
             message=message or f"delete {path}",
             op_type="permanent_delete",
@@ -729,6 +776,11 @@ class MutOps:
 
     def read_file(self, project_id: str, path: str) -> bytes:
         return self._reader.read_file(project_id, path.strip("/"))
+
+    def read_file_in_scope(self, project_id: str, scope: str, path: str) -> bytes:
+        return self._reader.read_file_in_scope(
+            project_id, scope.strip("/"), path.strip("/"),
+        )
 
     def read_file_range(
         self,
@@ -745,11 +797,41 @@ class MutOps:
             limit=limit,
         )
 
+    def read_file_range_in_scope(
+        self,
+        project_id: str,
+        scope: str,
+        path: str,
+        *,
+        start: int = 0,
+        limit: int | None = None,
+    ):
+        return self._reader.read_file_range_in_scope(
+            project_id,
+            scope.strip("/"),
+            path.strip("/"),
+            start=start,
+            limit=limit,
+        )
+
     def list_dir(
         self, project_id: str, path: str = "", *, include_size: bool = False
     ) -> list[MutEntry]:
         return self._reader.list_dir(
             project_id, path.strip("/"), include_size=include_size,
+        )
+
+    def list_dir_in_scope(
+        self,
+        project_id: str,
+        scope: str,
+        path: str = "",
+        *,
+        include_size: bool = False,
+    ) -> list[MutEntry]:
+        return self._reader.list_dir_in_scope(
+            project_id, scope.strip("/"), path.strip("/"),
+            include_size=include_size,
         )
 
     def list_tree(
@@ -767,6 +849,23 @@ class MutOps:
             max_entries=max_entries,
         )
 
+    def list_tree_in_scope(
+        self,
+        project_id: str,
+        scope: str,
+        path: str = "",
+        max_depth: int = -1,
+        *,
+        include_size: bool = False,
+        max_entries: int | None = None,
+    ) -> list[MutEntry]:
+        return self._reader.list_tree_in_scope(
+            project_id, scope.strip("/"), path.strip("/"),
+            max_depth=max_depth,
+            include_size=include_size,
+            max_entries=max_entries,
+        )
+
     def stat(
         self, project_id: str, path: str, *, include_size: bool = False
     ) -> MutEntry | None:
@@ -774,12 +873,27 @@ class MutOps:
             project_id, path.strip("/"), include_size=include_size,
         )
 
+    def stat_in_scope(
+        self,
+        project_id: str,
+        scope: str,
+        path: str,
+        *,
+        include_size: bool = False,
+    ) -> MutEntry | None:
+        return self._reader.stat_in_scope(
+            project_id, scope.strip("/"), path.strip("/"),
+            include_size=include_size,
+        )
+
     def get_head_commit_id(self, project_id: str) -> str:
         return self._reader.get_head_commit_id(project_id)
 
     def get_scope_head_commit_id(self, project_id: str, scope_path: str) -> str:
-        repo = self._repos.get_server_repo(project_id)
-        return repo.get_scope_head_commit_id((scope_path or "").strip("/")) or ""
+        project_repo = self._repos.get_repo(project_id)
+        return project_repo.history.get_scope_head_commit_id(
+            (scope_path or "").strip("/"),
+        ) or ""
 
     def get_scope_head_commit_id_for_path(
         self, project_id: str, path: str,
@@ -845,7 +959,7 @@ class MutOps:
 
         Used by the MUT protocol router (``/api/v1/mut/*``) to graft
         external CLI/sync pushes into the global root hash. Internal
-        typed ops run the hook themselves via ``direct_writer`` and
+        typed ops run the hook through the transaction engine and
         do not need this entry point.
         """
         from src.mut_engine.services.hooks import run_post_push_hook
@@ -858,7 +972,7 @@ class MutOps:
     ) -> None:
         """Best-effort post-push hook — log on failure, never re-raise.
 
-        ``direct_writer.apply_mutation`` already does this internally,
+        The transaction engine already does this internally,
         so internal typed ops don't reach here. This shim exists for
         external callers (and tests) that want the same resilience
         without writing the try/except themselves.
@@ -980,11 +1094,11 @@ def _to_result(
     raw,
     paths: list[str] | None = None,
 ) -> WriteResult:
-    """Translate ``direct_writer.WriteResult`` into the legacy ``MutOps``
+    """Translate transaction-engine results into the legacy ``MutOps``
     ``WriteResult`` shape.
 
     The two dataclasses already match field-for-field — this function
-    exists so a future schema change in ``direct_writer`` can be
+    exists so a future schema change in the transaction result can be
     absorbed without touching every call site, and so we can override
     the ``paths`` list with the caller's preferred presentation.
     """

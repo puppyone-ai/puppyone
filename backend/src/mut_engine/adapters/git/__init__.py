@@ -1,0 +1,2 @@
+"""Git protocol adapter."""
+

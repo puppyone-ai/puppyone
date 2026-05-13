@@ -11,10 +11,11 @@ import os
 from dataclasses import dataclass
 
 from mut.core.object_store import ObjectStore
-from mut.core.tree import read_tree, tree_to_flat
+from mut.core.protocol import normalize_path
 
 from src.infra.file_formats import detect_mime, detect_node_type
 from src.mut_engine.server.repo_manager import MutRepoManager
+from src.mut_engine.services.object_compat import read_blob_compat, read_tree_compat
 from src.utils.logger import log_error
 
 # `detect_type` is re-exported (alias of `detect_node_type`) so the
@@ -57,6 +58,210 @@ class MutTreeReader:
     def __init__(self, repo_manager: MutRepoManager):
         self._repos = repo_manager
 
+    def list_dir_in_scope(
+        self,
+        project_id: str,
+        scope_path: str,
+        path: str = "",
+        *,
+        include_size: bool = False,
+    ) -> list[MutEntry]:
+        """List from a scope head directly, bypassing project-root projection."""
+
+        try:
+            repo = self._repos.get_server_repo(project_id)
+            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+        except Exception as e:
+            log_error(f"[MutTreeReader] Failed to get scope hash for {project_id}: {e}")
+            return []
+        if not root_hash:
+            return []
+
+        rel_path = normalize_path(path)
+        tree_hash = root_hash
+        if rel_path:
+            tree_hash = self._navigate_to_subtree(repo.store, root_hash, rel_path)
+            if not tree_hash:
+                return []
+
+        try:
+            entries = read_tree_compat(repo.store, tree_hash)
+        except Exception as e:
+            log_error(f"[MutTreeReader] Failed to read scope tree at {path}: {e}")
+            return []
+
+        display_path = _join_scope_path(scope_path, rel_path)
+        result = [
+            self._build_entry(
+                repo.store, name, typ, hash_val, display_path,
+                include_size=include_size,
+            )
+            for name, (typ, hash_val) in entries.items()
+            if name != ".keep"
+        ]
+        result.sort(key=lambda e: (e.type != "folder", e.name.lower()))
+        return result
+
+    def read_file_in_scope(self, project_id: str, scope_path: str, path: str) -> bytes:
+        """Read a scope-relative file from the canonical scope head."""
+
+        try:
+            repo = self._repos.get_server_repo(project_id)
+            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+        except Exception as e:
+            raise FileNotFoundError(f"Project {project_id} is not initialized: {e}")
+        if not root_hash:
+            raise FileNotFoundError(f"Scope {scope_path!r} has no content")
+
+        blob_hash = self._resolve_blob(repo.store, root_hash, normalize_path(path))
+        if not blob_hash:
+            raise FileNotFoundError(f"File not found: {path}")
+        return read_blob_compat(repo.store, blob_hash)
+
+    def read_file_range_in_scope(
+        self,
+        project_id: str,
+        scope_path: str,
+        path: str,
+        *,
+        start: int = 0,
+        limit: int | None = None,
+    ) -> MutBlobRead:
+        """Read a byte range from a scope-relative file."""
+
+        try:
+            repo = self._repos.get_server_repo(project_id)
+            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+        except Exception as e:
+            raise FileNotFoundError(f"Project {project_id} is not initialized: {e}")
+        if not root_hash:
+            raise FileNotFoundError(f"Scope {scope_path!r} has no content")
+
+        blob_hash = self._resolve_blob(repo.store, root_hash, normalize_path(path))
+        if not blob_hash:
+            raise FileNotFoundError(f"File not found: {path}")
+
+        content = read_blob_compat(repo.store, blob_hash)
+        if start <= 0 and limit is None:
+            return MutBlobRead(
+                content=content,
+                total_size=len(content),
+                content_hash=blob_hash,
+                ranged=False,
+            )
+        safe_start = max(0, start)
+        end = len(content) if limit is None else min(len(content), safe_start + limit)
+        return MutBlobRead(
+            content=content[safe_start:end],
+            total_size=len(content),
+            content_hash=blob_hash,
+            ranged=safe_start > 0 or limit is not None,
+        )
+
+    def stat_in_scope(
+        self,
+        project_id: str,
+        scope_path: str,
+        path: str,
+        *,
+        include_size: bool = False,
+    ) -> MutEntry | None:
+        """Stat a scope-relative path from the canonical scope head."""
+
+        scope_norm = normalize_path(scope_path)
+        rel_path = normalize_path(path)
+        try:
+            repo = self._repos.get_server_repo(project_id)
+            root_hash = repo.get_scope_hash(scope_norm) or ""
+        except Exception as e:
+            log_error(f"[MutTreeReader] Failed to get scope hash for stat: {e}")
+            return None
+
+        if not rel_path:
+            return MutEntry(
+                name=os.path.basename(scope_norm),
+                path=scope_norm,
+                type="folder",
+                size_bytes=0 if include_size else None,
+            )
+        if not root_hash:
+            return None
+
+        parent_path = os.path.dirname(rel_path)
+        name = os.path.basename(rel_path)
+        parent_hash = root_hash
+        if parent_path:
+            parent_hash = self._navigate_to_subtree(repo.store, root_hash, parent_path)
+            if not parent_hash:
+                return None
+
+        try:
+            entries = read_tree_compat(repo.store, parent_hash)
+        except Exception:
+            return None
+        if name not in entries:
+            return None
+
+        typ, hash_val = entries[name]
+        display_path = _join_scope_path(scope_norm, rel_path)
+        if typ == "T":
+            return MutEntry(
+                name=name,
+                path=display_path,
+                type="folder",
+                size_bytes=0 if include_size else None,
+                children_count=self._count_children(repo.store, hash_val),
+            )
+        return MutEntry(
+            name=name,
+            path=display_path,
+            type=detect_type(name),
+            content_hash=hash_val,
+            size_bytes=self._blob_size(repo.store, hash_val) if include_size else None,
+            mime_type=detect_mime(name),
+        )
+
+    def list_tree_in_scope(
+        self,
+        project_id: str,
+        scope_path: str,
+        path: str = "",
+        max_depth: int = -1,
+        *,
+        include_size: bool = False,
+        max_entries: int | None = None,
+    ) -> list[MutEntry]:
+        """Recursively list from a scope head directly."""
+
+        try:
+            repo = self._repos.get_server_repo(project_id)
+            root_hash = repo.get_scope_hash(normalize_path(scope_path)) or ""
+        except Exception as e:
+            log_error(f"[MutTreeReader] Failed to get scope hash for list_tree: {e}")
+            return []
+        if not root_hash:
+            return []
+
+        rel_path = normalize_path(path)
+        tree_hash = root_hash
+        if rel_path:
+            tree_hash = self._navigate_to_subtree(repo.store, root_hash, rel_path)
+            if not tree_hash:
+                return []
+
+        result: list[MutEntry] = []
+        self._walk_tree(
+            repo.store,
+            tree_hash,
+            _join_scope_path(scope_path, rel_path),
+            result,
+            0,
+            max_depth,
+            include_size=include_size,
+            max_entries=max_entries,
+        )
+        return result
+
     def list_dir(
         self, project_id: str, path: str = "", *, include_size: bool = False
     ) -> list[MutEntry]:
@@ -81,7 +286,7 @@ class MutTreeReader:
                 return []
 
         try:
-            entries = read_tree(repo.store, tree_hash)
+            entries = read_tree_compat(repo.store, tree_hash)
         except Exception as e:
             log_error(f"[MutTreeReader] Failed to read tree at {path}: {e}")
             return []
@@ -135,7 +340,7 @@ class MutTreeReader:
         if not blob_hash:
             raise FileNotFoundError(f"File not found: {path}")
 
-        return repo.store.get(blob_hash)
+        return read_blob_compat(repo.store, blob_hash)
 
     def read_file_range(
         self,
@@ -145,7 +350,12 @@ class MutTreeReader:
         start: int = 0,
         limit: int | None = None,
     ) -> MutBlobRead:
-        """Read a byte range from a file content blob when the backend supports it."""
+        """Read a byte range from decoded file content.
+
+        The storage backend keeps git loose-object bytes, not raw file bytes.
+        Ranges must be applied after ObjectStore decodes the blob, otherwise
+        callers would receive slices of zlib-framed object data.
+        """
         try:
             repo = self._repos.get_repo(project_id)
             root_hash = repo.history.get_root_hash()
@@ -159,7 +369,7 @@ class MutTreeReader:
             raise FileNotFoundError(f"File not found: {path}")
 
         if start <= 0 and limit is None:
-            content = repo.store.get(blob_hash)
+            content = read_blob_compat(repo.store, blob_hash)
             return MutBlobRead(
                 content=content,
                 total_size=len(content),
@@ -167,25 +377,14 @@ class MutTreeReader:
                 ranged=False,
             )
 
-        backend = getattr(repo.store, "_backend", None)
-        get_range = getattr(backend, "get_range", None)
-        if callable(get_range):
-            content, total = get_range(blob_hash, start=max(0, start), limit=limit)
-            return MutBlobRead(
-                content=content,
-                total_size=total,
-                content_hash=blob_hash,
-                ranged=True,
-            )
-
-        content = repo.store.get(blob_hash)
+        content = read_blob_compat(repo.store, blob_hash)
         safe_start = max(0, start)
         end = len(content) if limit is None else min(len(content), safe_start + limit)
         return MutBlobRead(
             content=content[safe_start:end],
             total_size=len(content),
             content_hash=blob_hash,
-            ranged=False,
+            ranged=safe_start > 0 or limit is not None,
         )
 
     def stat(
@@ -217,7 +416,7 @@ class MutTreeReader:
                 return None
 
         try:
-            entries = read_tree(repo.store, parent_hash)
+            entries = read_tree_compat(repo.store, parent_hash)
         except Exception:
             return None
 
@@ -317,7 +516,7 @@ class MutTreeReader:
         current = root_hash
         for part in parts:
             try:
-                entries = read_tree(store, current)
+                entries = read_tree_compat(store, current)
             except Exception:
                 return None
             if part not in entries:
@@ -340,14 +539,14 @@ class MutTreeReader:
         try:
             current = root_hash
             for part in parts[:-1]:
-                entries = read_tree(store, current)
+                entries = read_tree_compat(store, current)
                 if part not in entries:
                     return None
                 typ, h = entries[part]
                 if typ != "T":
                     return None
                 current = h
-            entries = read_tree(store, current)
+            entries = read_tree_compat(store, current)
             leaf = parts[-1]
             if leaf not in entries:
                 return None
@@ -360,14 +559,14 @@ class MutTreeReader:
 
     def _count_children(self, store: ObjectStore, tree_hash: str) -> int:
         try:
-            entries = read_tree(store, tree_hash)
+            entries = read_tree_compat(store, tree_hash)
             return sum(1 for name in entries if name != ".keep")
         except Exception:
             return 0
 
     def _blob_size(self, store: ObjectStore, blob_hash: str) -> int:
         try:
-            return len(store.get(blob_hash))
+            return len(read_blob_compat(store, blob_hash))
         except Exception:
             return 0
 
@@ -389,7 +588,7 @@ class MutTreeReader:
             return
 
         try:
-            entries = read_tree(store, tree_hash)
+            entries = read_tree_compat(store, tree_hash)
         except Exception:
             return
 
@@ -424,3 +623,13 @@ class MutTreeReader:
                     size_bytes=self._blob_size(store, hash_val) if include_size else None,
                     mime_type=detect_mime(name),
                 ))
+
+
+def _join_scope_path(scope_path: str, rel_path: str) -> str:
+    scope = normalize_path(scope_path)
+    rel = normalize_path(rel_path)
+    if not scope:
+        return rel
+    if not rel:
+        return scope
+    return f"{scope}/{rel}"
