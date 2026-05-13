@@ -30,6 +30,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 import { T } from '../lib/tokens';
 import {
   PROVIDER_LABELS,
@@ -594,7 +595,7 @@ function ConnectorActionMenu({
                 borderRadius: 10,
                 padding: 4,
                 boxShadow: '0 12px 28px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.18)',
-                zIndex: 10000,
+                zIndex: APP_Z_INDEX.popover,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 1,

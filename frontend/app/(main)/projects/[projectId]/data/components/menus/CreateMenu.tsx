@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 
 export type CreateType =
   | 'folder'
@@ -278,7 +279,7 @@ export function CreateMenu({
         position: 'fixed',
         top: position?.top ?? y,
         left: position?.left ?? x,
-        zIndex: 1000,
+        zIndex: APP_Z_INDEX.popover,
         background: 'rgba(28, 28, 30, 0.98)',
         backdropFilter: 'blur(20px)',
         border: '1px solid rgba(255,255,255,0.1)',
@@ -325,7 +326,7 @@ export function CreateMenu({
                   padding: '4px 0',
                   minWidth: 180,
                   boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                  zIndex: 1001,
+                  zIndex: APP_Z_INDEX.popoverNested,
                 }}
               >
                 <MenuItem
@@ -401,7 +402,7 @@ export function CreateMenu({
               padding: '4px 0',
               minWidth: 240,
               boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-              zIndex: 1001,
+              zIndex: APP_Z_INDEX.popoverNested,
               maxHeight: 'calc(100vh - 40px)',
               overflowY: 'auto',
             }}

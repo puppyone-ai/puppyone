@@ -37,11 +37,11 @@ import {
  *
  *   1. Permissions (R/W)         ★ Most critical, top of the panel.
  *                                  Boundary that gates Terminal CLI,
- *                                  Local Sync, AI Agent, and every
+ *                                  Git Remote, AI Agent, and every
  *                                  third-party integration.
  *   2. Excluded paths              Path-pattern blacklist. Applied at
- *                                  the MUT layer.
- *   3. Access key                  Mut credential. Show / Copy / Rotate.
+ *                                  the scope access layer.
+ *   3. Access key                  Git/API credential. Show / Copy / Rotate.
  *                                  Rotate invalidates current clients.
  *   4. Name                        Free-form display name (root locked).
  *   5. Identity (read-only)        path / root flag / created date.
@@ -250,7 +250,7 @@ export function ScopeSettingsBlock({
       }}
     >
       {/* ① Permissions — top, prominent. The single most consequential
-          knob in this panel: flips R/W for Terminal CLI, Local Sync,
+          knob in this panel: flips R/W for Terminal CLI, Git Remote,
           AI Agent, and every integration bound to this scope, all at
           once. Rendered as side-by-side option cards rather than a
           plain radio group so the choice reads as a deliberate pick,
@@ -274,7 +274,7 @@ export function ScopeSettingsBlock({
           />
         </div>
         <FieldHelp>
-          Applies to all connect methods (Terminal, Local Sync, AI Agent) and
+          Applies to all connect methods (Terminal, Git Remote, AI Agent) and
           integrations bound to this access point.
         </FieldHelp>
       </Card>
@@ -351,12 +351,12 @@ export function ScopeSettingsBlock({
 
       {/* ③ Access key — mut credential. Default masked; reveal toggles
           plaintext. Rotate is two-click destructive: regenerating
-          invalidates every existing CLI / Local Sync session
+          invalidates every existing CLI / Git session
           immediately. */}
       <Card>
         <FieldLabel>Access key</FieldLabel>
         <FieldHelp>
-          MUT credential shared by Terminal CLI and Local Sync. Reveal to copy;
+          Access key shared by Git Remote, Terminal CLI, and integrations. Reveal to copy;
           rotate to invalidate current clients.
         </FieldHelp>
         <div

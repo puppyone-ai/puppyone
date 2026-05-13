@@ -89,12 +89,11 @@ export default function AccessPointsPage({
       ) : (
         <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* Left sidebar — flat list, one row per mount point.
-              Wrapped in `ResizableSidebarColumn` so users with long
-              mount-point paths or names can widen the rail to read
-              them in full. Default 280 matches the prior fixed width. */}
+              Starts at the compact minimum; users with long mount-point
+              paths or names can widen the rail and keep that preference. */}
           <ResizableSidebarColumn
             storageKey='scope-sidebar:access'
-            defaultWidth={280}
+            defaultWidth={220}
             minWidth={220}
             maxWidth={480}
           >

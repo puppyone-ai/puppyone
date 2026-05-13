@@ -1,9 +1,10 @@
 'use client';
 
-import { use, useState, useEffect, useCallback } from 'react';
+import { use, useState, useEffect, useCallback, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProjects, refreshProjects } from '@/lib/hooks/useData';
+import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
+import { useProject, useProjects, refreshProjects } from '@/lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
@@ -100,10 +101,20 @@ const CloseIcon = () => (
 export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   const { projectId } = use(params);
   const router = useRouter();
+  const { session, isAuthReady } = useAuth();
   const { currentOrg, members: orgMembers, myRole: orgRole } = useOrganization();
 
-  const { projects, isLoading } = useProjects(currentOrg?.id);
-  const currentProject = projects.find(p => p.id === projectId);
+  const { project: routeProject, isLoading: routeProjectLoading } = useProject(session ? projectId : null);
+  const { projects, isLoading } = useProjects(currentOrg?.id ?? null);
+  const currentProject = projects.find(p => p.id === projectId) ?? routeProject;
+  const scopedProjects = useMemo(() => {
+    const projectsForCurrentRoute =
+      routeProject?.org_id && currentOrg?.id !== routeProject.org_id ? [] : projects;
+    if (!routeProject || projectsForCurrentRoute.some(p => p.id === routeProject.id)) {
+      return projectsForCurrentRoute;
+    }
+    return [routeProject, ...projectsForCurrentRoute];
+  }, [currentOrg?.id, projects, routeProject]);
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -237,7 +248,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   // "settings just freezes". Showing the same PageLoading for both
   // cases keeps the perceived loading state continuous from the
   // moment the user clicks the route until real content paints.
-  if (isLoading || !currentProject) {
+  if (!isAuthReady || isLoading || routeProjectLoading || !currentProject) {
     return (
       <div style={{ flex: 1, height: '100%' }}>
         <PageLoading variant="fill" />
@@ -797,7 +808,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
       </div>
 
       {editDialogOpen && (
-        <ProjectManageDialog mode="edit" projectId={currentProject.id} projects={projects} onClose={() => { setEditDialogOpen(false); refreshProjects(currentOrg?.id); }} />
+        <ProjectManageDialog mode="edit" projectId={currentProject.id} projects={scopedProjects} onClose={() => { setEditDialogOpen(false); refreshProjects(currentOrg?.id ?? null); }} />
       )}
       {deleteDialogOpen && (
         <ProjectManageDialog mode="delete" projectId={currentProject.id} projects={projects} onClose={() => { setDeleteDialogOpen(false); router.push('/home'); }} />
@@ -936,4 +947,3 @@ function onPrimaryLeave(e: React.MouseEvent<HTMLButtonElement>) {
   e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
   e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
 }
-

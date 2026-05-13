@@ -72,17 +72,6 @@ export function PdfPreview({ projectId, filePath, nodeName }: PdfPreviewProps) {
         background: '#0a0a0a',
       }}
     >
-      <div
-        style={{
-          padding: '8px 16px',
-          borderBottom: '1px solid #262626',
-          fontSize: 12,
-          color: '#a1a1aa',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontWeight: 500 }}>{nodeName}</span>
-      </div>
       <iframe
         src={previewUrl}
         title={nodeName}

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useProjects } from '@/lib/hooks/useData';
+import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
@@ -12,8 +13,9 @@ import { useOnboarding } from '@/lib/hooks/useOnboarding';
 function DashboardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { currentOrg } = useOrganization();
-  const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
+  const { isAuthReady } = useAuth();
+  const { orgs, currentOrg, isLoading: orgsLoading } = useOrganization();
+  const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id ?? null);
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
 
   // Auto-complete 'project' onboarding step when user has a project
@@ -32,7 +34,7 @@ function DashboardPageContent() {
     }
   }, [searchParams, projectsLoading, router]);
 
-  if (projectsLoading) {
+  if (!isAuthReady || orgsLoading || (orgs.length > 0 && !currentOrg) || projectsLoading) {
     return <PageLoading variant='fill' />;
   }
 

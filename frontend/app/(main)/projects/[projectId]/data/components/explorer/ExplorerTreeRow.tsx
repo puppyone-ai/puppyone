@@ -51,37 +51,251 @@ export const FolderIcon = ({ expanded }: { expanded?: boolean }) => {
   );
 };
 
-const JsonIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 12l-2 2 2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 12l2 2-2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+type SidebarFileKind =
+  | 'json'
+  | 'markdown'
+  | 'html'
+  | 'pdf'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'spreadsheet'
+  | 'archive'
+  | 'code'
+  | 'text'
+  | 'file';
 
-const MarkdownIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M8 16v-4l2.5 2.5L13 12v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 16v-4h2v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 14h2" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+const FILE_KIND_TITLES: Record<SidebarFileKind, string> = {
+  json: 'JSON file',
+  markdown: 'Markdown file',
+  html: 'HTML file',
+  pdf: 'PDF file',
+  image: 'Image file',
+  audio: 'Audio file',
+  video: 'Video file',
+  spreadsheet: 'Spreadsheet file',
+  archive: 'Archive file',
+  code: 'Code file',
+  text: 'Text file',
+  file: 'File',
+};
 
-const PlainFileIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+const FILE_ICON_STROKE = '#8a909b';
+const FILE_ICON_SOFT = '#5d636f';
+const FILE_ICON_FILL = 'rgba(138, 144, 155, 0.10)';
+
+const SETI_FILE_COLORS: Record<SidebarFileKind, string> = {
+  json: '#cbcb41',
+  markdown: '#9aa2ad',
+  html: '#e37933',
+  pdf: '#cc3e44',
+  image: '#a074c4',
+  audio: '#a074c4',
+  video: '#519aba',
+  spreadsheet: '#8dc149',
+  archive: '#cc3e44',
+  code: '#519aba',
+  text: '#d4d7d6',
+  file: '#d4d7d6',
+};
+
+const EXTENSION_KIND: Record<string, SidebarFileKind> = {
+  json: 'json',
+  jsonl: 'json',
+  md: 'markdown',
+  mdx: 'markdown',
+  markdown: 'markdown',
+  html: 'html',
+  htm: 'html',
+  xhtml: 'html',
+  pdf: 'pdf',
+  jpg: 'image',
+  jpeg: 'image',
+  png: 'image',
+  gif: 'image',
+  webp: 'image',
+  svg: 'image',
+  avif: 'image',
+  heic: 'image',
+  mp3: 'audio',
+  wav: 'audio',
+  m4a: 'audio',
+  aac: 'audio',
+  flac: 'audio',
+  ogg: 'audio',
+  opus: 'audio',
+  mp4: 'video',
+  mov: 'video',
+  webm: 'video',
+  avi: 'video',
+  mkv: 'video',
+  csv: 'spreadsheet',
+  tsv: 'spreadsheet',
+  xls: 'spreadsheet',
+  xlsx: 'spreadsheet',
+  zip: 'archive',
+  rar: 'archive',
+  '7z': 'archive',
+  tar: 'archive',
+  gz: 'archive',
+  tgz: 'archive',
+  js: 'code',
+  jsx: 'code',
+  ts: 'code',
+  tsx: 'code',
+  css: 'code',
+  scss: 'code',
+  py: 'code',
+  rb: 'code',
+  go: 'code',
+  rs: 'code',
+  java: 'code',
+  c: 'code',
+  cpp: 'code',
+  h: 'code',
+  sh: 'code',
+  yml: 'code',
+  yaml: 'code',
+  xml: 'code',
+  toml: 'code',
+  txt: 'text',
+  log: 'text',
+};
+
+function getFileExtension(name: string): string | null {
+  const match = /\.([^./]{1,12})$/.exec(name.trim());
+  return match ? match[1].toLowerCase() : null;
+}
+
+function getSidebarFileKind(name: string, type: string): SidebarFileKind {
+  const ext = getFileExtension(name);
+  if (ext && EXTENSION_KIND[ext]) return EXTENSION_KIND[ext];
+
+  const config = getNodeTypeConfig(type);
+  switch (config.iconCategory) {
+    case 'json':
+      return 'json';
+    case 'markdown':
+      return 'markdown';
+    default:
+      break;
+  }
+
+  if (type === 'image') return 'image';
+  if (type === 'pdf') return 'pdf';
+  if (type === 'video') return 'video';
+  return 'file';
+}
+
+function FileTypeIcon({
+  kind,
+  size = 16,
+}: {
+  kind: SidebarFileKind;
+  size?: number;
+}) {
+  const color = SETI_FILE_COLORS[kind];
+  const muted = FILE_ICON_SOFT;
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <title>{FILE_KIND_TITLES[kind]}</title>
+
+      {kind === 'audio' ? (
+        <>
+          <path d="M2.6 10.9V7.1h2.25L8.7 4.35v9.3L4.85 10.9H2.6Z" fill={color} />
+          <path d="M10.8 6.55c1.05 1.1 1.05 2.8 0 3.9" stroke={color} strokeWidth="1.45" strokeLinecap="butt" />
+          <path d="M12.95 5.05c1.8 1.95 1.8 5.9 0 7.9" stroke={color} strokeWidth="1.25" strokeLinecap="butt" opacity="0.78" />
+        </>
+      ) : kind === 'image' ? (
+        <>
+          <rect x="2.75" y="3.75" width="12.5" height="10.5" rx="1.25" stroke={color} strokeWidth="1.45" />
+          <path d="M3.8 12.5 6.35 9.65l2.05 2.1 2.35-3.05 3.35 3.8" stroke={color} strokeWidth="1.45" strokeLinecap="butt" strokeLinejoin="miter" />
+          <rect x="10.85" y="5.6" width="2" height="2" rx="0.35" fill={color} />
+        </>
+      ) : kind === 'video' ? (
+        <>
+          <rect x="2.9" y="5.1" width="12.2" height="7.8" rx="1.15" stroke={color} strokeWidth="1.45" />
+          <path d="M7.9 7.2v3.6L11.3 9 7.9 7.2Z" fill={color} />
+        </>
+      ) : kind === 'spreadsheet' ? (
+        <>
+          <rect x="3.1" y="3.1" width="11.8" height="11.8" rx="1.15" stroke={color} strokeWidth="1.35" />
+          <path d="M3.35 7.05h11.3M3.35 10.95h11.3M7.05 3.35v11.3M10.95 3.35v11.3" stroke={color} strokeWidth="1.05" opacity="0.82" />
+        </>
+      ) : kind === 'json' ? (
+        <text
+          x="9"
+          y="12.35"
+          textAnchor="middle"
+          fontSize="9.5"
+          fontWeight="800"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+          fill={color}
+        >
+          {'{}'}
+        </text>
+      ) : kind === 'html' ? (
+        <>
+          <path d="m7.05 5.15-3.5 3.75 3.5 3.75" stroke={color} strokeWidth="1.65" strokeLinecap="butt" strokeLinejoin="miter" />
+          <path d="m10.95 5.15 3.5 3.75-3.5 3.75" stroke={color} strokeWidth="1.65" strokeLinecap="butt" strokeLinejoin="miter" />
+          <path d="M9.95 4.95 8.05 12.9" stroke={color} strokeWidth="1.35" strokeLinecap="butt" opacity="0.86" />
+        </>
+      ) : kind === 'code' ? (
+        <>
+          <path d="m7.2 5.55-3 3.45 3 3.45" stroke={color} strokeWidth="1.55" strokeLinecap="butt" strokeLinejoin="miter" />
+          <path d="m10.8 5.55 3 3.45-3 3.45" stroke={color} strokeWidth="1.55" strokeLinecap="butt" strokeLinejoin="miter" />
+        </>
+      ) : kind === 'pdf' ? (
+        <>
+          <path d="M5.15 2.75h5.6l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.3c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.3" strokeLinejoin="round" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={color} strokeWidth="1.05" strokeLinejoin="round" />
+          <path d="M5.95 10.1h5.85M5.95 12.15h4.1" stroke={color} strokeWidth="1.15" strokeLinecap="round" />
+        </>
+      ) : kind === 'markdown' ? (
+        <>
+          <path d="M5.15 2.75h5.6l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.3c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.3" strokeLinejoin="miter" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={color} strokeWidth="1.05" strokeLinejoin="miter" />
+          <text
+            x="8.8"
+            y="12.3"
+            textAnchor="middle"
+            fontSize="7.6"
+            fontWeight="780"
+            fontFamily="Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
+            fill={color}
+          >
+            M
+          </text>
+        </>
+      ) : kind === 'archive' ? (
+        <>
+          <path d="M4 6.2 6.1 4.2h5.8L14 6.2v6.6c0 .6-.5 1.1-1.1 1.1H5.1c-.6 0-1.1-.5-1.1-1.1V6.2Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.25" strokeLinejoin="round" />
+          <path d="M6.2 7.2h5.6M7.3 9.1h3.4M7.3 11h3.4" stroke={color} strokeWidth="1.05" strokeLinecap="round" opacity="0.82" />
+        </>
+      ) : kind === 'text' ? (
+        <>
+          <path d="M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={muted} strokeWidth="1" strokeLinejoin="round" />
+          <path d="M5.85 8.25h5.2M5.85 10.25h5.2M5.85 12.25h3.65" stroke={color} strokeWidth="1.05" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path d="M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={muted} strokeWidth="1" strokeLinejoin="round" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 function FileIcon({
+  name,
   type,
   syncSource,
   iconSize,
 }: {
+  name: string;
   type: string;
   syncSource?: string | null;
   iconSize?: number;
@@ -89,18 +303,11 @@ function FileIcon({
   const config = getNodeTypeConfig(type);
   const actualSource = syncSource || getSyncSource(type);
   const BadgeIcon = getSyncSourceIcon(actualSource) || config.badgeIcon;
-  const size = iconSize ?? 16;
+  const size = iconSize ?? 18;
 
   if (BadgeIcon) return <BadgeIcon size={size} />;
 
-  switch (config.iconCategory) {
-    case 'markdown':
-      return <MarkdownIcon />;
-    case 'json':
-      return <JsonIcon />;
-    default:
-      return <PlainFileIcon />;
-  }
+  return <FileTypeIcon kind={getSidebarFileKind(name, type)} size={size} />;
 }
 
 function getSyncDirectionArrow(
@@ -452,8 +659,8 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               display: 'flex',
               alignItems: 'center',
               flexShrink: 0,
-              width: 16,
-              height: 16,
+              width: 18,
+              height: 18,
               justifyContent: 'center',
               position: 'relative',
             }}
@@ -463,7 +670,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 <div className="flex items-center justify-center group-hover/row:hidden">
                   <FolderIcon expanded={expanded} />
                 </div>
-                <div className="hidden items-center justify-center group-hover/row:flex" style={{ width: 16, height: 16, borderRadius: 3 }}>
+                <div className="hidden items-center justify-center group-hover/row:flex" style={{ width: 18, height: 18, borderRadius: 3 }}>
                   <svg
                     width="16"
                     height="16"
@@ -484,13 +691,13 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               if (arrow) {
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                    <FileIcon type={item.type} syncSource={item.sync_source} iconSize={10} />
+                    <FileIcon name={item.name} type={item.type} syncSource={item.sync_source} iconSize={10} />
                     <span style={{ color: '#71717a', fontSize: 7, lineHeight: 1 }}>{arrow}</span>
                   </div>
                 );
               }
 
-              return <FileIcon type={item.type} syncSource={item.sync_source} />;
+              return <FileIcon name={item.name} type={item.type} syncSource={item.sync_source} />;
             })()}
           </div>
 

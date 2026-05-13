@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import {
+  useProject,
   useProjects,
   useToolsByPath,
   refreshToolsByPath,
@@ -80,6 +81,9 @@ import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
 import { PageLoading } from '@/components/loading';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { resolveFormat } from '@/lib/fileFormats';
+import { FileViewerHeaderActions } from '../components/FileViewerHeaderActions';
+import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
 
 interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
@@ -98,7 +102,7 @@ export default function DataPage({ params }: DataPageProps) {
   const path = decodePath(rawPath);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { session } = useAuth();
+  const { session, isAuthReady } = useAuth();
   const { currentOrg } = useOrganization();
 
   // Workspace context
@@ -112,7 +116,8 @@ export default function DataPage({ params }: DataPageProps) {
   } = useWorkspace();
 
   // Data fetching
-  const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id);
+  const { project: routeProject, isLoading: routeProjectLoading } = useProject(session ? projectId : null);
+  const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id ?? null);
 
   // Project-level data from layout (sync status, tools, endpoints, scopes, connectors)
   const {
@@ -146,6 +151,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   const setViewType = (v: ViewType) => { setViewTypeState(v); localStorage.setItem('puppyone-view-type', v); };
   const setEditorType = (e: EditorType) => { setEditorTypeState(e); localStorage.setItem('puppyone-editor-type', e); };
+  const [htmlArtifactMode, setHtmlArtifactMode] = useState<HtmlArtifactMode>('preview');
 
   // Legacy welcome query param — strip it without triggering old onboarding guide
   const hasWelcomeParam = searchParams.get('welcome') === 'true';
@@ -464,9 +470,18 @@ export default function DataPage({ params }: DataPageProps) {
   }, [draftResources, editingAgentId, currentAgentId, savedAgents, hoveredAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, panelState.type]);
 
   const activeProject = useMemo(
-    () => projects.find(p => p.id === projectId) ?? null,
-    [projects, projectId],
+    () => projects.find(p => p.id === projectId) ?? routeProject ?? null,
+    [projects, projectId, routeProject],
   );
+
+  const scopedProjects = useMemo(() => {
+    const projectsForCurrentRoute =
+      routeProject?.org_id && currentOrg?.id !== routeProject.org_id ? [] : projects;
+    if (!routeProject || projectsForCurrentRoute.some(p => p.id === routeProject.id)) {
+      return projectsForCurrentRoute;
+    }
+    return [routeProject, ...projectsForCurrentRoute];
+  }, [currentOrg?.id, projects, routeProject]);
 
   // ───── Effects ─────
 
@@ -480,11 +495,11 @@ export default function DataPage({ params }: DataPageProps) {
 
   // Refresh on external events (SaaS sync, ETL, etc.)
   useEffect(() => {
-    const handler = () => { refreshAllContentNodes(projectId); refreshProjects(currentOrg?.id); };
+    const handler = () => { refreshAllContentNodes(projectId); refreshProjects(currentOrg?.id ?? null); };
     window.addEventListener('saas-task-completed', handler);
     window.addEventListener('etl-task-completed', handler);
     return () => { window.removeEventListener('saas-task-completed', handler); window.removeEventListener('etl-task-completed', handler); };
-  }, [projectId]);
+  }, [currentOrg?.id, projectId]);
 
   // Sync access points from tools
   useEffect(() => {
@@ -624,32 +639,11 @@ export default function DataPage({ params }: DataPageProps) {
   }, [gridSelection.selectedCount, gridSelection.selectedInOrder]);
 
   const handleBulkDeleteConfirm = useCallback(
-    async (permanent: boolean) => {
+    async () => {
       if (!bulkDeletePaths.length) return;
       setBulkDeleteSubmitting(true);
       try {
-        if (permanent) {
-          // For permanent delete we need a different API call
-          // (bulkRemoveFiles with permanent=true). Reach into the
-          // raw API client because nodeActions.handleBulkDelete
-          // only does soft delete.
-          const { bulkRemoveFiles } = await import('@/lib/contentTreeApi');
-          const { refreshFolderNodes } = await import('@/lib/hooks/useData');
-          await bulkRemoveFiles(projectId, bulkDeletePaths, true);
-          const parents = Array.from(
-            new Set(
-              bulkDeletePaths.map((p) =>
-                p.includes('/') ? p.substring(0, p.lastIndexOf('/')) : '',
-              ),
-            ),
-          );
-          await refreshFolderNodes(projectId, ...parents);
-          nodeActions.showToast(
-            `Deleted ${bulkDeletePaths.length} item(s) permanently`,
-          );
-        } else {
-          await nodeActions.handleBulkDelete(bulkDeletePaths);
-        }
+        await nodeActions.handleBulkDelete(bulkDeletePaths);
         gridSelection.clear();
       } finally {
         setBulkDeleteSubmitting(false);
@@ -750,10 +744,33 @@ export default function DataPage({ params }: DataPageProps) {
     return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }));
   }, [accessPoints]);
 
+  const activeFormat = useMemo(() => {
+    if (!activeNodeId || activeNodeType === 'github') return null;
+    return resolveFormat({ name: activeNodeId, mimeType: activeMimeType });
+  }, [activeNodeId, activeNodeType, activeMimeType]);
+
+  const headerActionSlot = activeFormat ? (
+    <FileViewerHeaderActions
+      projectId={activeProject?.id ?? projectId}
+      filePath={activeNodeId}
+      viewerId={activeFormat.defaultViewer}
+      editable={activeFormat.editable}
+      markdownViewMode={markdownViewMode}
+      onMarkdownViewModeChange={setMarkdownViewMode}
+      saveStatus={activeFormat.defaultViewer === 'markdown-editor' && activeFormat.editable ? editorSaveStatus : 'clean'}
+      onSave={saveEditor}
+      editorType={editorType}
+      onEditorTypeChange={setEditorType}
+      htmlMode={htmlArtifactMode}
+      onHtmlModeChange={setHtmlArtifactMode}
+    />
+  ) : null;
+
   // View logic flags
   const isEditorView = !!activeNodeId;
   const isFolderView = !activeNodeId;
   const isLoading = isResolvingPath || contentNodesLoading;
+  const isProjectIdentityLoading = !isAuthReady || projectsLoading || routeProjectLoading;
 
   // ───── Render ─────
 
@@ -762,7 +779,7 @@ export default function DataPage({ params }: DataPageProps) {
       <DataPageDialogs
         projectId={projectId}
         currentFolderId={currentFolderId}
-        projects={projects}
+        projects={scopedProjects}
         activeProject={activeProject}
         renameDialogOpen={nodeActions.renameDialogOpen}
         renameTargetName={nodeActions.renameTarget?.name ?? ''}
@@ -850,13 +867,24 @@ export default function DataPage({ params }: DataPageProps) {
         {/* Top header bar — spans the full width of <main>, including
             over the ExplorerSidebar column. Renders ONE breadcrumb
             (`Workspace / finance / …`) and the Access points button. */}
-        <div style={{ flexShrink: 0, zIndex: 60, display: 'flex', alignItems: 'stretch', height: 46 }}>
+        <div
+          style={{
+            flexShrink: 0,
+            position: 'relative',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'stretch',
+            height: 46,
+            overflow: 'visible',
+          }}
+        >
           <div style={{ flex: 1, minWidth: 0 }}>
             <ProjectsHeader
               pathSegments={pathSegments}
               projectId={activeProject?.id ?? null}
               onProjectsRefresh={() => {}}
               accessPointCount={accessPoints.length}
+              actionSlot={headerActionSlot}
             />
           </div>
           {/* Right slot of the header — Access entry. The vertical
@@ -995,12 +1023,12 @@ export default function DataPage({ params }: DataPageProps) {
               ProjectsHeader above.
               Wrapped in `ResizableSidebarColumn` so the user can drag
               the right edge to widen the file tree (long sync/AP
-              names + deep paths quickly outgrow a fixed 250px). The
+              names + deep paths can outgrow the compact default). The
               storageKey persists per-page so the data view's preferred
               width doesn't bleed into history / access. */}
           <ResizableSidebarColumn
             storageKey='explorer-sidebar:data'
-            defaultWidth={250}
+            defaultWidth={220}
             minWidth={220}
             maxWidth={480}
             style={{ borderRight: '1px solid rgba(255,255,255,0.08)' }}
@@ -1084,6 +1112,12 @@ export default function DataPage({ params }: DataPageProps) {
               </div>
             )}
 
+            {isEditorView && !isResolvingPath && !activeProject && isProjectIdentityLoading && (
+              <div style={{ flex: 1, background: '#0e0e0e' }}>
+                <PageLoading variant="fill" />
+              </div>
+            )}
+
             {/* Editor View */}
             {isEditorView && !isResolvingPath && activeProject && (
               <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -1095,13 +1129,11 @@ export default function DataPage({ params }: DataPageProps) {
                   currentTableData={currentTableData}
                   textContent={editorTextDraft}
                   isLoadingText={isLoadingText}
-                  saveStatus={editorSaveStatus}
                   markdownViewMode={markdownViewMode}
                   onTextChange={onEditorTextChange}
-                  onSave={saveEditor}
                   setMarkdownViewMode={setMarkdownViewMode}
                   editorType={editorType}
-                  setEditorType={setEditorType}
+                  htmlArtifactMode={htmlArtifactMode}
                   configuredAccessPoints={configuredAccessPoints}
                   onActiveTableChange={(nodePath: string) => {
                     navigateTo(nodePath.split('/').filter(Boolean));

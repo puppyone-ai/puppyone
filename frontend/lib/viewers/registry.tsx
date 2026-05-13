@@ -19,6 +19,7 @@ import { EditorSkeleton } from '@/components/Skeleton';
 import { EditorLoadingSurface } from '@/components/loading';
 import type { GenericViewerId } from '@/lib/fileFormats/types';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
+import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
 
 /**
  * Common props every viewer accepts. Individual viewers can ignore
@@ -48,6 +49,8 @@ export interface ViewerProps {
   /** Markdown-only: WYSIWYG vs source-mode toggle. Other viewers ignore. */
   markdownViewMode?: MarkdownViewMode;
   onMarkdownViewModeChange?: (mode: MarkdownViewMode) => void;
+  /** HTML artifact-only: sandboxed preview vs source. Other viewers ignore. */
+  htmlArtifactMode?: HtmlArtifactMode;
 }
 
 export interface ViewerDefinition {
@@ -97,14 +100,12 @@ const MonacoCodeAdapter = dynamic<ViewerProps>(
       const Adapter = ({
         textContent,
         monacoLanguage,
-        nodeName,
         editable,
         onTextChange,
       }: ViewerProps) => (
         <MonacoCodeViewer
           content={textContent ?? ''}
           language={monacoLanguage ?? 'plaintext'}
-          fileName={nodeName}
           readOnly={!editable}
           onChange={editable ? onTextChange : undefined}
         />
@@ -113,6 +114,23 @@ const MonacoCodeAdapter = dynamic<ViewerProps>(
       return Adapter;
     }),
   { ssr: false, loading: EditorLoading },
+);
+
+const HtmlArtifactAdapter = dynamic<ViewerProps>(
+  () =>
+    import('@/components/editors/html/HtmlArtifactPreview').then((mod) => {
+      const { HtmlArtifactPreview } = mod;
+      const Adapter = ({ textContent, nodeName, htmlArtifactMode }: ViewerProps) => (
+        <HtmlArtifactPreview
+          content={textContent ?? ''}
+          nodeName={nodeName}
+          mode={htmlArtifactMode ?? 'preview'}
+        />
+      );
+      Adapter.displayName = 'HtmlArtifactAdapter';
+      return Adapter;
+    }),
+  { ssr: false, loading: PageLoadingFallback },
 );
 
 const ImagePreviewAdapter = dynamic<ViewerProps>(
@@ -199,6 +217,11 @@ export const VIEWERS: Record<GenericViewerId, ViewerDefinition> = {
   'monaco-code': {
     id: 'monaco-code',
     component: MonacoCodeAdapter,
+    requiresText: true,
+  },
+  'html-artifact': {
+    id: 'html-artifact',
+    component: HtmlArtifactAdapter,
     requiresText: true,
   },
   'image-preview': {

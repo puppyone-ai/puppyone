@@ -33,7 +33,7 @@ import { usePathname } from 'next/navigation';
 
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 320;
-const DEFAULT_WIDTH = 220;
+const DEFAULT_WIDTH = MIN_WIDTH;
 const COLLAPSED_WIDTH = 47;
 
 // Local design tokens. Same family as the project Access page +

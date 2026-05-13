@@ -13,7 +13,7 @@ import { Dots } from '@/components/loading';
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 320;
-const DEFAULT_WIDTH = 220;
+const DEFAULT_WIDTH = MIN_WIDTH;
 const COLLAPSED_WIDTH = 45;
 
 export default function ToolsLayout({

@@ -25,7 +25,7 @@ export function ContextSidebar({
   onTableSelect,
   onBackToProjects,
   className,
-  sidebarWidth = 240,
+  sidebarWidth = MIN_SIDEBAR_WIDTH,
   onSidebarWidthChange,
 }: ContextSidebarProps) {
   const [isResizing, setIsResizing] = useState(false);

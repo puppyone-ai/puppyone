@@ -134,7 +134,7 @@ const statusColors: Record<PlatformStatusType, string> = {
 
 export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const { currentOrg } = useOrganization();
-  const { projects } = useProjects(currentOrg?.id);
+  const { projects } = useProjects(currentOrg?.id ?? null);
 
   // URL parsing功能已移至 TableManageDialog
   // const [url, setUrl] = useState('');

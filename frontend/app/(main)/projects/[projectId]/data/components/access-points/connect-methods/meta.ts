@@ -28,8 +28,8 @@ export const METHOD_META: Record<MethodId, MethodMeta> = {
   },
   sync: {
     id: 'sync',
-    title: 'Local Sync',
-    subtitle: 'Two-way folder sync',
+    title: 'Git Remote',
+    subtitle: 'Native Git clone/push',
     accent: '#34d399',
     accentBg: 'rgba(52,211,153,0.12)',
     accentBorder: 'rgba(52,211,153,0.22)',

@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
 
 export type EditorType = 'table' | 'monaco';
@@ -20,11 +20,13 @@ type ProjectsHeaderProps = {
   onProjectsRefresh?: () => void;
   onBack?: () => void;
   accessPointCount?: number;
+  actionSlot?: ReactNode;
 };
 
 export function ProjectsHeader({
   pathSegments,
   onBack,
+  actionSlot,
 }: ProjectsHeaderProps) {
 
   return (
@@ -84,7 +86,7 @@ export function ProjectsHeader({
         )}
 
         {/* Breadcrumbs */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, overflow: 'hidden' }}>
           {pathSegments.map((segment, index) => {
             const isLast = index === pathSegments.length - 1;
             return (
@@ -128,6 +130,11 @@ export function ProjectsHeader({
           })}
         </div>
       </div>
+      {actionSlot && (
+        <div style={headerActionStyle}>
+          {actionSlot}
+        </div>
+      )}
     </header>
   );
 }
@@ -143,13 +150,26 @@ const headerStyle: CSSProperties = {
   borderBottom: '1px solid rgba(255,255,255,0.08)',
   background: '#0e0e0e',
   position: 'relative',
-  zIndex: 10,
+  zIndex: 1000,
+  overflow: 'visible',
 };
 
 const headerLeftStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 12,
+  minWidth: 0,
+  overflow: 'hidden',
+};
+
+const headerActionStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  flexShrink: 0,
+  marginLeft: 16,
+  position: 'relative',
+  zIndex: 1001,
 };
 
 const pathStyle: CSSProperties = {

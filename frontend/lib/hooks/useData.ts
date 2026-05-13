@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import useSWR, { mutate } from 'swr';
 import {
   getProjects,
+  getProject,
   getTable,
   getOrphanTables,
   type ProjectInfo,
@@ -38,7 +39,8 @@ const defaultConfig = {
  * - 30秒内不重复请求
  */
 export function useProjects(orgId?: string | null) {
-  const key = orgId ? ['projects', orgId] : 'projects';
+  const isDisabled = orgId === null;
+  const key = isDisabled ? null : orgId ? ['projects', orgId] : 'projects';
   const {
     data,
     error,
@@ -51,7 +53,34 @@ export function useProjects(orgId?: string | null) {
   );
 
   return {
-    projects: data ?? [],
+    projects: isDisabled ? [] : data ?? [],
+    isLoading: isDisabled ? false : isLoading,
+    error,
+    refresh: revalidate,
+  };
+}
+
+/**
+ * 获取单个项目详情。
+ *
+ * Used by project routes as the URL-level source of truth. This keeps a
+ * refreshed `/projects/:projectId/...` page stable even before the selected
+ * organization's project list has finished hydrating.
+ */
+export function useProject(projectId?: string | null) {
+  const {
+    data,
+    error,
+    isLoading,
+    mutate: revalidate,
+  } = useSWR<ProjectInfo>(
+    projectId ? ['project', projectId] : null,
+    () => getProject(projectId!),
+    defaultConfig,
+  );
+
+  return {
+    project: data ?? null,
     isLoading,
     error,
     refresh: revalidate,
@@ -118,6 +147,9 @@ export function useOrphanTables() {
  */
 export async function refreshProjects(orgId?: string | null) {
   mutate('orphan-tables');
+  if (orgId === null) {
+    return undefined;
+  }
   if (orgId) {
     return mutate(['projects', orgId], undefined, { revalidate: true });
   }

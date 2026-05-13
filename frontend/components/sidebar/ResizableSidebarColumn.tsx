@@ -101,7 +101,7 @@ function readPersistedWidth(
 
 export function ResizableSidebarColumn({
   storageKey,
-  defaultWidth = 250,
+  defaultWidth = 200,
   minWidth = 200,
   maxWidth = 480,
   width: controlledWidth,

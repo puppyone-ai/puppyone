@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 import type { SyncEndpointInfo } from './types';
 
 function SyncSourceIcon({ size = 16, isEmpty = false }: { size?: number; isEmpty?: boolean }) {
@@ -195,7 +196,7 @@ export function ItemContextMenu({
             position: 'fixed',
             top: pos.y,
             left: pos.x,
-            zIndex: 9999,
+            zIndex: APP_Z_INDEX.popover,
             background: 'rgba(28, 28, 30, 0.98)',
             backdropFilter: 'blur(20px)',
             border: '1px solid rgba(255,255,255,0.1)',

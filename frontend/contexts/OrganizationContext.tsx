@@ -37,9 +37,15 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
     { dedupingInterval: 30000, revalidateOnFocus: false }
   );
 
-  // Auto-select org when orgs load
+  // Auto-select org when orgs load. If localStorage points at an org the
+  // user can no longer see, fall back to the first visible org instead of
+  // leaving `currentOrg` permanently null with a truthy stale id.
   useEffect(() => {
-    if (orgs.length > 0 && !currentOrgId) {
+    if (orgs.length === 0) return;
+    const currentIsValid = currentOrgId
+      ? orgs.some(o => o.id === currentOrgId)
+      : false;
+    if (!currentIsValid) {
       const stored = typeof window !== 'undefined'
         ? localStorage.getItem('puppyone_current_org')
         : null;

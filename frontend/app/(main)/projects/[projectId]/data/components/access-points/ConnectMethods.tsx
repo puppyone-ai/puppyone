@@ -6,14 +6,14 @@
  * Renders stacked MethodCards for the per-scope built-ins:
  *
  *   1. Terminal CLI — copyable terminal setup prompt
- *   2. Local Sync   — copyable bidirectional folder sync prompt
+ *   2. Git Remote   — copyable Git clone/push prompt
  *   3. AI Agent     — in-app chat runtime (currently HIDDEN behind
  *                     the `AI_AGENT_ENABLED` feature flag in
  *                     `frontend/lib/featureFlags.ts`; the card and
  *                     all activation wiring is still here, just
  *                     not rendered)
  *
- * Terminal CLI and Local Sync are exposure mechanisms — they hand
+ * Terminal CLI and Git Remote are exposure mechanisms — they hand
  * external clients (Claude Desktop, Cursor, MCP, your local
  * filesystem) the credentials and setup prompts to read/write this
  * scope from outside PuppyOne. AI Agent is a *consumer* of the same
@@ -68,7 +68,7 @@ interface ConnectMethodsBlockProps {
    *  access on the server side until resumed. */
   readonly cliConnector: Connector | undefined;
   /** Auto-INSERTed filesystem connector (added by the 2026-05-08
-   *  migration). Drives the Local Sync card's on/off toggle for the
+   *  migration). Drives the Git Remote card's on/off toggle for the
    *  same reason as cli — body content is shared from the scope
    *  access key, the connector status is what gates the server-side
    *  authorisation for sync sessions. */
@@ -127,7 +127,7 @@ export function ConnectMethodsBlock({
   }, [agentConnector]);
 
   const accessKey = scope.access_key || '';
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
@@ -277,8 +277,7 @@ export function ConnectMethodsBlock({
           onToggle={localFilesystem ? handleToggleFilesystem : undefined}
         >
           <LocalSyncBody
-            accessKey={accessKey}
-            cloneUrl={cloneUrl}
+            gitUrl={gitUrl}
             scopeName={scopeName}
           />
         </MethodCard>

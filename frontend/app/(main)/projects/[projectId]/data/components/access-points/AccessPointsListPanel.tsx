@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { accessPointProfileSlug, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
+import {
+  accessPointProfileSlug,
+  buildGitSyncPrompt,
+  buildTerminalCliPrompt,
+} from '@/lib/accessPointCliPrompt';
 import { PanelShell } from '../PanelShell';
 import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
@@ -30,39 +34,33 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   const accessKey = ep.accessKey || '';
 
   if (ep.provider === 'filesystem' && accessKey) {
-    const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+    const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
     const profileName = accessPointProfileSlug(scopeName);
-    const { prompt } = buildTerminalCliPrompt({
+    const gitPrompt = buildGitSyncPrompt({
+      gitUrl,
+      scopeName,
+      directoryName: scopeName,
+      accessPointName: displayName,
+    }).prompt;
+    const terminalPrompt = buildTerminalCliPrompt({
       apiBase,
       accessKey,
       profileName,
       scopeName,
       accessPointName: displayName,
-    });
+    }).prompt;
     return {
       primary: {
-        title: 'PuppyOne CLI',
-        description: 'Directly read and write this cloud folder. No local clone.',
-        body: prompt,
-        copyText: prompt,
+        title: 'Git Remote',
+        description: 'Clone this scope with standard Git commands.',
+        body: gitPrompt,
+        copyText: gitPrompt,
       },
       secondary: {
-        title: 'MUT Sync',
-        description: 'Use when you want a local folder copy and ongoing two-way sync.',
-        body: [
-          `Sync this PuppyOne Access Point with a local folder using the MUT CLI.`,
-          ``,
-          `Access Point: ${displayName}`,
-          `Scope: ${scopeName}`,
-          ``,
-          `From the local folder that should sync with PuppyOne, run:`,
-          `mut connect ${cloneUrl} --credential ${accessKey}`,
-          ``,
-          `Endpoint URL: ${cloneUrl}`,
-          `Credential: ${accessKey}`,
-          ``,
-          `After connecting, use MUT for ongoing syncs. Do not create a new access point unless I ask for one.`,
-        ].join('\n'),
+        title: 'PuppyOne FS CLI',
+        description: 'Use scoped filesystem commands without a local clone.',
+        body: terminalPrompt,
+        copyText: terminalPrompt,
       },
     } as const;
   }

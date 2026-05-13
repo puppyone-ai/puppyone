@@ -40,6 +40,7 @@ export type FileCategory =
 export type GenericViewerId =
   | 'markdown-editor'
   | 'monaco-code'
+  | 'html-artifact'
   | 'image-preview'
   | 'audio-preview'
   | 'video-preview'

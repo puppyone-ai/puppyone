@@ -45,7 +45,7 @@ export function LibraryView({
   const headerRef = useRef<HTMLDivElement>(null);
 
   const { currentOrg } = useOrganization();
-  const { projects } = useProjects(currentOrg?.id);
+  const { projects } = useProjects(currentOrg?.id ?? null);
 
   // 构建 nodeId -> path 的映射
   const tablePathMap = useMemo(() => {

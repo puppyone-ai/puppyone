@@ -2,7 +2,9 @@
 
 import clsx from 'clsx';
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 
 // Brand blue — same constant as `BRAND_BLUE` in SidebarLayout.tsx.
 // Used for every workspace identity chip so the project's "color"
@@ -42,8 +44,38 @@ export function ProjectSwitcher({
 }: ProjectSwitcherProps) {
   const t = useTranslations('sidebar');
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPosition({
+        left: rect.left,
+        top: rect.bottom + 4,
+        width: Math.max(220, rect.width),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -174,11 +206,18 @@ export function ProjectSwitcher({
             • Project rows reuse the same cyan→blue first-letter chip
               from the trigger button so the "active workspace"
               identity glyph stays visually constant. */}
-      {isOpen && (
+      {isOpen && menuPosition && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className='absolute left-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-md bg-[#181818] shadow-xl shadow-black/40'
-          style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+          className='overflow-hidden rounded-md bg-[#181818] shadow-xl shadow-black/40'
+          style={{
+            position: 'fixed',
+            left: menuPosition.left,
+            top: menuPosition.top,
+            width: menuPosition.width,
+            border: '1px solid rgba(255,255,255,0.08)',
+            zIndex: APP_Z_INDEX.popover,
+          }}
         >
           {/* Go to organization — action-oriented label rather than
               echoing the org name (which would visually collide with
@@ -266,6 +305,7 @@ export function ProjectSwitcher({
             </div>
           </div>
         </div>
+        , document.body
       )}
     </div>
   );

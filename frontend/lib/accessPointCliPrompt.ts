@@ -14,6 +14,21 @@ export interface TerminalCliPrompt {
   readonly prompt: string;
 }
 
+export interface GitSyncPromptInput {
+  readonly gitUrl: string;
+  readonly scopeName: string;
+  readonly directoryName?: string;
+  readonly accessPointName?: string;
+}
+
+export interface GitSyncPrompt {
+  readonly cloneLines: readonly string[];
+  readonly existingFolderLines: readonly string[];
+  readonly workflowLines: readonly string[];
+  readonly serverMergeLine: string;
+  readonly prompt: string;
+}
+
 export function accessPointProfileSlug(name: string): string {
   return (
     name
@@ -25,6 +40,76 @@ export function accessPointProfileSlug(name: string): string {
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+export function buildGitSyncPrompt({
+  gitUrl,
+  scopeName,
+  directoryName,
+  accessPointName,
+}: GitSyncPromptInput): GitSyncPrompt {
+  const remote = gitUrl || '<git-url>';
+  const dir = accessPointProfileSlug(directoryName || scopeName || 'workspace');
+  const quotedRemote = shellQuote(remote);
+  const quotedDir = shellQuote(dir);
+  const cloneLines = [
+    `git clone ${quotedRemote} ${quotedDir}`,
+    `cd ${quotedDir}`,
+  ];
+  const existingFolderLines = [
+    'cd /path/to/your/existing/folder',
+    'git init',
+    'git branch -M main',
+    `git remote add origin ${quotedRemote}`,
+    'git add .',
+    'git commit -m "Initial sync"',
+    'git push -u origin main',
+  ];
+  const workflowLines = [
+    'git pull --ff-only origin main',
+    '# ... edit files ...',
+    'git add .',
+    'git commit -m "describe changes"',
+    'git push origin main',
+  ];
+  const serverMergeLine = 'git push --force-with-lease origin main';
+  const prompt = [
+    'Use this PuppyOne Access Point as a Git remote.',
+    '',
+    accessPointName ? `Access Point: ${accessPointName}` : null,
+    `Scope: ${scopeName}`,
+    `Remote: ${remote}`,
+    '',
+    'Clone to a new local folder:',
+    '```bash',
+    ...cloneLines,
+    '```',
+    '',
+    'Or publish an existing local folder:',
+    '```bash',
+    ...existingFolderLines,
+    '```',
+    '',
+    'Day-to-day workflow:',
+    '```bash',
+    ...workflowLines,
+    '```',
+    '',
+    'Collaboration rules:',
+    '- PuppyOne is the source of truth for this scope.',
+    '- Do not create local merge commits to resolve conflicts; PuppyOne handles merge decisions on the server.',
+    `- If a normal push says the remote has newer work, submit your commit as a server-side merge proposal with \`${serverMergeLine}\`.`,
+    '- If PuppyOne says manual review is required, stop and resolve it from PuppyOne.',
+    '- This remote is scope-bound; commits that touch paths outside the scope are rejected.',
+  ].filter((line): line is string => line != null).join('\n');
+
+  return {
+    cloneLines,
+    existingFolderLines,
+    workflowLines,
+    serverMergeLine,
+    prompt,
+  };
 }
 
 export function buildTerminalCliPrompt({

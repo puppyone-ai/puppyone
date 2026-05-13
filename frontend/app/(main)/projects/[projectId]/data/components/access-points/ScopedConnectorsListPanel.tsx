@@ -7,7 +7,7 @@
  * selected, the body stacks two primary sections vertically + an
  * optional Settings sub-panel:
  *
- *   ① ConnectMethodsBlock        — Terminal CLI, Local Sync, AI Agent
+ *   ① ConnectMethodsBlock        — Terminal CLI, Git Remote, AI Agent
  *                                  (the three default ways to access this
  *                                  folder — DB-trigger-backed cli + agent
  *                                  connectors fan out into three UI cards)
@@ -137,7 +137,7 @@ export function ScopedConnectorsListPanel({
     [connectors],
   );
   // Filesystem became a per-scope built-in in the 2026-05-08
-  // migration — picked out here so the Local Sync MethodCard's
+  // migration — picked out here so the Git Remote MethodCard's
   // pause/resume toggle has a connector to bind to.
   const filesystemConnector = useMemo(
     () => connectors.find((c) => c.provider === 'filesystem'),
@@ -149,11 +149,11 @@ export function ScopedConnectorsListPanel({
   );
   // Integrations = third-party connectors. The three built-ins
   // (cli / agent / filesystem) are surfaced via the CONNECT block
-  // above (Terminal CLI / AI Agent / Local Sync cards), so they
+  // above (Terminal CLI / AI Agent / Git Remote cards), so they
   // must be excluded from this row to avoid double-rendering.
   // `filesystem` was promoted to a built-in by the 2026-05-08
-  // migration; missing it from this filter caused "Local Folder
-  // Sync" to leak into the Integrations section as a phantom card.
+  // migration; missing it from this filter caused the Git Remote
+  // built-in to leak into the Integrations section as a phantom card.
   const integrations = useMemo(
     () =>
       connectors.filter(
@@ -367,7 +367,7 @@ export function ScopedConnectorsListPanel({
 
               {/* The three default ways to access this scope. cli + agent
                   rows in `connectors` back the scope key and in-app chat
-                  agent surfaces. Terminal CLI and Local Sync share the
+                  agent surfaces. Terminal CLI and Git Remote share the
                   scope access key; AI Agent opens the chat runtime. */}
               <ConnectMethodsBlock
                 scope={scope}

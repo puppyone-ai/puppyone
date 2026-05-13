@@ -10,9 +10,8 @@
  * committing — invaluable when shift-clicks or rogue cmd-clicks
  * grab unintended siblings.
  *
- * Default Delete behaviour is soft-delete (move to .trash) so the
- * user can recover via the trash UI. ``permanent`` is offered as a
- * checkbox for power users who already know they want it gone.
+ * Delete removes items from the current tree. Recovery is handled
+ * through PuppyOne version history/rollback, not a hidden .trash tree.
  */
 
 import { useEffect, useState } from 'react';
@@ -22,7 +21,7 @@ interface BulkDeleteDialogProps {
   open: boolean;
   paths: string[];
   onClose: () => void;
-  onConfirm: (permanent: boolean) => Promise<void>;
+  onConfirm: () => Promise<void>;
 }
 
 const PREVIEW_LIMIT = 8;
@@ -34,13 +33,10 @@ export function BulkDeleteDialog({
   onConfirm,
 }: BulkDeleteDialogProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [permanent, setPermanent] = useState(false);
 
-  // Reset transient form state every time the dialog re-opens so a
-  // previous "permanent" tick doesn't carry over silently.
+  // Reset transient form state every time the dialog re-opens.
   useEffect(() => {
     if (open) {
-      setPermanent(false);
       setSubmitting(false);
     }
   }, [open]);
@@ -64,7 +60,7 @@ export function BulkDeleteDialog({
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, submitting, permanent]);
+  }, [open, submitting]);
 
   if (!open) return null;
 
@@ -72,7 +68,7 @@ export function BulkDeleteDialog({
     if (submitting) return;
     setSubmitting(true);
     try {
-      await onConfirm(permanent);
+      await onConfirm();
       onClose();
     } catch {
       // Toast surfacing is the parent's job; just unblock the button.
@@ -171,12 +167,11 @@ export function BulkDeleteDialog({
 
         <div style={{ padding: '20px 24px 16px' }}>
           <p style={{ color: '#EDEDED', marginBottom: 12, fontSize: 14, fontWeight: 500 }}>
-            Move {paths.length} item{paths.length === 1 ? '' : 's'} to the trash?
+            Delete {paths.length} item{paths.length === 1 ? '' : 's'}?
           </p>
           <p style={{ color: '#9ca3af', fontSize: 13, lineHeight: 1.5, marginBottom: 14 }}>
-            {permanent
-              ? 'These items will be deleted permanently. This action cannot be undone.'
-              : 'You can restore items from the trash. Folders take their entire contents with them.'}
+            Items are removed from the current tree. You can recover prior
+            contents from PuppyOne version history or rollback.
           </p>
 
           {/* Preview list */}
@@ -222,27 +217,6 @@ export function BulkDeleteDialog({
             )}
           </div>
 
-          {/* Permanent toggle */}
-          <label
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 13,
-              color: permanent ? '#fca5a5' : '#9ca3af',
-              cursor: 'pointer',
-              userSelect: 'none',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={permanent}
-              onChange={(e) => setPermanent(e.target.checked)}
-              disabled={submitting}
-              style={{ cursor: 'pointer' }}
-            />
-            Delete permanently (skip trash)
-          </label>
         </div>
 
         <div
@@ -281,9 +255,7 @@ export function BulkDeleteDialog({
             {submitting && <Dots size="xs" tone="danger" />}
             {submitting
               ? 'Deleting…'
-              : permanent
-                ? `Delete ${paths.length} permanently`
-                : `Delete ${paths.length}`}
+              : `Delete ${paths.length}`}
           </button>
         </div>
       </div>

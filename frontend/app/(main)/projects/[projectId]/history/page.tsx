@@ -22,10 +22,12 @@ import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
 // patch. O(m*n) memory — safe for typical file sizes (<10k lines);
 // guarded by a hard length cap below to avoid pathological pages.
 
-type DiffLineKind = 'add' | 'remove' | 'context';
+type DiffLineKind = 'add' | 'remove' | 'context' | 'hunk';
 interface DiffLine {
   kind: DiffLineKind;
   text: string;
+  oldLine?: number;
+  newLine?: number;
 }
 
 const DIFF_MAX_LINES = 4000;
@@ -70,6 +72,67 @@ function lineDiff(a: string[], b: string[]): DiffLine[] {
   }
   out.reverse();
   return out;
+}
+
+function addLineNumbers(lines: DiffLine[]): DiffLine[] {
+  let oldLine = 1;
+  let newLine = 1;
+  return lines.map((line) => {
+    if (line.kind === 'remove') {
+      return { ...line, oldLine: oldLine++ };
+    }
+    if (line.kind === 'add') {
+      return { ...line, newLine: newLine++ };
+    }
+    if (line.kind === 'context') {
+      return { ...line, oldLine: oldLine++, newLine: newLine++ };
+    }
+    return line;
+  });
+}
+
+function compactDiffLines(lines: DiffLine[], contextRadius = 3): DiffLine[] {
+  const changedIndexes = lines
+    .map((line, index) => (line.kind === 'add' || line.kind === 'remove' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (changedIndexes.length === 0) return lines;
+
+  const ranges: Array<{ start: number; end: number }> = [];
+  for (const index of changedIndexes) {
+    const start = Math.max(0, index - contextRadius);
+    const end = Math.min(lines.length - 1, index + contextRadius);
+    const last = ranges[ranges.length - 1];
+    if (last && start <= last.end + 1) {
+      last.end = Math.max(last.end, end);
+    } else {
+      ranges.push({ start, end });
+    }
+  }
+
+  const compacted: DiffLine[] = [];
+  let cursor = 0;
+  for (const range of ranges) {
+    const hiddenCount = range.start - cursor;
+    if (hiddenCount > 0) {
+      compacted.push({
+        kind: 'hunk',
+        text: hiddenCount === 1 ? '@@ 1 unchanged line @@' : `@@ ${hiddenCount} unchanged lines @@`,
+      });
+    }
+    compacted.push(...lines.slice(range.start, range.end + 1));
+    cursor = range.end + 1;
+  }
+
+  const trailingHidden = lines.length - cursor;
+  if (trailingHidden > 0) {
+    compacted.push({
+      kind: 'hunk',
+      text: trailingHidden === 1 ? '@@ 1 unchanged line @@' : `@@ ${trailingHidden} unchanged lines @@`,
+    });
+  }
+
+  return compacted;
 }
 
 // Pull lines out of the commit-content response. Backend returns
@@ -162,6 +225,12 @@ function formatOperatorLabel(type: string): string {
   return 'System';
 }
 
+function formatScopeLabel(scopePath: string): string {
+  const normalized = scopePath.trim();
+  if (!normalized || normalized === '/') return 'Root scope';
+  return normalized;
+}
+
 // ─── Vertical commit node (Linear Audit Trail) ───
 
 function getTrackInfo(who: string) {
@@ -176,13 +245,15 @@ function getTrackInfo(who: string) {
 
 function VerticalCommitNode({
   commit,
-  nextCommit,
+  hasPrevious,
+  hasNext,
   isSelected,
   isHead,
   onClick,
 }: {
   commit: MutCommitInfo;
-  nextCommit?: MutCommitInfo;
+  hasPrevious: boolean;
+  hasNext: boolean;
   isSelected: boolean;
   isHead: boolean;
   onClick: () => void;
@@ -198,13 +269,13 @@ function VerticalCommitNode({
   const ROW_HEIGHT = ITEM_HEIGHT + MARGIN_Y * 2; // 32px total row space
   
   // Left side for the short commit id
-  const VERSION_WIDTH = 60;
-  // X position of the single straight line
-  const LINE_X = VERSION_WIDTH + 14; 
-  const activeColor = isSelected ? currentInfo.color : '#52525b';
-  const svgWidth = LINE_X + 10;
+  const VERSION_WIDTH = 56;
+  const GRAPH_WIDTH = 20;
+  const LINE_X = GRAPH_WIDTH / 2;
+  const trackColor = '#27272a';
+  const dotStroke = isSelected ? currentInfo.color : hovered ? '#71717a' : '#52525b';
 
-  const shortId = commit.commit_id ? commit.commit_id.slice(0, 12) : '';
+  const shortId = commit.commit_id ? commit.commit_id.slice(0, 8) : '';
 
   return (
     <div style={{ position: 'relative', height: ROW_HEIGHT }}>
@@ -228,49 +299,6 @@ function VerticalCommitNode({
           zIndex: 10,
         }}
       >
-        {/* Straight Line Track SVG */}
-        <svg 
-          style={{ position: 'absolute', left: -6, top: -MARGIN_Y, width: svgWidth, height: ROW_HEIGHT, overflow: 'visible', pointerEvents: 'none', zIndex: 20 }}
-        >
-          {/* Straight line to the next (older) commit below */}
-          {nextCommit && (
-            <line
-              x1={LINE_X}
-              y1={ROW_HEIGHT / 2}
-              x2={LINE_X}
-              y2={ROW_HEIGHT + ROW_HEIGHT / 2}
-              stroke={activeColor}
-              strokeWidth={1.5}
-              strokeOpacity={isSelected ? 0.8 : 0.3}
-              style={{ transition: 'stroke 0.2s, stroke-opacity 0.2s' }}
-            />
-          )}
-
-          {/* Outline ring for selected node to make it pop against the dark background */}
-          {isSelected && (
-            <circle
-              cx={LINE_X}
-              cy={ROW_HEIGHT / 2}
-              r={5.5}
-              fill="transparent"
-              stroke={currentInfo.color}
-              strokeWidth={1.5}
-              opacity={0.4}
-            />
-          )}
-
-          {/* The Node Dot */}
-          <circle
-            cx={LINE_X}
-            cy={ROW_HEIGHT / 2}
-            r={3}
-            fill={isSelected ? currentInfo.color : (isSelected ? '#2a2a2a' : hovered ? '#1e1e1e' : '#0e0e0e')}
-            stroke={activeColor}
-            strokeWidth={1.5}
-            style={{ transition: 'all 0.2s' }}
-          />
-        </svg>
-
         <div
           style={{
             flex: 1, minWidth: 0,
@@ -292,17 +320,72 @@ function VerticalCommitNode({
               fontSize: 11,
               color: isSelected ? '#fff' : '#71717a',
               transition: 'color 0.1s',
-              zIndex: 30, // Above SVG
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
             }}
           >
             {shortId}
           </div>
 
+          <svg
+            width={GRAPH_WIDTH}
+            height={ROW_HEIGHT}
+            viewBox={`0 0 ${GRAPH_WIDTH} ${ROW_HEIGHT}`}
+            style={{
+              flexShrink: 0,
+              marginTop: -MARGIN_Y,
+              marginBottom: -MARGIN_Y,
+              overflow: 'visible',
+              pointerEvents: 'none',
+            }}
+          >
+            {hasPrevious && (
+              <line
+                x1={LINE_X}
+                y1={0}
+                x2={LINE_X}
+                y2={ROW_HEIGHT / 2}
+                stroke={trackColor}
+                strokeWidth={1.5}
+              />
+            )}
+            {hasNext && (
+              <line
+                x1={LINE_X}
+                y1={ROW_HEIGHT / 2}
+                x2={LINE_X}
+                y2={ROW_HEIGHT}
+                stroke={trackColor}
+                strokeWidth={1.5}
+              />
+            )}
+            {isSelected && (
+              <circle
+                cx={LINE_X}
+                cy={ROW_HEIGHT / 2}
+                r={5.5}
+                fill="transparent"
+                stroke={currentInfo.color}
+                strokeWidth={1.5}
+                opacity={0.35}
+              />
+            )}
+            <circle
+              cx={LINE_X}
+              cy={ROW_HEIGHT / 2}
+              r={3}
+              fill={isSelected ? currentInfo.color : hovered ? '#1e1e1e' : '#0e0e0e'}
+              stroke={dotStroke}
+              strokeWidth={1.5}
+              style={{ transition: 'fill 0.12s, stroke 0.12s' }}
+            />
+          </svg>
+
           {/* The content container starts AFTER the single line graph */}
           <div style={{
             flex: 1, minWidth: 0,
             display: 'flex', alignItems: 'center', gap: 6, height: '100%',
-            paddingLeft: svgWidth - VERSION_WIDTH + 6, // Compensate for SVG width properly
+            paddingLeft: 4,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {/* Actor Prefix (Optional context) */}
@@ -361,7 +444,28 @@ const OP_TONE: Record<string, { bg: string; fg: string }> = {
   deleted:  { bg: 'rgba(239,68,68,0.15)',  fg: '#ef4444' },
 };
 
-function DiffRow({ line, lineNum }: { line: DiffLine; lineNum: number }) {
+function DiffRow({ line }: { line: DiffLine }) {
+  if (line.kind === 'hunk') {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          height: 24,
+          paddingLeft: 14,
+          background: 'rgba(255,255,255,0.025)',
+          color: '#52525b',
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          fontSize: 11,
+          borderTop: '1px solid rgba(255,255,255,0.03)',
+          borderBottom: '1px solid rgba(255,255,255,0.03)',
+        }}
+      >
+        {line.text}
+      </div>
+    );
+  }
+
   const isAdd = line.kind === 'add';
   const isRem = line.kind === 'remove';
   const bg = isAdd
@@ -372,6 +476,7 @@ function DiffRow({ line, lineNum }: { line: DiffLine; lineNum: number }) {
   const numColor = isAdd ? '#22c55e' : isRem ? '#ef4444' : '#52525b';
   const prefix = isAdd ? '+' : isRem ? '-' : ' ';
   const textColor = isAdd ? '#86efac' : isRem ? '#fca5a5' : '#a1a1aa';
+  const lineNum = isRem ? line.oldLine : line.newLine ?? line.oldLine;
   return (
     <div
       style={{
@@ -394,7 +499,7 @@ function DiffRow({ line, lineNum }: { line: DiffLine; lineNum: number }) {
           userSelect: 'none',
         }}
       >
-        {lineNum}
+        {lineNum ?? ''}
       </span>
       <span
         style={{
@@ -462,17 +567,17 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
   } else if (!isLoading) {
     if (op === 'added') {
       const cur = currentDetail ? fileToLines(currentDetail) : null;
-      if (cur) lines = cur.map((text) => ({ kind: 'add' as const, text }));
+      if (cur) lines = cur.map((text, index) => ({ kind: 'add' as const, text, newLine: index + 1 }));
       else placeholder = 'Binary file or unchanged metadata';
     } else if (op === 'deleted') {
       const prev = parentDetail ? fileToLines(parentDetail) : null;
-      if (prev) lines = prev.map((text) => ({ kind: 'remove' as const, text }));
+      if (prev) lines = prev.map((text, index) => ({ kind: 'remove' as const, text, oldLine: index + 1 }));
       else if (!parentCommitId) placeholder = 'No previous version available';
       else placeholder = 'Binary file or unchanged metadata';
     } else {
       const prev = parentDetail ? fileToLines(parentDetail) : null;
       const cur = currentDetail ? fileToLines(currentDetail) : null;
-      if (prev && cur) lines = lineDiff(prev, cur);
+      if (prev && cur) lines = compactDiffLines(addLineNumbers(lineDiff(prev, cur)));
       else placeholder = 'Binary file or unchanged metadata';
     }
   }
@@ -568,7 +673,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
       ) : lines && lines.length > 0 ? (
         <div style={{ padding: '6px 0', background: 'rgba(0,0,0,0.25)' }}>
           {lines.map((line, j) => (
-            <DiffRow key={j} line={line} lineNum={j + 1} />
+            <DiffRow key={j} line={line} />
           ))}
         </div>
       ) : (
@@ -747,24 +852,51 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   // Reverse commits so newest is on top
   const sortedCommits = useMemo(() => [...commits].reverse(), [commits]);
 
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [activeScopeFilter, setActiveScopeFilter] = useState<string | null>(null);
+  const [activeActorFilter, setActiveActorFilter] = useState<string | null>(null);
+  const [filterMenuOpen, setFilterMenuOpen] = useState<'scope' | 'actor' | null>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
-  const accessPoints = useMemo(() => {
+  const actorOptions = useMemo(() => {
     const counts = new Map<string, number>();
     commits.forEach(c => {
-      counts.set(c.who, (counts.get(c.who) || 0) + 1);
+      const { type } = parseOperator(c.who);
+      counts.set(type, (counts.get(type) || 0) + 1);
     });
-    return Array.from(counts.entries()).map(([who, count]) => {
-      const { type, id } = parseOperator(who);
-      return { who, type, id, count };
-    }).sort((a, b) => b.count - a.count);
+    const order = ['user', 'agent', 'sync', 'system'];
+    return Array.from(counts.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => {
+        const ai = order.indexOf(a.type);
+        const bi = order.indexOf(b.type);
+        if (ai !== bi) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+        return b.count - a.count;
+      });
   }, [commits]);
 
-  const activeAccessPoint = useMemo(
-    () => accessPoints.find(ap => ap.who === activeFilter) ?? null,
-    [accessPoints, activeFilter],
+  const scopeOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    commits.forEach(c => {
+      const scope = c.scope_path || '';
+      counts.set(scope, (counts.get(scope) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([scope, count]) => ({ scope, count }))
+      .sort((a, b) => {
+        if (a.scope === '') return -1;
+        if (b.scope === '') return 1;
+        return b.count - a.count;
+      });
+  }, [commits]);
+
+  const activeActor = useMemo(
+    () => actorOptions.find(option => option.type === activeActorFilter) ?? null,
+    [actorOptions, activeActorFilter],
+  );
+
+  const activeScope = useMemo(
+    () => scopeOptions.find(option => option.scope === activeScopeFilter) ?? null,
+    [scopeOptions, activeScopeFilter],
   );
 
   useEffect(() => {
@@ -772,13 +904,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
 
     function closeOnOutside(event: MouseEvent) {
       if (!filterMenuRef.current?.contains(event.target as Node)) {
-        setFilterMenuOpen(false);
+        setFilterMenuOpen(null);
       }
     }
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
-        setFilterMenuOpen(false);
+        setFilterMenuOpen(null);
       }
     }
 
@@ -792,11 +924,14 @@ export default function HistoryPage({ params }: HistoryPageProps) {
 
   const filteredCommits = useMemo(() => {
     let filtered = sortedCommits;
-    if (activeFilter) {
-      filtered = sortedCommits.filter(c => c.who === activeFilter);
+    if (activeScopeFilter !== null) {
+      filtered = filtered.filter(c => (c.scope_path || '') === activeScopeFilter);
+    }
+    if (activeActorFilter) {
+      filtered = filtered.filter(c => parseOperator(c.who).type === activeActorFilter);
     }
     return filtered;
-  }, [sortedCommits, activeFilter]);
+  }, [sortedCommits, activeScopeFilter, activeActorFilter]);
 
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
 
@@ -812,6 +947,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       }
     }
   }, [commits, selectedCommitId, headCommitId]);
+
+  useEffect(() => {
+    if (filteredCommits.length === 0 || !selectedCommitId) return;
+    if (!filteredCommits.some(commit => commit.commit_id === selectedCommitId)) {
+      setSelectedCommitId(filteredCommits[0].commit_id);
+    }
+  }, [filteredCommits, selectedCommitId]);
 
   const selectedCommit = useMemo(
     () => commits.find(c => c.commit_id === selectedCommitId) ?? null,
@@ -899,27 +1041,28 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         <div className="flex flex-1 min-h-0">
           {/* Left: Timeline List — wrapped in `ResizableSidebarColumn`
               so users can widen the timeline when commit messages or
-              author IDs would otherwise truncate aggressively. Default
-              340 matches the previous fixed width. */}
+              author IDs would otherwise truncate aggressively. Starts
+              at the compact minimum to keep the diff surface dominant. */}
           <ResizableSidebarColumn
             storageKey='history-timeline:history'
-            defaultWidth={340}
+            defaultWidth={260}
             minWidth={260}
             maxWidth={520}
             className="border-r border-white/[0.06] bg-[#0e0e0e] z-10"
           >
             
             {/* Filter Header */}
-            {accessPoints.length > 1 && (
-              <div className="flex flex-col border-b border-white/[0.04] bg-[#0e0e0e]">
+            {(scopeOptions.length > 1 || actorOptions.length > 1) && (
+              <div ref={filterMenuRef} className="flex flex-col border-b border-white/[0.04] bg-[#0e0e0e]">
                 <div className="px-3 h-[44px] min-h-[44px] flex items-center gap-2">
                   <button
                     onClick={() => {
-                      setActiveFilter(null);
-                      setFilterMenuOpen(false);
+                      setActiveScopeFilter(null);
+                      setActiveActorFilter(null);
+                      setFilterMenuOpen(null);
                     }}
                     className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                      activeFilter === null 
+                      activeScopeFilter === null && activeActorFilter === null
                         ? 'bg-white/[0.1] text-zinc-100' 
                         : 'bg-transparent text-zinc-400 hover:bg-white/[0.06]'
                     }`}
@@ -927,34 +1070,24 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                     All
                   </button>
 
-                  <div ref={filterMenuRef} className="relative min-w-0 flex-1">
+                  <div className="relative min-w-0 flex-1">
                     <button
-                      onClick={() => setFilterMenuOpen(open => !open)}
+                      onClick={() => setFilterMenuOpen(open => open === 'scope' ? null : 'scope')}
                       className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
-                        activeFilter
+                        activeScopeFilter !== null
                           ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]'
                           : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
                       }`}
-                      title={activeAccessPoint?.who ?? 'Filter by actor'}
+                      title={activeScope ? formatScopeLabel(activeScope.scope) : 'Filter by scope'}
                       aria-haspopup="menu"
-                      aria-expanded={filterMenuOpen}
+                      aria-expanded={filterMenuOpen === 'scope'}
                     >
-                      {activeAccessPoint ? (
-                        <>
-                          <span style={{ color: getTrackInfo(activeAccessPoint.who).color, fontSize: 8 }}>●</span>
-                          <span className="truncate">
-                            {formatOperatorLabel(activeAccessPoint.type)}
-                            {activeAccessPoint.id && (
-                              <span className="ml-1 opacity-70 font-mono font-normal">
-                                {activeAccessPoint.id.slice(0, 8)}
-                              </span>
-                            )}
-                          </span>
-                        </>
+                      {activeScope ? (
+                        <span className="truncate">{formatScopeLabel(activeScope.scope)}</span>
                       ) : (
                         <span className="truncate text-zinc-400">
-                          Actors
-                          <span className="ml-1 font-mono opacity-60">{accessPoints.length}</span>
+                          Scope
+                          <span className="ml-1 font-mono opacity-60">{scopeOptions.length}</span>
                         </span>
                       )}
                       <svg
@@ -966,29 +1099,102 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className={`ml-auto flex-shrink-0 opacity-60 transition-transform ${filterMenuOpen ? 'rotate-180' : ''}`}
+                        className={`ml-auto flex-shrink-0 opacity-60 transition-transform ${filterMenuOpen === 'scope' ? 'rotate-180' : ''}`}
                       >
                         <path d="m6 9 6 6 6-6" />
                       </svg>
                     </button>
 
-                    {filterMenuOpen && (
+                    {filterMenuOpen === 'scope' && (
                       <div
                         role="menu"
-                        className="absolute left-0 right-0 top-[30px] z-50 overflow-hidden rounded-md border border-white/[0.08] bg-[#151515] shadow-xl"
+                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-white/[0.08] bg-[#151515] shadow-xl"
                       >
                         <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
-                          {accessPoints.map(ap => {
-                            const { color } = getTrackInfo(ap.who);
-                            const isSelected = activeFilter === ap.who;
+                          {scopeOptions.map(option => {
+                            const isSelected = activeScopeFilter === option.scope;
                             return (
                               <button
-                                key={ap.who}
+                                key={option.scope || '__root__'}
                                 role="menuitemradio"
                                 aria-checked={isSelected}
                                 onClick={() => {
-                                  setActiveFilter(ap.who);
-                                  setFilterMenuOpen(false);
+                                  setActiveScopeFilter(option.scope);
+                                  setFilterMenuOpen(null);
+                                }}
+                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors ${
+                                  isSelected
+                                    ? 'bg-white/[0.08] text-zinc-100'
+                                    : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
+                                }`}
+                              >
+                                <span className="min-w-0 flex-1 truncate font-mono">{formatScopeLabel(option.scope)}</span>
+                                <span className="flex-shrink-0 font-mono text-[10px] opacity-50">
+                                  {option.count}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative min-w-0 flex-1">
+                    <button
+                      onClick={() => setFilterMenuOpen(open => open === 'actor' ? null : 'actor')}
+                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+                        activeActorFilter
+                          ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]'
+                          : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
+                      }`}
+                      title={activeActor ? formatOperatorLabel(activeActor.type) : 'Filter by actor type'}
+                      aria-haspopup="menu"
+                      aria-expanded={filterMenuOpen === 'actor'}
+                    >
+                      {activeActor ? (
+                        <>
+                          <span style={{ color: getTrackInfo(activeActor.type).color, fontSize: 8 }}>●</span>
+                          <span className="truncate">{formatOperatorLabel(activeActor.type)}</span>
+                        </>
+                      ) : (
+                        <span className="truncate text-zinc-400">
+                          Who
+                          <span className="ml-1 font-mono opacity-60">{actorOptions.length}</span>
+                        </span>
+                      )}
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={`ml-auto flex-shrink-0 opacity-60 transition-transform ${filterMenuOpen === 'actor' ? 'rotate-180' : ''}`}
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    {filterMenuOpen === 'actor' && (
+                      <div
+                        role="menu"
+                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-white/[0.08] bg-[#151515] shadow-xl"
+                      >
+                        <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
+                          {actorOptions.map(option => {
+                            const color = getTrackInfo(option.type).color;
+                            const isSelected = activeActorFilter === option.type;
+                            return (
+                              <button
+                                key={option.type}
+                                role="menuitemradio"
+                                aria-checked={isSelected}
+                                onClick={() => {
+                                  setActiveActorFilter(option.type);
+                                  setFilterMenuOpen(null);
                                 }}
                                 className={`w-full min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors ${
                                   isSelected
@@ -997,16 +1203,9 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                                 }`}
                               >
                                 <span style={{ color, fontSize: 8 }}>●</span>
-                                <span className="min-w-0 flex-1 truncate">
-                                  {formatOperatorLabel(ap.type)}
-                                  {ap.id && (
-                                    <span className="ml-1 opacity-70 font-mono font-normal">
-                                      {ap.id.slice(0, 8)}
-                                    </span>
-                                  )}
-                                </span>
+                                <span className="min-w-0 flex-1 truncate">{formatOperatorLabel(option.type)}</span>
                                 <span className="flex-shrink-0 font-mono text-[10px] opacity-50">
-                                  {ap.count}
+                                  {option.count}
                                 </span>
                               </button>
                             );
@@ -1024,7 +1223,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                 <VerticalCommitNode
                   key={commit.commit_id}
                   commit={commit}
-                  nextCommit={i < filteredCommits.length - 1 ? filteredCommits[i + 1] : undefined}
+                  hasPrevious={i > 0}
+                  hasNext={i < filteredCommits.length - 1}
                   isSelected={selectedCommitId === commit.commit_id}
                   isHead={commit.commit_id === headCommitId}
                   onClick={() => setSelectedCommitId(commit.commit_id)}

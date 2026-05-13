@@ -66,7 +66,7 @@ export type SidebarLayoutProps = {
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
-const DEFAULT_SIDEBAR_WIDTH = 240;
+const DEFAULT_SIDEBAR_WIDTH = MIN_SIDEBAR_WIDTH;
 
 // Brand blue — single source of truth for the workspace identity
 // chip (both the expanded ProjectSwitcher chip and the collapsed

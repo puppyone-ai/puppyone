@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, memo } from 'react';
 import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { AppSidebar } from '@/components/AppSidebar';
-import { useProjects } from '@/lib/hooks/useData';
+import { useProject, useProjects } from '@/lib/hooks/useData';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { OrganizationProvider, useOrganization } from '@/contexts/OrganizationContext';
 import { OnboardingProvider } from '@/contexts/OnboardingContext';
@@ -55,18 +55,34 @@ const MainLayoutInner = memo(function MainLayoutInner({
 }) {
   const pathname = usePathname();
   const { session } = useAuth();
-  const { currentOrg } = useOrganization();
-  const { projects } = useProjects(currentOrg?.id);
+  const { currentOrg, switchOrg } = useOrganization();
 
-  const [activeBaseId, setActiveBaseId] = useState('');
-  useEffect(() => {
-    if (!pathname) return;
+  const activeBaseId = useMemo(() => {
+    if (!pathname) return '';
     const match = /^\/projects\/([^/]+)/.exec(pathname);
-    setActiveBaseId(match ? match[1] : '');
+    return match ? match[1] : '';
   }, [pathname]);
 
-  const [isNavCollapsed, setIsNavCollapsed] = useState(true);
-  const [sidebarWidth, setSidebarWidth] = useState(240);
+  const { project: routeProject } = useProject(session ? activeBaseId || null : null);
+  const { projects } = useProjects(currentOrg?.id ?? null);
+
+  useEffect(() => {
+    const routeOrgId = routeProject?.org_id;
+    if (!routeOrgId || currentOrg?.id === routeOrgId) return;
+    switchOrg(routeOrgId);
+  }, [currentOrg?.id, routeProject?.org_id, switchOrg]);
+
+  const sidebarProjects = useMemo(() => {
+    const projectsForCurrentRoute =
+      routeProject?.org_id && currentOrg?.id !== routeProject.org_id ? [] : projects;
+    if (!routeProject || projectsForCurrentRoute.some(p => p.id === routeProject.id)) {
+      return projectsForCurrentRoute;
+    }
+    return [routeProject, ...projectsForCurrentRoute];
+  }, [currentOrg?.id, projects, routeProject]);
+
+  const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(200);
 
   // Onboarding — lives here so the "?" button works from every page
   const onboarding = useOnboarding();
@@ -98,7 +114,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
       />
 
       <AppSidebar
-        projects={projects}
+        projects={sidebarProjects}
         activeBaseId={activeBaseId}
         activeView={activeView}
         userInitial={userInitial}
