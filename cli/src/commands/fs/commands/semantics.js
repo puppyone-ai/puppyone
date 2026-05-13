@@ -23,6 +23,32 @@ const SEMANTICS = {
     "Use tree -L <n>, find -maxdepth <n>, and --limit for recursive commands.",
     "Use head/tail for previews; raw file reads support range reads when available.",
   ],
+  discovery_guidance: [
+    "Run `puppyone fs --help` to list scoped filesystem commands.",
+    "Run `puppyone fs <command> --help` before using non-trivial flags.",
+    "Use `puppyone fs semantics --json` when an agent needs machine-readable capability notes.",
+  ],
+  command_guidance: [
+    "ls: Unix-like directory listing with multi-path support and familiar flags such as -l, -a, -R, -1, -h, -t, -d, -F; JSON exposes completeness metadata.",
+    "tree: directory tree rendering with -L/--level, directory-only mode, hidden-entry support, and scan limits.",
+    "find: scoped path discovery with Unix-like expressions such as -maxdepth, -mindepth, -type, -name, -iname, and --limit.",
+    "cat/head/tail: raw file reads; cat prints raw content by default, while head/tail are safer for previews and support line/byte bounds.",
+    "stat: metadata lookup for the scoped path; root stat reports the current Access Point scope state.",
+    "grep: live text search; see the grep guidance below and `puppyone fs grep --help` for flags.",
+    "write: writes or replaces one cloud file from --content, stdin, or local input depending on flags; mutates version history and audit logs.",
+    "mkdir/touch: create directories or empty files; mkdir supports -p/--parents.",
+    "cp/mv: scoped copy/move/rename with multi-source behavior, directory target handling, no-clobber support, and versioned mutations.",
+    "rm/rmdir: rm removes files or recursive trees according to its flags; rmdir removes empty directories and can remove parent chains.",
+    "upload/download: bridge local filesystem and the scoped cloud filesystem; recursive forms should use --max-depth and --limit.",
+  ],
+  grep_guidance: [
+    "Run `puppyone fs grep --help` for the full supported flag list.",
+    "Common grep flags supported: -E, -G, -F, -e, -f, -i, -v, -n, -H, -h, -b, -c, -l, -L, -m, -o, -A, -B, -C, -r, -R, -I, -a, -s, -q, -w, -x, --include, --exclude, --exclude-dir.",
+    "Default pattern mode is regexp; use -F for literal strings and -e when passing multiple patterns.",
+    "Use --max-depth, --limit, --max-files, and --max-bytes to keep cloud live scans bounded.",
+    "Use --json when you need complete/truncated/scanned_files/scanned_bytes/skipped metadata.",
+    "-P/PCRE, null-data/null-delimited output, local device/symlink behavior, compressed-file modes, and stdin streaming are not modeled in V1.",
+  ],
 };
 
 export function registerSemanticsCommand(fs) {
@@ -45,8 +71,17 @@ export function registerSemanticsCommand(fs) {
         "Differences from local Unix:",
         ...SEMANTICS.differences.map(item => `  - ${item}`),
         "",
+        "Discovery:",
+        ...SEMANTICS.discovery_guidance.map(item => `  - ${item}`),
+        "",
+        "Command guidance:",
+        ...SEMANTICS.command_guidance.map(item => `  - ${item}`),
+        "",
         "Resource guidance:",
         ...SEMANTICS.resource_guidance.map(item => `  - ${item}`),
+        "",
+        "grep guidance:",
+        ...SEMANTICS.grep_guidance.map(item => `  - ${item}`),
       ].join("\n"));
     }));
 }

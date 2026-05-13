@@ -259,6 +259,19 @@ export function registerGrepCommand(fs) {
     .option("--limit <n>", "max matching lines returned before truncation")
     .option("--max-files <n>", "max file candidates scanned before truncation")
     .option("--max-bytes <n>", "max decoded text bytes scanned before truncation")
+    .addHelpText("after", `
+Examples:
+  puppyone fs grep -n -i "todo" docs
+  puppyone fs grep -R -n --include "*.md" --exclude-dir ".trash" "PuppyOne" .
+  puppyone fs grep -F -e "literal one" -e "literal two" notes.md
+  puppyone fs grep -C 2 -w "Access" docs/api-reference.md
+  puppyone --json fs grep "pattern" . --max-depth 2 --limit 100
+
+Notes:
+  Default pattern mode is regexp; use -F for fixed strings.
+  This is a scoped cloud live scan in V1. Prefer explicit paths and resource caps for broad searches.
+  Unsupported/local-only grep semantics include -P/PCRE, null-data output, device/symlink behavior, compressed-file modes, and stdin streaming.
+`)
     .action(withErrors(async (pattern, paths, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);
