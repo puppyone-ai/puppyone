@@ -258,7 +258,7 @@ export default function TeamPage() {
                         <div className="h-5 w-px bg-[var(--po-border)]"></div>
                         <button
                           onClick={() => handleRemove(m.user_id, name)}
-                          className="flex items-center p-1 text-[var(--po-text-subtle)] transition-colors hover:text-[var(--po-danger)]"
+                          className="flex h-[30px] w-[30px] items-center justify-center p-0 text-[var(--po-text-subtle)] transition-colors hover:text-[var(--po-danger)]"
                           title="Remove member"
                         >
                           <Trash2 size={14} strokeWidth={2} />

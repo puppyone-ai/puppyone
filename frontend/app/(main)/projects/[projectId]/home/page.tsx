@@ -584,6 +584,7 @@ export default function HomePage({
                 style={{
                   background: 'none',
                   border: 'none',
+                  height: 30,
                   padding: 0,
                   cursor: 'pointer',
                   fontFamily: T.fontSans,
@@ -614,6 +615,7 @@ export default function HomePage({
                 style={{
                   background: 'none',
                   border: 'none',
+                  height: 30,
                   padding: 0,
                   cursor: 'pointer',
                   fontFamily: T.fontSans,
@@ -673,6 +675,8 @@ export default function HomePage({
                   border: 'none',
                   color: T.text3,
                   cursor: 'pointer',
+                  width: 30,
+                  height: 30,
                   padding: 0,
                   display: 'flex',
                   alignItems: 'center',
@@ -853,6 +857,7 @@ export default function HomePage({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
+                    height: 30,
                     padding: 0,
                     fontSize: 12,
                     color: T.text2,

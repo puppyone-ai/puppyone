@@ -160,7 +160,8 @@ function CopyableLine({
         }}
         style={{
           flexShrink: 0,
-          padding: '2px 10px',
+          height: 30,
+          padding: '0 10px',
           fontSize: 10,
           fontWeight: 500,
           color: isCopied ? T.live : T.text3,
@@ -262,6 +263,8 @@ export function AccessPointsListCard({
             background: 'none',
             border: 'none',
             cursor: 'pointer',
+            width: 30,
+            height: 30,
             padding: 0,
             fontSize: 12,
             color: T.text2,
@@ -424,7 +427,7 @@ function ApListRow({
             fontFamily: T.fontSans,
           }}
         >
-          {/* Provider avatar — 28 (was 32) to fit the 280px sidebar
+          {/* Provider avatar — 30 (was 32) to fit the 280px sidebar
               width without crowding the name + Open button on the
               same row.  Icon stays 18 (was 20) for the same reason.
               Avatar shape is still the primary multi-AP
@@ -432,8 +435,8 @@ function ApListRow({
               of the work and the avatar plays a supporting role. */}
           <div
             style={{
-              width: 28,
-              height: 28,
+              width: 30,
+              height: 30,
               borderRadius: 7,
               display: 'flex',
               alignItems: 'center',
@@ -541,7 +544,9 @@ function ApListRow({
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: '4px 6px',
+              width: 30,
+              height: 30,
+              padding: 0,
               color: T.text3,
               display: 'inline-flex',
               alignItems: 'center',

@@ -157,8 +157,8 @@ export default function ToolsLayout({
                 onClick={() => setIsCollapsed(false)}
                 title='Expand sidebar'
                 style={{
-                  width: 28,
-                  height: 32,
+                  width: 30,
+                  height: 30,
                   background: 'transparent',
                   border: 'none',
                   borderRadius: 5,
@@ -206,8 +206,8 @@ export default function ToolsLayout({
                   onClick={() => setIsCollapsed(true)}
                   title='Collapse sidebar'
                   style={{
-                    width: 28,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     background: 'transparent',
                     border: 'none',
                     borderRadius: 5,
@@ -282,8 +282,8 @@ export default function ToolsLayout({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: 26,
-                      height: 26,
+                      width: 30,
+                      height: 30,
                       background: 'transparent',
                       border: 'none',
                       borderRadius: 4,
@@ -537,13 +537,14 @@ export default function ToolsLayout({
               <button
                 onClick={() => setShowCreateModal(false)}
                 style={{
-                  padding: '8px 16px',
+                  height: 30,
+                  padding: '0 16px',
                   borderRadius: 6,
                   background: 'transparent',
                   color: 'var(--po-text-subtle)',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: 16,
+                  fontSize: 13,
                 }}
               >
                 Cancel
@@ -552,14 +553,15 @@ export default function ToolsLayout({
                 onClick={handleCreateServer}
                 disabled={isCreating || !newServerUrl.trim()}
                 style={{
-                  padding: '8px 16px',
+                  height: 30,
+                  padding: '0 16px',
                   borderRadius: 6,
                   background: 'var(--po-accent)',
                   color: 'var(--po-text-inverse)',
                   border: 'none',
                   cursor: isCreating ? 'not-allowed' : 'pointer',
                   opacity: isCreating ? 0.7 : 1,
-                  fontSize: 16,
+                  fontSize: 13,
                   fontWeight: 500,
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -710,8 +712,8 @@ function CollapsedNavItem({ active, href, title, icon, status }: any) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 28,
-        height: 32,
+        width: 30,
+        height: 30,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

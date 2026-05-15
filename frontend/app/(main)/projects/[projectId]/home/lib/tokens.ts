@@ -109,7 +109,7 @@ export const T = {
   warn: 'var(--po-warning)',
 
   fontSans: 'var(--po-font-sans)',
-  fontMono: 'var(--po-font-sans)',
+  fontMono: 'var(--po-font-mono)',
 
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)', // out-expo-ish, used for everything
 } as const;

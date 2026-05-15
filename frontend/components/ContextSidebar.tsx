@@ -101,7 +101,7 @@ export function ContextSidebar({
         ) : (
           <button
             onClick={onBackToProjects}
-            className='flex items-center gap-2 font-medium text-[var(--po-text)] hover:text-[var(--po-text)] transition-colors truncate'
+            className='flex h-[30px] min-w-0 items-center gap-2 font-medium text-[var(--po-text)] hover:text-[var(--po-text)] transition-colors truncate'
             title='Back to Projects'
           >
             <div className='p-1 rounded hover:bg-[var(--po-hover)] transition-colors'>

@@ -76,7 +76,11 @@ import { AccessPointsHeaderButton } from '../components/access-points';
 import { getApiBase } from '../components/access-points/labels';
 import { SelectionActionBar } from '../components/SelectionActionBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
-import { DataPageRightPanel, type EditorTarget } from '../components/right-panel';
+import {
+  DataPageRightPanel,
+  type AccessPanelNavigationGuard,
+  type EditorTarget,
+} from '../components/right-panel';
 import { usePanelStore } from '../usePanelStore';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
@@ -470,6 +474,8 @@ export default function DataPage({ params }: DataPageProps) {
   // ───── Panel State (Zustand store, fully decoupled from URL) ─────
   const { panel: panelState, openPanel, closePanel, togglePanel } = usePanelStore();
   const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
+  const [accessPanelNavigationGuard, setAccessPanelNavigationGuard] =
+    useState<AccessPanelNavigationGuard | null>(null);
 
   const activeSyncNodeId = panelState.type === 'sync_config' ? panelState.nodeId ?? null : null;
   const activeSyncId = activeSyncNodeId !== null ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
@@ -483,26 +489,35 @@ export default function DataPage({ params }: DataPageProps) {
     ? scopes.find((s) => s.id === panelState.selectedScopeId) ?? null
     : null;
   const accessFolderScope = matchScopeForPath(accessPanelScopePath, scopes);
-  const accessListView: 'overview' | 'detail' | 'create' =
+  const accessResolvedScope = accessDrilledScope ?? accessFolderScope;
+  const accessListView: 'overview' | 'detail' | 'settings' | 'create' =
     isAccessPanelOpen && panelState.view === 'create'
       ? 'create'
+      : isAccessPanelOpen && panelState.view === 'settings' && accessResolvedScope
+        ? 'settings'
       : isAccessPanelOpen && panelState.view === 'overview'
         ? 'overview'
-        : accessDrilledScope || accessFolderScope
+        : accessResolvedScope
           ? 'detail'
           : 'overview';
   const accessHeaderScope =
-    isAccessPanelOpen && accessListView === 'detail'
-      ? accessDrilledScope ?? accessFolderScope
+    isAccessPanelOpen && (accessListView === 'detail' || accessListView === 'settings')
+      ? accessResolvedScope
       : null;
-  const accessHeaderTitle = accessListView === 'create'
-    ? 'Create access point'
-    : accessHeaderScope
-      ? accessHeaderScope.name
-      : 'Access';
+  const accessHeaderTitle =
+    accessListView === 'create'
+      ? 'Create access point'
+      : accessListView === 'settings'
+        ? 'Settings'
+        : accessHeaderScope
+          ? accessHeaderScope.name
+          : 'Access';
   const accessHeaderSubtitle = undefined;
   const showAccessHeaderBack =
-    isAccessPanelOpen && (accessListView === 'create' || accessListView === 'detail');
+    isAccessPanelOpen &&
+    (accessListView === 'create' ||
+      accessListView === 'detail' ||
+      accessListView === 'settings');
   const rootScope = useMemo(() => matchScopeForPath('', scopes), [scopes]);
   const rootGitRemoteUrl = useMemo(() => {
     if (!rootScope?.access_key) return null;
@@ -538,10 +553,24 @@ export default function DataPage({ params }: DataPageProps) {
   }, [mutateRepo, refreshAgents]);
 
   const closeRightPanel = useCallback(() => {
+    if (accessPanelNavigationGuard && !accessPanelNavigationGuard.canLeave()) return;
     setEditorTarget(null);
     setIsEditorFullScreen(false);
     closePanel();
-  }, [closePanel]);
+  }, [accessPanelNavigationGuard, closePanel]);
+
+  const handleAccessHeaderBack = useCallback(() => {
+    if (accessPanelNavigationGuard && !accessPanelNavigationGuard.canLeave()) return;
+    if (accessListView === 'settings' && accessHeaderScope) {
+      openPanel({
+        type: 'access_list',
+        view: 'detail',
+        selectedScopeId: accessHeaderScope.id,
+      });
+      return;
+    }
+    openPanel({ type: 'access_list', view: 'overview' });
+  }, [accessHeaderScope, accessListView, accessPanelNavigationGuard, openPanel]);
 
   const openVersionHistoryPanel = useCallback(() => {
     if (!effectiveNodeId) return;
@@ -1150,7 +1179,7 @@ export default function DataPage({ params }: DataPageProps) {
                   <ActivityIconButton
                     kind="back"
                     title="Back"
-                    onClick={() => openPanel({ type: 'access_list', view: 'overview' })}
+                    onClick={handleAccessHeaderBack}
                   />
                 )}
                 <div
@@ -1209,6 +1238,19 @@ export default function DataPage({ params }: DataPageProps) {
                     </div>
                   )}
                 </div>
+                {accessHeaderScope && accessListView === 'detail' && (
+                  <ActivityIconButton
+                    kind="settings"
+                    title="Settings"
+                    onClick={() =>
+                      openPanel({
+                        type: 'access_list',
+                        view: 'settings',
+                        selectedScopeId: accessHeaderScope.id,
+                      })
+                    }
+                  />
+                )}
                 <ActivityIconButton kind="close" title="Close panel" onClick={closeRightPanel} />
               </div>
             ) : (
@@ -1505,6 +1547,7 @@ export default function DataPage({ params }: DataPageProps) {
           onDataUpdate={async () => { await refreshTable(); }}
           panelWidth={rightPanelWidth}
           onPanelWidthChange={setRightPanelWidth}
+          onAccessPanelNavigationGuardChange={setAccessPanelNavigationGuard}
         />
         </div>
       </div>

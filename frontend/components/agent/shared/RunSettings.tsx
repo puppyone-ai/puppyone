@@ -47,6 +47,7 @@ export const RunSettings = ({
         onClick={() => setIsOpen(!isOpen)}
         style={{
           width: '100%',
+          minHeight: 48,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -112,4 +113,3 @@ export const RunSettings = ({
     </div>
   );
 };
-

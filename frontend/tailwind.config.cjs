@@ -10,7 +10,17 @@ module.exports = {
     extend: {
       fontFamily: {
         sans: ['var(--po-font-sans)'],
-        mono: ['var(--po-font-sans)'],
+        mono: ['var(--po-font-mono)'],
+      },
+      fontSize: {
+        'po-micro': ['var(--po-text-size-micro)', { lineHeight: 'var(--po-line-height-tight)' }],
+        'po-caption': ['var(--po-text-size-caption)', { lineHeight: 'var(--po-line-height-tight)' }],
+        'po-meta': ['var(--po-text-size-meta)', { lineHeight: 'var(--po-line-height-body)' }],
+        'po-body': ['var(--po-text-size-body)', { lineHeight: 'var(--po-line-height-body)' }],
+        'po-body-lg': ['var(--po-text-size-body-lg)', { lineHeight: 'var(--po-line-height-body)' }],
+        'po-title': ['var(--po-text-size-title)', { lineHeight: 'var(--po-line-height-tight)' }],
+        'po-page-title': ['var(--po-text-size-page-title)', { lineHeight: 'var(--po-line-height-tight)' }],
+        'po-display': ['var(--po-text-size-display)', { lineHeight: 'var(--po-line-height-tight)' }],
       },
       colors: {
         po: {
@@ -37,7 +47,6 @@ module.exports = {
   },
   plugins: [],
 };
-
 
 
 

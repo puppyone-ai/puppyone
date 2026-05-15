@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { activityIconButtonStyle } from './activityStyles';
 
-type ActivityIconButtonKind = 'minimize' | 'collapse' | 'close' | 'back';
+type ActivityIconButtonKind = 'minimize' | 'collapse' | 'close' | 'back' | 'settings';
 
 interface ActivityIconButtonProps {
   kind: ActivityIconButtonKind;
   title: string;
   onClick: () => void;
   size?: 'sm' | 'md';
+  active?: boolean;
+  badge?: boolean;
 }
 
 export function ActivityIconButton({
@@ -17,6 +19,8 @@ export function ActivityIconButton({
   title,
   onClick,
   size = 'md',
+  active = false,
+  badge = false,
 }: Readonly<ActivityIconButtonProps>) {
   const [hovered, setHovered] = useState(false);
   const buttonSize = size === 'sm' ? 20 : 24;
@@ -32,10 +36,19 @@ export function ActivityIconButton({
       onMouseLeave={() => setHovered(false)}
       style={{
         ...activityIconButtonStyle,
+        position: 'relative',
         width: buttonSize,
         height: buttonSize,
-        background: hovered ? 'var(--po-active)' : 'transparent',
-        color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)',
+        background: active
+          ? 'var(--po-selected)'
+          : hovered
+            ? 'var(--po-active)'
+            : 'transparent',
+        color: active
+          ? 'var(--po-text)'
+          : hovered
+            ? 'var(--po-text-muted)'
+            : 'var(--po-text-subtle)',
         transition: 'background 0.12s ease, color 0.12s ease',
       }}
     >
@@ -83,6 +96,40 @@ export function ActivityIconButton({
             strokeLinejoin="round"
           />
         </svg>
+      )}
+
+      {kind === 'settings' && (
+        <svg width={iconSize} height={iconSize} viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path
+            d="M13.5 4.5h-6"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+          <path
+            d="M8.5 11.5h-6"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+          />
+          <circle cx="4.5" cy="4.5" r="1.6" stroke="currentColor" strokeWidth="1.4" />
+          <circle cx="11.5" cy="11.5" r="1.6" stroke="currentColor" strokeWidth="1.4" />
+        </svg>
+      )}
+
+      {badge && (
+        <span
+          aria-hidden
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            width: 5,
+            height: 5,
+            borderRadius: 999,
+            background: 'var(--po-success)',
+          }}
+        />
       )}
     </button>
   );

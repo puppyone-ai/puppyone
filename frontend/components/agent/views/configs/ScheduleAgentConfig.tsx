@@ -74,7 +74,7 @@ const DatePickerDropdown = ({
   };
 
   const navBtnStyle: React.CSSProperties = {
-    width: 28, height: 28, borderRadius: 6, border: 'none',
+    width: 30, height: 30, borderRadius: 6, border: 'none',
     background: 'transparent', color: 'var(--po-text-subtle)', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   };
@@ -111,8 +111,8 @@ const DatePickerDropdown = ({
         })}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--po-border)' }}>
-        <button onClick={() => onSelect(new Date().toISOString().split('T')[0])} style={{ height: 28, padding: '0 12px', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--po-accent)', fontSize: 12, cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--po-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Today</button>
-        <button onClick={() => { const t = new Date(); t.setDate(t.getDate() + 1); onSelect(t.toISOString().split('T')[0]); }} style={{ height: 28, padding: '0 12px', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--po-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Tomorrow</button>
+        <button onClick={() => onSelect(new Date().toISOString().split('T')[0])} style={{ height: 30, padding: '0 12px', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--po-accent)', fontSize: 12, cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--po-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Today</button>
+        <button onClick={() => { const t = new Date(); t.setDate(t.getDate() + 1); onSelect(t.toISOString().split('T')[0]); }} style={{ height: 30, padding: '0 12px', borderRadius: 4, border: 'none', background: 'transparent', color: 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--po-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>Tomorrow</button>
       </div>
     </div>
   );
@@ -233,7 +233,7 @@ export const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConf
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, maxHeight: 160, overflow: 'auto' }}>
                   {Array.from({ length: 24 }, (_, i) => (
                     <button key={i} onClick={() => { setHour(i); updateSchedule(i, minute, selectedDate, repeatType); }}
-                      style={{ width: 28, height: 28, borderRadius: 4, border: 'none', background: hour === i ? 'var(--po-border)' : 'transparent', color: hour === i ? 'var(--po-text)' : 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
+                      style={{ width: 30, height: 30, borderRadius: 4, border: 'none', background: hour === i ? 'var(--po-border)' : 'transparent', color: hour === i ? 'var(--po-text)' : 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
                       onMouseEnter={e => { if (hour !== i) e.currentTarget.style.background = 'var(--po-hover)'; }}
                       onMouseLeave={e => { if (hour !== i) e.currentTarget.style.background = 'transparent'; }}
                     >{i.toString().padStart(2, '0')}</button>
@@ -246,7 +246,7 @@ export const ScheduleTriggerSection = ({ draftTriggerConfig, setDraftTriggerConf
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2 }}>
                   {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
                     <button key={m} onClick={() => { setMinute(m); updateSchedule(hour, m, selectedDate, repeatType); }}
-                      style={{ width: 28, height: 28, borderRadius: 4, border: 'none', background: minute === m ? 'var(--po-border)' : 'transparent', color: minute === m ? 'var(--po-text)' : 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
+                      style={{ width: 30, height: 30, borderRadius: 4, border: 'none', background: minute === m ? 'var(--po-border)' : 'transparent', color: minute === m ? 'var(--po-text)' : 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}
                       onMouseEnter={e => { if (minute !== m) e.currentTarget.style.background = 'var(--po-hover)'; }}
                       onMouseLeave={e => { if (minute !== m) e.currentTarget.style.background = 'transparent'; }}
                     >{m.toString().padStart(2, '0')}</button>
@@ -506,8 +506,8 @@ export function ScheduleAgentConfig({ projectTools }: AgentConfigProps) {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                     <div style={{ display: 'flex', background: 'var(--po-panel)', border: '1px solid var(--po-border)', borderRadius: 4, padding: 2, gap: 1 }}>
-                      <button onClick={() => { if (!isReadonly) toggleReadonly(resource.path); }} style={{ background: isReadonly ? 'var(--po-border-strong)' : 'transparent', border: 'none', borderRadius: 3, color: isReadonly ? 'var(--po-text)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontWeight: 500 }}>View</button>
-                      <button onClick={() => { if (isReadonly) toggleReadonly(resource.path); }} style={{ background: !isReadonly ? 'color-mix(in srgb, var(--po-warning) 15%, transparent)' : 'transparent', border: 'none', borderRadius: 3, color: !isReadonly ? 'var(--po-warning)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontWeight: 500 }}>Edit</button>
+                      <button onClick={() => { if (!isReadonly) toggleReadonly(resource.path); }} style={{ background: isReadonly ? 'var(--po-border-strong)' : 'transparent', border: 'none', borderRadius: 3, color: isReadonly ? 'var(--po-text)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, height: 30, padding: '0 10px', fontWeight: 500 }}>View</button>
+                      <button onClick={() => { if (isReadonly) toggleReadonly(resource.path); }} style={{ background: !isReadonly ? 'color-mix(in srgb, var(--po-warning) 15%, transparent)' : 'transparent', border: 'none', borderRadius: 3, color: !isReadonly ? 'var(--po-warning)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, height: 30, padding: '0 10px', fontWeight: 500 }}>Edit</button>
                     </div>
                     <ActivityIconButton
                       kind="close"

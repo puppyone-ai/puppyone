@@ -88,7 +88,7 @@ export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: (
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          height: 28,
+          height: 30,
           padding: '0 14px',
           fontSize: 12,
           fontWeight: 500,

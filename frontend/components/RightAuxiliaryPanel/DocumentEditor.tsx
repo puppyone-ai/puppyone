@@ -78,8 +78,8 @@ export function DocumentEditor({
           <button
             onClick={onClose}
             style={{
-              width: 28,
-              height: 32,
+              width: 30,
+              height: 30,
               background: 'transparent',
               border: 'none',
               color: 'var(--po-text-subtle)',
@@ -108,12 +108,12 @@ export function DocumentEditor({
             </svg>
           </button>
 
-          {/* 全屏按钮 - 28x28 统一尺寸 */}
+          {/* 全屏按钮 - 30x30 统一尺寸 */}
           <button
             onClick={onToggleFullScreen}
             style={{
-              width: 28,
-              height: 32,
+              width: 30,
+              height: 30,
               background: 'transparent',
               border: 'none',
               color: 'var(--po-text-subtle)',
@@ -171,6 +171,7 @@ export function DocumentEditor({
             <button
               onClick={() => handleModeChange('preview')}
               style={{
+                height: 30,
                 padding: '4px 8px',
                 fontSize: 11,
                 fontWeight: 500,

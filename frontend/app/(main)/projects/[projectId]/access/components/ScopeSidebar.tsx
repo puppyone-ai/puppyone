@@ -18,6 +18,7 @@
 
 import { useState } from 'react';
 import type { RepoScope } from '@/lib/repoApi';
+import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
 import { ScopePinGlyph } from './icons';
 
@@ -139,8 +140,7 @@ function ScopeSidebarRow({
         // visual rhythm.
         background: isSelected ? 'var(--po-selected)' : hovered ? 'var(--po-hover)' : 'transparent',
         color: isSelected ? T.text1 : hovered ? T.text1 : T.text2,
-        fontSize: 13,
-        fontFamily: T.fontSans,
+        ...SIDEBAR_ROW_TYPOGRAPHY,
         userSelect: 'none',
         transition: 'background 0.1s, color 0.1s',
         cursor: 'pointer',

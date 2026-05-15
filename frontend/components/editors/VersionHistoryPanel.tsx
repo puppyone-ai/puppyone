@@ -231,7 +231,7 @@ function CommitRow({
                 <button
                   onClick={() => onRollback(commit.commit_id)}
                   style={{
-                    fontSize: 10, padding: '3px 10px', borderRadius: 4,
+                    fontSize: 10, height: 30, padding: '0 10px', borderRadius: 4,
                     border: '1px solid color-mix(in srgb, var(--po-warning) 30%, transparent)',
                     background: 'color-mix(in srgb, var(--po-warning) 10%, transparent)',
                     color: 'var(--po-warning)', cursor: 'pointer',

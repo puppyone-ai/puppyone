@@ -37,7 +37,7 @@ export function LocaleSwitcher() {
               disabled={isPending}
               onClick={() => handleSwitch(code)}
               style={{
-                padding: '4px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                height: 30, padding: '0 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
                 background: isActive ? 'var(--po-accent)' : 'var(--po-panel-raised)',
                 color: isActive ? 'var(--po-text-inverse)' : 'var(--po-text-muted)',
                 border: `1px solid ${isActive ? 'var(--po-accent)' : 'var(--po-border-strong)'}`,

@@ -52,6 +52,10 @@ export interface EditorTarget {
   value: string;
 }
 
+export interface AccessPanelNavigationGuard {
+  readonly canLeave: () => boolean;
+}
+
 interface DataPageRightPanelProps {
   readonly editorTarget: EditorTarget | null;
   readonly isEditorFullScreen: boolean;
@@ -94,6 +98,7 @@ interface DataPageRightPanelProps {
   onDataUpdate: () => Promise<void>;
   panelWidth?: number;
   onPanelWidthChange?: (width: number) => void;
+  onAccessPanelNavigationGuardChange?: (guard: AccessPanelNavigationGuard | null) => void;
 }
 
 export function DataPageRightPanel({
@@ -126,6 +131,7 @@ export function DataPageRightPanel({
   onDataUpdate,
   panelWidth,
   onPanelWidthChange,
+  onAccessPanelNavigationGuardChange,
 }: DataPageRightPanelProps) {
   // For access_list, the panel always tracks the *current file-tree
   // folder* (one-way: file tree → panel) so the user's reading context
@@ -146,7 +152,8 @@ export function DataPageRightPanel({
   // The Access surface is a 3-page hierarchy (per 2026-05-08 UX spec):
   //
   //   Pp.1 Overview      — list of all scopes, project-wide.
-  //   Pp.2a Scope Detail — per-scope settings + connect methods.
+  //   Pp.2a Scope Detail — per-scope connect methods + integrations.
+  //   Pp.2s Settings     — selected scope's configuration page.
   //   Pp.2b Create New   — dedicated form to promote a folder.
   //
   // Three signals drive which page renders:
@@ -161,6 +168,7 @@ export function DataPageRightPanel({
   // Resolution precedence:
   //   - view === 'create'               → Create page (Pp.2b).
   //   - view === 'overview'             → Overview (Pp.1), hard.
+  //   - view === 'settings' + scope     → Settings page (Pp.2s).
   //   - selectedScopeId is set          → Detail of that scope.
   //   - currentScopePath matches scope  → Detail of that scope (auto).
   //   - otherwise                       → Overview (Pp.1).
@@ -168,7 +176,7 @@ export function DataPageRightPanel({
   // The user always has a way OUT of any Pp.2 sub-page: PanelShell's
   // back chevron resolves to view='overview' for both Detail and
   // Create — a single, predictable affordance back to the management
-  // surface.
+  // surface. Settings backs up one level to Detail.
   //
   // No parent-child inheritance per the redesign Q1 decision
   // (2026-05-03) — exact match only.
@@ -177,18 +185,23 @@ export function DataPageRightPanel({
       ? scopes.find((s) => s.id === panelState.selectedScopeId) ?? null
       : null;
   const folderScope = matchScopeForPath(panelScopePath, scopes);
+  const resolvedScope = drilledScope ?? folderScope;
 
-  const accessListView: 'overview' | 'detail' | 'create' =
+  const accessListView: 'overview' | 'detail' | 'settings' | 'create' =
     panelState.type === 'access_list' && panelState.view === 'create'
       ? 'create'
+      : panelState.type === 'access_list' && panelState.view === 'settings' && resolvedScope
+        ? 'settings'
       : panelState.type === 'access_list' && panelState.view === 'overview'
         ? 'overview'
-        : drilledScope || folderScope
+        : resolvedScope
           ? 'detail'
           : 'overview';
 
   const currentScope =
-    accessListView === 'detail' ? drilledScope ?? folderScope : null;
+    accessListView === 'detail' || accessListView === 'settings'
+      ? resolvedScope
+      : null;
   const currentScopeConnectors = currentScope
     ? connectorsByScope.get(currentScope.id) || []
     : [];
@@ -224,6 +237,7 @@ export function DataPageRightPanel({
         panelState.type === 'access_list' &&
         panelState.view !== 'overview' &&
         panelState.view !== 'create' &&
+        panelState.view !== 'settings' &&
         (panelState.view !== undefined ||
           panelState.selectedScopeId !== undefined)
       ) {
@@ -323,7 +337,7 @@ export function DataPageRightPanel({
                   onOpenPanel({ type: 'sync_create', nodeId });
                 }}
                 style={{
-                  padding: '6px 14px', fontSize: 12, fontWeight: 500,
+                  height: 30, padding: '0 14px', fontSize: 12, fontWeight: 500,
                   background: 'var(--po-control)', border: '1px solid var(--po-border-strong)',
                   borderRadius: 6, color: 'var(--po-text)', cursor: 'pointer',
                 }}
@@ -405,12 +419,29 @@ export function DataPageRightPanel({
           // single, predictable affordance to reach the management
           // surface from anywhere in the access_list flow.
           onBack={
-            accessListView === 'detail'
+            accessListView === 'settings' && currentScope
+              ? () => onOpenPanel({
+                  type: 'access_list',
+                  view: 'detail',
+                  selectedScopeId: currentScope.id,
+                })
+              : accessListView === 'detail'
               ? () => onOpenPanel({ type: 'access_list', view: 'overview' })
               : undefined
           }
           onClose={onClose}
           hideHeader={isAccessPanel}
+          settingsPage={accessListView === 'settings'}
+          onOpenSettings={
+            currentScope
+              ? () => onOpenPanel({
+                  type: 'access_list',
+                  view: 'settings',
+                  selectedScopeId: currentScope.id,
+                })
+              : undefined
+          }
+          onNavigationGuardChange={onAccessPanelNavigationGuardChange}
           onAddRequested={() => {
             // "+ Add integration" opens the create panel pre-filled with
             // the current scope path. Will route through the new

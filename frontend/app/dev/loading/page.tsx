@@ -96,6 +96,7 @@ export default function LoadingShowcasePage() {
           <button
             onClick={() => setPreviewFullScreen(true)}
             style={{
+              height: 30,
               padding: '6px 12px',
               borderRadius: 6,
               background: 'var(--po-filetree-rail)',
@@ -559,6 +560,7 @@ function ControlGroup({
               key={opt}
               onClick={() => onChange(opt)}
               style={{
+                height: 30,
                 padding: '4px 10px',
                 fontSize: 11,
                 lineHeight: 1.4,

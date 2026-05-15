@@ -66,7 +66,8 @@ export default function MonacoMarkdownEditor({ content, onChange, readOnly }: Pr
         options={{
           minimap: { enabled: false },
           fontSize: 13,
-          fontFamily: 'var(--po-font-sans)',
+          fontFamily: 'var(--po-font-mono)',
+          fontWeight: '500',
           lineNumbers: 'off',
           scrollBeyondLastLine: false,
           automaticLayout: true,

@@ -570,8 +570,9 @@ function SettingsSection({
           display: 'flex',
           alignItems: 'center',
           gap: 8,
+          height: 30,
           marginBottom: open ? 10 : 0,
-          padding: '4px 4px 4px 2px',
+          padding: '0 4px 0 2px',
           borderRadius: 4,
           background: hovered ? 'var(--po-control)' : 'transparent',
           transition: 'background 0.12s ease',
@@ -801,8 +802,8 @@ function AccessPointChip({
       >
         <div
           style={{
-            width: 28,
-            height: 28,
+            width: 30,
+            height: 30,
             borderRadius: 6,
             background: 'var(--po-hover)',
             border: `1px solid ${T.border}`,

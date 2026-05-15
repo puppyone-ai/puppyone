@@ -13,9 +13,9 @@ import { AgentIcon, SyncIcon, TerminalIcon } from './icons';
 import type { MethodMeta } from './meta';
 
 const ACTIVE_METHOD_BG =
-  'var(--po-control)';
+  'var(--po-selected)';
 const ACTIVE_METHOD_BG_HOVER =
-  'var(--po-control-hover)';
+  'color-mix(in srgb, var(--po-text) 20%, var(--po-canvas) 80%)';
 const PAUSED_METHOD_BG =
   'color-mix(in srgb, var(--po-text) 3%, var(--po-panel) 97%)';
 const PAUSED_METHOD_BG_HOVER =
@@ -26,7 +26,12 @@ const PAUSED_METHOD_BG_HOVER =
  *
  * Header layout (left to right):
  *
- *   [icon] [title + subtitle]                          [toggle]
+ *   [icon] [method hint]                               [toggle]
+ *
+ * The method title lives one level above the card (`PuppyOne CLI`,
+ * `Git Remote`, etc.). Keeping the title outside the card makes the
+ * panel read like normal settings sections instead of mixing section
+ * labels into card chrome.
  *
  * Body visibility is **a pure function of the toggle**:
  *
@@ -45,14 +50,14 @@ const PAUSED_METHOD_BG_HOVER =
  * Other behaviours:
  *
  *   - Toggle is the only interactive element. The header chrome is a
- *     plain `<div>` (not a `<button>`) — clicking on the title /
- *     subtitle / icon does nothing, which prevents the "looks
+ *     plain `<div>` (not a `<button>`) — clicking on the hint /
+ *     icon does nothing, which prevents the "looks
  *     clickable but isn't" trap.
  *   - Toggle is wired to the connector's `status` field via the
  *     `pauseConnector` / `resumeConnector` API (the parent owns the
  *     request; we just emit `onToggle`).
- *   - When the method is paused, the icon, title, and subtitle dim,
- *     and the subtitle picks up a "(paused)" suffix so the off state
+ *   - When the method is paused, the icon and hint dim,
+ *     and the hint picks up a "(paused)" suffix so the off state
  *     reads at a glance even without the body for context.
  */
 export function MethodCard({
@@ -124,29 +129,18 @@ export function MethodCard({
             flex: 1,
             minWidth: 0,
             display: 'flex',
-            alignItems: 'baseline',
-            gap: 7,
+            alignItems: 'center',
           }}
         >
-          <span
-            style={{
-              flexShrink: 0,
-              fontSize: 13,
-              fontWeight: 600,
-              color: active ? COLOR_FG : COLOR_FG_MUTED,
-              lineHeight: 1.3,
-            }}
-          >
-            {meta.title}
-          </span>
           <span
             style={{
               minWidth: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              fontSize: 12,
-              color: COLOR_FG_DIM,
+              fontSize: 13,
+              fontWeight: 500,
+              color: active ? COLOR_FG_MUTED : COLOR_FG_DIM,
               lineHeight: 1.45,
             }}
           >

@@ -11,6 +11,7 @@ import {
   type FileVersionDetail,
 } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
+import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
@@ -292,7 +293,8 @@ function VerticalCommitNode({
           borderRadius: 6,
           background: isSelected ? 'var(--po-selected)' : hovered ? 'var(--po-hover)' : 'transparent',
           color: isSelected ? 'var(--po-text)' : hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
-          fontSize: 13, userSelect: 'none',
+          ...SIDEBAR_ROW_TYPOGRAPHY,
+          userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
           cursor: 'pointer',
           position: 'relative',
@@ -1087,7 +1089,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                       setActiveActorFilter(null);
                       setFilterMenuOpen(null);
                     }}
-                    className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                    className={`h-[30px] flex-shrink-0 px-2.5 rounded-md text-[11px] font-medium transition-colors ${
                       activeScopeFilter === null && activeActorFilter === null
                         ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
                         : 'bg-transparent text-[var(--po-text-muted)] hover:bg-[var(--po-hover)]'
@@ -1099,7 +1101,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   <div className="relative min-w-0 flex-1">
                     <button
                       onClick={() => setFilterMenuOpen(open => open === 'scope' ? null : 'scope')}
-                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+                      className={`h-[30px] w-full min-w-0 flex items-center gap-1.5 px-2.5 rounded-md text-[11px] font-medium transition-colors border ${
                         activeScopeFilter !== null
                           ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
                           : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
@@ -1148,7 +1150,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                                   setActiveScopeFilter(option.scope);
                                   setFilterMenuOpen(null);
                                 }}
-                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors ${
+                                className={`h-[30px] w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[11px] font-medium transition-colors ${
                                   isSelected
                                     ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
                                     : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
@@ -1169,7 +1171,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   <div className="relative min-w-0 flex-1">
                     <button
                       onClick={() => setFilterMenuOpen(open => open === 'actor' ? null : 'actor')}
-                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
+                      className={`h-[30px] w-full min-w-0 flex items-center gap-1.5 px-2.5 rounded-md text-[11px] font-medium transition-colors border ${
                         activeActorFilter
                           ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
                           : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
@@ -1222,7 +1224,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                                   setActiveActorFilter(option.type);
                                   setFilterMenuOpen(null);
                                 }}
-                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors ${
+                                className={`h-[30px] w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[11px] font-medium transition-colors ${
                                   isSelected
                                     ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
                                     : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'

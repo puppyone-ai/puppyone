@@ -24,6 +24,7 @@ import {
   SearchIndexTask,
 } from '@/lib/mcpApi';
 import { listDir, type NodeInfo } from '@/lib/contentTreeApi';
+import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { getNodeTypeConfig, isFolderType } from '@/lib/nodeTypeConfig';
 import { PulseGrid, PageLoading, Dots } from '@/components/loading';
 import { ActionButton } from '@/components/ui/ActionButton';
@@ -127,7 +128,8 @@ function FilterChip({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 6,
-        padding: '4px 10px',
+        height: 30,
+        padding: '0 10px',
         background: active ? (color ? `color-mix(in srgb, ${color} 9%, transparent)` : 'var(--po-border)') : 'transparent',
         border: '1px solid transparent', // Removing border for cleaner look
         borderRadius: 6,
@@ -322,7 +324,7 @@ function ToolRow({
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
         <button
           onClick={onEdit}
-          style={{ padding: 6, background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer', borderRadius: 4 }}
+          style={{ width: 30, height: 30, padding: 0, background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer', borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           title="Edit"
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-text)'; e.currentTarget.style.background = 'var(--po-hover)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-disabled)'; e.currentTarget.style.background = 'none'; }}
@@ -331,7 +333,7 @@ function ToolRow({
         </button>
         <button
           onClick={onDelete}
-          style={{ padding: 6, background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer', borderRadius: 4 }}
+          style={{ width: 30, height: 30, padding: 0, background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer', borderRadius: 4, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
           title="Delete"
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-danger)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 10%, transparent)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-disabled)'; e.currentTarget.style.background = 'none'; }}
@@ -415,9 +417,8 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
           {!isFolder && <div style={{ width: 12 }} />}
 
           <span style={{
-            fontSize: 12,
+            ...SIDEBAR_ROW_TYPOGRAPHY,
             color: isSelected ? 'var(--po-accent)' : 'var(--po-text-muted)',
-            fontWeight: isSelected ? 500 : 400,
           }}>
             {node.name}
           </span>
@@ -535,12 +536,12 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
 
         <div style={{ padding: '16px 24px', borderTop: '1px solid var(--po-overlay)', display: 'flex', justifyContent: 'space-between' }}>
           <button onClick={() => { if (step === 'config') setStep('node'); else if (step === 'node') setStep('type'); else onClose(); }}
-            style={{ padding: '6px 12px', background: 'transparent', border: '1px solid var(--po-filetree-rail)', borderRadius: 6, color: 'var(--po-text-muted)', fontSize: 12, cursor: 'pointer' }}>
+            style={{ height: 30, padding: '0 12px', background: 'transparent', border: '1px solid var(--po-filetree-rail)', borderRadius: 6, color: 'var(--po-text-muted)', fontSize: 12, cursor: 'pointer' }}>
             {step === 'type' ? 'Cancel' : 'Back'}
           </button>
           {step === 'config' && (
             <button onClick={handleCreate} disabled={creating}
-              style={{ padding: '6px 16px', background: 'var(--po-accent)', border: 'none', borderRadius: 6, color: 'var(--po-text-inverse)', fontSize: 12, fontWeight: 500, cursor: creating ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              style={{ height: 30, padding: '0 16px', background: 'var(--po-accent)', border: 'none', borderRadius: 6, color: 'var(--po-text-inverse)', fontSize: 12, fontWeight: 500, cursor: creating ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               {creating && <Dots size="xs" />}
               {creating ? 'Creating…' : 'Create Tool'}
             </button>
@@ -773,7 +774,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
 
           {/* Refresh */}
           <button onClick={fetchTools} disabled={loading}
-            style={{ background: 'transparent', border: 'none', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: loading ? 'var(--po-filetree-rail)' : 'var(--po-text-disabled)', cursor: loading ? 'not-allowed' : 'pointer' }}
+            style={{ background: 'transparent', border: 'none', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', color: loading ? 'var(--po-filetree-rail)' : 'var(--po-text-disabled)', cursor: loading ? 'not-allowed' : 'pointer' }}
             title="Refresh list"
           >
             {loading

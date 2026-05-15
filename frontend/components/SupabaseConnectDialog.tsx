@@ -297,7 +297,8 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                           onClick={() => setShowRLSGuide(true)}
                           style={{
                             marginTop: 12,
-                            padding: '8px 16px',
+                            height: 30,
+                            padding: '0 16px',
                             borderRadius: 6,
                             border: '1px solid color-mix(in srgb, var(--po-accent) 50%, transparent)',
                             background: 'color-mix(in srgb, var(--po-accent) 10%, transparent)',

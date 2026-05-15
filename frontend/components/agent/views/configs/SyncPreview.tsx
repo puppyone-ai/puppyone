@@ -111,7 +111,7 @@ function getProviderLogo(provider: string, size: number) {
     default: return (
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
         <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--po-border-strong)"/>
-        <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--po-text-muted)" fontFamily="sans-serif">
+        <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--po-text-muted)" fontFamily="var(--po-font-sans)">
           {provider.charAt(0).toUpperCase()}
         </text>
       </svg>

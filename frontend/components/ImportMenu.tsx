@@ -670,7 +670,8 @@ export function ImportMenu({
                           setShowImportModal(true);
                         }}
                         style={{
-                          padding: '4px 10px',
+                          height: 30,
+                          padding: '0 10px',
                           background: 'var(--po-success)',
                           border: 'none',
                           borderRadius: 4,
@@ -701,6 +702,7 @@ export function ImportMenu({
                       display: 'flex',
                       alignItems: 'center',
                       gap: 8,
+                      minHeight: 42,
                       padding: '8px 10px',
                       background: 'transparent',
                       border: 'none',

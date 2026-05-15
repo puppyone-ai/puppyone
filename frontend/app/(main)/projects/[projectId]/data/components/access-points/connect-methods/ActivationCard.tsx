@@ -49,7 +49,8 @@ export function ActivationCard({
         disabled={disabled}
         style={{
           alignSelf: 'flex-start',
-          padding: '6px 12px',
+          height: 30,
+          padding: '0 12px',
           fontSize: 12,
           fontWeight: 600,
           color: disabled ? COLOR_FG_DIM : 'var(--po-text-inverse)',

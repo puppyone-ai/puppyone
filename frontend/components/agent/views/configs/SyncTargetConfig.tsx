@@ -104,7 +104,7 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
             key={m}
             onClick={() => setMode(m)}
             style={{
-              flex: 1, height: 26, borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 500, cursor: 'pointer',
+              flex: 1, height: 30, borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 500, cursor: 'pointer',
               background: mode === m ? 'var(--po-border-strong)' : 'transparent',
               color: mode === m ? 'var(--po-text)' : 'var(--po-text-disabled)',
               transition: 'all 0.12s',

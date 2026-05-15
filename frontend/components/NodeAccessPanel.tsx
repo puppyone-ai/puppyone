@@ -420,7 +420,7 @@ export function NodeAccessPanel({
 // NodeAccessButton - Quick access button
 // ============================================
 
-const BUTTON_SIZE = 26;
+const BUTTON_SIZE = 30;
 
 function PawIcon({ color = 'currentColor' }: { color?: string }) {
   return (

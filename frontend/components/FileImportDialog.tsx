@@ -303,8 +303,12 @@ export function FileImportDialog({
                           border: 'none',
                           color: 'var(--po-text-subtle)',
                           cursor: 'pointer',
-                          padding: 4,
+                          width: 30,
+                          height: 30,
+                          padding: 0,
                           display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

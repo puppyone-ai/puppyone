@@ -47,13 +47,10 @@ import {
  *   5. Identity (read-only)        path / root flag / created date.
  *   6. Danger zone                 Delete (root protected, two-click).
  *
- * The block is collapsed by default and only mounts when the parent's
- * settings toggle is on (per 2026-05-08 UX decision: detail page primary
- * task is "use this access" — Connect / Integrations — so settings
- * waits behind a click). When dirty, a Save / Discard footer appears
- * at the bottom of the block so the user can commit a batch of edits
- * (rather than per-control auto-PATCH, which would make the
- * destructive `rw → r` flip happen mid-form).
+ * The block renders as the dedicated Settings sub-page for a scope.
+ * When dirty, a Save / Discard footer appears at the bottom so the
+ * user can commit a batch of edits (rather than per-control auto-PATCH,
+ * which would make the destructive `rw → r` flip happen mid-form).
  *
  * Dirty state is reported up via `onDirtyChange` so the parent can:
  *   - show an "unsaved" indicator on the Settings header toggle
@@ -334,7 +331,8 @@ export function ScopeSettingsBlock({
           onClick={() => setExcludes([...excludes, ''])}
           style={{
             alignSelf: 'flex-start',
-            padding: '6px 10px',
+            height: 30,
+            padding: '0 10px',
             fontSize: 13,
             fontWeight: 500,
             color: COLOR_FG_MUTED,
@@ -407,7 +405,8 @@ export function ScopeSettingsBlock({
             onClick={handleRotate}
             disabled={rotating || !scope.access_key}
             style={{
-              padding: '6px 12px',
+              height: 30,
+              padding: '0 12px',
               fontSize: 13,
               fontWeight: 500,
               color: confirmRotate ? COLOR_DANGER_FAINT : COLOR_FG,
@@ -513,7 +512,8 @@ export function ScopeSettingsBlock({
           title={scope.is_root ? 'Root scope cannot be deleted' : undefined}
           style={{
             alignSelf: 'flex-start',
-            padding: '6px 12px',
+            height: 30,
+            padding: '0 12px',
             fontSize: 13,
             fontWeight: 500,
             color: scope.is_root
@@ -566,11 +566,9 @@ export function ScopeSettingsBlock({
       )}
 
       {/* Save / Discard footer — only present when the form has dirty
-          edits. Keeping it inline (rather than a sticky overlay) means
-          it doesn't float over the Connect Methods section below; users
-          interacting with settings will already be in this area. The
-          Settings header on the panel doubles as a dirty indicator
-          (see ScopedConnectorsListPanel.tsx). */}
+          edits. Keeping it inline avoids a sticky strip competing with
+          the settings rows. The parent panel confirms before leaving
+          while dirty. */}
       {dirty && (
         <div
           style={{
@@ -591,7 +589,8 @@ export function ScopeSettingsBlock({
             onClick={handleDiscard}
             disabled={saving}
             style={{
-              padding: '6px 12px',
+              height: 30,
+              padding: '0 12px',
               fontSize: 13,
               color: COLOR_FG,
               background: 'var(--po-hover)',
@@ -607,7 +606,8 @@ export function ScopeSettingsBlock({
             onClick={handleSave}
             disabled={saving}
             style={{
-              padding: '6px 14px',
+              height: 30,
+              padding: '0 14px',
               fontSize: 13,
               fontWeight: 600,
               color: 'var(--po-inset)',
@@ -643,11 +643,14 @@ function Card({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
-        padding: 12,
-        borderRadius: 8,
-        border: `1px solid ${danger ? COLOR_DANGER_BORDER : COLOR_BORDER}`,
-        background: COLOR_BG_CARD,
+        gap: 9,
+        padding: danger ? 12 : '0 0 16px',
+        borderRadius: danger ? 8 : 0,
+        border: danger ? `1px solid ${COLOR_DANGER_BORDER}` : 'none',
+        borderBottom: danger ? 'none' : '1px solid var(--po-divider)',
+        background: danger
+          ? 'color-mix(in srgb, var(--po-danger) 6%, transparent)'
+          : 'transparent',
       }}
     >
       {children}
@@ -752,12 +755,13 @@ function PermissionOption({
       style={{
         flex: 1,
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: 8,
-        padding: '10px 12px',
-        borderRadius: 8,
+        minHeight: 54,
+        padding: '8px 10px',
+        borderRadius: 7,
         border: `1px solid ${active ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-        background: active ? 'var(--po-hover)' : COLOR_BG_SUNKEN,
+        background: active ? 'var(--po-panel)' : 'transparent',
         textAlign: 'left',
         cursor: 'pointer',
         transition: 'border-color 150ms ease, background 150ms ease',
@@ -818,8 +822,8 @@ function IconButton({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 26,
-        height: 26,
+        width: 30,
+        height: 30,
         padding: 0,
         borderRadius: 6,
         border: 'none',

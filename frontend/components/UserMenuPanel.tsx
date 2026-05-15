@@ -54,7 +54,7 @@ const T = {
   fontSans:
     'var(--po-font-sans)',
   fontMono:
-    'var(--po-font-sans)',
+    'var(--po-font-mono)',
 } as const;
 
 interface UserMenuPanelProps {
@@ -861,7 +861,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         display: 'inline-flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        height: 26,
+                        height: 30,
                         padding: '0 10px',
                         borderRadius: 6,
                         border: `1px solid ${T.border}`,
@@ -1244,7 +1244,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: 6,
-                          height: 26,
+                          height: 30,
                           padding: '0 10px',
                           borderRadius: 6,
                           border: `1px solid ${T.border}`,
@@ -1402,7 +1402,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  height: 26,
+                  height: 30,
                   padding: '0 10px',
                   borderRadius: 6,
                   border: `1px solid ${T.border}`,
@@ -1434,7 +1434,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  height: 26,
+                  height: 30,
                   padding: '0 12px',
                   borderRadius: 6,
                   border: '1px solid color-mix(in srgb, var(--po-danger) 32%, transparent)',

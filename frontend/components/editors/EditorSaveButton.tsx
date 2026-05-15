@@ -31,7 +31,7 @@ import type { SaveStatus } from '@/lib/hooks/useManualSave';
  *   hint into the button permanently is decoration, not signal.
  *
  * Identity rules:
- *   - 28 px tall, 6 px radius, 13 px / 500 weight everywhere.
+ *   - 30 px tall, 6 px radius, 13 px / 500 weight everywhere.
  *   - Each state's leading icon shares the same 14 × 14 box.
  *   - dirty + error are buttons; saving + saved are spans.
  */
@@ -116,7 +116,7 @@ const CHIP_BASE = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
-  height: 28,
+  height: 30,
   padding: '0 10px',
   borderRadius: 6,
   border: 'none',

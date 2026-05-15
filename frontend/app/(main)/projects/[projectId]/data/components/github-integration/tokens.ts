@@ -20,6 +20,6 @@ export const T = {
   fontSans:
     'var(--po-font-sans)',
   fontMono:
-    'var(--po-font-sans)',
+    'var(--po-font-mono)',
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
 } as const;

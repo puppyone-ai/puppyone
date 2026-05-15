@@ -231,11 +231,11 @@ export function ChatAgentConfig({
                     <div style={{ display: 'flex', background: 'var(--po-panel)', border: '1px solid var(--po-border)', borderRadius: 4, padding: 2, gap: 1 }}>
                       <button
                         onClick={() => { if (!isReadonly) toggleReadonly(resource.path); }}
-                        style={{ background: isReadonly ? 'var(--po-border-strong)' : 'transparent', border: 'none', borderRadius: 3, color: isReadonly ? 'var(--po-text)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontWeight: 500, transition: 'all 0.1s' }}
+                        style={{ background: isReadonly ? 'var(--po-border-strong)' : 'transparent', border: 'none', borderRadius: 3, color: isReadonly ? 'var(--po-text)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, height: 30, padding: '0 10px', fontWeight: 500, transition: 'all 0.1s' }}
                       >View</button>
                       <button
                         onClick={() => { if (isReadonly) toggleReadonly(resource.path); }}
-                        style={{ background: !isReadonly ? 'color-mix(in srgb, var(--po-warning) 15%, transparent)' : 'transparent', border: 'none', borderRadius: 3, color: !isReadonly ? 'var(--po-warning)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, padding: '3px 10px', fontWeight: 500, transition: 'all 0.1s' }}
+                        style={{ background: !isReadonly ? 'color-mix(in srgb, var(--po-warning) 15%, transparent)' : 'transparent', border: 'none', borderRadius: 3, color: !isReadonly ? 'var(--po-warning)' : 'var(--po-text-disabled)', cursor: 'pointer', fontSize: 11, height: 30, padding: '0 10px', fontWeight: 500, transition: 'all 0.1s' }}
                       >Edit</button>
                     </div>
                     <ActivityIconButton

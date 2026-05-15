@@ -491,8 +491,8 @@ function ExpandableToggle({
               onQuickAdd?.();
             }}
             style={{
-              width: 26,
-              height: 26,
+              width: 30,
+              height: 30,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

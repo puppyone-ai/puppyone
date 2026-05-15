@@ -376,11 +376,13 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                 onClick={fetchExecutions}
                 disabled={loadingExecutions}
                 style={{
+                  width: 30,
+                  height: 30,
                   background: 'transparent',
                   border: 'none',
                   cursor: loadingExecutions ? 'not-allowed' : 'pointer',
                   color: 'var(--po-text-disabled)',
-                  padding: 4,
+                  padding: 0,
                   borderRadius: 4,
                   display: 'flex',
                   alignItems: 'center',

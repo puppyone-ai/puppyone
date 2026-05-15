@@ -644,7 +644,7 @@ function CreateView({
                   <span style={{ fontSize: 12, color: 'var(--po-danger)', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
                   <button
                     onClick={() => setDeployError(null)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--po-danger)', flexShrink: 0, opacity: 0.7 }}
+                    style={{ width: 30, height: 30, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--po-danger)', flexShrink: 0, opacity: 0.7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                     onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                     onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
                   >
@@ -712,7 +712,7 @@ function CreateView({
               <span style={{ fontSize: 12, color: 'var(--po-danger)', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
               <button
                 onClick={() => setDeployError(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--po-danger)', flexShrink: 0, opacity: 0.7 }}
+                style={{ width: 30, height: 30, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--po-danger)', flexShrink: 0, opacity: 0.7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                 onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
               >

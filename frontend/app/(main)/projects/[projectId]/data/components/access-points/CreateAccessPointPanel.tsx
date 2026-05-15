@@ -350,7 +350,8 @@ export function CreateAccessPointPanel({
               onClick={handleCreate}
               disabled={!canCreate}
               style={{
-                padding: '8px 14px',
+                height: 30,
+                padding: '0 14px',
                 fontSize: 12,
                 fontWeight: 500,
                 color: canCreate ? 'var(--po-inset)' : COLOR_FG_DIM,
@@ -371,7 +372,8 @@ export function CreateAccessPointPanel({
               onClick={onBack}
               disabled={creating}
               style={{
-                padding: '8px 12px',
+                height: 30,
+                padding: '0 12px',
                 fontSize: 12,
                 fontWeight: 500,
                 color: COLOR_FG_DIM,

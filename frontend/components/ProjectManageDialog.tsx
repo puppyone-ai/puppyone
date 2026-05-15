@@ -230,8 +230,8 @@ function StartEmptyCard() {
       <span
         aria-hidden
         style={{
-          width: 26,
-          height: 26,
+          width: 30,
+          height: 30,
           borderRadius: 999,
           border: '1px solid color-mix(in srgb, var(--po-success) 58%, transparent)',
           display: 'flex',

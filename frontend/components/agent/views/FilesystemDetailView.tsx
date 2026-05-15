@@ -397,7 +397,7 @@ function SetupModeTab({ active, label, hint, onClick }: { active: boolean; label
     <button
       onClick={onClick}
       style={{
-        flex: 1, padding: '8px 12px', borderRadius: 4, border: 'none',
+        flex: 1, minHeight: 48, padding: '8px 12px', borderRadius: 4, border: 'none',
         background: active ? 'var(--po-border-subtle)' : 'transparent',
         color: active ? 'var(--po-text)' : 'var(--po-text-subtle)',
         cursor: 'pointer', textAlign: 'left',
@@ -531,7 +531,7 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          background: 'transparent', border: 'none', padding: 0,
+          background: 'transparent', border: 'none', height: 30, padding: 0,
           display: 'flex', alignItems: 'center', gap: 6,
           fontSize: 12, fontWeight: 600, color: 'var(--po-text-subtle)',
           textTransform: 'uppercase', letterSpacing: '0.5px',
@@ -607,7 +607,8 @@ function SyncStep({ step, command, hint, label, isLast }: { step: number; comman
                 style={{
                   position: 'absolute', top: 8, right: 8,
                   background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)', padding: 4, display: 'flex',
+                  color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 {copied ? (
@@ -679,7 +680,8 @@ function CommandBlock({ command, label, hint }: {
             background: 'transparent', border: 'none',
             cursor: 'pointer',
             color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)',
-            padding: 4, borderRadius: 4, display: 'flex',
+            width: 30, height: 30, padding: 0, borderRadius: 4, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
             transition: 'color 0.15s',
           }}
           onMouseEnter={e => { if (!copied) e.currentTarget.style.color = 'var(--po-text-muted)'; }}
@@ -737,7 +739,7 @@ function CredentialRow({ label, value }: { label: string; value: string }) {
           background: 'transparent', border: 'none',
           cursor: 'pointer',
           color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)',
-          padding: 4, display: 'flex', flexShrink: 0,
+          width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           transition: 'color 0.15s',
         }}
         onMouseEnter={e => { if (!copied) e.currentTarget.style.color = 'var(--po-text-muted)'; }}

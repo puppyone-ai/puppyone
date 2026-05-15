@@ -216,8 +216,8 @@ export function SetupDialog({
                     background: 'transparent', border: 'none',
                     cursor: pathIsPlaceholder ? 'not-allowed' : 'pointer',
                     color: copiedField === 'd-up' ? 'var(--po-success)' : 'var(--po-text-disabled)',
-                    padding: 4, borderRadius: 4, display: 'flex',
-                    alignItems: 'center', flexShrink: 0,
+                    width: 30, height: 30, padding: 0, borderRadius: 4, display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}
                 >
                   {copiedField === 'd-up' ? <CheckIcon /> : <CopyIcon />}
@@ -333,7 +333,7 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
               style={{
                 background: 'transparent', border: 'none', cursor: 'pointer',
                 color: 'var(--po-text-subtle)', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', padding: 6, borderRadius: 4,
+                justifyContent: 'center', width: 30, height: 30, padding: 0, borderRadius: 4,
                 transition: 'color 0.15s'
               }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text)'}
@@ -347,7 +347,7 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
               style={{
                 background: 'transparent', border: 'none', cursor: 'pointer',
                 color: 'var(--po-text-subtle)', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', padding: 6, borderRadius: 4,
+                justifyContent: 'center', width: 30, height: 30, padding: 0, borderRadius: 4,
                 transition: 'color 0.15s'
               }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--po-danger)'}
@@ -452,8 +452,9 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
                 title="Refresh"
                 style={{
                   background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: 'var(--po-text-disabled)', padding: 2, borderRadius: 4, display: 'flex',
-                  marginLeft: 'auto', transition: 'color 0.15s',
+                color: 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, borderRadius: 4, display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                marginLeft: 'auto', transition: 'color 0.15s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text-muted)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-disabled)'}
@@ -469,7 +470,7 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
                 onClick={() => setShowSetup(true)}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 5,
-                  height: 28, padding: '0 12px', borderRadius: 6,
+                  height: 30, padding: '0 12px', borderRadius: 6,
                   background: 'var(--po-text)', border: 'none',
                   fontSize: 12, fontWeight: 500, color: 'var(--po-text-inverse)',
                   cursor: 'pointer', transition: 'opacity 0.12s',
@@ -504,7 +505,7 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
                 style={{
                   background: 'transparent', border: 'none', cursor: 'pointer',
                   color: copiedField === 'key' ? 'var(--po-success)' : 'var(--po-text-disabled)',
-                  padding: 4, display: 'flex', alignItems: 'center',
+                  width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 {copiedField === 'key' ? <CheckIcon /> : <CopyIcon />}
@@ -573,8 +574,8 @@ function StepBlock({
           style={{
             background: 'transparent', border: 'none', cursor: 'pointer',
             color: copiedField === fieldKey ? 'var(--po-success)' : 'var(--po-text-disabled)',
-            padding: 4, borderRadius: 4, display: 'flex',
-            alignItems: 'center', flexShrink: 0,
+            width: 30, height: 30, padding: 0, borderRadius: 4, display: 'flex',
+            alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           }}
         >
           {copiedField === fieldKey ? <CheckIcon /> : <CopyIcon />}

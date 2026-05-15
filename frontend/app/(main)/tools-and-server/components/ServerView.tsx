@@ -423,7 +423,8 @@ export function ServerView({
                     key={tab}
                     onClick={() => setActiveTab(tab)}
                     style={{
-                      padding: '4px 10px',
+                      height: 30,
+                      padding: '0 10px',
                       fontSize: FONT.tertiary,
                       fontWeight: 500,
                       color: activeTab === tab ? 'var(--po-text)' : 'var(--po-text-disabled)',
@@ -730,7 +731,8 @@ export function ServerView({
                     color: 'var(--po-text-subtle)',
                     background: 'transparent',
                     border: 'none',
-                    padding: '6px 12px',
+                    height: 30,
+                    padding: '0 12px',
                     cursor: 'pointer',
                   }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-text)')}
@@ -752,7 +754,8 @@ export function ServerView({
                       selectedToolIds.size > 0 ? 'var(--po-success)' : 'var(--po-border)',
                     border: 'none',
                     borderRadius: 5,
-                    padding: '6px 14px',
+                    height: 30,
+                    padding: '0 14px',
                     cursor:
                       selectedToolIds.size > 0 ? 'pointer' : 'not-allowed',
                   }}

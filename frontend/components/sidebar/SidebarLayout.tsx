@@ -333,7 +333,7 @@ export function SidebarLayout({
               </div>
             )}
 
-            {/* Collapse toggle — dedicated 28×28 slot at the right.
+            {/* Collapse toggle — dedicated 30×30 slot at the right.
                 Always rendered (so layout is stable + control is
                 discoverable via keyboard), but visually fades in on
                 header hover to keep the rest state quiet. */}
@@ -342,7 +342,7 @@ export function SidebarLayout({
               onClick={() => handleCollapsedChange(true)}
               title={t('collapse')}
               aria-label={t('collapse')}
-              className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[5px] text-[var(--po-text-subtle)] opacity-0 transition-opacity duration-150 hover:bg-[var(--po-hover)] hover:text-[var(--po-text)] group-hover/header:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--po-focus-ring)]'
+              className='flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-[5px] text-[var(--po-text-subtle)] opacity-0 transition-opacity duration-150 hover:bg-[var(--po-hover)] hover:text-[var(--po-text)] group-hover/header:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--po-focus-ring)]'
             >
               <svg
                 width='14'

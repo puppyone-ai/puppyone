@@ -524,7 +524,7 @@ function LoginPageInner() {
               <div className="mt-4 text-center">
                 <button
                   onClick={() => { clearFeedback(); setView('forgot'); }}
-                  className="bg-transparent border-none text-[var(--po-text-subtle)] hover:text-[var(--po-text)] cursor-pointer text-sm p-0 transition-colors"
+                  className="inline-flex h-[30px] items-center justify-center bg-transparent border-none text-[var(--po-text-subtle)] hover:text-[var(--po-text)] cursor-pointer text-sm px-1 transition-colors"
                 >
                   Forgot password?
                 </button>
@@ -567,7 +567,7 @@ function LoginPageInner() {
                 <button
                   onClick={handleResendCode}
                   disabled={disabled || resendCooldown > 0}
-                  className="bg-transparent border-none text-[var(--po-text-subtle)] enabled:hover:text-[var(--po-text)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm p-0 transition-colors inline-flex items-center justify-center gap-2"
+                  className="h-[30px] bg-transparent border-none text-[var(--po-text-subtle)] enabled:hover:text-[var(--po-text)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm px-1 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   {loading === 'resend' && <Dots size="xs" />}
                   {resendCooldown > 0
@@ -720,7 +720,7 @@ function BackButton({ onClick, label = 'All sign in options' }: { onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 bg-transparent border-none text-[var(--po-text-subtle)] hover:text-[var(--po-text)] cursor-pointer text-sm p-0 transition-colors self-start"
+      className="flex h-[30px] items-center gap-1.5 bg-transparent border-none text-[var(--po-text-subtle)] hover:text-[var(--po-text)] cursor-pointer text-sm px-1 transition-colors self-start"
     >
       <ArrowLeftIcon />
       <span>{label}</span>

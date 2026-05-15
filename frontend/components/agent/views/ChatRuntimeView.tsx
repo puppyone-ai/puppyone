@@ -101,7 +101,7 @@ function AgentNameButton({
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        height: 28,
+        height: 30,
         padding: '0 8px',
         background: isEditing ? 'var(--po-border)' : isHovered ? 'var(--po-hover)' : 'transparent',
         border: '1px solid transparent',
@@ -716,8 +716,8 @@ export function ChatRuntimeView({
                 onClick={() => setIsHistoryMenuOpen(!isHistoryMenuOpen)}
                 title={sessions.length > 0 ? `${sessions.length} chat${sessions.length > 1 ? 's' : ''} - Click to view` : 'No chat history yet'}
                 style={{
-                  width: 28,
-                  height: 28,
+                  width: 30,
+                  height: 30,
                   background: isHistoryMenuOpen ? 'var(--po-border-strong)' : 'transparent',
                   border: 'none',
                   cursor: 'pointer',
@@ -805,8 +805,8 @@ export function ChatRuntimeView({
               onClick={handleNewChat}
               title="New chat"
               style={{
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 background: currentSessionId === null && messages.length === 0 ? 'var(--po-border-strong)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -836,8 +836,8 @@ export function ChatRuntimeView({
               onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
               title={isSettingsExpanded ? "Close settings" : "Edit settings"}
               style={{
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 background: isSettingsExpanded ? 'var(--po-border-strong)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -862,8 +862,8 @@ export function ChatRuntimeView({
               onClick={onBack}
               title="Back to integrations"
               style={{
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
@@ -1044,7 +1044,8 @@ export function ChatRuntimeView({
                             color: isReadonly ? 'var(--po-text)' : 'var(--po-text-disabled)',
                             cursor: 'pointer',
                             fontSize: 11,
-                            padding: '2px 8px',
+                            height: 30,
+                            padding: '0 8px',
                             fontWeight: 500,
                             transition: 'all 0.1s',
                           }}
@@ -1060,7 +1061,8 @@ export function ChatRuntimeView({
                             color: !isReadonly ? 'var(--po-warning)' : 'var(--po-text-disabled)',
                             cursor: 'pointer',
                             fontSize: 11,
-                            padding: '2px 8px',
+                            height: 30,
+                            padding: '0 8px',
                             fontWeight: 500,
                             transition: 'all 0.1s',
                           }}
@@ -1115,7 +1117,8 @@ export function ChatRuntimeView({
               disabled={isSavingResources}
               style={{
                 marginTop: 4,
-                padding: '8px 12px',
+                height: 30,
+                padding: '0 12px',
                 background: isSavingResources ? 'var(--po-border)' : 'var(--po-success)',
                 border: 'none',
                 borderRadius: 4,
@@ -1155,7 +1158,8 @@ export function ChatRuntimeView({
             }}
             style={{
               marginTop: 4,
-              padding: '6px 10px',
+              height: 30,
+              padding: '0 10px',
               background: 'transparent',
               border: '1px solid var(--po-border)',
               borderRadius: 4,

@@ -75,8 +75,8 @@ export function GhostButton({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        height: 28,
-        width: isSquare ? 28 : undefined,
+        height: 30,
+        width: isSquare ? 30 : undefined,
         padding: isSquare ? 0 : '0 12px',
         background: 'transparent',
         border: `1px solid ${T.border}`,
@@ -245,7 +245,7 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
         aria-hidden
         style={{
           margin: 0,
-          padding: '12px 14px 48px 14px',
+          padding: '12px 14px 58px 14px',
           fontFamily: T.fontMono,
           fontSize: 11,
           lineHeight: 1.6,
@@ -261,7 +261,7 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
         style={{
           position: 'absolute',
           inset: 'auto 0 0 0',
-          height: 64,
+          height: 70,
           background: `linear-gradient(180deg, transparent 0%, ${PROMPT_PREVIEW_BG} 100%)`,
           pointerEvents: 'none',
         }}
@@ -273,9 +273,9 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
         onMouseLeave={() => setHovered(false)}
         style={{
           position: 'absolute',
-          top: '50%',
           left: '50%',
-          transform: 'translate(-50%, -50%)',
+          bottom: 10,
+          transform: 'translateX(-50%)',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -286,26 +286,24 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
           fontSize: 12,
           fontWeight: 600,
           letterSpacing: 0,
-          color: copied ? 'var(--po-success-contrast)' : 'var(--po-panel)',
+          color: copied ? 'var(--po-success-contrast)' : 'var(--po-success)',
           background: copied
             ? 'var(--po-success)'
             : hovered
-              ? 'color-mix(in srgb, var(--po-text) 78%, var(--po-panel) 22%)'
-              : 'color-mix(in srgb, var(--po-text) 72%, var(--po-panel) 28%)',
+              ? 'color-mix(in srgb, var(--po-success) 20%, var(--po-panel) 80%)'
+              : 'color-mix(in srgb, var(--po-success) 14%, var(--po-panel) 86%)',
           border: copied
             ? '1px solid var(--po-success)'
-            : '1px solid color-mix(in srgb, var(--po-text) 62%, transparent)',
+            : '1px solid color-mix(in srgb, var(--po-success) 38%, transparent)',
           borderRadius: BTN_RADIUS,
           cursor: 'pointer',
           whiteSpace: 'nowrap',
-          boxShadow: hovered
-            ? '0 5px 14px color-mix(in srgb, var(--po-shadow) 85%, transparent)'
-            : '0 2px 8px color-mix(in srgb, var(--po-shadow) 55%, transparent)',
-          transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease',
+          boxShadow: 'none',
+          transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
         }}
       >
         <CopyIcon size={12} />
-        {copied ? 'Copied' : 'Copy prompt for AI agent'}
+        {copied ? 'Copied' : 'Copy setup prompt'}
       </button>
     </div>
   );
@@ -333,7 +331,8 @@ export function CommandStepsDisclosure({
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          padding: '4px 6px',
+          height: 30,
+          padding: '0 6px',
           marginLeft: -6,
           fontSize: 12,
           fontWeight: 500,

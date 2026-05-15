@@ -85,7 +85,7 @@ function getProviderLogo(provider: string, size: number) {
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
           <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--po-border-strong)"/>
-          <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--po-text-muted)" fontFamily="sans-serif">
+          <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--po-text-muted)" fontFamily="var(--po-font-sans)">
             {provider.charAt(0).toUpperCase()}
           </text>
         </svg>
@@ -335,7 +335,8 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
                 title="Refresh"
                 style={{
                   background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: 'var(--po-text-disabled)', padding: 2, borderRadius: 4, display: 'flex',
+                  color: 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, borderRadius: 4, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
                   marginLeft: 'auto', transition: 'color 0.15s',
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text-muted)'}
@@ -521,7 +522,7 @@ function TriggerModeSelector({
             onClick={() => setEditMode(true)}
             style={{
               background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer',
-              fontSize: 11, padding: '2px 6px', borderRadius: 4, transition: 'color 0.12s',
+              fontSize: 11, height: 30, padding: '0 6px', borderRadius: 4, transition: 'color 0.12s',
             }}
             onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-text-muted)'; }}
             onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-disabled)'; }}
@@ -584,7 +585,7 @@ function TriggerModeSelector({
               onClick={handleSave}
               disabled={saving || (pendingMode === 'scheduled' && !scheduleConfig?.schedule)}
               style={{
-                flex: 1, height: 28, borderRadius: 6, fontSize: 12, fontWeight: 500,
+                flex: 1, height: 30, borderRadius: 6, fontSize: 12, fontWeight: 500,
                 background: 'color-mix(in srgb, var(--po-accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--po-accent) 25%, transparent)',
                 color: 'var(--po-accent)', cursor: saving ? 'not-allowed' : 'pointer',
                 opacity: saving || (pendingMode === 'scheduled' && !scheduleConfig?.schedule) ? 0.5 : 1,
@@ -597,7 +598,7 @@ function TriggerModeSelector({
             <button
               onClick={handleCancel}
               style={{
-                flex: 1, height: 28, borderRadius: 6, fontSize: 12, fontWeight: 500,
+                flex: 1, height: 30, borderRadius: 6, fontSize: 12, fontWeight: 500,
                 background: 'transparent', border: '1px solid var(--po-border)',
                 color: 'var(--po-text-muted)', cursor: 'pointer',
               }}
@@ -658,7 +659,7 @@ function ScheduleEditor({
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const selectStyle: React.CSSProperties = {
-    height: 28, padding: '0 6px', borderRadius: 4, fontSize: 12,
+    height: 30, padding: '0 6px', borderRadius: 4, fontSize: 12,
     background: 'var(--po-panel)', border: '1px solid var(--po-active)', color: 'var(--po-text)',
     cursor: 'pointer', outline: 'none',
   };
@@ -763,7 +764,7 @@ function ActionButton({ label, icon, variant = 'default', onClick }: {
       onClick={onClick}
       style={{
         flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-        height: 28, padding: '0 10px', borderRadius: 6,
+        height: 30, padding: '0 10px', borderRadius: 6,
         background: 'transparent',
         border: '1px solid var(--po-border)',
         color: textColor, fontSize: 12, fontWeight: 500, cursor: 'pointer',
@@ -820,7 +821,8 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
 
   const tabBtnStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
-    padding: '5px 8px',
+    height: 30,
+    padding: '0 8px',
     fontSize: 10,
     fontWeight: active ? 600 : 500,
     color: active ? 'var(--po-text)' : 'var(--po-text-subtle)',
@@ -842,7 +844,7 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
         <code style={{ flex: 1, fontSize: 11, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)" }}>{masked}</code>
         <button
           onClick={() => handleCopy(accessKey, 'key')}
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'key' ? 'var(--po-success)' : 'var(--po-text-disabled)', padding: 4, display: 'flex' }}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'key' ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {copied === 'key' ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -878,7 +880,7 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
           </code>
           <button
             onClick={() => handleCopy(activeCmd, 'cmd')}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'cmd' ? 'var(--po-success)' : 'var(--po-text-disabled)', padding: 4, display: 'flex', flexShrink: 0 }}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'cmd' ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
           >
             {copied === 'cmd' ? (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -915,7 +917,7 @@ function AccessKeyRow({ accessKey }: { accessKey: string }) {
         <code style={{ flex: 1, fontSize: 11, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)" }}>{masked}</code>
         <button
           onClick={handleCopy}
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)', padding: 4, display: 'flex' }}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
           {copied ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>

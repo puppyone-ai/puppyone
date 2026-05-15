@@ -308,7 +308,8 @@ export function ConnectPanel({
               onClick={() => setActiveTab('access')}
               style={{
                 flex: 1,
-                padding: '10px 16px',
+                height: 42,
+                padding: '0 16px',
                 background: 'transparent',
                 border: 'none',
                 borderBottom:
@@ -328,7 +329,8 @@ export function ConnectPanel({
               onClick={() => setActiveTab('configure')}
               style={{
                 flex: 1,
-                padding: '10px 16px',
+                height: 42,
+                padding: '0 16px',
                 background: 'transparent',
                 border: 'none',
                 borderBottom:

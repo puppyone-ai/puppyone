@@ -302,7 +302,8 @@ function NameField({
           alignItems: 'center',
           gap: 8,
           maxWidth: '100%',
-          padding: '2px 6px',
+          height: 30,
+          padding: '0 6px',
           marginLeft: -6,
           borderRadius: 4,
           background: hovered ? 'var(--po-hover)' : 'transparent',
@@ -554,8 +555,8 @@ function ConnectorActionMenu({
         style={{
           all: 'unset',
           cursor: 'pointer',
-          width: 26,
-          height: 26,
+          width: 30,
+          height: 30,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -662,7 +663,8 @@ function MenuItem({
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '7px 9px',
+        height: 30,
+        padding: '0 9px',
         borderRadius: 6,
         fontSize: 12.5,
         color: danger ? 'var(--po-danger)' : T.text1,
@@ -1209,7 +1211,8 @@ function ProviderConfigDisclosure({ connector }: { readonly connector: Connector
           fontSize: 11.5,
           color: T.text3,
           fontFamily: T.fontSans,
-          padding: '4px 0',
+          height: 30,
+          padding: '0',
         }}
       >
         <span

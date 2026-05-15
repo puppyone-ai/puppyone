@@ -441,12 +441,13 @@ export function TableManageDialog({
                             setName('');
                           }}
                           style={{
+                            height: 30,
                             background: 'transparent',
                             border: 'none',
                             color: 'var(--po-text-subtle)',
                             fontSize: 12,
                             cursor: 'pointer',
-                            padding: '2px 6px',
+                            padding: '0 8px',
                             borderRadius: 4,
                             transition: 'color 0.12s, background 0.12s',
                           }}

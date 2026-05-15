@@ -1,6 +1,7 @@
 import './globals.css';
 import type { ReactNode } from 'react';
 import { GeistSans } from 'geist/font/sans';
+import { GeistMono } from 'geist/font/mono';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 import { SupabaseAuthProvider } from './supabase/SupabaseAuthProvider';
@@ -21,7 +22,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html
       lang={locale}
       suppressHydrationWarning
-      className={GeistSans.variable}
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
     >
       <head />
       <body>

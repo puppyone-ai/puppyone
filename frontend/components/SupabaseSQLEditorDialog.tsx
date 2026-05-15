@@ -198,7 +198,8 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                 style={{
                   marginTop: 8,
                   width: '100%',
-                  padding: '6px 8px',
+                  height: 30,
+                  padding: '0 8px',
                   borderRadius: 6,
                   border: '1px solid color-mix(in srgb, #3ECF8E 40%, transparent)',
                   background: manualTableInput.trim() ? 'color-mix(in srgb, #3ECF8E 12%, transparent)' : 'color-mix(in srgb, #3ECF8E 5%, transparent)',
@@ -398,7 +399,7 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                     onClick={handleSave}
                     disabled={isSaving}
                     style={{
-                      padding: '7px 20px', borderRadius: 8, border: 'none',
+                      height: 30, padding: '0 20px', borderRadius: 8, border: 'none',
                       background: isSaving ? 'color-mix(in srgb, #3ECF8E 30%, transparent)' : '#3ECF8E',
                       color: isSaving ? 'var(--po-text-disabled)' : '#06130c',
                       cursor: isSaving ? 'not-allowed' : 'pointer',

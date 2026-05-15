@@ -237,7 +237,8 @@ export function GithubConnectForm({
             fontFamily: T.fontSans,
             fontSize: 13,
             fontWeight: 500,
-            padding: '7px 14px',
+            height: 30,
+            padding: '0 14px',
             transition: `all 120ms ${T.ease}`,
           }}
         >
@@ -373,7 +374,8 @@ function BranchPicker({
     color: T.text1,
     fontFamily: T.fontMono,
     fontSize: 13,
-    padding: '6px 10px',
+    height: 30,
+    padding: '0 10px',
     width: 240,
     textAlign: 'left',
     cursor: 'pointer',
@@ -491,7 +493,8 @@ function BranchPicker({
                   style={{
                     display: 'block',
                     width: '100%',
-                    padding: '8px 12px',
+                    height: 30,
+                    padding: '0 12px',
                     background: rowBg,
                     border: 'none',
                     borderBottom: `1px solid ${T.cardBorder}`,
@@ -613,6 +616,7 @@ function RepoPicker({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 width: '100%',
+                minHeight: 42,
                 padding: '8px 12px',
                 background: selected ? 'color-mix(in srgb, var(--po-accent) 10%, transparent)' : 'transparent',
                 border: 'none',

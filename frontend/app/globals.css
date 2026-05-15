@@ -6,9 +6,28 @@
   color-scheme: light;
 
   --po-font-sans: var(--font-geist-sans);
-  --po-font-mono: var(--po-font-sans);
-  --po-font-size-chrome: 13px;
-  --po-font-weight-chrome: 500;
+  --po-font-mono: var(--font-geist-mono);
+
+  --po-text-size-micro: 10px;
+  --po-text-size-caption: 11px;
+  --po-text-size-meta: 12px;
+  --po-text-size-body: 13px;
+  --po-text-size-body-lg: 14px;
+  --po-text-size-title: 16px;
+  --po-text-size-page-title: 20px;
+  --po-text-size-display: 24px;
+
+  --po-text-weight-regular: 400;
+  --po-text-weight-medium: 500;
+  --po-text-weight-semibold: 600;
+  --po-text-weight-bold: 700;
+
+  --po-line-height-tight: 1.25;
+  --po-line-height-body: 1.45;
+  --po-line-height-relaxed: 1.6;
+
+  --po-font-size-chrome: var(--po-text-size-body);
+  --po-font-weight-chrome: var(--po-text-weight-medium);
 
   --po-canvas: #f1eadf;
   --po-sidebar: #e8dfd2;
@@ -62,7 +81,7 @@
   --po-text-fill-hover: #241f1a;
 
   --po-filetree-rail: rgba(73, 55, 35, 0.26);
-  --po-tree-guide: color-mix(in srgb, var(--po-text) 13%, transparent);
+  --po-tree-guide: color-mix(in srgb, var(--po-sidebar) 87%, var(--po-text));
   --po-file-icon-body: #eee5d8;
   --po-file-icon-fold: #dfd4c6;
   --po-file-icon-stroke: rgba(73, 55, 35, 0.36);
@@ -149,7 +168,7 @@
   --po-text-fill-hover: #ffffff;
 
   --po-filetree-rail: rgba(255, 255, 255, 0.10);
-  --po-tree-guide: color-mix(in srgb, var(--po-text) 10%, transparent);
+  --po-tree-guide: color-mix(in srgb, var(--po-sidebar) 90%, var(--po-text));
   --po-file-icon-body: #222225;
   --po-file-icon-fold: #2a2a2d;
   --po-file-icon-stroke: rgba(255, 255, 255, 0.18);

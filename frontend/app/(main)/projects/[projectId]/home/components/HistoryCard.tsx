@@ -286,6 +286,7 @@ export function HistoryCard({
             background: 'none',
             border: 'none',
             cursor: 'pointer',
+            height: 30,
             padding: 0,
             fontSize: 12,
             color: T.text2,

@@ -281,7 +281,7 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
                       <button
                         onClick={() => router.push(href)}
                         style={{
-                          height: 26,
+                          height: 30,
                           fontSize: 11.5,
                           fontWeight: 500,
                           letterSpacing: '-0.005em',

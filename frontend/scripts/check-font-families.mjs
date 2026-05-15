@@ -17,8 +17,6 @@ const sourceExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.css', '.cjs', '.mjs'
 const bannedFonts = [
   'Plus Jakarta Sans',
   'JetBrains Mono',
-  'Geist_Mono',
-  'GeistMono',
   'SFMono-Regular',
   'SF Mono',
   'Fira Code',
@@ -30,6 +28,7 @@ const bannedFonts = [
   'Courier New',
   'Inter',
   'SF Pro Text',
+  'sans-serif',
   'ui-monospace',
   'monospace',
   'system-ui',
@@ -51,18 +50,13 @@ for (const file of collectFiles(scanRoots)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('*')) return;
 
-    if (/(^|[\s"'`])font-mono($|[\s"'`])/.test(line)) {
-      findings.push({ file: rel, line: index + 1, reason: 'Tailwind font-mono utility', text: trimmed });
-      return;
-    }
-
-    if (/\b(Geist_Mono|JetBrains_Mono|Plus_Jakarta_Sans)\b/.test(line)) {
-      findings.push({ file: rel, line: index + 1, reason: 'non-Geist-Sans font import', text: trimmed });
+    if (/\b(JetBrains_Mono|Plus_Jakarta_Sans)\b/.test(line)) {
+      findings.push({ file: rel, line: index + 1, reason: 'non-Geist font import', text: trimmed });
       return;
     }
 
     if (declarationPattern.test(line) && bannedPattern.test(line)) {
-      findings.push({ file: rel, line: index + 1, reason: 'non-Geist-Sans font declaration', text: trimmed });
+      findings.push({ file: rel, line: index + 1, reason: 'non-standard font declaration', text: trimmed });
     }
   });
 }

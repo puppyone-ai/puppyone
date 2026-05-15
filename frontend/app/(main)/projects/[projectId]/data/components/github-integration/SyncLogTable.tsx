@@ -156,7 +156,8 @@ function FilterChip({
         cursor: 'pointer',
         fontFamily: T.fontSans,
         fontSize: 12,
-        padding: '4px 10px',
+        height: 30,
+        padding: '0 10px',
       }}
     >
       {children}
@@ -237,7 +238,8 @@ function pagerBtnStyle(enabled: boolean): React.CSSProperties {
     cursor: enabled ? 'pointer' : 'not-allowed',
     fontFamily: T.fontMono,
     fontSize: 12,
-    padding: '4px 10px',
+    height: 30,
+    padding: '0 10px',
   };
 }
 

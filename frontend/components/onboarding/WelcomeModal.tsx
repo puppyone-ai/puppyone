@@ -144,7 +144,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
             <button
               onClick={onDone}
               style={{
-                padding: '8px 20px', fontSize: 13, color: 'var(--po-text-subtle)',
+                height: 30, padding: '0 20px', fontSize: 13, color: 'var(--po-text-subtle)',
                 background: 'none', border: '1px solid var(--po-border-strong)',
                 borderRadius: 8, cursor: 'pointer',
               }}
@@ -154,7 +154,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
             <button
               onClick={() => { if (isLast) onDone(); else setSlide(s => s + 1); }}
               style={{
-                padding: '8px 28px', fontSize: 13, fontWeight: 600,
+                height: 30, padding: '0 28px', fontSize: 13, fontWeight: 600,
                 color: 'var(--po-text-inverse)', background: 'var(--po-accent)',
                 border: 'none', borderRadius: 8, cursor: 'pointer',
               }}

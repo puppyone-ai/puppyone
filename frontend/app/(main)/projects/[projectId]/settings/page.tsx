@@ -35,7 +35,7 @@ const T = {
   fontSans:
     'var(--po-font-sans)',
   fontMono:
-    'var(--po-font-sans)',
+    'var(--po-font-mono)',
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
 } as const;
 
@@ -532,7 +532,8 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     <button
                       onClick={() => handleVisibilityChange('org')}
                       style={{
-                        padding: '4px 14px',
+                        height: 30,
+                        padding: '0 14px',
                         background:
                           visibility === 'org'
                             ? 'var(--po-border)'
@@ -552,7 +553,8 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     <button
                       onClick={() => handleVisibilityChange('private')}
                       style={{
-                        padding: '4px 14px',
+                        height: 30,
+                        padding: '0 14px',
                         background:
                           visibility === 'private'
                             ? 'var(--po-border)'
@@ -727,7 +729,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                                 style={{
                                   ...selectStyle,
                                   padding: '4px 22px 4px 8px',
-                                  height: 26,
+                                  height: 30,
                                   fontSize: 11.5,
                                   fontWeight: 500,
                                   color: ROLE_COLORS[m.role] || 'var(--po-text)',
@@ -749,7 +751,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                             <div style={{ width: 1, height: 14, background: T.cardBorder }}></div>
                             <button
                               onClick={() => setMemberRemoval({ userId: m.user_id, name })}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.text3, padding: 4, display: 'flex', alignItems: 'center', transition: `color 0.15s ${T.ease}` }}
+                              style={{ width: 30, height: 30, background: 'none', border: 'none', cursor: 'pointer', color: T.text3, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: `color 0.15s ${T.ease}` }}
                               title="Remove member"
                               onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-danger)')}
                               onMouseLeave={e => (e.currentTarget.style.color = T.text3)}
@@ -793,7 +795,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 6,
-                    height: 26,
+                    height: 30,
                     padding: '0 12px',
                     background: 'color-mix(in srgb, var(--po-danger) 14%, transparent)',
                     border: '1px solid color-mix(in srgb, var(--po-danger) 34%, transparent)',
@@ -914,14 +916,14 @@ const descStyle: CSSProperties = {
 };
 
 // Ghost button — pulled directly from the Access page's `GhostButton`
-// shape (26px tall, 12px text, transparent → 0.05-alpha hover). One
+// shape (30px tall, 12px text, transparent → 0.05-alpha hover). One
 // neutral button across the whole project surface.
 const btnGhost: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
   gap: 6,
-  height: 26,
+  height: 30,
   padding: '0 10px',
   background: 'transparent',
   border: `1px solid ${T.border}`,

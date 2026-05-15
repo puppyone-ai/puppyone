@@ -306,7 +306,7 @@ export function SaaSyncConfig({
                 </div>
                 <button
                   onClick={handleConnect}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer', padding: '2px 0' }}
+                  style={{ height: 30, background: 'transparent', border: 'none', color: 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer', padding: '0 6px' }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-subtle)'}
                 >
@@ -327,7 +327,7 @@ export function SaaSyncConfig({
                 <button
                   onClick={handleConnect} disabled={connecting}
                   style={{
-                    height: 28, padding: '0 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
+                    height: 30, padding: '0 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
                     background: 'transparent', border: '1px solid var(--po-border-strong)',
                     color: connecting ? 'var(--po-text-disabled)' : 'var(--po-text)', cursor: connecting ? 'not-allowed' : 'pointer',
                     transition: 'all 0.12s', flexShrink: 0, whiteSpace: 'nowrap',
@@ -492,7 +492,7 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
                 key={opt.value}
                 onClick={() => handleSelect(opt.value)}
                 style={{
-                  width: '100%', display: 'flex', flexDirection: 'column', gap: 2,
+                  width: '100%', minHeight: 56, display: 'flex', flexDirection: 'column', gap: 2,
                   padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
                   background: draftSyncMode === opt.value ? 'var(--po-border-subtle)' : 'transparent',
                   border: 'none',

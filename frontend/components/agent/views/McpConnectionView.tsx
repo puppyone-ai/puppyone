@@ -103,7 +103,9 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 4,
+              width: 30,
+              height: 30,
+              padding: 0,
               borderRadius: 4,
             }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text-muted)'}
@@ -122,7 +124,9 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 4,
+              width: 30,
+              height: 30,
+              padding: 0,
               borderRadius: 4,
             }}
             onMouseEnter={e => e.currentTarget.style.color = 'var(--po-danger)'}
@@ -190,7 +194,9 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                     border: 'none',
                     cursor: 'pointer',
                     color: copiedField === 'url' ? 'var(--po-success)' : 'var(--po-text-subtle)',
-                    padding: 4,
+                    width: 30,
+                    height: 30,
+                    padding: 0,
                     borderRadius: 4,
                     display: 'flex',
                     alignItems: 'center',
@@ -253,7 +259,9 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                     border: 'none',
                     cursor: 'pointer',
                     color: copiedField === 'claude' ? 'var(--po-success)' : 'var(--po-text-subtle)',
-                    padding: 4,
+                    width: 30,
+                    height: 30,
+                    padding: 0,
                     borderRadius: 4,
                     display: 'flex',
                     alignItems: 'center',
@@ -318,7 +326,9 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                     border: 'none',
                     cursor: 'pointer',
                     color: copiedField === 'cursor' ? 'var(--po-success)' : 'var(--po-text-subtle)',
-                    padding: 4,
+                    width: 30,
+                    height: 30,
+                    padding: 0,
                     borderRadius: 4,
                     display: 'flex',
                     alignItems: 'center',
@@ -371,7 +381,6 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
     </div>
   );
 }
-
 
 
 

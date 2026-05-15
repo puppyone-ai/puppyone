@@ -244,7 +244,7 @@ function TreeNodeItem({
         <span style={{
           color: 'var(--po-text-disabled)',
           fontSize: 11,
-          fontFamily: 'sans-serif',
+          fontFamily: 'var(--po-font-sans)',
           flexShrink: 0,
         }}>
           {isFolder ? `${fileCount} files` : formatBytes(node.size || 0)}
@@ -456,7 +456,8 @@ export function GithubRepoView({ nodeId, nodeName, content, syncUrl }: GithubRep
                 color: 'var(--po-text-subtle)',
                 fontSize: 12,
                 cursor: 'pointer',
-                padding: '4px 8px',
+                height: 30,
+                padding: '0 8px',
                 borderRadius: 4,
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--po-filetree-rail)'}
@@ -472,7 +473,8 @@ export function GithubRepoView({ nodeId, nodeName, content, syncUrl }: GithubRep
                 color: 'var(--po-text-subtle)',
                 fontSize: 12,
                 cursor: 'pointer',
-                padding: '4px 8px',
+                height: 30,
+                padding: '0 8px',
                 borderRadius: 4,
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--po-filetree-rail)'}

@@ -230,6 +230,7 @@ function CopyPromptButton({
         borderRadius: 8,
         border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 38%, transparent)' : border}`,
         background: copied ? 'color-mix(in srgb, var(--po-success) 10%, transparent)' : background,
+        minHeight: 56,
         padding: '10px 12px',
         transition: 'border-color 0.2s',
         cursor: 'pointer',
@@ -433,7 +434,7 @@ export function AccessPointsListPanel({
                             type="button"
                             onClick={() => onEndpointClick(ep, nodeId)}
                             style={{
-                              height: 26,
+                              height: 30,
                               padding: '0 10px',
                               borderRadius: 6,
                               border: '1px solid var(--po-active)',

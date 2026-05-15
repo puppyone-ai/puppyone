@@ -617,8 +617,8 @@ const APNode = memo(function APNode({
       />
       <div
         style={{
-          width: 26,
-          height: 26,
+          width: 30,
+          height: 30,
           borderRadius: 6,
           display: 'flex',
           alignItems: 'center',

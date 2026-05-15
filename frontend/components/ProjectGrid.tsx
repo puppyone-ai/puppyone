@@ -20,6 +20,7 @@ export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
+    minHeight: 96,
     cursor: onSelect ? 'pointer' : 'inherit',
   };
 

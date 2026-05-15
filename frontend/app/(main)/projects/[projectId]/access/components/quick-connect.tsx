@@ -371,7 +371,7 @@ function ActivationCard({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          height: 28,
+          height: 30,
           padding: '0 14px',
           fontSize: 12,
           fontWeight: 600,

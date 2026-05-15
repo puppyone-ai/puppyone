@@ -85,7 +85,7 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
         </div>
 
         {/* Commit bar */}
-        <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--po-divider)] bg-transparent px-3 py-1.5 h-[26px] flex items-center z-10 transition-colors duration-150">
+        <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--po-divider)] bg-transparent px-3 py-1.5 h-[30px] flex items-center z-10 transition-colors duration-150">
           <div className="flex items-center gap-2 text-[10px] w-full">
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: connectionCount > 0 ? 'var(--po-accent)' : 'var(--po-border-strong)' }} />
             <span className="text-[var(--po-text-subtle)]">{isPending ? 'opening...' : lastUpdated}</span>

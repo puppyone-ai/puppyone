@@ -164,7 +164,8 @@ function GithubBody({
             fontFamily: T.fontSans,
             fontSize: 13,
             fontWeight: 500,
-            padding: '7px 14px',
+            height: 30,
+            padding: '0 14px',
             opacity: oauthStarting ? 0.5 : 1,
           }}
         >

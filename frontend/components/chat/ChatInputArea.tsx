@@ -262,8 +262,8 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
             onClick={onSend}
             disabled={!inputValue.trim() || isLoading}
             style={{
-              width: 28,
-              height: 28,
+              width: 30,
+              height: 30,
               borderRadius: 6,
               border: 'none',
               display: 'flex',

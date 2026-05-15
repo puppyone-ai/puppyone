@@ -97,8 +97,8 @@ export function SettingsSidebar({
             onClick={() => setIsCollapsed(false)}
             title='Expand sidebar'
             style={{
-              width: 28,
-              height: 32,
+              width: 30,
+              height: 30,
               background: 'transparent',
               border: 'none',
               borderRadius: 5,
@@ -148,8 +148,8 @@ export function SettingsSidebar({
               onClick={() => setIsCollapsed(true)}
               title='Collapse sidebar'
               style={{
-                width: 28,
-                height: 32,
+                width: 30,
+                height: 30,
                 background: 'transparent',
                 border: 'none',
                 borderRadius: 5,
@@ -244,8 +244,8 @@ export function SettingsSidebar({
             onClick={() => onChangeView('import')}
             title='Import Settings'
             style={{
-              width: 28,
-              height: 32,
+              width: 30,
+              height: 30,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

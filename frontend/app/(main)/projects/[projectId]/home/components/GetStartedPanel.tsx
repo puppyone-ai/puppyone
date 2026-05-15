@@ -260,6 +260,7 @@ export function GetStartedPanel({
           alignSelf: 'flex-start',
           background: 'none',
           border: 'none',
+          height: 30,
           padding: 0,
           color: T.text3,
           fontSize: 13,
@@ -409,7 +410,8 @@ function DropFilesCard({
           }}
           disabled={uploading}
           style={{
-            padding: '7px 14px',
+            height: 30,
+            padding: '0 14px',
             borderRadius: 6,
             border: `1px solid ${T.text1}`,
             background: T.text1,
@@ -431,7 +433,8 @@ function DropFilesCard({
           }}
           disabled={uploading}
           style={{
-            padding: '7px 14px',
+            height: 30,
+            padding: '0 14px',
             borderRadius: 6,
             border: `1px solid ${T.border}`,
             background: 'transparent',
@@ -763,6 +766,7 @@ function CmdLineError({ onRetry }: { onRetry: () => void }) {
         style={{
           background: 'none',
           border: 'none',
+          height: 30,
           padding: 0,
           color: T.text2,
           fontSize: 13,
@@ -854,7 +858,8 @@ function CmdLine({
         onClick={onCopy}
         style={{
           flexShrink: 0,
-          padding: '3px 10px',
+          height: 30,
+          padding: '0 10px',
           borderRadius: 4,
           border: `1px solid ${T.cardBorder}`,
           background: 'var(--po-hover)',

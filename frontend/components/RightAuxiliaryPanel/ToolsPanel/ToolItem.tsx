@@ -121,7 +121,9 @@ export function ToolItem({
           style={{
             background: 'none',
             border: 'none',
-            padding: 4,
+            width: 30,
+            height: 30,
+            padding: 0,
             cursor: 'pointer',
             color: 'var(--po-text-disabled)',
             display: 'flex',

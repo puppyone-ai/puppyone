@@ -24,9 +24,9 @@ const STAGGER_S = 0.16;
  *
  * Use this INSIDE a button when you'd otherwise reach for a spinner:
  *
- *   <button disabled={saving}>
+ *   <ActionButton disabled={saving}>
  *     {saving ? <><Dots size="xs" /> Saving…</> : 'Save'}
- *   </button>
+ *   </ActionButton>
  */
 export function Dots({
   size = 'sm',

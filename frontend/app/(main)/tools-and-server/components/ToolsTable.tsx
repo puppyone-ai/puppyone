@@ -490,6 +490,8 @@ export function ToolsEmptyState({
             background: 'none',
             border: 'none',
             cursor: 'pointer',
+            height: 30,
+            padding: '0 8px',
           }}
         >
           + {actionLabel}

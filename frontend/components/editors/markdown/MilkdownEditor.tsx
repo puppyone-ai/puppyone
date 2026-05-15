@@ -17,15 +17,17 @@ import { Plugin, PluginKey } from '@milkdown/prose/state';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 
 // Theme-aware Milkdown CSS.
-// Design: line-height 24px + margin 8px = 40px visual rhythm
+// Markdown documents are reading surfaces, so body text uses the primary
+// text token while chrome/helper copy stays muted elsewhere in the app.
 const editorThemeStyles = `
   .milkdown-editor {
     background: var(--po-canvas);
     color: var(--po-text-muted);
     font-family: var(--po-font-sans);
     font-size: 14px;
-    line-height: 24px;
-    padding: 24px 32px;
+    font-weight: var(--po-text-weight-medium);
+    line-height: 1.65;
+    padding: 28px 32px 48px;
     box-sizing: border-box;
     outline: none;
     max-width: ${PROJECT_CONTENT_RAIL_WIDTH}px;
@@ -42,9 +44,9 @@ const editorThemeStyles = `
     font-weight: 600;
     line-height: 32px;
     color: var(--po-text);
-    margin: 24px 0 8px 0;
+    margin: 24px 0 12px 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid var(--po-border);
+    border-bottom: 1px solid var(--po-divider);
   }
 
   .milkdown-editor h2 {
@@ -52,9 +54,9 @@ const editorThemeStyles = `
     font-weight: 600;
     line-height: 28px;
     color: var(--po-text);
-    margin: 20px 0 8px 0;
+    margin: 22px 0 10px 0;
     padding-bottom: 6px;
-    border-bottom: 1px solid var(--po-border-subtle);
+    border-bottom: 1px solid var(--po-divider);
   }
 
   .milkdown-editor h3 {
@@ -62,7 +64,7 @@ const editorThemeStyles = `
     font-weight: 600;
     line-height: 24px;
     color: var(--po-text);
-    margin: 16px 0 8px 0;
+    margin: 18px 0 8px 0;
   }
 
   .milkdown-editor h4, .milkdown-editor h5, .milkdown-editor h6 {
@@ -70,13 +72,14 @@ const editorThemeStyles = `
     font-weight: 600;
     line-height: 24px;
     color: var(--po-text);
-    margin: 12px 0 8px 0;
+    margin: 14px 0 6px 0;
   }
 
   /* Paragraphs */
   .milkdown-editor p {
-    margin: 8px 0;
+    margin: 9px 0;
     color: var(--po-text-muted);
+    font-weight: var(--po-text-weight-medium);
   }
 
   /* Links */
@@ -91,12 +94,12 @@ const editorThemeStyles = `
 
   /* Lists */
   .milkdown-editor ul, .milkdown-editor ol {
-    margin: 8px 0;
+    margin: 9px 0 10px;
     padding-left: 24px;
   }
 
   .milkdown-editor .ProseMirror li {
-    margin: 4px 0;
+    margin: 3px 0;
     color: var(--po-text-muted);
   }
 
@@ -107,30 +110,36 @@ const editorThemeStyles = `
 
   /* Blockquote */
   .milkdown-editor blockquote {
-    margin: 8px 0;
-    padding: 8px 16px;
-    border-left: 3px solid var(--po-border-strong);
-    background: var(--po-control);
+    margin: 12px 0 14px;
+    padding: 9px 14px 9px 16px;
+    border-left: 3px solid var(--po-border);
+    background: color-mix(in srgb, var(--po-control) 58%, transparent);
     border-radius: 0 6px 6px 0;
     color: var(--po-text-muted);
-    line-height: 24px;
+    line-height: 1.55;
+  }
+
+  .milkdown-editor blockquote p {
+    margin: 0;
+    color: var(--po-text-muted);
   }
 
   /* Code */
   .milkdown-editor code {
-    font-family: var(--po-font-sans);
+    font-family: var(--po-font-mono);
     font-size: 13px;
-    background: var(--po-control);
-    padding: 1px 5px;
-    border-radius: 3px;
+    font-weight: var(--po-text-weight-medium);
+    background: color-mix(in srgb, var(--po-control) 58%, transparent);
+    padding: 1px 5px 2px;
+    border-radius: 4px;
     color: var(--po-success);
   }
 
   .milkdown-editor pre {
-    margin: 8px 0;
+    margin: 12px 0 14px;
     padding: 12px 16px;
     background: var(--po-inset);
-    border: 1px solid var(--po-border);
+    border: 1px solid var(--po-divider);
     border-radius: 6px;
     overflow-x: auto;
   }
@@ -140,36 +149,56 @@ const editorThemeStyles = `
     padding: 0;
     font-size: 13px;
     line-height: 20px;
+    color: var(--po-text-muted);
   }
 
   /* Table */
   .milkdown-editor table {
-    width: 100%;
-    margin: 8px 0;
+    width: auto;
+    min-width: min(640px, 100%);
+    max-width: 100%;
+    margin: 12px 0 14px;
     border-collapse: separate;
     border-spacing: 0;
     border: 1px solid var(--po-border);
     border-radius: 6px;
     overflow: hidden;
     font-size: 13px;
-    line-height: 20px;
+    line-height: 1.42;
   }
 
   .milkdown-editor th {
-    padding: 8px 12px;
+    padding: 6px 10px;
     text-align: left;
     font-weight: 600;
     color: var(--po-text);
-    background: var(--po-control);
+    background: color-mix(in srgb, var(--po-control) 78%, transparent);
     border-bottom: 1px solid var(--po-border);
-    border-right: 1px solid var(--po-border-subtle);
+    border-right: 1px solid var(--po-divider);
   }
 
   .milkdown-editor td {
-    padding: 6px 12px;
-    border-bottom: 1px solid var(--po-border-subtle);
-    border-right: 1px solid var(--po-border-subtle);
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--po-divider);
+    border-right: 1px solid var(--po-divider);
     color: var(--po-text-muted);
+    vertical-align: top;
+  }
+
+  .milkdown-editor th p,
+  .milkdown-editor td p {
+    margin: 0;
+    color: inherit;
+    font-weight: inherit;
+    line-height: inherit;
+  }
+
+  .milkdown-editor th ul,
+  .milkdown-editor th ol,
+  .milkdown-editor td ul,
+  .milkdown-editor td ol {
+    margin: 0;
+    padding-left: 18px;
   }
 
   .milkdown-editor th:last-child, .milkdown-editor td:last-child {
@@ -183,8 +212,8 @@ const editorThemeStyles = `
   /* Horizontal rule */
   .milkdown-editor hr {
     border: none;
-    border-top: 1px solid var(--po-border);
-    margin: 16px 0;
+    border-top: 1px solid var(--po-divider);
+    margin: 20px 0;
   }
 
   /* Task list - Milkdown uses data-item-type="task" and data-checked */

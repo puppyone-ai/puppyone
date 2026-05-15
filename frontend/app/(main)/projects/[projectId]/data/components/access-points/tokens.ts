@@ -34,6 +34,6 @@ export const COLOR_ACCENT_BORDER = 'color-mix(in srgb, var(--po-accent) 28%, tra
 export const COLOR_ACCENT_BORDER_BRIGHT = 'color-mix(in srgb, var(--po-accent) 34%, transparent)';
 
 export const FONT_MONO =
-  "var(--po-font-sans)";
+  "var(--po-font-mono)";
 
 export const PANEL_BG = 'var(--po-canvas)';

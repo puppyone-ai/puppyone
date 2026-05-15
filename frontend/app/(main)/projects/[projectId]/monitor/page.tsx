@@ -1,34 +1,15 @@
 'use client';
 
 /**
- * System Monitor — pixel migration of the puppyone-web showcase's
- * MonitorView with the product's existing functionality kept intact.
+ * System Monitor — audit-log viewer.
  *
- * What changed visually:
- *   - Header gains a "Live · N events" indicator (animated dot)
- *     instead of a refresh button. Live status reads as ambient
- *     instead of a manual control.
- *   - Column template tightened to `74 / 86 / 150 / 1fr / 60` to
- *     match the showcase, plus a 28px table header strip with the
- *     same uppercase tracking as the showcase.
- *   - Newest row gets a subtle green tint to reinforce "live".
- *   - 22px bottom footer summarising "streaming from N access
- *     points · last 24h · sorted desc".
- *
- * What's preserved from the product (the showcase deliberately drops
- * these for the marketing surface, but they're load-bearing in the
- * real app):
- *   - Filter tabs (All / Protocol / Agent) — we still need the type
- *     split because the unified table mixes audit-log entries and
- *     agent-call entries from two different sources.
- *   - Search box — power-user affordance for incident triage.
- *   - JSON detail drawer at the bottom — debuggability.
+ * This page mirrors the audit_logs record shape. History owns the
+ * commit/version story; Monitor should show what the audit table
+ * recorded: action, operator, path, metadata, status, and raw detail.
  */
 
-import React, { use, useEffect, useState, useMemo, useCallback } from 'react';
-import { getAgentLogs, type AgentLog } from '@/lib/chatApi';
+import React, { use, useState, useMemo, useCallback } from 'react';
 import { get } from '@/lib/apiClient';
-import { listConnectors } from '@/lib/repoApi';
 import { PulseGrid, PageLoading } from '@/components/loading';
 import useSWR from 'swr';
 
@@ -36,8 +17,11 @@ interface AuditLogEntry {
   id: number;
   action: string;
   path: string | null;
-  operator_type: string;
+  operator_type: string | null;
   operator_id: string | null;
+  status?: string | null;
+  strategy?: string | null;
+  conflict_details?: string | null;
   metadata: any;
   created_at: string | null;
 }
@@ -49,7 +33,7 @@ const T = {
   text4: 'var(--po-filetree-rail)',
   border: 'var(--po-border)',
   fontSans: 'var(--po-font-sans)',
-  fontMono: 'var(--po-font-sans)',
+  fontMono: 'var(--po-font-mono)',
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
 } as const;
 
@@ -113,137 +97,163 @@ function formatDayHeading(bucketKey: string): string {
   });
 }
 
+type LogStatus = 'recorded' | 'ok' | 'error' | 'warn';
+
 type UnifiedLog = {
   id: string;
   time: string;
-  type: 'protocol' | 'agent';
   action: string;
-  source: string;
-  detail: string;
-  status: 'ok' | 'error' | 'warn';
-  duration?: number;
+  operatorType: string;
+  operatorId: string;
+  path: string;
+  metadataSummary: string;
+  statusLabel: string;
+  status: LogStatus;
   raw: any;
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  clone: 'var(--po-success)', push: 'var(--po-accent)', pull: 'var(--po-file-accent-audio)', rollback: 'var(--po-warning)',
-  push_error: 'var(--po-danger)', push_rejected: 'var(--po-danger)', merge_conflict: 'var(--po-warning)',
+  clone: 'var(--po-success)',
+  push: 'var(--po-accent)',
+  pull: 'var(--po-file-accent-audio)',
+  rollback: 'var(--po-warning)',
+  write_file: 'var(--po-accent)',
+  delete: 'var(--po-danger)',
+  move: 'var(--po-file-accent-html)',
+  copy: 'var(--po-file-accent-image)',
+  mkdir: 'var(--po-success)',
+  rmdir: 'var(--po-danger)',
+  push_error: 'var(--po-danger)',
+  push_rejected: 'var(--po-danger)',
+  merge_conflict: 'var(--po-warning)',
   bash: 'var(--po-success)', tool: 'var(--po-accent)', llm: 'var(--po-file-accent-audio)',
 };
 
-// Single source of truth for the table grid template — header and
-// rows both reference it or columns desync at fractional widths.
-const COL_TEMPLATE = '74px 86px 150px 1fr 60px';
+const STATUS_STYLES: Record<LogStatus, { label: string; color: string; background: string; border: string }> = {
+  recorded: {
+    label: 'REC',
+    color: 'var(--po-text-disabled)',
+    background: 'var(--po-control)',
+    border: 'var(--po-border-subtle)',
+  },
+  ok: {
+    label: 'OK',
+    color: 'var(--po-text-disabled)',
+    background: 'var(--po-control)',
+    border: 'var(--po-border-subtle)',
+  },
+  warn: {
+    label: 'WARN',
+    color: 'var(--po-warning)',
+    background: 'color-mix(in srgb, var(--po-warning) 10%, transparent)',
+    border: 'color-mix(in srgb, var(--po-warning) 32%, transparent)',
+  },
+  error: {
+    label: 'ERROR',
+    color: 'var(--po-danger)',
+    background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)',
+    border: 'color-mix(in srgb, var(--po-danger) 32%, transparent)',
+  },
+};
+
+// Single source of truth for the table grid template — header and rows
+// both reference it or columns desync at fractional widths.
+const COL_TEMPLATE = '92px minmax(130px, 0.6fr) minmax(230px, 0.95fr) minmax(220px, 0.9fr) minmax(300px, 1.25fr) 86px';
+const ROW_HEIGHT = 38;
+const DAY_HEADER_HEIGHT = 42;
+
+function shortToken(value: unknown, head = 8, tail = 0): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.length <= head + tail + 1) return raw;
+  if (tail > 0) return `${raw.slice(0, head)}…${raw.slice(-tail)}`;
+  return `${raw.slice(0, head)}…`;
+}
+
+function auditStatus(entry: AuditLogEntry): LogStatus {
+  const explicit = String(entry.status || '').toLowerCase();
+  if (explicit.includes('error') || explicit.includes('failed') || explicit.includes('rejected')) return 'error';
+  if (explicit.includes('warn') || explicit.includes('conflict')) return 'warn';
+  if (entry.action.includes('error') || entry.action.includes('rejected')) return 'error';
+  if (entry.action.includes('conflict') || entry.conflict_details) return 'warn';
+  if (explicit.includes('ok') || explicit.includes('success')) return 'ok';
+  return 'recorded';
+}
+
+function statusLabel(entry: AuditLogEntry, status: LogStatus): string {
+  return entry.status || STATUS_STYLES[status].label;
+}
+
+function metadataSummary(metadata: any): string {
+  if (!metadata || typeof metadata !== 'object') return '—';
+  const entries = Object.entries(metadata);
+  if (entries.length === 0) return '{}';
+  return entries
+    .slice(0, 4)
+    .map(([key, value]) => {
+      if (value == null) return `${key}=null`;
+      if (Array.isArray(value)) return `${key}[${value.length}]`;
+      if (typeof value === 'object') return `${key}{…}`;
+      return `${key}=${shortToken(value, 16)}`;
+    })
+    .join(' · ');
+}
+
+function prettyJson(value: unknown): string {
+  try {
+    return JSON.stringify(value ?? {}, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 
 export default function MonitorPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
-  const [agentLogs, setAgentLogs] = useState<AgentLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  // Filter axis is by *outcome* (the actionable triage axis), not by
-  // event source-type. Earlier this was `'all' | 'protocol' | 'agent'`,
-  // which leaked the internal MUT-vs-agent split into the chrome:
-  //   - "Protocol" was jargon for "anything written via mut_engine"
-  //   - When agent activity was 0 the Protocol tab equalled All and
-  //     the segmented control read as decorative rather than useful.
-  // Status filter (All / Errors / Warnings) means a one-click jump
-  // to the rows that actually need attention, regardless of which
-  // subsystem wrote them.
+  const [refreshing, setRefreshing] = useState(false);
+  // Filter only by the stored audit outcome. History owns commit/version
+  // interpretation; this screen stays faithful to audit_logs rows.
   const [filter, setFilter] = useState<'all' | 'errors' | 'warnings'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data: auditData } = useSWR<{ logs: AuditLogEntry[]; total: number }>(
+  const { data: auditData, mutate: mutateAudit } = useSWR<{ logs: AuditLogEntry[]; total: number }>(
     projectId ? `/api/v1/nodes/project-audit-logs?project_id=${projectId}&limit=200` : null,
     (url: string) => get(url),
     { refreshInterval: 15000 },
   );
 
-  // Connector count drives the footer's "Streaming from N access
-  // points" line. Cheap to fetch, already cached by /access.
-  const { data: connectors } = useSWR(
-    projectId ? ['repo-connectors', projectId] : null,
-    () => listConnectors(projectId),
-    { refreshInterval: 60000, revalidateOnFocus: false, dedupingInterval: 60000 },
-  );
+  const isInitialLoading = auditData === undefined;
 
-  // The empty-state branch below renders when `filteredLogs.length === 0`.
-  // The naive guard (`loading ? <PageLoading /> : <Empty />`) reads only
-  // agent-log loading and can miss the audit source.
-  // `auditData` fetch entirely. Audit logs are usually the much bigger
-  // source, and on slower networks `loading` flips to false (agent logs
-  // arrive empty / fast) before `auditData` lands, producing a brief
-  // "No events found" flash that reads as "did the entire log stream
-  // just disappear?".
-  //
-  // Treating the page as still-loading until *both* sources have
-  // settled at least once eliminates that flash. SWR keeps `data`
-  // populated across revalidations after the first delivery, so this
-  // flag stays false during background refreshes (no spinner thrash).
-  const isInitialLoading = loading || auditData === undefined;
-
-  const fetchAgentLogs = useCallback(async () => {
-    setLoading(true);
+  const refreshLogs = useCallback(async () => {
+    setRefreshing(true);
     try {
-      const logs = await getAgentLogs(projectId).catch(() => []);
-      setAgentLogs(logs);
-    } catch { /* ignore */ } finally {
-      setLoading(false);
+      await mutateAudit();
+    } finally {
+      setRefreshing(false);
     }
-  }, [projectId]);
-
-  useEffect(() => { fetchAgentLogs(); }, [fetchAgentLogs]);
+  }, [mutateAudit]);
 
   const allLogs: UnifiedLog[] = useMemo(() => {
-    const logs: UnifiedLog[] = [];
-
-    (auditData?.logs || []).forEach(a => {
-      const meta = a.metadata || {};
-      logs.push({
+    const logs = (auditData?.logs || []).map(a => {
+      const status = auditStatus(a);
+      return {
         id: `audit-${a.id}`,
         time: a.created_at || '',
-        type: 'protocol',
         action: a.action,
-        source: a.operator_id || a.operator_type || 'system',
-        detail: (() => {
-          const short = (cid?: string) => (cid ? String(cid).slice(0, 8) : '?');
-          if (a.action === 'clone') return `Clone scope ${meta.scope || '/'} (${meta.files || 0} files)`;
-          if (a.action === 'push') return `Push ${short(meta.commit_id)} to ${meta.scope || '/'} (${meta.snapshots || 1} snapshot${meta.snapshots !== 1 ? 's' : ''})`;
-          if (a.action === 'pull') return `Pull ${short(meta.commit_id)} from ${meta.scope || '/'}`;
-          if (a.action === 'rollback') return `Rollback ${meta.scope || '/'} to ${short(meta.target_commit_id)}`;
-          if (a.action === 'push_error') return `Push error: ${meta.error || 'unknown'}`;
-          if (a.action === 'push_rejected') return `Push rejected: paths outside scope`;
-          if (a.action === 'merge_conflict') return `Merge conflict in ${meta.scope || '/'} (${meta.conflicts?.length || 0} conflicts)`;
-          return a.action;
-        })(),
-        status: a.action.includes('error') || a.action.includes('rejected') ? 'error'
-          : a.action.includes('conflict') ? 'warn' : 'ok',
+        operatorType: a.operator_type || 'system',
+        operatorId: a.operator_id || '',
+        path: a.path || '',
+        metadataSummary: metadataSummary(a.metadata),
+        statusLabel: statusLabel(a, status),
+        status,
         raw: a,
-      });
+      };
     });
 
-    agentLogs.forEach(log => {
-      logs.push({
-        id: log.id,
-        time: log.created_at || '',
-        type: 'agent',
-        action: log.call_type || 'call',
-        source: log.agent_id || 'agent',
-        detail: (() => {
-          const d = log.details || {};
-          if (log.call_type === 'bash') return d.command || 'bash execution';
-          if (log.call_type === 'tool') return `${d.tool_name || 'tool'} call`;
-          if (log.call_type === 'llm') return `${d.model || 'llm'} · ${d.tokens_total || 0} tokens`;
-          return log.call_type || 'event';
-        })(),
-        status: log.success ? 'ok' : 'error',
-        duration: log.latency_ms || undefined,
-        raw: log,
-      });
-    });
-
-    logs.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+    logs.sort((a, b) => (b.time ? new Date(b.time).getTime() : 0) - (a.time ? new Date(a.time).getTime() : 0));
     return logs;
-  }, [auditData, agentLogs]);
+  }, [auditData]);
 
   const filteredLogs = useMemo(() => {
     let list = allLogs;
@@ -252,9 +262,12 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       list = list.filter(l =>
-        l.detail.toLowerCase().includes(q)
-        || l.action.toLowerCase().includes(q)
-        || l.source.toLowerCase().includes(q));
+        l.action.toLowerCase().includes(q)
+        || l.operatorType.toLowerCase().includes(q)
+        || l.operatorId.toLowerCase().includes(q)
+        || l.path.toLowerCase().includes(q)
+        || l.metadataSummary.toLowerCase().includes(q)
+        || l.statusLabel.toLowerCase().includes(q));
     }
     return list;
   }, [allLogs, filter, searchQuery]);
@@ -263,7 +276,6 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
 
   const errorCount = allLogs.filter(l => l.status === 'error').length;
   const warningCount = allLogs.filter(l => l.status === 'warn').length;
-  const apCount = connectors?.length ?? 0;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
@@ -288,10 +300,10 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)', fontFamily: T.fontSans }}>
-            Logs
+            Audit
           </span>
           <span style={{ fontSize: 12, color: 'var(--po-text-disabled)', fontFamily: T.fontSans }}>
-            {allLogs.length} event{allLogs.length === 1 ? '' : 's'}
+            {allLogs.length} entr{allLogs.length === 1 ? 'y' : 'ies'}
           </span>
         </div>
 
@@ -308,7 +320,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           }} />
           <span style={{ color: T.text2 }}>Live</span>
           <span style={{ color: T.text4 }}>·</span>
-          <span>last 24h</span>
+          <span>audit</span>
         </div>
       </div>
 
@@ -334,7 +346,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
               const isActive = filter === f.key;
               const hasItems = f.count > 0;
               // Status-keyed filters double as a tiny health-at-a-
-              // glance signal: when Errors/Warnings have 0 events we
+              // glance signal: when Errors/Warnings have 0 entries we
               // dim the count chip to ~30%, when they have ≥1 we
               // use the corresponding tone (red / amber) so the row
               // becomes a live health indicator the user can scan
@@ -345,9 +357,9 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                   key={f.key}
                   onClick={() => setFilter(f.key)}
                   style={{
-                    background: isActive ? 'var(--po-filetree-rail)' : 'transparent',
+                    background: isActive ? 'var(--po-selected)' : 'transparent',
                     color: isActive ? 'var(--po-text)' : 'var(--po-text-subtle)',
-                    border: 'none', borderRadius: 4, padding: '3px 10px', fontSize: 12,
+                    border: 'none', borderRadius: 4, height: 30, padding: '0 10px', fontSize: 12,
                     fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s',
                     display: 'flex', alignItems: 'center', gap: 6,
                     fontFamily: T.fontSans,
@@ -381,7 +393,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
-              type="text" placeholder="Search logs..."
+              type="text" placeholder="Search audit..."
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               style={{
                 width: '100%', background: 'var(--po-panel-raised)',
@@ -394,31 +406,31 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           </div>
 
           <button
-            onClick={fetchAgentLogs}
-            disabled={loading}
+            onClick={refreshLogs}
+            disabled={refreshing}
             style={{
               background: 'transparent',
               border: '1px solid var(--po-border-subtle)',
               borderRadius: 5,
-              color: loading ? 'var(--po-text-disabled)' : 'var(--po-text-muted)',
-              cursor: loading ? 'not-allowed' : 'pointer',
+              color: refreshing ? 'var(--po-text-disabled)' : 'var(--po-text-muted)',
+              cursor: refreshing ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 26, height: 26, flexShrink: 0,
+              width: 30, height: 30, flexShrink: 0,
               transition: 'background 0.15s, color 0.15s',
             }}
             onMouseEnter={(e) => {
-              if (loading) return;
+              if (refreshing) return;
               e.currentTarget.style.background = 'var(--po-hover)';
               e.currentTarget.style.color = 'var(--po-text)';
             }}
             onMouseLeave={(e) => {
-              if (loading) return;
+              if (refreshing) return;
               e.currentTarget.style.background = 'transparent';
               e.currentTarget.style.color = 'var(--po-text-muted)';
             }}
             title="Refresh"
           >
-            {loading ? (
+            {refreshing ? (
               <PulseGrid size="xs" />
             ) : (
               <svg
@@ -448,26 +460,18 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
         }}>
           <div>Time</div>
           <div>Action</div>
-          <div>Source</div>
-          <div>Event</div>
-          <div style={{ textAlign: 'right' }}>Dur</div>
+          <div>Operator</div>
+          <div>Path</div>
+          <div>Metadata</div>
+          <div style={{ textAlign: 'right' }}>Status</div>
         </div>
 
         {/* Table body */}
         {/*
-          Date-grouped row stream.
-
-          Pre-pass over `filteredLogs` collects, for every consecutive
-          run of rows in the same calendar day, the bucket key + heading
-          + count. We emit a 26px sticky header before each run; rows
-          within a run reuse the existing 30px grid template so column
-          alignment is preserved end-to-end.
-
-          The headers are `position: sticky; top: 0` so the active day
-          remains pinned to the top of the scroll container as the user
-          scrolls down — which solves the original gripe ("times have no
-          date") without bloating the Time column with a per-row date
-          prefix that would either truncate or push the table wider.
+          Date-grouped row stream. The group header is intentionally
+          taller than a normal event row so dates read as section
+          dividers, not another low-information row squeezed into the
+          stream.
         */}
         <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
           {filteredLogs.length === 0 ? (
@@ -479,53 +483,55 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                 fontFamily: T.fontSans,
                 display: 'flex', justifyContent: 'center',
               }}>
-                No events found
+                No log entries found
               </div>
             )
           ) : (
             (() => {
-              // Walk the list once, emitting [Header, ...rows] groups.
-              // We render flat children (not nested wrappers) so the
-              // sticky positioning is anchored to the scroll container
-              // rather than a per-group div, which would let each
-              // header be replaced by the next instead of stacking
-              // weirdly when groups straddle the viewport.
               const elements: React.ReactNode[] = [];
+              const dayCounts = new Map<string, number>();
               let lastBucket: string | null = null;
+
+              filteredLogs.forEach(log => {
+                const bucket = log.time ? dayBucketKey(log.time) : 'unknown';
+                dayCounts.set(bucket, (dayCounts.get(bucket) || 0) + 1);
+              });
 
               filteredLogs.forEach((log, i) => {
                 const bucket = log.time ? dayBucketKey(log.time) : 'unknown';
                 if (bucket !== lastBucket) {
+                  const count = dayCounts.get(bucket) || 0;
                   elements.push(
                     <div
                       key={`day-${bucket}-${i}`}
                       style={{
                         position: 'sticky', top: 0, zIndex: 2,
-                        height: 26, padding: '0 16px',
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        // Solid background so rows scrolling underneath
-                        // don't bleed through the sticky header.
-                        background: 'var(--po-overlay)',
-                        backdropFilter: 'blur(6px)',
-                        WebkitBackdropFilter: 'blur(6px)',
-                        borderBottom: `1px solid ${T.border}`,
-                        borderTop: i === 0 ? 'none' : `1px solid ${T.border}`,
-                        fontSize: 10, fontWeight: 600,
-                        letterSpacing: '0.08em',
-                        textTransform: 'uppercase',
+                        height: DAY_HEADER_HEIGHT, padding: '0 16px',
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        background: 'var(--po-canvas)',
+                        borderBottom: '1px solid var(--po-divider)',
+                        borderTop: i === 0 ? 'none' : '1px solid var(--po-divider)',
+                        fontSize: 12, fontWeight: 600,
+                        letterSpacing: '0.04em',
                         color: T.text3,
                         fontFamily: T.fontSans,
                       }}
                     >
-                      <span style={{ color: T.text2 }}>
+                      <span style={{ color: T.text2, textTransform: 'uppercase' }}>
                         {log.time ? formatDayHeading(bucket) : 'Unknown date'}
                       </span>
-                      {/* Subtle divider line so the heading reads as a
-                          section break, not an in-row label. */}
+                      <span style={{
+                        color: T.text3,
+                        fontSize: 11,
+                        fontWeight: 500,
+                        letterSpacing: 0,
+                      }}>
+                        {count} entr{count === 1 ? 'y' : 'ies'}
+                      </span>
                       <span
                         style={{
                           flex: 1, height: 1,
-                          background: 'linear-gradient(to right, var(--po-border-subtle), transparent)',
+                          background: 'linear-gradient(to right, var(--po-divider), transparent)',
                         }}
                       />
                     </div>,
@@ -534,8 +540,8 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                 }
 
                 const isSelected = log.id === selectedId;
-                const isFirst = i === 0;
                 const actionColor = ACTION_COLORS[log.action] || 'var(--po-text-subtle)';
+                const statusStyle = STATUS_STYLES[log.status];
                 const dotColor = log.status === 'error' ? 'var(--po-danger)'
                   : log.status === 'warn' ? 'var(--po-warning)'
                   : actionColor;
@@ -546,23 +552,21 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                     onClick={() => setSelectedId(isSelected ? null : log.id)}
                     style={{
                       display: 'grid', gridTemplateColumns: COL_TEMPLATE,
-                      height: 30, alignItems: 'center',
+                      height: ROW_HEIGHT, alignItems: 'center',
                       padding: '0 16px',
-                      borderBottom: '1px solid var(--po-hover)',
-                      background: isSelected
-                        ? 'var(--po-hover)'
-                        : isFirst ? 'color-mix(in srgb, var(--po-success) 4%, transparent)' : 'transparent',
+                      borderBottom: '1px solid var(--po-divider)',
+                      background: isSelected ? 'var(--po-selected)' : 'transparent',
                       cursor: 'pointer',
                       transition: `background 0.2s ${T.ease}`,
-                      fontSize: 12, fontFamily: T.fontSans,
+                      fontSize: 13, fontFamily: T.fontSans,
                     }}
                     onMouseEnter={e => {
                       if (isSelected) return;
-                      e.currentTarget.style.background = 'var(--po-control)';
+                      e.currentTarget.style.background = 'var(--po-hover)';
                     }}
                     onMouseLeave={e => {
                       if (isSelected) return;
-                      e.currentTarget.style.background = isFirst ? 'color-mix(in srgb, var(--po-success) 4%, transparent)' : 'transparent';
+                      e.currentTarget.style.background = 'transparent';
                     }}
                   >
                     <div style={{
@@ -573,36 +577,90 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                       <span style={{
-                        width: 5, height: 5, borderRadius: '50%',
+                        width: 6, height: 6, borderRadius: '50%',
                         background: dotColor, flexShrink: 0,
                       }} />
                       <span style={{
-                        color: actionColor, fontWeight: 500, fontSize: 11,
-                        fontFamily: T.fontMono, letterSpacing: '0.01em',
+                        color: T.text1, fontWeight: 500, fontSize: 12,
+                        fontFamily: T.fontMono,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
+                      }}
+                      title={log.action}>
                         {log.action}
                       </span>
                     </div>
                     <div style={{
-                      color: T.text2, fontWeight: 500,
+                      color: T.text2,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       minWidth: 0,
-                    }}>
-                      {log.source.length > 16 ? log.source.slice(0, 14) + '…' : log.source}
+                      display: 'flex', alignItems: 'center', gap: 7,
+                    }}
+                    title={`${log.operatorType}${log.operatorId ? `:${log.operatorId}` : ''}`}>
+                      <span style={{
+                        color: T.text1,
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {log.operatorType}
+                      </span>
+                      {log.operatorId && (
+                        <span style={{
+                          color: T.text3,
+                          fontFamily: T.fontMono,
+                          fontSize: 11,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                        }}>
+                          {log.operatorId}
+                        </span>
+                      )}
                     </div>
                     <div style={{
                       color: T.text2, fontFamily: T.fontMono, fontSize: 11.5,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       letterSpacing: '0.01em',
-                    }}>
-                      {log.detail}
+                    }}
+                    title={log.path || '—'}>
+                      {log.path || '—'}
                     </div>
                     <div style={{
-                      textAlign: 'right', color: T.text4,
-                      fontFamily: T.fontMono, fontSize: 11,
+                      color: T.text2, fontFamily: T.fontMono, fontSize: 11.5,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      letterSpacing: '0.01em',
+                    }}
+                    title={prettyJson(log.raw?.metadata)}>
+                      {log.metadataSummary}
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'flex-end',
+                      minWidth: 0,
+                      color: T.text4,
+                      fontFamily: T.fontMono,
+                      fontSize: 11,
                     }}>
-                      {log.duration ? `${log.duration}ms` : ''}
+                      <span style={{
+                        minWidth: 42,
+                        height: 20,
+                        padding: '0 7px',
+                        borderRadius: 999,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: statusStyle.color,
+                        background: statusStyle.background,
+                        border: `1px solid ${statusStyle.border}`,
+                        fontSize: 10,
+                        fontWeight: 600,
+                        letterSpacing: '0.04em',
+                      }}>
+                        {log.statusLabel}
+                      </span>
                     </div>
                   </div>,
                 );
@@ -625,27 +683,28 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           flexShrink: 0,
         }}>
           <span>
-            Streaming from {apCount} access point{apCount === 1 ? '' : 's'}
+            {auditData?.total ?? allLogs.length} audit row{(auditData?.total ?? allLogs.length) === 1 ? '' : 's'}
           </span>
-          <span>last 24h · sorted desc</span>
+          <span>audit_logs · sorted desc</span>
         </div>
 
-        {/* Detail drawer (preserved from existing product) */}
+        {/* Detail drawer: raw audit row, not a derived commit view. */}
         {selectedLog && (
           <div style={{
             borderTop: '1px solid var(--po-border-subtle)',
             background: 'var(--po-canvas)',
-            maxHeight: 300, overflowY: 'auto', flexShrink: 0,
+            maxHeight: 340, overflowY: 'auto', flexShrink: 0,
           }}>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '10px 16px', borderBottom: '1px solid var(--po-hover)',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 <span style={{
                   width: 6, height: 6, borderRadius: '50%',
                   background: selectedLog.status === 'error' ? 'var(--po-danger)'
-                    : ACTION_COLORS[selectedLog.action] || 'var(--po-text-subtle)',
+                    : selectedLog.status === 'warn' ? 'var(--po-warning)'
+                      : ACTION_COLORS[selectedLog.action] || 'var(--po-text-subtle)',
                 }} />
                 <span style={{
                   fontSize: 13, fontWeight: 500, color: 'var(--po-text)',
@@ -653,23 +712,45 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                 }}>
                   {selectedLog.action}
                 </span>
-                <span style={{ fontSize: 12, color: T.text3, fontFamily: T.fontSans }}>
-                  {selectedLog.source}
+                <span style={{
+                  fontSize: 12,
+                  color: T.text3,
+                  fontFamily: T.fontMono,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {selectedLog.operatorType}{selectedLog.operatorId ? `:${selectedLog.operatorId}` : ''}
+                </span>
+                <span style={{
+                  minWidth: 42,
+                  height: 20,
+                  padding: '0 7px',
+                  borderRadius: 999,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: STATUS_STYLES[selectedLog.status].color,
+                  background: STATUS_STYLES[selectedLog.status].background,
+                  border: `1px solid ${STATUS_STYLES[selectedLog.status].border}`,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.04em',
+                  fontFamily: T.fontMono,
+                  flexShrink: 0,
+                }}>
+                  {selectedLog.statusLabel}
                 </span>
                 <span style={{ fontSize: 12, color: 'var(--po-text-disabled)', fontFamily: T.fontMono }}>
                   {selectedLog.time ? formatTime(selectedLog.time) : ''}
                 </span>
-                {selectedLog.duration && (
-                  <span style={{ fontSize: 11, color: T.text3, fontFamily: T.fontMono }}>
-                    {selectedLog.duration}ms
-                  </span>
-                )}
               </div>
               <button
                 onClick={() => setSelectedId(null)}
                 style={{
                   background: 'none', border: 'none', color: 'var(--po-text-disabled)',
-                  cursor: 'pointer', padding: 4,
+                  cursor: 'pointer', width: 30, height: 30, padding: 0,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -680,10 +761,54 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
             </div>
             <div style={{ padding: '12px 16px' }}>
               <div style={{
-                fontSize: 13, color: 'var(--po-text)', marginBottom: 12,
-                fontFamily: T.fontMono,
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+                gap: 10,
+                marginBottom: 12,
               }}>
-                {selectedLog.detail}
+                {[
+                  ['path', selectedLog.path || '—'],
+                  ['operator_type', selectedLog.operatorType],
+                  ['operator_id', selectedLog.operatorId || '—'],
+                  ['status', selectedLog.statusLabel],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ minWidth: 0 }}>
+                    <div style={{
+                      color: T.text3,
+                      fontSize: 10,
+                      fontFamily: T.fontSans,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      marginBottom: 3,
+                    }}>
+                      {label}
+                    </div>
+                    <div
+                      style={{
+                        color: T.text2,
+                        fontSize: 12,
+                        fontFamily: T.fontMono,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title={value}
+                    >
+                      {value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{
+                color: T.text3,
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                marginBottom: 6,
+                fontFamily: T.fontSans,
+              }}>
+                raw audit row
               </div>
               <pre style={{
                 margin: 0, padding: 12, background: 'var(--po-editor-bg)',
@@ -693,7 +818,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                 whiteSpace: 'pre-wrap', wordBreak: 'break-all',
                 maxHeight: 180, overflow: 'auto',
               }}>
-                {JSON.stringify(selectedLog.raw, null, 2)}
+                {prettyJson(selectedLog.raw)}
               </pre>
             </div>
           </div>

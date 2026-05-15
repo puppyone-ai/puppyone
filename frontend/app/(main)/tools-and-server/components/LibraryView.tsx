@@ -303,6 +303,8 @@ export function LibraryView({
                       color: 'var(--po-text-disabled)',
                       cursor: 'pointer',
                       fontSize: FONT.tertiary,
+                      height: 30,
+                      padding: '0 8px',
                     }}
                   >
                     Clear
@@ -373,6 +375,7 @@ export function LibraryView({
                         }}
                         style={{
                           width: '100%',
+                          minHeight: 42,
                           padding: '10px 12px',
                           background: 'transparent',
                           border: 'none',
@@ -746,8 +749,8 @@ export function LibraryView({
                             <button
                               onClick={() => handleStartEdit(tool)}
                               style={{
-                                width: 26,
-                                height: 26,
+                                width: 30,
+                                height: 30,
                                 background: 'none',
                                 border: 'none',
                                 color: 'var(--po-text-disabled)',
@@ -810,8 +813,8 @@ export function LibraryView({
                             <button
                               onClick={() => handleStartEdit(tool)}
                               style={{
-                                width: 26,
-                                height: 26,
+                                width: 30,
+                                height: 30,
                                 background: 'none',
                                 border: 'none',
                                 color: 'var(--po-text-disabled)',

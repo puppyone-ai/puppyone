@@ -45,7 +45,7 @@ const S_TOOL_BTN_BASE: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
-  height: 26,
+  height: 30,
   padding: '0 8px',
   fontSize: 11,
   backgroundColor: 'var(--po-hover)',
@@ -92,7 +92,7 @@ const S_MSG_OUTER: CSSProperties = {
 
 const S_COPY_BTN_BASE: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: 26, height: 26, borderRadius: 4, border: 'none',
+  width: 30, height: 30, borderRadius: 4, border: 'none',
   cursor: 'pointer', transition: 'all 0.15s',
 };
 

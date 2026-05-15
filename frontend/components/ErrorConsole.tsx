@@ -117,7 +117,8 @@ export function ErrorConsole({
             <button
               onClick={onClear}
               style={{
-                padding: '2px 8px',
+                height: 30,
+                padding: '0 8px',
                 fontSize: 10,
                 color: 'var(--po-text-muted)',
                 background: 'transparent',

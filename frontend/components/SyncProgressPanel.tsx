@@ -51,7 +51,8 @@ export function SyncProgressPanel({
               color: 'var(--po-text-subtle)',
               fontSize: 12,
               cursor: 'pointer',
-              padding: '2px 6px',
+              height: 30,
+              padding: '0 6px',
             }}
           >
             Cancel
