@@ -1,6 +1,6 @@
 # User notes
 
-The user is evaluating PuppyOne for agent work.
+The user is evaluating Puppyone for agent work.
 
 They care about:
 
@@ -19,5 +19,5 @@ The agent reads this repo and creates `Agent Output/first-run.md`.
 That output proves the basic loop:
 
 ```text
-PuppyOne context was available to the agent, and the agent wrote back.
+Puppyone context was available to the agent, and the agent wrote back.
 ```

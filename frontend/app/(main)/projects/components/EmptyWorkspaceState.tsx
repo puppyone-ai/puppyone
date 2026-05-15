@@ -91,9 +91,9 @@ export function EmptyWorkspaceState({
     ].join('\n');
 
     const newRepositoryPrompt = [
-      `Initialize a new local repository and push it into the PuppyOne project "${projectName}".`,
+      `Initialize a new local repository and push it into the Puppyone project "${projectName}".`,
       '',
-      `PuppyOne Git remote: ${remote}`,
+      `Puppyone Git remote: ${remote}`,
       '',
       'Run these commands from the folder that should become the project:',
       '```bash',
@@ -104,9 +104,9 @@ export function EmptyWorkspaceState({
     ].join('\n');
 
     const existingRepositoryPrompt = [
-      `Push the current Git repository into the PuppyOne project "${projectName}".`,
+      `Push the current Git repository into the Puppyone project "${projectName}".`,
       '',
-      `PuppyOne Git remote: ${remote}`,
+      `Puppyone Git remote: ${remote}`,
       '',
       'Run these commands from the existing repository:',
       '```bash',

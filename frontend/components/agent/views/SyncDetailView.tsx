@@ -139,8 +139,8 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 const DIRECTION_LABELS: Record<string, string> = {
-  inbound: 'Syncing to PuppyOne',
-  outbound: 'Syncing from PuppyOne',
+  inbound: 'Syncing to Puppyone',
+  outbound: 'Syncing from Puppyone',
   bidirectional: 'Bidirectional sync',
 };
 

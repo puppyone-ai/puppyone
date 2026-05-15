@@ -120,8 +120,8 @@ function getProviderLogo(provider: string, size: number) {
 }
 
 const DIR_LABELS: Record<SyncDirection, string> = {
-  inbound: 'Syncing to PuppyOne',
-  outbound: 'Syncing from PuppyOne',
+  inbound: 'Syncing to Puppyone',
+  outbound: 'Syncing from Puppyone',
   bidirectional: 'Bidirectional sync',
 };
 
@@ -163,7 +163,7 @@ export function SyncPreview({ provider, providerLabel, direction, targetName, ta
           <ConnectionLine direction={direction} isActive={ready} />
         </div>
 
-        {/* PuppyOne target node (RIGHT) */}
+        {/* Puppyone target node (RIGHT) */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
           <div style={{
             width: 48, height: 48, borderRadius: 12,

@@ -27,6 +27,8 @@ from src.mut_engine.application.conflict_policy import (
 from src.mut_engine.application.git_commit import (
     build_git_commit,
     commit_tree_id,
+    git_compatibility_error,
+    is_git_compatible_commit,
 )
 from src.mut_engine.application.tree_objects import (
     build_full_changes,
@@ -35,6 +37,7 @@ from src.mut_engine.application.tree_objects import (
     flatten_tree_to_bytes,
     validate_scope_bound_files,
 )
+from src.mut_engine.adapters.git.view_projection import git_compatible_head_commit
 from src.mut_engine.domain.intents import (
     OperationWriteIntent,
     RollbackIntent,
@@ -199,7 +202,7 @@ class GitNativeTransactionEngine:
                     build_git_commit,
                     repo,
                     tree_sha=new_scope_hash,
-                    parent_sha=current_head_commit_id,
+                    parent_sha=_git_safe_parent(repo, current_head_commit_id),
                     who=intent.actor,
                     message=intent.message,
                     created_at_iso=created_at_iso,
@@ -260,24 +263,6 @@ class GitNativeTransactionEngine:
             incoming_files = await asyncio.to_thread(
                 flatten_tree_to_bytes, repo.store, intent.proposed_tree_id,
             )
-        rejected = validate_scope_bound_files(
-            repo, scope_norm, list(incoming_files.keys()), intent.scope_excludes,
-        )
-        if rejected:
-            await asyncio.to_thread(
-                repo.record_audit,
-                f"{intent.source_channel}_push_rejected",
-                intent.actor,
-                {
-                    "scope": scope_norm,
-                    "rejected_paths": rejected,
-                    **intent.audit_detail,
-                },
-            )
-            raise CrossScopeSubmissionError(
-                scope_path=scope_norm,
-                rejected_paths=rejected,
-            )
 
         last_error: Exception | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
@@ -286,6 +271,27 @@ class GitNativeTransactionEngine:
             current_files = await asyncio.to_thread(
                 _scope_files_for_head, repo, scope_norm, old_scope_hash,
             )
+            rejected = validate_scope_bound_files(
+                repo,
+                scope_norm,
+                _changed_relative_paths(current_files, incoming_files),
+                intent.scope_excludes,
+            )
+            if rejected:
+                await asyncio.to_thread(
+                    repo.record_audit,
+                    f"{intent.source_channel}_push_rejected",
+                    intent.actor,
+                    {
+                        "scope": scope_norm,
+                        "rejected_paths": rejected,
+                        **intent.audit_detail,
+                    },
+                )
+                raise CrossScopeSubmissionError(
+                    scope_path=scope_norm,
+                    rejected_paths=rejected,
+                )
 
             if intent.base_commit_id == current_head_commit_id:
                 new_scope_hash = intent.proposed_tree_id
@@ -375,7 +381,7 @@ class GitNativeTransactionEngine:
                     build_git_commit,
                     repo,
                     tree_sha=new_scope_hash,
-                    parent_sha=current_head_commit_id,
+                    parent_sha=_git_safe_parent(repo, current_head_commit_id),
                     who=intent.actor,
                     message=intent.message,
                     created_at_iso=created_at_iso,
@@ -471,7 +477,7 @@ class GitNativeTransactionEngine:
                 build_git_commit,
                 repo,
                 tree_sha=new_scope_hash,
-                parent_sha=current_head_commit_id,
+                parent_sha=_git_safe_parent(repo, current_head_commit_id),
                 who=intent.actor,
                 message=intent.message or f"rollback to {target_commit_id}",
                 created_at_iso=created_at_iso,
@@ -611,8 +617,12 @@ class GitNativeTransactionEngine:
                 if (
                     _commit_exists(repo, intent.client_commit_id)
                     and commit_tree_id(repo, intent.client_commit_id) == tree_id
+                    and is_git_compatible_commit(repo, intent.client_commit_id)
                 ):
                     return intent.client_commit_id
+                compatibility_error = git_compatibility_error(repo, intent.client_commit_id)
+                if compatibility_error:
+                    raise ValueError(compatibility_error)
             except Exception as e:
                 log_warning(
                     f"[version_engine] cannot preserve client commit "
@@ -621,7 +631,7 @@ class GitNativeTransactionEngine:
         return build_git_commit(
             repo,
             tree_sha=tree_id,
-            parent_sha=parent_id,
+            parent_sha=_git_safe_parent(repo, parent_id),
             who=intent.actor,
             message=intent.message,
             created_at_iso=created_at_iso,
@@ -741,6 +751,14 @@ def _commit_exists(repo, commit_id: str) -> bool:
     return bool(commit_id) and repo.store.exists(commit_id)
 
 
+def _git_safe_parent(repo, commit_id: str) -> str:
+    if not commit_id:
+        return ""
+    if is_git_compatible_commit(repo, commit_id):
+        return commit_id
+    return git_compatible_head_commit(repo, commit_id)
+
+
 def _get_scope_state(repo, scope_path: str) -> tuple[str, str]:
     get_state = getattr(repo, "get_scope_state", None)
     if callable(get_state):
@@ -781,6 +799,17 @@ def _scope_files_for_head(repo, scope_path: str, scope_hash: str) -> dict[str, b
         return repo.list_scope_files(scope)
     except Exception:
         return {}
+
+
+def _changed_relative_paths(
+    old_files: dict[str, bytes],
+    new_files: dict[str, bytes],
+) -> list[str]:
+    changed: list[str] = []
+    for path in sorted(set(old_files) | set(new_files)):
+        if old_files.get(path) != new_files.get(path):
+            changed.append(path)
+    return changed
 
 
 def _files_at_commit(repo, scope_path: str, commit_id: str) -> dict[str, bytes]:

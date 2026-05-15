@@ -247,7 +247,7 @@ def _github_headers(access_token: str = "") -> dict[str, str]:
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
-        "User-Agent": "PuppyOne-GitHub-Import",
+        "User-Agent": "Puppyone-GitHub-Import",
     }
     if access_token:
         headers["Authorization"] = f"Bearer {access_token}"

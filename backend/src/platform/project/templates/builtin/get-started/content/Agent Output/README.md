@@ -10,4 +10,4 @@ Expected output:
 Agent Output/first-run.md
 ```
 
-When that file appears, open History in PuppyOne to see the write recorded.
+When that file appears, open History in Puppyone to see the write recorded.

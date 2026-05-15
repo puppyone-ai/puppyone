@@ -417,7 +417,7 @@ function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string
   const [copied, setCopied] = useState(false);
 
   const prompt = [
-    `Sync my local folder with PuppyOne cloud using the \`mut\` CLI.`,
+    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
     ``,
     `## Install (one-time)`,
     `\`\`\`bash`,

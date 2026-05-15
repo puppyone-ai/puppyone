@@ -10,25 +10,21 @@ type ThemeChoice = 'light' | 'dark' | 'system';
 const OPTIONS: Array<{
   value: ThemeChoice;
   label: string;
-  description: string;
   icon: LucideIcon;
 }> = [
   {
     value: 'system',
     label: 'System',
-    description: 'Follows device',
     icon: Monitor,
   },
   {
     value: 'light',
     label: 'Light',
-    description: 'Bright workspace',
     icon: Sun,
   },
   {
     value: 'dark',
     label: 'Dark',
-    description: 'Low-light workspace',
     icon: Moon,
   },
 ];
@@ -38,7 +34,7 @@ type ThemeToggleProps = {
 };
 
 export function ThemeToggle({ compact = false }: ThemeToggleProps) {
-  const { theme, setTheme, resolvedTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -46,8 +42,6 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
   }, []);
 
   const selected = mounted ? (theme as ThemeChoice | undefined) ?? 'system' : null;
-  const resolved = mounted ? resolvedTheme : undefined;
-
   return (
     <div
       role="radiogroup"
@@ -74,12 +68,12 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
             onClick={() => setTheme(option.value)}
             disabled={!mounted}
             style={{
-              minHeight: compact ? 34 : 52,
+              minHeight: compact ? 34 : 40,
               display: 'flex',
               alignItems: 'center',
               justifyContent: compact ? 'center' : 'flex-start',
-              gap: compact ? 6 : 9,
-              padding: compact ? '0 9px' : '8px 10px',
+              gap: compact ? 6 : 8,
+              padding: compact ? '0 9px' : '0 11px',
               borderRadius: 7,
               border: active ? '1px solid var(--po-border-subtle)' : '1px solid transparent',
               background: active ? 'var(--po-panel-raised)' : 'transparent',
@@ -111,13 +105,8 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
               <Icon size={compact ? 14 : 16} strokeWidth={1.9} />
             </span>
             {!compact && (
-              <span style={{ minWidth: 0, display: 'grid', gap: 2 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 500, color: active ? 'var(--po-text)' : 'var(--po-text-muted)', lineHeight: 1.25 }}>
-                  {option.label}
-                </span>
-                <span style={{ fontSize: 11.5, color: 'var(--po-text-subtle)', lineHeight: 1.3 }}>
-                  {option.value === 'system' && resolved ? `${option.description} (${resolved})` : option.description}
-                </span>
+              <span style={{ minWidth: 0, fontSize: 12.5, fontWeight: 500, color: active ? 'var(--po-text)' : 'var(--po-text-muted)', lineHeight: 1.2 }}>
+                {option.label}
               </span>
             )}
           </button>

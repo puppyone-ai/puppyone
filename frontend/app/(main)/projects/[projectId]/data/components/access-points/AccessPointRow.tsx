@@ -30,10 +30,14 @@ const INTEGRATION_VISIBLE_CAP = 5;
  *  vertical padding of the row. */
 const CHIP_SIZE = 24;
 
-const ROW_BG = 'var(--po-selected)';
-const ROW_BG_HOVER = 'color-mix(in srgb, var(--po-text) 20%, var(--po-canvas) 80%)';
-const ROW_BG_CURRENT = 'color-mix(in srgb, var(--po-text) 22%, var(--po-canvas) 78%)';
-const ROW_BORDER_CURRENT = 'var(--po-border-strong)';
+const ROW_BG =
+  'color-mix(in srgb, var(--po-text) 6%, var(--po-panel) 94%)';
+const ROW_BG_HOVER =
+  'color-mix(in srgb, var(--po-text) 8%, var(--po-panel) 92%)';
+const ROW_BG_CURRENT =
+  'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)';
+const ROW_BORDER_CURRENT =
+  'color-mix(in srgb, var(--po-text) 24%, var(--po-border) 76%)';
 
 /**
  * AccessPointRow — one access-point row in the overview list.
@@ -180,7 +184,7 @@ export function AccessPointRow({
         }}
       >
         {cliActive && (
-          <MethodChip method="terminal" title="PuppyOne CLI · active" />
+          <MethodChip method="terminal" title="Puppyone CLI · active" />
         )}
         {filesystemActive && (
           <MethodChip method="sync" title="Local Folder Sync · active" />

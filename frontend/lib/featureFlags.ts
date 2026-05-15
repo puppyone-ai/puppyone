@@ -26,7 +26,7 @@
  *
  * ## Why hidden
  *
- * PuppyOne's product positioning is **"cloud file system FOR AI
+ * Puppyone's product positioning is **"cloud file system FOR AI
  * agents"** — a platform / data layer that external agents (Claude
  * Desktop, Cursor, custom MCP clients, etc.) read and write through
  * Terminal CLI, Local Sync, and MCP. That's a clean infra story:

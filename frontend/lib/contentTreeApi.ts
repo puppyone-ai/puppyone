@@ -456,7 +456,7 @@ export async function moveFile(
  * Remove file or folder.
  *
  * Delete removes the path from the current tree. Recovery is through
- * PuppyOne version history/rollback, not a hidden .trash directory.
+ * Puppyone version history/rollback, not a hidden .trash directory.
  * The permanent argument is kept only for older callers; the backend
  * treats delete as tree unlink semantics either way.
  *

@@ -11,7 +11,7 @@
  * grab unintended siblings.
  *
  * Delete removes items from the current tree. Recovery is handled
- * through PuppyOne version history/rollback, not a hidden .trash tree.
+ * through Puppyone version history/rollback, not a hidden .trash tree.
  */
 
 import { useEffect, useState } from 'react';
@@ -97,7 +97,7 @@ export function BulkDeleteDialog({
         <DialogBody>
           <DangerNotice title={`Delete ${paths.length} item${paths.length === 1 ? '' : 's'}?`}>
             Items are removed from the current tree. You can recover prior
-            contents from PuppyOne version history or rollback.
+            contents from Puppyone version history or rollback.
           </DangerNotice>
 
           <div

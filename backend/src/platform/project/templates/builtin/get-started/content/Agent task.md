@@ -1,9 +1,9 @@
 # Agent task
 
-You are inside a PuppyOne starter repo.
+You are inside a Puppyone starter repo.
 
-Your job is to prove that you can read context from PuppyOne and write a result
-back into PuppyOne.
+Your job is to prove that you can read context from Puppyone and write a result
+back into Puppyone.
 
 ## Instructions
 
@@ -18,5 +18,5 @@ Do not overwrite this file. Create the output file instead.
 
 ## Success condition
 
-The task is complete when `Agent Output/first-run.md` exists and PuppyOne shows
+The task is complete when `Agent Output/first-run.md` exists and Puppyone shows
 the write in project history.

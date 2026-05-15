@@ -5,7 +5,7 @@
  *
  * Renders stacked MethodCards for the per-scope built-ins:
  *
- *   1. PuppyOne CLI — copyable terminal setup prompt
+ *   1. Puppyone CLI — copyable terminal setup prompt
  *   2. Git Remote   — copyable Git clone/push prompt
  *   3. AI Agent     — in-app chat runtime (currently HIDDEN behind
  *                     the `AI_AGENT_ENABLED` feature flag in
@@ -13,12 +13,12 @@
  *                     all activation wiring is still here, just
  *                     not rendered)
  *
- * PuppyOne CLI and Git Remote are exposure mechanisms — they hand
+ * Puppyone CLI and Git Remote are exposure mechanisms — they hand
  * external clients (Claude Desktop, Cursor, MCP, your local
  * filesystem) the credentials and setup prompts to read/write this
- * scope from outside PuppyOne. AI Agent is a *consumer* of the same
+ * scope from outside Puppyone. AI Agent is a *consumer* of the same
  * data instead of an exposure path; it lives behind the feature flag
- * because the in-app chat surface conflicts with PuppyOne's
+ * because the in-app chat surface conflicts with Puppyone's
  * "platform under every agent" positioning.
  *
  * cli + filesystem + agent are auto-INSERTed per scope by a DB trigger
@@ -61,7 +61,7 @@ import {
 
 interface ConnectMethodsBlockProps {
   readonly scope: RepoScope;
-  /** Auto-INSERTed cli connector. Drives the PuppyOne CLI card's
+  /** Auto-INSERTed cli connector. Drives the Puppyone CLI card's
    *  on/off toggle. The card body still derives prompts from the
    *  scope's access_key directly — toggling cli paused doesn't blank
    *  the body, it just stops the access key from authorising terminal

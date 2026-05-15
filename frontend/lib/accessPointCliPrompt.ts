@@ -74,7 +74,7 @@ export function buildGitSyncPrompt({
   ];
   const serverMergeLine = 'git push --force-with-lease origin main';
   const prompt = [
-    'Use this PuppyOne Access Point as a Git remote.',
+    'Use this Puppyone Access Point as a Git remote.',
     '',
     accessPointName ? `Access Point: ${accessPointName}` : null,
     `Scope: ${scopeName}`,
@@ -96,10 +96,10 @@ export function buildGitSyncPrompt({
     '```',
     '',
     'Collaboration rules:',
-    '- PuppyOne is the source of truth for this scope.',
-    '- Do not create local merge commits to resolve conflicts; PuppyOne handles merge decisions on the server.',
+    '- Puppyone is the source of truth for this scope.',
+    '- Do not create local merge commits to resolve conflicts; Puppyone handles merge decisions on the server.',
     `- If a normal push says the remote has newer work, submit your commit as a server-side merge proposal with \`${serverMergeLine}\`.`,
-    '- If PuppyOne says manual review is required, stop and resolve it from PuppyOne.',
+    '- If Puppyone says manual review is required, stop and resolve it from Puppyone.',
     '- This remote is scope-bound; commits that touch paths outside the scope are rejected.',
   ].filter((line): line is string => line != null).join('\n');
 
@@ -142,12 +142,12 @@ export function buildTerminalCliPrompt({
   ];
 
   const prompt = [
-    'Use this PuppyOne Access Point from terminal or an AI coding agent.',
+    'Use this Puppyone Access Point from terminal or an AI coding agent.',
     '',
     accessPointName ? `Access Point: ${accessPointName}` : null,
     `Scope: ${scopeName}`,
     '',
-    'Recommended path: direct remote filesystem commands through the PuppyOne CLI. No local clone is needed.',
+    'Recommended path: direct remote filesystem commands through the Puppyone CLI. No local clone is needed.',
     'Install or update the CLI, then authenticate this scoped Access Point:',
     '```bash',
     installLine,
@@ -163,7 +163,7 @@ export function buildTerminalCliPrompt({
     'Agent rules:',
     '- `puppyone fs` is scoped to this Access Point; do not create another Access Point unless I ask for one.',
     '- `puppyone fs cat` prints raw file content by default. Use `--json` only when structured metadata is needed.',
-    '- Mutating commands (`write`, `mkdir`, `touch`, `cp`, `mv`, `rm`, `rmdir`, `upload`) are recorded in PuppyOne version history and audit logs.',
+    '- Mutating commands (`write`, `mkdir`, `touch`, `cp`, `mv`, `rm`, `rmdir`, `upload`) are recorded in Puppyone version history and audit logs.',
     '- Prefer explicit paths. For recursive scans use `tree -L <n>`, `find ... -maxdepth <n>`, or `--limit`.',
     '- Default stdout is Unix-like; warnings and truncation diagnostics may appear on stderr.',
   ].filter((line): line is string => line != null).join('\n');

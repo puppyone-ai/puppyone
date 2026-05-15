@@ -3,6 +3,6 @@ name = "Get Started"
 description = "A tiny playground where an AI agent reads this repo and writes back its first file."
 icon = "🐕"
 version = "0.0.3"
-author = "PuppyOne"
+author = "Puppyone"
 tags = ["onboarding", "tutorial"]
 order = 0

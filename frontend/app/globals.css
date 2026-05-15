@@ -36,6 +36,9 @@
   --po-panel-raised: #fffaf1;
   --po-overlay: #fff8ee;
   --po-inset: #e6ded1;
+  --po-project-card-tab: color-mix(in srgb, var(--po-inset) 58%, var(--po-panel) 42%);
+  --po-project-card-bg: var(--po-panel);
+  --po-project-card-hover-bg: var(--po-overlay);
 
   --po-text: #2f2a23;
   --po-text-muted: #70685e;
@@ -123,6 +126,9 @@
   --po-panel-raised: #1a1a1a;
   --po-overlay: #1f1f23;
   --po-inset: #0a0a0a;
+  --po-project-card-tab: color-mix(in srgb, var(--po-panel-raised) 84%, var(--po-canvas) 16%);
+  --po-project-card-bg: var(--po-panel);
+  --po-project-card-hover-bg: color-mix(in srgb, var(--po-panel) 94%, var(--po-text) 6%);
 
   --po-text: #fafafa;
   --po-text-muted: #a1a1aa;

@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
-import { definePuppyOneMonacoThemes, getPuppyOneMonacoTheme } from '@/lib/theme/monacoThemes';
+import { definePuppyoneMonacoThemes, getPuppyoneMonacoTheme } from '@/lib/theme/monacoThemes';
 
 const MONACO_LOADING = <EditorLoadingSurface />;
 const JSON_SOURCE_FONT = 'var(--po-font-sans)';
@@ -19,12 +19,12 @@ export function MonacoJsonEditor({ json, onChange, onPathChange }: MonacoJsonEdi
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<any>(null);
   const { resolvedTheme } = useTheme();
-  const themeName = getPuppyOneMonacoTheme('json', resolvedTheme);
+  const themeName = getPuppyoneMonacoTheme('json', resolvedTheme);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    definePuppyOneMonacoThemes(monaco);
+    definePuppyoneMonacoThemes(monaco);
     monaco.editor.setTheme(themeName);
 
     editor.onDidChangeCursorPosition((e: any) => {

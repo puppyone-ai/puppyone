@@ -39,7 +39,7 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
         className="h-8 px-3.5 flex items-center rounded-t-md border-2 border-b-0 border-[var(--po-border)] group-hover:border-[var(--po-border-strong)] self-start relative z-10 transition-colors duration-150"
         style={{
           maxWidth: '75%',
-          background: 'color-mix(in srgb, var(--po-inset) 58%, var(--po-panel) 42%)',
+          background: 'var(--po-project-card-tab)',
         }}
       >
         <span className="text-[12.5px] font-semibold truncate text-[var(--po-text-muted)] group-hover:text-[var(--po-text)] transition-colors">
@@ -49,7 +49,7 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
 
       {/* Body */}
       <div
-        className="flex-1 bg-[var(--po-panel)] border-2 border-[var(--po-border)] group-hover:border-[var(--po-border-strong)] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col group-hover:bg-[var(--po-overlay)] transition-[background-color,border-color,box-shadow] duration-150 shadow-none group-hover:shadow-[7px_8px_0_var(--po-shadow)]"
+        className="flex-1 bg-[var(--po-project-card-bg)] border-2 border-[var(--po-border)] group-hover:border-[var(--po-border-strong)] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col group-hover:bg-[var(--po-project-card-hover-bg)] transition-[background-color,border-color,box-shadow] duration-150 shadow-none group-hover:shadow-[7px_8px_0_var(--po-shadow)]"
       >
         <div className="absolute inset-0 p-3 pb-7">
           {displayNodes.length > 0 ? (

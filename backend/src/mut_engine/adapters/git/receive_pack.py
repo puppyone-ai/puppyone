@@ -126,7 +126,7 @@ async def receive_pack_response(
                 command.ref,
                 ok=False,
                 message=(
-                    "conflict requires manual review on PuppyOne "
+                    "conflict requires manual review on Puppyone "
                     f"(pending_conflict_id={result.pending_conflict_id})"
                 ),
                 capabilities=command.capabilities,
@@ -178,7 +178,7 @@ def parse_receive_pack_request(body: bytes) -> ReceiveCommand:
     if not commands:
         raise ValueError("receive-pack request has no ref update")
     if len(commands) > 1:
-        raise ValueError("PuppyOne Git remotes accept one scope-bound ref update per push")
+        raise ValueError("Puppyone Git remotes accept one scope-bound ref update per push")
 
     old_id, new_id, ref = commands[0]
     return ReceiveCommand(

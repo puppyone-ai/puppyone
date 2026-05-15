@@ -138,7 +138,7 @@ export async function apiRequest<T>(
     let body: any = null;
     try { body = JSON.parse(await response.text()); } catch {}
 
-    // PuppyOne custom format: {"code": N, "message": "...", "data": null}
+    // Puppyone custom format: {"code": N, "message": "...", "data": null}
     // FastAPI standard format: {"detail": "..." | {...}}
     const puppyoneMsg: string | undefined = body?.message;
     const fastApiDetail = body?.detail;

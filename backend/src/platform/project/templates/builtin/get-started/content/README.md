@@ -1,13 +1,13 @@
 # Start here
 
-This repo is a small playground for your first PuppyOne loop.
+This repo is a small playground for your first Puppyone loop.
 
 The goal is simple:
 
 1. Give this repo to a coding agent.
 2. Let the agent read the files in `Context/`.
 3. Let the agent write one file back into `Agent Output/`.
-4. Come back to PuppyOne and check that the file appears.
+4. Come back to Puppyone and check that the file appears.
 
 When that happens, the loop is complete:
 
@@ -17,7 +17,7 @@ context -> agent -> write-back -> version history
 
 ## The fastest path
 
-Use the setup prompt from PuppyOne and paste it into Claude Code, Codex, or
+Use the setup prompt from Puppyone and paste it into Claude Code, Codex, or
 Cursor.
 
 Then ask the agent:
@@ -32,7 +32,7 @@ The agent should create:
 Agent Output/first-run.md
 ```
 
-After it writes the file, open History in PuppyOne. You should see the change
+After it writes the file, open History in Puppyone. You should see the change
 recorded as a commit.
 
 ## What to open next

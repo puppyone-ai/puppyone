@@ -119,7 +119,7 @@ export function SetupDialog({
               Connect Machine Folder
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--po-text-disabled)' }}>
-              Run these commands to sync a local folder with PuppyOne.
+              Run these commands to sync a local folder with Puppyone.
             </p>
           </div>
           <ActivityIconButton kind="close" title="Close" onClick={onClose} />
@@ -130,7 +130,7 @@ export function SetupDialog({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <StepBlock
               step="1"
-              label="Install PuppyOne CLI"
+              label="Install Puppyone CLI"
               command="npm install -g puppyone"
               copiedField={copiedField}
               onCopy={handleCopy}
@@ -426,7 +426,7 @@ export function FilesystemSetupView({ agent, projectId, onEdit, onDelete }: File
                 );
               })()}
 
-              {/* PuppyOne (RIGHT) */}
+              {/* Puppyone (RIGHT) */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 80 }}>
                 <img src="/icons/folder.svg" alt="Folder" width={36} height={36} style={{ display: 'block' }} />
                 <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text-muted)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>

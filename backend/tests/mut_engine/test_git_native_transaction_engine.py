@@ -33,13 +33,22 @@ from pydantic import ValidationError
 
 from src.mut_engine.dependencies import get_repo_manager
 from src.mut_engine.adapters.git.submission import submit_git_tree
-from src.mut_engine.adapters.git.object_quarantine import copy_reachable_objects_to_bare
+from src.mut_engine.adapters.git.object_quarantine import (
+    copy_reachable_objects_to_bare,
+    temporary_bare_repo,
+)
 from src.mut_engine.adapters.git.router import router as git_router
 from src.mut_engine.adapters.git.protocol import run_git
 from src.mut_engine.adapters.git.view_projection import git_view_head_commit
 from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
 from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
-from src.mut_engine.application.git_commit import commit_tree_id, identity_for_git
+from src.mut_engine.application.git_commit import (
+    GitCommitInvariantError,
+    build_git_commit,
+    commit_tree_id,
+    identity_for_git,
+    is_git_compatible_commit,
+)
 from src.mut_engine.application.protocol_mode import ensure_protocol_enabled
 from src.mut_engine.application.transaction_engine import (
     CrossScopeSubmissionError,
@@ -916,6 +925,21 @@ class TestGitNativeHardeningContracts:
         with pytest.raises(ValidationError):
             ProjectUpdate(protocol_mode="svn")
 
+    def test_build_git_commit_rejects_non_git_parent(
+        self, server_repo,
+    ):
+        tree_id = build_tree_from_files(server_repo.store, {"README.md": b"hello\n"})
+
+        with pytest.raises(GitCommitInvariantError):
+            build_git_commit(
+                server_repo,
+                tree_sha=tree_id,
+                parent_sha="1dda56a9166ce3d1",
+                who="web:user",
+                message="bad parent",
+                created_at_iso="2026-01-01T00:00:00+00:00",
+            )
+
     def test_quarantine_materializes_reachable_objects_without_full_store(
         self, tmp_path, server_repo,
     ):
@@ -930,6 +954,97 @@ class TestGitNativeHardeningContracts:
         assert (bare_dir / "objects" / reachable_commit[:2] / reachable_commit[2:]).exists()
         assert (bare_dir / "objects" / reachable_tree[:2] / reachable_tree[2:]).exists()
         assert not (bare_dir / "objects" / unreachable_blob[:2] / unreachable_blob[2:]).exists()
+
+    def test_git_view_rewrites_legacy_bad_parent_before_upload_pack(
+        self, server_repo,
+    ):
+        server_repo.add_scope("docs-scope", "/docs/")
+        bad_tree = build_tree_from_files(server_repo.store, {"README.md": b"legacy\n"})
+        bad_commit = _make_client_commit(
+            server_repo,
+            bad_tree,
+            parent_id="1dda56a9166ce3d1",
+            message="legacy bad parent",
+        )
+        head_tree = build_tree_from_files(server_repo.store, {"README.md": b"current\n"})
+        head_commit = _make_client_commit(
+            server_repo,
+            head_tree,
+            parent_id=bad_commit,
+            message="current",
+        )
+        server_repo.history.set_scope_hash("docs", head_tree)
+        server_repo.set_scope_head_commit_id("docs", head_commit)
+
+        projected = git_view_head_commit(server_repo, "docs")
+
+        assert projected != head_commit
+        assert commit_tree_id(server_repo, projected) == head_tree
+        with temporary_bare_repo(server_repo, "docs") as bare_dir:
+            run_git(["--git-dir", str(bare_dir), "fsck", "--full", "--strict"])
+
+    @pytest.mark.asyncio
+    async def test_operation_after_legacy_bad_head_uses_git_compatible_parent(
+        self, repo_manager, server_repo,
+    ):
+        server_repo.add_scope("docs-scope", "/docs/")
+        bad_tree = build_tree_from_files(server_repo.store, {"README.md": b"legacy\n"})
+        bad_commit = _make_client_commit(
+            server_repo,
+            bad_tree,
+            parent_id="1dda56a9166ce3d1",
+            message="legacy bad parent",
+        )
+        server_repo.history.set_scope_hash("docs", bad_tree)
+        server_repo.set_scope_head_commit_id("docs", bad_commit)
+
+        result = await GitNativeTransactionEngine(repo_manager).apply_operation(
+            OperationWriteIntent(
+                project_id="test-proj",
+                scope_path="docs",
+                actor="web:user",
+                source_channel="web",
+                operation_type="write_file",
+                message="write after legacy head",
+            ),
+            lambda store, root: splice_put_blob(
+                store,
+                root,
+                "next.md",
+                b"new write\n",
+            ),
+        )
+
+        assert result.commit_id != bad_commit
+        assert is_git_compatible_commit(server_repo, result.commit_id)
+        with temporary_bare_repo(server_repo, "docs") as bare_dir:
+            run_git(["--git-dir", str(bare_dir), "fsck", "--full", "--strict"])
+
+    @pytest.mark.asyncio
+    async def test_submit_version_does_not_preserve_malformed_client_commit(
+        self, repo_manager, server_repo,
+    ):
+        tree_id = build_tree_from_files(server_repo.store, {"README.md": b"from client\n"})
+        malformed_client_commit = _make_client_commit(
+            server_repo,
+            tree_id,
+            parent_id="1dda56a9166ce3d1",
+            message="malformed client commit",
+        )
+
+        result = await submit_git_tree(
+            repo_manager,
+            project_id="test-proj",
+            scope_path="",
+            actor="git:user",
+            base_commit_id="",
+            proposed_tree_id=tree_id,
+            client_commit_id=malformed_client_commit,
+            message="git push",
+        )
+
+        assert result.commit_id != malformed_client_commit
+        assert is_git_compatible_commit(server_repo, result.commit_id)
 
 
 def test_git_protocol_routes_exist():

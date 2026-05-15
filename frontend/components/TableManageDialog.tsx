@@ -93,7 +93,7 @@ export function TableManageDialog({
       ? 'Optional; defaults to the repository name'
       : urlImportType === 'notion'
         ? 'Optional; defaults to the source page name'
-        : 'Optional; used as the folder name in PuppyOne';
+        : 'Optional; used as the folder name in Puppyone';
 
   useEffect(() => {
     if (table) setName(table.name);

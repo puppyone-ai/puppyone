@@ -40,7 +40,7 @@ export default function AppearanceSettingsPage() {
               Color mode
             </h2>
             <p style={{ margin: '8px 0 0', maxWidth: 560, fontSize: 13, lineHeight: 1.55, color: 'var(--po-text-muted)' }}>
-              Choose how PuppyOne appears on this device. System follows your operating system and updates automatically.
+              Choose how Puppyone appears on this device. System follows your operating system and updates automatically.
             </p>
           </div>
 

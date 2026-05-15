@@ -1,10 +1,10 @@
 {
   "workspace": "Get Started",
-  "goal": "Complete the first PuppyOne agent loop",
+  "goal": "Complete the first Puppyone agent loop",
   "success_criteria": [
     "Agent reads files from Context",
     "Agent creates Agent Output/first-run.md",
-    "User sees the write in PuppyOne history"
+    "User sees the write in Puppyone history"
   ],
   "example_next_sources": [
     {

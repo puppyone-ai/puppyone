@@ -218,7 +218,7 @@ class GithubApi:
     async def create_commit(
         self, owner: str, repo: str, *,
         message: str, tree_sha: str, parent_shas: list[str],
-        author_name: str = "PuppyOne", author_email: str = "noreply@puppyone",
+        author_name: str = "Puppyone", author_email: str = "noreply@puppyone",
     ) -> str:
         r = await self._client.post(
             f"/repos/{owner}/{repo}/git/commits",

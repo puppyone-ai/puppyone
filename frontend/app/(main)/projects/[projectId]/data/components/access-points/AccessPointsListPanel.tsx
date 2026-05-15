@@ -57,7 +57,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
         copyText: gitPrompt,
       },
       secondary: {
-        title: 'PuppyOne FS CLI',
+        title: 'Puppyone FS CLI',
         description: 'Use scoped filesystem commands without a local clone.',
         body: terminalPrompt,
         copyText: terminalPrompt,
@@ -80,7 +80,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
       `Use this MCP config:`,
       config,
       ``,
-      `After configuring it, use the MCP tools against the scoped PuppyOne workspace data.`,
+      `After configuring it, use the MCP tools against the scoped Puppyone workspace data.`,
     ].join('\n');
     return {
       primary: {
@@ -96,7 +96,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
     const execUrl = `${apiBase}/api/v1/sandbox-endpoints/${ep.syncId}/exec`;
     const command = `curl -X POST ${execUrl} \\\n  -H "X-Access-Key: ${accessKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"command": "ls /workspace"}'`;
     const prompt = [
-      `Use this PuppyOne Sandbox Access Point to run commands in an isolated workspace environment.`,
+      `Use this Puppyone Sandbox Access Point to run commands in an isolated workspace environment.`,
       ``,
       `Access Point: ${displayName}`,
       `Scope: ${scopeName}`,
@@ -120,7 +120,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
 
   if (ep.provider.startsWith('agent:')) {
     const prompt = [
-      `Use this PuppyOne agent Access Point from the scoped workspace.`,
+      `Use this Puppyone agent Access Point from the scoped workspace.`,
       ``,
       `Access Point: ${displayName}`,
       `Scope: ${scopeName}`,
@@ -139,7 +139,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   }
 
   const prompt = [
-    `Use this PuppyOne Access Point.`,
+    `Use this Puppyone Access Point.`,
     ``,
     `Access Point: ${displayName}`,
     `Scope: ${scopeName}`,

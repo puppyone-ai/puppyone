@@ -20,7 +20,7 @@ export interface MethodMeta {
 export const METHOD_META: Record<MethodId, MethodMeta> = {
   terminal: {
     id: 'terminal',
-    title: 'PuppyOne CLI',
+    title: 'Puppyone CLI',
     subtitle: 'Direct terminal access',
     accent: 'var(--po-accent-text)',
     accentBg: 'color-mix(in srgb, var(--po-accent) 14%, transparent)',

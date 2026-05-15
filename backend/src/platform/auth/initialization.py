@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 _DEMO_TEMPLATE_ID = "get-started"
 _DEMO_PROJECT_NAME = "Get Started"
 _DEMO_PROJECT_DESCRIPTION = (
-    "A guided tour of PuppyOne. Browse the files, then delete this "
+    "A guided tour of Puppyone. Browse the files, then delete this "
     "project (or rename it) and create your own."
 )
 

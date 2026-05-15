@@ -4,7 +4,7 @@ import Editor, { OnMount, Monaco } from '@monaco-editor/react';
 import { useRef, useCallback, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
-import { definePuppyOneMonacoThemes, getPuppyOneMonacoTheme } from '@/lib/theme/monacoThemes';
+import { definePuppyoneMonacoThemes, getPuppyoneMonacoTheme } from '@/lib/theme/monacoThemes';
 
 const MONACO_LOADING = <EditorLoadingSurface />;
 
@@ -18,12 +18,12 @@ export default function MonacoMarkdownEditor({ content, onChange, readOnly }: Pr
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const { resolvedTheme } = useTheme();
-  const themeName = getPuppyOneMonacoTheme('markdown', resolvedTheme);
+  const themeName = getPuppyoneMonacoTheme('markdown', resolvedTheme);
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    definePuppyOneMonacoThemes(monaco);
+    definePuppyoneMonacoThemes(monaco);
     monaco.editor.setTheme(themeName);
     monaco.languages.setLanguageConfiguration('markdown', {
       wordPattern: /(-?\d*\.\d\w*)|([^`~!@#%^&*()=\-[\]{}\\|;:'",.<>/?\s]+)/g,

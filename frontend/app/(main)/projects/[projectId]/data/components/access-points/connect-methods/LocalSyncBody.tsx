@@ -41,7 +41,7 @@ export function LocalSyncBody({
         <NumberedStep
           number={4}
           title="Server-side merge proposal"
-          hint="Only use this when normal Git push says the remote has newer work; PuppyOne still performs the merge decision server-side."
+          hint="Only use this when normal Git push says the remote has newer work; Puppyone still performs the merge decision server-side."
         >
           <CommandBlock lines={[serverMergeLine]} />
         </NumberedStep>

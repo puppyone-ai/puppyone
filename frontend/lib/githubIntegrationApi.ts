@@ -102,7 +102,7 @@ export interface GithubImportRequest {
 
 export interface GithubExportRequest {
   branch?: string | null;
-  /** Override the auto-generated ``Sync from PuppyOne <commit>`` message. */
+  /** Override the auto-generated ``Sync from Puppyone <commit>`` message. */
   message?: string | null;
 }
 
@@ -241,7 +241,7 @@ export function listGithubSyncLog(
 
 /**
  * The public URL the user must paste into their GitHub repo's
- * Settings → Webhooks page. PuppyOne mounts a single receiver for all
+ * Settings → Webhooks page. Puppyone mounts a single receiver for all
  * deliveries; the body identifies the project by repo coords.
  */
 export function githubWebhookUrl(): string {

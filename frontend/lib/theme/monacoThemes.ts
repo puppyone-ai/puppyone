@@ -110,7 +110,7 @@ const MARKDOWN_LIGHT = {
   ],
 };
 
-export function definePuppyOneMonacoThemes(monaco: MonacoLike) {
+export function definePuppyoneMonacoThemes(monaco: MonacoLike) {
   monaco.editor.defineTheme('po-code-dark', CODE_DARK);
   monaco.editor.defineTheme('po-code-light', CODE_LIGHT);
   monaco.editor.defineTheme('po-json-dark', JSON_DARK);
@@ -119,6 +119,6 @@ export function definePuppyOneMonacoThemes(monaco: MonacoLike) {
   monaco.editor.defineTheme('po-markdown-light', MARKDOWN_LIGHT);
 }
 
-export function getPuppyOneMonacoTheme(kind: 'code' | 'json' | 'markdown', resolvedTheme?: string) {
+export function getPuppyoneMonacoTheme(kind: 'code' | 'json' | 'markdown', resolvedTheme?: string) {
   return `po-${kind}-${resolvedTheme === 'light' ? 'light' : 'dark'}`;
 }

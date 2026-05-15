@@ -10,7 +10,7 @@
  *   • CLI / filesystem  → copy-prompt block (terminal-CLI or local-sync
  *     prompt for an external AI agent), plus a Show-install disclosure.
  *   • agent             → ActivationCard (Activate / Open chat) — agents
- *     are PuppyOne's in-app chat, never an externally-pasted prompt.
+ *     are Puppyone's in-app chat, never an externally-pasted prompt.
  *   • mcp / sandbox / 3p → just the connect URL / endpoint with copy
  *     buttons. No fake "prompt for an AI agent" — those connectors are
  *     configured elsewhere, not driven by prompt-pasting.
@@ -140,7 +140,7 @@ function LocalSyncBody({
   ];
 
   const prompt = [
-    `Sync my local folder with PuppyOne cloud using the \`mut\` CLI.`,
+    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
     ``,
     `## Install (one-time)`,
     `\`\`\`bash`,

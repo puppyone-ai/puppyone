@@ -73,7 +73,7 @@ interface Props {
 
 // Brand blue — applied surgically (progress fill + completed checks +
 // active "you are here" dot). Three small, contained surfaces is enough
-// to feel like PuppyOne; a fourth (filled CTA) is what made the panel
+// to feel like Puppyone; a fourth (filled CTA) is what made the panel
 // read as a marketing widget last time, so the CTA stays as a neutral
 // ghost button on purpose.
 const ACCENT = 'var(--po-accent)';

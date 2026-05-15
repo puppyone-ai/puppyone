@@ -134,7 +134,7 @@ async def _do_export(
 
     # 5. Commit.
     head = _local_head_commit_id(project_id) or "head"
-    msg = commit_message or f"Sync from PuppyOne ({head[:12]})"
+    msg = commit_message or f"Sync from Puppyone ({head[:12]})"
     new_git_sha = await api.create_commit(
         owner, repo_name,
         message=msg, tree_sha=tree_sha, parent_shas=[parent_sha],

@@ -20,6 +20,7 @@ from src.mut_engine.application.root_projection import (
     graft_subtree,
 )
 from src.mut_engine.application.git_commit import build_git_commit, commit_tree_id
+from src.mut_engine.adapters.git.view_projection import git_compatible_head_commit
 from src.utils.logger import log_error, log_info, log_warning
 
 
@@ -293,14 +294,20 @@ def _update_global_root(repo, push_result: dict) -> None:
                 success = True
 
             if success:
-                _record_project_view_index(
-                    repo=repo,
-                    entry=entry,
-                    scope_path=scope_path,
-                    scope_hash=scope_hash,
-                    project_root_hash=new_root,
-                    source_commit_id=commit_id,
-                )
+                try:
+                    _record_project_view_index(
+                        repo=repo,
+                        entry=entry,
+                        scope_path=scope_path,
+                        scope_hash=scope_hash,
+                        project_root_hash=new_root,
+                        source_commit_id=commit_id,
+                    )
+                except Exception as exc:
+                    log_warning(
+                        f"[PostCommit] project-view Git index update failed "
+                        f"for commit {commit_id[:12]}: {exc}",
+                    )
                 log_info(
                     f"[PostCommit] Rebuilt global root from DB state: "
                     f"scope='{scope_path}' root={new_root[:16]} "
@@ -351,13 +358,14 @@ def _record_project_view_index(
         parent = ""
         if hasattr(repo, "get_latest_project_view_commit_id"):
             parent = repo.get_latest_project_view_commit_id() or ""
+        parent = git_compatible_head_commit(repo, parent) if parent else ""
         created_at = entry.get("created_at") or entry.get("time") or ""
         project_view_commit_id = build_git_commit(
             repo,
             tree_sha=project_root_hash,
             parent_sha=parent,
             who="puppyone-project-view",
-            message=f"PuppyOne project view for {source_commit_id}",
+            message=f"Puppyone project view for {source_commit_id}",
             created_at_iso=created_at,
         )
 

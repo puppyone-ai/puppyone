@@ -383,7 +383,7 @@ export function SidebarLayout({
                     {item.badgeLoading ? (
                       <SkeletonBlock width={18} height={10} radius={3} className='ml-auto' />
                     ) : item.badge !== undefined && item.badge > 0 && (
-                      <span className='ml-auto rounded bg-[var(--po-control)] px-1.5 py-0.5 text-[10px] text-[var(--po-text-subtle)]'>
+                      <span className='ml-auto min-w-[16px] pr-1 text-right text-[12px] font-medium tabular-nums leading-none text-[var(--po-text-disabled)]'>
                         {item.badge}
                       </span>
                     )}

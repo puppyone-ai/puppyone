@@ -13,9 +13,9 @@ import { AgentIcon, SyncIcon, TerminalIcon } from './icons';
 import type { MethodMeta } from './meta';
 
 const ACTIVE_METHOD_BG =
-  'var(--po-selected)';
+  'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)';
 const ACTIVE_METHOD_BG_HOVER =
-  'color-mix(in srgb, var(--po-text) 20%, var(--po-canvas) 80%)';
+  'color-mix(in srgb, var(--po-text) 12%, var(--po-panel) 88%)';
 const PAUSED_METHOD_BG =
   'color-mix(in srgb, var(--po-text) 3%, var(--po-panel) 97%)';
 const PAUSED_METHOD_BG_HOVER =
@@ -28,7 +28,7 @@ const PAUSED_METHOD_BG_HOVER =
  *
  *   [icon] [method hint]                               [toggle]
  *
- * The method title lives one level above the card (`PuppyOne CLI`,
+ * The method title lives one level above the card (`Puppyone CLI`,
  * `Git Remote`, etc.). Keeping the title outside the card makes the
  * panel read like normal settings sections instead of mixing section
  * labels into card chrome.

@@ -990,7 +990,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         lineHeight: 1.55,
                       }}
                     >
-                      Choose how PuppyOne appears on this device.
+                      Choose how Puppyone appears on this device.
                     </div>
                   </div>
                   <ThemeToggle />
@@ -1165,7 +1165,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   >
                     <img
                       src='/puppyone-logo.svg'
-                      alt='PuppyOne'
+                      alt='Puppyone'
                       width={44}
                       height={44}
                       style={{ display: 'block', flexShrink: 0 }}
@@ -1186,7 +1186,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                           letterSpacing: '-0.01em',
                         }}
                       >
-                        PuppyOne
+                        Puppyone
                       </div>
                       <div
                         style={{

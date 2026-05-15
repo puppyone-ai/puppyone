@@ -1,11 +1,11 @@
 # Product brief
 
-PuppyOne is a context file system for AI agents.
+Puppyone is a context file system for AI agents.
 
 Instead of copying documents into every chat, a user can keep their working
 context in one repo-like space and give controlled access to agents.
 
-## What PuppyOne helps with
+## What Puppyone helps with
 
 - Bring files, notes, GitHub repos, and other sources into one context space.
 - Let agents read and write that context through the workflow they already use.
@@ -16,7 +16,7 @@ context in one repo-like space and give controlled access to agents.
 
 A new user should quickly feel this:
 
-> My agent can use my context, write something useful back, and PuppyOne records
+> My agent can use my context, write something useful back, and Puppyone records
 > what happened.
 
 That is the first closed loop.
@@ -25,4 +25,4 @@ That is the first closed loop.
 
 This repo contains enough context for an agent to produce a small useful output.
 It is intentionally tiny so the user can finish the loop before learning every
-PuppyOne concept.
+Puppyone concept.

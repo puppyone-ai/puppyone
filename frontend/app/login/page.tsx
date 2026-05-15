@@ -45,7 +45,7 @@ function LoginPageFallback() {
     <div className="min-h-screen flex items-center justify-center bg-[var(--po-inset)]">
       <img
         src="/puppyone-logo.svg"
-        alt="PuppyOne"
+        alt="Puppyone"
         width={48}
         height={48}
         className="opacity-50 animate-pulse"
@@ -77,7 +77,7 @@ function PostAuthRedirectingScreen({ message }: { message: string }) {
     >
       <img
         src="/puppyone-logo.svg"
-        alt="PuppyOne"
+        alt="Puppyone"
         width={48}
         height={48}
         className="opacity-95"
@@ -428,7 +428,7 @@ function LoginPageInner() {
           <div className="flex justify-center mb-4">
             <img
               src="/puppyone-logo.svg"
-              alt="PuppyOne"
+              alt="Puppyone"
               width={48}
               height={48}
               className="opacity-95"
@@ -439,7 +439,7 @@ function LoginPageInner() {
           {view === 'main' && (
             <div className="animate-fade-in">
               <div className="mb-8 text-center">
-                <h1 className="text-2xl font-semibold text-[var(--po-text)]">Welcome to PuppyOne</h1>
+                <h1 className="text-2xl font-semibold text-[var(--po-text)]">Welcome to Puppyone</h1>
                 <p className="mt-2 text-sm text-[var(--po-text-muted)]">The context hub for your agents.</p>
               </div>
 

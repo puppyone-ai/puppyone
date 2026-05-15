@@ -6,7 +6,7 @@
  * Replaces the project-wide AccessPointsListPanel. Once a scope is
  * selected, the body stacks two primary sections vertically:
  *
- *   ① ConnectMethodsBlock        — PuppyOne CLI, Git Remote, AI Agent
+ *   ① ConnectMethodsBlock        — Puppyone CLI, Git Remote, AI Agent
  *                                  (the three default ways to access this
  *                                  folder — DB-trigger-backed cli + agent
  *                                  connectors fan out into three UI cards)
@@ -347,7 +347,7 @@ export function ScopedConnectorsListPanel({
             <>
               {/* The three default ways to access this scope. cli + agent
                   rows in `connectors` back the scope key and in-app chat
-                  agent surfaces. PuppyOne CLI and Git Remote share the
+                  agent surfaces. Puppyone CLI and Git Remote share the
                   scope access key; AI Agent opens the chat runtime. */}
               <ConnectMethodsBlock
                 scope={scope}

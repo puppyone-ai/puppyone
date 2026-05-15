@@ -4,7 +4,7 @@ import React, { useEffect, useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
-import { definePuppyOneMonacoThemes, getPuppyOneMonacoTheme } from '@/lib/theme/monacoThemes';
+import { definePuppyoneMonacoThemes, getPuppyoneMonacoTheme } from '@/lib/theme/monacoThemes';
 
 const MONACO_LOADING = <EditorLoadingSurface />;
 
@@ -26,12 +26,12 @@ export function MonacoCodeViewer({
   const editorRef = useRef<unknown>(null);
   const monacoRef = useRef<any>(null);
   const { resolvedTheme } = useTheme();
-  const themeName = getPuppyOneMonacoTheme('code', resolvedTheme);
+  const themeName = getPuppyoneMonacoTheme('code', resolvedTheme);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    definePuppyOneMonacoThemes(monaco);
+    definePuppyoneMonacoThemes(monaco);
     monaco.editor.setTheme(themeName);
   };
 

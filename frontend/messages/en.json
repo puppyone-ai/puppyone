@@ -37,7 +37,7 @@
   "home": {
     "title": "Projects",
     "subtitle": "{count, plural, one {# project} other {# projects}} in your workspace",
-    "emptyDescription": "PuppyOne is your file workspace for multi-agent collaboration. Click below to start your first project.",
+    "emptyDescription": "Puppyone is your file workspace for multi-agent collaboration. Click below to start your first project.",
     "newProject": "New Project",
     "emptyProject": "Empty project",
     "copyId": "Copy Project ID"
@@ -155,7 +155,7 @@
       "autoImport": "Auto-import on push",
       "autoImportHint": "Requires a webhook secret. GitHub will trigger an import for every push to the bound branch.",
       "webhookSecret": "Webhook secret",
-      "webhookSecretHint": "PuppyOne never echoes this back. Save a copy if you need it.",
+      "webhookSecretHint": "Puppyone never echoes this back. Save a copy if you need it.",
       "webhookUrl": "Webhook URL",
       "webhookUrlHint": "Paste this into your GitHub repository's Settings → Webhooks. Set ‘Content type’ to application/json and re-use the secret above.",
       "connect": "Connect repository",

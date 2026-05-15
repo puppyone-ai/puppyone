@@ -2,7 +2,7 @@
 Default seed content for new projects.
 
 Creates a Getting Started.md at root + a Guides/ folder with
-About PuppyOne.md, Connecting Data.md, and Agent Access.md.
+About Puppyone.md, Connecting Data.md, and Agent Access.md.
 
 All writes go through MUT protocol (MutOps).
 
@@ -50,17 +50,17 @@ Create an MCP endpoint so Claude, Cursor, or any MCP-compatible agent can read a
 ## Learn more
 
 See the **Guides** folder for detailed information:
-- **About PuppyOne** — what is a context space
+- **About Puppyone** — what is a context space
 - **Connecting Data** — all supported data sources
 - **Agent Access** — MCP, sandbox, and permissions
 """
 
 ABOUT_PUPPYONE_MD = """\
-# About PuppyOne
+# About Puppyone
 
 **The cloud file system built for AI Agents.**
 
-PuppyOne unifies your scattered data from Notion, GitHub, Gmail, Airtable, \
+Puppyone unifies your scattered data from Notion, GitHub, Gmail, Airtable, \
 local files, and more into a single context space designed for multi-agent \
 collaboration. Connect any agent to this one space, and it instantly accesses \
 all your context.
@@ -87,8 +87,8 @@ need unified logging and monitoring for every access point.
 ## Two Core Pillars
 
 ### Connect
-PuppyOne's answer is a **cloud folder**. Whether your data comes from \
-Notion, GitHub, Airtable, or local PDFs, once connected to PuppyOne, \
+Puppyone's answer is a **cloud folder**. Whether your data comes from \
+Notion, GitHub, Airtable, or local PDFs, once connected to Puppyone, \
 they all become nodes in this folder.
 
 - Notion pages → Markdown
@@ -100,7 +100,7 @@ For your agent, the world is now just **one single folder**, not 30 \
 different SaaS silos.
 
 ### Collaborate
-PuppyOne provides a complete infrastructure for human-agent collaboration:
+Puppyone provides a complete infrastructure for human-agent collaboration:
 
 - **Version history** — every change is tracked with full audit trail
 - **Access control** — fine-grained permissions for users and agents
@@ -112,7 +112,7 @@ PuppyOne provides a complete infrastructure for human-agent collaboration:
 CONNECTING_DATA_MD = """\
 # Connecting Data
 
-PuppyOne connects to your real work apps and data sources. Everything \
+Puppyone connects to your real work apps and data sources. Everything \
 you connect becomes part of your context space as regular files and \
 folders that both you and your agents can read.
 
@@ -145,7 +145,7 @@ from any API, database, or service
 ## How Sync Works
 
 Each connected source creates one or more nodes in your context space. \
-PuppyOne periodically fetches the latest data, detects changes, and \
+Puppyone periodically fetches the latest data, detects changes, and \
 updates the nodes. You can also trigger a manual sync at any time.
 
 All sync operations are logged with timestamps, status, and error \
@@ -155,12 +155,12 @@ details for full visibility.
 AGENT_ACCESS_MD = """\
 # Agent Access
 
-PuppyOne provides multiple ways for AI agents to access your context space.
+Puppyone provides multiple ways for AI agents to access your context space.
 
 ## MCP Protocol
 
 MCP (Model Context Protocol) is the primary way agents interact with \
-PuppyOne. Create an MCP endpoint, and any MCP-compatible agent — \
+Puppyone. Create an MCP endpoint, and any MCP-compatible agent — \
 Claude, Cursor, Windsurf, and others — can read and write your \
 context space natively.
 
@@ -169,7 +169,7 @@ exactly which parts of the context space each endpoint can access.
 
 ## Sandbox Execution
 
-For agents that need to run code, PuppyOne provides isolated sandbox \
+For agents that need to run code, Puppyone provides isolated sandbox \
 environments. Agents can execute Python, Node.js, or shell commands \
 in a secure container with access to your context data.
 
@@ -178,7 +178,7 @@ automatically. All execution is logged.
 
 ## Access Control
 
-PuppyOne gives you fine-grained control over what each agent can do:
+Puppyone gives you fine-grained control over what each agent can do:
 
 - **Read-only** — agent can browse and read files
 - **Read-write** — agent can also create and modify files
@@ -216,7 +216,7 @@ async def seed_default_content(
 
     files: dict[str, bytes] = {
         "Getting Started.md": GETTING_STARTED_MD.encode("utf-8"),
-        "Guides/About PuppyOne.md": ABOUT_PUPPYONE_MD.encode("utf-8"),
+        "Guides/About Puppyone.md": ABOUT_PUPPYONE_MD.encode("utf-8"),
         "Guides/Connecting Data.md": CONNECTING_DATA_MD.encode("utf-8"),
         "Guides/Agent Access.md": AGENT_ACCESS_MD.encode("utf-8"),
     }
@@ -230,7 +230,7 @@ async def seed_default_content(
     return {
         "getting_started": "Getting Started.md",
         "guides_folder": "Guides",
-        "about": "Guides/About PuppyOne.md",
+        "about": "Guides/About Puppyone.md",
         "connecting": "Guides/Connecting Data.md",
         "agent_access": "Guides/Agent Access.md",
     }

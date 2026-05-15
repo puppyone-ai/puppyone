@@ -7,7 +7,7 @@ interface Props {
   onDone: () => void;
 }
 
-// English-only by product policy — PuppyOne does not ship UI in any other
+// English-only by product policy — Puppyone does not ship UI in any other
 // language right now, so the welcome modal hardcodes its copy directly
 // instead of going through next-intl.  When/if multi-language support is
 // reintroduced, lift these strings back into messages/<locale>.json under
@@ -16,7 +16,7 @@ const SLIDES = [
   {
     title: 'The File Workspace for all your agents',
     subtitle:
-      "Store your data in PuppyOne so AI Agents can access it anytime — always knowing what they're working on.",
+      "Store your data in Puppyone so AI Agents can access it anytime — always knowing what they're working on.",
     image: '/old-vs-new-world.png',
     imageCaption: 'From scattered files to unified context',
   },
