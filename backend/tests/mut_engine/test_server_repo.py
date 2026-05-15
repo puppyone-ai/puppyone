@@ -10,21 +10,25 @@ Supabase — we only care about the interactions between ``ServerRepo``
 and the history/audit/scope interfaces.
 """
 
-import json
+import threading
+
 import pytest
 
 from mut.core.object_store import ObjectStore
+from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
 
 class FakeHistoryManager:
     """In-memory mock for SupabaseHistoryManager (commit_id identity)."""
 
     def __init__(self):
+        self._lock = threading.RLock()
         self._root_hash = ""
         self._head_commit_id = ""
         self._scope_hashes: dict[str, str] = {}
         self._scope_head_commit_ids: dict[str, str] = {}
         self._entries: list[dict] = []
+        self._version_index: list[dict] = []
 
     def get_root_hash(self) -> str:
         return self._root_hash
@@ -48,10 +52,12 @@ class FakeHistoryManager:
         return {p: h for p, h in self._scope_hashes.items() if h}
 
     def get_scope_head_commit_id(self, scope_path: str) -> str:
-        return self._scope_head_commit_ids.get(scope_path.strip("/"), "")
+        with self._lock:
+            return self._scope_head_commit_ids.get(scope_path.strip("/"), "")
 
     def set_scope_head_commit_id(self, scope_path: str, commit_id: str) -> None:
-        self._scope_head_commit_ids[scope_path.strip("/")] = commit_id
+        with self._lock:
+            self._scope_head_commit_ids[scope_path.strip("/")] = commit_id
 
     def record(self, commit_id, who, message, scope_path, changes,
                conflicts=None, root_hash="", scope_hash="", created_at_iso=""):
@@ -67,6 +73,32 @@ class FakeHistoryManager:
             "root": root_hash,
             "created_at": created_at_iso,
         })
+
+    def record_version_index(
+        self,
+        *,
+        scope_path: str,
+        source_commit_id: str,
+        source_scope_hash: str,
+        project_root_hash: str,
+        project_view_commit_id: str,
+    ) -> None:
+        self._version_index = [
+            row for row in self._version_index
+            if row["source_commit_id"] != source_commit_id
+        ]
+        self._version_index.append({
+            "scope_path": scope_path.strip("/"),
+            "source_commit_id": source_commit_id,
+            "source_scope_hash": source_scope_hash,
+            "project_root_hash": project_root_hash,
+            "project_view_commit_id": project_view_commit_id,
+        })
+
+    def get_latest_project_view_commit_id(self) -> str:
+        if not self._version_index:
+            return ""
+        return self._version_index[-1]["project_view_commit_id"]
 
     def get_entry(self, commit_id: str) -> dict | None:
         for e in self._entries:
@@ -108,6 +140,14 @@ class FakeHistoryManager:
                     return h
         return ""
 
+    def get_scope_state(self, scope_path: str) -> tuple[str, str]:
+        norm = scope_path.strip("/")
+        with self._lock:
+            return (
+                self._scope_hashes.get(norm, ""),
+                self._scope_head_commit_ids.get(norm, ""),
+            )
+
     def cas_update_scope_hash(
         self,
         scope_path: str,
@@ -116,19 +156,21 @@ class FakeHistoryManager:
         head_commit_id: str = "",
     ) -> bool:
         norm = scope_path.strip("/")
-        current = self._scope_hashes.get(norm, "")
-        if current != old_hash:
-            return False
-        self._scope_hashes[norm] = new_hash
-        if head_commit_id:
-            self._scope_head_commit_ids[norm] = head_commit_id
-        return True
+        with self._lock:
+            current = self._scope_hashes.get(norm, "")
+            if current != old_hash:
+                return False
+            self._scope_hashes[norm] = new_hash
+            if head_commit_id:
+                self._scope_head_commit_ids[norm] = head_commit_id
+            return True
 
     def cas_update_root_hash(self, old_hash: str, new_hash: str) -> bool:
-        if self._root_hash != old_hash:
-            return False
-        self._root_hash = new_hash
-        return True
+        with self._lock:
+            if self._root_hash != old_hash:
+                return False
+            self._root_hash = new_hash
+            return True
 
 
 class FakeAuditManager:
@@ -289,9 +331,10 @@ class TestListScopeFiles:
 
     def test_with_scope_hash(self, server_repo, memory_store):
         """list_scope_files prefers scope_hash when available."""
-        blob_hash = memory_store.put(b"hello world")
-        tree = json.dumps({"readme.md": ["B", blob_hash]}, sort_keys=True).encode()
-        tree_hash = memory_store.put(tree)
+        blob_hash = memory_store.put_blob(b"hello world")
+        tree_hash = memory_store.put_tree(encode_tree([
+            TreeEntry(name="readme.md", mode=MODE_FILE, sha1_hex=blob_hash),
+        ]))
 
         server_repo.history.set_scope_hash("docs", tree_hash)
 
@@ -302,18 +345,18 @@ class TestListScopeFiles:
 
     def test_root_scope_ignores_grafted_child_scope_files(self, server_repo, memory_store):
         """Root protocol clone must not import materialized child-scope files."""
-        root_blob = memory_store.put(b"root")
-        child_blob = memory_store.put(b"child")
-        root_scope_hash = memory_store.put(json.dumps({
-            "root.txt": ["B", root_blob],
-        }, sort_keys=True).encode())
-        child_scope_hash = memory_store.put(json.dumps({
-            "child.txt": ["B", child_blob],
-        }, sort_keys=True).encode())
-        global_root_hash = memory_store.put(json.dumps({
-            "root.txt": ["B", root_blob],
-            "folder1": ["T", child_scope_hash],
-        }, sort_keys=True).encode())
+        root_blob = memory_store.put_blob(b"root")
+        child_blob = memory_store.put_blob(b"child")
+        root_scope_hash = memory_store.put_tree(encode_tree([
+            TreeEntry(name="root.txt", mode=MODE_FILE, sha1_hex=root_blob),
+        ]))
+        child_scope_hash = memory_store.put_tree(encode_tree([
+            TreeEntry(name="child.txt", mode=MODE_FILE, sha1_hex=child_blob),
+        ]))
+        global_root_hash = memory_store.put_tree(encode_tree([
+            TreeEntry(name="root.txt", mode=MODE_FILE, sha1_hex=root_blob),
+            TreeEntry(name="folder1", mode=MODE_DIR, sha1_hex=child_scope_hash),
+        ]))
 
         server_repo.history.set_scope_hash("", root_scope_hash)
         server_repo.history.set_scope_hash("folder1", child_scope_hash)

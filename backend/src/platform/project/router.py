@@ -58,7 +58,10 @@ def _convert_to_project_out(
         id=str(project.id),
         name=project.name,
         description=project.description,
+        org_id=project.org_id,
+        visibility=project.visibility,
         bound_git_branch=getattr(project, 'bound_git_branch', 'main'),
+        protocol_mode=getattr(project, 'protocol_mode', 'git'),
         nodes=node_infos,
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
         access_point_count=access_point_count,
@@ -252,6 +255,7 @@ def update_project(
         name=payload.name,
         description=payload.description,
         bound_git_branch=payload.bound_git_branch,
+        protocol_mode=payload.protocol_mode,
     )
 
     entries = ops.list_dir(str(project.id), "")

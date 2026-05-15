@@ -137,14 +137,37 @@ if ! $CLI --version > /dev/null 2>&1; then
 fi
 echo -e "${GREEN}✓${NC} CLI executable (v$($CLI --version 2>&1))"
 
-# Check auth state
+# Check auth state. `auth whoami` intentionally prints cached local identity
+# even when the saved token is expired, so the harness checks token freshness
+# directly before deciding whether auth-required integration tests can run.
 AUTH_OUT=$($CLI auth whoami 2>&1) || true
+SESSION_EXPIRED=false
 if echo "$AUTH_OUT" | grep -q "Not logged in"; then
   LOGGED_IN=false
   echo -e "${YELLOW}!${NC} Not logged in — auth-required tests will be skipped"
 else
-  LOGGED_IN=true
-  echo -e "${GREEN}✓${NC} Authenticated"
+  TOKEN_STATE=$(cd "$CLI_DIR" && node --input-type=module -e '
+    import { loadConfig } from "./src/config.js";
+    const config = loadConfig();
+    if (!config.api_key) {
+      console.log("missing");
+    } else if (config.token_expires_at && Date.now() / 1000 > config.token_expires_at) {
+      console.log("expired");
+    } else {
+      console.log("valid");
+    }
+  ' 2>/dev/null || echo "unknown")
+  if [ "$TOKEN_STATE" = "expired" ]; then
+    LOGGED_IN=false
+    SESSION_EXPIRED=true
+    echo -e "${YELLOW}!${NC} Saved session expired — auth-required tests will be skipped"
+  elif [ "$TOKEN_STATE" = "missing" ]; then
+    LOGGED_IN=false
+    echo -e "${YELLOW}!${NC} Not logged in — auth-required tests will be skipped"
+  else
+    LOGGED_IN=true
+    echo -e "${GREEN}✓${NC} Authenticated"
+  fi
 fi
 
 # ═══════════════════════════════════════════════════════════
@@ -190,6 +213,11 @@ if section "basic"; then
   assert_output_contains "iname" "fs find help advertises case-insensitive name expression" $CLI fs find --help
   assert_output_contains "mindepth" "fs find help advertises mindepth expression" $CLI fs find --help
   assert_output_contains "maxdepth" "fs find help advertises maxdepth expression" $CLI fs find --help
+  assert_exit 0 "puppyone fs grep --help" $CLI fs grep --help
+  assert_output_contains "regular expression" "fs grep help advertises regular-expression default" $CLI fs grep --help
+  assert_output_contains "fixed string" "fs grep help advertises fixed-string mode" $CLI fs grep --help
+  assert_output_contains "max-files" "fs grep help advertises file cap" $CLI fs grep --help
+  assert_output_contains "files-with-matches" "fs grep help advertises Unix file-list mode" $CLI fs grep --help
   assert_exit 0 "puppyone fs mkdir --help" $CLI fs mkdir --help
   assert_output_contains "parents" "fs mkdir help advertises parents option" $CLI fs mkdir --help
   assert_output_contains "paths" "fs mkdir help advertises multi-path support" $CLI fs mkdir --help
@@ -225,7 +253,9 @@ fi
 if section "auth"; then
   if $LOGGED_IN; then
     assert_exit 0 "auth whoami succeeds when logged in" $CLI auth whoami
-    assert_output_contains "email" "whoami shows email" $CLI auth whoami
+    assert_output_contains "User" "whoami shows user identity" $CLI auth whoami
+  elif $SESSION_EXPIRED; then
+    skip "auth whoami live validation (saved session expired)"
   else
     assert_exit 1 "auth whoami fails when not logged in" $CLI auth whoami
     assert_output_contains "Not logged in" "whoami shows login hint" $CLI auth whoami

@@ -83,18 +83,18 @@ export const DOTS_SIZE: Record<LoaderSize, { dot: number; gap: number }> = {
  * lit colour. Animations interpolate opacity (not colour) so we only
  * need one solid colour per dot — `active` — but `rest` is exposed as
  * a CSS variable so consumers can override the resting state if they
- * paint the loader on a non-#0e0e0e background.
+ * paint the loader on a non-var(--po-canvas) background.
  *
  * `neutral` is the default and should cover ~95% of usage. The other
  * tones are reserved for status-loaded contexts where the colour
  * itself communicates meaning (sync running, upload in progress, …).
  */
 export const TONE_MAP: Record<LoaderTone, { rest: string; active: string }> = {
-  neutral: { rest: '#3f3f46', active: '#a1a1aa' },
-  success: { rest: '#1f3326', active: '#4ade80' },
-  warning: { rest: '#3a2c14', active: '#fbbf24' },
-  danger: { rest: '#3a1818', active: '#f87171' },
-  info: { rest: '#0e2a33', active: '#22d3ee' },
+  neutral: { rest: 'var(--po-text-disabled)', active: 'var(--po-text-muted)' },
+  success: { rest: 'color-mix(in srgb, var(--po-success) 18%, transparent)', active: 'var(--po-success)' },
+  warning: { rest: 'color-mix(in srgb, var(--po-warning) 18%, transparent)', active: 'var(--po-warning)' },
+  danger: { rest: 'color-mix(in srgb, var(--po-danger) 18%, transparent)', active: 'var(--po-danger)' },
+  info: { rest: 'color-mix(in srgb, var(--po-info) 18%, transparent)', active: 'var(--po-info)' },
 };
 
 /**

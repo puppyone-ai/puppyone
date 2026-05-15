@@ -8,7 +8,6 @@ import { AccessPointProviderIcon } from './AccessPointProviderIcon';
 import { AgentIcon, SyncIcon, TerminalIcon } from './connect-methods/icons';
 import { METHOD_META, type MethodId } from './connect-methods/meta';
 import {
-  COLOR_BG_CARD,
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
   COLOR_FG,
@@ -31,10 +30,14 @@ const INTEGRATION_VISIBLE_CAP = 5;
  *  vertical padding of the row. */
 const CHIP_SIZE = 24;
 
-const ROW_BG = COLOR_BG_CARD;
-const ROW_BG_HOVER = 'rgba(255,255,255,0.04)';
-const ROW_BG_CURRENT = 'rgba(255,255,255,0.05)';
-const ROW_BORDER_CURRENT = 'rgba(255,255,255,0.15)';
+const ROW_BG =
+  'color-mix(in srgb, var(--po-text) 6%, var(--po-panel) 94%)';
+const ROW_BG_HOVER =
+  'color-mix(in srgb, var(--po-text) 8%, var(--po-panel) 92%)';
+const ROW_BG_CURRENT =
+  'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)';
+const ROW_BORDER_CURRENT =
+  'color-mix(in srgb, var(--po-text) 24%, var(--po-border) 76%)';
 
 /**
  * AccessPointRow — one access-point row in the overview list.
@@ -181,7 +184,7 @@ export function AccessPointRow({
         }}
       >
         {cliActive && (
-          <MethodChip method="terminal" title="Terminal CLI · active" />
+          <MethodChip method="terminal" title="Puppyone CLI · active" />
         )}
         {filesystemActive && (
           <MethodChip method="sync" title="Local Folder Sync · active" />
@@ -310,7 +313,7 @@ function IntegrationChip({
         width: CHIP_SIZE,
         height: CHIP_SIZE,
         borderRadius: 6,
-        background: 'rgba(255,255,255,0.05)',
+        background: 'var(--po-hover)',
         border: `1px solid ${COLOR_BORDER_HOVER}`,
         color: COLOR_FG,
         flexShrink: 0,

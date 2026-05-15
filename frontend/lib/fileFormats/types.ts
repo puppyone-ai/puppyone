@@ -40,6 +40,7 @@ export type FileCategory =
 export type GenericViewerId =
   | 'markdown-editor'
   | 'monaco-code'
+  | 'html-artifact'
   | 'image-preview'
   | 'audio-preview'
   | 'video-preview'
@@ -68,31 +69,24 @@ export type IngestStrategy =
 export interface FileFormat {
   /** Stable id, e.g. 'png', 'typescript', 'pdf'. */
   id: string;
-  /** Human label, e.g. 'PNG Image', 'TypeScript'. */
+  /** Human label, e.g. 'PNG Image', 'TypeScript', 'PDF'. */
   label: string;
-  /** All extensions that match this format, lowercased, **with leading dot**. */
-  extensions: string[];
-  /** Exact basename matches (case-insensitive) — for files with no
-   *  extension that are still recognizable by name (`Makefile`,
-   *  `Dockerfile`, `Rakefile`, `README`, `LICENSE`, …). Filename
-   *  match takes priority over extension match. */
+  /** Exact filename matches, e.g. `Dockerfile`, `Makefile`, `README`. */
   filenames?: string[];
-  /** All mime types that match this format. Used as a fallback when
-   *  extension lookup misses (e.g. unknown extension but server-detected mime). */
-  mimeTypes: string[];
-  /** High-level category. */
+  /** Dot-prefixed extensions, longest suffix wins. */
+  extensions?: string[];
+  /** MIME fallback from server detection. */
+  mimeTypes?: string[];
+  /** Broad product category for import stats and viewer chrome. */
   category: FileCategory;
-  /** Default viewer to render this format. */
+  /** Primary viewer for this format. */
   defaultViewer: ViewerId;
-  /** Optional alternative viewers the user can switch to (e.g. SVG
-   *  can render as image OR as code source). */
+  /** Optional alternate viewers exposed in the file header. */
   availableViewers?: ViewerId[];
-  /** Whether the default viewer supports editing (vs. read-only preview). */
+  /** Whether the current frontend editor can write this format. */
   editable: boolean;
-  /** Ingest behavior. */
+  /** How ingest should process this file. */
   ingestStrategy: IngestStrategy;
-  /** Monaco language id for code-style viewers. Optional — only set
-   *  for `category: 'code'` and `category: 'data'` formats that go
-   *  through Monaco. */
+  /** Monaco language id for `code` and `data` formats rendered through Monaco. */
   monacoLanguage?: string;
 }

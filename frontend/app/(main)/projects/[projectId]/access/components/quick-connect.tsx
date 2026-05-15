@@ -10,7 +10,7 @@
  *   • CLI / filesystem  → copy-prompt block (terminal-CLI or local-sync
  *     prompt for an external AI agent), plus a Show-install disclosure.
  *   • agent             → ActivationCard (Activate / Open chat) — agents
- *     are PuppyOne's in-app chat, never an externally-pasted prompt.
+ *     are Puppyone's in-app chat, never an externally-pasted prompt.
  *   • mcp / sandbox / 3p → just the connect URL / endpoint with copy
  *     buttons. No fake "prompt for an AI agent" — those connectors are
  *     configured elsewhere, not driven by prompt-pasting.
@@ -140,7 +140,7 @@ function LocalSyncBody({
   ];
 
   const prompt = [
-    `Sync my local folder with PuppyOne cloud using the \`mut\` CLI.`,
+    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
     ``,
     `## Install (one-time)`,
     `\`\`\`bash`,
@@ -371,26 +371,26 @@ function ActivationCard({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          height: 28,
+          height: 30,
           padding: '0 14px',
           fontSize: 12,
           fontWeight: 600,
           fontFamily: T.fontSans,
-          color: disabled ? T.text3 : '#0a0a0a',
-          background: disabled ? 'rgba(255,255,255,0.06)' : '#ffffff',
+          color: disabled ? T.text3 : 'var(--po-text-inverse)',
+          background: disabled ? 'var(--po-border-subtle)' : 'var(--po-text)',
           border: 'none',
           borderRadius: 999,
           cursor: disabled ? 'not-allowed' : 'pointer',
           boxShadow: disabled
             ? 'none'
-            : '0 1px 2px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.06)',
+            : '0 1px 2px var(--po-shadow), 0 0 0 1px var(--po-border-subtle)',
           transition: 'background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
         }}
       >
         {actionLabel}
       </button>
       {error && (
-        <div style={{ fontSize: 11, color: '#fca5a5', lineHeight: 1.5, fontFamily: T.fontSans }}>{error}</div>
+        <div style={{ fontSize: 11, color: 'var(--po-danger)', lineHeight: 1.5, fontFamily: T.fontSans }}>{error}</div>
       )}
     </div>
   );

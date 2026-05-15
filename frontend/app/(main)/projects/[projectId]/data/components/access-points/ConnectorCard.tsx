@@ -55,6 +55,7 @@ export function ConnectorCard({
         display: 'flex',
         alignItems: 'center',
         gap: 10,
+        minHeight: 54,
         padding: '10px 12px',
         borderRadius: 8,
         border: `1px solid ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,

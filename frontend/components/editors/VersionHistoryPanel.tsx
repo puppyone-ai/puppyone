@@ -8,7 +8,9 @@ import {
   type FileVersionInfo,
   type MutCommitChange,
 } from '@/lib/contentTreeApi';
-import { InlineLoading } from '@/components/loading';
+import { PageLoading } from '@/components/loading';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 interface VersionHistoryPanelProps {
   nodeId: string;  // File path (Mut path)
@@ -18,9 +20,9 @@ interface VersionHistoryPanelProps {
 }
 
 const OP_COLORS: Record<string, string> = {
-  added: '#22c55e',
-  modified: '#3b82f6',
-  deleted: '#ef4444',
+  added: 'var(--po-success)',
+  modified: 'var(--po-accent)',
+  deleted: 'var(--po-danger)',
 };
 
 function formatTime(iso: string | null): string {
@@ -60,10 +62,10 @@ function parseOperator(who: string): { type: string; id: string } {
 function OperatorBadge({ who }: { who: string }) {
   const { type, id } = parseOperator(who);
   const colors: Record<string, { bg: string; text: string }> = {
-    user: { bg: 'rgba(59,130,246,0.15)', text: '#60a5fa' },
-    agent: { bg: 'rgba(168,85,247,0.15)', text: '#c084fc' },
-    sync: { bg: 'rgba(34,197,94,0.15)', text: '#4ade80' },
-    system: { bg: 'rgba(161,161,170,0.15)', text: '#a1a1aa' },
+    user: { bg: 'color-mix(in srgb, var(--po-accent) 15%, transparent)', text: 'var(--po-accent)' },
+    agent: { bg: 'color-mix(in srgb, var(--po-file-accent-audio) 15%, transparent)', text: 'var(--po-file-accent-audio)' },
+    sync: { bg: 'color-mix(in srgb, var(--po-success) 15%, transparent)', text: 'var(--po-success)' },
+    system: { bg: 'color-mix(in srgb, var(--po-text-muted) 15%, transparent)', text: 'var(--po-text-muted)' },
   };
   const c = colors[type] || colors.system;
   const label = type.charAt(0).toUpperCase() + type.slice(1);
@@ -118,8 +120,8 @@ function CommitRow({
       <div style={{
         position: 'absolute', left: 7, top: 16,
         width: 8, height: 8, borderRadius: '50%',
-        background: isCurrent ? '#22c55e' : '#27272a',
-        border: `2px solid ${isCurrent ? '#22c55e' : '#3f3f46'}`,
+        background: isCurrent ? 'var(--po-success)' : 'var(--po-filetree-rail)',
+        border: `2px solid ${isCurrent ? 'var(--po-success)' : 'var(--po-text-disabled)'}`,
         zIndex: 1,
       }} />
 
@@ -128,13 +130,13 @@ function CommitRow({
         style={{
           padding: '10px 12px',
           borderRadius: 6,
-          border: '1px solid rgba(255,255,255,0.06)',
-          background: expanded ? '#111113' : 'transparent',
+          border: '1px solid var(--po-border-subtle)',
+          background: expanded ? 'var(--po-hover)' : 'transparent',
           cursor: 'pointer',
           transition: 'background 0.1s',
           marginBottom: 2,
         }}
-        onMouseEnter={e => { if (!expanded) e.currentTarget.style.background = '#0d0d0f'; }}
+        onMouseEnter={e => { if (!expanded) e.currentTarget.style.background = 'var(--po-hover)'; }}
         onMouseLeave={e => { if (!expanded) e.currentTarget.style.background = 'transparent'; }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
@@ -142,9 +144,9 @@ function CommitRow({
             <span
               title={commit.commit_id}
               style={{
-                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                fontFamily: 'var(--po-font-sans)',
                 fontSize: 11, fontWeight: 600,
-                color: isCurrent ? '#22c55e' : '#e4e4e7',
+                color: isCurrent ? 'var(--po-success)' : 'var(--po-text)',
                 flexShrink: 0,
               }}
             >
@@ -153,13 +155,13 @@ function CommitRow({
             {isCurrent && (
               <span style={{
                 fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                background: 'rgba(34,197,94,0.15)', color: '#22c55e', fontWeight: 500,
+                background: 'color-mix(in srgb, var(--po-success) 15%, transparent)', color: 'var(--po-success)', fontWeight: 500,
               }}>
                 HEAD
               </span>
             )}
             <span style={{
-              fontSize: 12, color: '#d4d4d8',
+              fontSize: 12, color: 'var(--po-text-muted)',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {commit.message || '(no message)'}
@@ -168,7 +170,7 @@ function CommitRow({
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <ChangeSummary changes={commit.changes} />
-            <span style={{ fontSize: 10, color: '#52525b', whiteSpace: 'nowrap' }} title={formatFullTime(commit.created_at)}>
+            <span style={{ fontSize: 10, color: 'var(--po-text-disabled)', whiteSpace: 'nowrap' }} title={formatFullTime(commit.created_at)}>
               {formatTime(commit.created_at)}
             </span>
           </div>
@@ -178,8 +180,8 @@ function CommitRow({
           <OperatorBadge who={commit.who} />
           {commit.root_hash && (
             <span style={{
-              fontSize: 10, color: '#3f3f46', marginLeft: 'auto',
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+              fontSize: 10, color: 'var(--po-text-disabled)', marginLeft: 'auto',
+              fontFamily: 'var(--po-font-sans)',
             }}>
               {commit.root_hash.slice(0, 12)}
             </span>
@@ -189,9 +191,9 @@ function CommitRow({
         {expanded && commit.changes.length > 0 && (
           <div style={{
             marginTop: 10, paddingTop: 10,
-            borderTop: '1px solid rgba(255,255,255,0.06)',
+            borderTop: '1px solid var(--po-border-subtle)',
           }}>
-            <div style={{ fontSize: 10, color: '#71717a', marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: 'var(--po-text-subtle)', marginBottom: 6 }}>
               {commit.changes.length} file{commit.changes.length !== 1 ? 's' : ''} changed
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -204,17 +206,17 @@ function CommitRow({
                   }}>
                     <span style={{
                       width: 6, height: 6, borderRadius: 2,
-                      background: OP_COLORS[op] || '#71717a',
+                      background: OP_COLORS[op] || 'var(--po-text-subtle)',
                       flexShrink: 0,
                     }} />
                     <span style={{
-                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                      color: '#a1a1aa',
+                      fontFamily: 'var(--po-font-sans)',
+                      color: 'var(--po-text-muted)',
                     }}>
                       {change.path}
                     </span>
                     <span style={{
-                      fontSize: 9, color: OP_COLORS[op] || '#71717a',
+                      fontSize: 9, color: OP_COLORS[op] || 'var(--po-text-subtle)',
                       marginLeft: 'auto', flexShrink: 0,
                     }}>
                       {op}
@@ -229,10 +231,10 @@ function CommitRow({
                 <button
                   onClick={() => onRollback(commit.commit_id)}
                   style={{
-                    fontSize: 10, padding: '3px 10px', borderRadius: 4,
-                    border: '1px solid rgba(234,179,8,0.3)',
-                    background: 'rgba(234,179,8,0.1)',
-                    color: '#eab308', cursor: 'pointer',
+                    fontSize: 10, height: 30, padding: '0 10px', borderRadius: 4,
+                    border: '1px solid color-mix(in srgb, var(--po-warning) 30%, transparent)',
+                    background: 'color-mix(in srgb, var(--po-warning) 10%, transparent)',
+                    color: 'var(--po-warning)', cursor: 'pointer',
                   }}
                 >
                   Rollback to {shortId}
@@ -285,8 +287,8 @@ export function VersionHistoryPanel({
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      background: '#0c0c0d',
-      color: '#e4e4e7',
+      background: 'var(--po-canvas)',
+      color: 'var(--po-text)',
     }}>
       {/* Header */}
       <div style={{
@@ -294,11 +296,11 @@ export function VersionHistoryPanel({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '10px 16px',
-        borderBottom: '1px solid #27272a',
+        borderBottom: '1px solid var(--po-filetree-rail)',
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
@@ -306,32 +308,25 @@ export function VersionHistoryPanel({
             {fileName}
           </span>
           {history && (
-            <span style={{ fontSize: 11, color: '#52525b', flexShrink: 0 }}>
+            <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', flexShrink: 0 }}>
               {history.total} commit{history.total !== 1 ? 's' : ''}
             </span>
           )}
         </div>
-        <button
-          onClick={onClose}
-          style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: 2, flexShrink: 0 }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
+        <ActivityIconButton kind="close" title="Close panel" onClick={onClose} />
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px' }}>
         {historyError && (
-          <div style={{ padding: 24, textAlign: 'center', color: '#ef4444', fontSize: 13 }}>
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--po-danger)', fontSize: 13 }}>
             Failed to load version history
           </div>
         )}
 
         {!history && !historyError && (
-          <div style={{ padding: 24, display: 'flex', justifyContent: 'center' }}>
-            <InlineLoading />
+          <div style={{ height: 120, display: 'flex' }}>
+            <PageLoading variant="fill" />
           </div>
         )}
 
@@ -339,7 +334,7 @@ export function VersionHistoryPanel({
           <div style={{ position: 'relative' }}>
             <div style={{
               position: 'absolute', left: 10, top: 20, bottom: 20,
-              width: 2, background: '#1f1f23',
+              width: 2, background: 'var(--po-overlay)',
             }} />
             {commits.map((commit) => (
               <CommitRow
@@ -355,7 +350,7 @@ export function VersionHistoryPanel({
         {commits.length === 0 && history && (
           <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            height: 200, gap: 8, color: '#3f3f46',
+            height: 200, gap: 8, color: 'var(--po-text-disabled)',
           }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
               <circle cx="12" cy="12" r="10" />
@@ -370,46 +365,36 @@ export function VersionHistoryPanel({
       {rollbackConfirm !== null && (
         <div style={{
           position: 'absolute', inset: 0,
-          background: 'rgba(0,0,0,0.6)',
+          background: 'var(--po-backdrop)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 100, backdropFilter: 'blur(4px)',
         }}>
           <div style={{
-            background: '#18181b', border: '1px solid #27272a',
+            background: 'var(--po-panel)', border: '1px solid var(--po-filetree-rail)',
             borderRadius: 10, padding: 24, maxWidth: 400, width: '90%',
           }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 500, color: '#e4e4e7' }}>
+            <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 500, color: 'var(--po-text)' }}>
               Confirm Rollback
             </h3>
-            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#a1a1aa', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--po-text-muted)', lineHeight: 1.5 }}>
               This will create a new commit with the content from{' '}
               <strong title={rollbackConfirm}>{shortCommit(rollbackConfirm)}</strong>.
               The current head will be preserved in history.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
+              <ActionButton
                 onClick={() => setRollbackConfirm(null)}
                 disabled={isRollingBack}
-                style={{
-                  padding: '6px 16px', borderRadius: 6,
-                  border: '1px solid #27272a', background: 'transparent',
-                  color: '#a1a1aa', fontSize: 13, cursor: 'pointer',
-                }}
               >
                 Cancel
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 onClick={() => handleRollback(rollbackConfirm)}
-                disabled={isRollingBack}
-                style={{
-                  padding: '6px 16px', borderRadius: 6, border: 'none',
-                  background: '#eab308', color: '#000', fontSize: 13,
-                  fontWeight: 500, cursor: isRollingBack ? 'not-allowed' : 'pointer',
-                  opacity: isRollingBack ? 0.6 : 1,
-                }}
+                variant='warning'
+                loading={isRollingBack}
               >
                 {isRollingBack ? 'Rolling back...' : `Rollback to ${shortCommit(rollbackConfirm)}`}
-              </button>
+              </ActionButton>
             </div>
           </div>
         </div>

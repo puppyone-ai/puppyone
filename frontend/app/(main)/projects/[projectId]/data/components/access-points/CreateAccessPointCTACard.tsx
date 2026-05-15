@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import {
-  COLOR_BG_DASHED,
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
   COLOR_FG,
@@ -59,7 +58,9 @@ export function CreateAccessPointCTACard({
           padding: '10px 12px',
           borderRadius: 8,
           border: `1px dashed ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-          background: hovered ? 'rgba(255,255,255,0.035)' : COLOR_BG_DASHED,
+          background: hovered
+            ? 'color-mix(in srgb, var(--po-text) 5%, var(--po-panel) 95%)'
+            : 'transparent',
           color: COLOR_FG,
           cursor: 'pointer',
           textAlign: 'left',
@@ -102,10 +103,10 @@ function PlusIcon() {
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 28,
-        height: 28,
+        width: 30,
+        height: 30,
         borderRadius: 6,
-        background: 'rgba(255,255,255,0.04)',
+        background: 'color-mix(in srgb, var(--po-text) 6%, var(--po-panel) 94%)',
         color: COLOR_FG_MUTED,
         flexShrink: 0,
       }}
@@ -133,7 +134,7 @@ function ChevronRightIcon({ hovered }: { hovered: boolean }) {
         justifyContent: 'center',
         width: 20,
         height: 20,
-        color: hovered ? '#d4d4d8' : '#52525b',
+        color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
         transition: 'color 0.15s ease, transform 0.15s ease',
         transform: hovered ? 'translateX(2px)' : 'translateX(0)',
         flexShrink: 0,

@@ -58,7 +58,7 @@ export function KeyValueRow({
           minWidth: 0,
           fontFamily: FONT_MONO,
           fontSize: 11.5,
-          color: '#d4d4d8',
+          color: 'var(--po-text-muted)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',

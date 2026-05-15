@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { createFolder } from '../lib/contentTreeApi';
 import { Dots } from './loading';
+import { ActionButton } from './ui/ActionButton';
+import { DangerNotice } from './ui/DangerNotice';
+import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from './ui/Dialog';
+import { Field, TextField } from './ui/Field';
 
 type FolderManageDialogProps = {
   projectId: string; // 所属项目 ID
@@ -23,7 +27,7 @@ export function FolderManageDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
 
@@ -42,57 +46,12 @@ export function FolderManageDialog({
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.7)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          background: '#202020',
-          border: '1px solid #333',
-          borderRadius: 12,
-          width: 420,
-          maxWidth: '90vw',
-          boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          animation: 'dialog-fade-in 0.2s ease-out',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <style jsx>{`
-          @keyframes dialog-fade-in {
-            from {
-              opacity: 0;
-              transform: scale(0.98);
-            }
-            to {
-              opacity: 1;
-              transform: scale(1);
-            }
-          }
-        `}</style>
-
-        {/* Header */}
-        <div
-          style={{
-            padding: '16px 24px',
-            borderBottom: '1px solid #333',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+    <DialogRoot onClose={onClose}>
+      <DialogSurface width={420}>
+        <DialogHeader
+          title="New Folder"
+          onClose={onClose}
+          leading={
             <svg
               width='18'
               height='18'
@@ -102,51 +61,23 @@ export function FolderManageDialog({
             >
               <path
                 d='M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z'
-                fill='#a1a1aa'
+                fill='var(--po-text-muted)'
                 fillOpacity='0.2'
-                stroke='#a1a1aa'
+                stroke='var(--po-text-muted)'
                 strokeWidth='1.5'
                 strokeLinecap='round'
                 strokeLinejoin='round'
               />
             </svg>
-            <span style={{ fontSize: 16, fontWeight: 500, color: '#e4e4e7' }}>
-              New Folder
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#666',
-              cursor: 'pointer',
-              padding: 4,
-            }}
-          >
-            <svg
-              width='16'
-              height='16'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='currentColor'
-              strokeWidth='2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            >
-              <line x1='18' y1='6' x2='6' y2='18' />
-              <line x1='6' y1='6' x2='18' y2='18' />
-            </svg>
-          </button>
-        </div>
+          }
+        />
 
         <form onSubmit={handleSubmit}>
-          <div style={{ padding: '24px 24px 16px' }}>
-            {/* Location indicator */}
+          <DialogBody>
             <div
               style={{
                 fontSize: 12,
-                color: '#71717a',
+                color: 'var(--po-text-subtle)',
                 marginBottom: 16,
                 display: 'flex',
                 alignItems: 'center',
@@ -156,7 +87,7 @@ export function FolderManageDialog({
               <span>Location:</span>
               <code
                 style={{
-                  background: 'rgba(255,255,255,0.05)',
+                  background: 'var(--po-hover)',
                   padding: '2px 6px',
                   borderRadius: 4,
                   fontSize: 11,
@@ -166,106 +97,42 @@ export function FolderManageDialog({
               </code>
             </div>
 
-            {/* Name input */}
-            <div
-              style={{
-                fontSize: 12,
-                fontWeight: 500,
-                color: '#71717a',
-                marginBottom: 8,
-              }}
-            >
-              Folder Name
-            </div>
-            <input
-              type='text'
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder='Enter folder name'
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                background: '#1a1a1a',
-                border: '1px solid #333',
-                borderRadius: 6,
-                fontSize: 16,
-                color: '#EDEDED',
-                outline: 'none',
-                boxSizing: 'border-box',
-              }}
-              autoFocus
-            />
+            <Field label="Folder Name">
+              <TextField
+                type='text'
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder='Enter folder name'
+                autoFocus
+              />
+            </Field>
 
-            {/* Error message */}
             {error && (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: '8px 12px',
-                  background: 'rgba(239,68,68,0.1)',
-                  border: '1px solid rgba(239,68,68,0.2)',
-                  borderRadius: 6,
-                  color: '#ef4444',
-                  fontSize: 16,
-                }}
-              >
+              <DangerNotice compact style={{ marginTop: 12 }}>
                 {error}
-              </div>
+              </DangerNotice>
             )}
-          </div>
+          </DialogBody>
 
-          {/* Footer */}
-          <div
-            style={{
-              padding: '16px 20px',
-              background: '#1a1a1a',
-              borderTop: '1px solid #333',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 12,
-            }}
-          >
-            <button
+          <DialogFooter>
+            <ActionButton
               type='button'
               onClick={onClose}
-              style={{
-                height: 32,
-                padding: '0 14px',
-                borderRadius: 6,
-                border: '1px solid #333',
-                background: 'transparent',
-                color: '#EDEDED',
-                fontSize: 16,
-                fontWeight: 500,
-                cursor: 'pointer',
-              }}
             >
               Cancel
-            </button>
-            <button
+            </ActionButton>
+            <ActionButton
               type='submit'
               disabled={loading || !name.trim()}
-              style={{
-                height: 32,
-                padding: '0 14px',
-                borderRadius: 6,
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: loading || !name.trim() ? '#444' : '#EDEDED',
-                color: loading || !name.trim() ? '#888' : '#1a1a1a',
-                fontSize: 16,
-                fontWeight: 500,
-                cursor: loading || !name.trim() ? 'not-allowed' : 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
+              variant='primary'
+              loading={loading}
             >
               {loading && <Dots size='xs' />}
               {loading ? 'Creating…' : 'Create Folder'}
-            </button>
-          </div>
+            </ActionButton>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogSurface>
+    </DialogRoot>
   );
 }

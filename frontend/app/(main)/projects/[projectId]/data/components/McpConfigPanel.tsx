@@ -3,6 +3,7 @@
 import React from 'react';
 import { PanelShell } from './PanelShell';
 import { PageLoading } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 interface McpEndpointData {
   id: string;
@@ -19,7 +20,7 @@ interface McpConfigPanelProps {
 }
 
 const McpIcon = (
-  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
   </svg>
 );
@@ -30,7 +31,7 @@ const FolderIcon = (
 
 function ConnectionArrow() {
   return (
-    <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke="#4ade80" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke="var(--po-success)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 5h44M6 2L2 5l4 3" />
       <path d="M42 8l4 3-4 3M2 11h44" />
     </svg>
@@ -39,7 +40,7 @@ function ConnectionArrow() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
       {children}
     </div>
   );
@@ -47,7 +48,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+    <div style={{ fontSize: 12, color: 'var(--po-text-muted)', background: 'var(--po-control)', border: '1px solid var(--po-border)', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'var(--po-font-sans)' }}>
       {children}
     </div>
   );
@@ -83,14 +84,14 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 88 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 8,
-                background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
                 </svg>
               </div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>
+              <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text-muted)', textAlign: 'center' }}>
                 MCP Server
               </div>
             </div>
@@ -102,7 +103,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 88 }}>
               {FolderIcon}
               <div style={{
-                fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center',
+                fontSize: 11, fontWeight: 500, color: 'var(--po-text-muted)', textAlign: 'center',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 88,
               }}>
                 {targetLabel}
@@ -111,8 +112,8 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: endpoint.status === 'active' ? '#22c55e' : '#f59e0b' }} />
-            <span style={{ fontSize: 11, color: '#a3a3a3' }}>{endpoint.status}</span>
+            <StatusDot tone={endpoint.status === 'active' ? 'success' : 'warning'} />
+            <span style={{ fontSize: 11, color: 'var(--po-text-muted)' }}>{endpoint.status}</span>
           </div>
         </div>
 
@@ -126,7 +127,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
         </div>
         <div>
           <SectionLabel>Cursor Config</SectionLabel>
-          <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+          <pre style={{ fontSize: 11, color: 'var(--po-text-muted)', background: 'var(--po-control)', border: '1px solid var(--po-border)', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'var(--po-font-sans)' }}>
 {JSON.stringify({
   mcpServers: {
     [endpoint.name.toLowerCase().replace(/\s+/g, '-')]: {
@@ -141,7 +142,7 @@ export function McpConfigPanel({ endpoint, onClose, onBack }: McpConfigPanelProp
           <div>
             <SectionLabel>Accesses ({endpoint.accesses.length})</SectionLabel>
             {endpoint.accesses.map((a, i) => (
-              <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
+              <div key={i} style={{ fontSize: 12, color: 'var(--po-text-muted)', padding: '4px 0' }}>
                 {a.path} {a.readonly ? '(read-only)' : '(read-write)'}
               </div>
             ))}

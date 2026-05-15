@@ -21,12 +21,16 @@ Per the access-point-redesign-2026-05-02, an access_key now maps to a
 
 This module provides:
   1. resolve_access_point() — lookup access_key → (project_id, auth_context)
-  2. Access Point router — thin HTTP shell that delegates to mut.server.handlers
+  2. Access Point router — HTTP shell for legacy MUT request shapes. Push
+     requests publish through the Git-native transaction engine.
 """
 
 from __future__ import annotations
 
 import asyncio
+import copy
+import threading
+import time
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -36,14 +40,45 @@ from mut.server.handlers import (
     handle_clone,
     handle_negotiate,
     handle_pull,
-    handle_push,
     handle_scopes,
 )
 
+from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
+from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
+from src.mut_engine.application.protocol_mode import ensure_protocol_enabled
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.auth import enforce_channel_pause
-from src.mut_engine.services.hooks import run_post_push_hook
 from src.utils.logger import log_error, log_info
+
+_ACCESS_POINT_CACHE_TTL_SECONDS = 5.0
+_access_point_cache: dict[str, tuple[float, str, dict]] = {}
+_access_point_cache_lock = threading.Lock()
+
+
+def _clone_auth_context(auth: dict) -> dict:
+    return copy.deepcopy(auth)
+
+
+def _get_cached_access_point(access_key: str) -> tuple[str, dict] | None:
+    now = time.monotonic()
+    with _access_point_cache_lock:
+        cached = _access_point_cache.get(access_key)
+        if cached is None:
+            return None
+        expires_at, project_id, auth = cached
+        if expires_at <= now:
+            _access_point_cache.pop(access_key, None)
+            return None
+        return project_id, _clone_auth_context(auth)
+
+
+def _set_cached_access_point(access_key: str, project_id: str, auth: dict) -> None:
+    with _access_point_cache_lock:
+        _access_point_cache[access_key] = (
+            time.monotonic() + _ACCESS_POINT_CACHE_TTL_SECONDS,
+            project_id,
+            _clone_auth_context(auth),
+        )
 
 
 def _resolve_via_repo_scopes(client, access_key: str) -> tuple[str, dict] | None:
@@ -126,6 +161,10 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
     Raises:
         HTTPException 401 if key is invalid / revoked / unknown to both tables.
     """
+    cached = _get_cached_access_point(access_key)
+    if cached is not None:
+        return cached
+
     from src.infra.supabase.client import SupabaseClient
     client = SupabaseClient().client
 
@@ -138,10 +177,13 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
         result = None
 
     if result is not None:
+        _set_cached_access_point(access_key, result[0], result[1])
         return result
 
     try:
-        return _resolve_via_access_points(client, access_key)
+        result = _resolve_via_access_points(client, access_key)
+        _set_cached_access_point(access_key, result[0], result[1])
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -194,6 +236,7 @@ async def _resolve_and_validate(access_key: str, request: Request) -> tuple[str,
     )
 
     repo_manager = _get_repo_manager()
+    await ensure_protocol_enabled(project_id, "mut")
     return project_id, auth, repo_manager
 
 
@@ -237,25 +280,20 @@ async def ap_push(access_key: str, request: Request):
         from src.mut_engine.server.validation import validate_push_objects
         validate_push_objects(body)
 
-        result = await asyncio.to_thread(
-            _invoke, handle_push, repo_manager, project_id, auth, body,
-        )
+        result = await submit_mut_push(repo_manager, project_id, auth, body)
     except HTTPException:
         raise
     except ClientTooOldError as e:
         _raise_too_old(e)
     except PermissionDenied as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
         raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         log_error(f"[AP] push failed: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
-
-    # Post-push hook in background — don't block the push response
-    asyncio.get_event_loop().run_in_executor(
-        None, run_post_push_hook, project_id, repo_manager, result,
-    )
 
     log_info(
         f"[AP] push ap={access_key[:8]}... project={project_id} "
@@ -325,14 +363,10 @@ async def ap_negotiate(access_key: str, request: Request):
 @ap_router.post("/{access_key}/rollback")
 async def ap_rollback(access_key: str, request: Request):
     """Rollback via Access Point URL."""
-    from mut.server.handlers import handle_rollback
-
     try:
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
         body = await request.json()
-        result = await asyncio.to_thread(
-            _invoke, handle_rollback, repo_manager, project_id, auth, body,
-        )
+        result = await submit_mut_rollback(repo_manager, project_id, auth, body)
     except HTTPException:
         raise
     except ClientTooOldError as e:
@@ -344,8 +378,6 @@ async def ap_rollback(access_key: str, request: Request):
     except Exception as e:
         log_error(f"[AP] rollback failed: {e}")
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
-
-    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(f"[AP] rollback ap={access_key[:8]}... target={result.get('target_commit_id')}")
     return JSONResponse(result)

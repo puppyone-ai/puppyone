@@ -9,12 +9,12 @@ import {
   type ProjectInfo,
 } from '../lib/projectsApi';
 import dynamic from 'next/dynamic';
-import { EditorSkeleton } from './Skeleton';
+import { EditorLoadingSurface } from './loading';
 const TableDiscreteEditor = dynamic(() => import('./editors/table/TableDiscreteEditor'), {
-  ssr: false, loading: () => <EditorSkeleton />,
+  ssr: false, loading: () => <EditorLoadingSurface />,
 });
 const MonacoJsonEditor = dynamic(() => import('./editors/code/MonacoJsonEditor'), {
-  ssr: false, loading: () => <EditorSkeleton />,
+  ssr: false, loading: () => <EditorLoadingSurface />,
 });
 import type { EditorType } from './ProjectsHeader';
 import type { ProjectTableJSON } from '../lib/projectData';
@@ -108,8 +108,8 @@ export function ProjectWorkspaceView({
           {isSaving ? (
             <span
               style={{
-                background: 'rgba(0,0,0,0.6)',
-                color: '#ddd',
+                background: 'var(--po-overlay)',
+                color: 'var(--po-text)',
                 padding: '4px 8px',
                 borderRadius: 4,
                 fontSize: 12,
@@ -121,8 +121,8 @@ export function ProjectWorkspaceView({
         </div>
 
         {isLoading && !tableData ? (
-          <div style={{ position: 'absolute', inset: 0, padding: 20 }}>
-            <EditorSkeleton />
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <EditorLoadingSurface />
           </div>
         ) : error ? (
           <div
@@ -133,17 +133,16 @@ export function ProjectWorkspaceView({
               alignItems: 'center',
               justifyContent: 'center',
               padding: 24,
-            }}
-          >
+            }}>
             <div
               style={{
                 width: 'min(560px, 100%)',
-                background: '#111111',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-overlay)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 12,
                 padding: '22px 20px',
                 boxShadow:
-                  '0 24px 48px rgba(0,0,0,0.35), 0 12px 24px rgba(0,0,0,0.35)',
+                  '0 24px 48px var(--po-shadow), 0 12px 24px var(--po-shadow)',
               }}
             >
               <div
@@ -154,8 +153,8 @@ export function ProjectWorkspaceView({
                     width: 40,
                     height: 40,
                     borderRadius: 999,
-                    background: '#1a1a1a',
-                    border: '1px solid #333',
+                    background: 'var(--po-panel-raised)',
+                    border: '1px solid var(--po-border-strong)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -165,7 +164,7 @@ export function ProjectWorkspaceView({
                   <svg width='18' height='18' viewBox='0 0 24 24' fill='none'>
                     <path
                       d='M12 9v4m0 4h.01M10.29 3.86l-8.2 14.2A2 2 0 0 0 3.82 21h16.36a2 2 0 0 0 1.73-2.94l-8.2-14.2a2 2 0 0 0-3.42 0Z'
-                      stroke='#9ca3af'
+                      stroke='var(--po-text-subtle)'
                       strokeWidth='1.6'
                       strokeLinecap='round'
                       strokeLinejoin='round'
@@ -178,7 +177,7 @@ export function ProjectWorkspaceView({
                     style={{
                       fontSize: 16,
                       fontWeight: 600,
-                      color: '#e5e7eb',
+                      color: 'var(--po-text)',
                       marginBottom: 6,
                       lineHeight: 1.2,
                     }}
@@ -188,7 +187,7 @@ export function ProjectWorkspaceView({
                   <div
                     style={{
                       fontSize: 14,
-                      color: '#9ca3af',
+                      color: 'var(--po-text-muted)',
                       lineHeight: 1.5,
                       marginBottom: 10,
                     }}
@@ -199,13 +198,13 @@ export function ProjectWorkspaceView({
                   <div
                     style={{
                       fontSize: 12,
-                      color: '#6b7280',
-                      background: '#0b0b0b',
-                      border: '1px solid #202020',
+                      color: 'var(--po-text-subtle)',
+                      background: 'var(--po-inset)',
+                      border: '1px solid var(--po-border)',
                       borderRadius: 8,
                       padding: '10px 12px',
                       fontFamily:
-                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                        'var(--po-font-sans)',
                       whiteSpace: 'pre-wrap',
                       wordBreak: 'break-word',
                     }}
@@ -248,7 +247,7 @@ export function ProjectWorkspaceView({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#666',
+              color: 'var(--po-text-subtle)',
             }}
           >
             Select a table to view data

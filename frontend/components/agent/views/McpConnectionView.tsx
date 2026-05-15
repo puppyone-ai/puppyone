@@ -40,11 +40,11 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Get base URL from environment or default
-  const baseUrl = typeof window !== 'undefined' 
+  const baseUrl = typeof window !== 'undefined'
     ? window.location.origin.replace('3000', '8000')  // Dev mode: frontend 3000 -> backend 8000
     : 'https://api.puppyone.com';
-  
-  const mcpUrl = agent.mcp_api_key 
+
+  const mcpUrl = agent.mcp_api_key
     ? `${baseUrl}/api/v1/mcp/server/${agent.mcp_api_key}`
     : null;
 
@@ -77,56 +77,60 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{ 
-        padding: '12px 16px', 
-        borderBottom: '1px solid #222', 
-        background: '#0d0d0d',
-        display: 'flex', 
-        justifyContent: 'space-between', 
+      <div style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid var(--po-hover)',
+        background: 'var(--po-panel)',
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        flexShrink: 0 
+        flexShrink: 0
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--po-text-subtle)' }}>
             {agent.name}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <button 
-            onClick={onEdit} 
+          <button
+            onClick={onEdit}
             title="Edit settings"
             style={{
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
-              color: '#666',
+              color: 'var(--po-text-subtle)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 4,
+              width: 30,
+              height: 30,
+              padding: 0,
               borderRadius: 4,
             }}
-            onMouseEnter={e => e.currentTarget.style.color = '#aaa'}
-            onMouseLeave={e => e.currentTarget.style.color = '#666'}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text-muted)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-subtle)'}
           >
             <SettingsIcon />
           </button>
-          <button 
-            onClick={onDelete} 
+          <button
+            onClick={onDelete}
             title="Delete"
             style={{
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
-              color: '#666',
+              color: 'var(--po-text-subtle)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 4,
+              width: 30,
+              height: 30,
+              padding: 0,
               borderRadius: 4,
             }}
-            onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
-            onMouseLeave={e => e.currentTarget.style.color = '#666'}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--po-danger)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-subtle)'}
           >
             <TrashIcon />
           </button>
@@ -136,17 +140,17 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
         {!mcpUrl ? (
-          <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
             height: '100%',
-            color: '#666' 
+            color: 'var(--po-text-subtle)'
           }}>
             <div style={{ fontSize: 24, marginBottom: 12 }}>⚠️</div>
             <div>MCP key not available</div>
-            <div style={{ fontSize: 12, marginTop: 4, color: '#525252' }}>
+            <div style={{ fontSize: 12, marginTop: 4, color: 'var(--po-text-disabled)' }}>
               Save the agent to generate MCP key
             </div>
           </div>
@@ -154,11 +158,11 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             {/* MCP URL */}
             <div>
-              <label style={{ 
-                fontSize: 11, 
-                fontWeight: 600, 
-                color: '#525252', 
-                textTransform: 'uppercase', 
+              <label style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: 'var(--po-text-disabled)',
+                textTransform: 'uppercase',
                 letterSpacing: '0.5px',
                 marginBottom: 8,
                 display: 'block'
@@ -169,16 +173,16 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                background: '#161616',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-panel)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 6,
                 padding: '8px 12px',
               }}>
-                <code style={{ 
-                  flex: 1, 
-                  fontSize: 11, 
-                  color: '#a3a3a3',
-                  fontFamily: 'monospace',
+                <code style={{
+                  flex: 1,
+                  fontSize: 11,
+                  color: 'var(--po-text-muted)',
+                  fontFamily: 'var(--po-font-sans)',
                   wordBreak: 'break-all'
                 }}>
                   {mcpUrl}
@@ -189,8 +193,10 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    color: copiedField === 'url' ? '#4ade80' : '#666',
-                    padding: 4,
+                    color: copiedField === 'url' ? 'var(--po-success)' : 'var(--po-text-subtle)',
+                    width: 30,
+                    height: 30,
+                    padding: 0,
                     borderRadius: 4,
                     display: 'flex',
                     alignItems: 'center',
@@ -204,39 +210,39 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
 
             {/* Claude Desktop Config */}
             <div>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8, 
-                marginBottom: 8 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8
               }}>
-                <img 
-                  src="/icons/claude.svg" 
-                  alt="Claude" 
+                <img
+                  src="/icons/claude.svg"
+                  alt="Claude"
                   style={{ width: 16, height: 16 }}
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
-                <label style={{ 
-                  fontSize: 11, 
-                  fontWeight: 600, 
-                  color: '#525252', 
-                  textTransform: 'uppercase', 
+                <label style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--po-text-disabled)',
+                  textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}>
                   Claude Desktop Config
                 </label>
               </div>
               <div style={{
-                background: '#0a0a0a',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-inset)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 6,
                 padding: 12,
                 position: 'relative',
               }}>
-                <pre style={{ 
-                  fontSize: 11, 
-                  color: '#a3a3a3',
-                  fontFamily: 'monospace',
+                <pre style={{
+                  fontSize: 11,
+                  color: 'var(--po-text-muted)',
+                  fontFamily: 'var(--po-font-sans)',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-all',
                   margin: 0,
@@ -252,8 +258,10 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    color: copiedField === 'claude' ? '#4ade80' : '#666',
-                    padding: 4,
+                    color: copiedField === 'claude' ? 'var(--po-success)' : 'var(--po-text-subtle)',
+                    width: 30,
+                    height: 30,
+                    padding: 0,
                     borderRadius: 4,
                     display: 'flex',
                     alignItems: 'center',
@@ -262,46 +270,46 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                   {copiedField === 'claude' ? <CheckIcon /> : <CopyIcon />}
                 </button>
               </div>
-              <div style={{ fontSize: 10, color: '#525252', marginTop: 6 }}>
+              <div style={{ fontSize: 10, color: 'var(--po-text-disabled)', marginTop: 6 }}>
                 Add to: ~/Library/Application Support/Claude/claude_desktop_config.json
               </div>
             </div>
 
             {/* Cursor Config */}
             <div>
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8, 
-                marginBottom: 8 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8
               }}>
-                <img 
-                  src="/icons/cursor.svg" 
-                  alt="Cursor" 
+                <img
+                  src="/icons/cursor.svg"
+                  alt="Cursor"
                   style={{ width: 16, height: 16 }}
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
-                <label style={{ 
-                  fontSize: 11, 
-                  fontWeight: 600, 
-                  color: '#525252', 
-                  textTransform: 'uppercase', 
+                <label style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--po-text-disabled)',
+                  textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                 }}>
                   Cursor Config
                 </label>
               </div>
               <div style={{
-                background: '#0a0a0a',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-inset)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 6,
                 padding: 12,
                 position: 'relative',
               }}>
-                <pre style={{ 
-                  fontSize: 11, 
-                  color: '#a3a3a3',
-                  fontFamily: 'monospace',
+                <pre style={{
+                  fontSize: 11,
+                  color: 'var(--po-text-muted)',
+                  fontFamily: 'var(--po-font-sans)',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-all',
                   margin: 0,
@@ -317,8 +325,10 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    color: copiedField === 'cursor' ? '#4ade80' : '#666',
-                    padding: 4,
+                    color: copiedField === 'cursor' ? 'var(--po-success)' : 'var(--po-text-subtle)',
+                    width: 30,
+                    height: 30,
+                    padding: 0,
                     borderRadius: 4,
                     display: 'flex',
                     alignItems: 'center',
@@ -327,7 +337,7 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                   {copiedField === 'cursor' ? <CheckIcon /> : <CopyIcon />}
                 </button>
               </div>
-              <div style={{ fontSize: 10, color: '#525252', marginTop: 6 }}>
+              <div style={{ fontSize: 10, color: 'var(--po-text-disabled)', marginTop: 6 }}>
                 Add to: .cursor/mcp.json or Cursor Settings → MCP
               </div>
             </div>
@@ -335,11 +345,11 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
             {/* Webhook / API Info */}
             {agent.type === 'webhook' && (
               <div>
-                <label style={{ 
-                  fontSize: 11, 
-                  fontWeight: 600, 
-                  color: '#525252', 
-                  textTransform: 'uppercase', 
+                <label style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--po-text-disabled)',
+                  textTransform: 'uppercase',
                   letterSpacing: '0.5px',
                   marginBottom: 8,
                   display: 'block'
@@ -347,17 +357,17 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
                   N8N / Zapier Integration
                 </label>
                 <div style={{
-                  background: '#161616',
-                  border: '1px solid #2a2a2a',
+                  background: 'var(--po-panel)',
+                  border: '1px solid var(--po-border)',
                   borderRadius: 6,
                   padding: 12,
-                  color: '#666',
+                  color: 'var(--po-text-subtle)',
                   fontSize: 12,
                 }}>
                   <div style={{ marginBottom: 8 }}>
                     Use the MCP Server URL above with HTTP Request nodes.
                   </div>
-                  <div style={{ fontSize: 11, color: '#525252' }}>
+                  <div style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>
                     • Method: POST<br />
                     • Content-Type: application/json<br />
                     • Tools are exposed as JSON-RPC endpoints
@@ -371,7 +381,6 @@ export function McpConnectionView({ agent, onEdit, onDelete }: McpConnectionView
     </div>
   );
 }
-
 
 
 

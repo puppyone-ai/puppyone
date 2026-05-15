@@ -6,8 +6,8 @@
  * the tools/server tab strip (in tools-and-server/layout) both stay
  * mounted; only the content area shows this loader.
  */
-import { PageLoading } from '@/components/loading';
+import { HeaderedPageLoadingShell } from '@/components/loading';
 
 export default function ToolsAndServerLoading() {
-  return <PageLoading variant="fill" />;
+  return <HeaderedPageLoadingShell />;
 }

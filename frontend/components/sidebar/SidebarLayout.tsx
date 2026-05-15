@@ -7,23 +7,27 @@ import UserMenuPanel from '../UserMenuPanel';
 import { type NodeInfo } from '../../lib/contentTreeApi';
 import { ProjectSwitcher, type ProjectOption } from './ProjectSwitcher';
 import { getEnvironmentLabel } from '../../lib/env';
+import { SkeletonBlock } from '../loading';
 
 export type NavItem = {
   id: string;
   label: string;
   icon: React.ReactNode;
   badge?: number;
+  badgeLoading?: boolean;
   groupEnd?: boolean;
 };
 
 export type SidebarLayoutProps = {
   // Context Info
   title: string; // 'puppyone' or Project Name
+  titleLoading?: boolean;
   context: 'global' | 'project';
 
   // Project Switcher
   currentProjectId?: string | null;
   projects?: ProjectOption[];
+  projectsLoading?: boolean;
   onSelectProject?: (projectId: string) => void;
   onGoHome?: () => void;
 
@@ -38,6 +42,7 @@ export type SidebarLayoutProps = {
   // User Info
   userInitial: string;
   userAvatarUrl?: string;
+  userIdentityLoading?: boolean;
   environmentLabel?: string;
   /**
    * Reserved hook for re-opening the getting-started guide. The
@@ -50,10 +55,9 @@ export type SidebarLayoutProps = {
   onOpenGuide?: () => void;
 
   // Optional project stats line — when in a project context the footer
-  // can show `[• shortId · N commits]` (showcase parity) instead of the
-  // generic env chip. Falls back to env when undefined.
+  // can show commit freshness instead of the generic env chip. Falls
+  // back to env when undefined.
   projectStats?: {
-    shortId: string;
     commitCount?: number;
   };
 
@@ -66,7 +70,10 @@ export type SidebarLayoutProps = {
 
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 400;
-const DEFAULT_SIDEBAR_WIDTH = 240;
+const DEFAULT_SIDEBAR_WIDTH = MIN_SIDEBAR_WIDTH;
+const SIDEBAR_IDENTITY_CHIP_SIZE = 18;
+const SIDEBAR_NAV_ICON_SIZE = 15;
+const COLLAPSED_RAIL_INSET = 7.5;
 
 // Brand blue — single source of truth for the workspace identity
 // chip (both the expanded ProjectSwitcher chip and the collapsed
@@ -77,9 +84,11 @@ const BRAND_BLUE = '#4599DF';
 
 export function SidebarLayout({
   title,
+  titleLoading = false,
   context,
   currentProjectId,
   projects = [],
+  projectsLoading = false,
   onSelectProject,
   onGoHome,
   activeView,
@@ -90,6 +99,7 @@ export function SidebarLayout({
   onBack,
   userInitial,
   userAvatarUrl,
+  userIdentityLoading = false,
   environmentLabel,
   isCollapsed = false,
   onCollapsedChange,
@@ -156,33 +166,33 @@ export function SidebarLayout({
   }, [isResizing, onSidebarWidthChange]);
 
   // Sidebar nav row — 32px tall, 13px sans, 10px x-padding, 10px gap.
-  // Active rows get an elevated bg + an accent bar drawn from the row
-  // (rendered separately as an absolutely-positioned span so it sits
-  // flush against the panel's left edge).
+  // Active rows use the same quiet neutral selected surface as the
+  // file tree. Keep `bg-transparent` out of the base class: Tailwind's
+  // generated order can otherwise let it override the selected bg.
   const navButtonClass = (isActive: boolean) =>
     clsx(
-      'group relative flex h-8 w-full items-center gap-2.5 rounded-[6px] bg-transparent px-2.5 text-left text-[13px] transition-colors duration-150',
+      'group relative flex h-8 w-full items-center gap-2.5 rounded-[6px] px-2.5 text-left text-[13px] transition-colors duration-150',
       isActive
-        ? 'bg-white/[0.06] font-medium'
-        : 'hover:bg-white/[0.03] font-normal'
+        ? 'bg-[var(--po-selected)] font-medium'
+        : 'bg-transparent font-medium hover:bg-[var(--po-hover)]'
     );
 
   const navIconClass = (isActive: boolean) =>
     clsx(
       'flex h-[15px] w-[15px] items-center justify-center transition-colors duration-150',
-      isActive ? 'text-[#fafafa]' : 'text-[#a1a1aa] group-hover:text-[#fafafa]'
+      isActive ? 'text-[var(--po-text)]' : 'text-[var(--po-text-muted)] group-hover:text-[var(--po-text)]'
     );
 
   const navLabelClass = (isActive: boolean) =>
     clsx(
       'truncate transition-colors duration-150',
-      isActive ? 'text-[#fafafa]' : 'text-[#a1a1aa] group-hover:text-[#fafafa]'
+      isActive ? 'text-[var(--po-text)]' : 'text-[var(--po-text-muted)] group-hover:text-[var(--po-text)]'
     );
 
   const collapsedBtnClass = (isActive: boolean) =>
     clsx(
-      'flex h-8 w-8 items-center justify-center rounded-[6px] bg-transparent text-[#a1a1aa] transition-colors duration-150 hover:bg-white/[0.06] hover:text-[#fafafa]',
-      isActive && 'bg-white/[0.06] text-[#fafafa]'
+      'flex h-8 w-8 items-center justify-center rounded-[6px] text-[var(--po-text-muted)] transition-colors duration-150 hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]',
+      isActive ? 'bg-[var(--po-selected)] text-[var(--po-text)]' : 'bg-transparent'
     );
 
   return (
@@ -196,17 +206,8 @@ export function SidebarLayout({
       )}
       style={{
         width: effectiveCollapsed ? 47 : sidebarWidth,
-        // Mirrors the showcase AppShell's sidebar surface
-        // (rgba(255,255,255,0.015) over #0e0e0e ≈ #121212). A very
-        // small +4 lift above the content canvas is enough to read
-        // as a distinct surface once the 1px border is in place;
-        // larger deltas tilt the rail toward "panel-on-panel" and
-        // away from the quiet Notion / Linear feel we want.
-        background: '#121212',
-        // Same 0.08 hairline used everywhere in the showcase
-        // (T.border). Keeping all dividers at one alpha keeps the
-        // grid consistent across sidebar / header / cards.
-        borderRight: '1px solid rgba(255,255,255,0.08)',
+        background: 'var(--po-sidebar)',
+        borderRight: '1px solid var(--po-divider)',
       }}
     >
       {/* Header — 46px row, borderBottom 0.08. Aligns with every
@@ -222,18 +223,19 @@ export function SidebarLayout({
       <div
         className={clsx(
           'group/header flex items-center',
-          effectiveCollapsed && 'justify-center'
+          effectiveCollapsed ? 'justify-start' : ''
         )}
         style={{
           height: 46,
           flexShrink: 0,
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: '1px solid var(--po-divider)',
           boxSizing: 'border-box',
+          paddingLeft: effectiveCollapsed ? COLLAPSED_RAIL_INSET : undefined,
         }}
       >
         {effectiveCollapsed ? (
           // Collapsed identity chip — one grammar across project AND
-          // org/global view: the brand-blue 22×22 chip carrying the
+          // org/global view: the brand-blue 18×18 chip carrying the
           // workspace's first letter. Earlier we forked between the
           // chip (project) and a puppyone-logo image (global), but
           // the two glyphs have very different visual mass (flat
@@ -246,35 +248,38 @@ export function SidebarLayout({
           // used by the collapse button on the right.
           // Geometry locked to the collapsed nav rail below it:
           //   hit area : h-8 w-8 (32×32) — same as `collapsedBtnClass`
-          //   hover icon: 18×18 — same as cloned nav icons
-          // Was h-9 w-9 (36×36) with a 16×16 icon, which made the
-          // rounded hover bg read as one notch larger than every other
-          // icon in the rail and visibly off-grid.
+          //   chip     : 18×18 — same as ProjectSwitcher's expanded chip
+          //   hover icon: 15×15 — same as the expanded nav SVGs
           <button
             type='button'
-            className='group flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors duration-150 hover:bg-white/[0.06]'
+            className='group flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors duration-150 hover:bg-[var(--po-hover)]'
             onClick={() => handleCollapsedChange(false)}
             title={t('expand')}
             aria-label={t('expand')}
           >
             <span className='block group-hover:hidden'>
-              <span
-                aria-hidden
-                className='flex h-[22px] w-[22px] items-center justify-center rounded-[5px] text-[11px] font-bold uppercase text-white'
-                style={{
-                  background: BRAND_BLUE,
-                  fontFamily:
-                    'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  letterSpacing: 0,
-                }}
-              >
-                {(title?.[0] || 'P').toUpperCase()}
-              </span>
+              {titleLoading ? (
+                <SkeletonBlock width={SIDEBAR_IDENTITY_CHIP_SIZE} height={SIDEBAR_IDENTITY_CHIP_SIZE} radius={5} />
+              ) : (
+                <span
+                  aria-hidden
+                  className='flex items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[var(--po-text-inverse)]'
+                  style={{
+                    width: SIDEBAR_IDENTITY_CHIP_SIZE,
+                    height: SIDEBAR_IDENTITY_CHIP_SIZE,
+                    background: BRAND_BLUE,
+                    fontFamily: 'var(--po-font-sans)',
+                    letterSpacing: 0,
+                  }}
+                >
+                  {(title?.[0] || 'P').toUpperCase()}
+                </span>
+              )}
             </span>
             <svg
-              className='hidden text-[#9ca3af] group-hover:block'
-              width='18'
-              height='18'
+              className='hidden text-[var(--po-text-muted)] group-hover:block'
+              width={SIDEBAR_NAV_ICON_SIZE}
+              height={SIDEBAR_NAV_ICON_SIZE}
               viewBox='0 0 24 24'
               fill='none'
               stroke='currentColor'
@@ -300,9 +305,11 @@ export function SidebarLayout({
                     : null
                 }
                 projects={projects}
+                projectsLoading={projectsLoading}
                 onSelectProject={onSelectProject}
                 onGoHome={onGoHome}
                 onHoverProject={onHoverProject}
+                identityLoading={titleLoading}
                 // When `currentProjectId` is null we're in /home /
                 // /team / /billing / /settings — the `title` prop is
                 // the org name. Pass it down so the trigger glyph
@@ -320,13 +327,13 @@ export function SidebarLayout({
                   height={18}
                   className='flex-shrink-0 rounded-[4px]'
                 />
-                <span className='truncate text-[12.5px] font-medium text-[#fafafa]'>
-                  {title}
+                <span className='truncate text-[12.5px] font-medium text-[var(--po-text)]'>
+                  {titleLoading ? <SkeletonBlock width={96} height={11} radius={3} /> : title}
                 </span>
               </div>
             )}
 
-            {/* Collapse toggle — dedicated 28×28 slot at the right.
+            {/* Collapse toggle — dedicated 30×30 slot at the right.
                 Always rendered (so layout is stable + control is
                 discoverable via keyboard), but visually fades in on
                 header hover to keep the rest state quiet. */}
@@ -335,7 +342,7 @@ export function SidebarLayout({
               onClick={() => handleCollapsedChange(true)}
               title={t('collapse')}
               aria-label={t('collapse')}
-              className='flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-[5px] text-[#6b7280] opacity-0 transition-opacity duration-150 hover:bg-white/[0.06] hover:text-[#fafafa] group-hover/header:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20'
+              className='flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-[5px] text-[var(--po-text-subtle)] opacity-0 transition-opacity duration-150 hover:bg-[var(--po-hover)] hover:text-[var(--po-text)] group-hover/header:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--po-focus-ring)]'
             >
               <svg
                 width='14'
@@ -369,36 +376,20 @@ export function SidebarLayout({
                     onClick={() => onNavigate(item.id)}
                     onMouseEnter={() => onHoverNavItem?.(item.id)}
                   >
-                    {/* Accent bar — flush against the panel's left
-                        edge. Cyan #22d3ee + cyan glow, lifted directly
-                        from the showcase's T.live token so the active
-                        marker reads as the same "live state" indicator
-                        as the footer pulse dot and the diff overlays.
-                        The bar inset is 5px top/bottom (showcase
-                        AppShell uses `top:5,bottom:5` exactly). */}
-                    {isActive && (
-                      <span
-                        aria-hidden
-                        className='pointer-events-none absolute left-0 top-[5px] bottom-[5px] w-[2px] rounded-[1px]'
-                        style={{
-                          background: '#22d3ee',
-                          boxShadow: '0 0 6px rgba(34,211,238,0.4)',
-                        }}
-                      />
-                    )}
-
                     <span className={navIconClass(isActive)}>{item.icon}</span>
 
                     <span className={navLabelClass(isActive)}>{item.label}</span>
 
-                    {item.badge !== undefined && item.badge > 0 && (
-                      <span className='ml-auto rounded bg-[#2a2a2a] px-1.5 py-0.5 text-[10px] text-[#6d7177]'>
+                    {item.badgeLoading ? (
+                      <SkeletonBlock width={18} height={10} radius={3} className='ml-auto' />
+                    ) : item.badge !== undefined && item.badge > 0 && (
+                      <span className='ml-auto min-w-[16px] pr-1 text-right text-[12px] font-medium tabular-nums leading-none text-[var(--po-text-disabled)]'>
                         {item.badge}
                       </span>
                     )}
                   </button>
                   {item.groupEnd && (
-                    <div className='my-1.5 mx-1 border-t border-white/[0.06]' />
+                    <div className='my-1.5 mx-1 border-t border-[var(--po-divider)]' />
                   )}
                 </React.Fragment>
               );
@@ -406,14 +397,15 @@ export function SidebarLayout({
           </div>
         </div>
       ) : (
-        // Collapsed nav. Top + bottom padding deliberately match the
-        // *horizontal* breathing room around the 32×32 icon buttons in
-        // the 47px-wide rail (gap = (47−32)/2 ≈ 8px). The earlier
-        // `pt-1 pb-3` produced 4px top / 12px bottom — visibly
-        // asymmetric next to the 8px side padding, which made the top
-        // icon look "tucked under" the header divider.
-        <div className='flex-1 pt-2 pb-2'>
-          <div className='flex flex-col items-center gap-2'>
+        // Collapsed nav keeps the same row rhythm as expanded nav:
+        // 32px button height with 1px row gaps. The rail used to use
+        // a larger vertical gap, which made collapsed rows feel bigger
+        // than expanded rows even when the icons matched.
+        <div
+          className='flex-1 pt-2 pb-2'
+          style={{ paddingLeft: COLLAPSED_RAIL_INSET }}
+        >
+          <div className='flex flex-col items-start gap-px'>
             {navItems.map(item => (
               <React.Fragment key={item.id}>
                 <button
@@ -424,15 +416,17 @@ export function SidebarLayout({
                   title={item.label}
                   aria-label={item.label}
                 >
-                  {React.isValidElement(item.icon)
-                    ? React.cloneElement(item.icon, {
-                        width: 18,
-                        height: 18,
-                      } as any)
-                    : item.icon}
+                  <span className='flex h-[18px] w-[18px] items-center justify-center'>
+                    {React.isValidElement(item.icon)
+                      ? React.cloneElement(item.icon, {
+                          width: SIDEBAR_NAV_ICON_SIZE,
+                          height: SIDEBAR_NAV_ICON_SIZE,
+                        } as any)
+                      : item.icon}
+                  </span>
                 </button>
                 {item.groupEnd && (
-                  <div className='w-5 border-t border-white/[0.06]' />
+                  <div className='w-5 border-t border-[var(--po-divider)]' />
                 )}
               </React.Fragment>
             ))}
@@ -444,14 +438,9 @@ export function SidebarLayout({
           header across /(main)). Hairline divider on top using the
           same 0.08 alpha as every other border.
           Layout: a two-zone strip.
-            • LEFT  — vertically stacked workspace stats. The earlier
-              one-line `●  019d  ·  1 commits` ribbon read as a single
-              cramped tag because every element shared the same colour
-              and font-size. The redesign splits it into two lines with
-              hierarchy: shortId at 11px / #a1a1aa as the headline
-              metric, commit count at 10px / #52525b as ambient
-              context. The pulse dot anchors only the headline so the
-              eye lands on it first.
+            • LEFT  — compact workspace stats. Commit count is enough
+              context here; status dots belong elsewhere, not in the
+              persistent sidebar chrome.
             • RIGHT — 24×24 ghost guide button + 24×24 avatar (the
               earlier 24/22 mismatch was part of why the corner felt
               uneven). 8px gap between them, padding bumped to 14px so
@@ -459,48 +448,28 @@ export function SidebarLayout({
       <div
         className={clsx(
           'flex h-[46px] flex-shrink-0 items-center',
-          effectiveCollapsed ? 'justify-center px-2' : 'justify-between gap-3 px-3.5'
+          effectiveCollapsed ? 'justify-start' : 'justify-between gap-3 px-3.5'
         )}
-        style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}
+        style={{
+          borderTop: '1px solid var(--po-divider)',
+          paddingLeft: effectiveCollapsed ? COLLAPSED_RAIL_INSET + 4 : undefined,
+        }}
       >
         {!effectiveCollapsed && (
           <div className='flex min-w-0 flex-1 flex-col justify-center'>
-            {projectStats ? (
-              <>
-                <span
-                  className='flex items-center gap-[6px] text-[11px] leading-[1.2] tracking-[0.02em] text-[#a1a1aa]'
-                  style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
-                  title={`${resolvedEnvLabel} · ${projectStats.shortId}`}
-                >
-                  <span
-                    aria-hidden
-                    className='flex-shrink-0 rounded-full'
-                    style={{
-                      width: 6,
-                      height: 6,
-                      background: '#22d3ee',
-                      boxShadow: '0 0 6px rgba(34,211,238,0.55)',
-                    }}
-                  />
-                  <span className='truncate'>{projectStats.shortId}</span>
-                </span>
-                {typeof projectStats.commitCount === 'number' && (
-                  // Indented so the metric label sits flush under the
-                  // shortId text (12px ≈ dot width 6 + dot-to-text gap 6).
-                  <span
-                    className='mt-[2px] truncate pl-[12px] text-[10px] leading-[1.2] tracking-[0.04em] text-[#52525b]'
-                    style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
-                  >
-                    {projectStats.commitCount} commit{projectStats.commitCount === 1 ? '' : 's'}
-                  </span>
-                )}
-              </>
+            {projectStats && typeof projectStats.commitCount === 'number' ? (
+              <span
+                className='truncate text-[12px] leading-[1.2] text-[var(--po-text-muted)]'
+                title={`${projectStats.commitCount} commit${projectStats.commitCount === 1 ? '' : 's'}`}
+              >
+                {projectStats.commitCount} commit{projectStats.commitCount === 1 ? '' : 's'}
+              </span>
             ) : (
               // No-project fallback: a single env chip. Kept as one
               // line; vertically centred via the wrapping flex column.
               <span
-                className='inline-flex h-[22px] w-fit items-center rounded-[4px] bg-white/[0.04] px-2 text-[10px] tracking-[0.04em] text-[#52525b]'
-                style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+                className='inline-flex h-[22px] w-fit items-center rounded-[4px] bg-[var(--po-control)] px-2 text-[10px] tracking-[0.04em] text-[var(--po-text-disabled)]'
+                style={{ fontFamily: 'var(--po-font-sans)' }}
               >
                 {resolvedEnvLabel}
               </span>
@@ -522,12 +491,14 @@ export function SidebarLayout({
               unused here. */}
           <button
             type='button'
-            className='flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#3a3a3a] text-[11px] font-semibold text-white transition-all duration-200 hover:bg-[#4a4a4a] hover:shadow-[0_0_0_2px_rgba(255,255,255,0.1)]'
+            className='flex h-6 w-6 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--po-control)] text-[11px] font-semibold text-[var(--po-text)] transition-all duration-200 hover:bg-[var(--po-selected)] hover:shadow-[0_0_0_2px_var(--po-hover)]'
             onClick={() => setUserMenuOpen(true)}
             title={t('accountSettings')}
             aria-label={t('accountSettings')}
           >
-            {userAvatarUrl ? (
+            {userIdentityLoading ? (
+              <SkeletonBlock width={14} height={14} radius={7} />
+            ) : userAvatarUrl ? (
               <img
                 src={userAvatarUrl}
                 alt='User avatar'
@@ -546,7 +517,7 @@ export function SidebarLayout({
         <div
           className={clsx(
             'absolute top-0 right-[-2px] z-10 h-full w-1 cursor-col-resize',
-            isResizing ? 'bg-white/10' : 'hover:bg-white/10'
+            isResizing ? 'bg-[var(--po-active)]' : 'hover:bg-[var(--po-active)]'
           )}
           onMouseDown={handleMouseDown}
           role='separator'

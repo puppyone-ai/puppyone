@@ -40,7 +40,7 @@ const TableGridLines = React.memo(function TableGridLines({
     currentX += width;
 
     const isHighlighted = highlightedDepths.has(i);
-    const lineColor = isHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
+    const lineColor = isHighlighted ? 'color-mix(in srgb, var(--po-warning) 42%, transparent)' : BORDER_COLOR;
     const lineWidth = isHighlighted ? 1 : 1;
 
     lines.push(
@@ -61,7 +61,7 @@ const TableGridLines = React.memo(function TableGridLines({
 
   if (depth > 0) {
     const isHighlighted = highlightedDepths.has(-1);
-    const lineColor = isHighlighted ? 'rgba(255, 167, 61, 0.4)' : BORDER_COLOR;
+    const lineColor = isHighlighted ? 'color-mix(in srgb, var(--po-warning) 42%, transparent)' : BORDER_COLOR;
 
     lines.push(
       <div
@@ -188,31 +188,31 @@ export const VirtualRow = React.memo(function VirtualRow({
   let rowBaseBg = index % 2 === 0 ? ROW_BG_EVEN : ROW_BG_ODD;
 
   if (hovered) {
-    rowBaseBg = 'rgba(255, 255, 255, 0.04)';
+    rowBaseBg = 'var(--po-hover)';
   }
 
   if (isSelected) {
-    rowBaseBg = 'rgba(82, 139, 255, 0.15)';
+    rowBaseBg = 'color-mix(in srgb, var(--po-accent) 15%, transparent)';
   }
 
   let valueOverlayBg = 'transparent';
 
   if (isConfigured) {
     valueOverlayBg = hovered
-      ? 'rgba(255, 167, 61, 0.15)'
-      : 'rgba(255, 167, 61, 0.08)';
+      ? 'color-mix(in srgb, var(--po-warning) 15%, transparent)'
+      : 'color-mix(in srgb, var(--po-warning) 8%, transparent)';
   }
 
   const isKeyBorderHighlighted = highlightedDepths.has(effectiveDepth - 1);
   const keyBorderLeftColor = isKeyBorderHighlighted
-    ? 'rgba(255, 167, 61, 0.4)'
+    ? 'color-mix(in srgb, var(--po-warning) 42%, transparent)'
     : BORDER_COLOR;
   const keyBorderLeftWidth = isKeyBorderHighlighted ? 1 : 1;
   const isMenuButtonActive = !!isContextMenuOpen;
   const menuButtonBackground = isMenuButtonActive
-    ? 'rgba(255,255,255,0.1)'
+    ? 'var(--po-active)'
     : 'transparent';
-  const menuButtonColor = isMenuButtonActive ? '#ddd' : '#999';
+  const menuButtonColor = isMenuButtonActive ? 'var(--po-text)' : 'var(--po-text-subtle)';
 
   if (isRootNode) {
     return (
@@ -284,8 +284,8 @@ export const VirtualRow = React.memo(function VirtualRow({
               zIndex: 10,
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-              e.currentTarget.style.color = '#ddd';
+              e.currentTarget.style.background = 'var(--po-active)';
+              e.currentTarget.style.color = 'var(--po-text)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.background = menuButtonBackground;
@@ -306,25 +306,25 @@ export const VirtualRow = React.memo(function VirtualRow({
                 left: 58,
                 top: '50%',
                 transform: 'translateY(-50%)',
-                width: 26,
-                height: 26,
+                width: 30,
+                height: 30,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: 'rgba(255, 255, 255, 0.1)',
+                background: 'var(--po-active)',
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
                 opacity: hovered ? 1 : 0,
-                color: '#e5e5e5',
+                color: 'var(--po-text)',
                 transition: 'all 0.1s',
                 zIndex: 10,
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                e.currentTarget.style.background = 'color-mix(in srgb, var(--po-text) 22%, transparent)';
               }}
               onMouseLeave={e => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                e.currentTarget.style.background = 'var(--po-active)';
               }}
               onClick={e => {
                 e.stopPropagation();
@@ -400,7 +400,7 @@ export const VirtualRow = React.memo(function VirtualRow({
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                color: '#8b949e',
+                color: 'var(--po-text-muted)',
                 fontSize: 14,
               }}
             >
@@ -417,13 +417,13 @@ export const VirtualRow = React.memo(function VirtualRow({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 outline: 'none',
-                color: isRootNode ? '#e2e8f0' : '#8b949e',
+                color: isRootNode ? 'var(--po-text)' : 'var(--po-text-muted)',
                 fontWeight: isRootNode ? 500 : 400,
                 fontSize: 14,
                 cursor: isEditingKey && !isRootNode ? 'text' : 'pointer',
                 background:
                   isEditingKey && !isRootNode
-                    ? 'rgba(255,255,255,0.1)'
+                    ? 'var(--po-active)'
                     : 'transparent',
               }}
               onDoubleClick={e => {
@@ -478,8 +478,8 @@ export const VirtualRow = React.memo(function VirtualRow({
               transition: 'background 0.1s, color 0.1s, opacity 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-              e.currentTarget.style.color = '#ddd';
+              e.currentTarget.style.background = 'var(--po-active)';
+              e.currentTarget.style.color = 'var(--po-text)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.background = menuButtonBackground;

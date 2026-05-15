@@ -49,17 +49,17 @@ function GridVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
           width: 48,
           height: 48,
           borderRadius: 12,
-          background: hovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+          background: hovered ? 'var(--po-hover)' : 'transparent',
           border: hovered
-            ? '1px dashed rgba(255,255,255,0.3)'
-            : '1px dashed rgba(255,255,255,0.15)',
+            ? '1px dashed var(--po-focus-ring)'
+            : '1px dashed var(--po-border-strong)',
           fontSize: 20,
-          color: hovered ? '#fff' : '#52525b',
+          color: hovered ? 'var(--po-text)' : 'var(--po-text-disabled)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           transition: 'all 0.15s',
-          boxShadow: hovered ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
+          boxShadow: hovered ? '0 4px 12px var(--po-shadow)' : 'none',
         }}
       >
         <PlusIcon />
@@ -67,7 +67,7 @@ function GridVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
       <div
         style={{
           fontSize: 16,
-          color: hovered ? '#a1a1aa' : '#52525b',
+          color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
           textAlign: 'center',
           transition: 'color 0.15s',
         }}
@@ -95,8 +95,8 @@ function ListVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
         gap: 12,
         borderRadius: 6,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
+        borderBottom: '1px solid var(--po-hover)',
         transition: 'all 0.1s',
       }}
     >
@@ -107,7 +107,7 @@ function ListVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: hovered ? '#a1a1aa' : '#52525b',
+          color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
         }}
       >
         <PlusIcon />
@@ -116,14 +116,14 @@ function ListVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'vie
         <div
           style={{
             fontSize: 16,
-            color: hovered ? '#fff' : '#71717a',
+            color: hovered ? 'var(--po-text)' : 'var(--po-text-subtle)',
             fontWeight: 500,
           }}
         >
           {label}
         </div>
       </div>
-      <div style={{ color: '#3f3f46', fontSize: 12 }}>Action</div>
+      <div style={{ color: 'var(--po-text-disabled)', fontSize: 12 }}>Action</div>
     </div>
   );
 }
@@ -144,10 +144,10 @@ function ColumnVariant({ label = 'New...', onClick }: Omit<CreateButtonProps, 'v
         gap: 8,
         padding: '8px 12px',
         cursor: 'pointer',
-        color: hovered ? '#a1a1aa' : '#52525b',
+        color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
         fontSize: 16,
         marginTop: 8,
-        borderTop: '1px solid rgba(255,255,255,0.04)',
+        borderTop: '1px solid var(--po-hover)',
         transition: 'all 0.1s',
       }}
     >

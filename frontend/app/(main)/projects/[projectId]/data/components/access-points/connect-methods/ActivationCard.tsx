@@ -49,12 +49,13 @@ export function ActivationCard({
         disabled={disabled}
         style={{
           alignSelf: 'flex-start',
-          padding: '6px 12px',
+          height: 30,
+          padding: '0 12px',
           fontSize: 12,
           fontWeight: 600,
-          color: disabled ? COLOR_FG_DIM : '#171717',
-          background: disabled ? 'rgba(255,255,255,0.06)' : '#ededed',
-          border: `1px solid ${disabled ? COLOR_BORDER : '#ededed'}`,
+          color: disabled ? COLOR_FG_DIM : 'var(--po-text-inverse)',
+          background: disabled ? 'var(--po-border-subtle)' : 'var(--po-text)',
+          border: `1px solid ${disabled ? COLOR_BORDER : 'var(--po-text)'}`,
           borderRadius: 6,
           cursor: disabled ? 'not-allowed' : 'pointer',
         }}

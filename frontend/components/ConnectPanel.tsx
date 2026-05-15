@@ -239,9 +239,9 @@ export function ConnectPanel({
           padding: '0 12px',
           borderRadius: 6,
           border: '1px solid',
-          borderColor: isOpen ? '#22c55e' : '#404040',
-          background: isOpen ? 'rgba(34, 197, 94, 0.1)' : 'transparent',
-          color: isOpen ? '#22c55e' : '#9ca3af',
+          borderColor: isOpen ? 'var(--po-success)' : 'var(--po-border-strong)',
+          background: isOpen ? 'color-mix(in srgb, var(--po-success) 10%, transparent)' : 'transparent',
+          color: isOpen ? 'var(--po-success)' : 'var(--po-text-muted)',
           fontSize: 12,
           fontWeight: 500,
           cursor: 'pointer',
@@ -249,16 +249,16 @@ export function ConnectPanel({
         }}
         onMouseEnter={e => {
           if (!isOpen) {
-            e.currentTarget.style.borderColor = '#525252';
-            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-            e.currentTarget.style.color = '#e2e8f0';
+            e.currentTarget.style.borderColor = 'var(--po-text-disabled)';
+            e.currentTarget.style.background = 'var(--po-hover)';
+            e.currentTarget.style.color = 'var(--po-text)';
           }
         }}
         onMouseLeave={e => {
           if (!isOpen) {
-            e.currentTarget.style.borderColor = '#404040';
+            e.currentTarget.style.borderColor = 'var(--po-border-strong)';
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#9ca3af';
+            e.currentTarget.style.color = 'var(--po-text-muted)';
           }
         }}
       >
@@ -288,11 +288,11 @@ export function ConnectPanel({
               ? { left: '50%', transform: 'translateX(-50%)' }
               : { right: 0 }),
             width: 340,
-            background: '#161618',
-            border: '1px solid #2a2a2a',
+            background: 'var(--po-overlay)',
+            border: '1px solid var(--po-border)',
             borderRadius: 12,
             zIndex: 100,
-            boxShadow: '0 12px 40px rgba(0, 0, 0, 0.5)',
+            boxShadow: '0 12px 40px var(--po-shadow)',
             overflow: 'hidden',
           }}
         >
@@ -300,22 +300,23 @@ export function ConnectPanel({
           <div
             style={{
               display: 'flex',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-              background: 'rgba(0,0,0,0.2)',
+              borderBottom: '1px solid var(--po-border-subtle)',
+              background: 'var(--po-control)',
             }}
           >
             <button
               onClick={() => setActiveTab('access')}
               style={{
                 flex: 1,
-                padding: '10px 16px',
+                height: 42,
+                padding: '0 16px',
                 background: 'transparent',
                 border: 'none',
                 borderBottom:
                   activeTab === 'access'
-                    ? '2px solid #34d399'
+                    ? '2px solid var(--po-success)'
                     : '2px solid transparent',
-                color: activeTab === 'access' ? '#e2e8f0' : '#6b7280',
+                color: activeTab === 'access' ? 'var(--po-text)' : 'var(--po-text-subtle)',
                 fontSize: 12,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -328,14 +329,15 @@ export function ConnectPanel({
               onClick={() => setActiveTab('configure')}
               style={{
                 flex: 1,
-                padding: '10px 16px',
+                height: 42,
+                padding: '0 16px',
                 background: 'transparent',
                 border: 'none',
                 borderBottom:
                   activeTab === 'configure'
-                    ? '2px solid #34d399'
+                    ? '2px solid var(--po-success)'
                     : '2px solid transparent',
-                color: activeTab === 'configure' ? '#e2e8f0' : '#6b7280',
+                color: activeTab === 'configure' ? 'var(--po-text)' : 'var(--po-text-subtle)',
                 fontSize: 12,
                 fontWeight: 500,
                 cursor: 'pointer',
@@ -366,7 +368,7 @@ export function ConnectPanel({
                       style={{
                         fontSize: 12,
                         fontWeight: 600,
-                        color: '#34d399',
+                        color: 'var(--po-success)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 6,
@@ -400,9 +402,9 @@ export function ConnectPanel({
                       style={{
                         height: 32,
                         borderRadius: 6,
-                        border: '1px solid #333',
-                        background: '#1a1a1a',
-                        color: '#9ca3af',
+                        border: '1px solid var(--po-border-strong)',
+                        background: 'var(--po-panel-raised)',
+                        color: 'var(--po-text-muted)',
                         fontSize: 12,
                         cursor: 'pointer',
                       }}
@@ -416,7 +418,7 @@ export function ConnectPanel({
                     <div
                       style={{
                         fontSize: 14,
-                        color: '#9ca3af',
+                        color: 'var(--po-text-muted)',
                         marginBottom: 8,
                       }}
                     >
@@ -438,8 +440,8 @@ export function ConnectPanel({
                           gap: 8,
                         }}
                       >
-                        <span style={tagStyle('#34d399')}>MCP</span>
-                        <span style={{ fontSize: 12, color: '#6b7280' }}>
+                        <span style={tagStyle('var(--po-success)')}>MCP</span>
+                        <span style={{ fontSize: 12, color: 'var(--po-text-subtle)' }}>
                           Claude Desktop / Cursor
                         </span>
                       </div>
@@ -447,7 +449,7 @@ export function ConnectPanel({
                         <code
                           style={{
                             flex: 1,
-                            color: '#d4d4d4',
+                            color: 'var(--po-text)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -480,15 +482,15 @@ export function ConnectPanel({
                           gap: 8,
                         }}
                       >
-                        <span style={tagStyle('#60a5fa')}>REST</span>
-                        <span style={{ fontSize: 12, color: '#6b7280' }}>
+                        <span style={tagStyle('var(--po-accent)')}>REST</span>
+                        <span style={{ fontSize: 12, color: 'var(--po-text-subtle)' }}>
                           n8n / Custom Agent
                         </span>
                       </div>
                       <div style={endpointBoxStyle}>
                         <span
                           style={{
-                            color: '#22c55e',
+                            color: 'var(--po-success)',
                             fontSize: 12,
                             fontWeight: 600,
                             flexShrink: 0,
@@ -499,7 +501,7 @@ export function ConnectPanel({
                         <code
                           style={{
                             flex: 1,
-                            color: '#d4d4d4',
+                            color: 'var(--po-text)',
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
@@ -526,21 +528,21 @@ export function ConnectPanel({
                         alignItems: 'flex-start',
                         gap: 8,
                         padding: '10px 12px',
-                        background: 'rgba(251, 191, 36, 0.08)',
+                        background: 'color-mix(in srgb, var(--po-warning) 8%, transparent)',
                         borderRadius: 6,
                         fontSize: 12,
-                        color: '#a3a3a3',
+                        color: 'var(--po-text-muted)',
                         lineHeight: 1.5,
                         marginTop: 4,
                       }}
                     >
-                      <span style={{ color: '#fbbf24', flexShrink: 0 }}>
+                      <span style={{ color: 'var(--po-warning)', flexShrink: 0 }}>
                         💡
                       </span>
                       <span>
                         For advanced capabilities (Semantic Search, Write
                         Access), switch to{' '}
-                        <strong style={{ color: '#e2e8f0' }}>Configure</strong>{' '}
+                        <strong style={{ color: 'var(--po-text)' }}>Configure</strong>{' '}
                         tab.
                       </span>
                     </div>
@@ -558,7 +560,7 @@ export function ConnectPanel({
                     style={{
                       fontSize: 12,
                       fontWeight: 600,
-                      color: '#6b7280',
+                      color: 'var(--po-text-subtle)',
                       marginBottom: 8,
                       display: 'flex',
                       alignItems: 'center',
@@ -569,7 +571,7 @@ export function ConnectPanel({
                     <span
                       style={{
                         fontSize: 12,
-                        color: '#525252',
+                        color: 'var(--po-text-disabled)',
                         fontWeight: 400,
                       }}
                     >
@@ -618,7 +620,7 @@ export function ConnectPanel({
                     style={{
                       fontSize: 12,
                       fontWeight: 600,
-                      color: '#6b7280',
+                      color: 'var(--po-text-subtle)',
                       marginBottom: 8,
                       display: 'flex',
                       alignItems: 'center',
@@ -629,7 +631,7 @@ export function ConnectPanel({
                     <span
                       style={{
                         fontSize: 12,
-                        color: '#525252',
+                        color: 'var(--po-text-disabled)',
                         fontWeight: 400,
                       }}
                     >
@@ -682,9 +684,9 @@ export function ConnectPanel({
                 <div
                   style={{
                     padding: '12px',
-                    background: 'rgba(0,0,0,0.3)',
+                    background: 'var(--po-control)',
                     borderRadius: 6,
-                    border: '1px solid rgba(255,255,255,0.05)',
+                    border: '1px solid var(--po-hover)',
                   }}
                 >
                   <div
@@ -708,7 +710,7 @@ export function ConnectPanel({
                           currentTreePath && currentTreePath !== ''
                             ? 'pointer'
                             : 'not-allowed',
-                        accentColor: '#34d399',
+                        accentColor: 'var(--po-success)',
                       }}
                     />
                     <label
@@ -717,8 +719,8 @@ export function ConnectPanel({
                         fontSize: 14,
                         color:
                           currentTreePath && currentTreePath !== ''
-                            ? '#e2e8f0'
-                            : '#525252',
+                            ? 'var(--po-text)'
+                            : 'var(--po-text-disabled)',
                         cursor:
                           currentTreePath && currentTreePath !== ''
                             ? 'pointer'
@@ -731,16 +733,16 @@ export function ConnectPanel({
                   </div>
                   {currentTreePath && currentTreePath !== '' ? (
                     <div
-                      style={{ fontSize: 12, color: '#6b7280', marginLeft: 22 }}
+                      style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginLeft: 22 }}
                     >
                       Target:{' '}
-                      <code style={{ color: '#34d399' }}>
+                      <code style={{ color: 'var(--po-success)' }}>
                         {currentTreePath}
                       </code>
                     </div>
                   ) : (
                     <div
-                      style={{ fontSize: 12, color: '#525252', marginLeft: 22 }}
+                      style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginLeft: 22 }}
                     >
                       Select a node in the tree to enable path scoping
                     </div>
@@ -752,9 +754,9 @@ export function ConnectPanel({
                   <div
                     style={{
                       fontSize: 12,
-                      color: '#f87171',
+                      color: 'var(--po-danger)',
                       padding: '8px 10px',
-                      background: 'rgba(248, 113, 113, 0.1)',
+                      background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)',
                       borderRadius: 4,
                     }}
                   >
@@ -781,15 +783,15 @@ export function ConnectPanel({
                       (!hasAnyReadCapability && !hasAnyWriteCapability) ||
                       !userId ||
                       !projectId
-                        ? '#374151'
-                        : '#34d399',
+                        ? 'var(--po-control)'
+                        : 'var(--po-success)',
                     color:
                       isCreating ||
                       (!hasAnyReadCapability && !hasAnyWriteCapability) ||
                       !userId ||
                       !projectId
-                        ? '#9ca3af'
-                        : '#000',
+                        ? 'var(--po-text-subtle)'
+                        : 'var(--po-text-inverse)',
                     fontSize: 14,
                     fontWeight: 600,
                     cursor:
@@ -837,9 +839,9 @@ function CapabilityRow({
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '8px 10px',
-        background: enabled ? 'rgba(52, 211, 153, 0.08)' : 'transparent',
+        background: enabled ? 'color-mix(in srgb, var(--po-success) 8%, transparent)' : 'transparent',
         border: '1px solid',
-        borderColor: enabled ? 'rgba(52, 211, 153, 0.2)' : '#2a2a2a',
+        borderColor: enabled ? 'color-mix(in srgb, var(--po-success) 20%, transparent)' : 'var(--po-border)',
         borderRadius: 6,
         cursor: 'pointer',
         transition: 'all 0.15s',
@@ -850,24 +852,24 @@ function CapabilityRow({
           <span
             style={{
               fontSize: 14,
-              color: enabled ? '#e2e8f0' : '#9ca3af',
+              color: enabled ? 'var(--po-text)' : 'var(--po-text-muted)',
               fontWeight: 500,
             }}
           >
             {label}
           </span>
           {warning && enabled && (
-            <span style={{ fontSize: 12, color: '#fbbf24' }}>⚠️</span>
+            <span style={{ fontSize: 12, color: 'var(--po-warning)' }}>⚠️</span>
           )}
         </div>
-        <span style={{ fontSize: 12, color: '#525252' }}>{description}</span>
+        <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>{description}</span>
       </div>
       <div
         style={{
           width: 32,
           height: 18,
           borderRadius: 9,
-          background: enabled ? '#34d399' : '#333',
+          background: enabled ? 'var(--po-success)' : 'var(--po-border-strong)',
           position: 'relative',
           transition: 'background 0.15s',
         }}
@@ -880,7 +882,7 @@ function CapabilityRow({
             width: 14,
             height: 14,
             borderRadius: 7,
-            background: '#fff',
+            background: 'var(--po-text-inverse)',
             transition: 'left 0.15s',
           }}
         />
@@ -895,7 +897,7 @@ const tagStyle = (color: string): React.CSSProperties => ({
   fontWeight: 600,
   color: color,
   padding: '3px 6px',
-  background: `${color}20`,
+  background: `color-mix(in srgb, ${color} 12%, transparent)`,
   borderRadius: 4,
 });
 
@@ -904,17 +906,17 @@ const endpointBoxStyle: React.CSSProperties = {
   alignItems: 'center',
   gap: 8,
   padding: '8px 10px',
-  background: 'rgba(0,0,0,0.4)',
+  background: 'var(--po-inset)',
   borderRadius: 6,
-  fontFamily: "'JetBrains Mono', monospace",
+  fontFamily: "var(--po-font-sans)",
 };
 
 const copyBtnStyle = (copied: boolean): React.CSSProperties => ({
   padding: '4px 10px',
-  background: copied ? 'rgba(52, 211, 153, 0.2)' : 'rgba(255,255,255,0.08)',
+  background: copied ? 'color-mix(in srgb, var(--po-success) 20%, transparent)' : 'var(--po-control)',
   border: 'none',
   borderRadius: 4,
-  color: copied ? '#34d399' : '#9ca3af',
+  color: copied ? 'var(--po-success)' : 'var(--po-text-muted)',
   fontSize: 12,
   fontWeight: 500,
   cursor: 'pointer',

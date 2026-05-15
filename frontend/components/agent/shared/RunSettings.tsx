@@ -42,18 +42,19 @@ export const RunSettings = ({
   }, [toolsByNode, currentTableId]);
 
   return (
-    <div style={{ borderBottom: '1px solid #1a1a1a', background: '#0d0d0d' }}>
+    <div style={{ borderBottom: '1px solid var(--po-panel-raised)', background: 'var(--po-panel)' }}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
           width: '100%',
+          minHeight: 48,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 16px',
           background: 'transparent',
           border: 'none',
-          color: '#eee',
+          color: 'var(--po-text)',
           fontSize: 14,
           fontWeight: 600,
           cursor: 'pointer',
@@ -83,7 +84,7 @@ export const RunSettings = ({
         <div style={{ padding: '0 16px 16px' }}>
           {/* Capabilities */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 500, color: '#888', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Capabilities
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -101,7 +102,7 @@ export const RunSettings = ({
                   />
                 ))
               ) : (
-                <div style={{ padding: '8px 0', fontSize: 12, color: '#555', fontStyle: 'italic' }}>
+                <div style={{ padding: '8px 0', fontSize: 12, color: 'var(--po-text-subtle)', fontStyle: 'italic' }}>
                   No tools available
                 </div>
               )}
@@ -112,4 +113,3 @@ export const RunSettings = ({
     </div>
   );
 };
-

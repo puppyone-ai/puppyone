@@ -34,7 +34,7 @@ export function CommandBlock({
           fontFamily: FONT_MONO,
           fontSize: 11.5,
           lineHeight: 1.55,
-          color: '#d4d4d8',
+          color: 'var(--po-text-muted)',
           overflowX: 'auto',
           whiteSpace: 'pre',
           wordBreak: 'normal',

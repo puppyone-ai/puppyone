@@ -25,8 +25,8 @@ export function LocaleSwitcher() {
   };
 
   return (
-    <div style={{ padding: '12px 16px', borderBottom: '1px solid #1a1a1a' }}>
-      <div style={{ fontSize: 11, color: '#555', marginBottom: 8 }}>{t('language')}</div>
+    <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--po-panel-raised)' }}>
+      <div style={{ fontSize: 11, color: 'var(--po-text-subtle)', marginBottom: 8 }}>{t('language')}</div>
       <div style={{ display: 'flex', gap: 6 }}>
         {LOCALES.map(({ code, label }) => {
           const isActive = locale === code;
@@ -37,10 +37,10 @@ export function LocaleSwitcher() {
               disabled={isPending}
               onClick={() => handleSwitch(code)}
               style={{
-                padding: '4px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-                background: isActive ? '#2563eb' : '#1a1a1a',
-                color: isActive ? '#fff' : '#888',
-                border: `1px solid ${isActive ? '#2563eb' : '#333'}`,
+                height: 30, padding: '0 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                background: isActive ? 'var(--po-accent)' : 'var(--po-panel-raised)',
+                color: isActive ? 'var(--po-text-inverse)' : 'var(--po-text-muted)',
+                border: `1px solid ${isActive ? 'var(--po-accent)' : 'var(--po-border-strong)'}`,
                 fontWeight: isActive ? 600 : 400,
                 opacity: isPending ? 0.6 : 1,
                 transition: 'all 0.15s',

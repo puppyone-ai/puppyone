@@ -132,20 +132,20 @@ export function SupabaseAuthProvider({
     if (!supabase) {
       throw new Error('Supabase is not configured');
     }
-    
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
-    
+
     if (error) {
       throw error;
     }
-    
+
     // 检查是否需要邮箱验证
     // 如果 session 为 null 且 user 存在，说明需要验证邮箱
     const needsEmailConfirmation = !data.session && !!data.user;
-    
+
     return { needsEmailConfirmation };
   };
 
@@ -184,11 +184,11 @@ export function SupabaseAuthProvider({
     if (!supabase) {
       throw new Error('Supabase is not configured');
     }
-    
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: getPasswordResetRedirectUrl(),
     });
-    
+
     if (error) {
       throw error;
     }

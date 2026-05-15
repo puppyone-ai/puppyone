@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { accessPointProfileSlug, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
+import {
+  accessPointProfileSlug,
+  buildGitSyncPrompt,
+  buildTerminalCliPrompt,
+} from '@/lib/accessPointCliPrompt';
 import { PanelShell } from '../PanelShell';
 import { AccessPointProviderIcon, StatusDot } from './AccessPointProviderIcon';
 import type { SyncEndpointInfo } from '../explorer';
@@ -30,39 +34,33 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   const accessKey = ep.accessKey || '';
 
   if (ep.provider === 'filesystem' && accessKey) {
-    const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+    const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
     const profileName = accessPointProfileSlug(scopeName);
-    const { prompt } = buildTerminalCliPrompt({
+    const gitPrompt = buildGitSyncPrompt({
+      gitUrl,
+      scopeName,
+      directoryName: scopeName,
+      accessPointName: displayName,
+    }).prompt;
+    const terminalPrompt = buildTerminalCliPrompt({
       apiBase,
       accessKey,
       profileName,
       scopeName,
       accessPointName: displayName,
-    });
+    }).prompt;
     return {
       primary: {
-        title: 'PuppyOne CLI',
-        description: 'Directly read and write this cloud folder. No local clone.',
-        body: prompt,
-        copyText: prompt,
+        title: 'Git Remote',
+        description: 'Clone this scope with standard Git commands.',
+        body: gitPrompt,
+        copyText: gitPrompt,
       },
       secondary: {
-        title: 'MUT Sync',
-        description: 'Use when you want a local folder copy and ongoing two-way sync.',
-        body: [
-          `Sync this PuppyOne Access Point with a local folder using the MUT CLI.`,
-          ``,
-          `Access Point: ${displayName}`,
-          `Scope: ${scopeName}`,
-          ``,
-          `From the local folder that should sync with PuppyOne, run:`,
-          `mut connect ${cloneUrl} --credential ${accessKey}`,
-          ``,
-          `Endpoint URL: ${cloneUrl}`,
-          `Credential: ${accessKey}`,
-          ``,
-          `After connecting, use MUT for ongoing syncs. Do not create a new access point unless I ask for one.`,
-        ].join('\n'),
+        title: 'Puppyone FS CLI',
+        description: 'Use scoped filesystem commands without a local clone.',
+        body: terminalPrompt,
+        copyText: terminalPrompt,
       },
     } as const;
   }
@@ -82,7 +80,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
       `Use this MCP config:`,
       config,
       ``,
-      `After configuring it, use the MCP tools against the scoped PuppyOne workspace data.`,
+      `After configuring it, use the MCP tools against the scoped Puppyone workspace data.`,
     ].join('\n');
     return {
       primary: {
@@ -98,7 +96,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
     const execUrl = `${apiBase}/api/v1/sandbox-endpoints/${ep.syncId}/exec`;
     const command = `curl -X POST ${execUrl} \\\n  -H "X-Access-Key: ${accessKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"command": "ls /workspace"}'`;
     const prompt = [
-      `Use this PuppyOne Sandbox Access Point to run commands in an isolated workspace environment.`,
+      `Use this Puppyone Sandbox Access Point to run commands in an isolated workspace environment.`,
       ``,
       `Access Point: ${displayName}`,
       `Scope: ${scopeName}`,
@@ -122,7 +120,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
 
   if (ep.provider.startsWith('agent:')) {
     const prompt = [
-      `Use this PuppyOne agent Access Point from the scoped workspace.`,
+      `Use this Puppyone agent Access Point from the scoped workspace.`,
       ``,
       `Access Point: ${displayName}`,
       `Scope: ${scopeName}`,
@@ -141,7 +139,7 @@ function getSetupSnippets(ep: SyncEndpointInfo, displayName: string, scopeName: 
   }
 
   const prompt = [
-    `Use this PuppyOne Access Point.`,
+    `Use this Puppyone Access Point.`,
     ``,
     `Access Point: ${displayName}`,
     `Scope: ${scopeName}`,
@@ -183,12 +181,12 @@ function InfoPill({ label, value }: { label: string; value: string }) {
         minWidth: 0,
         padding: '3px 7px',
         borderRadius: 999,
-        background: 'rgba(255,255,255,0.04)',
-        border: '1px solid rgba(255,255,255,0.05)',
+        background: 'var(--po-hover)',
+        border: '1px solid var(--po-hover)',
       }}
     >
-      <span style={{ color: '#71717a', fontSize: 11, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: '#d4d4d8', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ color: 'var(--po-text-subtle)', fontSize: 11, flexShrink: 0 }}>{label}</span>
+      <span style={{ color: 'var(--po-text-muted)', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {value}
       </span>
     </div>
@@ -207,17 +205,17 @@ function CopyPromptButton({
   tone?: 'green' | 'blue' | 'neutral';
 }) {
   const [copied, setCopied] = useState(false);
-  const color = tone === 'green' ? '#34d399' : tone === 'blue' ? '#93c5fd' : '#a3a3a3';
+  const color = tone === 'green' ? 'var(--po-success)' : tone === 'blue' ? 'var(--po-accent-text)' : 'var(--po-text-muted)';
   const border = tone === 'green'
-    ? 'rgba(52,211,153,0.18)'
+    ? 'color-mix(in srgb, var(--po-success) 20%, transparent)'
     : tone === 'blue'
-      ? 'rgba(147,197,253,0.16)'
-      : 'rgba(255,255,255,0.08)';
+      ? 'color-mix(in srgb, var(--po-accent) 18%, transparent)'
+      : 'var(--po-border)';
   const background = tone === 'green'
-    ? 'rgba(52,211,153,0.045)'
+    ? 'color-mix(in srgb, var(--po-success) 7%, transparent)'
     : tone === 'blue'
-      ? 'rgba(96,165,250,0.035)'
-      : 'rgba(255,255,255,0.03)';
+      ? 'color-mix(in srgb, var(--po-accent) 7%, transparent)'
+      : 'var(--po-hover)';
   return (
     <button
       type="button"
@@ -230,8 +228,9 @@ function CopyPromptButton({
         width: '100%',
         textAlign: 'left',
         borderRadius: 8,
-        border: `1px solid ${copied ? 'rgba(52,211,153,0.35)' : border}`,
-        background: copied ? 'rgba(52,211,153,0.08)' : background,
+        border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 38%, transparent)' : border}`,
+        background: copied ? 'color-mix(in srgb, var(--po-success) 10%, transparent)' : background,
+        minHeight: 56,
         padding: '10px 12px',
         transition: 'border-color 0.2s',
         cursor: 'pointer',
@@ -240,17 +239,17 @@ function CopyPromptButton({
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ color, fontSize: 12, fontWeight: 600, lineHeight: 1.35 }}>{title}</div>
-          <div style={{ color: '#8b8b8b', fontSize: 11, lineHeight: 1.45, marginTop: 2 }}>{description}</div>
+          <div style={{ color: 'var(--po-text-subtle)', fontSize: 11, lineHeight: 1.45, marginTop: 2 }}>{description}</div>
         </div>
         <span style={{
           flexShrink: 0,
-          color: copied ? '#34d399' : '#a3a3a3',
+          color: copied ? 'var(--po-success)' : 'var(--po-text-muted)',
           fontSize: 11,
           fontWeight: 500,
-          border: `1px solid ${copied ? 'rgba(52,211,153,0.24)' : 'rgba(255,255,255,0.08)'}`,
+          border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 24%, transparent)' : 'var(--po-border)'}`,
           borderRadius: 999,
           padding: '4px 8px',
-          background: copied ? 'rgba(52,211,153,0.08)' : 'rgba(255,255,255,0.04)',
+          background: copied ? 'color-mix(in srgb, var(--po-success) 10%, transparent)' : 'var(--po-hover)',
         }}>
           {copied ? 'Copied' : 'Copy Prompt'}
         </span>
@@ -292,8 +291,8 @@ export function AccessPointsListPanel({
             height: 18,
             padding: '0 6px',
             borderRadius: 999,
-            background: 'rgba(255,255,255,0.08)',
-            color: '#a1a1aa',
+            background: 'var(--po-border)',
+            color: 'var(--po-text-muted)',
             fontSize: 11,
             display: 'flex',
             alignItems: 'center',
@@ -305,10 +304,10 @@ export function AccessPointsListPanel({
         </span>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {entries.length === 0 ? (
-            <div style={{ padding: '32px 16px', textAlign: 'center', color: '#71717a', fontSize: 13, lineHeight: 1.6 }}>
+            <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--po-text-subtle)', fontSize: 13, lineHeight: 1.6 }}>
               Access points created from folder link buttons will appear here.
             </div>
           ) : (
@@ -334,8 +333,8 @@ export function AccessPointsListPanel({
                       width: '100%',
                       borderRadius: 8,
                       border: '1px solid',
-                      borderColor: expanded || hovered ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
-                      background: expanded ? 'rgba(255,255,255,0.04)' : hovered ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+                      borderColor: expanded || hovered ? 'var(--po-border-strong)' : 'var(--po-border-subtle)',
+                      background: expanded ? 'var(--po-hover)' : hovered ? 'var(--po-border-subtle)' : 'var(--po-panel)',
                       textAlign: 'left',
                       transition: 'all 0.15s',
                       overflow: 'hidden',
@@ -376,7 +375,7 @@ export function AccessPointsListPanel({
                           fontSize: 13,
                           fontWeight: 500,
                           lineHeight: 1.3,
-                          color: hovered || expanded ? '#ffffff' : '#e4e4e7',
+                          color: hovered || expanded ? 'var(--po-text)' : 'var(--po-text)',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -388,7 +387,7 @@ export function AccessPointsListPanel({
                           marginTop: 1,
                           fontSize: 12,
                           lineHeight: 1.3,
-                          color: hovered ? '#34d399' : '#71717a',
+                          color: hovered ? 'var(--po-success)' : 'var(--po-text-subtle)',
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -396,7 +395,7 @@ export function AccessPointsListPanel({
                           Scope: {scopeName}
                         </span>
                       </span>
-                      <div style={{ color: hovered || expanded ? '#71717a' : '#3f3f46', transition: 'color 0.15s, transform 0.15s', flexShrink: 0, transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
+                      <div style={{ color: hovered || expanded ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)', transition: 'color 0.15s, transform 0.15s', flexShrink: 0, transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="9 18 15 12 9 6" />
                         </svg>
@@ -412,7 +411,7 @@ export function AccessPointsListPanel({
                           <InfoPill label="Key" value={maskSecret(ep.accessKey || ep.syncId)} />
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <div style={{ color: '#71717a', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          <div style={{ color: 'var(--po-text-subtle)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Copy Prompt
                           </div>
                           <CopyPromptButton
@@ -435,12 +434,12 @@ export function AccessPointsListPanel({
                             type="button"
                             onClick={() => onEndpointClick(ep, nodeId)}
                             style={{
-                              height: 26,
+                              height: 30,
                               padding: '0 10px',
                               borderRadius: 6,
-                              border: '1px solid rgba(255,255,255,0.1)',
-                              background: '#242424',
-                              color: '#e4e4e7',
+                              border: '1px solid var(--po-active)',
+                              background: 'var(--po-control)',
+                              color: 'var(--po-text)',
                               fontSize: 12,
                               fontWeight: 500,
                               cursor: 'pointer',

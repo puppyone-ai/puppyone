@@ -88,8 +88,8 @@ export default function UserMessage({
       borderRadius: '12px',
       boxShadow: 'none',
       position: 'relative',
-      background: '#1e1e1e',
-      color: '#dcdcdc',
+      background: 'var(--po-control)',
+      color: 'var(--po-text)',
       border: 'none',
       cursor: 'default',
     },
@@ -123,30 +123,30 @@ export default function UserMessage({
       width: '100%',
       margin: '12px 0',
       fontSize: '12px',
-      border: '1px solid #3a3a3a',
-      backgroundColor: '#1a1a1a',
+      border: '1px solid var(--po-border)',
+      backgroundColor: 'var(--po-panel-raised)',
       borderRadius: '6px',
       overflow: 'hidden',
     },
-    thead: { backgroundColor: '#2a2a2a' },
+    thead: { backgroundColor: 'var(--po-border)' },
     th: {
       padding: '10px 12px',
       textAlign: 'left',
-      borderBottom: '2px solid #3a3a3a',
-      borderRight: '1px solid #3a3a3a',
+      borderBottom: '2px solid var(--po-border-strong)',
+      borderRight: '1px solid var(--po-border)',
       fontWeight: 600,
-      color: '#e0e0e0',
-      backgroundColor: '#2a2a2a',
+      color: 'var(--po-text)',
+      backgroundColor: 'var(--po-border)',
     },
     td: {
       padding: '8px 12px',
-      borderBottom: '1px solid #2a2a2a',
-      borderRight: '1px solid #2a2a2a',
-      color: '#dcdcdc',
+      borderBottom: '1px solid var(--po-border)',
+      borderRight: '1px solid var(--po-border)',
+      color: 'var(--po-text)',
       verticalAlign: 'top',
     },
     tr: {
-      borderBottom: '1px solid #2a2a2a',
+      borderBottom: '1px solid var(--po-border)',
     },
     metaBar: {
       display: 'flex',
@@ -157,7 +157,7 @@ export default function UserMessage({
       transition: 'opacity 0.2s ease',
       justifyContent: 'flex-end',
     },
-    timestamp: { fontSize: '12px', color: '#a0a0a0' },
+    timestamp: { fontSize: '12px', color: 'var(--po-text-subtle)' },
     copyButton: {
       display: 'inline-flex',
       alignItems: 'center',
@@ -165,7 +165,7 @@ export default function UserMessage({
       width: '20px',
       height: '20px',
       borderRadius: '4px',
-      color: '#a0a0a0',
+      color: 'var(--po-text-subtle)',
       cursor: 'pointer',
     },
     typingDots: {
@@ -177,7 +177,7 @@ export default function UserMessage({
     dot: {
       width: '8px',
       height: '8px',
-      backgroundColor: '#4a90e2',
+      backgroundColor: 'var(--po-accent)',
       borderRadius: '50%',
       animation: 'pulse 1s infinite',
     },
@@ -243,14 +243,14 @@ export default function UserMessage({
                     width: '18px',
                     height: '18px',
                     borderRadius: '50%',
-                    backgroundColor: '#ffffff',
+                    backgroundColor: 'var(--po-text)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
                   <Check
-                    style={{ width: '12px', height: '12px', color: '#000000' }}
+                    style={{ width: '12px', height: '12px', color: 'var(--po-text-inverse)' }}
                   />
                 </div>
               ) : (

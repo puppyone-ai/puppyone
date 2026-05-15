@@ -47,7 +47,7 @@ export function VideoPreview({ projectId, filePath, nodeName, mimeType }: VideoP
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#ef4444',
+          color: 'var(--po-danger)',
         }}
       >
         Failed to load video: {error}
@@ -68,11 +68,11 @@ export function VideoPreview({ projectId, filePath, nodeName, mimeType }: VideoP
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
         gap: 12,
       }}
     >
-      <div style={{ fontSize: 13, color: '#a1a1aa' }}>{nodeName}</div>
+      <div style={{ fontSize: 13, color: 'var(--po-text-muted)' }}>{nodeName}</div>
       <video
         key={previewUrl}
         controls
@@ -81,7 +81,7 @@ export function VideoPreview({ projectId, filePath, nodeName, mimeType }: VideoP
           maxWidth: '100%',
           maxHeight: 'calc(100% - 40px)',
           borderRadius: 8,
-          background: '#000',
+          background: 'var(--po-inset)',
         }}
       >
         <source src={previewUrl} type={mimeType} />

@@ -62,8 +62,8 @@ function GmailCallbackContent() {
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: '100vh',
-      background: '#0a0a0a',
-      color: '#CDCDCD',
+      background: 'var(--po-inset)',
+      color: 'var(--po-text)',
     }}>
       <div style={{ textAlign: 'center', maxWidth: 400, padding: 32 }}>
         {status === 'loading' && (
@@ -71,7 +71,7 @@ function GmailCallbackContent() {
             <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 16 }}>
               Connecting to Gmail...
             </div>
-            <div style={{ fontSize: 13, color: '#8B8B8B' }}>
+            <div style={{ fontSize: 13, color: 'var(--po-text-muted)' }}>
               Please wait while we complete the authorization
             </div>
           </>
@@ -79,12 +79,12 @@ function GmailCallbackContent() {
 
         {status === 'success' && (
           <>
-            <div style={{ fontSize: 40, marginBottom: 16, color: '#22c55e' }}>✓</div>
-            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: '#22c55e' }}>
+            <div style={{ fontSize: 40, marginBottom: 16, color: 'var(--po-success)' }}>✓</div>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: 'var(--po-success)' }}>
               Success!
             </div>
-            <div style={{ fontSize: 13, color: '#8B8B8B' }}>{message}</div>
-            <div style={{ fontSize: 12, color: '#666', marginTop: 16 }}>
+            <div style={{ fontSize: 13, color: 'var(--po-text-muted)' }}>{message}</div>
+            <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginTop: 16 }}>
               This window will close automatically...
             </div>
           </>
@@ -92,12 +92,12 @@ function GmailCallbackContent() {
 
         {status === 'error' && (
           <>
-            <div style={{ fontSize: 40, marginBottom: 16, color: '#ef4444' }}>✗</div>
-            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: '#ef4444' }}>
+            <div style={{ fontSize: 40, marginBottom: 16, color: 'var(--po-danger)' }}>✗</div>
+            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8, color: 'var(--po-danger)' }}>
               Access Setup Failed
             </div>
-            <div style={{ fontSize: 13, color: '#8B8B8B' }}>{message}</div>
-            <div style={{ fontSize: 12, color: '#666', marginTop: 16 }}>
+            <div style={{ fontSize: 13, color: 'var(--po-text-muted)' }}>{message}</div>
+            <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginTop: 16 }}>
               This window will close automatically...
             </div>
           </>

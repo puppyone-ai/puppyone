@@ -118,7 +118,8 @@ export function GithubBoundPanel({ projectId, status, onChanged, onSyncRun }: Re
             cursor: 'pointer',
             fontFamily: T.fontSans,
             fontSize: 12,
-            padding: '5px 10px',
+            height: 30,
+            padding: '0 10px',
           }}
         >
           {t('disconnect')}
@@ -153,12 +154,13 @@ export function GithubBoundPanel({ projectId, status, onChanged, onSyncRun }: Re
               background: T.accent,
               border: 'none',
               borderRadius: 6,
-              color: '#fff',
+              color: 'var(--po-text-inverse)',
               cursor: importing || exporting ? 'not-allowed' : 'pointer',
               fontFamily: T.fontSans,
               fontSize: 13,
               fontWeight: 500,
-              padding: '7px 14px',
+              height: 30,
+              padding: '0 14px',
               opacity: importing || exporting ? 0.5 : 1,
             }}
           >
@@ -177,7 +179,8 @@ export function GithubBoundPanel({ projectId, status, onChanged, onSyncRun }: Re
               fontFamily: T.fontSans,
               fontSize: 13,
               fontWeight: 500,
-              padding: '7px 14px',
+              height: 30,
+              padding: '0 14px',
               opacity: importing || exporting ? 0.5 : 1,
             }}
           >
@@ -238,7 +241,8 @@ export function GithubBoundPanel({ projectId, status, onChanged, onSyncRun }: Re
               cursor: 'pointer',
               fontFamily: T.fontSans,
               fontSize: 12,
-              padding: '6px 12px',
+              height: 30,
+              padding: '0 12px',
             }}
           >
             {copied ? '✓' : 'copy'}

@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
-import { FolderIcon, JsonIcon, MarkdownIcon, CloseIcon, getNodeIcon } from '../_icons';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { FolderIcon, JsonIcon, MarkdownIcon, getNodeIcon } from '../_icons';
 
 export type AcceptedNodeType = 'folder' | 'json' | 'markdown' | 'file';
 
@@ -78,10 +79,10 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
 
   const acceptIcons = accept.map(t => {
     switch (t) {
-      case 'folder': return { key: t, el: <FolderIcon />, color: '#a1a1aa' };
-      case 'json': return { key: t, el: <JsonIcon />, color: '#34d399' };
-      case 'markdown': return { key: t, el: <MarkdownIcon />, color: '#60a5fa' };
-      default: return { key: t, el: <FolderIcon />, color: '#a1a1aa' };
+      case 'folder': return { key: t, el: <FolderIcon />, color: 'var(--po-text-muted)' };
+      case 'json': return { key: t, el: <JsonIcon />, color: 'var(--po-success)' };
+      case 'markdown': return { key: t, el: <MarkdownIcon />, color: 'var(--po-accent)' };
+      default: return { key: t, el: <FolderIcon />, color: 'var(--po-text-muted)' };
     }
   });
 
@@ -89,23 +90,23 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <label style={{ fontSize: 12, fontWeight: 500, color: '#666' }}>{label}</label>
-        <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
-        <span style={{ fontSize: 11, color: '#525252', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+        <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--po-text-subtle)' }}>{label}</label>
+        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+        <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
           {hint}
         </span>
       </div>
 
       {/* Mode toggle */}
-      <div style={{ display: 'flex', marginBottom: 8, background: '#141414', borderRadius: 6, border: '1px solid #252525', padding: 2 }}>
+      <div style={{ display: 'flex', marginBottom: 8, background: 'var(--po-control)', borderRadius: 6, border: '1px solid var(--po-border-strong)', padding: 2 }}>
         {(['new', 'existing'] as const).map(m => (
           <button
             key={m}
             onClick={() => setMode(m)}
             style={{
-              flex: 1, height: 26, borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 500, cursor: 'pointer',
-              background: mode === m ? '#252525' : 'transparent',
-              color: mode === m ? '#e5e5e5' : '#525252',
+              flex: 1, height: 30, borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 500, cursor: 'pointer',
+              background: mode === m ? 'var(--po-border-strong)' : 'transparent',
+              color: mode === m ? 'var(--po-text)' : 'var(--po-text-disabled)',
               transition: 'all 0.12s',
             }}
           >
@@ -125,21 +126,21 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
               placeholder={`e.g. ${primaryType === 'folder' ? 'My Sync Folder' : primaryType === 'json' ? 'inbox-data' : 'notes'}`}
               style={{
                 width: '100%', height: 32, padding: '0 10px', paddingRight: 80,
-                background: '#161616', border: '1px solid #2a2a2a', borderRadius: 6,
-                color: '#e5e5e5', fontSize: 12, outline: 'none', boxSizing: 'border-box',
+                background: 'var(--po-panel)', border: '1px solid var(--po-border)', borderRadius: 6,
+                color: 'var(--po-text)', fontSize: 12, outline: 'none', boxSizing: 'border-box',
               }}
-              onFocus={e => e.currentTarget.style.borderColor = '#3a3a3a'}
-              onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'}
+              onFocus={e => e.currentTarget.style.borderColor = 'var(--po-border-strong)'}
+              onBlur={e => e.currentTarget.style.borderColor = 'var(--po-border)'}
             />
             <span style={{
               position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-              fontSize: 10, color: '#525252', background: '#1a1a1a', border: '1px solid #252525',
+              fontSize: 10, color: 'var(--po-text-disabled)', background: 'var(--po-panel-raised)', border: '1px solid var(--po-border-strong)',
               borderRadius: 3, padding: '1px 5px',
             }}>
               .{primaryType === 'json' ? 'json' : primaryType === 'markdown' ? 'md' : primaryType}
             </span>
           </div>
-          <div style={{ fontSize: 11, color: '#3a3a3a', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ fontSize: 11, color: 'var(--po-border-strong)', display: 'flex', alignItems: 'center', gap: 4 }}>
             {acceptIcons[0] && <span style={{ color: acceptIcons[0].color, display: 'flex' }}>{acceptIcons[0].el}</span>}
             Will create a new {TYPE_LABELS[primaryType]} in the current directory
           </div>
@@ -151,8 +152,8 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
         <div
           style={{
             minHeight: 80,
-            background: isDragging ? 'rgba(255,255,255,0.03)' : 'transparent',
-            border: isDragging ? '1px dashed #525252' : isFull ? '1px solid #2a2a2a' : '1px dashed #2a2a2a',
+            background: isDragging ? 'var(--po-hover)' : 'transparent',
+            border: isDragging ? '1px dashed var(--po-text-disabled)' : isFull ? '1px solid var(--po-border)' : '1px dashed var(--po-border)',
             borderRadius: 6, transition: 'all 0.15s',
           }}
           onDragOver={handleDragOver}
@@ -166,24 +167,22 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
                 return (
                   <div
                     key={res.path}
-                    style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', borderRadius: 4, background: '#1a1a1a', border: '1px solid #252525', transition: 'all 0.1s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
+                    style={{ height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px', borderRadius: 4, background: 'var(--po-panel-raised)', border: '1px solid var(--po-border-strong)', transition: 'all 0.1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--po-hover)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--po-panel-raised)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1, minWidth: 0 }}>
                       <div style={{ color, flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</div>
-                      <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span style={{ fontSize: 14, color: 'var(--po-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {res.nodeName}
                       </span>
                     </div>
-                    <button
+                    <ActivityIconButton
+                      kind="close"
+                      title="Remove resource"
+                      size="sm"
                       onClick={() => removeDraftResource(res.path)}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 4, background: 'transparent', border: 'none', color: '#505050', cursor: 'pointer', transition: 'all 0.1s' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
-                    >
-                      <CloseIcon />
-                    </button>
+                    />
                   </div>
                 );
               })}
@@ -193,12 +192,12 @@ export function SyncTargetConfig({ accept, label, hint, maxItems = 1, defaultNew
             <div style={{
               minHeight: draftResources.length > 0 ? 32 : 80,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-              color: isDragging ? '#a1a1aa' : '#525252',
+              color: isDragging ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
             }}>
               {draftResources.length === 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {acceptIcons.map(({ key, el, color }) => (
-                    <div key={key} style={{ color: isDragging ? '#d4d4d4' : color }}>{el}</div>
+                    <div key={key} style={{ color: isDragging ? 'var(--po-text)' : color }}>{el}</div>
                   ))}
                 </div>
               )}

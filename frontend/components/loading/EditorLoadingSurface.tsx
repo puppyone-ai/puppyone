@@ -29,7 +29,7 @@ export function EditorLoadingSurface({
         height: '100%',
         minHeight: 0,
         display: 'flex',
-        background: '#0e0e0e',
+        background: 'var(--po-canvas)',
         ...style,
       }}
     >

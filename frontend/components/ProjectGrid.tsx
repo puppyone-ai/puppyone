@@ -11,15 +11,16 @@ type ProjectGridProps = {
 
 export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
   const cardStyle: CSSProperties = {
-    border: '1px solid #1f1f1f',
+    border: '1px solid var(--po-border)',
     borderRadius: 12,
-    background: '#101010',
+    background: 'var(--po-panel)',
     padding: 14,
-    color: '#ddd',
+    color: 'var(--po-text)',
     textDecoration: 'none',
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
+    minHeight: 96,
     cursor: onSelect ? 'pointer' : 'inherit',
   };
 
@@ -30,9 +31,9 @@ export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
         <div style={{ fontWeight: 600, fontSize: 16 }}>{project.name}</div>
       </div>
       {project.description && (
-        <div style={{ fontSize: 12, color: '#9aa' }}>{project.description}</div>
+        <div style={{ fontSize: 12, color: 'var(--po-text-muted)' }}>{project.description}</div>
       )}
-      <div style={{ fontSize: 12, color: '#8fb' }}>
+      <div style={{ fontSize: 12, color: 'var(--po-success)' }}>
         {project.tables.length} items
       </div>
     </>
@@ -64,7 +65,7 @@ export function ProjectGrid({ projects, onSelect }: ProjectGridProps) {
         return (
           <Link
             key={project.id}
-            href={`/projects/${project.id}`}
+            href={`/projects/${project.id}/data`}
             style={cardStyle}
           >
             {renderContent(project)}

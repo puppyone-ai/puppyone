@@ -11,8 +11,14 @@ from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.job import Job
 
+from src.config import settings
 from src.infra.scheduler.config import scheduler_settings
-from src.infra.scheduler.jobs import execute_agent_task, execute_sync_pull
+from src.infra.scheduler.jobs import (
+    execute_agent_task,
+    execute_sync_pull,
+    process_git_object_gc,
+    process_version_outbox,
+)
 from src.infra.scheduler.jobs.sandbox_reaper import reap_idle_sandboxes
 from src.utils.logger import log_info, log_error, log_warning
 
@@ -87,6 +93,28 @@ class SchedulerService:
             name="Sandbox Idle Reaper",
             replace_existing=True,
         )
+
+        if settings.MUT_VERSION_OUTBOX_ENABLED:
+            self.scheduler.add_job(
+                process_version_outbox,
+                trigger=IntervalTrigger(
+                    seconds=settings.MUT_VERSION_OUTBOX_INTERVAL_SECONDS,
+                ),
+                id="mut-version-outbox",
+                name="MUT Version Outbox Repair",
+                replace_existing=True,
+            )
+
+        if settings.MUT_OBJECT_GC_ENABLED:
+            self.scheduler.add_job(
+                process_git_object_gc,
+                trigger=IntervalTrigger(
+                    seconds=settings.MUT_OBJECT_GC_INTERVAL_SECONDS,
+                ),
+                id="mut-object-gc",
+                name="MUT Git Object GC",
+                replace_existing=True,
+            )
 
         log_info(f"✅ APScheduler started with {scheduler_settings.max_workers} workers")
 
@@ -363,4 +391,3 @@ class SchedulerService:
 def get_scheduler_service() -> SchedulerService:
     """Get the global scheduler service instance."""
     return SchedulerService.get_instance()
-

@@ -40,7 +40,7 @@ export function PanelShell({ title, subtitle, icon, onClose, onBack, headerRight
           // Match the data page header's bottom divider exactly so a
           // top-aligned right sheet reads as the header's right segment,
           // not as a second panel header sitting underneath it.
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
+          borderBottom: '1px solid var(--po-divider)',
           flexShrink: 0,
         }}>
           {/* Back / close use the shared ActivityIconButton chrome so the
@@ -66,7 +66,7 @@ export function PanelShell({ title, subtitle, icon, onClose, onBack, headerRight
               style={{
                 fontSize: 13,
                 fontWeight: 600,
-                color: '#e4e4e7',
+                color: 'var(--po-text)',
                 lineHeight: '18px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -84,7 +84,7 @@ export function PanelShell({ title, subtitle, icon, onClose, onBack, headerRight
                 style={{
                   fontSize: 11,
                   fontWeight: 400,
-                  color: '#71717a',
+                  color: 'var(--po-text-subtle)',
                   lineHeight: '14px',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',

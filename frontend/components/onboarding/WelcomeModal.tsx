@@ -7,7 +7,7 @@ interface Props {
   onDone: () => void;
 }
 
-// English-only by product policy — PuppyOne does not ship UI in any other
+// English-only by product policy — Puppyone does not ship UI in any other
 // language right now, so the welcome modal hardcodes its copy directly
 // instead of going through next-intl.  When/if multi-language support is
 // reintroduced, lift these strings back into messages/<locale>.json under
@@ -16,7 +16,7 @@ const SLIDES = [
   {
     title: 'The File Workspace for all your agents',
     subtitle:
-      "Store your data in PuppyOne so AI Agents can access it anytime — always knowing what they're working on.",
+      "Store your data in Puppyone so AI Agents can access it anytime — always knowing what they're working on.",
     image: '/old-vs-new-world.png',
     imageCaption: 'From scattered files to unified context',
   },
@@ -45,20 +45,20 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 9999,
-      background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)',
+      background: 'var(--po-backdrop-strong)', backdropFilter: 'blur(12px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
       <div style={{
         width: '100%', maxWidth: 700,
-        background: '#111', borderRadius: 16,
-        border: '1px solid rgba(255,255,255,0.1)',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+        background: 'var(--po-overlay)', borderRadius: 16,
+        border: '1px solid var(--po-active)',
+        boxShadow: '0 24px 80px var(--po-shadow)',
         overflow: 'hidden', display: 'flex', flexDirection: 'column',
       }}>
         {/* Image area */}
         <div style={{
           position: 'relative', width: '100%', height: 340,
-          background: '#0a0a0a', overflow: 'hidden',
+          background: 'var(--po-inset)', overflow: 'hidden',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           <Image
@@ -71,7 +71,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
           />
           <div style={{
             position: 'absolute', bottom: 12, left: 0, right: 0,
-            textAlign: 'center', fontSize: 11, color: 'rgba(255,255,255,0.35)',
+            textAlign: 'center', fontSize: 11, color: 'var(--po-text-subtle)',
             letterSpacing: '0.05em',
           }}>
             {current.imageCaption}
@@ -90,7 +90,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
                 aria-label={s.title}
                 style={{
                   width: i === slide ? 20 : 6, height: 6, borderRadius: 3,
-                  background: i === slide ? '#3b82f6' : 'rgba(255,255,255,0.2)',
+                  background: i === slide ? 'var(--po-accent)' : 'color-mix(in srgb, var(--po-text) 22%, transparent)',
                   cursor: 'pointer', transition: 'all 0.25s',
                   border: 'none', padding: 0,
                 }}
@@ -107,7 +107,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
             style={{
               fontSize: 22,
               fontWeight: 700,
-              color: '#f4f4f5',
+              color: 'var(--po-text)',
               marginBottom: 10,
               textAlign: 'center',
               minHeight: 32,
@@ -127,7 +127,7 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
           <p
             style={{
               fontSize: 14,
-              color: '#a1a1aa',
+              color: 'var(--po-text-muted)',
               lineHeight: 1.7,
               textAlign: 'center',
               marginBottom: 28,
@@ -144,8 +144,8 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
             <button
               onClick={onDone}
               style={{
-                padding: '8px 20px', fontSize: 13, color: '#71717a',
-                background: 'none', border: '1px solid rgba(255,255,255,0.12)',
+                height: 30, padding: '0 20px', fontSize: 13, color: 'var(--po-text-subtle)',
+                background: 'none', border: '1px solid var(--po-border-strong)',
                 borderRadius: 8, cursor: 'pointer',
               }}
             >
@@ -154,12 +154,12 @@ export function WelcomeModal({ onDone }: Readonly<Props>) {
             <button
               onClick={() => { if (isLast) onDone(); else setSlide(s => s + 1); }}
               style={{
-                padding: '8px 28px', fontSize: 13, fontWeight: 600,
-                color: '#fff', background: '#3b82f6',
+                height: 30, padding: '0 28px', fontSize: 13, fontWeight: 600,
+                color: 'var(--po-text-inverse)', background: 'var(--po-accent)',
                 border: 'none', borderRadius: 8, cursor: 'pointer',
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#2563eb')}
-              onMouseLeave={e => (e.currentTarget.style.background = '#3b82f6')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--po-accent-text)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'var(--po-accent)')}
             >
               {isLast ? 'Get started' : 'Next →'}
             </button>

@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import {
   resolveDataTransferSnapshot,
   snapshotDataTransfer,
 } from '@/lib/dropFiles';
 import { resolveFormat } from '@/lib/fileFormats';
+import { ActionButton } from './ui/ActionButton';
+import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from './ui/Dialog';
+import { BUTTON_HEIGHT } from './ui/buttonTokens';
 
 interface FileImportDialogProps {
   isOpen: boolean;
@@ -145,84 +147,36 @@ export function FileImportDialog({
 
   if (!isOpen) return null;
 
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0,0,0,0.6)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1100,
-        backdropFilter: 'blur(4px)',
-      }}
-      onClick={e => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      onMouseDown={e => e.stopPropagation()}
-    >
-      <div
-        style={{
-          width: 520,
-          maxHeight: '85vh',
-          background: '#18181b',
-          border: '1px solid #27272a',
-          borderRadius: 12,
-          color: '#e5e5e5',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-        onClick={e => e.stopPropagation()}
-        onMouseDown={e => e.stopPropagation()}
+  return (
+    <DialogRoot onClose={onClose}>
+      <DialogSurface
+        width={520}
+        maxHeight="85vh"
+        ariaLabelledBy="file-import-dialog-title"
       >
-        {/* Header */}
-        <div style={{ 
-          padding: '20px 24px 16px', 
-          borderBottom: '1px solid #27272a',
-          flexShrink: 0,
-        }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
-            Import Files
-          </h2>
-          <p style={{ margin: '6px 0 0', fontSize: 13, color: '#71717a' }}>
-            Files are stored as-is in your context tree
-          </p>
+        <DialogHeader title={<span id="file-import-dialog-title">Upload files</span>} onClose={onClose} />
+        <DialogBody style={{ flex: 1 }}>
           <div
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              marginTop: 10,
+              marginBottom: 14,
               padding: '4px 8px',
               borderRadius: 6,
-              background: 'rgba(69, 153, 223, 0.12)',
-              border: '1px solid rgba(69, 153, 223, 0.22)',
-              color: '#93c5fd',
+              background: 'transparent',
+              border: '1px solid var(--po-border-subtle)',
+              color: 'var(--po-text-muted)',
               fontSize: 12,
               fontWeight: 500,
               maxWidth: '100%',
             }}
           >
-            <span style={{ color: '#71717a' }}>Import to</span>
+            <span style={{ color: 'var(--po-text-subtle)' }}>Import to</span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {targetLabel}
             </span>
           </div>
-        </div>
-
-        {/* Content */}
-        <div style={{ 
-          padding: '16px 24px', 
-          overflowY: 'auto',
-          flex: 1,
-        }}>
-          {/* Dropzone */}
           <input
             ref={fileInputRef}
             type="file"
@@ -256,25 +210,24 @@ export function FileImportDialog({
             onDragLeave={handleDragLeave}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
             style={{
-              padding: files.length > 0 ? '16px' : '32px 16px',
-              border: `2px dashed ${isDragging ? '#3b82f6' : '#3f3f46'}`,
+              padding: files.length > 0 ? '14px 16px' : '28px 20px',
+              border: '1px dashed',
+              borderColor: isDragging ? 'var(--po-focus-ring)' : 'var(--po-border-strong)',
               borderRadius: 8,
-              background: isDragging ? 'rgba(59, 130, 246, 0.08)' : '#09090b',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
+              background: isDragging ? 'var(--po-selected)' : 'transparent',
+              transition: 'background 0.15s, border-color 0.15s',
               marginBottom: 16,
             }}
           >
             {files.length === 0 ? (
               <div style={{ textAlign: 'center' }}>
                 <svg
-                  width="40"
-                  height="40"
+                  width="22"
+                  height="22"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="#52525b"
+                  stroke={isDragging ? 'var(--po-accent)' : 'var(--po-text-subtle)'}
                   strokeWidth="1.5"
                   style={{ margin: '0 auto 12px' }}
                 >
@@ -282,11 +235,22 @@ export function FileImportDialog({
                   <polyline points="17 8 12 3 7 8" strokeLinecap="round" strokeLinejoin="round" />
                   <line x1="12" y1="3" x2="12" y2="15" strokeLinecap="round" />
                 </svg>
-                <div style={{ fontSize: 14, color: '#a1a1aa' }}>
-                  Drop files or a folder here, or click to browse
+                <div style={{ fontSize: 13, color: 'var(--po-text-muted)' }}>
+                  Drag and drop files or folders here
                 </div>
-                <div style={{ marginTop: 6, fontSize: 12, color: '#71717a' }}>
-                  Need to pick a whole folder?{' '}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 14 }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    style={{
+                      ...dropzoneActionButton,
+                    }}
+                  >
+                    Upload Files
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -294,17 +258,10 @@ export function FileImportDialog({
                       folderInputRef.current?.click();
                     }}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      color: '#3b82f6',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 500,
-                      textDecoration: 'underline',
+                      ...dropzoneActionButton,
                     }}
                   >
-                    Browse folder
+                    Upload Folder
                   </button>
                 </div>
               </div>
@@ -319,12 +276,12 @@ export function FileImportDialog({
                         display: 'flex',
                         alignItems: 'center',
                         padding: '6px 0',
-                        borderBottom: index < Math.min(files.length, 5) - 1 ? '1px solid #27272a' : 'none',
+                        borderBottom: index < Math.min(files.length, 5) - 1 ? '1px solid var(--po-border-subtle)' : 'none',
                       }}
                     >
-                      <span style={{ 
-                        fontSize: 13, 
-                        color: '#d4d4d8',
+                      <span style={{
+                        fontSize: 13,
+                        color: 'var(--po-text-muted)',
                         flex: 1,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -332,21 +289,26 @@ export function FileImportDialog({
                       }}>
                         {file.name}
                       </span>
-                      <span style={{ fontSize: 11, color: '#52525b', marginRight: 8 }}>
+                      <span style={{ fontSize: 11, color: 'var(--po-text-subtle)', marginRight: 8 }}>
                         {(file.size / 1024).toFixed(0)} KB
                       </span>
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           removeFile(index);
                         }}
                         style={{
-                          background: 'none',
+                          background: 'transparent',
                           border: 'none',
-                          color: '#71717a',
+                          color: 'var(--po-text-subtle)',
                           cursor: 'pointer',
-                          padding: 4,
+                          width: 30,
+                          height: 30,
+                          padding: 0,
                           display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
                         }}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -356,40 +318,38 @@ export function FileImportDialog({
                     </div>
                   ))}
                   {files.length > 5 && (
-                    <div style={{ fontSize: 12, color: '#71717a', paddingTop: 8 }}>
+                    <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', paddingTop: 8 }}>
                       + {files.length - 5} more files
                     </div>
                   )}
                 </div>
-                
-                {/* Add more files hint */}
-                <div style={{ 
-                  textAlign: 'center', 
-                  fontSize: 12, 
-                  color: '#52525b',
-                  paddingTop: 8,
-                  borderTop: '1px dashed #27272a',
+
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  gap: 8,
+                  paddingTop: 10,
+                  borderTop: '1px dashed var(--po-border-subtle)',
                 }}>
-                  Click or drop to add more files{' '}
-                  <span style={{ opacity: 0.4 }}>·</span>{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                    style={dropzoneActionButton}
+                  >
+                    Add Files
+                  </button>
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       folderInputRef.current?.click();
                     }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      color: '#3b82f6',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: 500,
-                      textDecoration: 'underline',
-                    }}
+                    style={dropzoneActionButton}
                   >
-                    Add folder
+                    Add Folder
                   </button>
                 </div>
               </>
@@ -398,99 +358,79 @@ export function FileImportDialog({
 
           {/* File Stats */}
           {files.length > 0 && (
-            <div style={{ 
-              background: '#27272a', 
-              padding: '10px 14px', 
-              borderRadius: 6, 
-              marginBottom: 20,
+            <div style={{
+              background: 'var(--po-control)',
+              padding: '10px 14px',
+              borderRadius: 6,
               fontSize: 13,
-              color: '#a1a1aa',
+              color: 'var(--po-text-muted)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
             }}>
               <div>
-                <span style={{ color: '#e5e5e5', fontWeight: 500 }}>{files.length}</span> files
+                <span style={{ color: 'var(--po-text)', fontWeight: 500 }}>{files.length}</span> files
                 <span style={{ margin: '0 8px', opacity: 0.3 }}>•</span>
-                <span style={{ color: '#e5e5e5' }}>{fileStats.textCount}</span> text
+                <span style={{ color: 'var(--po-text)' }}>{fileStats.textCount}</span> text
                 <span style={{ margin: '0 8px', opacity: 0.3 }}>•</span>
-                <span style={{ color: fileStats.binaryCount > 0 ? '#fbbf24' : '#e5e5e5' }}>
+                <span style={{ color: fileStats.binaryCount > 0 ? 'var(--po-warning)' : 'var(--po-text)' }}>
                   {fileStats.binaryCount}
                 </span> docs/images
               </div>
-              <div style={{ fontSize: 12, color: '#52525b' }}>
+              <div style={{ fontSize: 12, color: 'var(--po-text-subtle)' }}>
                 {fileStats.extensions.slice(0, 4).map(ext => `.${ext}`).join(' ')}
               </div>
             </div>
           )}
 
-        </div>
+        </DialogBody>
 
-        {/* Footer */}
-        <div style={{ 
-          padding: '16px 24px',
-          borderTop: '1px solid #27272a',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          flexShrink: 0,
-        }}>
-          {/* Upload Status */}
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            fontSize: 12, 
-            color: '#a1a1aa',
+        <DialogFooter justify="space-between">
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: 12,
+            color: 'var(--po-text-muted)',
           }}>
-            <div style={{ 
-              width: 6, height: 6, borderRadius: '50%', 
-              background: '#71717a',
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: 'var(--po-text-subtle)',
               marginRight: 6,
             }} />
             Raw upload
           </div>
 
-          {/* Actions */}
           <div style={{ display: 'flex', gap: 10 }}>
-            <button
+            <ActionButton
               onClick={onClose}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 6,
-                border: '1px solid #3f3f46',
-                background: 'transparent',
-                color: '#a1a1aa',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 500,
-              }}
             >
               Cancel
-            </button>
-            <button
+            </ActionButton>
+            <ActionButton
               onClick={handleConfirm}
               disabled={files.length === 0}
-              style={{
-                padding: '8px 20px',
-                borderRadius: 6,
-                border: 'none',
-                background: files.length > 0 ? '#3b82f6' : '#27272a',
-                color: files.length > 0 ? '#fff' : '#52525b',
-                cursor: files.length > 0 ? 'pointer' : 'not-allowed',
-                fontSize: 13,
-                fontWeight: 600,
-                transition: 'all 0.15s',
-              }}
+              variant='primary'
             >
               {files.length > 0 ? `Import ${files.length} File${files.length > 1 ? 's' : ''}` : 'Select Files'}
-            </button>
+            </ActionButton>
           </div>
-        </div>
-      </div>
-    </div>,
-    document.body
+        </DialogFooter>
+      </DialogSurface>
+    </DialogRoot>
   );
 }
 
-export default FileImportDialog;
+const dropzoneActionButton: React.CSSProperties = {
+  height: BUTTON_HEIGHT,
+  padding: '0 14px',
+  borderRadius: 6,
+  border: '1px solid var(--po-border-strong)',
+  background: 'transparent',
+  color: 'var(--po-text)',
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: 'pointer',
+  transition: 'background 0.15s, border-color 0.15s',
+};
 
+export default FileImportDialog;

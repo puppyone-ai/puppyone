@@ -24,14 +24,14 @@ function ProjectLayoutInner({ children, projectId }: { children: React.ReactNode
   useMutNotifications(noop);
 
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100%', background: '#0e0e0e' }}>
+    <div style={{ display: 'flex', width: '100%', height: '100%', background: 'var(--po-canvas)' }}>
       <div
         style={{
           flex: 1,
           minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
-          background: '#0e0e0e',
+          background: 'var(--po-canvas)',
           overflow: 'hidden',
         }}
       >
@@ -51,7 +51,7 @@ export default function ProjectLayout({
   params,
 }: ProjectLayoutProps) {
   const { projectId } = use(params);
-  
+
   return (
     <AgentProvider projectId={projectId}>
       <WorkspaceProvider>

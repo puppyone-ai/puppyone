@@ -35,12 +35,6 @@ from src.platform.project.service import ProjectService
 
 read_router = APIRouter()
 
-def _exclude_hidden(entries: list) -> list:
-    return [
-        e for e in entries
-        if not any(part.startswith(".") for part in e.path.strip("/").split("/") if part)
-    ]
-
 
 @read_router.get(
     "/{project_id}/ls",
@@ -58,7 +52,6 @@ def list_dir(
     clean_path = validate_path(path)
 
     entries = ops.list_dir(project_id, clean_path)
-    entries = _exclude_hidden(entries)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=ListDirResponse(
@@ -594,7 +587,6 @@ def full_tree(
     clean_path = validate_path(path)
 
     entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
-    entries = _exclude_hidden(entries)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=TreeResponse(

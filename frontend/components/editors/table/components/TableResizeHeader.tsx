@@ -103,16 +103,12 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
           margin-right: ${TABLE_RIGHT_GUTTER}px;
           display: flex;
           align-items: flex-end;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          border-bottom: 1px solid var(--po-border);
           background: transparent;
-          font-family:
-            'Plus Jakarta Sans',
-            -apple-system,
-            BlinkMacSystemFont,
-            sans-serif;
+          font-family: var(--po-font-sans);
           font-size: 11px;
           font-weight: 500;
-          color: #6b7280;
+          color: var(--po-text-subtle);
           user-select: none;
         }
 
@@ -144,30 +140,30 @@ export const TableResizeHeader = React.memo(function TableResizeHeader({
           width: 2px;
           height: 8px;
           border-radius: 1px;
-          background: rgba(255, 255, 255, 0.2);
+          background: color-mix(in srgb, var(--po-text) 22%, transparent);
           transition: all 0.15s;
         }
 
         /* Show handles more clearly when hovering the header area */
         .table-header:hover .resize-handle::after {
-          background: rgba(255, 255, 255, 0.4);
+          background: color-mix(in srgb, var(--po-text) 40%, transparent);
           height: 10px;
         }
 
         .resize-handle:hover::after,
         .resize-handle.active::after {
-          background: #528bff !important;
+          background: var(--po-accent) !important;
           width: 3px; /* Thicker on interaction */
           height: 18px;
           border-radius: 0;
-          box-shadow: 0 0 4px rgba(82, 139, 255, 0.5);
+          box-shadow: 0 0 4px color-mix(in srgb, var(--po-accent) 50%, transparent);
         }
       `}</style>
 
       <div className='table-header'>
-        {/* Render "KEY" labels for each depth level if enough space? 
-            Actually, just showing "KEY" at the first column is cleaner, 
-            or maybe "KEY (L0)", "KEY (L1)"... 
+        {/* Render "KEY" labels for each depth level if enough space?
+            Actually, just showing "KEY" at the first column is cleaner,
+            or maybe "KEY (L0)", "KEY (L1)"...
             Let's simply render the resizing handles and maybe column labels.
         */}
 

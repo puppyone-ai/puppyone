@@ -1,5 +1,5 @@
 /**
- * PuppyOne unified loading system.
+ * Puppyone unified loading system.
  *
  * Public surface — all loaders flow through this barrel so refactors
  * stay backwards-compatible (file moves only need to update one
@@ -25,7 +25,7 @@
  *
  * For animation flavour & colour overrides see the props on each
  * component; defaults are tuned to the dark, grey-scale chrome that
- * dominates PuppyOne, so most usage should pass NO props.
+ * dominates Puppyone, so most usage should pass NO props.
  */
 
 export { PulseGrid } from './PulseGrid';
@@ -39,6 +39,15 @@ export type { InlineLoadingProps } from './InlineLoading';
 
 export { PageLoading } from './PageLoading';
 export type { PageLoadingProps } from './PageLoading';
+
+export {
+  HeaderedPageLoadingShell,
+  ProjectPageLoadingShell,
+} from './ProjectPageLoadingShell';
+export type {
+  HeaderedPageLoadingShellProps,
+  ProjectPageLoadingShellProps,
+} from './ProjectPageLoadingShell';
 
 export { EditorLoadingSurface } from './EditorLoadingSurface';
 export type { EditorLoadingSurfaceProps } from './EditorLoadingSurface';

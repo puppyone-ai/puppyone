@@ -9,8 +9,8 @@ export const TABLE_RESIZE_HANDLE_HIT_HEIGHT = 32;
 export const TABLE_RESIZE_HANDLE_HIT_WIDTH = 16;
 export const EXPAND_ICON_SIZE = 16;
 export const EXPAND_ICON_GAP = 8;
-export const BORDER_COLOR = 'rgba(255, 255, 255, 0.15)';
-export const ROW_BG_ODD = 'rgba(255, 255, 255, 0.015)';
+export const BORDER_COLOR = 'var(--po-border-strong)';
+export const ROW_BG_ODD = 'var(--po-control)';
 export const ROW_BG_EVEN = 'transparent';
 
 export const DEFAULT_KEY_WIDTH = KEY_COL_WIDTH;

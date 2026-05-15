@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 import type { SyncEndpointInfo } from './types';
 
 function SyncSourceIcon({ size = 16, isEmpty = false }: { size?: number; isEmpty?: boolean }) {
@@ -15,7 +16,7 @@ function SyncSourceIcon({ size = 16, isEmpty = false }: { size?: number; isEmpty
       strokeWidth={isEmpty ? '1.5' : '2'}
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ color: isEmpty ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.8)' }}
+      style={{ color: isEmpty ? 'color-mix(in srgb, var(--po-text) 22%, transparent)' : 'color-mix(in srgb, var(--po-text) 80%, transparent)' }}
     >
       <path d="M12 22v-5" />
       <path d="M9 8V2" />
@@ -29,9 +30,9 @@ export function EndpointIconRenderer({ ep, size = 14 }: { ep: SyncEndpointInfo; 
   const isAgent = ep.provider.startsWith('agent:');
   const isMcp = ep.provider === 'mcp';
   const isSandbox = ep.provider === 'sandbox';
-  const color = '#a1a1aa';
+  const color = 'var(--po-text-muted)';
   const dotColor =
-    ep.status === 'error' ? '#ef4444' : ep.status === 'stopped' ? '#71717a' : '#10b981';
+    ep.status === 'error' ? 'var(--po-danger)' : ep.status === 'stopped' ? 'var(--po-text-subtle)' : 'var(--po-success)';
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -162,21 +163,21 @@ export function ItemContextMenu({
           width: 22,
           height: 22,
           borderRadius: 4,
-          background: open ? 'rgba(255,255,255,0.1)' : 'transparent',
+          background: open ? 'var(--po-active)' : 'transparent',
           border: 'none',
           cursor: 'pointer',
-          color: open ? '#ddd' : '#999',
+          color: open ? 'var(--po-text)' : 'var(--po-text-subtle)',
           padding: 0,
           transition: 'background 0.1s, color 0.1s',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-          e.currentTarget.style.color = '#ddd';
+          e.currentTarget.style.background = 'var(--po-active)';
+          e.currentTarget.style.color = 'var(--po-text)';
         }}
         onMouseLeave={(e) => {
           if (!open) {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#999';
+            e.currentTarget.style.color = 'var(--po-text-subtle)';
           }
         }}
       >
@@ -195,12 +196,12 @@ export function ItemContextMenu({
             position: 'fixed',
             top: pos.y,
             left: pos.x,
-            zIndex: 9999,
-            background: 'rgba(28, 28, 30, 0.98)',
+            zIndex: APP_Z_INDEX.popover,
+            background: 'var(--po-overlay)',
             backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            border: '1px solid var(--po-border)',
             borderRadius: 8,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            boxShadow: '0 16px 44px var(--po-shadow)',
             minWidth: 160,
             padding: '4px 0',
             fontSize: 13,
@@ -296,8 +297,8 @@ function RowMenuItem({
   // neutral white wash so the affordance reads as "this will
   // remove something". Non-destructive items follow the same
   // neutral pattern as CreateMenu's MenuItem exactly.
-  const baseColor = destructive ? '#ef4444' : '#e4e4e7';
-  const hoverBg = destructive ? 'rgba(239,68,68,0.10)' : 'rgba(255,255,255,0.08)';
+  const baseColor = destructive ? 'var(--po-danger)' : 'var(--po-text)';
+  const hoverBg = destructive ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)' : 'var(--po-hover)';
 
   return (
     <button

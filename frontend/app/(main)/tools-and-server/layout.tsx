@@ -10,10 +10,11 @@ import {
 } from '@/lib/hooks/useData';
 import { createMcpV2 } from '@/lib/mcpApi';
 import { Dots } from '@/components/loading';
+import { CHROME_LABEL_TYPOGRAPHY, FONT_SANS } from '@/lib/uiTypography';
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 320;
-const DEFAULT_WIDTH = 220;
+const DEFAULT_WIDTH = MIN_WIDTH;
 const COLLAPSED_WIDTH = 45;
 
 export default function ToolsLayout({
@@ -105,7 +106,7 @@ export default function ToolsLayout({
         display: 'flex',
         width: '100%',
         height: '100%',
-        backgroundColor: '#0f0f0f', // Main content area - darker than bars (#1a1a1a)
+        backgroundColor: 'var(--po-panel)', // Main content area - darker than bars (var(--po-panel-raised))
       }}
     >
       {/* --- 右侧浮动容器：包含二级 sidebar + 主内容区 --- */}
@@ -116,8 +117,8 @@ export default function ToolsLayout({
           margin: 8,
           marginLeft: 0,
           borderRadius: 12,
-          border: '1px solid #2a2a2a',
-          background: '#0e0e0e',
+          border: '1px solid var(--po-border)',
+          background: 'var(--po-canvas)',
           overflow: 'hidden',
         }}
       >
@@ -126,12 +127,11 @@ export default function ToolsLayout({
           ref={sidebarRef}
           style={{
             width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
-            borderRight: '1px solid #2a2a2a',
+            borderRight: '1px solid var(--po-border)',
             display: 'flex',
             flexDirection: 'column',
-            background: '#141414',
-            fontFamily:
-              "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+            background: 'var(--po-control)',
+            fontFamily: FONT_SANS,
             boxSizing: 'border-box',
             position: 'relative',
             flexShrink: 0,
@@ -148,7 +148,7 @@ export default function ToolsLayout({
               alignItems: 'center',
               justifyContent: isCollapsed ? 'center' : 'space-between',
               padding: isCollapsed ? '0' : '0 9px 0 16px',
-              borderBottom: '1px solid #2a2a2a',
+              borderBottom: '1px solid var(--po-border)',
               boxSizing: 'border-box',
             }}
           >
@@ -157,8 +157,8 @@ export default function ToolsLayout({
                 onClick={() => setIsCollapsed(false)}
                 title='Expand sidebar'
                 style={{
-                  width: 28,
-                  height: 32,
+                  width: 30,
+                  height: 30,
                   background: 'transparent',
                   border: 'none',
                   borderRadius: 5,
@@ -166,16 +166,16 @@ export default function ToolsLayout({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#6b7280',
+                  color: 'var(--po-text-subtle)',
                   transition: 'all 0.15s',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                  e.currentTarget.style.color = '#9ca3af';
+                  e.currentTarget.style.background = 'var(--po-border)';
+                  e.currentTarget.style.color = 'var(--po-text-muted)';
                 }}
                 onMouseLeave={e => {
                   e.currentTarget.style.background = 'transparent';
-                  e.currentTarget.style.color = '#6b7280';
+                  e.currentTarget.style.color = 'var(--po-text-subtle)';
                 }}
               >
                 <svg
@@ -196,10 +196,8 @@ export default function ToolsLayout({
               <>
                 <span
                   style={{
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: '#EDEDED',
-                    letterSpacing: '0.3px',
+                    ...CHROME_LABEL_TYPOGRAPHY,
+                    color: 'var(--po-text)',
                   }}
                 >
                   Tools & MCP
@@ -208,8 +206,8 @@ export default function ToolsLayout({
                   onClick={() => setIsCollapsed(true)}
                   title='Collapse sidebar'
                   style={{
-                    width: 28,
-                    height: 32,
+                    width: 30,
+                    height: 30,
                     background: 'transparent',
                     border: 'none',
                     borderRadius: 5,
@@ -217,16 +215,16 @@ export default function ToolsLayout({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#6b7280',
+                    color: 'var(--po-text-subtle)',
                     transition: 'all 0.15s',
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                    e.currentTarget.style.color = '#9ca3af';
+                    e.currentTarget.style.background = 'var(--po-border)';
+                    e.currentTarget.style.color = 'var(--po-text-muted)';
                   }}
                   onMouseLeave={e => {
                     e.currentTarget.style.background = 'transparent';
-                    e.currentTarget.style.color = '#6b7280';
+                    e.currentTarget.style.color = 'var(--po-text-subtle)';
                   }}
                 >
                   <svg
@@ -257,7 +255,7 @@ export default function ToolsLayout({
                 style={{
                   marginTop: 8,
                   paddingTop: 8,
-                  borderTop: '1px solid #333',
+                  borderTop: '1px solid var(--po-border-strong)',
                 }}
               >
                 <div
@@ -273,7 +271,7 @@ export default function ToolsLayout({
                     style={{
                       fontSize: 12,
                       fontWeight: 600,
-                      color: '#6D7177',
+                      color: 'var(--po-text-subtle)',
                     }}
                   >
                     Deployed Servers
@@ -284,24 +282,24 @@ export default function ToolsLayout({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: 26,
-                      height: 26,
+                      width: 30,
+                      height: 30,
                       background: 'transparent',
                       border: 'none',
                       borderRadius: 4,
                       cursor: 'pointer',
-                      color: '#5D6065',
+                      color: 'var(--po-text-subtle)',
                       transition: 'all 0.15s',
                     }}
                     title='New Server'
                     onMouseEnter={e => {
                       e.currentTarget.style.background =
-                        'rgba(255,255,255,0.1)';
-                      e.currentTarget.style.color = '#EDEDED';
+                        'var(--po-active)';
+                      e.currentTarget.style.color = 'var(--po-text)';
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#5D6065';
+                      e.currentTarget.style.color = 'var(--po-text-subtle)';
                     }}
                   >
                     <svg width='14' height='14' viewBox='0 0 10 10' fill='none'>
@@ -353,7 +351,7 @@ export default function ToolsLayout({
                         transition: 'background 0.15s',
                       }}
                       onMouseEnter={e =>
-                        (e.currentTarget.style.background = '#2C2C2C')
+                        (e.currentTarget.style.background = 'var(--po-hover)')
                       }
                       onMouseLeave={e =>
                         (e.currentTarget.style.background = 'transparent')
@@ -366,7 +364,7 @@ export default function ToolsLayout({
                           justifyContent: 'center',
                           width: 16,
                           height: 16,
-                          color: '#6D7177',
+                          color: 'var(--po-text-subtle)',
                         }}
                       >
                         <svg
@@ -383,7 +381,7 @@ export default function ToolsLayout({
                           />
                         </svg>
                       </span>
-                      <span style={{ fontSize: 16, color: '#6D7177' }}>
+                      <span style={{ fontSize: 16, color: 'var(--po-text-subtle)' }}>
                         New Server
                       </span>
                     </button>
@@ -449,13 +447,13 @@ export default function ToolsLayout({
                 cursor: 'col-resize',
                 zIndex: 10,
                 background: isResizing
-                  ? 'rgba(255, 255, 255, 0.1)'
+                  ? 'var(--po-active)'
                   : 'transparent',
                 transition: 'background 0.15s',
               }}
               onMouseEnter={e => {
                 if (!isResizing)
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.background = 'var(--po-active)';
               }}
               onMouseLeave={e => {
                 if (!isResizing)
@@ -474,7 +472,7 @@ export default function ToolsLayout({
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
-            background: '#0e0e0e',
+            background: 'var(--po-canvas)',
           }}
         >
           {children}
@@ -487,7 +485,7 @@ export default function ToolsLayout({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.65)',
+            background: 'var(--po-backdrop)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -496,20 +494,20 @@ export default function ToolsLayout({
         >
           <div
             style={{
-              background: '#1a1a1a',
-              border: '1px solid #3a3a3a',
+              background: 'var(--po-panel-raised)',
+              border: '1px solid var(--po-border-strong)',
               borderRadius: 10,
               padding: 24,
               width: 400,
               maxWidth: '90%',
-              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+              boxShadow: '0 10px 40px var(--po-shadow)',
             }}
           >
             <h3
               style={{
                 fontSize: 16,
                 fontWeight: 600,
-                color: '#CDCDCD',
+                color: 'var(--po-text)',
                 marginBottom: 16,
               }}
             >
@@ -523,12 +521,12 @@ export default function ToolsLayout({
               autoFocus
               style={{
                 width: '100%',
-                background: '#0a0a0a',
-                border: '1px solid #3a3a3a',
+                background: 'var(--po-inset)',
+                border: '1px solid var(--po-border-strong)',
                 borderRadius: 6,
                 padding: '8px 12px',
                 fontSize: 16,
-                color: '#CDCDCD',
+                color: 'var(--po-text)',
                 outline: 'none',
                 marginBottom: 16,
               }}
@@ -539,13 +537,14 @@ export default function ToolsLayout({
               <button
                 onClick={() => setShowCreateModal(false)}
                 style={{
-                  padding: '8px 16px',
+                  height: 30,
+                  padding: '0 16px',
                   borderRadius: 6,
                   background: 'transparent',
-                  color: '#808080',
+                  color: 'var(--po-text-subtle)',
                   border: 'none',
                   cursor: 'pointer',
-                  fontSize: 16,
+                  fontSize: 13,
                 }}
               >
                 Cancel
@@ -554,14 +553,15 @@ export default function ToolsLayout({
                 onClick={handleCreateServer}
                 disabled={isCreating || !newServerUrl.trim()}
                 style={{
-                  padding: '8px 16px',
+                  height: 30,
+                  padding: '0 16px',
                   borderRadius: 6,
-                  background: '#2563eb',
-                  color: '#ffffff',
+                  background: 'var(--po-accent)',
+                  color: 'var(--po-text-inverse)',
                   border: 'none',
                   cursor: isCreating ? 'not-allowed' : 'pointer',
                   opacity: isCreating ? 0.7 : 1,
-                  fontSize: 16,
+                  fontSize: 13,
                   fontWeight: 500,
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -597,7 +597,7 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
         padding: '0 4px 0 6px',
         borderRadius: 6,
         cursor: 'pointer',
-        background: active || hovered ? '#2C2C2C' : 'transparent',
+        background: active || hovered ? 'var(--po-hover)' : 'transparent',
         border: 'none',
         width: '100%',
         textDecoration: 'none',
@@ -622,7 +622,7 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
             <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
               <path
                 d='M7 1L12.2 4v6L7 13L1.8 10V4L7 1z'
-                stroke={active ? '#60a5fa' : hovered ? '#9B9B9B' : '#5D6065'}
+                stroke={active ? 'var(--po-accent)' : hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
                 strokeWidth='1.2'
                 strokeLinejoin='round'
                 fill='none'
@@ -631,11 +631,11 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
                 cx='7'
                 cy='7'
                 r='1.5'
-                fill={active ? '#60a5fa' : hovered ? '#9B9B9B' : '#5D6065'}
+                fill={active ? 'var(--po-accent)' : hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
               />
               <path
                 d='M7 5.5V3.5M5.7 8L4 9.5M8.3 8L10 9.5'
-                stroke={active ? '#60a5fa' : hovered ? '#9B9B9B' : '#5D6065'}
+                stroke={active ? 'var(--po-accent)' : hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
                 strokeWidth='1.2'
                 strokeLinecap='round'
               />
@@ -649,8 +649,8 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
                   width: 6,
                   height: 6,
                   borderRadius: '50%',
-                  background: status ? '#22c55e' : '#525252',
-                  border: '1.5px solid #181818',
+                  background: status ? 'var(--po-success)' : 'var(--po-text-disabled)',
+                  border: '1.5px solid var(--po-overlay)',
                 }}
               />
             )}
@@ -659,7 +659,7 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
           <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
             <path
               d='M8.5 3.5a1 1 0 0 0 0 1l1 1a1 1 0 0 0 1 0l2.5-2.5a4 4 0 0 1-5.3 5.3L4 12a1.4 1.4 0 0 1-2-2l3.7-3.7a4 4 0 0 1 5.3-5.3L8.5 3.5z'
-              stroke={active ? '#CDCDCD' : hovered ? '#9B9B9B' : '#5D6065'}
+              stroke={active ? 'var(--po-text)' : hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
               strokeWidth='1.2'
               strokeLinejoin='round'
             />
@@ -673,7 +673,7 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
           flex: 1,
           fontSize: 16,
           fontWeight: 500,
-          color: active ? '#FFFFFF' : hovered ? '#F0EFED' : '#9B9B9B',
+          color: active ? 'var(--po-text-inverse)' : hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -688,9 +688,9 @@ function NavItem({ active, href, label, count, isServer, status }: any) {
         <span
           style={{
             fontSize: 10,
-            color: '#6D7177',
+            color: 'var(--po-text-subtle)',
             padding: '2px 6px',
-            background: '#2A2A2A',
+            background: 'var(--po-control)',
             borderRadius: 4,
             flexShrink: 0,
           }}
@@ -712,19 +712,19 @@ function CollapsedNavItem({ active, href, title, icon, status }: any) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        width: 28,
-        height: 32,
+        width: 30,
+        height: 30,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         background: active
-          ? 'rgba(59, 130, 246, 0.15)'
+          ? 'color-mix(in srgb, var(--po-accent) 15%, transparent)'
           : hovered
-            ? 'rgba(255,255,255,0.08)'
+            ? 'var(--po-border)'
             : 'transparent',
         borderRadius: 5,
         cursor: 'pointer',
-        color: active ? '#60a5fa' : hovered ? '#e2e8f0' : '#808080',
+        color: active ? 'var(--po-accent)' : hovered ? 'var(--po-text)' : 'var(--po-text-subtle)',
         transition: 'all 0.15s',
         position: 'relative',
         textDecoration: 'none',
@@ -740,8 +740,8 @@ function CollapsedNavItem({ active, href, title, icon, status }: any) {
             width: 6,
             height: 6,
             borderRadius: '50%',
-            background: status ? '#22c55e' : '#525252',
-            border: '1.5px solid #181818',
+            background: status ? 'var(--po-success)' : 'var(--po-text-disabled)',
+            border: '1.5px solid var(--po-overlay)',
           }}
         />
       )}

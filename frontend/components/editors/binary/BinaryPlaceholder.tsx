@@ -26,7 +26,7 @@ export function BinaryPlaceholder({ nodeName, formatLabel }: BinaryPlaceholderPr
         alignItems: 'center',
         justifyContent: 'center',
         gap: 16,
-        color: '#71717a',
+        color: 'var(--po-text-subtle)',
       }}
     >
       <svg
@@ -40,7 +40,7 @@ export function BinaryPlaceholder({ nodeName, formatLabel }: BinaryPlaceholderPr
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
         <polyline points="14 2 14 8 20 8" />
       </svg>
-      <div style={{ fontSize: 16, fontWeight: 500, color: '#d4d4d8' }}>{nodeName}</div>
+      <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--po-text-muted)' }}>{nodeName}</div>
       <div style={{ fontSize: 13, textAlign: 'center', maxWidth: 360 }}>
         {formatLabel ? `${formatLabel} — preview not available in browser` : 'Raw file stored in S3'}
       </div>

@@ -13,13 +13,22 @@ import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import { ImportModal } from './editors/table/components/ImportModal';
 import { uploadFiles } from '../lib/uploadApi';
 import { Dots } from './loading';
+import { ActivityIconButton } from './ActivityIconButton';
+import { ModalPortal } from './ui/ModalPortal';
+import { ActionButton } from './ui/ActionButton';
+import { BUTTON_HEIGHT } from './ui/buttonTokens';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 import {
   addPendingTasks,
   updateTaskStatusById,
   updateTaskProgress,
   replaceTaskId,
 } from './BackgroundTaskNotifier';
-import { type CrawlOptions } from '../lib/importApi';
+import {
+  detectImportType,
+  supportsCrawlOptions,
+  type CrawlOptions,
+} from '../lib/importApi';
 import CrawlOptionsPanel from './CrawlOptionsPanel';
 
 type StartOption = 'documents' | 'url';
@@ -73,10 +82,18 @@ export function TableManageDialog({
   // be revived by accident; reintroducing the choice is a single
   // local refactor when the backend pipeline comes back online.
 
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const dropzoneRef = useRef<HTMLDivElement>(null);
+  const urlSupportsCrawlOptions = supportsCrawlOptions(urlInput);
+  const urlImportType = detectImportType(urlInput);
+  const destinationNamePlaceholder =
+    urlImportType === 'github'
+      ? 'Optional; defaults to the repository name'
+      : urlImportType === 'notion'
+        ? 'Optional; defaults to the source page name'
+        : 'Optional; used as the folder name in Puppyone';
 
   useEffect(() => {
     if (table) setName(table.name);
@@ -87,12 +104,26 @@ export function TableManageDialog({
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation(); 
-    if (e.currentTarget === dropzoneRef.current) setIsDragging(false);
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const { clientX, clientY } = e;
+    const isOutside =
+      clientX <= rect.left ||
+      clientX >= rect.right ||
+      clientY <= rect.top ||
+      clientY >= rect.bottom;
+
+    if (isOutside) {
+      setIsDragging(false);
+    }
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
   }, []);
 
   // Reusable: pick a sensible Context name from the first file's
@@ -144,7 +175,7 @@ export function TableManageDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    
+
     // Direct submit with current config
     await handleFinalSubmit();
   };
@@ -296,28 +327,33 @@ export function TableManageDialog({
 
   // Title logic
   const getDialogTitle = () => {
-    if (mode === 'delete') return 'Delete Context';
-    if (mode === 'edit') return 'Edit Context';
-    return startOption === 'documents' ? 'Import from Files' : 'Import from Web';
+    if (mode === 'delete') return 'Delete context';
+    if (mode === 'edit') return 'Edit context';
+    return startOption === 'documents' ? 'Upload files' : 'Import URL';
   };
 
   return (
+    <ModalPortal>
     <div
+      role='presentation'
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+        position: 'fixed', inset: 0, background: 'var(--po-backdrop)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: APP_Z_INDEX.modal,
         backdropFilter: 'blur(2px)'
       }}
       onClick={onClose}
     >
       <div
+        role='dialog'
+        aria-modal='true'
+        aria-label={getDialogTitle()}
         style={{
-          background: '#1C1C1E',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-overlay)',
+          border: '1px solid var(--po-border)',
           borderRadius: 12,
           width: 520, // Slightly simpler width
           maxWidth: '90vw',
-          boxShadow: '0 24px 48px rgba(0,0,0,0.4), 0 12px 24px rgba(0,0,0,0.4)',
+          boxShadow: '0 24px 48px var(--po-shadow)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           animation: 'dialog-fade-in 0.2s ease-out',
         }}
@@ -328,55 +364,37 @@ export function TableManageDialog({
             from { opacity: 0; transform: scale(0.98); }
             to { opacity: 1; transform: scale(1); }
           }
-          input::placeholder { color: #525252; }
+          input::placeholder { color: var(--po-text-disabled); }
         `}</style>
 
         {/* Header */}
         <div style={{
-          padding: '16px 20px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          padding: '14px 20px 8px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: '#E4E4E7' }}>
+          <h2 style={{ margin: 0, fontSize: 13, fontWeight: 500, color: 'var(--po-text-muted)' }}>
             {getDialogTitle()}
           </h2>
-          <button onClick={onClose} style={{
-            background: 'transparent', border: 'none', color: '#71717A',
-            cursor: 'pointer', padding: 4, display: 'flex', borderRadius: 4,
-            transition: 'color 0.15s, background 0.15s'
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.color = '#E4E4E7';
-            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.color = '#71717A';
-            e.currentTarget.style.background = 'transparent';
-          }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
+          <ActivityIconButton kind="close" title="Close" onClick={onClose} />
         </div>
 
         {mode === 'delete' ? (
           <div style={{ padding: 24 }}>
-            <p style={{ color: '#A1A1AA', fontSize: 16, lineHeight: 1.6, margin: '0 0 24px' }}>
-              Are you sure you want to delete <strong style={{ color: '#E4E4E7' }}>{table?.name}</strong>? This cannot be undone.
+            <p style={{ color: 'var(--po-text-muted)', fontSize: 16, lineHeight: 1.6, margin: '0 0 24px' }}>
+              Are you sure you want to delete <strong style={{ color: 'var(--po-text)' }}>{table?.name}</strong>? This cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={onClose} style={buttonStyle(false)}>Cancel</button>
-              <button onClick={handleDelete} disabled={loading} style={{ ...buttonStyle(true, true), display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+              <ActionButton type='button' onClick={onClose}>Cancel</ActionButton>
+              <ActionButton type='button' onClick={handleDelete} variant='danger' loading={loading}>
                 {loading && <Dots size="xs" tone="danger" />}
                 {loading ? 'Deleting…' : 'Delete'}
-              </button>
+              </ActionButton>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              
+            <div style={{ padding: '12px 24px 20px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+
               {startOption === 'documents' && (
                 <>
                   <input
@@ -394,13 +412,13 @@ export function TableManageDialog({
                     onChange={handleFileSelect}
                     style={{ display: 'none' }}
                   />
-                  
+
                   {selectedFiles && selectedFiles.length > 0 ? (
                     <div
                       style={{
-                        border: '1px solid rgba(255,255,255,0.08)',
+                        border: '1px solid var(--po-border)',
                         borderRadius: 8,
-                        background: '#18181B',
+                        background: 'var(--po-panel-raised)',
                         overflow: 'hidden',
                       }}
                     >
@@ -410,10 +428,10 @@ export function TableManageDialog({
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          borderBottom: '1px solid rgba(255,255,255,0.06)',
+                          borderBottom: '1px solid var(--po-border-subtle)',
                         }}
                       >
-                        <span style={{ fontSize: 12, color: '#A1A1AA' }}>
+                        <span style={{ fontSize: 12, color: 'var(--po-text-muted)' }}>
                           {selectedFiles.length} file{selectedFiles.length === 1 ? '' : 's'} selected
                         </span>
                         <button
@@ -423,21 +441,22 @@ export function TableManageDialog({
                             setName('');
                           }}
                           style={{
+                            height: 30,
                             background: 'transparent',
                             border: 'none',
-                            color: '#71717A',
+                            color: 'var(--po-text-subtle)',
                             fontSize: 12,
                             cursor: 'pointer',
-                            padding: '2px 6px',
+                            padding: '0 8px',
                             borderRadius: 4,
                             transition: 'color 0.12s, background 0.12s',
                           }}
                           onMouseEnter={e => {
-                            e.currentTarget.style.color = '#E4E4E7';
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+                            e.currentTarget.style.color = 'var(--po-text)';
+                            e.currentTarget.style.background = 'var(--po-hover)';
                           }}
                           onMouseLeave={e => {
-                            e.currentTarget.style.color = '#71717A';
+                            e.currentTarget.style.color = 'var(--po-text-subtle)';
                             e.currentTarget.style.background = 'transparent';
                           }}
                         >
@@ -477,7 +496,7 @@ export function TableManageDialog({
                               <span
                                 style={{
                                   fontSize: 13,
-                                  color: '#E4E4E7',
+                                  color: 'var(--po-text)',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
                                   whiteSpace: 'nowrap',
@@ -490,7 +509,7 @@ export function TableManageDialog({
                               <span
                                 style={{
                                   fontSize: 11,
-                                  color: '#71717A',
+                                  color: 'var(--po-text-subtle)',
                                   whiteSpace: 'nowrap',
                                   flexShrink: 0,
                                 }}
@@ -503,7 +522,7 @@ export function TableManageDialog({
                           <div
                             style={{
                               fontSize: 11,
-                              color: '#71717A',
+                              color: 'var(--po-text-subtle)',
                               textAlign: 'center',
                               padding: 4,
                             }}
@@ -523,14 +542,14 @@ export function TableManageDialog({
                       style={{
                         padding: '28px 20px',
                         border: '1px dashed',
-                        borderColor: isDragging ? '#60A5FA' : 'rgba(255,255,255,0.14)',
+                        borderColor: isDragging ? 'var(--po-focus-ring)' : 'var(--po-border-strong)',
                         borderRadius: 8,
                         // No solid fill — the dashed border alone
                         // signals "drop here", letting the dialog's
                         // own surface read through. The previous
                         // `#27272A` fill made the dropzone look like
                         // a separate panel slammed onto the dialog.
-                        background: isDragging ? 'rgba(96,165,250,0.06)' : 'transparent',
+                        background: isDragging ? 'var(--po-selected)' : 'transparent',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
@@ -543,7 +562,7 @@ export function TableManageDialog({
                         height='22'
                         viewBox='0 0 24 24'
                         fill='none'
-                        stroke={isDragging ? '#60A5FA' : '#71717A'}
+                        stroke={isDragging ? 'var(--po-accent)' : 'var(--po-text-subtle)'}
                         strokeWidth='1.5'
                         strokeLinecap='round'
                         strokeLinejoin='round'
@@ -552,7 +571,7 @@ export function TableManageDialog({
                         <polyline points='17 8 12 3 7 8'></polyline>
                         <line x1='12' y1='3' x2='12' y2='15'></line>
                       </svg>
-                      <div style={{ fontSize: 13, color: '#A1A1AA', textAlign: 'center' }}>
+                      <div style={{ fontSize: 13, color: 'var(--po-text-muted)', textAlign: 'center' }}>
                         Drag and drop files or folders here
                       </div>
                       <div style={{ display: 'flex', gap: 8 }}>
@@ -561,12 +580,12 @@ export function TableManageDialog({
                           onClick={() => fileInputRef.current?.click()}
                           style={dropzoneActionButton}
                           onMouseEnter={e => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)';
+                            e.currentTarget.style.background = 'var(--po-border-subtle)';
+                            e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                           }}
                           onMouseLeave={e => {
                             e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                            e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                           }}
                         >
                           Upload Files
@@ -576,12 +595,12 @@ export function TableManageDialog({
                           onClick={() => folderInputRef.current?.click()}
                           style={dropzoneActionButton}
                           onMouseEnter={e => {
-                            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)';
+                            e.currentTarget.style.background = 'var(--po-border-subtle)';
+                            e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                           }}
                           onMouseLeave={e => {
                             e.currentTarget.style.background = 'transparent';
-                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+                            e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                           }}
                         >
                           Upload Folder
@@ -611,18 +630,20 @@ export function TableManageDialog({
                     <label style={labelStyle}>URL</label>
                     <input
                       type='text'
-                      placeholder='https://...'
+                      placeholder='https://github.com/org/repo, https://notion.so/..., or https://example.com'
                       value={urlInput}
                       onChange={e => setUrlInput(e.target.value)}
                       style={inputStyle}
                       autoFocus
                     />
                   </div>
-                  <CrawlOptionsPanel url={urlInput} options={crawlOptions} onChange={setCrawlOptions} />
+                  {urlSupportsCrawlOptions && (
+                    <CrawlOptionsPanel url={urlInput} options={crawlOptions} onChange={setCrawlOptions} />
+                  )}
                   {urlInput.trim() && (
                     <div>
-                      <label style={labelStyle}>Name</label>
-                      <input type='text' value={name} onChange={e => setName(e.target.value)} placeholder='e.g. Website Content' style={inputStyle} />
+                      <label style={labelStyle}>Destination name (optional)</label>
+                      <input type='text' value={name} onChange={e => setName(e.target.value)} placeholder={destinationNamePlaceholder} style={inputStyle} />
                     </div>
                   )}
                 </>
@@ -632,13 +653,12 @@ export function TableManageDialog({
 
             {/* Footer */}
             <div style={{
-              padding: '16px 20px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
+              padding: '0 20px 20px',
               display: 'flex', justifyContent: 'flex-end', gap: 10,
-              background: '#1C1C1E',
+              background: 'var(--po-overlay)',
             }}>
-              <button type='button' onClick={onClose} style={buttonStyle(false)}>Cancel</button>
-              <button
+              <ActionButton type='button' onClick={onClose}>Cancel</ActionButton>
+              <ActionButton
                 type={startOption === 'url' ? 'button' : 'submit'}
                 onClick={
                   startOption === 'url' ? (urlInput.trim() ? () => setShowImportModal(true) : undefined) :
@@ -649,29 +669,31 @@ export function TableManageDialog({
                   (startOption === 'documents' && (!selectedFiles || selectedFiles.length === 0 || !name.trim())) ||
                   (startOption === 'url' && !urlInput.trim())
                 }
-                style={buttonStyle(true)}
+                variant='primary'
+                loading={loading}
               >
                 {mode === 'edit' ? 'Save Changes' : startOption === 'documents' ? 'Start Import' : 'Import'}
-              </button>
+              </ActionButton>
             </div>
           </form>
         )}
       </div>
-      
+
       {showImportModal && projectId && (
         <ImportModal
           visible={showImportModal}
           projectId={projectId || ''}
           mode='create_table'
-          tableName={name || 'Imported Content'}
+          tableName={name}
           initialUrl={urlInput}
-          initialCrawlOptions={crawlOptions}
+          initialCrawlOptions={urlSupportsCrawlOptions ? crawlOptions : undefined}
           onClose={() => { setShowImportModal(false); setUrlInput(''); }}
           onSuccess={() => { setShowImportModal(false); setUrlInput(''); refreshProjects(currentOrg?.id); onClose(); }}
         />
       )}
 
     </div>
+    </ModalPortal>
   );
 }
 
@@ -683,7 +705,7 @@ export function TableManageDialog({
 const labelStyle: React.CSSProperties = {
   fontSize: 11,
   fontWeight: 600,
-  color: '#71717A',
+  color: 'var(--po-text-subtle)',
   textTransform: 'uppercase',
   letterSpacing: '0.05em',
   marginBottom: 8,
@@ -691,7 +713,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 // Form-field styling matched to the menu / sidebar surfaces
-// (#0e0e0e family). The previous version used a brighter
+// (var(--po-canvas) family). The previous version used a brighter
 // `#27272A` fill that read as a sunken card on the dialog
 // background and 16px text that towered over the explorer rows
 // (13px) launching the dialog. 13px keeps the dialog visually
@@ -700,10 +722,10 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   height: 32,
   padding: '0 12px',
-  background: '#18181B',
-  border: '1px solid rgba(255,255,255,0.10)',
+  background: 'var(--po-panel-raised)',
+  border: '1px solid var(--po-border-strong)',
   borderRadius: 6,
-  color: '#E4E4E7',
+  color: 'var(--po-text)',
   fontSize: 13,
   outline: 'none',
   transition: 'border-color 0.15s',
@@ -715,33 +737,14 @@ const inputStyle: React.CSSProperties = {
 // "primary action lives in the footer" — the dropzone buttons are
 // shortcut affordances, not the call-to-action.
 const dropzoneActionButton: React.CSSProperties = {
-  height: 30,
+  height: BUTTON_HEIGHT,
   padding: '0 14px',
   borderRadius: 6,
-  border: '1px solid rgba(255,255,255,0.10)',
+  border: '1px solid var(--po-border-strong)',
   background: 'transparent',
-  color: '#E4E4E7',
+  color: 'var(--po-text)',
   fontSize: 13,
   fontWeight: 500,
   cursor: 'pointer',
   transition: 'background 0.15s, border-color 0.15s',
 };
-
-const buttonStyle = (primary: boolean, danger = false): React.CSSProperties => ({
-  height: '32px',
-  padding: '0 14px',
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: 6,
-  border: primary || danger ? '1px solid transparent' : '1px solid rgba(255,255,255,0.10)',
-  background: danger ? 'rgba(239,68,68,0.15)' : primary ? '#E4E4E7' : 'transparent',
-  color: danger ? '#ef4444' : primary ? '#18181B' : '#A1A1AA',
-  // 13px keeps dialog buttons at the same scale as menu items,
-  // tabs, and explorer rows. Was 16px which made the footer
-  // dominate the dialog.
-  fontSize: 13,
-  fontWeight: 500,
-  cursor: 'pointer',
-  transition: 'all 0.15s',
-});

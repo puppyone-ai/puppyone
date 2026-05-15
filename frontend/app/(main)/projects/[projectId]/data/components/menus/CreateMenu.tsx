@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 
 export type CreateType =
   | 'folder'
@@ -67,7 +68,7 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
         height: 32,
         padding: '0 12px',
         cursor: disabled ? 'default' : 'pointer',
-        color: disabled ? '#52525b' : '#e4e4e7',
+        color: disabled ? 'var(--po-text-disabled)' : 'var(--po-text)',
         // Was 14px — bumped down to 13px to align with the explorer
         // row context menu and the surrounding tree text. 14px made
         // popup items read as visually heavier than the rows that
@@ -75,14 +76,14 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
         // sibling control (not a primary surface).
         fontSize: 13,
         transition: 'background 0.1s',
-        background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+        background: isActive ? 'var(--po-hover)' : 'transparent',
         borderRadius: 6,
         margin: '0 4px',
         position: 'relative',
         opacity: disabled ? 0.55 : 1,
       }}
       onMouseEnter={(e) => {
-        if (!disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+        if (!disabled) e.currentTarget.style.background = 'var(--po-hover)';
         onMouseEnter?.(e);
       }}
       onMouseLeave={(e) => {
@@ -99,7 +100,7 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
         </span>
       )}
       <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
-      {sublabel && <span style={{ fontSize: 11, color: disabled ? '#52525b' : '#71717a', marginLeft: 8 }}>{sublabel}</span>}
+      {sublabel && <span style={{ fontSize: 11, color: disabled ? 'var(--po-text-disabled)' : 'var(--po-text-subtle)', marginLeft: 8 }}>{sublabel}</span>}
       {hasSubmenu && (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
           <polyline points="9 18 15 12 9 6" />
@@ -110,33 +111,35 @@ function MenuItem({ icon, label, sublabel, onClick, onMouseEnter, isActive, hasS
 }
 
 function Divider() {
-  return <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '4px 8px' }} />;
+  return <div style={{ height: 1, background: 'var(--po-border)', margin: '4px 8px' }} />;
 }
 
-const iconColor = '#a1a1aa';
+const MENU_EDGE_PADDING = 12;
+
+const iconColor = 'var(--po-text-muted)';
 
 const FolderIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#60a5fa" fillOpacity="0.45" />
+    <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="var(--po-accent)" fillOpacity="0.45" />
   </svg>
 );
 
 const JsonIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 12l-2 2 2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 12l2 2-2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 2v6h6" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M10 12l-2 2 2 2" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 12l2 2-2 2" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const MarkdownIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M8 16v-4l2.5 2.5L13 12v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 16v-4h2v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 14h2" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M14 2v6h6" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 16v-4l2.5 2.5L13 12v4" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 16v-4h2v4" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M16 14h2" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -164,8 +167,8 @@ const ConnectIcon = () => (
 
 const NotionIcon = () => (
   <svg width="14" height="14" viewBox="0 0 100 100" fill="none">
-    <path d="M6.017 4.313l55.333 -4.087c6.797 -0.583 8.543 -0.19 12.817 2.917l17.663 12.443c2.913 2.14 3.883 2.723 3.883 5.053v68.243c0 4.277 -1.553 6.807 -6.99 7.193L24.467 99.967c-4.08 0.193 -6.023 -0.39 -8.16 -3.113L3.3 79.94c-2.333 -3.113 -3.3 -5.443 -3.3 -8.167V11.113c0 -3.497 1.553 -6.413 6.017 -6.8z" fill="#fff" />
-    <path fillRule="evenodd" clipRule="evenodd" d="M61.35 0.227l-55.333 4.087C1.553 4.7 0 7.617 0 11.113v60.66c0 2.723 0.967 5.053 3.3 8.167l13.007 16.913c2.137 2.723 4.08 3.307 8.16 3.113l64.257 -3.89c5.433 -0.387 6.99 -2.917 6.99 -7.193V20.64c0 -2.21 -0.873 -2.847 -3.443 -4.733L74.167 3.143c-4.273 -3.107 -6.02 -3.5 -12.817 -2.917zM25.92 19.523c-5.247 0.353 -6.437 0.433 -9.417 -1.99L8.927 11.507c-0.77 -0.78 -0.383 -1.753 1.557 -1.947l53.193 -3.887c4.467 -0.39 6.793 1.167 8.54 2.527l9.123 6.61c0.39 0.197 1.36 1.36 0.193 1.36l-54.933 3.307 -0.68 0.047zM19.803 88.3V30.367c0 -2.53 0.777 -3.697 3.103 -3.893L86 22.78c2.14 -0.193 3.107 1.167 3.107 3.693v57.547c0 2.53 -0.39 4.67 -3.883 4.863l-60.377 3.5c-3.493 0.193 -5.043 -0.97 -5.043 -4.083zm59.6 -54.827c0.387 1.75 0 3.5 -1.75 3.7l-2.91 0.577v42.773c-2.527 1.36 -4.853 2.137 -6.797 2.137 -3.107 0 -3.883 -0.973 -6.21 -3.887l-19.03 -29.94v28.967l6.02 1.363s0 3.5 -4.857 3.5l-13.39 0.777c-0.39 -0.78 0 -2.723 1.357 -3.11l3.497 -0.97v-38.3L30.48 40.667c-0.39 -1.75 0.58 -4.277 3.3 -4.473l14.367 -0.967 19.8 30.327v-26.83l-5.047 -0.58c-0.39 -2.143 1.163 -3.7 3.103 -3.89l13.4 -0.78z" fill="#000" />
+    <path d="M6.017 4.313l55.333 -4.087c6.797 -0.583 8.543 -0.19 12.817 2.917l17.663 12.443c2.913 2.14 3.883 2.723 3.883 5.053v68.243c0 4.277 -1.553 6.807 -6.99 7.193L24.467 99.967c-4.08 0.193 -6.023 -0.39 -8.16 -3.113L3.3 79.94c-2.333 -3.113 -3.3 -5.443 -3.3 -8.167V11.113c0 -3.497 1.553 -6.413 6.017 -6.8z" fill="var(--po-panel-raised)" />
+    <path fillRule="evenodd" clipRule="evenodd" d="M61.35 0.227l-55.333 4.087C1.553 4.7 0 7.617 0 11.113v60.66c0 2.723 0.967 5.053 3.3 8.167l13.007 16.913c2.137 2.723 4.08 3.307 8.16 3.113l64.257 -3.89c5.433 -0.387 6.99 -2.917 6.99 -7.193V20.64c0 -2.21 -0.873 -2.847 -3.443 -4.733L74.167 3.143c-4.273 -3.107 -6.02 -3.5 -12.817 -2.917zM25.92 19.523c-5.247 0.353 -6.437 0.433 -9.417 -1.99L8.927 11.507c-0.77 -0.78 -0.383 -1.753 1.557 -1.947l53.193 -3.887c4.467 -0.39 6.793 1.167 8.54 2.527l9.123 6.61c0.39 0.197 1.36 1.36 0.193 1.36l-54.933 3.307 -0.68 0.047zM19.803 88.3V30.367c0 -2.53 0.777 -3.697 3.103 -3.893L86 22.78c2.14 -0.193 3.107 1.167 3.107 3.693v57.547c0 2.53 -0.39 4.67 -3.883 4.863l-60.377 3.5c-3.493 0.193 -5.043 -0.97 -5.043 -4.083zm59.6 -54.827c0.387 1.75 0 3.5 -1.75 3.7l-2.91 0.577v42.773c-2.527 1.36 -4.853 2.137 -6.797 2.137 -3.107 0 -3.883 -0.973 -6.21 -3.887l-19.03 -29.94v28.967l6.02 1.363s0 3.5 -4.857 3.5l-13.39 0.777c-0.39 -0.78 0 -2.723 1.357 -3.11l3.497 -0.97v-38.3L30.48 40.667c-0.39 -1.75 0.58 -4.277 3.3 -4.473l14.367 -0.967 19.8 30.327v-26.83l-5.047 -0.58c-0.39 -2.143 1.163 -3.7 3.103 -3.89l13.4 -0.78z" fill="var(--po-text)" />
   </svg>
 );
 
@@ -205,7 +208,7 @@ const SearchConsoleIcon = () => <span style={{ fontSize: 14 }}>📊</span>;
 // Chat Agent are now per-scope built-ins, not creatable connectors.
 
 const McpIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="2" y="3" width="20" height="14" rx="2" />
     <line x1="8" y1="21" x2="16" y2="21" />
     <line x1="12" y1="17" x2="12" y2="21" />
@@ -213,7 +216,7 @@ const McpIcon = () => (
 );
 
 const SandboxIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="4 17 10 11 4 5" />
     <line x1="12" y1="19" x2="20" y2="19" />
   </svg>
@@ -245,15 +248,15 @@ export function CreateMenu({
   onCreateSandbox,
 }: CreateMenuProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
-  const [activeSubMenu, setActiveSubMenu] = useState<'upload' | 'connect' | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const element = menuRef.current;
     if (!element) return;
 
-    const menuWidth = element.scrollWidth;
-    const menuHeight = element.scrollHeight;
+    const menuRect = element.getBoundingClientRect();
+    const menuWidth = Math.max(menuRect.width, element.offsetWidth);
+    const menuHeight = Math.max(menuRect.height, element.offsetHeight);
     const viewportHeight = window.innerHeight;
     const viewportWidth = window.innerWidth;
     const pad = 12;
@@ -273,87 +276,37 @@ export function CreateMenu({
   return (
     <div
       ref={menuRef}
-      onMouseLeave={() => setActiveSubMenu(null)}
       style={{
         position: 'fixed',
         top: position?.top ?? y,
         left: position?.left ?? x,
-        zIndex: 1000,
-        background: 'rgba(28, 28, 30, 0.98)',
+        zIndex: APP_Z_INDEX.popover,
+        background: 'var(--po-overlay)',
         backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255,255,255,0.1)',
+        border: '1px solid var(--po-border)',
         borderRadius: 8,
         padding: '4px 0',
-        minWidth: 240,
+        minWidth: accessOnly ? 240 : 176,
         maxHeight: 'calc(100vh - 24px)',
-        overflow: 'visible',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        boxShadow: '0 8px 32px var(--po-shadow)',
         visibility: position ? 'visible' : 'hidden',
       }}
     >
       {!accessOnly && (
         <>
-          <div style={{ padding: '6px 16px 2px', fontSize: 11, fontWeight: 600, color: '#71717a', letterSpacing: '0.05em' }}>
-            Create Blank
+          <div style={{ padding: '6px 12px 2px', fontSize: 10.5, fontWeight: 500, color: 'var(--po-text-subtle)', letterSpacing: 0 }}>
+            Create blank
           </div>
 
-          <MenuItem icon={<FolderIcon />} label="Folder" onClick={() => { onCreateFolder(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
-          <MenuItem icon={<MarkdownIcon />} label="Markdown" onClick={() => { onCreateBlankMarkdown(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
-          <MenuItem icon={<JsonIcon />} label="JSON" onClick={() => { onCreateBlankJson(); onClose(); }} onMouseEnter={() => setActiveSubMenu(null)} />
+          <MenuItem icon={<FolderIcon />} label="Folder" onClick={() => { onCreateFolder(); onClose(); }} />
+          <MenuItem icon={<MarkdownIcon />} label="Markdown" onClick={() => { onCreateBlankMarkdown(); onClose(); }} />
+          <MenuItem icon={<JsonIcon />} label="JSON" onClick={() => { onCreateBlankJson(); onClose(); }} />
 
           <Divider />
 
-          <div style={{ position: 'relative' }}>
-            <MenuItem
-              icon={<UploadIcon />}
-              label="Upload"
-              hasSubmenu
-              isActive={activeSubMenu === 'upload'}
-              onMouseEnter={() => setActiveSubMenu('upload')}
-            />
-            {activeSubMenu === 'upload' && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '100%',
-                  marginLeft: 4,
-                  background: 'rgba(28, 28, 30, 0.98)',
-                  backdropFilter: 'blur(20px)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: 8,
-                  padding: '4px 0',
-                  minWidth: 180,
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                  zIndex: 1001,
-                }}
-              >
-                <MenuItem
-                  icon={
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke={iconColor} strokeWidth="1.5" />
-                      <polyline points="14,2 14,8 20,8" stroke={iconColor} strokeWidth="1.5" />
-                    </svg>
-                  }
-                  label="Files"
-                  sublabel="PDF, MD, CSV"
-                  onClick={() => { onImportFromFiles(); onClose(); }}
-                />
-                <MenuItem
-                  icon={
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <circle cx="12" cy="12" r="10" stroke={iconColor} strokeWidth="1.5" />
-                      <path d="M2 12h20" stroke={iconColor} strokeWidth="1.5" />
-                      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke={iconColor} strokeWidth="1.5" />
-                    </svg>
-                  }
-                  label="URL"
-                  sublabel="Web page"
-                  onClick={() => { onImportFromUrl(); onClose(); }}
-                />
-              </div>
-            )}
-          </div>
+          <MenuItem icon={<UploadIcon />} label="Upload files" onClick={() => { onImportFromFiles(); onClose(); }} />
         </>
       )}
 
@@ -378,35 +331,19 @@ export function CreateMenu({
           would also delete that picker, which is a real product
           asset.
 
-          The `activeSubMenu === 'connect'` branch in the condition
-          is now unreachable through this menu (no sender ever sets
-          'connect' anymore). It stays for symmetry with `'upload'`
-          and so re-introducing the parent row in the future is a
-          one-line change.
+          The integrations picker is intentionally hidden from the
+          regular Create menu. It renders only in `accessOnly` mode,
+          which is opened by the per-folder plug button after the user
+          has already expressed "create access here".
         */}
-        {(accessOnly || activeSubMenu === 'connect') && (
+        {accessOnly && (
           <div
-            style={accessOnly ? {
+            style={{
               padding: '4px 0',
               minWidth: 240,
-            } : {
-              position: 'absolute',
-              top: 0,
-              left: '100%',
-              marginLeft: 4,
-              background: 'rgba(28, 28, 30, 0.98)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 8,
-              padding: '4px 0',
-              minWidth: 240,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-              zIndex: 1001,
-              maxHeight: 'calc(100vh - 40px)',
-              overflowY: 'auto',
             }}
           >
-            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Sync data from a source
             </div>
             {onImportNotion && <MenuItem icon={<NotionIcon />} label="Notion" sublabel="Pages" onClick={() => { onImportNotion(); onClose(); }} />}
@@ -427,7 +364,14 @@ export function CreateMenu({
               sublabel="URL"
               onClick={() => { onImportFromUrl(); onClose(); }}
             />
-            <MenuItem icon={<GitHubIcon />} label="GitHub" sublabel="Coming soon" disabled />
+            {onImportGitHub && (
+              <MenuItem
+                icon={<GitHubIcon />}
+                label="GitHub"
+                sublabel="Repository"
+                onClick={() => { onImportGitHub(); onClose(); }}
+              />
+            )}
             <MenuItem icon={<SearchConsoleIcon />} label="Google Search Console" sublabel="Coming soon" disabled />
 
             {/*
@@ -449,11 +393,11 @@ export function CreateMenu({
 
             <Divider />
 
-            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Connect via terminal
             </div>
             <MenuItem
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
+              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-text-subtle)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
               label="SSH Terminal"
               sublabel="Coming soon"
               disabled
@@ -461,7 +405,7 @@ export function CreateMenu({
 
             <Divider />
 
-            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <div style={{ padding: '6px 16px 2px', fontSize: 10, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Expose data
             </div>
             <MenuItem icon={<McpIcon />} label="MCP Server" sublabel="Coming soon" disabled />

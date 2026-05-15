@@ -5,20 +5,20 @@
  *
  * Renders stacked MethodCards for the per-scope built-ins:
  *
- *   1. Terminal CLI — copyable terminal setup prompt
- *   2. Local Sync   — copyable bidirectional folder sync prompt
+ *   1. Puppyone CLI — copyable terminal setup prompt
+ *   2. Git Remote   — copyable Git clone/push prompt
  *   3. AI Agent     — in-app chat runtime (currently HIDDEN behind
  *                     the `AI_AGENT_ENABLED` feature flag in
  *                     `frontend/lib/featureFlags.ts`; the card and
  *                     all activation wiring is still here, just
  *                     not rendered)
  *
- * Terminal CLI and Local Sync are exposure mechanisms — they hand
+ * Puppyone CLI and Git Remote are exposure mechanisms — they hand
  * external clients (Claude Desktop, Cursor, MCP, your local
  * filesystem) the credentials and setup prompts to read/write this
- * scope from outside PuppyOne. AI Agent is a *consumer* of the same
+ * scope from outside Puppyone. AI Agent is a *consumer* of the same
  * data instead of an exposure path; it lives behind the feature flag
- * because the in-app chat surface conflicts with PuppyOne's
+ * because the in-app chat surface conflicts with Puppyone's
  * "platform under every agent" positioning.
  *
  * cli + filesystem + agent are auto-INSERTed per scope by a DB trigger
@@ -39,7 +39,7 @@
  * mounts the right body inside each MethodCard.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   activateAgentConnector,
   pauseConnector,
@@ -61,14 +61,14 @@ import {
 
 interface ConnectMethodsBlockProps {
   readonly scope: RepoScope;
-  /** Auto-INSERTed cli connector. Drives the Terminal CLI card's
+  /** Auto-INSERTed cli connector. Drives the Puppyone CLI card's
    *  on/off toggle. The card body still derives prompts from the
    *  scope's access_key directly — toggling cli paused doesn't blank
    *  the body, it just stops the access key from authorising terminal
    *  access on the server side until resumed. */
   readonly cliConnector: Connector | undefined;
   /** Auto-INSERTed filesystem connector (added by the 2026-05-08
-   *  migration). Drives the Local Sync card's on/off toggle for the
+   *  migration). Drives the Git Remote card's on/off toggle for the
    *  same reason as cli — body content is shared from the scope
    *  access key, the connector status is what gates the server-side
    *  authorisation for sync sessions. */
@@ -127,7 +127,7 @@ export function ConnectMethodsBlock({
   }, [agentConnector]);
 
   const accessKey = scope.access_key || '';
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  const gitUrl = `${apiBase}/git/ap/${accessKey}.git`;
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
   const profileName = profileSlug(scope.name || scope.path || 'root');
 
@@ -250,12 +250,10 @@ export function ConnectMethodsBlock({
   ]);
 
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <SectionHeader eyebrow="Connect" />
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {!accessKey && <NoAccessKeyNotice />}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {!accessKey && <NoAccessKeyNotice />}
-
+      <MethodSection title={METHOD_META.terminal.title}>
         <MethodCard
           meta={METHOD_META.terminal}
           active={cliActive}
@@ -269,7 +267,9 @@ export function ConnectMethodsBlock({
             scopeName={scopeName}
           />
         </MethodCard>
+      </MethodSection>
 
+      <MethodSection title={METHOD_META.sync.title}>
         <MethodCard
           meta={METHOD_META.sync}
           active={filesystemActive}
@@ -277,19 +277,20 @@ export function ConnectMethodsBlock({
           onToggle={localFilesystem ? handleToggleFilesystem : undefined}
         >
           <LocalSyncBody
-            accessKey={accessKey}
-            cloneUrl={cloneUrl}
+            gitUrl={gitUrl}
             scopeName={scopeName}
           />
         </MethodCard>
+      </MethodSection>
 
-        {/* AI Agent MethodCard — gated on `AI_AGENT_ENABLED` feature
-            flag (see `frontend/lib/featureFlags.ts` for the full
-            rationale). The activation handler, toggle wiring,
-            optimistic state, and the AiAgentBody component are all
-            kept intact below the gate so flipping the flag back to
-            `true` re-enables the surface without code changes. */}
-        {AI_AGENT_ENABLED && (
+      {/* AI Agent MethodCard — gated on `AI_AGENT_ENABLED` feature
+          flag (see `frontend/lib/featureFlags.ts` for the full
+          rationale). The activation handler, toggle wiring,
+          optimistic state, and the AiAgentBody component are all
+          kept intact below the gate so flipping the flag back to
+          `true` re-enables the surface without code changes. */}
+      {AI_AGENT_ENABLED && (
+        <MethodSection title={METHOD_META.agent.title}>
           <MethodCard
             meta={METHOD_META.agent}
             active={agentActive}
@@ -316,8 +317,23 @@ export function ConnectMethodsBlock({
               }}
             />
           </MethodCard>
-        )}
-      </div>
+        </MethodSection>
+      )}
+    </section>
+  );
+}
+
+function MethodSection({
+  title,
+  children,
+}: {
+  readonly title: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <SectionHeader eyebrow={title} />
+      {children}
     </section>
   );
 }

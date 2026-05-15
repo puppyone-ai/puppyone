@@ -159,12 +159,13 @@ function GithubBody({
             background: T.accent,
             border: 'none',
             borderRadius: 6,
-            color: '#fff',
+            color: 'var(--po-text-inverse)',
             cursor: oauthStarting ? 'not-allowed' : 'pointer',
             fontFamily: T.fontSans,
             fontSize: 13,
             fontWeight: 500,
-            padding: '7px 14px',
+            height: 30,
+            padding: '0 14px',
             opacity: oauthStarting ? 0.5 : 1,
           }}
         >

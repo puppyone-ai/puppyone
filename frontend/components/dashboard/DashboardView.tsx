@@ -38,20 +38,16 @@ export function DashboardView({
 
   if (projects.length === 0) {
     return (
-      <OrganizationPageShell
-        title={t('title')}
-        description={t('subtitle', { count: projects.length })}
-      >
-        <EmptyDashboard onCreateClick={onCreateClick} />
+      <OrganizationPageShell title={t('title')}>
+        <EmptyDashboard
+          onCreateClick={onCreateClick}
+        />
       </OrganizationPageShell>
     );
   }
 
   return (
-    <OrganizationPageShell
-      title={t('title')}
-      description={t('subtitle', { count: projects.length })}
-    >
+    <OrganizationPageShell title={t('title')}>
       <div
         className='grid'
         style={{
@@ -67,23 +63,29 @@ export function DashboardView({
             onClick={() => onProjectClick(project.id)}
           />
         ))}
-        <NewProjectCard onClick={onCreateClick} />
+        <NewProjectCard
+          onClick={onCreateClick}
+        />
       </div>
     </OrganizationPageShell>
   );
 }
 
-function EmptyDashboard({ onCreateClick }: Readonly<{ onCreateClick: () => void }>) {
+function EmptyDashboard({
+  onCreateClick,
+}: Readonly<{ onCreateClick: () => void }>) {
   const t = useTranslations('home');
   return (
     <div className='flex min-h-[420px] flex-col items-center justify-center px-8 py-12'>
       <div style={{ textAlign: 'center', marginBottom: 36, maxWidth: 520 }}>
-        <p style={{ fontSize: 13, color: '#777', margin: 0, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 13, color: 'var(--po-text-muted)', margin: 0, lineHeight: 1.6 }}>
           {t('emptyDescription')}
         </p>
       </div>
       <div className='w-full flex justify-center'>
-        <NewProjectCard onClick={onCreateClick} />
+        <NewProjectCard
+          onClick={onCreateClick}
+        />
       </div>
     </div>
   );

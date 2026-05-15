@@ -57,6 +57,8 @@ export interface RepoIdentity {
   project_id: string;
   url: string;                 // https://<api>/api/v1/mut/<project_id>
   prompt_template: string;
+  content_initialized?: boolean;
+  head_commit_id?: string | null;
   scopes: Array<{
     id: string;
     name: string;

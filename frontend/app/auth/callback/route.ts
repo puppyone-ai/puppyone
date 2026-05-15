@@ -75,7 +75,7 @@ export async function GET(request: Request) {
   const target = explicitNext
     ? explicitNext
     : demoProjectId
-      ? `/projects/${demoProjectId}`
+      ? `/projects/${demoProjectId}/data`
       : '/home';
 
   return NextResponse.redirect(`${origin}${target}`);

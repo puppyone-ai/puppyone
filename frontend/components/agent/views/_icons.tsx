@@ -131,8 +131,8 @@ export const toolTypeLabels: Record<string, { label: string; desc: string }> = {
 
 export const getNodeIcon = (nodeType: string) => {
   switch (nodeType) {
-    case 'folder': return { icon: <FolderIcon />, color: '#a1a1aa' };
-    case 'json':   return { icon: <JsonIcon />,   color: '#34d399' };
-    default:       return { icon: <MarkdownIcon />, color: '#60a5fa' };
+    case 'folder': return { icon: <FolderIcon />, color: 'var(--po-text-muted)' };
+    case 'json':   return { icon: <JsonIcon />,   color: 'var(--po-success)' };
+    default:       return { icon: <MarkdownIcon />, color: 'var(--po-accent)' };
   }
 };

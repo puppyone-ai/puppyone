@@ -37,23 +37,20 @@ import {
  *
  *   1. Permissions (R/W)         ★ Most critical, top of the panel.
  *                                  Boundary that gates Terminal CLI,
- *                                  Local Sync, AI Agent, and every
+ *                                  Git Remote, AI Agent, and every
  *                                  third-party integration.
  *   2. Excluded paths              Path-pattern blacklist. Applied at
- *                                  the MUT layer.
- *   3. Access key                  Mut credential. Show / Copy / Rotate.
+ *                                  the scope access layer.
+ *   3. Access key                  Git/API credential. Show / Copy / Rotate.
  *                                  Rotate invalidates current clients.
  *   4. Name                        Free-form display name (root locked).
  *   5. Identity (read-only)        path / root flag / created date.
  *   6. Danger zone                 Delete (root protected, two-click).
  *
- * The block is collapsed by default and only mounts when the parent's
- * settings toggle is on (per 2026-05-08 UX decision: detail page primary
- * task is "use this access" — Connect / Integrations — so settings
- * waits behind a click). When dirty, a Save / Discard footer appears
- * at the bottom of the block so the user can commit a batch of edits
- * (rather than per-control auto-PATCH, which would make the
- * destructive `rw → r` flip happen mid-form).
+ * The block renders as the dedicated Settings sub-page for a scope.
+ * When dirty, a Save / Discard footer appears at the bottom so the
+ * user can commit a batch of edits (rather than per-control auto-PATCH,
+ * which would make the destructive `rw → r` flip happen mid-form).
  *
  * Dirty state is reported up via `onDirtyChange` so the parent can:
  *   - show an "unsaved" indicator on the Settings header toggle
@@ -250,7 +247,7 @@ export function ScopeSettingsBlock({
       }}
     >
       {/* ① Permissions — top, prominent. The single most consequential
-          knob in this panel: flips R/W for Terminal CLI, Local Sync,
+          knob in this panel: flips R/W for Terminal CLI, Git Remote,
           AI Agent, and every integration bound to this scope, all at
           once. Rendered as side-by-side option cards rather than a
           plain radio group so the choice reads as a deliberate pick,
@@ -274,7 +271,7 @@ export function ScopeSettingsBlock({
           />
         </div>
         <FieldHelp>
-          Applies to all connect methods (Terminal, Local Sync, AI Agent) and
+          Applies to all connect methods (Terminal, Git Remote, AI Agent) and
           integrations bound to this access point.
         </FieldHelp>
       </Card>
@@ -334,7 +331,8 @@ export function ScopeSettingsBlock({
           onClick={() => setExcludes([...excludes, ''])}
           style={{
             alignSelf: 'flex-start',
-            padding: '6px 10px',
+            height: 30,
+            padding: '0 10px',
             fontSize: 13,
             fontWeight: 500,
             color: COLOR_FG_MUTED,
@@ -351,12 +349,12 @@ export function ScopeSettingsBlock({
 
       {/* ③ Access key — mut credential. Default masked; reveal toggles
           plaintext. Rotate is two-click destructive: regenerating
-          invalidates every existing CLI / Local Sync session
+          invalidates every existing CLI / Git session
           immediately. */}
       <Card>
         <FieldLabel>Access key</FieldLabel>
         <FieldHelp>
-          MUT credential shared by Terminal CLI and Local Sync. Reveal to copy;
+          Access key shared by Git Remote, Terminal CLI, and integrations. Reveal to copy;
           rotate to invalidate current clients.
         </FieldHelp>
         <div
@@ -407,13 +405,14 @@ export function ScopeSettingsBlock({
             onClick={handleRotate}
             disabled={rotating || !scope.access_key}
             style={{
-              padding: '6px 12px',
+              height: 30,
+              padding: '0 12px',
               fontSize: 13,
               fontWeight: 500,
               color: confirmRotate ? COLOR_DANGER_FAINT : COLOR_FG,
               background: confirmRotate
                 ? COLOR_DANGER_BG
-                : 'rgba(255,255,255,0.04)',
+                : 'var(--po-hover)',
               border: `1px solid ${
                 confirmRotate ? COLOR_DANGER_BORDER : COLOR_BORDER_HOVER
               }`,
@@ -513,7 +512,8 @@ export function ScopeSettingsBlock({
           title={scope.is_root ? 'Root scope cannot be deleted' : undefined}
           style={{
             alignSelf: 'flex-start',
-            padding: '6px 12px',
+            height: 30,
+            padding: '0 12px',
             fontSize: 13,
             fontWeight: 500,
             color: scope.is_root
@@ -566,11 +566,9 @@ export function ScopeSettingsBlock({
       )}
 
       {/* Save / Discard footer — only present when the form has dirty
-          edits. Keeping it inline (rather than a sticky overlay) means
-          it doesn't float over the Connect Methods section below; users
-          interacting with settings will already be in this area. The
-          Settings header on the panel doubles as a dirty indicator
-          (see ScopedConnectorsListPanel.tsx). */}
+          edits. Keeping it inline avoids a sticky strip competing with
+          the settings rows. The parent panel confirms before leaving
+          while dirty. */}
       {dirty && (
         <div
           style={{
@@ -591,10 +589,11 @@ export function ScopeSettingsBlock({
             onClick={handleDiscard}
             disabled={saving}
             style={{
-              padding: '6px 12px',
+              height: 30,
+              padding: '0 12px',
               fontSize: 13,
               color: COLOR_FG,
-              background: 'rgba(255,255,255,0.04)',
+              background: 'var(--po-hover)',
               border: `1px solid ${COLOR_BORDER_HOVER}`,
               borderRadius: 6,
               cursor: saving ? 'default' : 'pointer',
@@ -607,10 +606,11 @@ export function ScopeSettingsBlock({
             onClick={handleSave}
             disabled={saving}
             style={{
-              padding: '6px 14px',
+              height: 30,
+              padding: '0 14px',
               fontSize: 13,
               fontWeight: 600,
-              color: '#0a0a0a',
+              color: 'var(--po-inset)',
               background: saving ? COLOR_BORDER_HOVER : COLOR_FG,
               border: `1px solid ${saving ? COLOR_BORDER_HOVER : COLOR_FG}`,
               borderRadius: 6,
@@ -643,11 +643,14 @@ function Card({
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 10,
-        padding: 12,
-        borderRadius: 8,
-        border: `1px solid ${danger ? COLOR_DANGER_BORDER : COLOR_BORDER}`,
-        background: COLOR_BG_CARD,
+        gap: 9,
+        padding: danger ? 12 : '0 0 16px',
+        borderRadius: danger ? 8 : 0,
+        border: danger ? `1px solid ${COLOR_DANGER_BORDER}` : 'none',
+        borderBottom: danger ? 'none' : '1px solid var(--po-divider)',
+        background: danger
+          ? 'color-mix(in srgb, var(--po-danger) 6%, transparent)'
+          : 'transparent',
       }}
     >
       {children}
@@ -752,12 +755,13 @@ function PermissionOption({
       style={{
         flex: 1,
         display: 'flex',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: 8,
-        padding: '10px 12px',
-        borderRadius: 8,
+        minHeight: 54,
+        padding: '8px 10px',
+        borderRadius: 7,
         border: `1px solid ${active ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-        background: active ? 'rgba(255,255,255,0.055)' : COLOR_BG_SUNKEN,
+        background: active ? 'var(--po-panel)' : 'transparent',
         textAlign: 'left',
         cursor: 'pointer',
         transition: 'border-color 150ms ease, background 150ms ease',
@@ -818,12 +822,12 @@ function IconButton({
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
-        width: 26,
-        height: 26,
+        width: 30,
+        height: 30,
         padding: 0,
         borderRadius: 6,
         border: 'none',
-        background: !disabled && hovered ? 'rgba(255,255,255,0.07)' : 'transparent',
+        background: !disabled && hovered ? 'var(--po-active)' : 'transparent',
         color: disabled
           ? COLOR_FG_DIM
           : hovered

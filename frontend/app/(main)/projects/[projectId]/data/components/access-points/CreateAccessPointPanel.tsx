@@ -290,7 +290,7 @@ export function CreateAccessPointPanel({
                 }
               }}
               style={{
-                background: 'rgba(0,0,0,0.3)',
+                background: 'var(--po-inset)',
                 border: `1px solid ${COLOR_BORDER}`,
                 borderRadius: 6,
                 color: COLOR_FG,
@@ -350,12 +350,13 @@ export function CreateAccessPointPanel({
               onClick={handleCreate}
               disabled={!canCreate}
               style={{
-                padding: '8px 14px',
+                height: 30,
+                padding: '0 14px',
                 fontSize: 12,
                 fontWeight: 500,
-                color: canCreate ? '#0a0a0a' : COLOR_FG_DIM,
-                background: canCreate ? COLOR_SUCCESS : 'rgba(255,255,255,0.04)',
-                border: `1px solid ${canCreate ? 'rgba(52,211,153,0.7)' : COLOR_BORDER}`,
+                color: canCreate ? 'var(--po-inset)' : COLOR_FG_DIM,
+                background: canCreate ? COLOR_SUCCESS : 'var(--po-hover)',
+                border: `1px solid ${canCreate ? 'color-mix(in srgb, var(--po-success) 70%, transparent)' : COLOR_BORDER}`,
                 borderRadius: 6,
                 cursor: canCreate ? 'pointer' : 'not-allowed',
                 display: 'inline-flex',
@@ -371,7 +372,8 @@ export function CreateAccessPointPanel({
               onClick={onBack}
               disabled={creating}
               style={{
-                padding: '8px 12px',
+                height: 30,
+                padding: '0 12px',
                 fontSize: 12,
                 fontWeight: 500,
                 color: COLOR_FG_DIM,

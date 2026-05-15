@@ -112,18 +112,18 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
     ...vscDarkPlus,
     'code[class*="language-"]': {
       ...vscDarkPlus['code[class*="language-"]'],
-      background: 'rgba(0,0,0,0.3)',
-      color: '#9ca3af',
+      background: 'var(--po-control)',
+      color: 'var(--po-text-muted)',
       fontFamily:
-        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        'var(--po-font-sans)',
       fontSize: '11px',
     },
     'pre[class*="language-"]': {
       ...vscDarkPlus['pre[class*="language-"]'],
-      background: 'rgba(0,0,0,0.3)',
-      color: '#9ca3af',
+      background: 'var(--po-control)',
+      color: 'var(--po-text-muted)',
       fontFamily:
-        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+        'var(--po-font-sans)',
       fontSize: '11px',
     },
   };
@@ -148,19 +148,19 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           height: 6px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-          background: #0a0a0a;
+          background: var(--po-inset);
           border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #374151;
+          background: var(--po-control-hover);
           border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #4b5563;
+          background: var(--po-border-strong);
         }
         .custom-scrollbar {
           scrollbar-width: thin;
-          scrollbar-color: #374151 #0a0a0a;
+          scrollbar-color: var(--po-control-hover) var(--po-inset);
         }
       `}</style>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -177,7 +177,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             <div
               style={{
                 fontSize: 10,
-                color: '#525252',
+                color: 'var(--po-text-disabled)',
                 fontWeight: 500,
                 letterSpacing: '0.3px',
               }}
@@ -190,18 +190,20 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: '#525252',
+                  color: 'var(--po-text-disabled)',
                   cursor: 'pointer',
-                  padding: 2,
+                  width: 30,
+                  height: 30,
+                  padding: 0,
                   fontSize: 9,
                   display: 'flex',
                   alignItems: 'center',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.color = '#9ca3af';
+                  e.currentTarget.style.color = 'var(--po-text-muted)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.color = '#525252';
+                  e.currentTarget.style.color = 'var(--po-text-disabled)';
                 }}
               >
                 <svg width='10' height='10' viewBox='0 0 14 14' fill='none'>
@@ -226,12 +228,12 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 style={{
                   flex: 1,
                   height: 32,
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'var(--po-control)',
+                  border: '1px solid var(--po-active)',
                   borderRadius: 6,
                   padding: '0 10px',
                   fontSize: 12,
-                  color: '#e2e8f0',
+                  color: 'var(--po-text)',
                   outline: 'none',
                 }}
               />
@@ -241,10 +243,10 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 style={{
                   height: 32,
                   padding: '0 14px',
-                  background: '#34d399',
+                  background: 'var(--po-success)',
                   border: 'none',
                   borderRadius: 6,
-                  color: '#000',
+                  color: 'var(--po-text-inverse)',
                   fontSize: 11,
                   fontWeight: 600,
                   cursor: savingName ? 'wait' : 'pointer',
@@ -261,9 +263,9 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                   height: 32,
                   padding: '0 14px',
                   background: 'transparent',
-                  border: '1px solid #333',
+                  border: '1px solid var(--po-border-strong)',
                   borderRadius: 6,
-                  color: '#9ca3af',
+                  color: 'var(--po-text-muted)',
                   fontSize: 11,
                   cursor: 'pointer',
                 }}
@@ -274,12 +276,12 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           ) : (
             <div
               style={{
-                background: 'rgba(0,0,0,0.2)',
+                background: 'var(--po-control)',
                 borderRadius: 6,
                 padding: '8px 10px',
                 border: '1px solid transparent',
                 fontSize: 14,
-                color: '#e2e8f0',
+                color: 'var(--po-text)',
                 fontWeight: 500,
               }}
             >
@@ -294,7 +296,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             <div
               style={{
                 fontSize: 10,
-                color: '#525252',
+                color: 'var(--po-text-disabled)',
                 fontWeight: 500,
                 marginBottom: 6,
                 letterSpacing: '0.3px',
@@ -316,7 +318,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                   <div
                     key={toolType}
                     style={{
-                      background: 'rgba(0,0,0,0.2)',
+                      background: 'var(--po-control)',
                       border: '1px solid transparent',
                       borderRadius: 6,
                       padding: '8px 10px',
@@ -333,7 +335,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                       <div
                         style={{
                           fontSize: 10,
-                          color: '#3b82f6',
+                          color: 'var(--po-accent)',
                           textTransform: 'uppercase',
                           fontWeight: 600,
                           letterSpacing: '0.3px',
@@ -352,17 +354,19 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                           style={{
                             background: 'transparent',
                             border: 'none',
-                            color: '#525252',
+                            color: 'var(--po-text-disabled)',
                             cursor: 'pointer',
-                            padding: 2,
+                            width: 30,
+                            height: 30,
+                            padding: 0,
                             display: 'flex',
                             alignItems: 'center',
                           }}
                           onMouseEnter={e => {
-                            e.currentTarget.style.color = '#9ca3af';
+                            e.currentTarget.style.color = 'var(--po-text-muted)';
                           }}
                           onMouseLeave={e => {
-                            e.currentTarget.style.color = '#525252';
+                            e.currentTarget.style.color = 'var(--po-text-disabled)';
                           }}
                         >
                           <svg
@@ -401,12 +405,12 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                             width: '100%',
                             height: 32,
                             boxSizing: 'border-box',
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'var(--po-control)',
+                            border: '1px solid var(--po-active)',
                             borderRadius: 4,
                             padding: '0 8px',
                             fontSize: 12,
-                            color: '#e2e8f0',
+                            color: 'var(--po-text)',
                             outline: 'none',
                             marginBottom: 6,
                           }}
@@ -428,12 +432,12 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                             width: '100%',
                             height: 32,
                             boxSizing: 'border-box',
-                            background: 'rgba(0,0,0,0.3)',
-                            border: '1px solid rgba(255,255,255,0.1)',
+                            background: 'var(--po-control)',
+                            border: '1px solid var(--po-active)',
                             borderRadius: 4,
                             padding: '0 8px',
                             fontSize: 12,
-                            color: '#9ca3af',
+                            color: 'var(--po-text-muted)',
                             outline: 'none',
                             marginBottom: 8,
                           }}
@@ -449,12 +453,12 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                             onClick={() => handleSaveTool(toolType)}
                             disabled={isSaving}
                             style={{
-                              height: 26,
+                              height: 30,
                               padding: '0 12px',
-                              background: '#34d399',
+                              background: 'var(--po-success)',
                               border: 'none',
                               borderRadius: 4,
-                              color: '#000',
+                              color: 'var(--po-text-inverse)',
                               fontSize: 11,
                               fontWeight: 600,
                               cursor: isSaving ? 'wait' : 'pointer',
@@ -476,12 +480,12 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                               }));
                             }}
                             style={{
-                              height: 26,
+                              height: 30,
                               padding: '0 12px',
                               background: 'transparent',
-                              border: '1px solid #333',
+                              border: '1px solid var(--po-border-strong)',
                               borderRadius: 4,
-                              color: '#9ca3af',
+                              color: 'var(--po-text-muted)',
                               fontSize: 11,
                               cursor: 'pointer',
                             }}
@@ -495,7 +499,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                         <div
                           style={{
                             fontSize: 12,
-                            color: '#e2e8f0',
+                            color: 'var(--po-text)',
                             marginBottom: 2,
                             fontWeight: 500,
                           }}
@@ -505,7 +509,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                         <div
                           style={{
                             fontSize: 11,
-                            color: '#71717a',
+                            color: 'var(--po-text-subtle)',
                             lineHeight: 1.4,
                           }}
                         >
@@ -533,7 +537,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
             <div
               style={{
                 fontSize: 10,
-                color: '#525252',
+                color: 'var(--po-text-disabled)',
                 fontWeight: 500,
                 letterSpacing: '0.3px',
               }}
@@ -546,19 +550,21 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 background: 'transparent',
                 border: 'none',
                 borderRadius: 4,
-                color: copiedStates.url ? '#34d399' : '#525252',
+                color: copiedStates.url ? 'var(--po-success)' : 'var(--po-text-disabled)',
                 cursor: 'pointer',
-                padding: 2,
+                width: 30,
+                height: 30,
+                padding: 0,
                 transition: 'all 0.15s',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
               onMouseEnter={e => {
-                if (!copiedStates.url) e.currentTarget.style.color = '#9ca3af';
+                if (!copiedStates.url) e.currentTarget.style.color = 'var(--po-text-muted)';
               }}
               onMouseLeave={e => {
-                if (!copiedStates.url) e.currentTarget.style.color = '#525252';
+                if (!copiedStates.url) e.currentTarget.style.color = 'var(--po-text-disabled)';
               }}
               title={copiedStates.url ? 'Copied!' : 'Copy'}
             >
@@ -595,7 +601,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           <div
             className='custom-scrollbar'
             style={{
-              background: 'rgba(0,0,0,0.3)',
+              background: 'var(--po-control)',
               borderRadius: 6,
               overflow: 'auto',
               border: '1px solid transparent',
@@ -610,7 +616,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 padding: '8px 10px',
                 fontSize: '11px',
                 fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  'var(--po-font-sans)',
                 background: 'transparent',
                 wordBreak: 'break-all',
                 overflowWrap: 'break-word',
@@ -640,10 +646,11 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: activeTab === 'json' ? '#3b82f6' : '#525252',
+                  color: activeTab === 'json' ? 'var(--po-accent)' : 'var(--po-text-disabled)',
                   fontSize: 10,
                   cursor: 'pointer',
-                  padding: 0,
+                  height: 30,
+                  padding: '0 6px',
                   fontWeight: activeTab === 'json' ? 600 : 400,
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
@@ -657,10 +664,11 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 style={{
                   background: 'transparent',
                   border: 'none',
-                  color: activeTab === 'yaml' ? '#3b82f6' : '#525252',
+                  color: activeTab === 'yaml' ? 'var(--po-accent)' : 'var(--po-text-disabled)',
                   fontSize: 10,
                   cursor: 'pointer',
-                  padding: 0,
+                  height: 30,
+                  padding: '0 6px',
                   fontWeight: activeTab === 'yaml' ? 600 : 400,
                   textTransform: 'uppercase',
                   letterSpacing: '0.3px',
@@ -676,9 +684,11 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 background: 'transparent',
                 border: 'none',
                 borderRadius: 4,
-                color: copiedStates.config ? '#34d399' : '#525252',
+                color: copiedStates.config ? 'var(--po-success)' : 'var(--po-text-disabled)',
                 cursor: 'pointer',
-                padding: 2,
+                width: 30,
+                height: 30,
+                padding: 0,
                 transition: 'all 0.15s',
                 display: 'flex',
                 alignItems: 'center',
@@ -686,11 +696,11 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
               }}
               onMouseEnter={e => {
                 if (!copiedStates.config)
-                  e.currentTarget.style.color = '#9ca3af';
+                  e.currentTarget.style.color = 'var(--po-text-muted)';
               }}
               onMouseLeave={e => {
                 if (!copiedStates.config)
-                  e.currentTarget.style.color = '#525252';
+                  e.currentTarget.style.color = 'var(--po-text-disabled)';
               }}
               title={copiedStates.config ? 'Copied!' : 'Copy'}
             >
@@ -727,7 +737,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
           <div
             className='custom-scrollbar'
             style={{
-              background: 'rgba(0,0,0,0.3)',
+              background: 'var(--po-control)',
               borderRadius: 6,
               overflow: 'auto',
               maxHeight: 140,
@@ -742,7 +752,7 @@ export function McpInstanceInfo({ instance, onUpdate }: McpInstanceInfoProps) {
                 padding: '8px 10px',
                 fontSize: '11px',
                 fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                  'var(--po-font-sans)',
                 background: 'transparent',
                 lineHeight: '1.4',
               }}

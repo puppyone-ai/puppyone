@@ -13,7 +13,14 @@ every push (regardless of call site) triggers the post-push hook.
 from __future__ import annotations
 
 import asyncio
+import threading
 
+from src.mut_engine.application.root_projection import (
+    build_root_from_scope_state,
+    graft_subtree,
+)
+from src.mut_engine.application.git_commit import build_git_commit, commit_tree_id
+from src.mut_engine.adapters.git.view_projection import git_compatible_head_commit
 from src.utils.logger import log_error, log_info, log_warning
 
 
@@ -62,6 +69,8 @@ def run_post_push_hook(
     project_id: str,
     repo_manager,
     push_result: dict,
+    *,
+    raise_errors: bool = False,
 ) -> None:
     """Inspect a push/rollback result and trigger relevant post-commit hooks.
 
@@ -120,6 +129,59 @@ def run_post_push_hook(
 
     except Exception as e:
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
+        if raise_errors:
+            raise
+
+
+def schedule_post_push_hook(project_id: str, repo_manager, push_result: dict) -> None:
+    """Run post-commit projection work off the user request path.
+
+    The accepted scope commit/head/history/audit have already been published
+    atomically. Project-root grafts and Git project-view commits are derived
+    projections, so AP-FS and Git pushes should not wait on their S3/DB round
+    trips. The durable outbox remains the repair path if this best-effort
+    background execution fails or the process exits before it completes.
+    """
+
+    commit_id = push_result.get("commit_id") or push_result.get("new_commit_id") or ""
+    if not commit_id:
+        return
+
+    def _run() -> None:
+        try:
+            run_post_push_hook(
+                project_id,
+                repo_manager,
+                push_result,
+                raise_errors=True,
+            )
+            try:
+                from src.mut_engine.services.version_outbox import (
+                    complete_version_outbox_for_commit,
+                )
+
+                complete_version_outbox_for_commit(project_id, commit_id)
+            except Exception as exc:
+                log_warning(
+                    f"[PostCommit] could not complete outbox for "
+                    f"{commit_id[:12]}: {exc}",
+                )
+        except Exception as exc:
+            log_error(
+                f"[PostCommit] async projection failed for project "
+                f"{project_id} commit={commit_id[:12]}: {exc}",
+            )
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(asyncio.to_thread(_run))
+    except RuntimeError:
+        thread = threading.Thread(
+            target=_run,
+            name=f"post-commit-{commit_id[:12]}",
+            daemon=True,
+        )
+        thread.start()
 
 
 def _broadcast_commit_update(project_id: str, entry: dict, changes: list[dict]) -> None:
@@ -232,6 +294,20 @@ def _update_global_root(repo, push_result: dict) -> None:
                 success = True
 
             if success:
+                try:
+                    _record_project_view_index(
+                        repo=repo,
+                        entry=entry,
+                        scope_path=scope_path,
+                        scope_hash=scope_hash,
+                        project_root_hash=new_root,
+                        source_commit_id=commit_id,
+                    )
+                except Exception as exc:
+                    log_warning(
+                        f"[PostCommit] project-view Git index update failed "
+                        f"for commit {commit_id[:12]}: {exc}",
+                    )
                 log_info(
                     f"[PostCommit] Rebuilt global root from DB state: "
                     f"scope='{scope_path}' root={new_root[:16]} "
@@ -258,6 +334,50 @@ def _update_global_root(repo, push_result: dict) -> None:
     )
 
 
+def _record_project_view_index(
+    *,
+    repo,
+    entry: dict,
+    scope_path: str,
+    scope_hash: str,
+    project_root_hash: str,
+    source_commit_id: str,
+) -> None:
+    """Persist the Git-visible project history graft for one scope commit."""
+
+    if not hasattr(repo, "record_version_index"):
+        return
+    try:
+        source_tree = commit_tree_id(repo, source_commit_id)
+    except Exception:
+        source_tree = ""
+
+    if source_tree == project_root_hash:
+        project_view_commit_id = source_commit_id
+    else:
+        parent = ""
+        if hasattr(repo, "get_latest_project_view_commit_id"):
+            parent = repo.get_latest_project_view_commit_id() or ""
+        parent = git_compatible_head_commit(repo, parent) if parent else ""
+        created_at = entry.get("created_at") or entry.get("time") or ""
+        project_view_commit_id = build_git_commit(
+            repo,
+            tree_sha=project_root_hash,
+            parent_sha=parent,
+            who="puppyone-project-view",
+            message=f"Puppyone project view for {source_commit_id}",
+            created_at_iso=created_at,
+        )
+
+    repo.record_version_index(
+        scope_path=scope_path,
+        source_commit_id=source_commit_id,
+        source_scope_hash=scope_hash,
+        project_root_hash=project_root_hash,
+        project_view_commit_id=project_view_commit_id,
+    )
+
+
 def _build_root_from_scope_state(
     repo,
     just_pushed_scope: str,
@@ -268,11 +388,10 @@ def _build_root_from_scope_state(
     Steps:
         1. Read all ``(scope_path → scope_hash)`` from
            ``mut_scope_state`` (DB SoT).
-        2. Overwrite the just-pushed scope's entry with the value the
-           push handler returned. CAS in handle_push has already
-           written it; the explicit override exists so retries see a
-           consistent input even if a sibling's CAS races between our
-           SELECT and our build.
+        2. Overwrite the just-pushed scope's entry with the accepted
+           transaction result. The publish boundary has already written it;
+           the explicit override exists so retries see a consistent input
+           even if a sibling's CAS races between our SELECT and our build.
         3. Use the root scope's tree as the base — it carries any
            non-scope files (e.g. a top-level README.md). If root scope
            has never been pushed, start from the empty git tree.
@@ -285,30 +404,7 @@ def _build_root_from_scope_state(
     Raises on S3 read/write failure (no silent fallback). Callers
     decide whether to retry.
     """
-    from mut.foundation.git_format import encode_tree
-
-    scopes = repo.get_all_scope_hashes()
-    if just_pushed_hash:
-        scopes[just_pushed_scope] = just_pushed_hash
-
-    root_scope_hash = scopes.get("", "")
-    if root_scope_hash:
-        current_root = root_scope_hash
-    else:
-        # Empty git tree — same canonical SHA-1 as ``git mktree </dev/null``.
-        current_root = repo.store.put_tree(encode_tree([]))
-
-    other_scopes = sorted(
-        ((p, h) for p, h in scopes.items() if p and h),
-        key=lambda item: (item[0].count("/"), item[0]),
-    )
-
-    for scope_path, scope_hash in other_scopes:
-        current_root = _graft_subtree(
-            repo.store, current_root, scope_path, scope_hash,
-        )
-
-    return current_root
+    return build_root_from_scope_state(repo, just_pushed_scope, just_pushed_hash)
 
 
 # ── Local graft helpers (replaces removed mut.server.graft) ───────
@@ -323,65 +419,7 @@ def _graft_subtree(store, old_root_hash: str,
     Mirrors the removed ``mut/server/graft.py`` implementation but with
     no PuppyOne-specific logic so it stays trivially reviewable.
     """
-    if not scope_path:
-        return new_subtree_hash
-    parts = [p for p in scope_path.strip("/").split("/") if p]
-    return _graft_recursive(store, old_root_hash, parts, new_subtree_hash)
-
-
-def _graft_recursive(store, tree_hash: str,
-                     path_parts: list[str], new_hash: str) -> str:
-    from mut.foundation.git_format import (
-        MODE_DIR, MODE_FILE, TreeEntry, decode_tree, encode_tree,
-    )
-
-    obj_type, content = store.get_object(tree_hash)
-    if obj_type != "tree":
-        raise ValueError(
-            f"_graft_recursive: object {tree_hash} is a {obj_type}, expected tree"
-        )
-    entries = list(decode_tree(content))
-
-    target = path_parts[0]
-    remaining = path_parts[1:]
-
-    existing = next((e for e in entries if e.name == target), None)
-    if existing is None:
-        if remaining:
-            empty_tree_hash = store.put_tree(encode_tree([]))
-            child_hash = _graft_recursive(
-                store, empty_tree_hash, remaining, new_hash,
-            )
-        else:
-            child_hash = new_hash
-    elif remaining:
-        if not existing.is_dir:
-            empty_tree_hash = store.put_tree(encode_tree([]))
-            child_hash = _graft_recursive(
-                store, empty_tree_hash, remaining, new_hash,
-            )
-        else:
-            child_hash = _graft_recursive(
-                store, existing.sha1_hex, remaining, new_hash,
-            )
-    else:
-        child_hash = new_hash
-
-    new_entries = [e for e in entries if e.name != target]
-    new_entries.append(TreeEntry(
-        name=target,
-        mode=MODE_FILE if (
-            existing is not None
-            and not existing.is_dir
-            and not remaining
-            # Re-using the leaf's mode only matters when we replace a
-            # leaf with another leaf hash — for directory grafts we
-            # always end up with MODE_DIR below.
-            and False
-        ) else MODE_DIR,
-        sha1_hex=child_hash,
-    ))
-    return store.put_tree(encode_tree(new_entries))
+    return graft_subtree(store, old_root_hash, scope_path, new_subtree_hash)
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:

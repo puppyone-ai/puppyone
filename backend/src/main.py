@@ -421,6 +421,8 @@ def create_app() -> FastAPI:
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
     from src.mut_engine.routers.protocol_router import router as mut_protocol_router
     app.include_router(mut_protocol_router, tags=["mut-protocol"])
+    from src.mut_engine.adapters.git.router import router as git_protocol_router
+    app.include_router(git_protocol_router, tags=["git-protocol"])
     # WebSocket /ws — server→client commit_update notifications. Required
     # by ``mut listen`` on the new feat/git-format-storage branch.
     from src.mut_engine.routers.ws_router import ws_router as mut_ws_router

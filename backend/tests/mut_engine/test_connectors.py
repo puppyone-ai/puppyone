@@ -67,7 +67,7 @@ class TestBaseConnector:
     def test_list_resources_default_empty(self):
         c = FakeConnector()
         import asyncio
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             c.list_resources(MagicMock())
         )
         assert result == []

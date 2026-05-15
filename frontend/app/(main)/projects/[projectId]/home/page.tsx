@@ -21,7 +21,7 @@ import { HistoryCard } from './components/HistoryCard';
 import { GetStartedPanel } from './components/GetStartedPanel';
 import { ApChip } from './components/ApChip';
 import { AccessPointsListCard } from './components/AccessPointsListCard';
-import { PageLoading } from '@/components/loading';
+import { ProjectPageLoadingShell } from '@/components/loading';
 
 // ConnectionsCanvas (the old xyflow wiring board) used to mount here.
 // Home now surfaces Access Points directly under the Data card via
@@ -112,20 +112,15 @@ export default function HomePage({
   // owns both.
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
 
-  // ── Data ─────────────────────────────────────────────────────────
+  // Data
 
   const { data: dashboard, mutate: mutateDashboard } = useSWR<ProjectDashboard>(
     projectId ? `/api/v1/projects/${projectId}/dashboard` : null,
     (url: string) => get<ProjectDashboard>(url),
     {
-      // PERFORMANCE (P-7): aggressive 30s polling re-issued the
-      // ~4-7s endpoint on every idle home tab. Switch to event-driven
-      // revalidation: refresh when the user returns to the tab or
-      // reconnects, and only fall back to polling at a much lower rate.
       refreshInterval: 120_000,
       revalidateOnFocus: true,
       revalidateOnReconnect: true,
-      keepPreviousData: true,
       dedupingInterval: 5_000,
     },
   );
@@ -133,13 +128,13 @@ export default function HomePage({
   const { data: treeEntries, mutate: mutateTree } = useSWR(
     projectId ? ['home-tree', projectId] : null,
     () => treeList(projectId, '', 3),
-    { keepPreviousData: true },
+    { revalidateOnFocus: false },
   );
 
   const { data: historyData } = useSWR(
     projectId ? ['project-history-overview', projectId] : null,
     () => getProjectHistory(projectId, 50),
-    { keepPreviousData: true },
+    { revalidateOnFocus: false },
   );
 
   const commits = historyData?.commits || [];
@@ -426,28 +421,17 @@ export default function HomePage({
 
   // ── Render ───────────────────────────────────────────────────────
 
-  // Bespoke skeleton was removed (2026-05-08) — `home` was the only
-  // page rendering its own custom placeholder, while every other page
-  // (data, access, history, settings, toolkit, monitor) renders the
-  // unified `<PageLoading variant="fill" />`. The skeleton looked
-  // crisper in isolation but was visibly disconnected from the rest
-  // of the product when the user flipped between pages, which is the
-  // dominant UX path for a project dashboard. Standardising on the
-  // shared loader makes every project sub-route show the *same*
-  // 13px block + "Loading" glyph.
-  if (!dashboard) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg }}>
-        <PageLoading variant="fill" />
-      </div>
-    );
+  // Keep the page header band mounted during the initial data load so
+  // the loader is centered in the same body region as the final page.
+  if (!dashboard || dashboard.project.id !== projectId) {
+    return <ProjectPageLoadingShell title="Home" />;
   }
 
   const hasErr = connections.some((c) => c.status === 'error');
 
   return (
     // No `background` here — `(main)/layout.tsx` already paints the
-    // rounded #0e0e0e pane.  Painting again would (a) cover the corner
+    // rounded var(--po-canvas) pane.  Painting again would (a) cover the corner
     // radius, (b) drift if the layout's surface color ever changes.
     <div
       style={{
@@ -600,6 +584,7 @@ export default function HomePage({
                 style={{
                   background: 'none',
                   border: 'none',
+                  height: 30,
                   padding: 0,
                   cursor: 'pointer',
                   fontFamily: T.fontSans,
@@ -630,6 +615,7 @@ export default function HomePage({
                 style={{
                   background: 'none',
                   border: 'none',
+                  height: 30,
                   padding: 0,
                   cursor: 'pointer',
                   fontFamily: T.fontSans,
@@ -689,6 +675,8 @@ export default function HomePage({
                   border: 'none',
                   color: T.text3,
                   cursor: 'pointer',
+                  width: 30,
+                  height: 30,
                   padding: 0,
                   display: 'flex',
                   alignItems: 'center',
@@ -847,7 +835,7 @@ export default function HomePage({
                         height: 18,
                         padding: '0 6px',
                         borderRadius: 9,
-                        background: 'rgba(255,255,255,0.08)',
+                        background: 'var(--po-border)',
                         fontSize: 11,
                         fontWeight: 600,
                         // Dimmed from text1 → text2 so the chip number
@@ -869,6 +857,7 @@ export default function HomePage({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
+                    height: 30,
                     padding: 0,
                     fontSize: 12,
                     color: T.text2,
@@ -910,7 +899,7 @@ export default function HomePage({
                   to a comparable height without breaking the rule
                   that Connections must stay shorter than Data
                   (see ConnectionsCanvas's height comment).
-                  
+
                   `maxHeight` caps the card so a heavy top-level
                   ("39 .txt files at the project root") doesn't
                   silently dwarf the right rail — the previous

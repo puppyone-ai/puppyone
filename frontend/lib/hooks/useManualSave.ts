@@ -88,22 +88,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
  *      new server value comes back). `fileKey` stays the same. We
  *      pull the new server value into `draft` *if and only if* the
  *      user hasn't typed anything since the save (status was
- *      'saved' or 'clean' at the moment of the new server value).
- *      If the user has started typing again, we leave `draft`
- *      alone — clobbering their in-flight edit would be a
- *      significantly worse UX than a slightly stale view.
- *
- * ## Why generic over `T`
- *
- * Markdown is a string. Table data is a JSON object. JSON Tree
- * / Vanilla / Monaco-JSON editors are also JSON objects. All four
- * editor families want the same dirty-tracking + manual-save
- * + draft-persist behavior — only `serialize` / `deserialize` /
- * `isEqual` change. Parameterising `T` lets one hook serve all of
- * them.
+ *      `saved` or `clean`); otherwise we leave their local draft alone.
  */
-
-/** UI states the parent renders against. */
 export type SaveStatus = 'clean' | 'dirty' | 'saving' | 'saved' | 'error';
 
 const DRAFT_KEY_PREFIX = 'puppyone:editor-draft:';

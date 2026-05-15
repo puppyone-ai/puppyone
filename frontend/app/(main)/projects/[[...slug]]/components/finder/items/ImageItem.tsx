@@ -67,7 +67,7 @@ function GridVariant({ name, thumbnailUrl, onClick }: Omit<ImageItemProps, 'view
         gap: 10,
         borderRadius: 8,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         transition: 'all 0.15s',
       }}
     >
@@ -80,8 +80,8 @@ function GridVariant({ name, thumbnailUrl, onClick }: Omit<ImageItemProps, 'view
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#f472b6', // Pink for images
-          background: thumbnailUrl ? 'transparent' : 'rgba(244, 114, 182, 0.1)',
+          color: 'var(--po-file-accent-image)', // Pink for images
+          background: thumbnailUrl ? 'transparent' : 'color-mix(in srgb, var(--po-file-accent-image) 10%, transparent)',
         }}
       >
         {thumbnailUrl ? (
@@ -97,7 +97,7 @@ function GridVariant({ name, thumbnailUrl, onClick }: Omit<ImageItemProps, 'view
       <div
         style={{
           fontSize: 16,
-          color: hovered ? '#fff' : '#a1a1aa',
+          color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           textAlign: 'center',
           wordBreak: 'break-word',
           lineHeight: '1.4em',
@@ -132,8 +132,8 @@ function ListVariant({ name, description, onClick }: Omit<ImageItemProps, 'viewT
         gap: 12,
         borderRadius: 6,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
+        borderBottom: '1px solid var(--po-hover)',
         transition: 'all 0.1s',
       }}
     >
@@ -144,7 +144,7 @@ function ListVariant({ name, description, onClick }: Omit<ImageItemProps, 'viewT
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#f472b6',
+          color: 'var(--po-file-accent-image)',
         }}
       >
         <ImageIconSmall />
@@ -153,19 +153,19 @@ function ListVariant({ name, description, onClick }: Omit<ImageItemProps, 'viewT
         <div
           style={{
             fontSize: 16,
-            color: hovered ? '#fff' : '#d4d4d8',
+            color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
             fontWeight: 500,
           }}
         >
           {name}
         </div>
         {description && (
-          <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginTop: 2 }}>
             {description}
           </div>
         )}
       </div>
-      <div style={{ color: '#52525b', fontSize: 12 }}>Image</div>
+      <div style={{ color: 'var(--po-text-disabled)', fontSize: 12 }}>Image</div>
     </div>
   );
 }
@@ -186,18 +186,18 @@ function ColumnVariant({ name, onClick }: Omit<ImageItemProps, 'viewType'>) {
         gap: 8,
         padding: '6px 12px',
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         transition: 'all 0.1s',
       }}
     >
-      <div style={{ color: '#f472b6' }}>
+      <div style={{ color: 'var(--po-file-accent-image)' }}>
         <ImageIconSmall />
       </div>
       <div
         style={{
           flex: 1,
           fontSize: 16,
-          color: hovered ? '#fff' : '#d4d4d8',
+          color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',

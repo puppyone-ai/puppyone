@@ -41,6 +41,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
@@ -413,7 +414,7 @@ function ScopePageHeader({
                   height: 6,
                   borderRadius: '50%',
                   background: aggregate.color,
-                  boxShadow: `0 0 6px ${aggregate.color}88`,
+                  boxShadow: `0 0 6px color-mix(in srgb, ${aggregate.color} 55%, transparent)`,
                 }}
               />
               {aggregate.label}
@@ -569,10 +570,11 @@ function SettingsSection({
           display: 'flex',
           alignItems: 'center',
           gap: 8,
+          height: 30,
           marginBottom: open ? 10 : 0,
-          padding: '4px 4px 4px 2px',
+          padding: '0 4px 0 2px',
           borderRadius: 4,
-          background: hovered ? 'rgba(255,255,255,0.025)' : 'transparent',
+          background: hovered ? 'var(--po-control)' : 'transparent',
           transition: 'background 0.12s ease',
         }}
       >
@@ -607,8 +609,8 @@ function SettingsSection({
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                background: '#f59e0b',
-                boxShadow: '0 0 5px rgba(245,158,11,0.55)',
+                background: 'var(--po-warning)',
+                boxShadow: '0 0 5px color-mix(in srgb, var(--po-warning) 55%, transparent)',
                 marginLeft: 2,
               }}
             />
@@ -616,7 +618,7 @@ function SettingsSection({
               style={{
                 fontSize: 11,
                 fontWeight: 500,
-                color: '#f59e0b',
+                color: 'var(--po-warning)',
                 fontFamily: T.fontSans,
               }}
             >
@@ -644,7 +646,7 @@ function SettingsSection({
           style={{
             padding: '14px 14px 12px',
             borderRadius: 10,
-            background: 'rgba(255,255,255,0.018)',
+            background: 'var(--po-control)',
             border: `1px solid ${T.cardBorder}`,
             animation: `puppyone-access-settings-slide 180ms ${T.ease}`,
           }}
@@ -776,14 +778,14 @@ function AccessPointChip({
         flexShrink: 0,
         boxSizing: 'border-box',
         borderRadius: 10,
-        border: `1px solid ${selected ? 'rgba(255,255,255,0.16)' : T.cardBorder}`,
+        border: `1px solid ${selected ? 'var(--po-border-strong)' : T.cardBorder}`,
         background: selected
-          ? 'rgba(255,255,255,0.05)'
+          ? 'var(--po-hover)'
           : hovered
-            ? 'rgba(255,255,255,0.025)'
+            ? 'var(--po-control)'
             : T.cardBg,
         boxShadow: selected
-          ? '0 0 0 1px rgba(255,255,255,0.04), 0 6px 18px rgba(0,0,0,0.32)'
+          ? '0 0 0 1px var(--po-hover), 0 6px 18px var(--po-shadow)'
           : 'none',
         opacity: connector.status === 'paused' ? 0.7 : 1,
         transition:
@@ -800,10 +802,10 @@ function AccessPointChip({
       >
         <div
           style={{
-            width: 28,
-            height: 28,
+            width: 30,
+            height: 30,
             borderRadius: 6,
-            background: 'rgba(255,255,255,0.04)',
+            background: 'var(--po-hover)',
             border: `1px solid ${T.border}`,
             display: 'flex',
             alignItems: 'center',
@@ -862,10 +864,6 @@ function AccessPointChip({
 // so the parent chip doesn't also try to "select" itself); click any
 // other part of the chip → select it.
 //
-// Track color reflects the connector's true status, not just on/off:
-// errored connectors stay "on" but tint red, so the user notices the
-// problem without having to open the card.
-
 function ConnectorToggle({
   status,
   on,
@@ -877,60 +875,18 @@ function ConnectorToggle({
   readonly pending: boolean;
   readonly onToggle: () => Promise<void> | void;
 }) {
-  const trackColor = (() => {
-    if (status === 'error') return STATUS_COLORS.error;
-    if (status === 'syncing') return STATUS_COLORS.syncing;
-    if (on) return STATUS_COLORS.active;
-    return 'rgba(255,255,255,0.10)';
-  })();
   const ariaLabel = `${STATUS_LABEL[status] ?? status} — click to ${on ? 'pause' : 'resume'}`;
 
   return (
-    <button
-      type='button'
-      onClick={(e) => {
-        e.stopPropagation();
-        if (pending) return;
+    <ToggleSwitch
+      checked={on}
+      pending={pending}
+      ariaLabel={ariaLabel}
+      title={ariaLabel}
+      stopPropagation
+      onCheckedChange={() => {
         void onToggle();
       }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.stopPropagation();
-        }
-      }}
-      disabled={pending}
-      aria-label={ariaLabel}
-      aria-checked={on}
-      role='switch'
-      title={ariaLabel}
-      style={{
-        all: 'unset',
-        cursor: pending ? 'wait' : 'pointer',
-        flexShrink: 0,
-        width: 26,
-        height: 14,
-        borderRadius: 999,
-        background: trackColor,
-        boxShadow: on ? `0 0 6px ${trackColor}66` : 'inset 0 0 0 1px rgba(255,255,255,0.06)',
-        position: 'relative',
-        transition: 'background 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease',
-        opacity: pending ? 0.5 : 1,
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          position: 'absolute',
-          top: 2,
-          left: on ? 14 : 2,
-          width: 10,
-          height: 10,
-          borderRadius: '50%',
-          background: '#fafafa',
-          boxShadow: '0 1px 2px rgba(0,0,0,0.4)',
-          transition: 'left 0.18s ease',
-        }}
-      />
-    </button>
+    />
   );
 }

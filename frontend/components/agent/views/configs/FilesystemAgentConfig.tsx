@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useAgent } from '@/contexts/AgentContext';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { isWithinScope } from '@/lib/repoApi';
-import { FolderIcon, CloseIcon, getNodeIcon } from '../_icons';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { FolderIcon, getNodeIcon } from '../_icons';
 import type { AgentConfigProps } from './ChatAgentConfig';
 
 // Filesystem connector syncs a local folder with the cloud workspace.
@@ -57,7 +58,7 @@ export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: Age
   };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 12, fontWeight: 500, color: '#666', marginBottom: 8, display: 'block',
+    fontSize: 12, fontWeight: 500, color: 'var(--po-text-subtle)', marginBottom: 8, display: 'block',
   };
 
   return (
@@ -71,9 +72,9 @@ export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: Age
           left: 'calc(50% + 68px)',
           width: '16px',
           height: '16px',
-          background: '#18181b',
-          borderLeft: '1px solid rgba(255,255,255,0.08)',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-hover)',
+          borderLeft: '1px solid var(--po-border)',
+          borderTop: '1px solid var(--po-border)',
           transform: 'rotate(45deg)',
           zIndex: 3,
           marginLeft: '-8px'
@@ -81,27 +82,27 @@ export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: Age
 
         <div style={{
           position: 'relative',
-          background: '#18181b',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-hover)',
+          border: '1px solid var(--po-border)',
           borderRadius: '8px',
           padding: '16px',
           zIndex: 2
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-            <label style={{ ...labelStyle, marginBottom: 0, paddingLeft: 2, color: '#e4e4e7' }}>Workspace Folder</label>
-            <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
-            <span style={{ fontSize: 11, color: '#525252', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+            <label style={{ ...labelStyle, marginBottom: 0, paddingLeft: 2, color: 'var(--po-text)' }}>Workspace Folder</label>
+            <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
+            <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)', borderRadius: 4, padding: '1px 6px', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
               folder only · max 1
             </span>
           </div>
-          <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
+          <div style={{ color: 'var(--po-text-muted)', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
             Drag and drop a folder from the left sidebar to sync it with your local desktop.
           </div>
 
           {scopeBoundary !== undefined && (
-            <div style={{ fontSize: 11, color: '#71717a', paddingLeft: 2, marginBottom: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: 'var(--po-text-subtle)', paddingLeft: 2, marginBottom: 8, lineHeight: 1.5 }}>
               Only folders inside{' '}
-              <code style={{ color: '#a1a1aa' }}>
+              <code style={{ color: 'var(--po-text-muted)' }}>
                 {scopeBoundary === '' ? '/ (root)' : `/${scopeBoundary}`}
               </code>{' '}
               can be attached.
@@ -111,9 +112,9 @@ export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: Age
           {dropError && (
             <div
               style={{
-                fontSize: 12, color: '#fca5a5',
-                background: 'rgba(248,113,113,0.08)',
-                border: '1px solid rgba(248,113,113,0.25)',
+                fontSize: 12, color: 'var(--po-danger)',
+                background: 'color-mix(in srgb, var(--po-danger) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--po-danger) 25%, transparent)',
                 borderRadius: 6, padding: '6px 10px',
                 marginBottom: 8, lineHeight: 1.5,
               }}
@@ -126,12 +127,12 @@ export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: Age
           <div
             style={{
               minHeight: 88,
-              background: isDragging ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
+              background: isDragging ? 'var(--po-hover)' : 'var(--po-panel)',
               border: isDragging
-                ? '1px dashed #71717a'
+                ? '1px dashed var(--po-text-subtle)'
                 : draftResources.length > 0
-                  ? '1px solid rgba(255,255,255,0.15)'
-                  : '1px dashed rgba(255,255,255,0.15)',
+                  ? '1px solid var(--po-border-strong)'
+                  : '1px dashed var(--po-border-strong)',
               borderRadius: 6,
               transition: 'all 0.15s',
               opacity: draftResources.length > 0 ? 1 : 1,
@@ -148,25 +149,23 @@ export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: Age
                   key={resource.path}
                   style={{
                     height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '0 10px', borderRadius: 4, background: '#1a1a1a', border: '1px solid #252525', transition: 'all 0.1s',
+                    padding: '0 10px', borderRadius: 4, background: 'var(--po-panel-raised)', border: '1px solid var(--po-border-strong)', transition: 'all 0.1s',
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--po-hover)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--po-panel-raised)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1, minWidth: 0 }}>
                     <div style={{ color, flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</div>
-                    <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontSize: 14, color: 'var(--po-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {resource.nodeName}
                     </span>
                   </div>
-                  <button
+                  <ActivityIconButton
+                    kind="close"
+                    title="Remove resource"
+                    size="sm"
                     onClick={() => removeDraftResource(resource.path)}
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 4, background: 'transparent', border: 'none', color: '#505050', cursor: 'pointer', transition: 'all 0.1s' }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
-                  >
-                    <CloseIcon />
-                  </button>
+                  />
                 </div>
               );
             })}
@@ -176,9 +175,9 @@ export function FilesystemAgentConfig({ scopeBoundary, scopeBoundaryLabel }: Age
             <div style={{
               minHeight: 88,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
-              color: isDragging ? '#a1a1aa' : '#71717a',
+              color: isDragging ? 'var(--po-text-muted)' : 'var(--po-text-subtle)',
             }}>
-              <div style={{ color: isDragging ? '#d4d4d4' : '#a1a1aa' }}><FolderIcon /></div>
+              <div style={{ color: isDragging ? 'var(--po-text)' : 'var(--po-text-muted)' }}><FolderIcon /></div>
               <span style={{ fontSize: 13 }}>
                 {isDragging ? 'Drop folder here' : 'Drag a folder into this zone'}
               </span>

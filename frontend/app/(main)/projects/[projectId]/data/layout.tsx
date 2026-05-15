@@ -98,7 +98,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     () => listConnectors(projectId),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
-  const { data: repoIdentity, mutate: mutateIdentity } = useSWR(
+  const { data: repoIdentity, isLoading: repoIdentityLoading, mutate: mutateIdentity } = useSWR(
     projectId ? ['repo-identity', projectId] : null,
     () => getRepoIdentity(projectId),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
@@ -240,6 +240,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       scopes: scopes || [],
       connectorsByScope,
       repoIdentity,
+      repoIdentityLoading,
       mutateRepo,
     }),
     [
@@ -251,6 +252,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       scopes,
       connectorsByScope,
       repoIdentity,
+      repoIdentityLoading,
       mutateRepo,
     ],
   );

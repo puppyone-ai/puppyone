@@ -4,22 +4,22 @@
  * surface reads as the same family.
  */
 export const T = {
-  bg: '#0e0e0e',
-  border: 'rgba(255,255,255,0.08)',
-  cardBg: 'rgba(255,255,255,0.02)',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  cardBorderStrong: 'rgba(255,255,255,0.12)',
-  text1: '#fafafa',
-  text2: '#a1a1aa',
-  text3: '#52525b',
-  text4: '#27272a',
-  accent: '#3b82f6',
-  success: '#22c55e',
-  danger: '#ef4444',
-  warning: '#f59e0b',
+  bg: 'var(--po-canvas)',
+  border: 'var(--po-border)',
+  cardBg: 'var(--po-panel)',
+  cardBorder: 'var(--po-border-subtle)',
+  cardBorderStrong: 'var(--po-border-strong)',
+  text1: 'var(--po-text)',
+  text2: 'var(--po-text-muted)',
+  text3: 'var(--po-text-disabled)',
+  text4: 'var(--po-text-subtle)',
+  accent: 'var(--po-accent)',
+  success: 'var(--po-success)',
+  danger: 'var(--po-danger)',
+  warning: 'var(--po-warning)',
   fontSans:
-    'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+    'var(--po-font-sans)',
   fontMono:
-    'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+    'var(--po-font-mono)',
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
 } as const;

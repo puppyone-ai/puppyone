@@ -32,7 +32,7 @@ function relativeTime(iso: string | null): string {
 
 function LaptopIcon({ size = 16 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="4" width="18" height="12" rx="2" />
       <path d="M2 20h20" />
     </svg>
@@ -89,7 +89,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
   if (!sync) {
     return (
       <PanelShell title="Machine Folder" onClose={onClose || (() => {})} onBack={onBack}>
-        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13, height: '100%' }}>
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--po-text-disabled)', fontSize: 13, height: '100%' }}>
           Integration not found
         </div>
       </PanelShell>
@@ -98,7 +98,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 
   const isActive = sync.status === 'active' || sync.status === 'syncing';
   const isError = sync.status === 'error';
-  const statusColor = isError ? '#ef4444' : isActive ? '#22c55e' : '#525252';
+  const statusColor = isError ? 'var(--po-danger)' : isActive ? 'var(--po-success)' : 'var(--po-text-disabled)';
   const statusLabel = isError ? 'Error' : isActive ? 'Connected' : sync.status || 'Inactive';
 
   const accessKey = sync.access_key || '';
@@ -118,7 +118,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
         {/* ── Flow visualization ── */}
         <div style={{
           padding: '16px 0 8px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--po-border-subtle)',
           display: 'flex', flexDirection: 'column', gap: 6,
         }}>
           {/* Source (LEFT) → Arrow → Workspace (RIGHT) */}
@@ -127,13 +127,13 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: 12,
-                background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                boxShadow: '0 4px 12px var(--po-shadow)',
               }}>
                 <LaptopIcon size={24} />
               </div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center' }}>
+              <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text)', textAlign: 'center' }}>
                 Machine Folder
               </div>
             </div>
@@ -144,11 +144,11 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
               width: 80, flexShrink: 0, paddingTop: 16,
             }}>
               {isActive ? (
-                <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke="var(--po-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M2 5h76M6 2L2 5l4 3M74 8l4 3-4 3M2 11h76" />
                 </svg>
               ) : (
-                <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={isError ? '#ef4444' : '#525252'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 4">
+                <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={isError ? 'var(--po-danger)' : 'var(--po-text-disabled)'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 4">
                   <path d="M2 8h76" />
                 </svg>
               )}
@@ -158,16 +158,16 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
               <div style={{
                 width: 48, height: 48, borderRadius: 12,
-                background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                boxShadow: '0 4px 12px var(--po-shadow)',
               }}>
                 {sync.node_type === 'folder' || !sync.node_type
                   ? <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block' }} />
-                  : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
+                  : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>
                 }
               </div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
                 {sync.node_name || 'Workspace'}
               </div>
             </div>
@@ -179,11 +179,11 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
               width: 5, height: 5, borderRadius: '50%', background: statusColor,
               display: 'inline-block', flexShrink: 0,
             }} />
-            <span style={{ fontSize: 11, fontWeight: 500, color: isActive ? '#e5e5e5' : '#71717a' }}>
+            <span style={{ fontSize: 11, fontWeight: 500, color: isActive ? 'var(--po-text)' : 'var(--po-text-subtle)' }}>
               {isError ? 'Sync error' : isActive ? 'Sync active' : statusLabel}
             </span>
             {sync.last_synced_at && (
-              <span style={{ fontSize: 11, color: '#525252' }}>
+              <span style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>
                 · {relativeTime(sync.last_synced_at)}
               </span>
             )}
@@ -195,9 +195,9 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
           <div style={{
             margin: '12px 20px 0',
             padding: '10px 12px', borderRadius: 8,
-            background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)',
+            background: 'color-mix(in srgb, var(--po-danger) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--po-danger) 12%, transparent)',
           }}>
-            <div style={{ fontSize: 12, color: '#f87171', lineHeight: 1.6 }}>{sync.error_message}</div>
+            <div style={{ fontSize: 12, color: 'var(--po-danger)', lineHeight: 1.6 }}>{sync.error_message}</div>
           </div>
         )}
 
@@ -209,8 +209,8 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             style={{
               flex: 1, height: 32, borderRadius: 6,
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#a3a3a3', fontSize: 13, fontWeight: 500,
+              border: '1px solid var(--po-border)',
+              color: 'var(--po-text-muted)', fontSize: 13, fontWeight: 500,
               cursor: (togglingPause || isError) ? 'not-allowed' : 'pointer',
               transition: 'all 0.15s',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -218,13 +218,13 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             }}
             onMouseEnter={e => {
               if (togglingPause || isError) return;
-              e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-              e.currentTarget.style.color = '#e5e5e5';
+              e.currentTarget.style.background = 'var(--po-hover)';
+              e.currentTarget.style.color = 'var(--po-text)';
             }}
             onMouseLeave={e => {
               if (togglingPause || isError) return;
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#a3a3a3';
+              e.currentTarget.style.color = 'var(--po-text-muted)';
             }}
           >
             {isPaused ? (
@@ -245,23 +245,23 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             style={{
               flex: 1, height: 32, borderRadius: 6,
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#a3a3a3', fontSize: 13, fontWeight: 500,
+              border: '1px solid var(--po-border)',
+              color: 'var(--po-text-muted)', fontSize: 13, fontWeight: 500,
               cursor: disconnecting ? 'not-allowed' : 'pointer',
               transition: 'all 0.15s',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}
             onMouseEnter={e => {
               if (disconnecting) return;
-              e.currentTarget.style.background = 'rgba(239,68,68,0.06)';
-              e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)';
-              e.currentTarget.style.color = '#ef4444';
+              e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 6%, transparent)';
+              e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-danger) 20%, transparent)';
+              e.currentTarget.style.color = 'var(--po-danger)';
             }}
             onMouseLeave={e => {
               if (disconnecting) return;
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-              e.currentTarget.style.color = '#a3a3a3';
+              e.currentTarget.style.borderColor = 'var(--po-border)';
+              e.currentTarget.style.color = 'var(--po-text-muted)';
             }}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -282,8 +282,8 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             )}
             <div style={{
               display: 'flex', flexDirection: 'column', gap: 0,
-              background: 'rgba(255,255,255,0.02)', borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.06)', overflow: 'hidden',
+              background: 'var(--po-panel)', borderRadius: 8,
+              border: '1px solid var(--po-border-subtle)', overflow: 'hidden',
             }}>
               <InfoRow label="Sync ID" value={sync.id} isLast={false} />
               <InfoRow label="Direction" value="Bidirectional" isLast={false} />
@@ -345,7 +345,7 @@ function SetupTabs({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; acces
       {/* ── Path picker ── */}
       <div style={{
         display: 'flex', gap: 0,
-        background: '#0a0a0a', border: '1px solid rgba(255,255,255,0.04)',
+        background: 'var(--po-inset)', border: '1px solid var(--po-hover)',
         borderRadius: 6, padding: 3,
       }}>
         <SetupModeTab
@@ -370,8 +370,8 @@ function SetupTabs({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; acces
             command={`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
             label="Clone"
           />
-          <div style={{ fontSize: 12, color: '#525252', marginTop: 4, lineHeight: 1.5 }}>
-            Run once. Creates a local <code style={{ fontFamily: "'JetBrains Mono', 'SF Mono', monospace", color: '#71717a' }}>./{scopeName}/</code> folder
+          <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4, lineHeight: 1.5 }}>
+            Run once. Creates a local <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>./{scopeName}/</code> folder
             populated from this context.
           </div>
         </>
@@ -381,10 +381,10 @@ function SetupTabs({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; acces
             command={`cd /path/to/your/folder\nmut connect ${cloneUrl} \\\n  --credential ${accessKey}`}
             label="Connect"
           />
-          <div style={{ fontSize: 12, color: '#525252', marginTop: 4, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4, lineHeight: 1.5 }}>
             Run inside an existing folder. Three-way merges your local files with cloud state and pushes
             the result. Files only on disk get uploaded; files only in cloud get downloaded.
-            <span style={{ color: '#facc15', fontWeight: 500 }}> No overwrite, no data loss.</span>
+            <span style={{ color: 'var(--po-warning)', fontWeight: 500 }}> No overwrite, no data loss.</span>
           </div>
         </>
       )}
@@ -397,18 +397,18 @@ function SetupModeTab({ active, label, hint, onClick }: { active: boolean; label
     <button
       onClick={onClick}
       style={{
-        flex: 1, padding: '8px 12px', borderRadius: 4, border: 'none',
-        background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
-        color: active ? '#e5e5e5' : '#71717a',
+        flex: 1, minHeight: 48, padding: '8px 12px', borderRadius: 4, border: 'none',
+        background: active ? 'var(--po-border-subtle)' : 'transparent',
+        color: active ? 'var(--po-text)' : 'var(--po-text-subtle)',
         cursor: 'pointer', textAlign: 'left',
         transition: 'all 0.15s',
         display: 'flex', flexDirection: 'column', gap: 2,
       }}
-      onMouseEnter={e => { if (!active) e.currentTarget.style.color = '#a3a3a3'; }}
-      onMouseLeave={e => { if (!active) e.currentTarget.style.color = '#71717a'; }}
+      onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--po-text-muted)'; }}
+      onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--po-text-subtle)'; }}
     >
       <span style={{ fontSize: 12, fontWeight: 600 }}>{label}</span>
-      <span style={{ fontSize: 11, color: active ? '#a3a3a3' : '#525252' }}>{hint}</span>
+      <span style={{ fontSize: 11, color: active ? 'var(--po-text-muted)' : 'var(--po-text-disabled)' }}>{hint}</span>
     </button>
   );
 }
@@ -417,7 +417,7 @@ function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string
   const [copied, setCopied] = useState(false);
 
   const prompt = [
-    `Sync my local folder with PuppyOne cloud using the \`mut\` CLI.`,
+    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
     ``,
     `## Install (one-time)`,
     `\`\`\`bash`,
@@ -459,24 +459,24 @@ function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string
 
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>
         Quick Start
       </div>
-      <div style={{ fontSize: 12, color: '#525252', lineHeight: 1.5, marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', lineHeight: 1.5, marginBottom: 12 }}>
         Copy the prompt below and paste it into Claude Code, Cursor, or any AI coding agent.
       </div>
       <div
         style={{
           position: 'relative',
-          background: '#0a0a0a',
-          border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.06)'}`,
+          background: 'var(--po-inset)',
+          border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 30%, transparent)' : 'var(--po-border-subtle)'}`,
           borderRadius: 8, padding: '12px 14px',
           transition: 'border-color 0.2s',
         }}
       >
         <pre style={{
-          margin: 0, fontSize: 11, lineHeight: 1.65, color: '#8b8b8b',
-          fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace",
+          margin: 0, fontSize: 11, lineHeight: 1.65, color: 'var(--po-text-subtle)',
+          fontFamily: "var(--po-font-sans)",
           whiteSpace: 'pre-wrap', wordBreak: 'break-all',
           maxHeight: 160, overflow: 'hidden',
           WebkitMaskImage: 'linear-gradient(to bottom, black 60%, transparent 100%)',
@@ -489,22 +489,22 @@ function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string
           style={{
             position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
             height: 30, padding: '0 16px', borderRadius: 6,
-            background: copied ? 'rgba(52,211,153,0.1)' : 'rgba(255,255,255,0.06)',
-            border: `1px solid ${copied ? 'rgba(52,211,153,0.25)' : 'rgba(255,255,255,0.1)'}`,
-            color: copied ? '#34d399' : '#a3a3a3',
+            background: copied ? 'color-mix(in srgb, var(--po-success) 10%, transparent)' : 'var(--po-border-subtle)',
+            border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 25%, transparent)' : 'var(--po-active)'}`,
+            color: copied ? 'var(--po-success)' : 'var(--po-text-muted)',
             fontSize: 12, fontWeight: 500, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 6,
             transition: 'all 0.15s',
           }}
           onMouseEnter={e => {
             if (copied) return;
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-            e.currentTarget.style.color = '#e5e5e5';
+            e.currentTarget.style.background = 'var(--po-border)';
+            e.currentTarget.style.color = 'var(--po-text)';
           }}
           onMouseLeave={e => {
             if (copied) return;
-            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-            e.currentTarget.style.color = '#a3a3a3';
+            e.currentTarget.style.background = 'var(--po-border-subtle)';
+            e.currentTarget.style.color = 'var(--po-text-muted)';
           }}
         >
           {copied ? (
@@ -531,9 +531,9 @@ function CollapsibleSection({ title, children, defaultOpen = false }: { title: s
       <button
         onClick={() => setIsOpen(!isOpen)}
         style={{
-          background: 'transparent', border: 'none', padding: 0,
+          background: 'transparent', border: 'none', height: 30, padding: 0,
           display: 'flex', alignItems: 'center', gap: 6,
-          fontSize: 12, fontWeight: 600, color: '#71717a',
+          fontSize: 12, fontWeight: 600, color: 'var(--po-text-subtle)',
           textTransform: 'uppercase', letterSpacing: '0.5px',
           cursor: 'pointer', width: '100%', textAlign: 'left',
           outline: 'none',
@@ -568,17 +568,17 @@ function SyncStep({ step, command, hint, label, isLast }: { step: number; comman
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{
           width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-          background: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-hover)',
+          border: '1px solid var(--po-border)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 600, color: '#a3a3a3',
+          fontSize: 12, fontWeight: 600, color: 'var(--po-text-muted)',
         }}>
           {step}
         </div>
         {!isLast && (
           <div style={{
             width: 0, flex: 1, minHeight: 16,
-            borderLeft: '2px dotted rgba(255,255,255,0.08)',
+            borderLeft: '2px dotted var(--po-border)',
             margin: '4px 0',
           }} />
         )}
@@ -591,23 +591,24 @@ function SyncStep({ step, command, hint, label, isLast }: { step: number; comman
             <div
               style={{
                 position: 'relative',
-                background: '#0a0a0a',
-                border: '1px solid rgba(255,255,255,0.06)',
+                background: 'var(--po-inset)',
+                border: '1px solid var(--po-border-subtle)',
                 borderRadius: 8, padding: '10px 12px',
               }}
             >
               <code style={{
-                fontSize: 12, color: '#a3a3a3',
-                fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+                fontSize: 12, color: 'var(--po-text-muted)',
+                fontFamily: "var(--po-font-sans)",
               }}>
-                <span style={{ color: '#525252', userSelect: 'none' }}>$ </span>{command}
+                <span style={{ color: 'var(--po-text-disabled)', userSelect: 'none' }}>$ </span>{command}
               </code>
               <button
                 onClick={handleCopy}
                 style={{
                   position: 'absolute', top: 8, right: 8,
                   background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: copied ? '#34d399' : '#525252', padding: 4, display: 'flex',
+                  color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)', width: 30, height: 30, padding: 0, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 {copied ? (
@@ -618,13 +619,13 @@ function SyncStep({ step, command, hint, label, isLast }: { step: number; comman
               </button>
             </div>
             {hint && (
-              <div style={{ fontSize: 11, color: '#71717a', marginTop: 6, lineHeight: 1.5, paddingLeft: 4 }}>{hint}</div>
+              <div style={{ fontSize: 11, color: 'var(--po-text-subtle)', marginTop: 6, lineHeight: 1.5, paddingLeft: 4 }}>{hint}</div>
             )}
           </div>
         ) : (
-          <div style={{ padding: '2px 0', fontSize: 13, color: '#a3a3a3' }}>
+          <div style={{ padding: '2px 0', fontSize: 13, color: 'var(--po-text-muted)' }}>
             {label}
-            {hint && <div style={{ fontSize: 12, color: '#525252', marginTop: 4 }}>{hint}</div>}
+            {hint && <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4 }}>{hint}</div>}
           </div>
         )}
       </div>
@@ -654,21 +655,21 @@ function CommandBlock({ command, label, hint }: {
         onMouseLeave={() => setHovered(false)}
         style={{
           position: 'relative',
-          background: '#0a0a0a',
-          border: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--po-inset)',
+          border: '1px solid var(--po-border-subtle)',
           borderRadius: 8, padding: '10px 12px',
           transition: 'border-color 0.15s',
-          borderColor: hovered ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.06)',
+          borderColor: hovered ? 'var(--po-active)' : 'var(--po-border-subtle)',
         }}
       >
         <pre style={{
           margin: 0, fontSize: 12, lineHeight: 1.6,
-          color: '#a3a3a3',
-          fontFamily: "'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace",
+          color: 'var(--po-text-muted)',
+          fontFamily: "var(--po-font-sans)",
           whiteSpace: 'pre-wrap', wordBreak: 'break-all',
           paddingRight: 28,
         }}>
-          <span style={{ color: '#525252', userSelect: 'none' }}>$ </span>
+          <span style={{ color: 'var(--po-text-disabled)', userSelect: 'none' }}>$ </span>
           {command}
         </pre>
         <button
@@ -678,12 +679,13 @@ function CommandBlock({ command, label, hint }: {
             position: 'absolute', top: 8, right: 8,
             background: 'transparent', border: 'none',
             cursor: 'pointer',
-            color: copied ? '#34d399' : '#525252',
-            padding: 4, borderRadius: 4, display: 'flex',
+            color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)',
+            width: 30, height: 30, padding: 0, borderRadius: 4, display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
             transition: 'color 0.15s',
           }}
-          onMouseEnter={e => { if (!copied) e.currentTarget.style.color = '#a3a3a3'; }}
-          onMouseLeave={e => { if (!copied) e.currentTarget.style.color = '#525252'; }}
+          onMouseEnter={e => { if (!copied) e.currentTarget.style.color = 'var(--po-text-muted)'; }}
+          onMouseLeave={e => { if (!copied) e.currentTarget.style.color = 'var(--po-text-disabled)'; }}
         >
           {copied ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -693,7 +695,7 @@ function CommandBlock({ command, label, hint }: {
         </button>
       </div>
       {hint && (
-        <div style={{ fontSize: 12, color: '#525252', marginTop: 4, lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4, lineHeight: 1.5 }}>
           {hint}
         </div>
       )}
@@ -717,15 +719,15 @@ function CredentialRow({ label, value }: { label: string; value: string }) {
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
       padding: '8px 12px',
-      background: 'rgba(255,255,255,0.02)', borderRadius: 8,
-      border: '1px solid rgba(255,255,255,0.06)',
+      background: 'var(--po-panel)', borderRadius: 8,
+      border: '1px solid var(--po-border-subtle)',
     }}>
-      <span style={{ fontSize: 12, color: '#525252', fontWeight: 500, flexShrink: 0, width: 76 }}>
+      <span style={{ fontSize: 12, color: 'var(--po-text-disabled)', fontWeight: 500, flexShrink: 0, width: 76 }}>
         {label}
       </span>
       <code style={{
-        flex: 1, fontSize: 11, color: '#a3a3a3',
-        fontFamily: "'JetBrains Mono', 'SF Mono', monospace",
+        flex: 1, fontSize: 11, color: 'var(--po-text-muted)',
+        fontFamily: "var(--po-font-sans)",
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {masked}
@@ -736,12 +738,12 @@ function CredentialRow({ label, value }: { label: string; value: string }) {
         style={{
           background: 'transparent', border: 'none',
           cursor: 'pointer',
-          color: copied ? '#34d399' : '#525252',
-          padding: 4, display: 'flex', flexShrink: 0,
+          color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)',
+          width: 30, height: 30, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
           transition: 'color 0.15s',
         }}
-        onMouseEnter={e => { if (!copied) e.currentTarget.style.color = '#a3a3a3'; }}
-        onMouseLeave={e => { if (!copied) e.currentTarget.style.color = '#525252'; }}
+        onMouseEnter={e => { if (!copied) e.currentTarget.style.color = 'var(--po-text-muted)'; }}
+        onMouseLeave={e => { if (!copied) e.currentTarget.style.color = 'var(--po-text-disabled)'; }}
       >
         {copied ? (
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -758,14 +760,14 @@ function InfoRow({ label, value, isLast }: { label: string; value: string; isLas
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
       padding: '10px 12px',
-      borderBottom: isLast ? 'none' : '1px solid rgba(255,255,255,0.04)',
+      borderBottom: isLast ? 'none' : '1px solid var(--po-hover)',
     }}>
-      <span style={{ fontSize: 12, color: '#525252', fontWeight: 500, flexShrink: 0, width: 76 }}>
+      <span style={{ fontSize: 12, color: 'var(--po-text-disabled)', fontWeight: 500, flexShrink: 0, width: 76 }}>
         {label}
       </span>
       <span style={{
-        flex: 1, fontSize: 12, color: '#a3a3a3',
-        fontFamily: label === 'Sync ID' ? "'JetBrains Mono', 'SF Mono', monospace" : 'inherit',
+        flex: 1, fontSize: 12, color: 'var(--po-text-muted)',
+        fontFamily: label === 'Sync ID' ? "var(--po-font-sans)" : 'inherit',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {value}

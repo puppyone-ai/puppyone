@@ -1,4 +1,4 @@
-const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
+import { APP_VERSION_LABEL } from './appVersion';
 
 function isLocalhost(): boolean {
   if (typeof window === 'undefined') return true;
@@ -8,5 +8,5 @@ function isLocalhost(): boolean {
 
 export function getEnvironmentLabel(): string {
   const env = isLocalhost() ? 'Local' : 'Cloud';
-  return `${env} v${appVersion}`;
+  return `${env} ${APP_VERSION_LABEL}`;
 }

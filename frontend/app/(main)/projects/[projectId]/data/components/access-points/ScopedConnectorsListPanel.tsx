@@ -4,26 +4,22 @@
  * ScopedConnectorsListPanel — per-scope connector list (redesign-2026-05-08).
  *
  * Replaces the project-wide AccessPointsListPanel. Once a scope is
- * selected, the body stacks two primary sections vertically + an
- * optional Settings sub-panel:
+ * selected, the body stacks two primary sections vertically:
  *
- *   ① ConnectMethodsBlock        — Terminal CLI, Local Sync, AI Agent
+ *   ① ConnectMethodsBlock        — Puppyone CLI, Git Remote, AI Agent
  *                                  (the three default ways to access this
  *                                  folder — DB-trigger-backed cli + agent
  *                                  connectors fan out into three UI cards)
  *   ② Integrations               — third-party providers (notion / gmail
  *                                  / github / url / ...) with a + Add CTA
  *
- * The header is intentionally one line. Path lives in a quiet body
- * metadata block above ①, with the permission mode as a small status
- * next to the path and Settings as the action on the right. Clicking
- * Settings mounts the ScopeSettingsBlock above ① (Permissions →
- * Excludes → Access key → Name → Identity → Danger zone).
+ * The header is intentionally one line. The scope's access methods
+ * lead the detail view; Path lives as quiet body metadata below them.
+ * Settings is a sibling sub-page, not an inline detail expansion.
  *
  * Dirty edits in Settings get reported up via onDirtyChange; the
- * panel's [⚙ Settings] toggle and [×] close button confirm before
- * silently discarding them. A muted "•" badge appears on the
- * Settings toggle while dirty.
+ * panel's back / close chrome confirms before silently discarding
+ * them.
  *
  * No parent-child inheritance: a folder shows ONLY connectors of its
  * exact-match scope (per Q1 decision 2026-05-03). Folders that aren't
@@ -35,6 +31,7 @@
  */
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { GithubIcon, GmailIcon, NotionIcon } from '@/lib/nodeTypeConfig';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { PanelShell } from '../PanelShell';
 import { FolderIcon } from '../explorer';
@@ -45,12 +42,9 @@ import { CreateAccessPointCTACard } from './CreateAccessPointCTACard';
 import { ConnectMethodsBlock } from './ConnectMethods';
 import { getApiBase } from './labels';
 import {
-  COLOR_BG_DASHED,
   COLOR_BORDER_HOVER,
   COLOR_FG,
   COLOR_FG_DIM,
-  COLOR_FG_MUTED,
-  COLOR_SUCCESS,
   PANEL_BG,
 } from './tokens';
 import type { ProviderIconLookup } from './types';
@@ -111,6 +105,11 @@ interface Props {
    *  promoting a folder. */
   readonly onCreateRequested: () => void;
   readonly hideHeader?: boolean;
+  readonly settingsPage?: boolean;
+  readonly onOpenSettings?: () => void;
+  readonly onNavigationGuardChange?: (
+    guard: { readonly canLeave: () => boolean } | null,
+  ) => void;
 }
 
 export function ScopedConnectorsListPanel({
@@ -131,13 +130,16 @@ export function ScopedConnectorsListPanel({
   onBack,
   onCreateRequested,
   hideHeader = false,
+  settingsPage = false,
+  onOpenSettings,
+  onNavigationGuardChange,
 }: Props) {
   const cliConnector = useMemo(
     () => connectors.find((c) => c.provider === 'cli'),
     [connectors],
   );
   // Filesystem became a per-scope built-in in the 2026-05-08
-  // migration — picked out here so the Local Sync MethodCard's
+  // migration — picked out here so the Git Remote MethodCard's
   // pause/resume toggle has a connector to bind to.
   const filesystemConnector = useMemo(
     () => connectors.find((c) => c.provider === 'filesystem'),
@@ -149,11 +151,11 @@ export function ScopedConnectorsListPanel({
   );
   // Integrations = third-party connectors. The three built-ins
   // (cli / agent / filesystem) are surfaced via the CONNECT block
-  // above (Terminal CLI / AI Agent / Local Sync cards), so they
+  // above (Terminal CLI / AI Agent / Git Remote cards), so they
   // must be excluded from this row to avoid double-rendering.
   // `filesystem` was promoted to a built-in by the 2026-05-08
-  // migration; missing it from this filter caused "Local Folder
-  // Sync" to leak into the Integrations section as a phantom card.
+  // migration; missing it from this filter caused the Git Remote
+  // built-in to leak into the Integrations section as a phantom card.
   const integrations = useMemo(
     () =>
       connectors.filter(
@@ -166,14 +168,9 @@ export function ScopedConnectorsListPanel({
   );
   const apiBase = useMemo(() => getApiBase(), []);
 
-  // Lift the Settings expand/collapse state up here so the header
-  // affordance and dirty handling stay stable. Always collapse when
-  // the user navigates to a different scope — otherwise a stale
-  // Settings context would carry over.
-  const [settingsOpen, setSettingsOpen] = useState(false);
   // Reported up by ScopeSettingsBlock — used to gate the panel chrome
-  // ([⚙ Settings] toggle / [×] close) so we don't silently drop
-  // unsaved edits. Stable callback below pushes this into local state.
+  // (back / close) so we don't silently drop unsaved edits. Stable
+  // callback below pushes this into local state.
   const [settingsDirty, setSettingsDirty] = useState(false);
   const handleSettingsDirtyChange = useCallback((dirty: boolean) => {
     setSettingsDirty(dirty);
@@ -187,15 +184,14 @@ export function ScopedConnectorsListPanel({
   }, [settingsDirty]);
 
   useEffect(() => {
-    setSettingsOpen(false);
     setSettingsDirty(false);
-  }, [scope?.id]);
+    settingsDirtyRef.current = false;
+  }, [scope?.id, settingsPage]);
 
   // Confirm before discarding unsaved Settings edits when the user
-  // collapses the Settings panel or closes the side panel entirely.
-  // Confirm() is plain native — good enough for this destructive-but-
-  // recoverable case (the user can re-open Settings and re-edit if
-  // they cancel the discard). Returns true if the caller may proceed.
+  // backs out of Settings or closes the side panel entirely. Confirm()
+  // is plain native — good enough for this destructive-but-recoverable
+  // case. Returns true if the caller may proceed.
   const confirmDiscardIfDirty = useCallback((): boolean => {
     if (!settingsDirtyRef.current) return true;
     return globalThis.window?.confirm?.(
@@ -203,15 +199,19 @@ export function ScopedConnectorsListPanel({
     ) ?? true;
   }, []);
 
-  const handleToggleSettings = useCallback(() => {
-    if (settingsOpen) {
-      if (!confirmDiscardIfDirty()) return;
-      setSettingsOpen(false);
-      setSettingsDirty(false);
-    } else {
-      setSettingsOpen(true);
+  useEffect(() => {
+    if (!settingsPage || !onNavigationGuardChange) {
+      onNavigationGuardChange?.(null);
+      return undefined;
     }
-  }, [settingsOpen, confirmDiscardIfDirty]);
+
+    onNavigationGuardChange({ canLeave: confirmDiscardIfDirty });
+    return () => onNavigationGuardChange(null);
+  }, [
+    settingsPage,
+    confirmDiscardIfDirty,
+    onNavigationGuardChange,
+  ]);
 
   const handleClose = useCallback(() => {
     if (!confirmDiscardIfDirty()) return;
@@ -259,7 +259,7 @@ export function ScopedConnectorsListPanel({
   // Scope-selected state: header is only the scope's name. Path,
   // permission mode, and Settings live in the body metadata block.
   const headerTitle: ReactNode = scope ? (
-    scope.name
+    settingsPage ? 'Settings' : scope.name
   ) : (
     <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
       <span>Access</span>
@@ -277,48 +277,33 @@ export function ScopedConnectorsListPanel({
   );
   const headerSubtitle = undefined;
 
-  // [Settings] is the action for the current path metadata. It stays
-  // next to the mode label instead of living in the global header.
-  const settingsButton = scope ? (
+  // [Settings] navigates to a sibling sub-page for the current scope.
+  // It is intentionally not an inline expand/collapse affordance.
+  const settingsButton = scope && onOpenSettings ? (
     <button
       type="button"
-      onClick={handleToggleSettings}
-      aria-pressed={settingsOpen}
+      onClick={onOpenSettings}
+      title="Settings"
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 6,
-        height: 32,
-        padding: '0 12px',
+        justifyContent: 'center',
+        position: 'relative',
+        width: 30,
+        height: 30,
+        padding: 0,
         fontSize: 13,
         fontWeight: 500,
-        color: settingsOpen ? COLOR_FG : COLOR_FG_MUTED,
-        background: settingsOpen
-          ? 'rgba(255,255,255,0.10)'
-          : 'rgba(255,255,255,0.055)',
-        border: 'none',
-        borderRadius: 8,
+        color: COLOR_FG_DIM,
+        background: 'var(--po-hover)',
+        border: '1px solid var(--po-border-subtle)',
+        borderRadius: 7,
         cursor: 'pointer',
         flexShrink: 0,
-        whiteSpace: 'nowrap',
-        transition: 'background 150ms ease, color 150ms ease',
+        transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
       }}
     >
       <SettingsGearIcon />
-      Settings
-      {settingsOpen && settingsDirty && (
-        <span
-          aria-label="Unsaved changes"
-          title="Unsaved changes"
-          style={{
-            display: 'inline-block',
-            width: 6,
-            height: 6,
-            borderRadius: 999,
-            background: COLOR_SUCCESS,
-          }}
-        />
-      )}
     </button>
   ) : undefined;
 
@@ -328,6 +313,7 @@ export function ScopedConnectorsListPanel({
       subtitle={headerSubtitle}
       onClose={handleClose}
       onBack={onBack ? handleBack : undefined}
+      headerRight={scope && !hideHeader ? settingsButton : undefined}
       hideHeader={hideHeader}
     >
       <div
@@ -349,25 +335,19 @@ export function ScopedConnectorsListPanel({
             gap: 18,
           }}
         >
-          {scope ? (
+          {scope && settingsPage ? (
+            <ScopeSettingsBlock
+              scope={scope}
+              projectId={projectId}
+              onMutated={onScopeMutated}
+              onScopeDeleted={handleScopeDeleted}
+              onDirtyChange={handleSettingsDirtyChange}
+            />
+          ) : scope ? (
             <>
-              {settingsButton && (
-                <ScopeSummaryBar scope={scope} settingsButton={settingsButton} />
-              )}
-
-              {settingsOpen && (
-                <ScopeSettingsBlock
-                  scope={scope}
-                  projectId={projectId}
-                  onMutated={onScopeMutated}
-                  onScopeDeleted={handleScopeDeleted}
-                  onDirtyChange={handleSettingsDirtyChange}
-                />
-              )}
-
               {/* The three default ways to access this scope. cli + agent
                   rows in `connectors` back the scope key and in-app chat
-                  agent surfaces. Terminal CLI and Local Sync share the
+                  agent surfaces. Puppyone CLI and Git Remote share the
                   scope access key; AI Agent opens the chat runtime. */}
               <ConnectMethodsBlock
                 scope={scope}
@@ -380,17 +360,17 @@ export function ScopedConnectorsListPanel({
                 onOpenAgentChat={onOpenAgentChat}
               />
 
+              <ScopeSummaryBar scope={scope} />
+
               {/* Integrations: third-party providers (notion / gmail /
-                  github / url / ...). The + Add CTA sits inline with the
-                  section header so it lives next to the content it adds,
-                  not orphaned in the panel header. */}
+                  github / url / ...). Empty state is itself the add
+                  affordance, so it reads like an available slot instead
+                  of adding another competing button to the panel. */}
               <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 8,
                     padding: '0 2px',
                   }}
                 >
@@ -403,40 +383,9 @@ export function ScopedConnectorsListPanel({
                   >
                     Integrations
                   </div>
-                  <button
-                    type="button"
-                    onClick={onAddRequested}
-                    style={{
-                      height: 32,
-                      padding: '6px 10px',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: COLOR_FG,
-                      background: 'rgba(255,255,255,0.06)',
-                      border: `1px solid ${COLOR_BORDER_HOVER}`,
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      flexShrink: 0,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    + Add
-                  </button>
                 </div>
                 {integrations.length === 0 ? (
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: COLOR_FG_DIM,
-                      padding: '14px',
-                      textAlign: 'center',
-                      borderRadius: 8,
-                      border: `1px dashed ${COLOR_BORDER_HOVER}`,
-                      background: COLOR_BG_DASHED,
-                    }}
-                  >
-                    No integrations yet. Click <strong style={{ color: COLOR_FG_MUTED }}>+ Add</strong> to pull in Notion, Gmail, GitHub, and more.
-                  </div>
+                  <EmptyIntegrationsSlot onClick={onAddRequested} />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {integrations.map((c) => (
@@ -480,12 +429,95 @@ export function ScopedConnectorsListPanel({
   );
 }
 
+function EmptyIntegrationsSlot({ onClick }: { readonly onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        width: '100%',
+        minHeight: 74,
+        padding: '13px 14px',
+        borderRadius: 8,
+        border: `1px dashed ${hovered ? COLOR_BORDER_HOVER : 'var(--po-border)'}`,
+        background: hovered
+          ? 'color-mix(in srgb, var(--po-text) 4%, var(--po-panel) 96%)'
+          : 'transparent',
+        color: COLOR_FG,
+        cursor: 'pointer',
+        textAlign: 'left',
+        transition: 'background 0.15s ease, border-color 0.15s ease',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <IntegrationHintIcon label="GitHub"><GithubIcon size={15} /></IntegrationHintIcon>
+          <IntegrationHintIcon label="Notion"><NotionIcon size={15} /></IntegrationHintIcon>
+          <IntegrationHintIcon label="Gmail"><GmailIcon size={15} /></IntegrationHintIcon>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              lineHeight: 1.35,
+              color: COLOR_FG,
+            }}
+          >
+            Add an integration
+          </div>
+          <div
+            style={{
+              marginTop: 2,
+              fontSize: 12,
+              lineHeight: 1.4,
+              color: COLOR_FG_DIM,
+            }}
+          >
+            Connect sources like GitHub, Notion, or Gmail.
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function IntegrationHintIcon({
+  label,
+  children,
+}: {
+  readonly label: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <span
+      aria-label={label}
+      title={label}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        border: '1px solid var(--po-border-subtle)',
+        background: 'color-mix(in srgb, var(--po-text) 3%, transparent)',
+        color: COLOR_FG_DIM,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 function ScopeSummaryBar({
   scope,
-  settingsButton,
 }: {
   scope: RepoScope;
-  settingsButton: ReactNode;
 }) {
   const modeLabel = scope.mode === 'rw' ? 'Read & Write' : 'Read-only';
   const pathSegments = scope.path === ''
@@ -497,9 +529,8 @@ function ScopeSummaryBar({
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) auto',
+        gridTemplateColumns: 'minmax(0, 1fr)',
         alignItems: 'start',
-        columnGap: 20,
         padding: '4px 8px 0',
         minWidth: 0,
       }}
@@ -537,16 +568,6 @@ function ScopeSummaryBar({
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          alignSelf: 'end',
-          flexShrink: 0,
-        }}
-      >
-        {settingsButton}
-      </div>
     </div>
   );
 }
@@ -608,7 +629,7 @@ function ScopePathTrail({
               gap: 5,
               minWidth: 0,
               flexShrink: index === items.length - 1 ? 1 : 0,
-              color: index === items.length - 1 ? COLOR_FG : COLOR_FG_MUTED,
+              color: index === items.length - 1 ? COLOR_FG : COLOR_FG_DIM,
               fontSize: 13,
               fontWeight: index === items.length - 1 ? 600 : 500,
               lineHeight: 1.2,

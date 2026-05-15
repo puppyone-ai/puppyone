@@ -103,7 +103,7 @@ class GithubExportRequest(BaseModel):
     """POST /api/v1/projects/{project_id}/github/export body."""
     branch: Optional[str] = Field(None)
     message: Optional[str] = Field(
-        None, description="Override commit message; defaults to 'Sync from PuppyOne <commit_id>'",
+        None, description="Override commit message; defaults to 'Sync from Puppyone <commit_id>'",
     )
 
 

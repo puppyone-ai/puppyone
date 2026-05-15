@@ -229,15 +229,16 @@ export function GithubConnectForm({
           disabled={!canSubmit}
           onClick={handleSubmit}
           style={{
-            background: canSubmit ? T.accent : 'rgba(255,255,255,0.04)',
+            background: canSubmit ? T.accent : 'var(--po-hover)',
             border: 'none',
             borderRadius: 6,
-            color: canSubmit ? '#fff' : T.text3,
+            color: canSubmit ? 'var(--po-text-inverse)' : T.text3,
             cursor: canSubmit ? 'pointer' : 'not-allowed',
             fontFamily: T.fontSans,
             fontSize: 13,
             fontWeight: 500,
-            padding: '7px 14px',
+            height: 30,
+            padding: '0 14px',
             transition: `all 120ms ${T.ease}`,
           }}
         >
@@ -373,7 +374,8 @@ function BranchPicker({
     color: T.text1,
     fontFamily: T.fontMono,
     fontSize: 13,
-    padding: '6px 10px',
+    height: 30,
+    padding: '0 10px',
     width: 240,
     textAlign: 'left',
     cursor: 'pointer',
@@ -458,10 +460,10 @@ function BranchPicker({
             right: 0,
             maxHeight: 240,
             overflowY: 'auto',
-            background: '#1a1a1a',
+            background: 'var(--po-panel-raised)',
             border: `1px solid ${T.cardBorderStrong}`,
             borderRadius: 6,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            boxShadow: '0 8px 24px var(--po-shadow)',
             zIndex: 11,
           }}
           >
@@ -473,8 +475,8 @@ function BranchPicker({
               // is a stronger accent overlay. Extracted from the JSX so
               // the chained-ternary lint (S3358) stays quiet.
               let rowBg = 'transparent';
-              if (isSelected) rowBg = 'rgba(59,130,246,0.15)';
-              else if (isActive) rowBg = 'rgba(255,255,255,0.06)';
+              if (isSelected) rowBg = 'color-mix(in srgb, var(--po-accent) 15%, transparent)';
+              else if (isActive) rowBg = 'var(--po-border-subtle)';
               return (
                 <button
                   type="button"
@@ -491,7 +493,8 @@ function BranchPicker({
                   style={{
                     display: 'block',
                     width: '100%',
-                    padding: '8px 12px',
+                    height: 30,
+                    padding: '0 12px',
                     background: rowBg,
                     border: 'none',
                     borderBottom: `1px solid ${T.cardBorder}`,
@@ -613,8 +616,9 @@ function RepoPicker({
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 width: '100%',
+                minHeight: 42,
                 padding: '8px 12px',
-                background: selected ? 'rgba(59,130,246,0.1)' : 'transparent',
+                background: selected ? 'color-mix(in srgb, var(--po-accent) 10%, transparent)' : 'transparent',
                 border: 'none',
                 borderBottom: `1px solid ${T.cardBorder}`,
                 color: T.text1,

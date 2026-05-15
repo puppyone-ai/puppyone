@@ -59,11 +59,11 @@ export function SelectionActionBar({
         alignItems: 'center',
         gap: 12,
         padding: '8px 14px 8px 16px',
-        background: '#1f1f22',
-        border: '1px solid #2f2f33',
+        background: 'var(--po-overlay)',
+        border: '1px solid var(--po-border)',
         borderRadius: 12,
-        boxShadow: '0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset',
-        color: '#e5e5e7',
+        boxShadow: '0 12px 32px var(--po-shadow), 0 0 0 1px var(--po-border) inset',
+        color: 'var(--po-text)',
         fontSize: 13,
         fontWeight: 500,
         zIndex: 60,
@@ -75,13 +75,13 @@ export function SelectionActionBar({
         pointerEvents: count > 0 ? 'auto' : 'none',
       }}
     >
-      <span style={{ color: '#a1a1aa' }}>
-        <span style={{ color: '#fafafa', fontWeight: 600 }}>{count}</span>
+      <span style={{ color: 'var(--po-text-muted)' }}>
+        <span style={{ color: 'var(--po-text)', fontWeight: 600 }}>{count}</span>
         {' '}
         selected
       </span>
 
-      <span aria-hidden style={{ width: 1, height: 18, background: '#2f2f33' }} />
+      <span aria-hidden style={{ width: 1, height: 18, background: 'var(--po-border)' }} />
 
       <button
         type="button"
@@ -91,24 +91,24 @@ export function SelectionActionBar({
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          height: 28,
+          height: 30,
           padding: '0 10px',
           background: 'transparent',
           border: '1px solid transparent',
           borderRadius: 7,
-          color: '#a1a1aa',
+          color: 'var(--po-text-muted)',
           fontSize: 12.5,
           fontWeight: 500,
           cursor: 'pointer',
           transition: 'background 120ms ease, color 120ms ease',
         }}
         onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.background = '#27272a';
-          (e.currentTarget as HTMLButtonElement).style.color = '#e5e5e7';
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--po-hover)';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--po-text)';
         }}
         onMouseLeave={(e) => {
           (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-          (e.currentTarget as HTMLButtonElement).style.color = '#a1a1aa';
+          (e.currentTarget as HTMLButtonElement).style.color = 'var(--po-text-muted)';
         }}
       >
         Clear
@@ -124,12 +124,12 @@ export function SelectionActionBar({
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          height: 28,
+          height: 30,
           padding: '0 12px',
-          background: busy ? 'rgba(239, 68, 68, 0.4)' : 'rgba(239, 68, 68, 0.85)',
-          border: '1px solid rgba(239, 68, 68, 0.55)',
+          background: busy ? 'color-mix(in srgb, var(--po-danger) 40%, transparent)' : 'var(--po-danger)',
+          border: '1px solid color-mix(in srgb, var(--po-danger) 55%, transparent)',
           borderRadius: 7,
-          color: '#fff',
+          color: 'var(--po-text-inverse)',
           fontSize: 12.5,
           fontWeight: 600,
           cursor: busy ? 'progress' : 'pointer',
@@ -137,11 +137,13 @@ export function SelectionActionBar({
         }}
         onMouseEnter={(e) => {
           if (busy) return;
-          (e.currentTarget as HTMLButtonElement).style.background = 'rgb(220, 38, 38)';
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--po-danger)';
+          (e.currentTarget as HTMLButtonElement).style.opacity = '0.9';
         }}
         onMouseLeave={(e) => {
           if (busy) return;
-          (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239, 68, 68, 0.85)';
+          (e.currentTarget as HTMLButtonElement).style.background = 'var(--po-danger)';
+          (e.currentTarget as HTMLButtonElement).style.opacity = '1';
         }}
       >
         {busy ? 'Deleting…' : 'Delete'}

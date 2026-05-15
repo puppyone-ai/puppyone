@@ -3,6 +3,7 @@
 import React, { useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
+import { useTheme } from 'next-themes';
 
 interface CodeMirrorJsonEditorProps {
   json: object;
@@ -15,6 +16,7 @@ export function CodeMirrorJsonEditor({
   onChange,
   onPathChange,
 }: CodeMirrorJsonEditorProps) {
+  const { resolvedTheme } = useTheme();
   const handleChange = useCallback(
     (value: string) => {
       if (!onChange) return;
@@ -53,7 +55,7 @@ export function CodeMirrorJsonEditor({
       <CodeMirror
         value={JSON.stringify(json, null, 2)}
         height='100%'
-        theme='dark'
+        theme={resolvedTheme === 'light' ? 'light' : 'dark'}
         extensions={[(json as any)()]}
         onChange={handleChange}
         onUpdate={handleUpdate}
@@ -81,7 +83,7 @@ export function CodeMirrorJsonEditor({
         }}
         style={{
           fontSize: 14,
-          fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+          fontFamily: "var(--po-font-sans)",
         }}
       />
     </div>

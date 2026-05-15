@@ -12,9 +12,9 @@ export const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export const PROVIDER_COLORS: Record<string, string> = {
-  agent: '#a78bfa', mcp: '#60a5fa', sandbox: '#f59e0b', filesystem: '#4ade80',
-  gmail: '#ef4444', github: '#e4e4e7', google_sheets: '#22c55e', google_docs: '#3b82f6',
-  notion: '#e4e4e7', supabase: '#3ECF8E', url: '#71717a',
+  agent: 'var(--po-file-accent-audio)', mcp: 'var(--po-accent)', sandbox: 'var(--po-warning)', filesystem: 'var(--po-success)',
+  gmail: 'var(--po-danger)', github: 'var(--po-text)', google_sheets: 'var(--po-success)', google_docs: 'var(--po-accent)',
+  notion: 'var(--po-text)', supabase: 'var(--po-success)', url: 'var(--po-text-subtle)',
 };
 
 // Provider-based fallback for legacy rows where `connections.direction` is

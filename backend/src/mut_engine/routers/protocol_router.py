@@ -21,14 +21,15 @@ from mut.server.handlers import (
     handle_clone,
     handle_negotiate,
     handle_pull,
-    handle_push,
     handle_scopes,
 )
 
+from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
+from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
+from src.mut_engine.application.protocol_mode import ensure_protocol_enabled
 from src.mut_engine.dependencies import get_repo_manager
 from src.mut_engine.server.auth import get_mut_auth
 from src.mut_engine.server.repo_manager import MutRepoManager
-from src.mut_engine.services.hooks import run_post_push_hook
 from src.utils.logger import log_error, log_info
 
 router = APIRouter(prefix="/api/v1/mut")
@@ -61,6 +62,7 @@ async def mut_clone(
 ):
     """Clone a project scope (like `git clone`)."""
     body = await request.json()
+    await ensure_protocol_enabled(project_id, "mut")
 
     try:
         result = await asyncio.to_thread(
@@ -87,6 +89,7 @@ async def mut_push(
 ):
     """Push changes to server (like `git push`). Includes server-side merge."""
     body = await request.json()
+    await ensure_protocol_enabled(project_id, "mut")
 
     # Protocol-version gate runs *before* size validation so an outdated
     # client gets a clear 426 ("upgrade your client") instead of a
@@ -110,10 +113,10 @@ async def mut_push(
     # SHA-1(blob<size>\0<loose_bytes>) instead of the correct identity.
     #
     # Without this optimisation: negotiate checks exists(h) × N serially,
-    # then handle_push calls put_loose(h, data) again × N serially. With
-    # parallel upload we collapse the 2N round trips into N parallel PUTs
-    # and clear ``body["objects"]`` so ``_store_incoming_objects`` becomes
-    # a no-op.
+    # then the MUT push adapter stores each object again while translating the
+    # request into a version intent. With parallel upload we collapse the 2N
+    # round trips into N parallel PUTs and clear ``body["objects"]`` so the
+    # adapter's object store step becomes a no-op.
     import base64
     objects_b64 = body.get("objects", {})
     if objects_b64:
@@ -126,29 +129,22 @@ async def mut_push(
                 h: base64.b64decode(b64) for h, b64 in objects_b64.items()
             }
             await backend.async_put_many(decoded, skip_exists=True)
-            # Clear so handle_push's ``_store_incoming_objects`` is a no-op.
+            # Clear so the MUT adapter's object ingest step is a no-op.
             body["objects"] = {}
 
     try:
-        result = await asyncio.to_thread(
-            _invoke, handle_push, repo_manager, project_id, auth, body,
-        )
+        result = await submit_mut_push(repo_manager, project_id, auth, body)
     except ClientTooOldError as e:
         _raise_too_old(e)
     except PermissionDenied as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except LockError as e:
         raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         log_error(f"[MUT] push failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Push failed: {e}")
-
-    # Run post-push hook (graft) in background — don't block the push response.
-    # The graft makes changes visible in the global root tree, but the scope
-    # data is already committed and consistent. The client can proceed immediately.
-    asyncio.get_event_loop().run_in_executor(
-        None, run_post_push_hook, project_id, repo_manager, result,
-    )
 
     log_info(
         f"[MUT] push project={project_id} agent={auth['agent']} "
@@ -166,6 +162,7 @@ async def mut_pull(
 ):
     """Pull latest changes (like `git pull`)."""
     body = await request.json()
+    await ensure_protocol_enabled(project_id, "mut")
 
     try:
         result = await asyncio.to_thread(
@@ -198,6 +195,7 @@ async def mut_negotiate(
     Optimized: uses parallel S3 existence checks instead of serial.
     """
     body = await request.json()
+    await ensure_protocol_enabled(project_id, "mut")
 
     try:
         require_supported_protocol(body)
@@ -232,14 +230,11 @@ async def mut_rollback(
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
     """Rollback to a historical commit (creates a revert commit)."""
-    from mut.server.handlers import handle_rollback
-
     body = await request.json()
+    await ensure_protocol_enabled(project_id, "mut")
 
     try:
-        result = await asyncio.to_thread(
-            _invoke, handle_rollback, repo_manager, project_id, auth, body,
-        )
+        result = await submit_mut_rollback(repo_manager, project_id, auth, body)
     except ClientTooOldError as e:
         _raise_too_old(e)
     except PermissionDenied as e:
@@ -249,8 +244,6 @@ async def mut_rollback(
     except Exception as e:
         log_error(f"[MUT] rollback failed for project {project_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
-
-    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     log_info(
         f"[MUT] rollback project={project_id} agent={auth['agent']} "
@@ -273,6 +266,7 @@ async def mut_scopes(
     safe to call from any auth context that already passed ``get_mut_auth``.
     """
     body = await request.json()
+    await ensure_protocol_enabled(project_id, "mut")
     try:
         result = await asyncio.to_thread(
             _invoke, handle_scopes, repo_manager, project_id, auth, body,
@@ -300,6 +294,7 @@ async def mut_pull_commit(
     from mut.server.handlers import handle_pull_commit
 
     body = await request.json()
+    await ensure_protocol_enabled(project_id, "mut")
 
     try:
         result = await asyncio.to_thread(

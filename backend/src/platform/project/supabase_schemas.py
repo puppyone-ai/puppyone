@@ -5,6 +5,7 @@ Defines Pydantic models corresponding to the project table, used for type checki
 """
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -17,6 +18,7 @@ class ProjectBase(BaseModel):
     org_id: str | None = None
     visibility: str = "org"
     bound_git_branch: str = "main"
+    protocol_mode: Literal["git", "mut", "both"] = "git"
     created_by: str | None = None
 
 
@@ -33,6 +35,7 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     visibility: str | None = None
     bound_git_branch: str | None = None
+    protocol_mode: Literal["git", "mut", "both"] | None = None
 
 
 class ProjectResponse(ProjectBase):

@@ -4,14 +4,14 @@ Simulates the full flow a local Mut client would do when connecting to
 PuppyOne as the server. Uses real Mut handler code + PuppyOneServerRepo
 with an in-memory object store (no S3/PG needed).
 
-Commits are identified by ``commit_id`` (16-hex SHA256 digest).
+Commits are identified by git object IDs (``commit_id``, 40-hex SHA-1).
 """
 
 import base64
-import json
 import pytest
 
 from mut.core import tree as tree_mod
+from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
     handle_negotiate, handle_rollback, handle_pull_commit,
@@ -76,22 +76,22 @@ def _make_push_body(store, files: dict, base_commit_id: str = "") -> dict:
         d = nested
         for p in parts[:-1]:
             d = d.setdefault(p, {})
-        blob_hash = store.put(content)
+        blob_hash = store.put_blob(content)
         d[parts[-1]] = ("B", blob_hash)
 
     def write_nested(node):
-        entries = {}
+        entries: list[TreeEntry] = []
         for name, val in sorted(node.items()):
             if isinstance(val, tuple):
-                entries[name] = list(val)
+                entries.append(TreeEntry(name=name, mode=MODE_FILE, sha1_hex=val[1]))
             else:
                 sub_hash = write_nested(val)
-                entries[name] = ["T", sub_hash]
-        return store.put(json.dumps(entries, sort_keys=True).encode())
+                entries.append(TreeEntry(name=name, mode=MODE_DIR, sha1_hex=sub_hash))
+        return store.put_tree(encode_tree(entries))
 
     root_hash = write_nested(nested)
     reachable = tree_mod.collect_reachable_hashes(store, root_hash)
-    objects_b64 = {h: base64.b64encode(store.get(h)).decode() for h in reachable}
+    objects_b64 = {h: base64.b64encode(store.get_loose(h)).decode() for h in reachable}
 
     return {
         "base_commit_id": base_commit_id,
@@ -109,7 +109,7 @@ class TestClone:
     def test_clone_empty(self, repo, auth):
         result = handle_clone(repo, auth, {})
         assert result["project"] == "Integration Test"
-        assert result["agent_id"] == "test-agent"
+        assert result["head_commit_id"] == ""
         assert isinstance(result["files"], dict)
 
     def test_clone_with_files(self, repo, auth):
@@ -130,7 +130,7 @@ class TestPush:
         result = handle_push(repo, auth, body)
         assert result["status"] == "ok"
         assert result["commit_id"]
-        assert len(result["commit_id"]) == 16
+        assert len(result["commit_id"]) == 40
         assert repo.get_scope_head_commit_id("") == result["commit_id"]
         assert repo.get_scope_hash("") != ""
 

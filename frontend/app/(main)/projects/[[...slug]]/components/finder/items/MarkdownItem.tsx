@@ -64,14 +64,14 @@ function GridVariant({ name, onClick }: Omit<MarkdownItemProps, 'viewType'>) {
         gap: 10,
         borderRadius: 8,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         transition: 'all 0.15s',
       }}
     >
       <div
         style={{
           fontSize: 48,
-          color: '#60a5fa', // Blue for Markdown
+          color: 'var(--po-accent)', // Blue for Markdown
           opacity: hovered ? 1 : 0.9,
           transition: 'all 0.15s',
         }}
@@ -81,7 +81,7 @@ function GridVariant({ name, onClick }: Omit<MarkdownItemProps, 'viewType'>) {
       <div
         style={{
           fontSize: 16,
-          color: hovered ? '#fff' : '#a1a1aa',
+          color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           textAlign: 'center',
           wordBreak: 'break-word',
           lineHeight: '1.4em',
@@ -116,8 +116,8 @@ function ListVariant({ name, description, onClick }: Omit<MarkdownItemProps, 'vi
         gap: 12,
         borderRadius: 6,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
+        borderBottom: '1px solid var(--po-hover)',
         transition: 'all 0.1s',
       }}
     >
@@ -128,7 +128,7 @@ function ListVariant({ name, description, onClick }: Omit<MarkdownItemProps, 'vi
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#60a5fa',
+          color: 'var(--po-accent)',
         }}
       >
         <MarkdownIconSmall />
@@ -137,19 +137,19 @@ function ListVariant({ name, description, onClick }: Omit<MarkdownItemProps, 'vi
         <div
           style={{
             fontSize: 16,
-            color: hovered ? '#fff' : '#d4d4d8',
+            color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
             fontWeight: 500,
           }}
         >
           {name}
         </div>
         {description && (
-          <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginTop: 2 }}>
             {description}
           </div>
         )}
       </div>
-      <div style={{ color: '#52525b', fontSize: 12 }}>Markdown</div>
+      <div style={{ color: 'var(--po-text-disabled)', fontSize: 12 }}>Markdown</div>
     </div>
   );
 }
@@ -170,18 +170,18 @@ function ColumnVariant({ name, onClick }: Omit<MarkdownItemProps, 'viewType'>) {
         gap: 8,
         padding: '6px 12px',
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         transition: 'all 0.1s',
       }}
     >
-      <div style={{ color: '#60a5fa' }}>
+      <div style={{ color: 'var(--po-accent)' }}>
         <MarkdownIconSmall />
       </div>
       <div
         style={{
           flex: 1,
           fontSize: 16,
-          color: hovered ? '#fff' : '#d4d4d8',
+          color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',

@@ -31,7 +31,7 @@ import type { SaveStatus } from '@/lib/hooks/useManualSave';
  *   hint into the button permanently is decoration, not signal.
  *
  * Identity rules:
- *   - 28 px tall, 6 px radius, 13 px / 500 weight everywhere.
+ *   - 30 px tall, 6 px radius, 13 px / 500 weight everywhere.
  *   - Each state's leading icon shares the same 14 × 14 box.
  *   - dirty + error are buttons; saving + saved are spans.
  */
@@ -116,7 +116,7 @@ const CHIP_BASE = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
-  height: 28,
+  height: 30,
   padding: '0 10px',
   borderRadius: 6,
   border: 'none',
@@ -136,39 +136,39 @@ interface TonePalette {
 }
 
 const TONE_PALETTE: Record<ChipTone, TonePalette> = {
-  // Brand-orange ``#FFA73D`` as a tint, not a fill. Background is a
+  // Brand-orange tint, not a fill. Background is a
   // 14 % wash of the orange so the pill anchors itself in the page
   // chrome instead of overpowering it. Hover steps the wash to
   // 22 % then 30 % on press — the only motion is opacity. Text and
   // icon ride the orange itself for a clear colour through-line.
   action: {
-    bg: 'rgba(255, 167, 61, 0.14)',
-    bgHover: 'rgba(255, 167, 61, 0.22)',
-    bgActive: 'rgba(255, 167, 61, 0.30)',
-    text: '#FFA73D',
+    bg: 'color-mix(in srgb, var(--po-warning) 14%, transparent)',
+    bgHover: 'color-mix(in srgb, var(--po-warning) 22%, transparent)',
+    bgActive: 'color-mix(in srgb, var(--po-warning) 30%, transparent)',
+    text: 'var(--po-warning)',
   },
   // Neutral pill — used while a save is in flight. Same shape as
   // the action button so the transition reads as the same chip
   // freezing into a state, not a different element appearing.
   muted: {
-    bg: 'rgba(255, 255, 255, 0.06)',
-    text: '#a3a3a3',
+    bg: 'var(--po-border-subtle)',
+    text: 'var(--po-text-muted)',
   },
   // Soft green confirmation pill. Tinted background mirrors the
   // dirty-state opacity ramp (14 %) — same vocabulary, different
   // hue.
   success: {
-    bg: 'rgba(52, 211, 153, 0.14)',
-    text: '#86efac',
+    bg: 'color-mix(in srgb, var(--po-success) 14%, transparent)',
+    text: 'var(--po-success)',
   },
   // Red retry button. Same tinted treatment as ``action`` so the
   // four states form a consistent pill family — only the hue
   // signals the semantic.
   error: {
-    bg: 'rgba(239, 68, 68, 0.16)',
-    bgHover: 'rgba(239, 68, 68, 0.24)',
-    bgActive: 'rgba(239, 68, 68, 0.32)',
-    text: '#fca5a5',
+    bg: 'color-mix(in srgb, var(--po-danger) 16%, transparent)',
+    bgHover: 'color-mix(in srgb, var(--po-danger) 24%, transparent)',
+    bgActive: 'color-mix(in srgb, var(--po-danger) 32%, transparent)',
+    text: 'var(--po-danger)',
   },
 };
 

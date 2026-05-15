@@ -12,8 +12,8 @@ doc explicitly defers that). The flow:
    to the user as a partial-import warning, not silently dropped).
 6. Optional conflict gate: if the MUT scope's last-known head differs
    from ``last_imported_sha``'s mut_commit, refuse unless ``force=True``.
-7. Single ``direct_writer.apply_mutation`` with a splice that overwrites
-   the scope to exactly the GitHub tree.
+7. Single Git-native transaction-engine operation with a splice that
+   overwrites the scope to exactly the GitHub tree.
 8. Record the new ``mut_commit_id`` alongside the ``git_sha`` in
    ``github_sync_log`` and bump the integration row's watermark.
 
@@ -31,7 +31,8 @@ import httpx
 
 from src.connectors.datasource.oauth.repository import OAuthRepository
 from src.mut_engine.dependencies import get_repo_manager_standalone
-from src.mut_engine.services.direct_writer import apply_mutation
+from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
+from src.mut_engine.domain.intents import OperationWriteIntent
 from src.repo.github_integration.github_api import (
     GithubApi, GithubApiError, TreeEntry,
 )
@@ -206,28 +207,35 @@ async def _do_import(
     splice = _make_overwrite_splice(files)
 
     repo_manager = get_repo_manager_standalone()
-    write_result = await apply_mutation(
-        repo_manager,
-        project_id,
-        scope_path,
+    engine = GitNativeTransactionEngine(repo_manager)
+    actor = f"github:{owner}/{repo_name}"
+    message = (
+        f"github import: {owner}/{repo_name}@{target_branch} "
+        f"({git_sha[:12]})"
+    )
+    write_result = await engine.apply_operation(
+        OperationWriteIntent(
+            project_id=project_id,
+            scope_path=scope_path,
+            actor=actor,
+            source_channel="github",
+            operation_type="github_import",
+            message=message,
+            audit_detail={
+                "integration_id": integration_id,
+                "git_sha": git_sha,
+                "branch": target_branch,
+                "files_changed": len(files),
+            },
+        ),
         splice,
-        who=f"github:{owner}/{repo_name}",
-        message=f"github import: {owner}/{repo_name}@{target_branch} "
-                f"({git_sha[:12]})",
-        op_type="github_import",
-        audit_detail={
-            "integration_id": integration_id,
-            "git_sha": git_sha,
-            "branch": target_branch,
-            "files_changed": len(files),
-        },
     )
 
-    # ``apply_mutation`` returns an empty ``commit_id`` when the splice
-    # was a no-op (importing unchanged content). Store that as NULL in
-    # the sync log rather than ``""`` so the column is honest about
-    # "no commit was produced" — the schema's TEXT nullable column was
-    # designed for exactly this case (failed exports + no-op imports).
+    # The transaction engine returns an empty ``commit_id`` when the
+    # splice was a no-op (importing unchanged content). Store that as
+    # NULL in the sync log rather than ``""`` so the column is honest
+    # about "no commit was produced" — the schema's TEXT nullable
+    # column was designed for exactly this case.
     mut_commit_id = write_result.commit_id or None
     # Count actual changed paths. ``write_result.paths`` is always a
     # list (never None); an empty list legitimately means "no-op" and

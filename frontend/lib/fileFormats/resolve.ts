@@ -18,10 +18,10 @@ for (const fmt of FILE_FORMATS) {
   for (const filename of fmt.filenames ?? []) {
     FILENAME_INDEX.set(filename.toLowerCase(), fmt);
   }
-  for (const ext of fmt.extensions) {
+  for (const ext of fmt.extensions ?? []) {
     EXT_INDEX.set(ext.toLowerCase(), fmt);
   }
-  for (const mime of fmt.mimeTypes) {
+  for (const mime of fmt.mimeTypes ?? []) {
     MIME_INDEX.set(mime.toLowerCase(), fmt);
   }
 }

@@ -60,14 +60,14 @@ function GridVariant({ name, onClick }: Omit<JsonItemProps, 'viewType'>) {
         gap: 10,
         borderRadius: 8,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         transition: 'all 0.15s',
       }}
     >
       <div
         style={{
           fontSize: 48,
-          color: '#34d399', // Green for JSON/Context
+          color: 'var(--po-success)', // Green for JSON/Context
           opacity: hovered ? 1 : 0.9,
           transition: 'all 0.15s',
         }}
@@ -77,7 +77,7 @@ function GridVariant({ name, onClick }: Omit<JsonItemProps, 'viewType'>) {
       <div
         style={{
           fontSize: 16,
-          color: hovered ? '#fff' : '#a1a1aa',
+          color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           textAlign: 'center',
           wordBreak: 'break-word',
           lineHeight: '1.4em',
@@ -112,8 +112,8 @@ function ListVariant({ name, description, rowCount, onClick }: Omit<JsonItemProp
         gap: 12,
         borderRadius: 6,
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-        borderBottom: '1px solid rgba(255,255,255,0.03)',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
+        borderBottom: '1px solid var(--po-hover)',
         transition: 'all 0.1s',
       }}
     >
@@ -124,7 +124,7 @@ function ListVariant({ name, description, rowCount, onClick }: Omit<JsonItemProp
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#34d399',
+          color: 'var(--po-success)',
         }}
       >
         <JsonIconSmall />
@@ -133,19 +133,19 @@ function ListVariant({ name, description, rowCount, onClick }: Omit<JsonItemProp
         <div
           style={{
             fontSize: 16,
-            color: hovered ? '#fff' : '#d4d4d8',
+            color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
             fontWeight: 500,
           }}
         >
           {name}
         </div>
         {(description || rowCount !== undefined) && (
-          <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginTop: 2 }}>
             {description || `${rowCount} rows`}
           </div>
         )}
       </div>
-      <div style={{ color: '#52525b', fontSize: 12 }}>Context</div>
+      <div style={{ color: 'var(--po-text-disabled)', fontSize: 12 }}>Context</div>
     </div>
   );
 }
@@ -166,18 +166,18 @@ function ColumnVariant({ name, onClick }: Omit<JsonItemProps, 'viewType'>) {
         gap: 8,
         padding: '6px 12px',
         cursor: 'pointer',
-        background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         transition: 'all 0.1s',
       }}
     >
-      <div style={{ color: '#34d399' }}>
+      <div style={{ color: 'var(--po-success)' }}>
         <JsonIconSmall />
       </div>
       <div
         style={{
           flex: 1,
           fontSize: 16,
-          color: hovered ? '#fff' : '#d4d4d8',
+          color: hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
