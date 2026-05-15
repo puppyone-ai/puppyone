@@ -31,13 +31,15 @@ import {
 } from '../lib/tokens';
 import { CopyIcon } from './icons';
 
+const PROMPT_PREVIEW_BG = 'var(--po-panel)';
+
 // ─── Buttons & badges ────────────────────────────────────────────────
 //
 // Two button sizes only. Section-level ghost actions (Edit Scope, View
 // all, Copy connect) all share `GhostButton`; primary actions on the
 // Identity row (Pause/Resume, More) share `PrimaryGhostButton`. Both
-// pull from the same neutral palette (transparent → rgba(255,255,255,
-// 0.06) on hover), so we no longer have three different sizes / fonts
+// pull from the same neutral token palette on hover, so we no longer
+// have three different sizes / fonts
 // / colors competing for attention on the same screen.
 
 export function GhostButton({
@@ -89,8 +91,8 @@ export function GhostButton({
       }}
       onMouseEnter={(e) => {
         if (disabled) return;
-        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+        e.currentTarget.style.background = 'var(--po-hover)';
+        e.currentTarget.style.borderColor = 'var(--po-border-strong)';
         e.currentTarget.style.color = hoverColor;
       }}
       onMouseLeave={(e) => {
@@ -120,8 +122,8 @@ export function PermBadge({ label, active }: { readonly label: string; readonly 
         height: 22,
         padding: '0 8px',
         borderRadius: 5,
-        background: active ? 'rgba(255,255,255,0.06)' : 'transparent',
-        border: `1px solid ${active ? 'rgba(255,255,255,0.10)' : T.border}`,
+        background: active ? 'var(--po-border-subtle)' : 'transparent',
+        border: `1px solid ${active ? 'var(--po-border-strong)' : T.border}`,
         color: active ? T.text2 : T.text4,
         fontSize: 11,
         fontWeight: 500,
@@ -198,9 +200,9 @@ export function NoAccessKeyNotice() {
       style={{
         marginBottom: 10,
         borderRadius: 6,
-        border: `1px solid rgba(245,158,11,0.25)`,
-        background: 'rgba(245,158,11,0.06)',
-        color: '#fcd34d',
+        border: `1px solid color-mix(in srgb, var(--po-warning) 25%, transparent)`,
+        background: 'color-mix(in srgb, var(--po-warning) 6%, transparent)',
+        color: 'var(--po-warning)',
         fontSize: 12,
         lineHeight: 1.5,
         padding: '8px 10px',
@@ -234,7 +236,7 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
         height: PROMPT_BLOCK_HEIGHT,
         borderRadius: 6,
         border: `1px solid ${T.cardBorder}`,
-        background: PROMPT_BG,
+        background: PROMPT_PREVIEW_BG,
         overflow: 'hidden',
         marginBottom: 12,
       }}
@@ -260,7 +262,7 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
           position: 'absolute',
           inset: 'auto 0 0 0',
           height: 64,
-          background: `linear-gradient(180deg, rgba(0,0,0,0) 0%, ${PROMPT_BG} 100%)`,
+          background: `linear-gradient(180deg, transparent 0%, ${PROMPT_PREVIEW_BG} 100%)`,
           pointerEvents: 'none',
         }}
       />
@@ -279,25 +281,27 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
           justifyContent: 'center',
           gap: 7,
           height: 30,
-          padding: '0 14px',
+          padding: '0 12px',
           fontFamily: T.fontSans,
           fontSize: 12,
           fontWeight: 600,
-          letterSpacing: '-0.005em',
-          color: copied ? '#15803d' : '#0a0a0a',
+          letterSpacing: 0,
+          color: copied ? 'var(--po-success-contrast)' : 'var(--po-panel)',
           background: copied
-            ? '#bbf7d0'
+            ? 'var(--po-success)'
             : hovered
-              ? '#ffffff'
-              : 'rgba(250,250,250,0.94)',
-          border: 'none',
-          borderRadius: 999,
+              ? 'color-mix(in srgb, var(--po-text) 78%, var(--po-panel) 22%)'
+              : 'color-mix(in srgb, var(--po-text) 72%, var(--po-panel) 28%)',
+          border: copied
+            ? '1px solid var(--po-success)'
+            : '1px solid color-mix(in srgb, var(--po-text) 62%, transparent)',
+          borderRadius: BTN_RADIUS,
           cursor: 'pointer',
           whiteSpace: 'nowrap',
           boxShadow: hovered
-            ? '0 0 36px rgba(0,0,0,0.55), 0 8px 22px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.16)'
-            : '0 0 28px rgba(0,0,0,0.45), 0 5px 16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.08)',
-          transition: 'background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease',
+            ? '0 5px 14px color-mix(in srgb, var(--po-shadow) 85%, transparent)'
+            : '0 2px 8px color-mix(in srgb, var(--po-shadow) 55%, transparent)',
+          transition: 'background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease',
         }}
       >
         <CopyIcon size={12} />
@@ -366,7 +370,7 @@ export function CommandStepsDisclosure({
                   width: 20,
                   height: 20,
                   borderRadius: 999,
-                  background: 'rgba(255,255,255,0.06)',
+                  background: 'var(--po-border-subtle)',
                   color: T.text2,
                   fontSize: 11,
                   fontWeight: 600,
@@ -447,13 +451,13 @@ export function CommandBlock({ lines }: { readonly lines: readonly string[] }) {
           width: 24,
           height: 24,
           borderRadius: 5,
-          color: copied ? '#34d399' : T.text2,
+          color: copied ? 'var(--po-success)' : T.text2,
           cursor: 'pointer',
           transition: `color 0.12s ${T.ease}, background 0.12s ${T.ease}`,
         }}
         onMouseEnter={(e) => {
           if (!copied) e.currentTarget.style.color = T.text1;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+          e.currentTarget.style.background = 'var(--po-border-subtle)';
         }}
         onMouseLeave={(e) => {
           if (!copied) e.currentTarget.style.color = T.text2;
@@ -560,12 +564,12 @@ export function KvRow({
             width: 24,
             height: 24,
             borderRadius: 5,
-            color: copied ? '#34d399' : T.text2,
+            color: copied ? 'var(--po-success)' : T.text2,
             transition: `color 0.12s ${T.ease}, background 0.12s ${T.ease}`,
           }}
           onMouseEnter={(e) => {
             if (!copied) e.currentTarget.style.color = T.text1;
-            e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+            e.currentTarget.style.background = 'var(--po-border-subtle)';
           }}
           onMouseLeave={(e) => {
             if (!copied) e.currentTarget.style.color = T.text2;

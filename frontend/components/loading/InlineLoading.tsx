@@ -54,7 +54,7 @@ export function InlineLoading({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 8,
-        color: '#71717a',
+        color: 'var(--po-text-subtle)',
         fontSize,
         lineHeight: 1.4,
         ...style,

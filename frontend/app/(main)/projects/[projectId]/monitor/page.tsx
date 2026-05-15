@@ -43,13 +43,13 @@ interface AuditLogEntry {
 }
 
 const T = {
-  text1: '#fafafa',
-  text2: '#a1a1aa',
-  text3: '#52525b',
-  text4: '#27272a',
-  border: 'rgba(255,255,255,0.08)',
-  fontSans: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
-  fontMono: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  text1: 'var(--po-text)',
+  text2: 'var(--po-text-muted)',
+  text3: 'var(--po-text-disabled)',
+  text4: 'var(--po-filetree-rail)',
+  border: 'var(--po-border)',
+  fontSans: 'var(--po-font-sans)',
+  fontMono: 'var(--po-font-sans)',
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
 } as const;
 
@@ -126,9 +126,9 @@ type UnifiedLog = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  clone: '#22c55e', push: '#3b82f6', pull: '#a78bfa', rollback: '#f59e0b',
-  push_error: '#ef4444', push_rejected: '#ef4444', merge_conflict: '#f59e0b',
-  bash: '#34d399', tool: '#60a5fa', llm: '#c084fc',
+  clone: 'var(--po-success)', push: 'var(--po-accent)', pull: 'var(--po-file-accent-audio)', rollback: 'var(--po-warning)',
+  push_error: 'var(--po-danger)', push_rejected: 'var(--po-danger)', merge_conflict: 'var(--po-warning)',
+  bash: 'var(--po-success)', tool: 'var(--po-accent)', llm: 'var(--po-file-accent-audio)',
 };
 
 // Single source of truth for the table grid template — header and
@@ -168,7 +168,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
 
   // The empty-state branch below renders when `filteredLogs.length === 0`.
   // The naive guard (`loading ? <PageLoading /> : <Empty />`) reads only
-  // `loading`, which is the *agent-logs* fetch flag — it ignores SWR's
+  // agent-log loading and can miss the audit source.
   // `auditData` fetch entirely. Audit logs are usually the much bigger
   // source, and on slower networks `loading` flips to false (agent logs
   // arrive empty / fast) before `auditData` lands, producing a brief
@@ -266,7 +266,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
   const apCount = connectors?.length ?? 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
 
       {/* ── Page header ── */}
       {/*
@@ -283,14 +283,14 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
         height: 46, minHeight: 46, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        background: '#0e0e0e',
+        borderBottom: '1px solid var(--po-divider)',
+        background: 'var(--po-canvas)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', fontFamily: T.fontSans }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)', fontFamily: T.fontSans }}>
             Logs
           </span>
-          <span style={{ fontSize: 12, color: '#52525b', fontFamily: T.fontSans }}>
+          <span style={{ fontSize: 12, color: 'var(--po-text-disabled)', fontFamily: T.fontSans }}>
             {allLogs.length} event{allLogs.length === 1 ? '' : 's'}
           </span>
         </div>
@@ -302,8 +302,8 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
         }}>
           <span style={{
             width: 6, height: 6, borderRadius: '50%',
-            background: '#4ade80',
-            boxShadow: '0 0 6px #4ade80aa',
+            background: 'var(--po-success)',
+            boxShadow: '0 0 6px color-mix(in srgb, var(--po-success) 65%, transparent)',
             animation: `puppyone-monitor-pulse 1.6s ${T.ease} infinite`,
           }} />
           <span style={{ color: T.text2 }}>Live</span>
@@ -317,19 +317,19 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
         {/* Toolbar — filter chips · search · refresh */}
         <div style={{
           display: 'flex', alignItems: 'center',
-          padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+          padding: '8px 16px', borderBottom: '1px solid var(--po-border-subtle)',
           flexShrink: 0, gap: 12,
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 4,
-            background: '#111113', padding: 3, borderRadius: 6,
-            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'var(--po-panel-raised)', padding: 3, borderRadius: 6,
+            border: '1px solid var(--po-border-subtle)',
             flexShrink: 0,
           }}>
             {([
-              { key: 'all', label: 'All', count: allLogs.length, accent: '#e4e4e7' },
-              { key: 'errors', label: 'Errors', count: errorCount, accent: '#f87171' },
-              { key: 'warnings', label: 'Warnings', count: warningCount, accent: '#fbbf24' },
+              { key: 'all', label: 'All', count: allLogs.length, accent: 'var(--po-text)' },
+              { key: 'errors', label: 'Errors', count: errorCount, accent: 'var(--po-danger)' },
+              { key: 'warnings', label: 'Warnings', count: warningCount, accent: 'var(--po-warning)' },
             ] as const).map(f => {
               const isActive = filter === f.key;
               const hasItems = f.count > 0;
@@ -345,8 +345,8 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                   key={f.key}
                   onClick={() => setFilter(f.key)}
                   style={{
-                    background: isActive ? '#27272a' : 'transparent',
-                    color: isActive ? '#e4e4e7' : '#71717a',
+                    background: isActive ? 'var(--po-filetree-rail)' : 'transparent',
+                    color: isActive ? 'var(--po-text)' : 'var(--po-text-subtle)',
                     border: 'none', borderRadius: 4, padding: '3px 10px', fontSize: 12,
                     fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s',
                     display: 'flex', alignItems: 'center', gap: 6,
@@ -375,7 +375,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           <div style={{ position: 'relative', width: 220 }}>
             <svg
               width="12" height="12" viewBox="0 0 24 24"
-              fill="none" stroke="#52525b" strokeWidth="2"
+              fill="none" stroke="var(--po-text-disabled)" strokeWidth="2"
               style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)' }}
             >
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -384,10 +384,10 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
               type="text" placeholder="Search logs..."
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               style={{
-                width: '100%', background: '#111113',
-                border: '1px solid rgba(255,255,255,0.06)',
+                width: '100%', background: 'var(--po-panel-raised)',
+                border: '1px solid var(--po-border-subtle)',
                 borderRadius: 5, padding: '5px 8px 5px 28px',
-                fontSize: 12, color: '#e4e4e7', outline: 'none',
+                fontSize: 12, color: 'var(--po-text)', outline: 'none',
                 fontFamily: T.fontSans,
               }}
             />
@@ -398,9 +398,9 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
             disabled={loading}
             style={{
               background: 'transparent',
-              border: '1px solid rgba(255,255,255,0.06)',
+              border: '1px solid var(--po-border-subtle)',
               borderRadius: 5,
-              color: loading ? '#52525b' : '#a1a1aa',
+              color: loading ? 'var(--po-text-disabled)' : 'var(--po-text-muted)',
               cursor: loading ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 26, height: 26, flexShrink: 0,
@@ -408,13 +408,13 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
             }}
             onMouseEnter={(e) => {
               if (loading) return;
-              e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-              e.currentTarget.style.color = '#e4e4e7';
+              e.currentTarget.style.background = 'var(--po-hover)';
+              e.currentTarget.style.color = 'var(--po-text)';
             }}
             onMouseLeave={(e) => {
               if (loading) return;
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#a1a1aa';
+              e.currentTarget.style.color = 'var(--po-text-muted)';
             }}
             title="Refresh"
           >
@@ -439,7 +439,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           height: 28, alignItems: 'center',
           padding: '0 16px',
           borderBottom: `1px solid ${T.border}`,
-          background: 'rgba(255,255,255,0.02)',
+          background: 'var(--po-panel)',
           fontSize: 9.5, fontWeight: 600,
           color: T.text3, letterSpacing: '0.08em',
           textTransform: 'uppercase',
@@ -475,7 +475,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
               <PageLoading variant="fill" />
             ) : (
               <div style={{
-                padding: 60, textAlign: 'center', color: '#3f3f46', fontSize: 13,
+                padding: 60, textAlign: 'center', color: 'var(--po-text-disabled)', fontSize: 13,
                 fontFamily: T.fontSans,
                 display: 'flex', justifyContent: 'center',
               }}>
@@ -505,7 +505,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                         display: 'flex', alignItems: 'center', gap: 8,
                         // Solid background so rows scrolling underneath
                         // don't bleed through the sticky header.
-                        background: 'rgba(20,20,22,0.96)',
+                        background: 'var(--po-overlay)',
                         backdropFilter: 'blur(6px)',
                         WebkitBackdropFilter: 'blur(6px)',
                         borderBottom: `1px solid ${T.border}`,
@@ -525,7 +525,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                       <span
                         style={{
                           flex: 1, height: 1,
-                          background: 'linear-gradient(to right, rgba(255,255,255,0.06), rgba(255,255,255,0))',
+                          background: 'linear-gradient(to right, var(--po-border-subtle), transparent)',
                         }}
                       />
                     </div>,
@@ -535,9 +535,9 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
 
                 const isSelected = log.id === selectedId;
                 const isFirst = i === 0;
-                const actionColor = ACTION_COLORS[log.action] || '#71717a';
-                const dotColor = log.status === 'error' ? '#ef4444'
-                  : log.status === 'warn' ? '#f59e0b'
+                const actionColor = ACTION_COLORS[log.action] || 'var(--po-text-subtle)';
+                const dotColor = log.status === 'error' ? 'var(--po-danger)'
+                  : log.status === 'warn' ? 'var(--po-warning)'
                   : actionColor;
 
                 elements.push(
@@ -548,21 +548,21 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                       display: 'grid', gridTemplateColumns: COL_TEMPLATE,
                       height: 30, alignItems: 'center',
                       padding: '0 16px',
-                      borderBottom: '1px solid rgba(255,255,255,0.03)',
+                      borderBottom: '1px solid var(--po-hover)',
                       background: isSelected
-                        ? 'rgba(255,255,255,0.05)'
-                        : isFirst ? 'rgba(74,222,128,0.04)' : 'transparent',
+                        ? 'var(--po-hover)'
+                        : isFirst ? 'color-mix(in srgb, var(--po-success) 4%, transparent)' : 'transparent',
                       cursor: 'pointer',
                       transition: `background 0.2s ${T.ease}`,
                       fontSize: 12, fontFamily: T.fontSans,
                     }}
                     onMouseEnter={e => {
                       if (isSelected) return;
-                      e.currentTarget.style.background = 'rgba(255,255,255,0.025)';
+                      e.currentTarget.style.background = 'var(--po-control)';
                     }}
                     onMouseLeave={e => {
                       if (isSelected) return;
-                      e.currentTarget.style.background = isFirst ? 'rgba(74,222,128,0.04)' : 'transparent';
+                      e.currentTarget.style.background = isFirst ? 'color-mix(in srgb, var(--po-success) 4%, transparent)' : 'transparent';
                     }}
                   >
                     <div style={{
@@ -619,7 +619,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
           padding: '0 16px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           borderTop: `1px solid ${T.border}`,
-          background: 'rgba(255,255,255,0.015)',
+          background: 'var(--po-control)',
           fontSize: 10, color: T.text3,
           fontFamily: T.fontMono, letterSpacing: '0.04em',
           flexShrink: 0,
@@ -633,22 +633,22 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
         {/* Detail drawer (preserved from existing product) */}
         {selectedLog && (
           <div style={{
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            background: '#0c0c0e',
+            borderTop: '1px solid var(--po-border-subtle)',
+            background: 'var(--po-canvas)',
             maxHeight: 300, overflowY: 'auto', flexShrink: 0,
           }}>
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)',
+              padding: '10px 16px', borderBottom: '1px solid var(--po-hover)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{
                   width: 6, height: 6, borderRadius: '50%',
-                  background: selectedLog.status === 'error' ? '#ef4444'
-                    : ACTION_COLORS[selectedLog.action] || '#71717a',
+                  background: selectedLog.status === 'error' ? 'var(--po-danger)'
+                    : ACTION_COLORS[selectedLog.action] || 'var(--po-text-subtle)',
                 }} />
                 <span style={{
-                  fontSize: 13, fontWeight: 500, color: '#e4e4e7',
+                  fontSize: 13, fontWeight: 500, color: 'var(--po-text)',
                   fontFamily: T.fontSans,
                 }}>
                   {selectedLog.action}
@@ -656,7 +656,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
                 <span style={{ fontSize: 12, color: T.text3, fontFamily: T.fontSans }}>
                   {selectedLog.source}
                 </span>
-                <span style={{ fontSize: 12, color: '#3f3f46', fontFamily: T.fontMono }}>
+                <span style={{ fontSize: 12, color: 'var(--po-text-disabled)', fontFamily: T.fontMono }}>
                   {selectedLog.time ? formatTime(selectedLog.time) : ''}
                 </span>
                 {selectedLog.duration && (
@@ -668,7 +668,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
               <button
                 onClick={() => setSelectedId(null)}
                 style={{
-                  background: 'none', border: 'none', color: '#52525b',
+                  background: 'none', border: 'none', color: 'var(--po-text-disabled)',
                   cursor: 'pointer', padding: 4,
                 }}
               >
@@ -680,14 +680,14 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
             </div>
             <div style={{ padding: '12px 16px' }}>
               <div style={{
-                fontSize: 13, color: '#c9d1d9', marginBottom: 12,
+                fontSize: 13, color: 'var(--po-text)', marginBottom: 12,
                 fontFamily: T.fontMono,
               }}>
                 {selectedLog.detail}
               </div>
               <pre style={{
-                margin: 0, padding: 12, background: '#09090b',
-                border: '1px solid rgba(255,255,255,0.04)',
+                margin: 0, padding: 12, background: 'var(--po-editor-bg)',
+                border: '1px solid var(--po-hover)',
                 borderRadius: 6, fontSize: 11, color: T.text2, lineHeight: 1.5,
                 fontFamily: T.fontMono,
                 whiteSpace: 'pre-wrap', wordBreak: 'break-all',

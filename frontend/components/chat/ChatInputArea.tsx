@@ -103,10 +103,10 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
             flexDirection: 'column',
             gap: '6px',
             boxSizing: 'border-box',
-            backgroundColor: '#1f1f1f',
+            backgroundColor: 'var(--po-panel-raised)',
             borderRadius: '12px',
             padding: '10px 12px',
-            border: '1px solid rgba(255,255,255,0.06)',
+            border: '1px solid var(--po-border-subtle)',
           }}
         >
           {/* @ 提及补全菜单 */}
@@ -120,10 +120,10 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                 marginBottom: 6,
                 width: 200,
                 maxHeight: 200,
-                background: '#1a1a1a',
-                border: '1px solid #333',
+                background: 'var(--po-panel-raised)',
+                border: '1px solid var(--po-border-strong)',
                 borderRadius: 8,
-                boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+                boxShadow: '0 4px 16px var(--po-shadow)',
                 zIndex: 100,
                 overflow: 'hidden',
               }}
@@ -131,9 +131,9 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
               <div
                 style={{
                   padding: '6px 8px',
-                  borderBottom: '1px solid #333',
+                  borderBottom: '1px solid var(--po-border-strong)',
                   fontSize: 11,
-                  color: '#666',
+                  color: 'var(--po-text-subtle)',
                 }}
               >
                 Select data path
@@ -146,20 +146,20 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                     style={{
                       padding: '6px 10px',
                       fontSize: 12,
-                      color: index === mentionIndex ? '#fff' : '#aaa',
+                      color: index === mentionIndex ? 'var(--po-text)' : 'var(--po-text-muted)',
                       background:
                         index === mentionIndex
-                          ? 'rgba(107, 179, 248, 0.2)'
+                          ? 'var(--po-selected)'
                           : 'transparent',
                       cursor: 'pointer',
-                      fontFamily: 'monospace',
+                      fontFamily: 'var(--po-font-sans)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: 6,
                     }}
                     onMouseEnter={() => onMentionIndexChange(index)}
                   >
-                    <span style={{ color: '#6bb3f8', opacity: 0.7 }}>@</span>
+                    <span style={{ color: 'var(--po-accent)', opacity: 0.7 }}>@</span>
                     {key}
                   </div>
                 ))}
@@ -198,8 +198,8 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                         <span
                           key={i}
                           style={{
-                            background: 'rgba(107, 179, 248, 0.2)',
-                            color: '#6bb3f8',
+                            background: 'var(--po-selected)',
+                            color: 'var(--po-accent)',
                             padding: '1px 0',
                             borderRadius: 3,
                             fontFamily: 'inherit',
@@ -211,13 +211,13 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                       );
                     }
                     return (
-                      <span key={i} style={{ color: '#e5e5e5' }}>
+                      <span key={i} style={{ color: 'var(--po-text)' }}>
                         {part}
                       </span>
                     );
                   })
               ) : (
-                <span style={{ color: '#666' }}>
+                <span style={{ color: 'var(--po-text-subtle)' }}>
                   {placeholder || defaultPlaceholder}
                 </span>
               )}
@@ -250,7 +250,7 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
                 fontFamily: 'inherit',
                 padding: '4px 0',
                 overflowY: 'auto',
-                caretColor: '#e5e5e5',
+                caretColor: 'var(--po-text)',
                 letterSpacing: 'normal',
               }}
               rows={1}
@@ -271,8 +271,8 @@ const ChatInputArea = forwardRef<ChatInputAreaRef, ChatInputAreaProps>(
               justifyContent: 'center',
               cursor: !inputValue.trim() || isLoading ? 'default' : 'pointer',
               backgroundColor:
-                inputValue.trim() && !isLoading ? '#525252' : '#2a2a2a',
-              color: '#ffffff',
+                inputValue.trim() && !isLoading ? 'var(--po-text-disabled)' : 'var(--po-border)',
+              color: 'var(--po-text-inverse)',
               transition: 'all 0.15s ease',
               opacity: !inputValue.trim() || isLoading ? 0.5 : 1,
               flexShrink: 0,

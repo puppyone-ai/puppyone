@@ -54,7 +54,7 @@ export function DocumentEditor({
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
-        background: '#0f0f11', // 与卡片背景一致
+        background: 'var(--po-panel)',
         overflow: 'hidden',
         height: '100%',
       }}
@@ -64,12 +64,12 @@ export function DocumentEditor({
         style={{
           height: 40,
           padding: '0 16px',
-          borderBottom: '1px solid #1a1a1c',
+          borderBottom: '1px solid var(--po-divider)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           flexShrink: 0,
-          background: '#0f0f11',
+          background: 'var(--po-panel)',
         }}
       >
         {/* 左侧：收起按钮 + 全屏按钮 + Preview / Raw 切换 */}
@@ -82,7 +82,7 @@ export function DocumentEditor({
               height: 32,
               background: 'transparent',
               border: 'none',
-              color: '#6b7280',
+              color: 'var(--po-text-subtle)',
               cursor: 'pointer',
               padding: 0,
               borderRadius: 4,
@@ -90,8 +90,8 @@ export function DocumentEditor({
               alignItems: 'center',
               justifyContent: 'center',
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#6b7280')}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-text)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--po-text-subtle)')}
             title='Collapse sidebar'
           >
             <svg
@@ -116,7 +116,7 @@ export function DocumentEditor({
               height: 32,
               background: 'transparent',
               border: 'none',
-              color: '#6b7280',
+              color: 'var(--po-text-subtle)',
               cursor: 'pointer',
               padding: 0,
               borderRadius: 4,
@@ -124,8 +124,8 @@ export function DocumentEditor({
               alignItems: 'center',
               justifyContent: 'center',
             }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#6b7280')}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-text)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--po-text-subtle)')}
             title={isFullScreen ? 'Exit full screen' : 'Open full screen'}
           >
             {isFullScreen ? (
@@ -163,7 +163,7 @@ export function DocumentEditor({
           <div
             style={{
               display: 'flex',
-              background: 'rgba(255,255,255,0.05)',
+              background: 'var(--po-hover)',
               borderRadius: 6,
               padding: 2,
             }}
@@ -174,9 +174,9 @@ export function DocumentEditor({
                 padding: '4px 8px',
                 fontSize: 11,
                 fontWeight: 500,
-                color: mode === 'preview' ? '#e2e8f0' : '#6b7280',
+                color: mode === 'preview' ? 'var(--po-text)' : 'var(--po-text-subtle)',
                 background:
-                  mode === 'preview' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  mode === 'preview' ? 'var(--po-active)' : 'transparent',
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
@@ -191,9 +191,9 @@ export function DocumentEditor({
                 padding: '4px 8px',
                 fontSize: 11,
                 fontWeight: 500,
-                color: mode === 'raw' ? '#e2e8f0' : '#6b7280',
+                color: mode === 'raw' ? 'var(--po-text)' : 'var(--po-text-subtle)',
                 background:
-                  mode === 'raw' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                  mode === 'raw' ? 'var(--po-active)' : 'transparent',
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
@@ -210,7 +210,7 @@ export function DocumentEditor({
                     width: 6,
                     height: 6,
                     borderRadius: '50%',
-                    background: '#f59e0b',
+                    background: 'var(--po-warning)',
                   }}
                 />
               )}
@@ -221,7 +221,7 @@ export function DocumentEditor({
         {/* 右侧：字数统计 (关闭按钮已移至左侧) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span
-            style={{ fontSize: 10, color: '#525252', fontFamily: 'monospace' }}
+            style={{ fontSize: 10, color: 'var(--po-text-disabled)', fontFamily: 'var(--po-font-sans)' }}
           >
             {editedValue.length.toLocaleString()} chars
           </span>
@@ -245,7 +245,7 @@ export function DocumentEditor({
                   .markdown-preview {
                     font-size: 14px;
                     line-height: 1.7;
-                    color: #d4d4d4;
+                    color: var(--po-text);
                   }
                   .markdown-preview h1,
                   .markdown-preview h2,
@@ -253,35 +253,21 @@ export function DocumentEditor({
                   .markdown-preview h4,
                   .markdown-preview h5,
                   .markdown-preview h6 {
-                    color: #e2e8f0;
+                    color: var(--po-text);
                     margin-top: 1.5em;
                     margin-bottom: 0.5em;
                     font-weight: 600;
                   }
-                  .markdown-preview h1 {
-                    font-size: 1.5em;
-                  }
-                  .markdown-preview h2 {
-                    font-size: 1.3em;
-                  }
-                  .markdown-preview h3 {
-                    font-size: 1.15em;
-                  }
-                  .markdown-preview p {
-                    margin: 0.8em 0;
-                  }
                   .markdown-preview code {
-                    background: rgba(255, 255, 255, 0.08);
+                    background: var(--po-hover);
                     padding: 2px 6px;
                     border-radius: 4px;
-                    font-family:
-                      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-                      monospace;
+                    font-family: var(--po-font-sans);
                     font-size: 0.9em;
-                    color: #f472b6;
+                    color: var(--po-accent);
                   }
                   .markdown-preview pre {
-                    background: rgba(0, 0, 0, 0.4);
+                    background: var(--po-inset);
                     padding: 12px 16px;
                     border-radius: 8px;
                     overflow-x: auto;
@@ -290,36 +276,16 @@ export function DocumentEditor({
                   .markdown-preview pre code {
                     background: transparent;
                     padding: 0;
-                    color: #d4d4d4;
-                  }
-                  .markdown-preview ul,
-                  .markdown-preview ol {
-                    padding-left: 1.5em;
-                    margin: 0.8em 0;
-                  }
-                  .markdown-preview li {
-                    margin: 0.3em 0;
-                  }
-                  /* Task list (checkbox) 样式 */
-                  .markdown-preview input[type="checkbox"] {
-                    margin-right: 8px;
-                    width: 16px;
-                    height: 16px;
-                    accent-color: #22c55e;
-                    cursor: pointer;
-                  }
-                  .markdown-preview li:has(input[type="checkbox"]) {
-                    list-style-type: none;
-                    margin-left: -1.5em;
+                    color: var(--po-text);
                   }
                   .markdown-preview blockquote {
-                    border-left: 3px solid #525252;
+                    border-left: 3px solid var(--po-border-strong);
                     padding-left: 1em;
                     margin: 1em 0;
-                    color: #9ca3af;
+                    color: var(--po-text-muted);
                   }
                   .markdown-preview a {
-                    color: #60a5fa;
+                    color: var(--po-accent);
                     text-decoration: none;
                   }
                   .markdown-preview a:hover {
@@ -327,10 +293,9 @@ export function DocumentEditor({
                   }
                   .markdown-preview hr {
                     border: none;
-                    border-top: 1px solid #333;
+                    border-top: 1px solid var(--po-divider);
                     margin: 1.5em 0;
                   }
-                  /* 表格样式 - 支持 HTML table */
                   .markdown-preview table {
                     width: 100%;
                     border-collapse: collapse;
@@ -339,16 +304,13 @@ export function DocumentEditor({
                   }
                   .markdown-preview th,
                   .markdown-preview td {
-                    border: 1px solid #333;
+                    border: 1px solid var(--po-border);
                     padding: 8px 12px;
                     text-align: left;
                   }
                   .markdown-preview th {
-                    background: rgba(255, 255, 255, 0.05);
+                    background: var(--po-hover);
                     font-weight: 600;
-                  }
-                  .markdown-preview tr:nth-child(even) {
-                    background: rgba(255, 255, 255, 0.02);
                   }
                   .markdown-preview img {
                     max-width: 100%;
@@ -357,7 +319,7 @@ export function DocumentEditor({
                 `}</style>
               </div>
             ) : (
-              <div style={{ color: '#525252', fontStyle: 'italic' }}>
+              <div style={{ color: 'var(--po-text-disabled)', fontStyle: 'italic' }}>
                 (Empty content)
               </div>
             )}
@@ -374,13 +336,13 @@ export function DocumentEditor({
               padding: '12px 16px',
               fontSize: 14,
               lineHeight: 1.6,
-              color: '#e2e8f0',
+              color: 'var(--po-text)',
               background: 'transparent',
               border: 'none',
               outline: 'none',
               resize: 'none',
               fontFamily:
-                'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                'var(--po-font-sans)',
               boxSizing: 'border-box',
             }}
             placeholder='Enter content...'

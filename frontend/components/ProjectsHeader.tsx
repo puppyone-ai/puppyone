@@ -2,6 +2,8 @@
 
 import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
+import { APP_Z_INDEX } from '@/lib/zIndex';
+import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 
 export type EditorType = 'table' | 'monaco';
 export type ViewType = 'grid' | 'list' | 'explorer';
@@ -10,7 +12,7 @@ export type ViewType = 'grid' | 'list' | 'explorer';
 // address bar — the file tree carries the type-glyph information
 // where it's actually functional. Keeping the segment type minimal.
 export type BreadcrumbSegment = {
-  label: string;
+  label: ReactNode;
   href?: string;
 };
 
@@ -55,16 +57,16 @@ export function ProjectsHeader({
                 border: 'none',
                 borderRadius: 6,
                 cursor: 'pointer',
-                color: '#666',
+                color: 'var(--po-text-subtle)',
                 transition: 'all 0.15s',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                e.currentTarget.style.color = '#eee';
+                e.currentTarget.style.background = 'var(--po-hover)';
+                e.currentTarget.style.color = 'var(--po-text)';
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#666';
+                e.currentTarget.style.color = 'var(--po-text-subtle)';
               }}
               title='Back to Home'
             >
@@ -95,22 +97,22 @@ export function ProjectsHeader({
                 style={{ display: 'flex', alignItems: 'center' }}
               >
                 {index > 0 && (
-                  <span style={{ margin: '0 8px', color: '#444' }}>/</span>
+                  <span style={{ margin: '0 8px', color: 'var(--po-text-disabled)' }}>/</span>
                 )}
                 {segment.href && !isLast ? (
                   <Link
                     href={segment.href}
                     style={{
                       ...pathStyle,
-                      color: '#888',
+                      color: 'var(--po-text-muted)',
                       cursor: 'pointer',
                       transition: 'color 0.15s',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = '#fff';
+                      e.currentTarget.style.color = 'var(--po-text)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = '#888';
+                      e.currentTarget.style.color = 'var(--po-text-muted)';
                     }}
                   >
                     {segment.label}
@@ -119,7 +121,7 @@ export function ProjectsHeader({
                   <span
                     style={{
                       ...pathStyle,
-                      color: isLast ? '#CDCDCD' : '#888',
+                      color: isLast ? 'var(--po-text)' : 'var(--po-text-muted)',
                     }}
                   >
                     {segment.label}
@@ -147,10 +149,10 @@ const headerStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
-  borderBottom: '1px solid rgba(255,255,255,0.08)',
-  background: '#0e0e0e',
+  borderBottom: '1px solid var(--po-divider)',
+  background: 'var(--po-header)',
   position: 'relative',
-  zIndex: 1000,
+  zIndex: APP_Z_INDEX.chrome,
   overflow: 'visible',
 };
 
@@ -169,13 +171,10 @@ const headerActionStyle: CSSProperties = {
   flexShrink: 0,
   marginLeft: 16,
   position: 'relative',
-  zIndex: 1001,
+  zIndex: APP_Z_INDEX.chromeRaised,
 };
 
 const pathStyle: CSSProperties = {
-  fontFamily:
-    "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-  fontSize: 13,
-  fontWeight: 500,
-  color: '#CDCDCD',
+  ...CHROME_LABEL_TYPOGRAPHY,
+  color: 'var(--po-text)',
 };

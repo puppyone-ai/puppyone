@@ -79,7 +79,7 @@ export default function AccessPointsPage({
   } = useAccessData(projectId);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0e0e0e' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
       <AccessHeader count={loading ? 0 : sortedScopes.length} />
 
       {loading ? (

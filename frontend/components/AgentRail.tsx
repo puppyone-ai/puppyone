@@ -39,7 +39,7 @@ export interface SavedAgent {
   capabilities: string[]; // Saved capability IDs (legacy)
   resources?: AccessResource[]; // 新：资源访问配置
   mcp_api_key?: string; // MCP API key for external access
-  
+
   // Schedule Agent 新字段
   trigger_type?: TriggerType;
   trigger_config?: TriggerConfig;

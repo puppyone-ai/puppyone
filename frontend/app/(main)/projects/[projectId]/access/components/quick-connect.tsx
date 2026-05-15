@@ -376,21 +376,21 @@ function ActivationCard({
           fontSize: 12,
           fontWeight: 600,
           fontFamily: T.fontSans,
-          color: disabled ? T.text3 : '#0a0a0a',
-          background: disabled ? 'rgba(255,255,255,0.06)' : '#ffffff',
+          color: disabled ? T.text3 : 'var(--po-text-inverse)',
+          background: disabled ? 'var(--po-border-subtle)' : 'var(--po-text)',
           border: 'none',
           borderRadius: 999,
           cursor: disabled ? 'not-allowed' : 'pointer',
           boxShadow: disabled
             ? 'none'
-            : '0 1px 2px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.06)',
+            : '0 1px 2px var(--po-shadow), 0 0 0 1px var(--po-border-subtle)',
           transition: 'background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
         }}
       >
         {actionLabel}
       </button>
       {error && (
-        <div style={{ fontSize: 11, color: '#fca5a5', lineHeight: 1.5, fontFamily: T.fontSans }}>{error}</div>
+        <div style={{ fontSize: 11, color: 'var(--po-danger)', lineHeight: 1.5, fontFamily: T.fontSans }}>{error}</div>
       )}
     </div>
   );

@@ -6,34 +6,34 @@
  * these by name; do NOT inline raw hex values back into JSX.
  */
 
-export const COLOR_FG = '#e4e4e7';
-export const COLOR_FG_MUTED = '#a1a1aa';
-export const COLOR_FG_DIM = '#71717a';
+export const COLOR_FG = 'var(--po-text)';
+export const COLOR_FG_MUTED = 'var(--po-text-muted)';
+export const COLOR_FG_DIM = 'var(--po-text-subtle)';
 
-export const COLOR_BORDER = 'rgba(255,255,255,0.06)';
-export const COLOR_BORDER_HOVER = 'rgba(255,255,255,0.12)';
+export const COLOR_BORDER = 'var(--po-border-subtle)';
+export const COLOR_BORDER_HOVER = 'var(--po-border-strong)';
 
-export const COLOR_BG_CARD = 'rgba(255,255,255,0.02)';
-export const COLOR_BG_HOVER = 'rgba(255,255,255,0.06)';
-export const COLOR_BG_SUNKEN = 'rgba(0,0,0,0.28)';
-export const COLOR_BG_DASHED = 'rgba(255,255,255,0.015)';
+export const COLOR_BG_CARD = 'var(--po-panel)';
+export const COLOR_BG_HOVER = 'var(--po-hover)';
+export const COLOR_BG_SUNKEN = 'var(--po-inset)';
+export const COLOR_BG_DASHED = 'var(--po-control)';
 
-export const COLOR_DANGER = '#f87171';
-export const COLOR_DANGER_FAINT = '#fca5a5';
-export const COLOR_DANGER_BG = 'rgba(248,113,113,0.12)';
-export const COLOR_DANGER_BORDER = 'rgba(248,113,113,0.3)';
+export const COLOR_DANGER = 'var(--po-danger)';
+export const COLOR_DANGER_FAINT = 'var(--po-danger)';
+export const COLOR_DANGER_BG = 'color-mix(in srgb, var(--po-danger) 12%, transparent)';
+export const COLOR_DANGER_BORDER = 'color-mix(in srgb, var(--po-danger) 32%, transparent)';
 
-export const COLOR_SUCCESS = '#34d399';
-export const COLOR_SUCCESS_BORDER = 'rgba(52,211,153,0.6)';
+export const COLOR_SUCCESS = 'var(--po-success)';
+export const COLOR_SUCCESS_BORDER = 'color-mix(in srgb, var(--po-success) 55%, transparent)';
 
-export const COLOR_ACCENT = '#67e8f9';
-export const COLOR_ACCENT_TEXT_BRIGHT = '#a5f3fc';
-export const COLOR_ACCENT_BG_FAINT = 'rgba(34,211,238,0.05)';
-export const COLOR_ACCENT_BG = 'rgba(34,211,238,0.10)';
-export const COLOR_ACCENT_BORDER = 'rgba(34,211,238,0.28)';
-export const COLOR_ACCENT_BORDER_BRIGHT = 'rgba(34,211,238,0.30)';
+export const COLOR_ACCENT = 'var(--po-accent)';
+export const COLOR_ACCENT_TEXT_BRIGHT = 'var(--po-accent-text)';
+export const COLOR_ACCENT_BG_FAINT = 'color-mix(in srgb, var(--po-accent) 6%, transparent)';
+export const COLOR_ACCENT_BG = 'color-mix(in srgb, var(--po-accent) 12%, transparent)';
+export const COLOR_ACCENT_BORDER = 'color-mix(in srgb, var(--po-accent) 28%, transparent)';
+export const COLOR_ACCENT_BORDER_BRIGHT = 'color-mix(in srgb, var(--po-accent) 34%, transparent)';
 
 export const FONT_MONO =
-  "'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace";
+  "var(--po-font-sans)";
 
-export const PANEL_BG = '#0e0e0e';
+export const PANEL_BG = 'var(--po-canvas)';

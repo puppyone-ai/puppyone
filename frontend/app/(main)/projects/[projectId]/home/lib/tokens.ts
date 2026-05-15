@@ -10,37 +10,37 @@
 // premature abstraction.
 
 export const T = {
-  // Page bg matches the surface painted by `(main)/layout.tsx` (#0e0e0e),
+  // Page bg matches the surface painted by `(main)/layout.tsx` (var(--po-canvas)),
   // so this page sits flush inside the rounded main pane and visually
   // aligns with /access /data /history /monitor /settings.
-  bg: '#0e0e0e',
-  surface: '#161618',
-  border: 'rgba(255,255,255,0.08)',
-  borderH: 'rgba(255,255,255,0.16)',
-  rowHover: 'rgba(255,255,255,0.025)',
-  rowAttached: 'rgba(255,255,255,0.015)', // even more subtle than hover
+  bg: 'var(--po-canvas)',
+  surface: 'var(--po-panel)',
+  border: 'var(--po-border)',
+  borderH: 'var(--po-border-strong)',
+  rowHover: 'var(--po-hover)',
+  rowAttached: 'var(--po-control)', // even more subtle than hover
 
   // Active highlight when an AP is hovered: tints every row in the AP's
   // scope (the AP's `path` + all descendants).  Cyan-tinted bg keeps the
   // single-accent rule; the 2px left bar makes the affiliation unmistakable
   // even when many rows light up at once (e.g. filesystem at root).
-  rowHighlight: 'rgba(34,211,238,0.06)',
+  rowHighlight: 'color-mix(in srgb, var(--po-accent) 8%, transparent)',
   // Stronger tint reserved for the scope ROOT — the row that the AP is
   // actually pinned to (its `path`).  Bumping just this one row makes the
   // root visually pop out of the otherwise-uniform cyan band, so users can
   // see "this AP is anchored here" at a glance instead of inferring it
   // from the structural elbow alone.  ~2x the descendant alpha hits the
   // sweet spot: clearly distinct, still a tint (not a slab).
-  rowHighlightRoot: 'rgba(34,211,238,0.13)',
-  rowHighlightAccent: '#22d3ee',  // == T.live, named for intent
+  rowHighlightRoot: 'color-mix(in srgb, var(--po-accent) 16%, transparent)',
+  rowHighlightAccent: 'var(--po-accent)',  // == T.live, named for intent
 
   // Card surface — matches `ProviderRow` in
   // `data/components/SyncConfigPanel.tsx` so AP cards on Home and provider
   // rows in the access drawer read as the same component visually.
-  cardBg: 'rgba(255,255,255,0.02)',
-  cardBgH: 'rgba(255,255,255,0.06)',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  cardBorderH: 'rgba(255,255,255,0.12)',
+  cardBg: 'var(--po-panel)',
+  cardBgH: 'var(--po-hover)',
+  cardBorder: 'var(--po-border-subtle)',
+  cardBorderH: 'var(--po-border-strong)',
 
   // Section card surface — the Home page's primary modules (Data,
   // History, Access Points, Topology) need to read as discrete
@@ -50,7 +50,7 @@ export const T = {
   // border makes each module read as a recessed panel inset into
   // the page rather than a floating chip on top of it.
   //
-  // 0.4 black ≈ #080808 over the #0e0e0e page bg.  Tuned by eye
+  // 0.4 black ≈ #080808 over the var(--po-canvas) page bg.  Tuned by eye
   // against the reference: clearly darker than the surround, but
   // not so dark that the card disappears into pure void.
   //
@@ -68,8 +68,8 @@ export const T = {
   // Splitting these off as separate tokens (rather than overloading
   // `cardBorder`/`cardBg`) keeps the AP-row card style untouched —
   // that surface still wants the whisper.
-  sectionBg: 'rgba(0,0,0,0.4)',
-  sectionBorder: 'rgba(255,255,255,0.18)',
+  sectionBg: 'var(--po-panel)',
+  sectionBorder: 'var(--po-border-strong)',
   sectionRadius: 12,
 
   // Header strip lift over the section card body.  The OLD
@@ -86,7 +86,7 @@ export const T = {
   // with the section border.  Tuned by squinting at the reference
   // screenshot — anything > 0.05 starts reading as a "tab" rather
   // than a "header".
-  sectionHeaderBg: 'rgba(255,255,255,0.03)',
+  sectionHeaderBg: 'var(--po-hover)',
 
   // Hairline divider between the header strip and the body.  1px
   // (vs the 2px outer section border) — the divider lives INSIDE
@@ -94,21 +94,22 @@ export const T = {
   // the frame.  0.08 ink intentionally matches `T.border` (the
   // app-wide 1px standard) so this divider belongs to the same
   // visual family as every other 1px rule on the page.
-  sectionDivider: 'rgba(255,255,255,0.08)',
+  sectionDivider: 'var(--po-border)',
 
-  text1: '#fafafa',   // titles, key numbers
-  text2: '#a1a1aa',   // body
-  text3: '#52525b',   // captions, section labels
-  text4: '#27272a',   // nearly-invisible, dividers
-  textMono: '#71717a',
+  text1: 'var(--po-text)',   // titles, key numbers
+  text2: 'var(--po-text-muted)',   // body
+  text3: 'var(--po-text-disabled)',   // captions, section labels
+  text4: 'var(--po-filetree-rail)',   // nearly-invisible, dividers
+  treeGuide: 'var(--po-tree-guide)',
+  textMono: 'var(--po-text-subtle)',
 
-  live: '#22d3ee',    // cyan, the only chromatic accent
-  liveSoft: 'rgba(34,211,238,0.16)',
-  err: '#ef4444',
-  warn: '#eab308',
+  live: 'var(--po-accent)',    // accent signal
+  liveSoft: 'color-mix(in srgb, var(--po-accent) 18%, transparent)',
+  err: 'var(--po-danger)',
+  warn: 'var(--po-warning)',
 
-  fontSans: 'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
-  fontMono: 'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+  fontSans: 'var(--po-font-sans)',
+  fontMono: 'var(--po-font-sans)',
 
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)', // out-expo-ish, used for everything
 } as const;

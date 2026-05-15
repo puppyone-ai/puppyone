@@ -90,8 +90,8 @@ export function OnboardingProvider({ children }: Readonly<{ children: React.Reac
 
   const value = useMemo<OnboardingContextValue>(() => ({
     ...state,
-    progress: state.completedSteps.length,
-    total: 7,
+    progress: Math.min(state.completedSteps.length, 5),
+    total: 5,
     completeWelcome,
     resetWelcome,
     completeStep,

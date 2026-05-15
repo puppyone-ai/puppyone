@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, memo } from 'react';
-import { usePathname } from 'next/navigation';
+import { useSelectedLayoutSegments } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { AppSidebar } from '@/components/AppSidebar';
 import { useProject, useProjects } from '@/lib/hooks/useData';
@@ -33,18 +33,16 @@ const _PROJECT_VIEWS: ReadonlyArray<readonly [string, string]> = [
   ['/data', 'data'],
 ];
 
-function _resolveActiveView(pathname: string | null): string {
-  if (!pathname) return 'data';
-  if (pathname.startsWith('/tools-and-server')) return 'tools';
-  if (pathname.startsWith('/settings')) return 'settings';
-  if (pathname.startsWith('/home')) return 'home';
-  if (pathname.startsWith('/team')) return 'team';
-  if (pathname.startsWith('/billing')) return 'billing';
-  if (pathname.includes('/projects/')) {
-    for (const [segment, view] of _PROJECT_VIEWS) {
-      if (pathname.includes(segment)) return view;
-    }
-    return 'data';
+function _resolveActiveView(segments: readonly string[]): string {
+  const [section, , projectView] = segments;
+  if (section === 'tools-and-server') return 'tools';
+  if (section === 'settings') return 'settings';
+  if (section === 'home') return 'home';
+  if (section === 'team') return 'team';
+  if (section === 'billing') return 'billing';
+  if (section === 'projects') {
+    const matched = _PROJECT_VIEWS.find(([segment]) => segment.slice(1) === projectView);
+    return matched?.[1] ?? 'data';
   }
   return 'home';
 }
@@ -53,18 +51,26 @@ const MainLayoutInner = memo(function MainLayoutInner({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const { session } = useAuth();
-  const { currentOrg, switchOrg } = useOrganization();
+  const selectedSegments = useSelectedLayoutSegments();
+  const segments = useMemo(
+    () => selectedSegments.filter(segment => !segment.startsWith('(')),
+    [selectedSegments],
+  );
+  const { session, isAuthReady } = useAuth();
+  const {
+    orgs,
+    currentOrg,
+    isLoading: orgsLoading,
+    switchOrg,
+  } = useOrganization();
 
   const activeBaseId = useMemo(() => {
-    if (!pathname) return '';
-    const match = /^\/projects\/([^/]+)/.exec(pathname);
-    return match ? match[1] : '';
-  }, [pathname]);
+    return segments[0] === 'projects' && segments[1] ? segments[1] : '';
+  }, [segments]);
 
-  const { project: routeProject } = useProject(session ? activeBaseId || null : null);
-  const { projects } = useProjects(currentOrg?.id ?? null);
+  const { project: routeProject, isLoading: routeProjectLoading } =
+    useProject(session ? activeBaseId || null : null);
+  const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id ?? null);
 
   useEffect(() => {
     const routeOrgId = routeProject?.org_id;
@@ -79,7 +85,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
       return projectsForCurrentRoute;
     }
     return [routeProject, ...projectsForCurrentRoute];
-  }, [currentOrg?.id, projects, routeProject]);
+  }, [activeBaseId, currentOrg?.id, projects, routeProject]);
 
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(200);
@@ -88,10 +94,19 @@ const MainLayoutInner = memo(function MainLayoutInner({
   const onboarding = useOnboarding();
 
   const activeView = useMemo(() => {
-    return _resolveActiveView(pathname);
-  }, [pathname]);
+    return _resolveActiveView(segments);
+  }, [segments]);
 
-  const userInitial = (session?.user?.email?.[0] || 'U').toUpperCase();
+  const userIdentityLoading = !isAuthReady || !session;
+  const orgIdentityLoading = Boolean(session) && (
+    orgsLoading ||
+    (orgs.length > 0 && !currentOrg)
+  );
+  const projectIdentityLoading = Boolean(activeBaseId) && !routeProject && routeProjectLoading;
+
+  const userInitial = userIdentityLoading
+    ? ''
+    : (session?.user?.email?.[0] || 'U').toUpperCase();
   const userMetadata = session?.user?.user_metadata as Record<string, unknown> | undefined;
   const userAvatarUrl =
     (userMetadata?.avatar_url as string) ||
@@ -101,7 +116,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
   const environmentLabel = useMemo(() => getEnvironmentLabel(), []);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: '#0e0e0e' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', backgroundColor: 'var(--po-canvas)' }}>
 
       {/* Welcome modal — first-ever visit */}
       {!onboarding.hasSeenWelcome && (
@@ -115,6 +130,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
 
       <AppSidebar
         projects={sidebarProjects}
+        projectsLoading={projectsLoading}
         activeBaseId={activeBaseId}
         activeView={activeView}
         userInitial={userInitial}
@@ -125,6 +141,9 @@ const MainLayoutInner = memo(function MainLayoutInner({
         sidebarWidth={sidebarWidth}
         onSidebarWidthChange={setSidebarWidth}
         currentOrg={currentOrg}
+        organizationIdentityLoading={orgIdentityLoading}
+        projectIdentityLoading={projectIdentityLoading}
+        userIdentityLoading={userIdentityLoading}
         onOpenGuide={onboarding.openChecklist}
       />
 
@@ -136,7 +155,7 @@ const MainLayoutInner = memo(function MainLayoutInner({
           minWidth: 0,
           height: '100vh',
           overflow: 'hidden',
-          background: '#0e0e0e',
+          background: 'var(--po-canvas)',
         }}
       >
         {children}

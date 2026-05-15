@@ -12,14 +12,14 @@ function rowActionButtonClass(variant: RowActionButtonVariant) {
     'flex h-[22px] w-[22px] items-center justify-center rounded border border-transparent p-0 transition-colors';
 
   if (variant === 'createActive') {
-    return `${base} bg-[rgba(255,255,255,0.1)] text-[#ddd]`;
+    return `${base} bg-[var(--po-selected)] text-[var(--po-text)]`;
   }
 
   if (variant === 'accessActive') {
-    return `${base} bg-[rgba(34,211,238,0.1)] text-[#67e8f9] hover:bg-[rgba(34,211,238,0.16)] hover:text-[#a5f3fc]`;
+    return `${base} bg-[var(--po-access-active-bg)] text-[var(--po-access-active-text)] hover:bg-[var(--po-access-active-hover)] hover:text-[var(--po-access-active-text)]`;
   }
 
-  return `${base} bg-transparent text-[#999] hover:bg-[rgba(255,255,255,0.1)] hover:text-[#ddd]`;
+  return `${base} bg-transparent text-[var(--po-text-subtle)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]`;
 }
 
 function PlusIcon() {

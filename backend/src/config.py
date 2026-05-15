@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT"),
     )
     DEBUG: bool | None = None
-    VERSION: str = "0.0.1"
+    VERSION: str = "0.0.3"
 
     # Local storage configuration, mostly using Supabase now
     DATA_PATH: Path = Path("./data")

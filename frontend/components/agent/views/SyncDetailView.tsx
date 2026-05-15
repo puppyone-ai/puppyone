@@ -9,6 +9,7 @@ import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 import { FilesystemDetailView } from './FilesystemDetailView';
 import { Dots } from '@/components/loading';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
 
 interface SyncDetail {
   id: string;
@@ -26,15 +27,15 @@ interface SyncDetail {
 
 // Mini DocShell — matches the product's document icon with folded corner
 function MiniDocShell({ type }: { type: 'json' | 'markdown' | 'file' }) {
-  const accentColor = type === 'json' ? '#4ade80' : type === 'markdown' ? '#60a5fa' : '#a3a3a3';
+  const accentColor = type === 'json' ? 'var(--po-success)' : type === 'markdown' ? 'var(--po-accent)' : 'var(--po-text-muted)';
   const label = type === 'json' ? '{ }' : type === 'markdown' ? 'MD' : 'FILE';
   return (
     <svg width="36" height="40" viewBox="0 0 36 40" fill="none">
       <path d="M4 2C4 1.44772 4.44772 1 5 1H23L32 10V38C32 38.5523 31.5523 39 31 39H5C4.44772 39 4 38.5523 4 38V2Z"
-        fill="#222225" stroke="#3a3a3d" strokeWidth="0.75" />
-      <path d="M23 1V10H32" stroke="#3a3a3d" strokeWidth="0.75" strokeLinejoin="round" />
-      <path d="M23 1V10H32L23 1Z" fill="#2a2a2d" />
-      <text x="18" y="28" textAnchor="middle" fontSize="7" fontWeight="600" fill={accentColor} fontFamily="'SF Mono', 'JetBrains Mono', monospace">
+        fill="var(--po-file-icon-body)" stroke="var(--po-file-icon-stroke)" strokeWidth="0.75" />
+      <path d="M23 1V10H32" stroke="var(--po-file-icon-stroke)" strokeWidth="0.75" strokeLinejoin="round" />
+      <path d="M23 1V10H32L23 1Z" fill="var(--po-file-icon-fold)" />
+      <text x="18" y="28" textAnchor="middle" fontSize="7" fontWeight="600" fill={accentColor} fontFamily="var(--po-font-sans)">
         {label}
       </text>
     </svg>
@@ -58,7 +59,7 @@ function ProviderImg({ src, alt, size }: { src: string; alt: string; size: numbe
 
 function GitHubLogo({ size = 24 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="#fff">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="var(--po-text-inverse)">
       <path fillRule="evenodd" clipRule="evenodd" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
     </svg>
   );
@@ -76,15 +77,15 @@ function getProviderLogo(provider: string, size: number) {
     case 'linear': return <ProviderImg src="/icons/linear.svg" alt="Linear" size={size} />;
     case 'filesystem':
       return (
-        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M2 20h20" />
         </svg>
       );
     default:
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-          <rect x="2" y="2" width="20" height="20" rx="4" fill="#333"/>
-          <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="700" fill="#aaa" fontFamily="sans-serif">
+          <rect x="2" y="2" width="20" height="20" rx="4" fill="var(--po-border-strong)"/>
+          <text x="12" y="16" textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--po-text-muted)" fontFamily="sans-serif">
             {provider.charAt(0).toUpperCase()}
           </text>
         </svg>
@@ -98,7 +99,7 @@ function getProviderLogo(provider: string, size: number) {
 
 function ConnectionLine({ direction, isActive, status }: { direction: string; color?: string; isActive: boolean; status: string }) {
   if (!isActive) {
-    const lineColor = status === 'error' ? '#ef4444' : status === 'paused' ? '#f59e0b' : '#525252';
+    const lineColor = status === 'error' ? 'var(--po-danger)' : status === 'paused' ? 'var(--po-warning)' : 'var(--po-text-disabled)';
     return (
       <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={lineColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4 4">
         <path d="M2 8h76" />
@@ -106,7 +107,7 @@ function ConnectionLine({ direction, isActive, status }: { direction: string; co
     );
   }
 
-  const arrowColor = '#4ade80';
+  const arrowColor = 'var(--po-success)';
 
   return direction === 'bidirectional' ? (
     <svg width="80" height="16" viewBox="0 0 80 16" fill="none" stroke={arrowColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -229,7 +230,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
   if (!sync) {
     return (
       <PanelShell title="Access" onClose={onClose || (() => {})} onBack={onBack}>
-        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 12, height: '100%' }}>
+        <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: 'var(--po-text-disabled)', fontSize: 12, height: '100%' }}>
           Sync endpoint not found
         </div>
       </PanelShell>
@@ -248,9 +249,9 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
   const isError = sync.status === 'error';
   const isPaused = sync.status === 'paused';
 
-  const statusColor = isError ? '#ef4444' : isActive ? '#22c55e' : isPaused ? '#f59e0b' : '#525252';
+  const statusColor = isError ? 'var(--po-danger)' : isActive ? 'var(--po-success)' : isPaused ? 'var(--po-warning)' : 'var(--po-text-disabled)';
   const statusLabel = isError ? 'Error' : sync.status === 'syncing' ? 'Syncing' : isActive ? 'Sync active' : isPaused ? 'Paused' : sync.status || 'Inactive';
-  const statusTextColor = isError ? '#fca5a5' : isActive ? '#e5e5e5' : '#a3a3a3';
+  const statusTextColor = isError ? 'var(--po-danger)' : isActive ? 'var(--po-text)' : 'var(--po-text-muted)';
 
   const normalizedMode = normalizeMode(sync.trigger?.type);
 
@@ -275,13 +276,13 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 12,
-                  background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  boxShadow: '0 4px 12px var(--po-shadow)',
                 }}>
                   {getProviderLogo(sync.provider, 24)}
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
                   {providerLabel}
                 </div>
               </div>
@@ -300,16 +301,16 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 72, flexShrink: 0 }}>
                 <div style={{
                   width: 48, height: 48, borderRadius: 12,
-                  background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                  boxShadow: '0 4px 12px var(--po-shadow)',
                 }}>
                   {sync.node_type === 'folder' || !sync.node_type
                     ? <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block' }} />
                     : <div style={{ transform: 'scale(0.6)' }}><MiniDocShell type={sync.node_type as 'json' | 'markdown' | 'file'} /></div>
                   }
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: '#d4d4d4', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
+                <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 72 }}>
                   {sync.node_name || 'Workspace'}
                 </div>
               </div>
@@ -325,7 +326,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
                 {statusLabel}
               </span>
               {sync.last_synced_at && (
-                <span style={{ fontSize: 11, color: '#525252' }}>
+                <span style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>
                   · {relativeTime(sync.last_synced_at)}
                 </span>
               )}
@@ -334,11 +335,11 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
                 title="Refresh"
                 style={{
                   background: 'transparent', border: 'none', cursor: 'pointer',
-                  color: '#525252', padding: 2, borderRadius: 4, display: 'flex',
+                  color: 'var(--po-text-disabled)', padding: 2, borderRadius: 4, display: 'flex',
                   marginLeft: 'auto', transition: 'color 0.15s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.color = '#a3a3a3'}
-                onMouseLeave={e => e.currentTarget.style.color = '#525252'}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text-muted)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-disabled)'}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -354,9 +355,9 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
           {sync.error_message && (
             <div style={{
               padding: '8px 12px', borderRadius: 6,
-              background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.12)',
+              background: 'color-mix(in srgb, var(--po-danger) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--po-danger) 12%, transparent)',
             }}>
-              <div style={{ fontSize: 11, color: '#f87171', lineHeight: 1.5 }}>{sync.error_message}</div>
+              <div style={{ fontSize: 11, color: 'var(--po-danger)', lineHeight: 1.5 }}>{sync.error_message}</div>
             </div>
           )}
 
@@ -396,7 +397,7 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
 
           {/* Details — minimal */}
           <div style={{ padding: '0 4px' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
               Details
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -418,27 +419,14 @@ function PanelHeader({ title, icon, onClose }: { title: string; icon?: React.Rea
   return (
     <div style={{
       height: 40, minHeight: 40, display: 'flex', alignItems: 'center', gap: 8,
-      padding: '0 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0,
+      padding: '0 12px', borderBottom: '1px solid var(--po-border-subtle)', flexShrink: 0,
     }}>
       {icon && <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>}
-      <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: '#e4e4e7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--po-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {title}
       </span>
       {onClose && (
-        <button
-          onClick={onClose}
-          title="Close panel"
-          style={{
-            background: 'none', border: 'none', color: '#71717a', cursor: 'pointer',
-            padding: '4px 6px', fontSize: 16, lineHeight: 1, borderRadius: 4,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'color 0.12s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#e4e4e7'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#71717a'; }}
-        >
-          ×
-        </button>
+        <ActivityIconButton kind="close" title="Close panel" onClick={onClose} />
       )}
     </div>
   );
@@ -525,18 +513,18 @@ function TriggerModeSelector({
   return (
     <div style={{ padding: '0 4px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Sync Mode
         </div>
         {!isLocked && !editMode && (
           <button
             onClick={() => setEditMode(true)}
             style={{
-              background: 'none', border: 'none', color: '#525252', cursor: 'pointer',
+              background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer',
               fontSize: 11, padding: '2px 6px', borderRadius: 4, transition: 'color 0.12s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#a3a3a3'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#525252'; }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-text-muted)'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-disabled)'; }}
           >
             Edit
           </button>
@@ -546,14 +534,14 @@ function TriggerModeSelector({
       {!editMode ? (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
-          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6,
+          background: 'var(--po-panel)', border: '1px solid var(--po-border-subtle)', borderRadius: 6,
         }}>
-          <span style={{ fontSize: 12, fontWeight: 500, color: '#e4e4e7' }}>{modeLabel}</span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--po-text)' }}>{modeLabel}</span>
           {currentMode === 'scheduled' && currentTrigger?.schedule && (
-            <span style={{ fontSize: 11, color: '#525252' }}>· {describeCron(currentTrigger.schedule)}</span>
+            <span style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>· {describeCron(currentTrigger.schedule)}</span>
           )}
           {isLocked && (
-            <span style={{ fontSize: 10, color: '#525252', marginLeft: 'auto' }}>Fixed</span>
+            <span style={{ fontSize: 10, color: 'var(--po-text-disabled)', marginLeft: 'auto' }}>Fixed</span>
           )}
         </div>
       ) : (
@@ -567,9 +555,9 @@ function TriggerModeSelector({
                 style={{
                   flex: 1, height: 32, borderRadius: 6, fontSize: 12, fontWeight: 500,
                   cursor: 'pointer', transition: 'all 0.12s',
-                  background: pendingMode === mode ? 'rgba(59,130,246,0.12)' : 'transparent',
-                  border: pendingMode === mode ? '1px solid rgba(59,130,246,0.3)' : '1px solid rgba(255,255,255,0.08)',
-                  color: pendingMode === mode ? '#60a5fa' : '#a3a3a3',
+                  background: pendingMode === mode ? 'color-mix(in srgb, var(--po-accent) 12%, transparent)' : 'transparent',
+                  border: pendingMode === mode ? '1px solid color-mix(in srgb, var(--po-accent) 30%, transparent)' : '1px solid var(--po-border)',
+                  color: pendingMode === mode ? 'var(--po-accent)' : 'var(--po-text-muted)',
                 }}
               >
                 {SYNC_MODE_META[mode]?.label || mode}
@@ -578,7 +566,7 @@ function TriggerModeSelector({
           </div>
 
           {/* Description */}
-          <div style={{ fontSize: 11, color: '#525252', padding: '0 2px' }}>
+          <div style={{ fontSize: 11, color: 'var(--po-text-disabled)', padding: '0 2px' }}>
             {SYNC_MODE_META[pendingMode]?.desc}
           </div>
 
@@ -597,8 +585,8 @@ function TriggerModeSelector({
               disabled={saving || (pendingMode === 'scheduled' && !scheduleConfig?.schedule)}
               style={{
                 flex: 1, height: 28, borderRadius: 6, fontSize: 12, fontWeight: 500,
-                background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.25)',
-                color: '#60a5fa', cursor: saving ? 'not-allowed' : 'pointer',
+                background: 'color-mix(in srgb, var(--po-accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--po-accent) 25%, transparent)',
+                color: 'var(--po-accent)', cursor: saving ? 'not-allowed' : 'pointer',
                 opacity: saving || (pendingMode === 'scheduled' && !scheduleConfig?.schedule) ? 0.5 : 1,
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
@@ -610,8 +598,8 @@ function TriggerModeSelector({
               onClick={handleCancel}
               style={{
                 flex: 1, height: 28, borderRadius: 6, fontSize: 12, fontWeight: 500,
-                background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
-                color: '#a3a3a3', cursor: 'pointer',
+                background: 'transparent', border: '1px solid var(--po-border)',
+                color: 'var(--po-text-muted)', cursor: 'pointer',
               }}
             >
               Cancel
@@ -671,14 +659,14 @@ function ScheduleEditor({
 
   const selectStyle: React.CSSProperties = {
     height: 28, padding: '0 6px', borderRadius: 4, fontSize: 12,
-    background: '#161616', border: '1px solid rgba(255,255,255,0.1)', color: '#e4e4e7',
+    background: 'var(--po-panel)', border: '1px solid var(--po-active)', color: 'var(--po-text)',
     cursor: 'pointer', outline: 'none',
   };
 
   return (
     <div style={{
       padding: '10px 12px', borderRadius: 6,
-      background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+      background: 'var(--po-panel)', border: '1px solid var(--po-border-subtle)',
       display: 'flex', flexDirection: 'column', gap: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -709,7 +697,7 @@ function ScheduleEditor({
             ))}
           </select>
         )}
-        <span style={{ fontSize: 12, color: '#525252' }}>at</span>
+        <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>at</span>
         <select
           value={hour}
           onChange={e => {
@@ -723,7 +711,7 @@ function ScheduleEditor({
             <option key={i} value={i}>{i.toString().padStart(2, '0')}</option>
           ))}
         </select>
-        <span style={{ fontSize: 12, color: '#525252' }}>:</span>
+        <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>:</span>
         <select
           value={minute}
           onChange={e => {
@@ -738,7 +726,7 @@ function ScheduleEditor({
           ))}
         </select>
       </div>
-      <div style={{ fontSize: 11, color: '#525252' }}>
+      <div style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>
         {repeatType === 'daily' ? `Every day at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}` : `Every ${dayLabels[weekday]} at ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`}
       </div>
     </div>
@@ -769,7 +757,7 @@ function ActionButton({ label, icon, variant = 'default', onClick }: {
   label: string; icon: string; variant?: 'default' | 'danger'; onClick: () => void;
 }) {
   const isDanger = variant === 'danger';
-  const textColor = isDanger ? '#a3a3a3' : '#d4d4d4';
+  const textColor = isDanger ? 'var(--po-text-muted)' : 'var(--po-text)';
   return (
     <button
       onClick={onClick}
@@ -777,19 +765,19 @@ function ActionButton({ label, icon, variant = 'default', onClick }: {
         flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
         height: 28, padding: '0 10px', borderRadius: 6,
         background: 'transparent',
-        border: '1px solid rgba(255,255,255,0.08)',
+        border: '1px solid var(--po-border)',
         color: textColor, fontSize: 12, fontWeight: 500, cursor: 'pointer',
         transition: 'all 0.12s',
         whiteSpace: 'nowrap',
       }}
       onMouseEnter={e => {
-        e.currentTarget.style.background = isDanger ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.04)';
-        e.currentTarget.style.borderColor = isDanger ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.12)';
-        if (isDanger) e.currentTarget.style.color = '#ef4444';
+        e.currentTarget.style.background = isDanger ? 'color-mix(in srgb, var(--po-danger) 8%, transparent)' : 'var(--po-hover)';
+        e.currentTarget.style.borderColor = isDanger ? 'color-mix(in srgb, var(--po-danger) 20%, transparent)' : 'var(--po-border-strong)';
+        if (isDanger) e.currentTarget.style.color = 'var(--po-danger)';
       }}
       onMouseLeave={e => {
         e.currentTarget.style.background = 'transparent';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+        e.currentTarget.style.borderColor = 'var(--po-border)';
         e.currentTarget.style.color = textColor;
       }}
     >
@@ -835,10 +823,10 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
     padding: '5px 8px',
     fontSize: 10,
     fontWeight: active ? 600 : 500,
-    color: active ? '#e5e5e5' : '#737373',
-    background: active ? 'rgba(255,255,255,0.05)' : 'transparent',
+    color: active ? 'var(--po-text)' : 'var(--po-text-subtle)',
+    background: active ? 'var(--po-hover)' : 'transparent',
     border: '1px solid',
-    borderColor: active ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+    borderColor: active ? 'var(--po-border-strong)' : 'var(--po-border-subtle)',
     borderRadius: 5,
     cursor: 'pointer',
     transition: 'all 0.12s',
@@ -846,15 +834,15 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
 
   return (
     <div style={{ padding: '0 4px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
         Credentials
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ fontSize: 11, color: '#525252', fontWeight: 500, width: 72 }}>Access Key</div>
-        <code style={{ flex: 1, fontSize: 11, color: '#a3a3a3', fontFamily: "'JetBrains Mono', monospace" }}>{masked}</code>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--po-hover)' }}>
+        <div style={{ fontSize: 11, color: 'var(--po-text-disabled)', fontWeight: 500, width: 72 }}>Access Key</div>
+        <code style={{ flex: 1, fontSize: 11, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)" }}>{masked}</code>
         <button
           onClick={() => handleCopy(accessKey, 'key')}
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'key' ? '#4ade80' : '#525252', padding: 4, display: 'flex' }}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'key' ? 'var(--po-success)' : 'var(--po-text-disabled)', padding: 4, display: 'flex' }}
         >
           {copied === 'key' ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -864,7 +852,7 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
         </button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '8px 0' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           Quick Start
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -876,21 +864,21 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
           </button>
         </div>
         {mode === 'connect' && (
-          <div style={{ fontSize: 10, color: '#525252', lineHeight: 1.5 }}>
-            <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#737373' }}>cd /path/to/your/folder</code> first, then run:
+          <div style={{ fontSize: 10, color: 'var(--po-text-disabled)', lineHeight: 1.5 }}>
+            <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>cd /path/to/your/folder</code> first, then run:
           </div>
         )}
         <div style={{
           padding: '8px 10px', borderRadius: 6,
-          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--po-panel)', border: '1px solid var(--po-border-subtle)',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          <code style={{ flex: 1, fontSize: 10, color: '#a3a3a3', fontFamily: "'JetBrains Mono', monospace", wordBreak: 'break-all', lineHeight: 1.5 }}>
+          <code style={{ flex: 1, fontSize: 10, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)", wordBreak: 'break-all', lineHeight: 1.5 }}>
             {activeCmd}
           </code>
           <button
             onClick={() => handleCopy(activeCmd, 'cmd')}
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'cmd' ? '#4ade80' : '#525252', padding: 4, display: 'flex', flexShrink: 0 }}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied === 'cmd' ? 'var(--po-success)' : 'var(--po-text-disabled)', padding: 4, display: 'flex', flexShrink: 0 }}
           >
             {copied === 'cmd' ? (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -899,9 +887,9 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
             )}
           </button>
         </div>
-        <div style={{ fontSize: 10, color: '#525252', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 10, color: 'var(--po-text-disabled)', lineHeight: 1.5 }}>
           {mode === 'clone'
-            ? <>Then: <code style={{ fontFamily: "'JetBrains Mono', monospace", color: '#737373' }}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code></>
+            ? <>Then: <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code></>
             : <>One-shot: init + link + commit + push. Server runs three-way merge — nothing overwritten.</>}
         </div>
       </div>
@@ -919,15 +907,15 @@ function AccessKeyRow({ accessKey }: { accessKey: string }) {
   };
   return (
     <div style={{ padding: '0 4px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#737373', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.5px' }}>
         Credentials
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-        <div style={{ fontSize: 11, color: '#525252', fontWeight: 500, width: 72 }}>Access Key</div>
-        <code style={{ flex: 1, fontSize: 11, color: '#a3a3a3', fontFamily: "'JetBrains Mono', monospace" }}>{masked}</code>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--po-hover)' }}>
+        <div style={{ fontSize: 11, color: 'var(--po-text-disabled)', fontWeight: 500, width: 72 }}>Access Key</div>
+        <code style={{ flex: 1, fontSize: 11, color: 'var(--po-text-muted)', fontFamily: "var(--po-font-sans)" }}>{masked}</code>
         <button
           onClick={handleCopy}
-          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied ? '#4ade80' : '#525252', padding: 4, display: 'flex' }}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: copied ? 'var(--po-success)' : 'var(--po-text-disabled)', padding: 4, display: 'flex' }}
         >
           {copied ? (
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -945,12 +933,12 @@ function DetailRow({ label, value, mono }: { label: string; value: string; mono?
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
       padding: '6px 0',
-      borderBottom: '1px solid rgba(255,255,255,0.04)',
+      borderBottom: '1px solid var(--po-hover)',
     }}>
-      <div style={{ fontSize: 11, color: '#525252', fontWeight: 500, flexShrink: 0, width: 72 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--po-text-disabled)', fontWeight: 500, flexShrink: 0, width: 72 }}>{label}</div>
       <div style={{
-        flex: 1, fontSize: mono ? 11 : 12, color: '#a3a3a3',
-        fontFamily: mono ? "'JetBrains Mono', monospace" : 'inherit',
+        flex: 1, fontSize: mono ? 11 : 12, color: 'var(--po-text-muted)',
+        fontFamily: mono ? "var(--po-font-sans)" : 'inherit',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
       }}>
         {value}

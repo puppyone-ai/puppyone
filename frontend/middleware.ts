@@ -71,14 +71,16 @@ export async function middleware(request: NextRequest) {
   // 路由规则
   // ============================================
 
-  // 1. 首页 "/" → 重定向到 /projects
+  // 1. 首页 "/" → 重定向到 canonical organization home.
+  // Avoid the redirect-only `/projects` route; it can make the app
+  // shell update before the page segment catches up during navigation.
   if (pathname === '/') {
-    return NextResponse.redirect(new URL('/projects', request.url));
+    return NextResponse.redirect(new URL('/home', request.url));
   }
 
-  // 2. 已登录用户访问 /login → 重定向到 /projects
+  // 2. 已登录用户访问 /login → 重定向到 canonical organization home.
   if (session && pathname === '/login') {
-    return NextResponse.redirect(new URL('/projects', request.url));
+    return NextResponse.redirect(new URL('/home', request.url));
   }
 
   // 3. 未登录用户访问受保护页面 → 重定向到 /login

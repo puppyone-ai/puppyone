@@ -11,6 +11,8 @@ from src.mut_engine.application.tree_objects import (
     is_path_excluded,
 )
 
+EMPTY_TREE_ID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+
 
 def git_view_head_commit(
     repo,
@@ -63,6 +65,8 @@ def git_view_head_commit(
     project_head = repo.get_head_commit_id() if hasattr(repo, "get_head_commit_id") else ""
     candidate = root_scope_head or project_head
     if root_hash:
+        if not candidate and root_hash == EMPTY_TREE_ID:
+            return ""
         if candidate:
             try:
                 if commit_tree_id(repo, candidate) == root_hash:

@@ -42,7 +42,7 @@ export default function LoginPage() {
 
 function LoginPageFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--po-inset)]">
       <img
         src="/puppyone-logo.svg"
         alt="PuppyOne"
@@ -67,7 +67,7 @@ function PostAuthRedirectingScreen({ message }: { message: string }) {
         position: 'fixed',
         inset: 0,
         zIndex: 9999,
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -84,7 +84,7 @@ function PostAuthRedirectingScreen({ message }: { message: string }) {
       />
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <PulseGrid />
-        <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)' }}>
+        <span style={{ fontSize: 14, color: 'var(--po-text-muted)' }}>
           {message}
         </span>
       </div>
@@ -118,9 +118,7 @@ function LoginPageInner() {
   // True the moment auth succeeds and we trigger router.push('/home').
   // Until the new page chunks load + (main)/layout mounts, Next.js keeps
   // the old login page on screen. Without a dedicated overlay the user
-  // sees the form "snap back" to its idle state and thinks nothing
-  // happened. We render a full-screen "Signing you in..." overlay until
-  // this component unmounts.
+  // sees the form snap back to its idle state and thinks nothing happened.
   const [redirecting, setRedirecting] = useState(false);
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoSubmittedRef = useRef(false);
@@ -153,8 +151,6 @@ function LoginPageInner() {
     };
   }, []);
 
-  // Surface errors / success notices carried over from server-side redirects
-  // (e.g. /auth/confirm, /reset-password).
   useEffect(() => {
     const errorCode = searchParams?.get('error');
     const resetFlag = searchParams?.get('reset');
@@ -329,7 +325,7 @@ function LoginPageInner() {
           console.error('Auth initialization failed:', initErr);
         }
         setRedirecting(true);
-        router.push(demoProjectId ? `/projects/${demoProjectId}` : '/home');
+        router.push(demoProjectId ? `/projects/${demoProjectId}/data` : '/home');
         return;
       }
     } catch (e: unknown) {
@@ -369,7 +365,7 @@ function LoginPageInner() {
         console.error('Auth initialization failed:', initErr);
       }
       setRedirecting(true);
-      router.push(demoProjectId ? `/projects/${demoProjectId}` : '/home');
+      router.push(demoProjectId ? `/projects/${demoProjectId}/data` : '/home');
       return;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Invalid or expired code';
@@ -415,7 +411,7 @@ function LoginPageInner() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] text-[#ddd] p-6 font-sans">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--po-inset)] text-[var(--po-text)] p-6 font-sans">
       <div className="w-[380px] p-6">
         <div className="flex flex-col gap-2.5">
           {/* Back navigation — above logo, only on sub-views */}
@@ -443,8 +439,8 @@ function LoginPageInner() {
           {view === 'main' && (
             <div className="animate-fade-in">
               <div className="mb-8 text-center">
-                <h1 className="text-2xl font-semibold text-[#ededed]">Welcome to PuppyOne</h1>
-                <p className="mt-2 text-sm text-[#a1a1aa]">The context hub for your agents.</p>
+                <h1 className="text-2xl font-semibold text-[var(--po-text)]">Welcome to PuppyOne</h1>
+                <p className="mt-2 text-sm text-[var(--po-text-muted)]">The context hub for your agents.</p>
               </div>
 
               <div className="flex flex-col gap-3">
@@ -490,8 +486,8 @@ function LoginPageInner() {
           {view === 'signin' && (
             <div className="animate-fade-in">
               <div className="mb-6 text-center">
-                <h2 className="text-xl font-semibold text-[#ededed]">Welcome back</h2>
-                <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
+                <h2 className="text-xl font-semibold text-[var(--po-text)]">Welcome back</h2>
+                <p className="mt-1 text-sm text-[var(--po-text-muted)]">{email}</p>
               </div>
 
               <form onSubmit={handleSignIn} className="flex flex-col gap-3">
@@ -517,7 +513,7 @@ function LoginPageInner() {
                   <button
                     onClick={handleStartVerification}
                     disabled={disabled}
-                    className="w-full h-10 px-4 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1f1f1f] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+                    className="w-full h-10 px-4 rounded-md border border-[var(--po-border)] bg-[var(--po-control)] text-[var(--po-text)] cursor-pointer text-sm font-medium transition-all hover:bg-[var(--po-control-hover)] hover:border-[var(--po-border-strong)] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
                   >
                     {loading === 'start-verify' && <Dots size="xs" />}
                     {loading === 'start-verify' ? 'Sending code…' : 'Verify your email'}
@@ -528,7 +524,7 @@ function LoginPageInner() {
               <div className="mt-4 text-center">
                 <button
                   onClick={() => { clearFeedback(); setView('forgot'); }}
-                  className="bg-transparent border-none text-[#888] hover:text-[#ccc] cursor-pointer text-sm p-0 transition-colors"
+                  className="bg-transparent border-none text-[var(--po-text-subtle)] hover:text-[var(--po-text)] cursor-pointer text-sm p-0 transition-colors"
                 >
                   Forgot password?
                 </button>
@@ -540,11 +536,11 @@ function LoginPageInner() {
           {view === 'verify-otp' && (
             <div className="animate-fade-in">
               <div className="mb-6 text-center">
-                <h2 className="text-xl font-semibold text-[#ededed]">Check your email</h2>
-                <p className="mt-1 text-sm text-[#a1a1aa]">
+                <h2 className="text-xl font-semibold text-[var(--po-text)]">Check your email</h2>
+                <p className="mt-1 text-sm text-[var(--po-text-muted)]">
                   Enter the 6-digit code we sent to
                 </p>
-                <p className="text-sm text-[#ededed] font-medium">{email}</p>
+                <p className="text-sm text-[var(--po-text)] font-medium">{email}</p>
               </div>
 
               <form
@@ -571,7 +567,7 @@ function LoginPageInner() {
                 <button
                   onClick={handleResendCode}
                   disabled={disabled || resendCooldown > 0}
-                  className="bg-transparent border-none text-[#888] enabled:hover:text-[#ccc] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm p-0 transition-colors inline-flex items-center justify-center gap-2"
+                  className="bg-transparent border-none text-[var(--po-text-subtle)] enabled:hover:text-[var(--po-text)] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer text-sm p-0 transition-colors inline-flex items-center justify-center gap-2"
                 >
                   {loading === 'resend' && <Dots size="xs" />}
                   {resendCooldown > 0
@@ -588,8 +584,8 @@ function LoginPageInner() {
           {view === 'signup' && (
             <div className="animate-fade-in">
               <div className="mb-6 text-center">
-                <h2 className="text-xl font-semibold text-[#ededed]">Create your account</h2>
-                <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
+                <h2 className="text-xl font-semibold text-[var(--po-text)]">Create your account</h2>
+                <p className="mt-1 text-sm text-[var(--po-text-muted)]">{email}</p>
               </div>
 
               <form onSubmit={handleSignUp} className="flex flex-col gap-3">
@@ -616,8 +612,8 @@ function LoginPageInner() {
           {view === 'forgot' && (
             <div className="animate-fade-in">
               <div className="mb-6 text-center">
-                <h2 className="text-xl font-semibold text-[#ededed]">Reset your password</h2>
-                <p className="mt-1 text-sm text-[#a1a1aa]">{email}</p>
+                <h2 className="text-xl font-semibold text-[var(--po-text)]">Reset your password</h2>
+                <p className="mt-1 text-sm text-[var(--po-text-muted)]">{email}</p>
               </div>
 
               <form onSubmit={handleForgotPassword} className="flex flex-col gap-3">
@@ -631,7 +627,7 @@ function LoginPageInner() {
           )}
 
           {/* Terms */}
-          <p className="text-[11px] text-[#555] text-center mt-4">
+          <p className="text-[11px] text-[var(--po-text-subtle)] text-center mt-4">
             By continuing you agree to our Terms and Privacy Policy.
           </p>
         </div>
@@ -656,7 +652,7 @@ function ProviderButton({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="w-full h-10 px-4 rounded-md border border-[#2a2a2a] bg-[#141414] text-[#e6e6e6] cursor-pointer text-sm font-medium transition-all hover:bg-[#1f1f1f] hover:border-[#3a3a3a] disabled:opacity-50 disabled:cursor-not-allowed"
+      className="w-full h-10 px-4 rounded-md border border-[var(--po-border)] bg-[var(--po-control)] text-[var(--po-text)] cursor-pointer text-sm font-medium transition-all hover:bg-[var(--po-control-hover)] hover:border-[var(--po-border-strong)] disabled:opacity-50 disabled:cursor-not-allowed"
     >
       <span className="flex items-center justify-center gap-2.5">
         {icon}
@@ -680,7 +676,7 @@ function InputField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-[#888] mb-1.5">{label}</label>
+      <label className="block text-sm font-medium text-[var(--po-text-muted)] mb-1.5">{label}</label>
       <input
         type={type}
         value={value}
@@ -690,7 +686,7 @@ function InputField({
         disabled={disabled}
         minLength={minLength}
         autoFocus={autoFocus}
-        className="w-full h-10 px-3 rounded-md border border-[#333] bg-[#0a0a0a] text-[#e6e6e6] text-sm outline-none box-border transition-colors focus:border-[#666] placeholder:text-[#444]"
+        className="w-full h-10 px-3 rounded-md border border-[var(--po-border-strong)] bg-[var(--po-inset)] text-[var(--po-text)] text-sm outline-none box-border transition-colors focus:border-[var(--po-focus-ring)] placeholder:text-[var(--po-text-disabled)]"
       />
     </div>
   );
@@ -712,7 +708,7 @@ function SubmitButton({
     <button
       type="submit"
       disabled={disabled}
-      className="w-full h-10 px-4 rounded-md border-none bg-[#ededed] text-[#0a0a0a] cursor-pointer text-sm font-semibold transition-all hover:bg-white hover:shadow-[0_0_12px_rgba(255,255,255,0.1)] disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
+      className="w-full h-10 px-4 rounded-md border-none bg-[var(--po-text)] text-[var(--po-text-inverse)] cursor-pointer text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center gap-2"
     >
       {loading && <Dots size="xs" />}
       {children}
@@ -724,7 +720,7 @@ function BackButton({ onClick, label = 'All sign in options' }: { onClick: () =>
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-1.5 bg-transparent border-none text-[#888] hover:text-[#ccc] cursor-pointer text-sm p-0 transition-colors self-start"
+      className="flex items-center gap-1.5 bg-transparent border-none text-[var(--po-text-subtle)] hover:text-[var(--po-text)] cursor-pointer text-sm p-0 transition-colors self-start"
     >
       <ArrowLeftIcon />
       <span>{label}</span>
@@ -747,7 +743,7 @@ function OtpInput({
   };
   return (
     <div>
-      <label className="block text-sm font-medium text-[#888] mb-1.5">
+      <label className="block text-sm font-medium text-[var(--po-text-muted)] mb-1.5">
         Verification code
       </label>
       <input
@@ -762,7 +758,7 @@ function OtpInput({
         required
         disabled={disabled}
         autoFocus={autoFocus}
-        className="w-full h-12 px-3 rounded-md border border-[#333] bg-[#0a0a0a] text-[#e6e6e6] text-center text-2xl font-mono tracking-[0.5em] outline-none box-border transition-colors focus:border-[#666] placeholder:text-[#333]"
+        className="w-full h-12 px-3 rounded-md border border-[var(--po-border-strong)] bg-[var(--po-inset)] text-[var(--po-text)] text-center text-2xl font-sans tracking-[0.5em] outline-none box-border transition-colors focus:border-[var(--po-focus-ring)] placeholder:text-[var(--po-border-strong)]"
       />
     </div>
   );
@@ -779,12 +775,12 @@ function Feedback({ error, message }: { error: string | null; message: string | 
   return (
     <div className="mt-3">
       {error && (
-        <div className="text-[#f66] text-sm text-center px-3 py-2 bg-[rgba(255,102,102,0.08)] rounded-lg">
+        <div className="text-[var(--po-danger)] text-sm text-center px-3 py-2 bg-[color-mix(in_srgb,var(--po-danger)_10%,transparent)] rounded-lg">
           {error}
         </div>
       )}
       {message && (
-        <div className="text-[#6f6] text-sm text-center px-3 py-2 bg-[rgba(102,255,102,0.08)] rounded-lg">
+        <div className="text-[var(--po-success)] text-sm text-center px-3 py-2 bg-[color-mix(in_srgb,var(--po-success)_10%,transparent)] rounded-lg">
           {message}
         </div>
       )}

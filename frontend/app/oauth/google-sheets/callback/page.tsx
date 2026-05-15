@@ -77,8 +77,8 @@ function GoogleSheetsCallbackContent() {
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: '100vh',
-        background: '#0a0a0a',
-        color: '#CDCDCD',
+        background: 'var(--po-inset)',
+        color: 'var(--po-text)',
       }}
     >
       <div
@@ -102,7 +102,7 @@ function GoogleSheetsCallbackContent() {
             <div
               style={{
                 fontSize: 13,
-                color: '#8B8B8B',
+                color: 'var(--po-text-muted)',
               }}
             >
               Please wait while we complete the authorization
@@ -125,7 +125,7 @@ function GoogleSheetsCallbackContent() {
                 fontSize: 16,
                 fontWeight: 500,
                 marginBottom: 8,
-                color: '#22c55e',
+                color: 'var(--po-success)',
               }}
             >
               Success!
@@ -133,7 +133,7 @@ function GoogleSheetsCallbackContent() {
             <div
               style={{
                 fontSize: 13,
-                color: '#8B8B8B',
+                color: 'var(--po-text-muted)',
               }}
             >
               {message}
@@ -141,7 +141,7 @@ function GoogleSheetsCallbackContent() {
             <div
               style={{
                 fontSize: 12,
-                color: '#666',
+                color: 'var(--po-text-subtle)',
                 marginTop: 16,
               }}
             >
@@ -165,7 +165,7 @@ function GoogleSheetsCallbackContent() {
                 fontSize: 16,
                 fontWeight: 500,
                 marginBottom: 8,
-                color: '#ef4444',
+                color: 'var(--po-danger)',
               }}
             >
               Access Setup Failed
@@ -173,7 +173,7 @@ function GoogleSheetsCallbackContent() {
             <div
               style={{
                 fontSize: 13,
-                color: '#8B8B8B',
+                color: 'var(--po-text-muted)',
               }}
             >
               {message}
@@ -181,7 +181,7 @@ function GoogleSheetsCallbackContent() {
             <div
               style={{
                 fontSize: 12,
-                color: '#666',
+                color: 'var(--po-text-subtle)',
                 marginTop: 16,
               }}
             >

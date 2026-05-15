@@ -120,10 +120,10 @@ export default function ResetPasswordPage() {
         <div style={cardStyle}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 16 }}>🔗</div>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#ccc', marginBottom: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--po-text)', marginBottom: 8 }}>
               Invalid or Expired Link
             </div>
-            <div style={{ fontSize: 13, color: '#888', marginBottom: 20, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: 'var(--po-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
               This password reset link is no longer valid. Please request a new one.
             </div>
             <button
@@ -146,10 +146,10 @@ export default function ResetPasswordPage() {
         <div style={cardStyle}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 16 }}>✓</div>
-            <div style={{ fontSize: 16, fontWeight: 500, color: '#ccc', marginBottom: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 500, color: 'var(--po-text)', marginBottom: 8 }}>
               Password Updated
             </div>
-            <div style={{ fontSize: 13, color: '#888', marginBottom: 20, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: 'var(--po-text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
               Your password has been changed and you have been signed out.
               Please sign in with your new password.
             </div>
@@ -179,7 +179,7 @@ export default function ResetPasswordPage() {
               height={64}
               style={{ opacity: 0.95, display: 'block', margin: '0 auto' }}
             />
-            <div style={{ marginTop: 10, fontSize: 16, fontWeight: 500, color: '#999' }}>
+            <div style={{ marginTop: 10, fontSize: 16, fontWeight: 500, color: 'var(--po-text-subtle)' }}>
               Set a new password
             </div>
           </div>
@@ -248,18 +248,18 @@ const containerStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  backgroundColor: '#0a0a0a',
-  color: '#ddd',
+  backgroundColor: 'var(--po-inset)',
+  color: 'var(--po-text)',
   padding: 24,
 };
 
 const cardStyle: React.CSSProperties = {
   width: 360,
-  border: '1px solid #2a2a2a',
+  border: '1px solid var(--po-border)',
   borderRadius: 12,
   padding: 24,
-  background: 'linear-gradient(135deg, rgba(25,25,25,0.98) 0%, rgba(15,15,15,0.98) 100%)',
-  boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
+  background: 'var(--po-overlay)',
+  boxShadow: '0 12px 40px var(--po-shadow), 0 0 0 1px var(--po-hover)',
 };
 
 const primaryBtnStyle: React.CSSProperties = {
@@ -267,8 +267,8 @@ const primaryBtnStyle: React.CSSProperties = {
   padding: '10px 12px',
   borderRadius: 8,
   border: 'none',
-  background: '#e6e6e6',
-  color: '#0a0a0a',
+  background: 'var(--po-text)',
+  color: 'var(--po-text-inverse)',
   cursor: 'pointer',
   fontSize: 14,
   fontWeight: 600,
@@ -279,9 +279,9 @@ const inputStyle: React.CSSProperties = {
   width: '100%',
   padding: '10px 12px',
   borderRadius: 8,
-  border: '1px solid #2a2a2a',
-  background: 'rgba(15,15,15,0.9)',
-  color: '#e6e6e6',
+  border: '1px solid var(--po-border)',
+  background: 'var(--po-inset)',
+  color: 'var(--po-text)',
   fontSize: 14,
   outline: 'none',
   boxSizing: 'border-box',
@@ -292,23 +292,23 @@ const labelStyle: React.CSSProperties = {
   display: 'block',
   fontSize: 12,
   fontWeight: 500,
-  color: '#888',
+  color: 'var(--po-text-muted)',
   marginBottom: 6,
 };
 
 const errorStyle: React.CSSProperties = {
-  color: '#f66',
+  color: 'var(--po-danger)',
   fontSize: 12,
   textAlign: 'center',
   padding: '8px 12px',
-  background: 'rgba(255,102,102,0.1)',
+  background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)',
   borderRadius: 6,
 };
 
 const linkBtnStyle: React.CSSProperties = {
   background: 'none',
   border: 'none',
-  color: '#8af',
+  color: 'var(--po-accent-text)',
   cursor: 'pointer',
   fontSize: 12,
   padding: 0,
@@ -316,11 +316,13 @@ const linkBtnStyle: React.CSSProperties = {
 };
 
 const primaryHoverIn = (e: React.MouseEvent<HTMLButtonElement>) => {
-  e.currentTarget.style.background = '#fff';
-  e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,255,255,0.15)';
+  e.currentTarget.style.background = 'var(--po-text)';
+  e.currentTarget.style.opacity = '0.9';
+  e.currentTarget.style.boxShadow = '0 4px 12px var(--po-border-strong)';
 };
 
 const primaryHoverOut = (e: React.MouseEvent<HTMLButtonElement>) => {
-  e.currentTarget.style.background = '#e6e6e6';
+  e.currentTarget.style.background = 'var(--po-text)';
+  e.currentTarget.style.opacity = '1';
   e.currentTarget.style.boxShadow = 'none';
 };

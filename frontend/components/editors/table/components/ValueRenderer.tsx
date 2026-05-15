@@ -33,13 +33,13 @@ export interface ValueRendererProps {
 // Utils
 // ============================================
 function getTypeInfo(value: JsonValue): { type: string; color: string } {
-  if (value === null) return { type: 'null', color: '#6b7280' };
-  if (typeof value === 'string') return { type: 'string', color: '#e2e8f0' };
-  if (typeof value === 'number') return { type: 'number', color: '#c084fc' };
-  if (typeof value === 'boolean') return { type: 'boolean', color: '#fb7185' };
-  if (Array.isArray(value)) return { type: 'array', color: '#fbbf24' };
-  if (typeof value === 'object') return { type: 'object', color: '#34d399' };
-  return { type: 'unknown', color: '#9ca3af' };
+  if (value === null) return { type: 'null', color: 'var(--po-json-null)' };
+  if (typeof value === 'string') return { type: 'string', color: 'var(--po-text)' };
+  if (typeof value === 'number') return { type: 'number', color: 'var(--po-json-number)' };
+  if (typeof value === 'boolean') return { type: 'boolean', color: 'var(--po-json-boolean)' };
+  if (Array.isArray(value)) return { type: 'array', color: 'var(--po-warning)' };
+  if (typeof value === 'object') return { type: 'object', color: 'var(--po-success)' };
+  return { type: 'unknown', color: 'var(--po-text-muted)' };
 }
 
 // ============================================
@@ -183,7 +183,7 @@ function PrimitiveValueEditor({
             transition: 'background 0.1s',
           }}
           onMouseEnter={e =>
-            (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)')
+            (e.currentTarget.style.background = 'var(--po-border-subtle)')
           }
           onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
         >
@@ -192,7 +192,7 @@ function PrimitiveValueEditor({
             style={{
               display: 'flex',
               alignItems: 'center',
-              color: '#6b7280',
+              color: 'var(--po-text-subtle)',
               flexShrink: 0,
             }}
           >
@@ -215,7 +215,7 @@ function PrimitiveValueEditor({
           <span
             style={{
               fontSize: 14,
-              color: '#e2e8f0',
+              color: 'var(--po-text)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis', // 关键：超出显示 ...
@@ -230,7 +230,7 @@ function PrimitiveValueEditor({
           <span
             style={{
               fontSize: 12,
-              color: '#6b7280',
+              color: 'var(--po-text-subtle)',
               whiteSpace: 'nowrap',
               flexShrink: 0, // 关键：禁止收缩
               lineHeight: '28px',
@@ -262,7 +262,7 @@ function PrimitiveValueEditor({
           style={{
             display: 'flex',
             alignItems: 'center',
-            color: '#6b7280',
+            color: 'var(--po-text-subtle)',
             flexShrink: 0,
           }}
         >
@@ -304,11 +304,11 @@ function PrimitiveValueEditor({
             pointerEvents: isSelectingAccessPoint ? 'none' : 'auto',
           }}
           onFocus={e => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+            e.currentTarget.style.background = 'var(--po-border-subtle)';
           }}
           onMouseEnter={e => {
             if (document.activeElement !== e.currentTarget) {
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+              e.currentTarget.style.background = 'var(--po-hover)';
             }
           }}
           onMouseLeave={e => {
@@ -343,11 +343,11 @@ function PrimitiveValueEditor({
         pointerEvents: isSelectingAccessPoint ? 'none' : 'auto',
       }}
       onFocus={e => {
-        e.currentTarget.style.background = 'rgba(255, 255, 255, 0.06)';
+        e.currentTarget.style.background = 'var(--po-border-subtle)';
       }}
       onMouseEnter={e => {
         if (document.activeElement !== e.currentTarget) {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+          e.currentTarget.style.background = 'var(--po-hover)';
         }
       }}
       onMouseLeave={e => {
@@ -387,7 +387,7 @@ function ExpandableToggle({
   const showAdd = !!showQuickAdd && !!onQuickAdd && !isSelectingAccessPoint;
 
   // 颜色调整：使用更低调的灰绿色/灰黄色
-  const iconColor = isArr ? '#d97706' : '#059669'; // 降低亮度和饱和度 (amber-600 / emerald-600)
+  const iconColor = isArr ? 'var(--po-warning)' : 'var(--po-success)'; // 降低亮度和饱和度 (amber-600 / emerald-600)
 
   return (
     <span
@@ -497,13 +497,13 @@ function ExpandableToggle({
               alignItems: 'center',
               justifyContent: 'center',
               background: addHovered
-                ? 'rgba(255,255,255,0.2)'
-                : 'rgba(255,255,255,0.1)',
+                ? 'color-mix(in srgb, var(--po-text) 22%, transparent)'
+                : 'var(--po-active)',
               border: 'none',
               borderRadius: 4,
               cursor: 'pointer',
               transition: 'opacity 0.12s, background 0.1s',
-              color: '#9ca3af',
+              color: 'var(--po-text-muted)',
               padding: 0,
             }}
           >
@@ -525,7 +525,7 @@ function ExpandableToggle({
               fontSize: 10,
               fontWeight: 500,
               color: iconColor,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "var(--po-font-sans)",
               marginLeft: 2,
               opacity: 0.7,
             }}

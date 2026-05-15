@@ -5,9 +5,36 @@ import { ItemActionMenu } from '@/components/ItemActionMenu';
 import { getNodeTypeConfig, isSyncedType, getSyncSource, getSyncSourceIcon, LockIcon } from '@/lib/nodeTypeConfig';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import { PageLoading } from '@/components/loading';
+import { FilePreviewIcon } from '@/lib/fileIcons';
 
 // Content type definition
 export type ContentType = 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file' | 'sync' | 'github_repo' | 'notion_page' | 'notion_database' | 'airtable_base' | 'linear_project' | 'google_sheets';
+
+const GRID_ITEM_LABEL_WIDTH = 108;
+
+function GridItemName({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      title={title}
+      className="block text-center text-[13px] font-medium text-[var(--po-text-subtle)] transition-colors group-hover:text-[var(--po-text)]"
+      style={{
+        width: GRID_ITEM_LABEL_WIDTH,
+        maxWidth: '100%',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
 // --- Finder-style Preview Icons ---
 
@@ -18,18 +45,18 @@ const DocShell = ({ children }: { children?: React.ReactNode }) => (
       {/* Shadow */}
       <path
         d="M10 6C10 4.89543 10.8954 4 12 4H43L57 18V69C57 70.1046 56.1046 71 55 71H12C10.8954 71 10 70.1046 10 69V6Z"
-        fill="black" fillOpacity="0.25"
+        fill="var(--po-file-icon-shadow)"
       />
       {/* Paper body */}
       <path
         d="M8 4C8 2.89543 8.89543 2 10 2H42L56 16V68C56 69.1046 55.1046 70 54 70H10C8.89543 70 8 69.1046 8 68V4Z"
-        fill="#222225"
-        stroke="#3a3a3d"
+        fill="var(--po-file-icon-body)"
+        stroke="var(--po-file-icon-stroke)"
         strokeWidth="1"
       />
       {/* Fold corner */}
-      <path d="M42 2V16H56" stroke="#3a3a3d" strokeWidth="1" strokeLinejoin="round" />
-      <path d="M42 2V16H56L42 2Z" fill="#2a2a2d" />
+      <path d="M42 2V16H56" stroke="var(--po-file-icon-stroke)" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M42 2V16H56L42 2Z" fill="var(--po-file-icon-fold)" />
     </svg>
     <div style={{
       position: 'absolute',
@@ -53,13 +80,13 @@ const FolderIconLarge = ({ childrenCount }: { childrenCount?: number | null }) =
         position: 'absolute',
         bottom: 0,
         right: -4,
-        background: '#3f3f46',
-        border: '1px solid #52525b',
+        background: 'var(--po-panel-raised)',
+        border: '1px solid var(--po-border)',
         borderRadius: 8,
         padding: '1px 5px',
         fontSize: 10,
         fontWeight: 600,
-        color: '#a1a1aa',
+        color: 'var(--po-text-muted)',
         lineHeight: '14px',
         minWidth: 18,
         textAlign: 'center',
@@ -77,8 +104,8 @@ const MarkdownPreviewIcon = ({ snippet }: { snippet?: string | null }) => (
       <div style={{
         fontSize: 5,
         lineHeight: 1.45,
-        color: '#8a8a8e',
-        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+        color: 'var(--po-text-muted)',
+        fontFamily: 'var(--po-font-sans)',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
         overflow: 'hidden',
@@ -89,22 +116,21 @@ const MarkdownPreviewIcon = ({ snippet }: { snippet?: string | null }) => (
     ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3.5, paddingTop: 1 }}>
         {[92, 58, 78, 48, 85, 62, 72, 52].map((w, i) => (
-          <div key={i} style={{ height: 2, background: '#52525b', borderRadius: 1, width: `${w}%` }} />
+          <div key={i} style={{ height: 2, background: 'var(--po-text-disabled)', borderRadius: 1, width: `${w}%` }} />
         ))}
       </div>
     )}
   </DocShell>
 );
 
-// JSON preview: render actual content text (like Markdown), green monospace
 const JsonPreviewIcon = ({ snippet }: { snippet?: string | null }) => (
   <DocShell>
     {snippet ? (
       <div style={{
         fontSize: 5,
         lineHeight: 1.5,
-        color: '#6ee7b7',
-        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        color: 'var(--po-success)',
+        fontFamily: 'var(--po-font-sans)',
         whiteSpace: 'pre-wrap',
         wordBreak: 'break-word',
         overflow: 'hidden',
@@ -117,8 +143,8 @@ const JsonPreviewIcon = ({ snippet }: { snippet?: string | null }) => (
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         height: '100%',
         fontSize: 8, fontWeight: 600,
-        color: '#3f6b56',
-        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+        color: 'var(--po-success)',
+        fontFamily: 'var(--po-font-sans)',
         letterSpacing: '0.5px',
       }}>
         {'{ }'}
@@ -139,8 +165,8 @@ const FileIconLarge = ({ ext }: { ext: string }) => (
       <span style={{
         fontSize: 12,
         fontWeight: 800,
-        color: '#71717a',
-        fontFamily: 'ui-monospace, monospace',
+        color: 'var(--po-text-subtle)',
+        fontFamily: 'var(--po-font-sans)',
         letterSpacing: 0.5,
         textTransform: 'uppercase',
       }}>
@@ -173,15 +199,15 @@ const UnifiedBrandedIcon = ({
   const truncated = (s: string, max: number) => s.length > max ? s.slice(0, max) : s;
 
   const isJson = typeConfig.iconCategory !== 'markdown' && typeConfig.iconCategory !== 'folder';
-  const badgeColor = isJson ? '#6ee7b7' : '#8a8a8e';
+  const badgeColor = isJson ? 'var(--po-success)' : 'var(--po-text-muted)';
 
   const DataBadge = () => (
     <svg width="30" height="36" viewBox="0 0 30 36" fill="none">
-      <path d="M2 3C2 1.895 2.895 1 4 1H19L28 10V33C28 34.105 27.105 35 26 35H4C2.895 35 2 34.105 2 33V3Z" fill="#222225" stroke="#52525b" strokeWidth="1" />
-      <path d="M19 1V10H28" stroke="#52525b" strokeWidth="1" strokeLinejoin="round" />
-      <path d="M19 1V10H28L19 1Z" fill="#2a2a2d" />
+      <path d="M2 3C2 1.895 2.895 1 4 1H19L28 10V33C28 34.105 27.105 35 26 35H4C2.895 35 2 34.105 2 33V3Z" fill="var(--po-file-icon-body)" stroke="var(--po-file-icon-stroke)" strokeWidth="1" />
+      <path d="M19 1V10H28" stroke="var(--po-file-icon-stroke)" strokeWidth="1" strokeLinejoin="round" />
+      <path d="M19 1V10H28L19 1Z" fill="var(--po-file-icon-fold)" />
       {badgeLines.length > 0 ? (
-        <text x="4" y="14" fontSize="3.4" fill={badgeColor} fontFamily={isJson ? 'ui-monospace, monospace' : '-apple-system, sans-serif'}>
+        <text x="4" y="14" fontSize="3.4" fill={badgeColor} fontFamily={isJson ? 'var(--po-font-sans)' : 'var(--po-font-sans)'}>
           {(isJson ? badgeLines : (snippet || '').split(/\s+/).reduce<string[]>((lines, word) => {
             const last = lines[lines.length - 1] || '';
             if (lines.length === 0 || last.length + word.length > 9) lines.push(word);
@@ -202,11 +228,11 @@ const UnifiedBrandedIcon = ({
   );
 
   const FolderBadge = () => (
-    <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block', filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.5))' }} />
+    <img src="/icons/folder.svg" alt="Folder" width={24} height={24} style={{ display: 'block', filter: 'drop-shadow(0 1px 3px var(--po-file-icon-shadow))' }} />
   );
 
   const ConnectorArrow = () => {
-    const color = '#71717a';
+    const color = 'var(--po-text-subtle)';
     const elbowPath = 'M 16 30 L 16 42 Q 16 46, 20 46 L 32 46';
     const elbowPathReversed = 'M 32 46 L 20 46 Q 16 46, 16 42 L 16 30';
     return (
@@ -251,7 +277,7 @@ const UnifiedBrandedIcon = ({
           top: 2,
           left: 2,
           zIndex: 10,
-          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+          filter: 'drop-shadow(0 2px 4px var(--po-file-icon-shadow))',
         }}>
           {BadgeIcon && (
             <div style={{ maxWidth: 28, maxHeight: 28 }}>
@@ -269,7 +295,7 @@ const UnifiedBrandedIcon = ({
           bottom: 0,
           right: 0,
           zIndex: 10,
-          filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))',
+          filter: 'drop-shadow(0 2px 4px var(--po-file-icon-shadow))',
         }}>
           {typeConfig.iconCategory === 'folder' ? <FolderBadge /> : <DataBadge />}
         </div>
@@ -283,14 +309,14 @@ const UnifiedBrandedIcon = ({
             width: 16,
           height: 16,
           borderRadius: '50%',
-          background: '#f59e0b',
-          border: '2px solid #18181b',
+          background: 'var(--po-warning)',
+          border: '2px solid var(--po-panel)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 20,
         }}>
-          <span style={{ color: '#000', fontSize: 10, fontWeight: 800 }}>!</span>
+          <span style={{ color: 'var(--po-text-inverse)', fontSize: 10, fontWeight: 800 }}>!</span>
         </div>
       )}
       </div>
@@ -299,7 +325,7 @@ const UnifiedBrandedIcon = ({
 };
 
 const CreateIcon = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--po-text-subtle)" strokeWidth="2">
     <path d="M12 5V19M5 12H19" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
@@ -415,7 +441,7 @@ function GridItem({
   // 根据 source 获取对应的 Logo 图标
   const BadgeIcon = getSyncSourceIcon(syncSource) || typeConfig.badgeIcon;
   const isPlaceholder = item.sync_status === 'not_connected';
-  
+
   // 格式化来源名称
   const formatSourceName = (source: string | null) => {
     if (!source) return null;
@@ -448,15 +474,13 @@ function GridItem({
 
     switch (typeConfig.iconCategory) {
       case 'folder':
-        return <FolderIconLarge childrenCount={item.children_count} />;
+        return <FilePreviewIcon name={item.name} type="folder" size={56} childrenCount={item.children_count} />;
       case 'markdown':
-        return <MarkdownPreviewIcon snippet={item.preview_snippet} />;
-      case 'file': {
-        const ext = item.name.split('.').pop()?.slice(0, 4) || 'FILE';
-        return <FileIconLarge ext={ext} />;
-      }
+        return <FilePreviewIcon name={item.name} type="markdown" size={52} snippet={item.preview_snippet} />;
+      case 'file':
+        return <FilePreviewIcon name={item.name} type={item.type} size={52} snippet={item.preview_snippet} />;
       default:
-        return <JsonPreviewIcon snippet={item.preview_snippet} />;
+        return <FilePreviewIcon name={item.name} type={item.type} size={52} snippet={item.preview_snippet} />;
     }
   };
 
@@ -511,11 +535,11 @@ function GridItem({
       }}
       {...dropHandlers}
       className={`flex flex-col items-center justify-center gap-1.5 cursor-pointer group p-3 rounded-xl transition-colors relative aspect-square ${
-        isDropTarget ? 'bg-blue-500/15 ring-2 ring-blue-500/60' :
-        isSelected ? 'bg-blue-500/20 ring-2 ring-blue-500/70' :
-        isHighlighted ? 'bg-blue-500/12 ring-2 ring-blue-500/50' :
-        hasAgentAccess ? 'ring-2 ring-orange-500/50' :
-        hovered ? 'bg-[#1a1a1a]' : 'bg-transparent'
+        isDropTarget ? 'bg-[var(--po-selected)] ring-2 ring-[var(--po-focus-ring)]' :
+        isSelected ? 'bg-[var(--po-selected)] ring-2 ring-[var(--po-focus-ring)]' :
+        isHighlighted ? 'bg-[var(--po-selected)] ring-2 ring-[var(--po-focus-ring)]' :
+        hasAgentAccess ? 'ring-2 ring-[color-mix(in_srgb,var(--po-warning)_50%,transparent)]' :
+        hovered ? 'bg-[var(--po-hover)]' : 'bg-transparent'
       }`}
       style={{
         animation: isHighlighted ? 'gridItemHighlight 2s ease-out' : undefined,
@@ -525,7 +549,7 @@ function GridItem({
       <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover:opacity-100 transition-opacity drop-shadow-sm relative" title={isPlaceholder ? "Click to connect" : undefined}>
         {getTypeIcon()}
       </div>
-      
+
       {/* Action Menu - 右上角 (absolute 定位相对于 GridItem).
           Hidden while the item is selected so the checkmark badge
           can occupy the corner without overlapping. */}
@@ -557,11 +581,11 @@ function GridItem({
             width: 18,
             height: 18,
             borderRadius: '50%',
-            background: '#3b82f6',
+            background: 'var(--po-accent)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 0 2px #18181b',
+            boxShadow: '0 0 0 2px var(--po-panel)',
             zIndex: 25,
           }}
           aria-label="Selected"
@@ -569,7 +593,7 @@ function GridItem({
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
             <path
               d="M2.5 6.5L4.75 8.75L9.5 4"
-              stroke="#fff"
+              stroke="var(--po-text-inverse)"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -580,11 +604,11 @@ function GridItem({
 
       {/* Read-only Lock Icon - 右上角 */}
       {typeConfig.isReadOnly && !isPlaceholder && (
-        <div style={{ 
-          position: 'absolute', 
-          top: 4, 
+        <div style={{
+          position: 'absolute',
+          top: 4,
           right: 4,
-          color: '#525252',
+          color: 'var(--po-text-disabled)',
           display: 'flex',
           alignItems: 'center',
         }}>
@@ -601,10 +625,10 @@ function GridItem({
             left: 4,
             padding: '2px 6px',
             borderRadius: 3,
-            background: accessMode === 'write' ? 'rgba(249, 115, 22, 0.2)' : 'rgba(100, 100, 100, 0.25)',
+            background: accessMode === 'write' ? 'color-mix(in srgb, var(--po-warning) 18%, transparent)' : 'var(--po-control)',
             fontSize: 10,
             fontWeight: 500,
-            color: accessMode === 'write' ? '#fb923c' : '#a1a1aa',
+            color: accessMode === 'write' ? 'var(--po-warning)' : 'var(--po-text-muted)',
           }}
         >
           {accessMode === 'write' ? 'Edit' : 'View'}
@@ -612,12 +636,18 @@ function GridItem({
       )}
 
       {/* Name */}
-      <span className="text-[13px] text-center truncate w-full text-[#999] group-hover:text-[#eee] transition-colors font-medium">
+      <GridItemName
+        title={
+          isSynced && syncSource && !isPlaceholder
+            ? `${item.name} · ${formatSourceName(syncSource) ?? syncSource}`
+            : item.name
+        }
+      >
         {item.name}
         {isSynced && syncSource && !isPlaceholder && (
-          <span style={{ color: '#52525b', fontSize: 10 }}> · {formatSourceName(syncSource)}</span>
+          <span style={{ color: 'var(--po-text-disabled)', fontSize: 10 }}> · {formatSourceName(syncSource)}</span>
         )}
-      </span>
+      </GridItemName>
     </div>
   );
 }
@@ -634,14 +664,12 @@ function CreateButton({
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="flex flex-col items-center justify-center gap-1.5 cursor-pointer group p-3 rounded-xl hover:bg-[#1a1a1a] transition-colors aspect-square"
+      className="flex flex-col items-center justify-center gap-1.5 cursor-pointer group p-3 rounded-xl hover:bg-[var(--po-hover)] transition-colors aspect-square"
     >
-      <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover:opacity-100 transition-opacity drop-shadow-sm border-2 border-dashed border-[#2a2a2a] group-hover:border-[#3a3a3a] rounded-xl">
+      <div className="flex items-center justify-center w-14 h-14 opacity-80 group-hover:opacity-100 transition-opacity drop-shadow-sm border-2 border-dashed border-[var(--po-border)] group-hover:border-[var(--po-border-strong)] rounded-xl">
         <CreateIcon />
       </div>
-      <span className="text-[13px] text-center truncate w-full text-[#999] group-hover:text-[#eee] transition-colors font-medium">
-        New
-      </span>
+      <GridItemName title="New">New</GridItemName>
     </div>
   );
 }
@@ -687,7 +715,7 @@ export function GridView({
     <>
       <style>{`
         @keyframes gridItemHighlight {
-          0% { background: rgba(59, 130, 246, 0.2); outline-color: rgba(59, 130, 246, 0.6); }
+          0% { background: var(--po-selected); outline-color: var(--po-focus-ring); }
           100% { background: transparent; outline-color: transparent; }
         }
       `}</style>

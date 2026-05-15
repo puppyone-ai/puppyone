@@ -8,7 +8,8 @@ import {
   type TableInfo,
   type TablePreview,
 } from '../lib/dbConnectorApi';
-import { Dots, InlineLoading } from './loading';
+import { Dots, PageLoading } from './loading';
+import { ActivityIconButton } from './ActivityIconButton';
 
 type SupabaseTablePickerDialogProps = {
   projectId: string;
@@ -125,7 +126,7 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
+        position: 'fixed', inset: 0, background: 'var(--po-backdrop)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         backdropFilter: 'blur(2px)',
       }}
@@ -133,14 +134,14 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
     >
       <div
         style={{
-          background: '#1C1C1E',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-overlay)',
+          border: '1px solid var(--po-border)',
           borderRadius: 12,
           width: 820,
           maxWidth: '95vw',
           height: 560,
           maxHeight: '90vh',
-          boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
+          boxShadow: '0 24px 48px var(--po-shadow)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           animation: 'dialog-fade-in 0.2s ease-out',
         }}
@@ -154,26 +155,26 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
         `}</style>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px 8px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <svg width="18" height="18" viewBox="0 0 109 113" fill="none">
               <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sp2)"/>
               <path d="M45.317 2.07103C48.1765 -1.53037 53.9745 0.442937 54.0434 5.041L54.4849 72.2922H9.83113C1.64038 72.2922 -2.92775 62.8321 2.1655 56.4175L45.317 2.07103Z" fill="#3ECF8E"/>
               <defs><linearGradient id="sp2" x1="53.9738" y1="54.974" x2="94.1635" y2="71.8295" gradientUnits="userSpaceOnUse"><stop stopColor="#249361"/><stop offset="1" stopColor="#3ECF8E"/></linearGradient></defs>
             </svg>
-            <span style={{ color: '#e4e4e7', fontSize: 15, fontWeight: 600 }}>Select Table to Import</span>
+            <span style={{ color: 'var(--po-text-muted)', fontSize: 13, fontWeight: 500 }}>Select Table to Import</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: 4, fontSize: 18, lineHeight: 1 }}>✕</button>
+          <ActivityIconButton kind="close" title="Close" onClick={onClose} />
         </div>
 
         {/* Body: sidebar + preview */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
           {/* Left: Table list */}
-          <div style={{ width: 220, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            <div style={{ padding: '10px 14px 6px', fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <div style={{ width: 220, borderRight: '1px solid var(--po-border-subtle)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '10px 14px 6px', fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Tables ({tables.length})
             </div>
-            <div style={{ padding: '0 12px 10px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div style={{ padding: '0 12px 10px', borderBottom: '1px solid var(--po-border-subtle)' }}>
               <input
                 type="text"
                 value={manualTableInput}
@@ -182,11 +183,11 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                 placeholder="Manual table name"
                 style={{
                   width: '100%',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'var(--po-hover)',
+                  border: '1px solid var(--po-active)',
                   borderRadius: 6,
                   padding: '7px 8px',
-                  color: '#e4e4e7',
+                  color: 'var(--po-text)',
                   fontSize: 12,
                   outline: 'none',
                 }}
@@ -199,9 +200,9 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                   width: '100%',
                   padding: '6px 8px',
                   borderRadius: 6,
-                  border: '1px solid rgba(62, 207, 142, 0.4)',
-                  background: manualTableInput.trim() ? 'rgba(62, 207, 142, 0.12)' : 'rgba(62, 207, 142, 0.05)',
-                  color: manualTableInput.trim() ? '#86efac' : '#4b5563',
+                  border: '1px solid color-mix(in srgb, #3ECF8E 40%, transparent)',
+                  background: manualTableInput.trim() ? 'color-mix(in srgb, #3ECF8E 12%, transparent)' : 'color-mix(in srgb, #3ECF8E 5%, transparent)',
+                  color: manualTableInput.trim() ? 'var(--po-success)' : 'var(--po-text-disabled)',
                   cursor: manualTableInput.trim() ? 'pointer' : 'not-allowed',
                   fontSize: 12,
                 }}
@@ -211,7 +212,9 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {tablesLoading && (
-                <div style={{ padding: '12px 14px' }}><InlineLoading /></div>
+                <div style={{ height: 96, display: 'flex' }}>
+                  <PageLoading variant="fill" label="Loading tables" />
+                </div>
               )}
               {tables.map(t => (
                 <div
@@ -220,25 +223,25 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                   style={{
                     padding: '8px 14px',
                     fontSize: 13,
-                    color: selectedTable === t.name ? '#e4e4e7' : '#a1a1aa',
-                    background: selectedTable === t.name ? 'rgba(62, 207, 142, 0.08)' : 'transparent',
+                    color: selectedTable === t.name ? 'var(--po-text)' : 'var(--po-text-muted)',
+                    background: selectedTable === t.name ? 'color-mix(in srgb, var(--po-success) 8%, transparent)' : 'transparent',
                     cursor: 'pointer',
                     borderLeft: selectedTable === t.name ? '2px solid #3ECF8E' : '2px solid transparent',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
                   }}
-                  onMouseEnter={e => { if (selectedTable !== t.name) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; } }}
+                  onMouseEnter={e => { if (selectedTable !== t.name) { e.currentTarget.style.background = 'var(--po-hover)'; } }}
                   onMouseLeave={e => { if (selectedTable !== t.name) { e.currentTarget.style.background = 'transparent'; } }}
                 >
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
-                  <span style={{ fontSize: 11, color: '#525252', flexShrink: 0, marginLeft: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', flexShrink: 0, marginLeft: 6 }}>
                     {t.columns.length}
                   </span>
                 </div>
               ))}
               {!tablesLoading && tables.length === 0 && (
-                <div style={{ padding: '12px 14px', fontSize: 13, color: '#525252', lineHeight: 1.5 }}>
+                <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--po-text-disabled)', lineHeight: 1.5 }}>
                   No auto-discovered tables.
                   <br />
                   Try manual table name above.
@@ -252,7 +255,7 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
             {/* No table selected */}
             {!selectedTable && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ textAlign: 'center', color: '#525252' }}>
+                <div style={{ textAlign: 'center', color: 'var(--po-text-disabled)' }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>←</div>
                   <div style={{ fontSize: 14 }}>Select a table to preview</div>
                 </div>
@@ -262,7 +265,7 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
             {/* Loading */}
             {selectedTable && previewLoading && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontSize: 14, color: '#71717a' }}>Loading preview...</div>
+                <PageLoading variant="fill" label="Loading preview" />
               </div>
             )}
 
@@ -271,11 +274,11 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
               <>
                 {/* Column info */}
                 {selectedTableInfo && (
-                  <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.04)', flexShrink: 0 }}>
+                  <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--po-hover)', flexShrink: 0 }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {selectedTableInfo.columns.map(c => (
-                        <span key={c.name} style={{ padding: '2px 8px', background: 'rgba(255,255,255,0.03)', borderRadius: 4, fontSize: 11, color: '#71717a' }}>
-                          {c.name} <span style={{ color: '#3f3f46' }}>{c.type}</span>
+                        <span key={c.name} style={{ padding: '2px 8px', background: 'var(--po-hover)', borderRadius: 4, fontSize: 11, color: 'var(--po-text-subtle)' }}>
+                          {c.name} <span style={{ color: 'var(--po-text-disabled)' }}>{c.type}</span>
                         </span>
                       ))}
                     </div>
@@ -288,19 +291,19 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                     style={{
                       margin: '12px 16px 0',
                       padding: '12px',
-                      background: 'rgba(59, 130, 246, 0.1)',
-                      border: '1px solid rgba(59, 130, 246, 0.25)',
+                      background: 'var(--po-selected)',
+                      border: '1px solid var(--po-focus-ring)',
                       borderRadius: 8,
                     }}
                   >
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#93c5fd', marginBottom: 6 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--po-accent-text)', marginBottom: 6 }}>
                       No rows returned (possible RLS policy issue)
                     </div>
-                    <div style={{ fontSize: 12, color: '#cbd5e1', lineHeight: 1.5, marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, color: 'var(--po-text)', lineHeight: 1.5, marginBottom: 8 }}>
                       The table may contain data, but anon access can still return 0 rows when RLS is enabled
                       and no SELECT policy exists for role <code>anon</code>.
                     </div>
-                    <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
+                    <div style={{ fontSize: 12, color: 'var(--po-text-muted)', marginBottom: 6 }}>
                       Try this in Supabase SQL Editor (replace with your final secure policy later):
                     </div>
                     <div style={{ position: 'relative' }}>
@@ -319,9 +322,9 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                           alignItems: 'center',
                           justifyContent: 'center',
                           borderRadius: 6,
-                          border: '1px solid rgba(148, 163, 184, 0.35)',
-                          background: 'rgba(2, 6, 23, 0.72)',
-                          color: '#94a3b8',
+                          border: '1px solid color-mix(in srgb, var(--po-text-muted) 35%, transparent)',
+                          background: 'var(--po-inset)',
+                          color: 'var(--po-text-muted)',
                           cursor: 'pointer',
                           fontSize: 12,
                         }}
@@ -333,18 +336,18 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                       </button>
                       <pre
                         style={{
-                          background: 'rgba(0,0,0,0.55)',
-                          border: '1px solid rgba(255,255,255,0.08)',
+                          background: 'var(--po-inset)',
+                          border: '1px solid var(--po-border)',
                           borderRadius: 6,
                           padding: '38px 10px 10px',
                           margin: 0,
                           fontSize: 11,
-                          color: '#e2e8f0',
+                          color: 'var(--po-text)',
                           overflow: 'auto',
                         }}
                       >{rlsSuggestionSql}</pre>
                     </div>
-                    <div style={{ marginTop: 6, fontSize: 12, color: copySqlStatus === 'failed' ? '#fca5a5' : '#93c5fd' }}>
+                    <div style={{ marginTop: 6, fontSize: 12, color: copySqlStatus === 'failed' ? 'var(--po-danger)' : 'var(--po-accent-text)' }}>
                       {copySqlStatus === 'copied' ? 'Copied' : copySqlStatus === 'failed' ? 'Copy failed' : ''}
                     </div>
                   </div>
@@ -354,9 +357,9 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                 <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                     <thead>
-                      <tr style={{ position: 'sticky', top: 0, background: '#1C1C1E', zIndex: 1 }}>
+                      <tr style={{ position: 'sticky', top: 0, background: 'var(--po-overlay)', zIndex: 1 }}>
                         {preview.columns.map(col => (
-                          <th key={col} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: '#a1a1aa', borderBottom: '1px solid rgba(255,255,255,0.08)', whiteSpace: 'nowrap' }}>
+                          <th key={col} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--po-text-muted)', borderBottom: '1px solid var(--po-border)', whiteSpace: 'nowrap' }}>
                             {col}
                           </th>
                         ))}
@@ -364,18 +367,18 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                     </thead>
                     <tbody>
                       {preview.rows.map((row, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
-                          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--po-hover)' }}
+                          onMouseEnter={e => e.currentTarget.style.background = 'var(--po-panel)'}
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                         >
                           {preview.columns.map(col => (
                             <td key={col} style={{
-                              padding: '6px 12px', color: '#d4d4d8', maxWidth: 250, overflow: 'hidden',
+                              padding: '6px 12px', color: 'var(--po-text-muted)', maxWidth: 250, overflow: 'hidden',
                               textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+                              fontFamily: 'var(--po-font-sans)',
                             }} title={String(row[col] ?? '')}>
                               {row[col] === null
-                                ? <span style={{ color: '#525252', fontStyle: 'italic' }}>null</span>
+                                ? <span style={{ color: 'var(--po-text-disabled)', fontStyle: 'italic' }}>null</span>
                                 : String(row[col])}
                             </td>
                           ))}
@@ -386,8 +389,8 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                 </div>
 
                 {/* Footer: row count + save */}
-                <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-                  <span style={{ fontSize: 12, color: '#71717a' }}>
+                <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                  <span style={{ fontSize: 12, color: 'var(--po-text-subtle)' }}>
                     Showing {preview.row_count} rows · {preview.execution_time_ms.toFixed(0)}ms
                   </span>
 
@@ -396,8 +399,8 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
                     disabled={isSaving}
                     style={{
                       padding: '7px 20px', borderRadius: 8, border: 'none',
-                      background: isSaving ? 'rgba(62, 207, 142, 0.3)' : '#3ECF8E',
-                      color: isSaving ? 'rgba(0,0,0,0.4)' : '#000',
+                      background: isSaving ? 'color-mix(in srgb, #3ECF8E 30%, transparent)' : '#3ECF8E',
+                      color: isSaving ? 'var(--po-text-disabled)' : '#06130c',
                       cursor: isSaving ? 'not-allowed' : 'pointer',
                       fontSize: 13, fontWeight: 600,
                       display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -412,14 +415,14 @@ CREATE POLICY "Allow anon read" ON ${selectedTable}
 
             {/* Error */}
             {error && (
-              <div style={{ margin: '12px 16px', padding: '10px 12px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 8, color: '#fca5a5', fontSize: 13 }}>
+              <div style={{ margin: '12px 16px', padding: '10px 12px', background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--po-danger) 20%, transparent)', borderRadius: 8, color: 'var(--po-danger)', fontSize: 13 }}>
                 {error}
               </div>
             )}
 
             {/* Save success */}
             {saveSuccess && (
-              <div style={{ margin: '12px 16px', padding: '10px 12px', background: 'rgba(62, 207, 142, 0.1)', border: '1px solid rgba(62, 207, 142, 0.2)', borderRadius: 8, color: '#6ee7b7', fontSize: 13 }}>
+              <div style={{ margin: '12px 16px', padding: '10px 12px', background: 'color-mix(in srgb, var(--po-success) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--po-success) 20%, transparent)', borderRadius: 8, color: 'var(--po-success)', fontSize: 13 }}>
                 {saveSuccess}
               </div>
             )}

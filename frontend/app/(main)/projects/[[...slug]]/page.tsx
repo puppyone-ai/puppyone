@@ -2,12 +2,12 @@ import { redirect } from 'next/navigation';
 
 /**
  * Legacy Route Redirect
- * 
+ *
  * This catch-all route handles legacy URLs and redirects to the new structure:
- * 
+ *
  * Old:  /projects/{projectId}/{path...}
  * New:  /projects/{projectId}/data/{path...}
- * 
+ *
  * Also handles:
  * - /projects → /home
  * - /projects/{projectId} → /projects/{projectId}/data

@@ -16,13 +16,13 @@ import { $prose } from '@milkdown/utils';
 import { Plugin, PluginKey } from '@milkdown/prose/state';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 
-// Custom dark theme CSS
+// Theme-aware Milkdown CSS.
 // Design: line-height 24px + margin 8px = 40px visual rhythm
-const darkThemeStyles = `
+const editorThemeStyles = `
   .milkdown-editor {
-    background: #0e0e0e;
-    color: #d4d4d4;
-    font-family: 'SF Pro Text', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--po-canvas);
+    color: var(--po-text-muted);
+    font-family: var(--po-font-sans);
     font-size: 14px;
     line-height: 24px;
     padding: 24px 32px;
@@ -41,27 +41,27 @@ const darkThemeStyles = `
     font-size: 24px;
     font-weight: 600;
     line-height: 32px;
-    color: #f9fafb;
+    color: var(--po-text);
     margin: 24px 0 8px 0;
     padding-bottom: 8px;
-    border-bottom: 1px solid #262626;
+    border-bottom: 1px solid var(--po-border);
   }
 
   .milkdown-editor h2 {
     font-size: 20px;
     font-weight: 600;
     line-height: 28px;
-    color: #f9fafb;
+    color: var(--po-text);
     margin: 20px 0 8px 0;
     padding-bottom: 6px;
-    border-bottom: 1px solid #1a1a1a;
+    border-bottom: 1px solid var(--po-border-subtle);
   }
 
   .milkdown-editor h3 {
     font-size: 16px;
     font-weight: 600;
     line-height: 24px;
-    color: #f9fafb;
+    color: var(--po-text);
     margin: 16px 0 8px 0;
   }
 
@@ -69,18 +69,19 @@ const darkThemeStyles = `
     font-size: 14px;
     font-weight: 600;
     line-height: 24px;
-    color: #e5e5e5;
+    color: var(--po-text);
     margin: 12px 0 8px 0;
   }
 
   /* Paragraphs */
   .milkdown-editor p {
     margin: 8px 0;
+    color: var(--po-text-muted);
   }
 
   /* Links */
   .milkdown-editor a {
-    color: #60a5fa;
+    color: var(--po-accent);
     text-decoration: none;
   }
 
@@ -96,40 +97,40 @@ const darkThemeStyles = `
 
   .milkdown-editor .ProseMirror li {
     margin: 4px 0;
-    color: #d4d4d4;
+    color: var(--po-text-muted);
   }
 
   .milkdown-editor .ProseMirror ul > li::marker,
   .milkdown-editor .ProseMirror ol > li::marker {
-    color: #9ca3af !important;
+    color: var(--po-text-subtle) !important;
   }
 
   /* Blockquote */
   .milkdown-editor blockquote {
     margin: 8px 0;
     padding: 8px 16px;
-    border-left: 3px solid #404040;
-    background: #141414;
+    border-left: 3px solid var(--po-border-strong);
+    background: var(--po-control);
     border-radius: 0 6px 6px 0;
-    color: #a1a1aa;
+    color: var(--po-text-muted);
     line-height: 24px;
   }
 
   /* Code */
   .milkdown-editor code {
-    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace;
+    font-family: var(--po-font-sans);
     font-size: 13px;
-    background: #1a1a1a;
+    background: var(--po-control);
     padding: 1px 5px;
     border-radius: 3px;
-    color: #86efac;
+    color: var(--po-success);
   }
 
   .milkdown-editor pre {
     margin: 8px 0;
     padding: 12px 16px;
-    background: #0f0f0f;
-    border: 1px solid #1a1a1a;
+    background: var(--po-inset);
+    border: 1px solid var(--po-border);
     border-radius: 6px;
     overflow-x: auto;
   }
@@ -147,7 +148,7 @@ const darkThemeStyles = `
     margin: 8px 0;
     border-collapse: separate;
     border-spacing: 0;
-    border: 1px solid #262626;
+    border: 1px solid var(--po-border);
     border-radius: 6px;
     overflow: hidden;
     font-size: 13px;
@@ -158,17 +159,17 @@ const darkThemeStyles = `
     padding: 8px 12px;
     text-align: left;
     font-weight: 600;
-    color: #d4d4d4;
-    background: #141414;
-    border-bottom: 1px solid #262626;
-    border-right: 1px solid #1a1a1a;
+    color: var(--po-text);
+    background: var(--po-control);
+    border-bottom: 1px solid var(--po-border);
+    border-right: 1px solid var(--po-border-subtle);
   }
 
   .milkdown-editor td {
     padding: 6px 12px;
-    border-bottom: 1px solid #1a1a1a;
-    border-right: 1px solid #1a1a1a;
-    color: #a1a1aa;
+    border-bottom: 1px solid var(--po-border-subtle);
+    border-right: 1px solid var(--po-border-subtle);
+    color: var(--po-text-muted);
   }
 
   .milkdown-editor th:last-child, .milkdown-editor td:last-child {
@@ -182,7 +183,7 @@ const darkThemeStyles = `
   /* Horizontal rule */
   .milkdown-editor hr {
     border: none;
-    border-top: 1px solid #262626;
+    border-top: 1px solid var(--po-border);
     margin: 16px 0;
   }
 
@@ -202,7 +203,7 @@ const darkThemeStyles = `
     top: 5px;
     width: 16px;
     height: 16px;
-    border: 2px solid #525252;
+    border: 2px solid var(--po-text-disabled);
     border-radius: 4px;
     background: transparent;
     cursor: pointer;
@@ -211,8 +212,8 @@ const darkThemeStyles = `
 
   /* Checked state */
   .milkdown-editor li[data-item-type="task"][data-checked="true"]::before {
-    background: #22c55e;
-    border-color: #22c55e;
+    background: var(--po-success);
+    border-color: var(--po-success);
   }
 
   /* Checkmark icon for checked items */
@@ -223,14 +224,14 @@ const darkThemeStyles = `
     top: 8px;
     width: 5px;
     height: 9px;
-    border: solid #0a0a0a;
+    border: solid var(--po-inset);
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
   }
 
   /* Strikethrough text for completed tasks */
   .milkdown-editor li[data-item-type="task"][data-checked="true"] {
-    color: #6b7280;
+    color: var(--po-text-subtle);
   }
 
   .milkdown-editor li[data-item-type="task"][data-checked="true"] > p {
@@ -240,13 +241,13 @@ const darkThemeStyles = `
   /* Unchecked hover state */
   .milkdown-editor li[data-item-type="task"][data-checked="false"]::before,
   .milkdown-editor li[data-item-type="task"]:not([data-checked="true"])::before {
-    border-color: #525252;
+    border-color: var(--po-text-disabled);
   }
 
   .milkdown-editor li[data-item-type="task"][data-checked="false"]:hover::before,
   .milkdown-editor li[data-item-type="task"]:not([data-checked="true"]):hover::before {
-    border-color: #737373;
-    background: #1a1a1a;
+    border-color: var(--po-border-strong);
+    background: var(--po-panel-raised);
   }
 
   /* Ensure task list container doesn't show bullets */
@@ -257,39 +258,39 @@ const darkThemeStyles = `
   /* Strong & Em */
   .milkdown-editor strong {
     font-weight: 600;
-    color: #f9fafb;
+    color: var(--po-text);
   }
 
   .milkdown-editor em {
     font-style: italic;
-    color: #d4d4d4;
+    color: var(--po-text-muted);
   }
 
   /* Strikethrough */
   .milkdown-editor del {
     text-decoration: line-through;
-    color: #737373;
+    color: var(--po-text-subtle);
   }
 
   /* Selection */
   .milkdown-editor ::selection {
-    background: #3f3f46;
+    background: var(--po-selected);
   }
 
   /* Placeholder - show when editor is empty */
   .milkdown-editor .ProseMirror > p:first-child:last-child:empty::before,
   .milkdown-editor .ProseMirror > p:first-child:last-child:has(br:only-child)::before {
     content: 'Start writing...';
-    color: #525252;
+    color: var(--po-text-disabled);
     pointer-events: none;
     position: absolute;
     font-style: italic;
   }
-  
+
   /* Also handle completely empty editor */
   .milkdown-editor .ProseMirror:empty::before {
     content: 'Start writing...';
-    color: #525252;
+    color: var(--po-text-disabled);
     pointer-events: none;
     font-style: italic;
   }
@@ -298,7 +299,7 @@ const darkThemeStyles = `
   .milkdown-editor:focus-within {
     outline: none;
   }
-  
+
   /* Ensure clicking anywhere focuses the editor */
   .milkdown-editor .ProseMirror {
     min-height: 100%;
@@ -327,21 +328,21 @@ const taskListClickPlugin = $prose(() => {
       handleClick(view, pos, event) {
         const { target } = event;
         if (!(target instanceof HTMLElement)) return false;
-        
+
         // Check if clicked on a task list item (within the checkbox area)
         const li = target.closest('li[data-item-type="task"]');
         if (!li) return false;
-        
+
         // Only toggle if clicked on the left side (checkbox area)
         const rect = li.getBoundingClientRect();
         const clickX = event.clientX - rect.left;
         if (clickX > 28) return false; // Only respond to clicks in the checkbox area
-        
+
         // Find the node position
         const $pos = view.state.doc.resolve(pos);
         let nodePos = $pos.before($pos.depth);
         let node = view.state.doc.nodeAt(nodePos);
-        
+
         // Walk up to find the list item node
         for (let depth = $pos.depth; depth >= 0; depth--) {
           const n = view.state.doc.nodeAt($pos.before(depth));
@@ -351,9 +352,9 @@ const taskListClickPlugin = $prose(() => {
             break;
           }
         }
-        
+
         if (!node || node.attrs.checked == null) return false;
-        
+
         // Toggle the checked state
         const tr = view.state.tr.setNodeMarkup(nodePos, undefined, {
           ...node.attrs,
@@ -447,10 +448,10 @@ export const MilkdownEditor = forwardRef<MilkdownEditorRef, MilkdownEditorProps>
           height: '100%',
           width: '100%',
           overflow: 'auto',
-          background: '#0e0e0e',
+          background: 'var(--po-canvas)',
         }}
       >
-        <style>{darkThemeStyles}</style>
+        <style>{editorThemeStyles}</style>
         <MilkdownProvider>
           <MilkdownEditorContent
             defaultValue={content}

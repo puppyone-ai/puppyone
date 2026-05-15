@@ -95,7 +95,7 @@ export function RightAuxiliaryPanel({
           display: 'flex',
           flexDirection: 'column',
           height: '100%',
-          background: '#161618',
+          background: 'var(--po-panel)',
           overflow: 'hidden',
           // 全屏时的淡入动画
           animation: 'fadeIn 0.2s ease',
@@ -131,8 +131,8 @@ export function RightAuxiliaryPanel({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        borderLeft: isVisible ? '1px solid #2a2a2a' : 'none',
-        background: '#111111',
+        borderLeft: isVisible ? '1px solid var(--po-border)' : 'none',
+        background: 'var(--po-panel)',
         position: 'relative',
         flexShrink: 0,
         overflow: 'hidden',
@@ -159,7 +159,7 @@ export function RightAuxiliaryPanel({
           zIndex: 10,
           background:
             isResizing || isResizeHovered
-              ? 'rgba(255, 255, 255, 0.1)'
+              ? 'var(--po-active)'
               : 'transparent',
           transition: 'background 0.15s',
         }}

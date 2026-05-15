@@ -140,7 +140,7 @@ class SyncService:
         project_id: str,
         provider: str,
         config: dict,
-        target_folder_path: str,
+        target_folder_path: Optional[str] = None,
         *,
         credentials_ref: Optional[str] = None,
         direction: str = "inbound",
@@ -150,8 +150,9 @@ class SyncService:
         user_id: Optional[str] = None,
     ) -> Sync:
         """
-        Create exactly one sync binding for connectors that fetch a single
-        aggregated resource into one PuppyOne file.
+        Create exactly one sync binding for direct connectors. The connector
+        may later write either one aggregate file or a multi-file import under
+        the created mount point.
         """
         connector = self._get_connector(provider)
         if not connector:
@@ -162,9 +163,6 @@ class SyncService:
             raise ValueError(
                 f"Connector {provider} does not support direct sync creation"
             )
-
-        if not target_folder_path:
-            raise ValueError("target_folder_path is required")
 
         trigger_data = trigger or {}
         if not trigger_data.get("type"):
@@ -352,4 +350,3 @@ class SyncService:
             log_error(f"[L2.5] PUSH failed for {path}: {e}")
             self.sync_repo.update_error(sync.id, str(e))
             return []
-

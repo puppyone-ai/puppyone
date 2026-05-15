@@ -11,6 +11,7 @@ import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
 
 type AppSidebarProps = {
   projects: ProjectInfo[];
+  projectsLoading?: boolean;
   activeBaseId: string;
   activeView?: string;
   userInitial: string;
@@ -21,11 +22,15 @@ type AppSidebarProps = {
   sidebarWidth?: number;
   onSidebarWidthChange?: (width: number) => void;
   currentOrg?: OrganizationInfo | null;
+  organizationIdentityLoading?: boolean;
+  projectIdentityLoading?: boolean;
+  userIdentityLoading?: boolean;
   onOpenGuide?: () => void;
 };
 
 export const AppSidebar = memo(function AppSidebar({
   projects,
+  projectsLoading = false,
   activeBaseId,
   activeView = 'projects',
   userInitial,
@@ -36,14 +41,26 @@ export const AppSidebar = memo(function AppSidebar({
   sidebarWidth,
   onSidebarWidthChange,
   currentOrg,
+  organizationIdentityLoading = false,
+  projectIdentityLoading = false,
+  userIdentityLoading = false,
   onOpenGuide,
 }: AppSidebarProps) {
   const router = useRouter();
   const t = useTranslations('nav');
 
-  const activeProject = activeBaseId
+  const activeProjectFromList = activeBaseId
     ? projects.find(p => p.id === activeBaseId)
     : null;
+  const activeProject = activeBaseId
+    ? activeProjectFromList ?? {
+        id: activeBaseId,
+        name: '',
+        nodes: [],
+      }
+    : null;
+  const activeProjectTitleLoading =
+    Boolean(activeBaseId && !activeProjectFromList) || projectIdentityLoading;
 
   const projectOptions = projects.map((p) => ({
     id: p.id,
@@ -54,14 +71,13 @@ export const AppSidebar = memo(function AppSidebar({
   // small while `total` still reflects the real commit count.
   // Cached for 60s to avoid refetching every render.
   const { data: history } = useSWR(
-    activeProject ? ['sidebar-stats', activeProject.id] : null,
-    () => getProjectHistory(activeProject!.id, 1),
+    activeProjectFromList ? ['sidebar-stats', activeProjectFromList.id] : null,
+    () => getProjectHistory(activeProjectFromList!.id, 1),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
-  const projectStats = activeProject
+  const projectStats = activeProjectFromList
     ? {
-        shortId: activeProject.id.slice(0, 8),
         commitCount: history?.total,
       }
     : undefined;
@@ -165,10 +181,12 @@ export const AppSidebar = memo(function AppSidebar({
     return (
       <SidebarLayout
         title={activeProject.name}
+        titleLoading={activeProjectTitleLoading}
         context="project"
         currentProjectId={activeProject.id}
         projects={projectOptions}
-        onSelectProject={(projectId) => router.push(`/projects/${projectId}`)}
+        projectsLoading={projectsLoading}
+        onSelectProject={(projectId) => router.push(`/projects/${projectId}/data`)}
         onHoverProject={(projectId) => {
           router.prefetch(`/projects/${projectId}/data`);
         }}
@@ -204,9 +222,10 @@ export const AppSidebar = memo(function AppSidebar({
           };
           if (pathMap[viewId]) router.prefetch(pathMap[viewId]);
         }}
-        onBack={() => router.push('/projects')}
+        onBack={() => router.push('/home')}
         userInitial={userInitial}
         userAvatarUrl={userAvatarUrl}
+        userIdentityLoading={userIdentityLoading}
         environmentLabel={environmentLabel}
         isCollapsed={isCollapsed}
         onCollapsedChange={onCollapsedChange}
@@ -230,6 +249,7 @@ export const AppSidebar = memo(function AppSidebar({
         </svg>
       ),
       badge: projects.length,
+      badgeLoading: projectsLoading,
     },
     {
       id: 'team',
@@ -258,10 +278,12 @@ export const AppSidebar = memo(function AppSidebar({
   return (
     <SidebarLayout
       title={currentOrg?.name ?? 'puppyone'}
+      titleLoading={organizationIdentityLoading}
       context="global"
       currentProjectId={null}
       projects={projectOptions}
-      onSelectProject={(projectId) => router.push(`/projects/${projectId}`)}
+      projectsLoading={projectsLoading}
+      onSelectProject={(projectId) => router.push(`/projects/${projectId}/data`)}
       onGoHome={() => router.push('/home')}
       activeView={activeView}
       navItems={globalNavItems}
@@ -278,6 +300,7 @@ export const AppSidebar = memo(function AppSidebar({
       }}
       userInitial={userInitial}
       userAvatarUrl={userAvatarUrl}
+      userIdentityLoading={userIdentityLoading}
       environmentLabel={environmentLabel}
       isCollapsed={isCollapsed}
       onCollapsedChange={onCollapsedChange}

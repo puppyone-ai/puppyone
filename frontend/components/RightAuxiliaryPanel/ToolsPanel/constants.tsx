@@ -2,7 +2,7 @@ import React from 'react';
 import { type McpToolType } from '../../../lib/mcpApi';
 
 // Theme Color - Consistent Orange
-export const ACCENT_COLOR = '#f97316'; // Orange-500
+export const ACCENT_COLOR = 'var(--po-warning)'; // Orange-500
 
 // Define Tool Groups
 // NOTE: shell_access is NOT a Tool - it's managed via agent_bash table per Agent

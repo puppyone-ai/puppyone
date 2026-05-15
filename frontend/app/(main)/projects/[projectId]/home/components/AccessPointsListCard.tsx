@@ -164,7 +164,7 @@ function CopyableLine({
           fontSize: 10,
           fontWeight: 500,
           color: isCopied ? T.live : T.text3,
-          background: 'rgba(255,255,255,0.04)',
+          background: 'var(--po-hover)',
           border: `1px solid ${T.cardBorder}`,
           borderRadius: 3,
           cursor: 'pointer',
@@ -173,12 +173,12 @@ function CopyableLine({
         }}
         onMouseEnter={(e) => {
           if (isCopied) return;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+          e.currentTarget.style.background = 'var(--po-border)';
           e.currentTarget.style.color = T.text1;
         }}
         onMouseLeave={(e) => {
           if (isCopied) return;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+          e.currentTarget.style.background = 'var(--po-hover)';
           e.currentTarget.style.color = T.text3;
         }}
       >
@@ -244,7 +244,7 @@ export function AccessPointsListCard({
               height: 18,
               padding: '0 6px',
               borderRadius: 9,
-              background: 'rgba(255,255,255,0.08)',
+              background: 'var(--po-border)',
               fontSize: 11,
               fontWeight: 600,
               color: total > 0 ? T.text2 : T.text3,
@@ -438,7 +438,7 @@ function ApListRow({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(255,255,255,0.05)',
+              background: 'var(--po-hover)',
               flexShrink: 0,
             }}
           >
@@ -550,7 +550,7 @@ function ApListRow({
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = T.text1;
-              e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+              e.currentTarget.style.background = 'var(--po-border-subtle)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = T.text3;

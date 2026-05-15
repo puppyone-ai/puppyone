@@ -23,7 +23,7 @@
  *      width state; the child owns its content.
  *
  * Visual contract — matches `SidebarLayout`'s outer rail handle pixel
- * for pixel: `right: -2px`, `width: 4px`, `bg-white/10` on hover/drag.
+ * for pixel: `right: -2px`, `width: 4px`, theme token background on hover/drag.
  * That way users get one consistent affordance whether they're
  * resizing the global rail or any inner column.
  */
@@ -112,24 +112,6 @@ export function ResizableSidebarColumn({
 }: ResizableSidebarColumnProps) {
   const isControlled = controlledWidth !== undefined;
 
-  // Width state — uncontrolled mode only.
-  //
-  // Initialised LAZILY from localStorage so that on every client-side
-  // remount (the dominant case: navigating between data / access /
-  // history) the very first paint already shows the user's saved
-  // width. The previous implementation defaulted to `defaultWidth`
-  // and then snapped via a `useEffect`, which combined with the
-  // 150ms width transition produced a visible "grow → settle" drift
-  // on every page load.
-  //
-  // SSR caveat: on the very first server render `window` is undefined
-  // so `readPersistedWidth` returns null and we fall back to
-  // `defaultWidth`. The client then hydrates with the saved width,
-  // which would be a hydration mismatch on the `style.width` value.
-  // That's harmless for content (no DOM structure changes) and
-  // we further mute it visually by suppressing the `transition` on
-  // the very first mount (see `isReady` below) — the snap is instant,
-  // not animated.
   const [internalWidth, setInternalWidth] = useState<number>(() =>
     isControlled
       ? defaultWidth
@@ -140,27 +122,13 @@ export function ResizableSidebarColumn({
   const [isResizing, setIsResizing] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // `isReady` flips true after the first commit, gating the width
-  // transition. Until then the column renders with `transition:none`
-  // so the (rare) SSR-to-hydration width snap is instantaneous —
-  // user never sees an animation between defaults and saved widths.
   const [isReady, setIsReady] = useState(false);
   useIsomorphicLayoutEffect(() => {
-    // Belt-and-suspenders: if the SSR path rendered `defaultWidth`
-    // but localStorage actually has a saved value, snap to it
-    // synchronously before paint. Skipped when we already lazy-
-    // initialised correctly (the common case post-hydration).
     if (!isControlled) {
       const saved = readPersistedWidth(storageKey, minWidth, maxWidth);
-      if (saved !== null && saved !== internalWidth) {
-        setInternalWidth(saved);
-      }
+      if (saved !== null && saved !== internalWidth) setInternalWidth(saved);
     }
     setIsReady(true);
-    // We intentionally only run this once on mount — re-running on
-    // every storageKey change would re-fire the snap during
-    // controlled-mode parents that never hit the localStorage path
-    // anyway. Storage key is treated as a stable identifier.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -173,12 +141,9 @@ export function ResizableSidebarColumn({
       }
       setInternalWidth(clamped);
       try {
-        window.localStorage.setItem(
-          `sidebar-width:${storageKey}`,
-          String(Math.round(clamped))
-        );
+        window.localStorage.setItem(`sidebar-width:${storageKey}`, String(Math.round(clamped)));
       } catch {
-        // ignore — see hydrate comment.
+        // localStorage can be unavailable in private/sandboxed contexts.
       }
     },
     [isControlled, onWidthChange, storageKey, minWidth, maxWidth]
@@ -189,18 +154,13 @@ export function ResizableSidebarColumn({
     setIsResizing(true);
   }, []);
 
-  // Drag loop — global mouse listeners only while the user is
-  // actively resizing. Setting `cursor` + `userSelect` on <body>
-  // (rather than per-element) keeps the col-resize cursor sticky
-  // even when the pointer briefly leaves the handle, and prevents
-  // accidental text selection across the rest of the page.
   useEffect(() => {
     if (!isResizing) return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (event: MouseEvent) => {
       const rect = wrapperRef.current?.getBoundingClientRect();
       if (!rect) return;
-      commitWidth(e.clientX - rect.left);
+      commitWidth(event.clientX - rect.left);
     };
     const handleMouseUp = () => setIsResizing(false);
 
@@ -254,7 +214,7 @@ export function ResizableSidebarColumn({
         onMouseDown={handleMouseDown}
         className={clsx(
           'absolute top-0 right-[-2px] z-20 h-full w-1 cursor-col-resize',
-          isResizing ? 'bg-white/10' : 'hover:bg-white/10'
+          isResizing ? 'bg-[var(--po-active)]' : 'hover:bg-[var(--po-active)]'
         )}
       />
     </div>

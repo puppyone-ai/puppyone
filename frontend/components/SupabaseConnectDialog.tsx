@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { createConnection, type ConnectionErrorDetail, type KeyType } from '../lib/dbConnectorApi';
 import { Dots } from './loading';
+import { ActivityIconButton } from './ActivityIconButton';
+import { ActionButton } from './ui/ActionButton';
 
 type SupabaseConnectDialogProps = {
   projectId: string;
@@ -62,7 +64,7 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
   return (
     <div
       style={{
-        position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
+        position: 'fixed', inset: 0, background: 'var(--po-backdrop)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         backdropFilter: 'blur(2px)',
       }}
@@ -70,12 +72,12 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
     >
       <div
         style={{
-          background: '#1C1C1E',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-overlay)',
+          border: '1px solid var(--po-border)',
           borderRadius: 12,
           width: 520,
           maxWidth: '90vw',
-          boxShadow: '0 24px 48px rgba(0,0,0,0.4)',
+          boxShadow: '0 24px 48px var(--po-shadow)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           animation: 'dialog-fade-in 0.2s ease-out',
         }}
@@ -86,11 +88,11 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
             from { opacity: 0; transform: scale(0.98); }
             to { opacity: 1; transform: scale(1); }
           }
-          input::placeholder { color: #525252; }
+          input::placeholder { color: var(--po-text-disabled); }
         `}</style>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px 8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <svg width="20" height="20" viewBox="0 0 109 113" fill="none">
               <path d="M63.7076 110.284C60.8481 113.885 55.0502 111.912 54.9813 107.314L53.9738 40.0627L99.1935 40.0627C107.384 40.0627 111.952 49.5228 106.859 55.9374L63.7076 110.284Z" fill="url(#sp0)"/>
@@ -101,16 +103,16 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                 <linearGradient id="sp1" x1="36.1558" y1="30.578" x2="54.4844" y2="65.0806" gradientUnits="userSpaceOnUse"><stop/><stop offset="1" stopOpacity="0"/></linearGradient>
               </defs>
             </svg>
-            <span style={{ color: '#e4e4e7', fontSize: 16, fontWeight: 600 }}>Connect Supabase</span>
+            <span style={{ color: 'var(--po-text-muted)', fontSize: 13, fontWeight: 500 }}>Connect Supabase</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#71717a', cursor: 'pointer', padding: 4, fontSize: 18, lineHeight: 1 }}>✕</button>
+          <ActivityIconButton kind="close" title="Close" onClick={onClose} />
         </div>
 
         {/* Body */}
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Key Type Selector */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ fontSize: 13, color: '#a1a1aa', fontWeight: 500, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, color: 'var(--po-text-muted)', fontWeight: 500, marginBottom: 8 }}>
               Select API Key Type
             </div>
             <div style={{ display: 'flex', gap: 12 }}>
@@ -120,7 +122,7 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                   display: 'flex',
                   flex: 1,
                   padding: '12px',
-                  border: `2px solid ${keyType === 'anon' ? 'rgba(62, 207, 142, 0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  border: `2px solid ${keyType === 'anon' ? 'color-mix(in srgb, #3ECF8E 50%, transparent)' : 'var(--po-active)'}`,
                   borderRadius: 8,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
@@ -135,8 +137,8 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                   style={{ margin: 0 }}
                 />
                 <div style={{ marginLeft: 8 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7' }}>Anon Key</div>
-                  <div style={{ fontSize: 12, color: '#a1a1aa' }}>Recommended - Secure, public access</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--po-text)' }}>Anon Key</div>
+                  <div style={{ fontSize: 12, color: 'var(--po-text-muted)' }}>Recommended - Secure, public access</div>
                 </div>
               </label>
 
@@ -146,7 +148,7 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                   display: 'flex',
                   flex: 1,
                   padding: '12px',
-                  border: `2px solid ${keyType === 'service_role' ? 'rgba(62, 207, 142, 0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  border: `2px solid ${keyType === 'service_role' ? 'color-mix(in srgb, #3ECF8E 50%, transparent)' : 'var(--po-active)'}`,
                   borderRadius: 8,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
@@ -161,8 +163,8 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                   style={{ margin: 0 }}
                 />
                 <div style={{ marginLeft: 8 }}>
-                  <div style={{ fontSize: 14, fontWeight: 500, color: '#e4e4e7' }}>Service Role Key</div>
-                  <div style={{ fontSize: 12, color: '#a1a1aa' }}>⚠️ Full database access - Use with caution</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--po-text)' }}>Service Role Key</div>
+                  <div style={{ fontSize: 12, color: 'var(--po-text-muted)' }}>⚠️ Full database access - Use with caution</div>
                 </div>
               </label>
             </div>
@@ -170,26 +172,26 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
 
           {/* Project URL */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, color: '#a1a1aa', fontWeight: 500 }}>Project URL</label>
+            <label style={{ fontSize: 13, color: 'var(--po-text-muted)', fontWeight: 500 }}>Project URL</label>
             <input
               type="text"
               placeholder="https://your-project.supabase.co"
               value={projectUrl}
               onChange={e => { setProjectUrl(e.target.value); setError(null); }}
               style={{
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8, padding: '10px 12px', color: '#e4e4e7', fontSize: 14, outline: 'none',
+                background: 'var(--po-hover)', border: '1px solid var(--po-active)',
+                borderRadius: 8, padding: '10px 12px', color: 'var(--po-text)', fontSize: 14, outline: 'none',
               }}
-              onFocus={e => e.target.style.borderColor = 'rgba(62, 207, 142, 0.5)'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              onFocus={e => e.target.style.borderColor = 'color-mix(in srgb, #3ECF8E 50%, transparent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--po-active)'}
               autoFocus
             />
-            <span style={{ fontSize: 12, color: '#525252' }}>Settings → API → Project URL</span>
+            <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>Settings → API → Project URL</span>
           </div>
 
           {/* API Key Input */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 13, color: '#a1a1aa', fontWeight: 500 }}>API Key</label>
+            <label style={{ fontSize: 13, color: 'var(--po-text-muted)', fontWeight: 500 }}>API Key</label>
             <input
               type="password"
               placeholder="eyJhbGciOiJIUzI1NiIs..."
@@ -197,14 +199,14 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
               onChange={e => { setApiKey(e.target.value); setError(null); }}
               onKeyDown={e => { if (e.key === 'Enter' && canSubmit) handleConnect(); }}
               style={{
-                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8, padding: '10px 12px', color: '#e4e4e7', fontSize: 14, outline: 'none',
-                fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+                background: 'var(--po-hover)', border: '1px solid var(--po-active)',
+                borderRadius: 8, padding: '10px 12px', color: 'var(--po-text)', fontSize: 14, outline: 'none',
+                fontFamily: 'var(--po-font-sans)',
               }}
-              onFocus={e => e.target.style.borderColor = 'rgba(62, 207, 142, 0.5)'}
-              onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.1)'}
+              onFocus={e => e.target.style.borderColor = 'color-mix(in srgb, #3ECF8E 50%, transparent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--po-active)'}
             />
-            <span style={{ fontSize: 12, color: '#525252' }}>
+            <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>
               {keyType === 'anon'
                 ? 'Settings → API → Project API keys → anon public'
                 : 'Settings → API → Project API keys → service_role'}
@@ -215,8 +217,8 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
           {keyType === 'service_role' && (
             <div style={{
               padding: '12px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
+              background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--po-danger) 20%, transparent)',
               borderRadius: 8,
               display: 'flex',
               gap: 8,
@@ -224,10 +226,10 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
             }}>
               <span style={{ fontSize: 20 }}>⚠️</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#fca5a5', marginBottom: 4 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--po-danger)', marginBottom: 4 }}>
                   Security Warning
                 </div>
-                <div style={{ fontSize: 12, color: '#e4e4e7', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 12, color: 'var(--po-text)', lineHeight: 1.5 }}>
                   The <strong>Service Role Key</strong> has full permissions to read, write, and delete data in your database.
                   Only use this for data sources you trust.
                 </div>
@@ -239,8 +241,8 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
           {keyType === 'anon' && (
             <div style={{
               padding: '12px',
-              background: 'rgba(59, 130, 246, 0.1)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
+              background: 'color-mix(in srgb, var(--po-accent) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--po-accent) 20%, transparent)',
               borderRadius: 8,
               display: 'flex',
               gap: 8,
@@ -248,10 +250,10 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
             }}>
               <span style={{ fontSize: 20 }}>ℹ️</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: '#3b82f6', marginBottom: 4 }}>
+                <div style={{ fontSize: 12, color: 'var(--po-accent)', marginBottom: 4 }}>
                   Row Level Security (RLS)
                 </div>
-                <div style={{ fontSize: 12, color: '#a1a1aa', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.5 }}>
                   Your Supabase may have Row Level Security (RLS) enabled.
                   If you get a "403 Access Denied" error, we'll guide you through RLS configuration.
                 </div>
@@ -263,29 +265,29 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
           {error && (
             <div style={{
               padding: '12px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
+              background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--po-danger) 20%, transparent)',
               borderRadius: 8,
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: error.error_code === 'RLS_BLOCKED' ? 12 : 0 }}>
-                <span style={{ fontSize: 16, color: '#fca5a5' }}>
+                <span style={{ fontSize: 16, color: 'var(--po-danger)' }}>
                   {error.error_code === 'RLS_BLOCKED' ? '⚠️' : '⚠️'}
                 </span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fca5a5', marginBottom: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--po-danger)', marginBottom: 4 }}>
                     {error.error_code === 'RLS_BLOCKED' ? 'Row Level Security Detected' : 'Access Setup Failed'}
                   </div>
-                  <div style={{ fontSize: 12, color: '#e4e4e7', lineHeight: 1.5 }}>
+                  <div style={{ fontSize: 12, color: 'var(--po-text)', lineHeight: 1.5 }}>
                     {error.message}
                   </div>
                   {error.suggested_actions && error.suggested_actions.length > 0 && (
                     <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 12, fontWeight: 500, color: '#a1a1aa', marginBottom: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--po-text-muted)', marginBottom: 8 }}>
                         You can try:
                       </div>
                       <ol style={{ margin: 0, paddingLeft: 20 }}>
                         {error.suggested_actions.map((action, i) => (
-                          <li key={i} style={{ marginBottom: 4, color: '#e4e4e7' }}>
+                          <li key={i} style={{ marginBottom: 4, color: 'var(--po-text)' }}>
                             {action}
                           </li>
                         ))}
@@ -297,9 +299,9 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                             marginTop: 12,
                             padding: '8px 16px',
                             borderRadius: 6,
-                            border: '1px solid rgba(59, 130, 246, 0.5)',
-                            background: 'rgba(59, 130, 246, 0.1)',
-                            color: '#fafafa',
+                            border: '1px solid color-mix(in srgb, var(--po-accent) 50%, transparent)',
+                            background: 'color-mix(in srgb, var(--po-accent) 10%, transparent)',
+                            color: 'var(--po-text)',
                             cursor: 'pointer',
                             fontSize: 13,
                             fontWeight: 500,
@@ -317,41 +319,21 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
         </div>
 
         {/* Footer */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <button
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '0 20px 20px' }}>
+          <ActionButton
             onClick={onClose}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: 'transparent',
-              color: '#a1a1aa',
-              cursor: 'pointer',
-              fontSize: 14,
-            }}
           >
             Cancel
-          </button>
-          <button
+          </ActionButton>
+          <ActionButton
             onClick={handleConnect}
             disabled={!canSubmit || isConnecting}
-            style={{
-              padding: '8px 20px',
-              borderRadius: 8,
-              border: 'none',
-              background: canSubmit && !isConnecting ? '#3ECF8E' : 'rgba(62, 207, 142, 0.3)',
-              color: canSubmit && !isConnecting ? '#000' : 'rgba(0,0,0,0.4)',
-              cursor: canSubmit && !isConnecting ? 'pointer' : 'not-allowed',
-              fontSize: 14,
-              fontWeight: 600,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            variant="primary"
+            loading={isConnecting}
           >
             {isConnecting && <Dots size='xs' />}
             {isConnecting ? 'Connecting…' : 'Connect'}
-          </button>
+          </ActionButton>
         </div>
       </div>
     </div>
@@ -362,50 +344,50 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
     return (
       <div
         style={{
-          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.7)',
+          position: 'fixed', inset: 0, background: 'var(--po-backdrop)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
         }}
         onClick={() => setShowRLSGuide(false)}
       >
         <div
           style={{
-            background: '#1C1C1E',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: 'var(--po-overlay)',
+            border: '1px solid var(--po-border)',
             borderRadius: 12,
             width: 600,
             maxWidth: '90vw',
             padding: 24,
           }}
         >
-          <h2 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#e4e4e7' }}>
+          <h2 style={{ margin: '0 0 16px 0', fontSize: 13, fontWeight: 500, color: 'var(--po-text-muted)' }}>
             Configure Row Level Security
           </h2>
-          <p style={{ fontSize: 13, color: '#a1a1aa', lineHeight: 1.6, marginBottom: 20 }}>
+          <p style={{ fontSize: 13, color: 'var(--po-text-muted)', lineHeight: 1.6, marginBottom: 20 }}>
             Your Supabase database has Row Level Security (RLS) enabled. Follow these steps to allow anon access:
           </p>
           <ol style={{ margin: 0, paddingLeft: 20 }}>
-            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+            <li style={{ marginBottom: 16, color: 'var(--po-text)' }}>
               <strong>1. Open Supabase SQL Editor</strong>
-              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--po-text-muted)', marginTop: 4 }}>
                 In your Supabase Dashboard, go to{' '}
                 <a
                   href="https://supabase.com/dashboard/project/_/sql"
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: '#3b82f6', textDecoration: 'underline' }}
+                  style={{ color: 'var(--po-accent)', textDecoration: 'underline' }}
                 >
                   SQL Editor
                 </a>
               </div>
             </li>
-            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+            <li style={{ marginBottom: 16, color: 'var(--po-text)' }}>
               <strong>2. Enable RLS on your table</strong>
-              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--po-text-muted)', marginTop: 4 }}>
                 Run this SQL command for each table you want to share:
               </div>
               <pre
                 style={{
-                  background: 'rgba(0,0,0,0.8)',
+                  background: 'var(--po-inset)',
                   padding: 12,
                   borderRadius: 6,
                   fontSize: 11,
@@ -414,14 +396,14 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                 }}
               >{`ALTER TABLE your_table_name ENABLE ROW LEVEL SECURITY;`}</pre>
             </li>
-            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+            <li style={{ marginBottom: 16, color: 'var(--po-text)' }}>
               <strong>3. Create access policy</strong>
-              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--po-text-muted)', marginTop: 4 }}>
                 Create a policy that allows anon users to read:
               </div>
               <pre
                 style={{
-                  background: 'rgba(0,0,0,0.8)',
+                  background: 'var(--po-inset)',
                   padding: 12,
                   borderRadius: 6,
                   fontSize: 11,
@@ -433,14 +415,14 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
   TO anon
   USING (true);`}</pre>
             </li>
-            <li style={{ marginBottom: 16, color: '#e4e4e7' }}>
+            <li style={{ marginBottom: 16, color: 'var(--po-text)' }}>
               <strong>4. Verify the policy</strong>
-              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--po-text-muted)', marginTop: 4 }}>
                 Test that the policy works:
               </div>
               <pre
                 style={{
-                  background: 'rgba(0,0,0,0.8)',
+                  background: 'var(--po-inset)',
                   padding: 12,
                   borderRadius: 6,
                   fontSize: 11,
@@ -449,29 +431,20 @@ export function SupabaseConnectDialog({ projectId, onClose, onConnected }: Supab
                 }}
               >{`SELECT * FROM your_table_name LIMIT 1;`}</pre>
             </li>
-            <li style={{ marginBottom: 8, color: '#e4e4e7' }}>
+            <li style={{ marginBottom: 8, color: 'var(--po-text)' }}>
               <strong>5. Return and try connecting</strong>
-              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: 'var(--po-text-muted)', marginTop: 4 }}>
                 Come back to this dialog and click Connect again.
               </div>
             </li>
           </ol>
           <div style={{ marginTop: 24, textAlign: 'center' }}>
-            <button
+            <ActionButton
               onClick={() => setShowRLSGuide(false)}
-              style={{
-                padding: '10px 24px',
-                borderRadius: 8,
-                border: 'none',
-                background: '#3ECF8E',
-                color: '#000',
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 600,
-              }}
+              variant="primary"
             >
               Done
-            </button>
+            </ActionButton>
           </div>
         </div>
       </div>

@@ -1,17 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-
-const TYPOGRAPHY = {
-  fontFamily:
-    "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
-  fontSize: 13,
-  fontWeight: 500,
-  letterSpacing: 0,
-} as const;
+import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 
 // The chip lives in the same visual language as the sidebar's row-level
-// access-active button (`bg-[rgba(34,211,238,0.1)] text-[#67e8f9]`). The
+// access-active button. The
 // header surface is the same accent family, scaled up: a leading chain
 // glyph (the project's recurring "access" mark, also used in the file
 // tree's per-row chip) + the literal word "Access" + a count of access
@@ -35,25 +28,25 @@ const TYPOGRAPHY = {
 //   border + icon carry the signal, not a glowing CTA treatment.
 const STATES = {
   resting: {
-    bg: 'rgba(255,255,255,0.035)',
-    border: 'rgba(103,232,249,0.18)',
-    text: '#d4d4d8',
-    countText: '#a1a1aa',
-    iconStroke: '#67e8f9',
+    bg: 'var(--po-control)',
+    border: 'color-mix(in srgb, var(--po-accent) 20%, transparent)',
+    text: 'var(--po-text-muted)',
+    countText: 'var(--po-text-muted)',
+    iconStroke: 'var(--po-accent-text)',
   },
   hover: {
-    bg: 'rgba(255,255,255,0.06)',
-    border: 'rgba(103,232,249,0.28)',
-    text: '#f4f4f5',
-    countText: '#d4d4d8',
-    iconStroke: '#a5f3fc',
+    bg: 'var(--po-border-subtle)',
+    border: 'color-mix(in srgb, var(--po-accent) 30%, transparent)',
+    text: 'var(--po-text)',
+    countText: 'var(--po-text-muted)',
+    iconStroke: 'var(--po-accent)',
   },
   active: {
-    bg: 'rgba(34,211,238,0.08)',
-    border: 'rgba(103,232,249,0.32)',
-    text: '#f4f4f5',
-    countText: '#d4d4d8',
-    iconStroke: '#a5f3fc',
+    bg: 'var(--po-selected)',
+    border: 'color-mix(in srgb, var(--po-accent) 36%, transparent)',
+    text: 'var(--po-text)',
+    countText: 'var(--po-text-muted)',
+    iconStroke: 'var(--po-accent)',
   },
 } as const;
 
@@ -85,7 +78,7 @@ export function AccessPointsHeaderButton({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        ...TYPOGRAPHY,
+        ...CHROME_LABEL_TYPOGRAPHY,
         display: 'flex',
         alignItems: 'center',
         gap: 8,
@@ -107,8 +100,8 @@ export function AccessPointsHeaderButton({
           // Same font-size as the label per 2026-05-08 spec ("用同样
           // 的字号去做") — the count reads as the second word of the
           // chip's two-word headline, not as a subordinate badge.
-          fontSize: TYPOGRAPHY.fontSize,
-          fontWeight: 400,
+          fontSize: CHROME_LABEL_TYPOGRAPHY.fontSize,
+          fontWeight: CHROME_LABEL_TYPOGRAPHY.fontWeight,
           color: state.countText,
           fontVariantNumeric: 'tabular-nums',
           transition: 'color 0.15s ease',

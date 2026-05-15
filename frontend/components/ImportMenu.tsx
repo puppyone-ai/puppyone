@@ -263,7 +263,16 @@ export function ImportMenu({
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.currentTarget === dropzoneRef.current) {
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const { clientX, clientY } = e;
+    const isOutside =
+      clientX <= rect.left ||
+      clientX >= rect.right ||
+      clientY <= rect.top ||
+      clientY >= rect.bottom;
+
+    if (isOutside) {
       setIsDragging(false);
     }
   }, []);
@@ -271,6 +280,7 @@ export function ImportMenu({
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    e.dataTransfer.dropEffect = 'copy';
   }, []);
 
   const handleDrop = useCallback(
@@ -465,9 +475,9 @@ export function ImportMenu({
           padding: '0 12px',
           borderRadius: 6,
           border: '1px solid',
-          borderColor: isOpen ? '#525252' : '#404040',
-          background: isOpen ? 'rgba(255,255,255,0.05)' : 'transparent',
-          color: isOpen ? '#e2e8f0' : '#9ca3af',
+          borderColor: isOpen ? 'var(--po-text-disabled)' : 'var(--po-border-strong)',
+          background: isOpen ? 'var(--po-hover)' : 'transparent',
+          color: isOpen ? 'var(--po-text)' : 'var(--po-text-muted)',
           fontSize: 12,
           fontWeight: 500,
           cursor: 'pointer',
@@ -475,16 +485,16 @@ export function ImportMenu({
         }}
         onMouseEnter={e => {
           if (!isOpen) {
-            e.currentTarget.style.borderColor = '#525252';
-            e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-            e.currentTarget.style.color = '#e2e8f0';
+            e.currentTarget.style.borderColor = 'var(--po-text-disabled)';
+            e.currentTarget.style.background = 'var(--po-hover)';
+            e.currentTarget.style.color = 'var(--po-text)';
           }
         }}
         onMouseLeave={e => {
           if (!isOpen) {
-            e.currentTarget.style.borderColor = '#404040';
+            e.currentTarget.style.borderColor = 'var(--po-border-strong)';
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#9ca3af';
+            e.currentTarget.style.color = 'var(--po-text-muted)';
           }
         }}
       >
@@ -515,21 +525,21 @@ export function ImportMenu({
               ? { left: '50%', transform: 'translateX(-50%)' }
               : { right: 0 }),
             width: 280,
-            background: '#161618',
-            border: '1px solid #2a2a2a',
+            background: 'var(--po-overlay)',
+            border: '1px solid var(--po-border)',
             borderRadius: 10,
             zIndex: 50,
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+            boxShadow: '0 8px 32px var(--po-shadow)',
           }}
         >
           {/* Header */}
           <div
             style={{
               padding: '12px 14px',
-              borderBottom: '1px solid #2a2a2a',
+              borderBottom: '1px solid var(--po-border)',
               fontSize: 14,
               fontWeight: 500,
-              color: '#9ca3af',
+              color: 'var(--po-text-muted)',
             }}
           >
             Import to this context
@@ -541,7 +551,7 @@ export function ImportMenu({
               /* Progress View */
               <div style={{ padding: '20px 16px', textAlign: 'center' }}>
                 <div
-                  style={{ fontSize: 14, color: '#9ca3af', marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  style={{ fontSize: 14, color: 'var(--po-text-muted)', marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
                   <Dots size='xs' />
                   Importing… {Math.round(importProgress)}%
@@ -549,7 +559,7 @@ export function ImportMenu({
                 <div
                   style={{
                     height: 4,
-                    background: '#2a2a2a',
+                    background: 'var(--po-border)',
                     borderRadius: 2,
                     overflow: 'hidden',
                   }}
@@ -558,7 +568,7 @@ export function ImportMenu({
                     style={{
                       width: `${importProgress}%`,
                       height: '100%',
-                      background: '#34d399',
+                      background: 'var(--po-success)',
                       transition: 'width 0.2s',
                     }}
                   />
@@ -577,10 +587,10 @@ export function ImportMenu({
                   style={{
                     padding: '16px',
                     border: '1px dashed',
-                    borderColor: isDragging ? '#525252' : '#333',
+                    borderColor: isDragging ? 'var(--po-text-disabled)' : 'var(--po-border-strong)',
                     borderRadius: 8,
                     background: isDragging
-                      ? 'rgba(255,255,255,0.03)'
+                      ? 'var(--po-hover)'
                       : 'transparent',
                     cursor: 'pointer',
                     transition: 'all 0.15s',
@@ -593,7 +603,7 @@ export function ImportMenu({
                     height='20'
                     viewBox='0 0 24 24'
                     fill='none'
-                    stroke='#525252'
+                    stroke='var(--po-text-disabled)'
                     strokeWidth='1.5'
                     strokeLinecap='round'
                     strokeLinejoin='round'
@@ -603,7 +613,7 @@ export function ImportMenu({
                     <polyline points='17 8 12 3 7 8' />
                     <line x1='12' y1='3' x2='12' y2='15' />
                   </svg>
-                  <div style={{ fontSize: 14, color: '#9ca3af' }}>
+                  <div style={{ fontSize: 14, color: 'var(--po-text-muted)' }}>
                     Import files...
                   </div>
                 </div>
@@ -627,7 +637,7 @@ export function ImportMenu({
                       height='16'
                       viewBox='0 0 24 24'
                       fill='none'
-                      stroke='#9ca3af'
+                      stroke='var(--po-text-muted)'
                       strokeWidth='1.5'
                       strokeLinecap='round'
                       strokeLinejoin='round'
@@ -651,7 +661,7 @@ export function ImportMenu({
                         border: 'none',
                         outline: 'none',
                         fontSize: 14,
-                        color: '#e2e8f0',
+                        color: 'var(--po-text)',
                       }}
                     />
                     {urlInput.trim() && (
@@ -661,19 +671,19 @@ export function ImportMenu({
                         }}
                         style={{
                           padding: '4px 10px',
-                          background: '#34d399',
+                          background: 'var(--po-success)',
                           border: 'none',
                           borderRadius: 4,
-                          color: '#000',
+                          color: 'var(--po-text-inverse)',
                           fontSize: 12,
                           fontWeight: 500,
                           cursor: 'pointer',
                         }}
                         onMouseEnter={e => {
-                          e.currentTarget.style.background = '#2dd38d';
+                          e.currentTarget.style.opacity = '0.9';
                         }}
                         onMouseLeave={e => {
-                          e.currentTarget.style.background = '#34d399';
+                          e.currentTarget.style.opacity = '1';
                         }}
                       >
                         Go
@@ -696,7 +706,7 @@ export function ImportMenu({
                       border: 'none',
                       borderRadius: 6,
                       cursor: 'pointer',
-                      color: '#9ca3af',
+                      color: 'var(--po-text-muted)',
                       fontSize: 14,
                       textAlign: 'left',
                       width: '100%',
@@ -704,12 +714,12 @@ export function ImportMenu({
                     }}
                     onMouseEnter={e => {
                       e.currentTarget.style.background =
-                        'rgba(255,255,255,0.05)';
-                      e.currentTarget.style.color = '#e2e8f0';
+                        'var(--po-hover)';
+                      e.currentTarget.style.color = 'var(--po-text)';
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = '#9ca3af';
+                      e.currentTarget.style.color = 'var(--po-text-muted)';
                     }}
                   >
                     <svg
@@ -732,7 +742,7 @@ export function ImportMenu({
                       height='12'
                       viewBox='0 0 24 24'
                       fill='none'
-                      stroke='#525252'
+                      stroke='var(--po-text-disabled)'
                       strokeWidth='2'
                       strokeLinecap='round'
                       strokeLinejoin='round'

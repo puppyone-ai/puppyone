@@ -12,7 +12,7 @@ converge into a single execute() call. The engine:
   3. Resolves OAuth credentials
   4. Calls connector.fetch(config, credentials) → FetchResult
   5. Compares content_hash with sync.remote_hash
-  6. If changed → MutOps.write_file() at the sync path
+  6. If changed → MutOps.write_file() or MutOps.bulk_write() at the sync path
   7. Updates the sync record (remote_hash, last_sync_commit_id)
 
 All data writes go through MutOps.
@@ -21,12 +21,38 @@ All data writes go through MutOps.
 from __future__ import annotations
 
 import json
+import posixpath
 from typing import Any, Optional
 
+from src.connectors.datasource._base import AuthRequirement
 from src.connectors.datasource.registry import ConnectorRegistry
 from src.connectors.datasource.repository import SyncRepository
 from src.connectors.datasource.run_repository import SyncRunRepository
 from src.utils.logger import log_info, log_error, log_debug
+
+
+def _join_mount_path(base_path: str | None, relative_path: str) -> str:
+    """Join a sync mount with a connector-owned relative file path."""
+    base = (base_path or "").strip("/")
+    rel = str(relative_path or "").replace("\\", "/").strip("/")
+    clean_rel = posixpath.normpath(rel)
+    if not rel or clean_rel in ("", ".") or clean_rel.startswith("../"):
+        raise ValueError(f"Invalid connector file path: {relative_path!r}")
+    if base:
+        return f"{base}/{clean_rel}"
+    return clean_rel
+
+
+def _to_bytes(content: Any) -> bytes:
+    if isinstance(content, bytes):
+        return content
+    if isinstance(content, bytearray):
+        return bytes(content)
+    if isinstance(content, (dict, list)):
+        return json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
+    if isinstance(content, str):
+        return content.encode("utf-8")
+    return str(content).encode("utf-8")
 
 
 class SyncEngine:
@@ -81,6 +107,7 @@ class SyncEngine:
             credentials = await self.registry.resolve_credentials(
                 oauth_type=spec.oauth_type,
                 user_id=user_id,
+                required=spec.auth != AuthRequirement.OPTIONAL_OAUTH,
             )
 
             result = await connector.fetch(sync.config or {}, credentials)
@@ -101,25 +128,37 @@ class SyncEngine:
             file_path = f"{sync.path}/{data_file}" if data_file else sync.path
             external_resource_id = (sync.config or {}).get("external_resource_id", "")
 
-            content = result.content
-            if isinstance(content, (dict, list)):
-                content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
-            elif isinstance(content, str):
-                content_bytes = content.encode("utf-8")
-            elif isinstance(content, bytes):
-                content_bytes = content
-            else:
-                content_bytes = str(content).encode("utf-8")
-
             operator = f"sync:{sync.provider}:{external_resource_id}"
 
             from src.mut_engine.dependencies import create_mut_ops
             ops = create_mut_ops()
-            write_result = await ops.write_file(
-                sync.project_id, file_path, content_bytes,
-                who=operator,
-                message=result.summary or f"Sync from {sync.provider}",
-            )
+
+            if result.files is not None:
+                files = {
+                    _join_mount_path(sync.path, rel_path): _to_bytes(content)
+                    for rel_path, content in result.files.items()
+                }
+                deleted = []
+                if data_file:
+                    placeholder_path = _join_mount_path(sync.path, data_file)
+                    if placeholder_path not in files:
+                        deleted.append(placeholder_path)
+
+                write_result = await ops.bulk_write(
+                    sync.project_id,
+                    files,
+                    who=operator,
+                    deleted=deleted,
+                    message=result.summary or f"Import from {sync.provider}",
+                )
+                file_path = sync.path or result.node_name or ""
+            else:
+                content_bytes = _to_bytes(result.content)
+                write_result = await ops.write_file(
+                    sync.project_id, file_path, content_bytes,
+                    who=operator,
+                    message=result.summary or f"Sync from {sync.provider}",
+                )
 
             new_commit_id = write_result.commit_id
 

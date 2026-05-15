@@ -131,17 +131,17 @@ export function getStatusInfo(status: IngestStatus): {
 } {
   switch (status) {
     case 'pending':
-      return { label: 'Pending', color: 'text-gray-500', bgColor: 'bg-gray-100' };
+      return { label: 'Pending', color: 'text-[var(--po-text-subtle)]', bgColor: 'bg-[var(--po-control)]' };
     case 'processing':
-      return { label: 'Processing', color: 'text-blue-600', bgColor: 'bg-blue-100' };
+      return { label: 'Processing', color: 'text-[var(--po-accent)]', bgColor: 'bg-[color-mix(in_srgb,var(--po-accent)_12%,transparent)]' };
     case 'completed':
-      return { label: 'Completed', color: 'text-green-600', bgColor: 'bg-green-100' };
+      return { label: 'Completed', color: 'text-[var(--po-success)]', bgColor: 'bg-[color-mix(in_srgb,var(--po-success)_12%,transparent)]' };
     case 'failed':
-      return { label: 'Failed', color: 'text-red-600', bgColor: 'bg-red-100' };
+      return { label: 'Failed', color: 'text-[var(--po-danger)]', bgColor: 'bg-[color-mix(in_srgb,var(--po-danger)_12%,transparent)]' };
     case 'cancelled':
-      return { label: 'Cancelled', color: 'text-gray-500', bgColor: 'bg-gray-100' };
+      return { label: 'Cancelled', color: 'text-[var(--po-text-subtle)]', bgColor: 'bg-[var(--po-control)]' };
     default:
-      return { label: status, color: 'text-gray-500', bgColor: 'bg-gray-100' };
+      return { label: status, color: 'text-[var(--po-text-subtle)]', bgColor: 'bg-[var(--po-control)]' };
   }
 }
 

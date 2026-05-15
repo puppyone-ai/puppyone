@@ -7,6 +7,7 @@ import { ChatAgentConfig } from './configs/ChatAgentConfig';
 import { ScheduleAgentConfig } from './configs/ScheduleAgentConfig';
 import { FilesystemAgentConfig } from './configs/FilesystemAgentConfig';
 import type { AgentConfigProps } from './configs/ChatAgentConfig';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
 
 /**
  * Per-type edit view for an already-deployed access point.
@@ -34,12 +35,6 @@ const AGENT_TYPE_LABELS: Record<AgentType, { label: string; icon: string }> = {
   devbox:   { label: 'Machine Folder', icon: '💻' },
   webhook:  { label: 'N8N/Zapier', icon: '⚡' },
 };
-
-const CloseIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
 
 export function AgentEditView({ projectTools }: AgentEditViewProps) {
   const {
@@ -74,36 +69,24 @@ export function AgentEditView({ projectTools }: AgentEditViewProps) {
       {/* Header — shows agent type + name, no type selector */}
       <div style={{
         height: 48, padding: '0 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        borderBottom: '1px solid var(--po-border-subtle)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        background: '#141414',
+        background: 'var(--po-control)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14 }}>{typeInfo.icon}</span>
-          <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--po-text-subtle)' }}>
             Settings
           </span>
           <span style={{
-            fontSize: 10, color: '#525252',
-            background: '#1a1a1a', border: '1px solid #2a2a2a',
+            fontSize: 10, color: 'var(--po-text-disabled)',
+            background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
             borderRadius: 4, padding: '1px 6px',
           }}>
             {typeInfo.label}
           </span>
         </div>
-        <button
-          onClick={cancelSetting}
-          style={{
-            width: 28, height: 28, background: 'transparent', border: 'none',
-            color: '#525252', cursor: 'pointer', borderRadius: 4,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#a3a3a3'; e.currentTarget.style.background = '#1f1f1f'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#525252'; e.currentTarget.style.background = 'transparent'; }}
-          title="Back"
-        >
-          <CloseIcon />
-        </button>
+        <ActivityIconButton kind="close" title="Back" onClick={cancelSetting} />
       </div>
 
       {/* Scrollable content — config only, no type selector */}
@@ -115,11 +98,11 @@ export function AgentEditView({ projectTools }: AgentEditViewProps) {
         <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            padding: '8px 0', borderTop: '1px solid #1a1a1a',
+            padding: '8px 0', borderTop: '1px solid var(--po-panel-raised)',
           }}>
             <span style={{
               width: 32, height: 32, borderRadius: '50%',
-              background: '#1a1a1a', border: '1px solid #2a2a2a',
+              background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 16, flexShrink: 0,
             }}>
@@ -134,9 +117,9 @@ export function AgentEditView({ projectTools }: AgentEditViewProps) {
                 onKeyDown={e => { if (e.key === 'Enter') setIsEditingName(false); }}
                 placeholder={editingAgent.name} autoFocus
                 style={{
-                  flex: 1, height: 24, background: '#161616',
-                  border: '1px solid #3a3a3a', borderRadius: 4,
-                  padding: '0 8px', color: '#e5e5e5', fontSize: 14, outline: 'none',
+                  flex: 1, height: 24, background: 'var(--po-panel)',
+                  border: '1px solid var(--po-border-strong)', borderRadius: 4,
+                  padding: '0 8px', color: 'var(--po-text)', fontSize: 14, outline: 'none',
                 }}
               />
             ) : (
@@ -145,10 +128,10 @@ export function AgentEditView({ projectTools }: AgentEditViewProps) {
                 style={{
                   flex: 1, height: 24, background: 'transparent', border: 'none',
                   borderRadius: 4, padding: '0 4px',
-                  color: '#e5e5e5', fontSize: 14, cursor: 'text',
+                  color: 'var(--po-text)', fontSize: 14, cursor: 'text',
                   textAlign: 'left', transition: 'all 0.1s',
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#1a1a1a'}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--po-panel-raised)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 title="Click to rename"
               >
@@ -162,14 +145,14 @@ export function AgentEditView({ projectTools }: AgentEditViewProps) {
             disabled={!hasAnyContent}
             style={{
               height: 32,
-              background: hasAnyContent ? '#4ade80' : '#262626',
-              color: hasAnyContent ? '#000' : '#525252',
+              background: hasAnyContent ? 'var(--po-success)' : 'var(--po-border)',
+              color: hasAnyContent ? 'var(--po-text-inverse)' : 'var(--po-text-disabled)',
               border: 'none', borderRadius: 6,
               cursor: hasAnyContent ? 'pointer' : 'not-allowed',
               fontSize: 14, fontWeight: 600, transition: 'all 0.15s',
             }}
-            onMouseEnter={e => { if (hasAnyContent) e.currentTarget.style.background = '#22c55e'; }}
-            onMouseLeave={e => { if (hasAnyContent) e.currentTarget.style.background = '#4ade80'; }}
+            onMouseEnter={e => { if (hasAnyContent) e.currentTarget.style.background = 'var(--po-success)'; }}
+            onMouseLeave={e => { if (hasAnyContent) e.currentTarget.style.background = 'var(--po-success)'; }}
           >
             Save
           </button>

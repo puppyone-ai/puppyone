@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { EditorSkeleton } from '@/components/Skeleton';
+import { EditorLoadingSurface } from '@/components/loading';
 
 const MonacoCodeViewer = dynamic(
   () => import('@/components/editors/code/MonacoCodeViewer').then((mod) => mod.MonacoCodeViewer),
-  { ssr: false, loading: () => <EditorSkeleton /> },
+  { ssr: false, loading: () => <EditorLoadingSurface /> },
 );
 
 interface HtmlArtifactPreviewProps {
@@ -24,7 +24,6 @@ const HTML_PREVIEW_CSP = [
   "font-src data: https:",
   "script-src 'none'",
   "connect-src 'none'",
-  "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -60,7 +59,7 @@ export function HtmlArtifactPreview({ content, nodeName, mode }: HtmlArtifactPre
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
       }}
     >
       <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -73,7 +72,7 @@ export function HtmlArtifactPreview({ content, nodeName, mode }: HtmlArtifactPre
             width: '100%',
             minHeight: 0,
             border: 0,
-            background: '#ffffff',
+            background: 'var(--po-panel-raised)',
             display: mode === 'preview' ? 'block' : 'none',
           }}
         />
@@ -85,11 +84,7 @@ export function HtmlArtifactPreview({ content, nodeName, mode }: HtmlArtifactPre
               display: mode === 'source' ? 'flex' : 'none',
             }}
           >
-            <MonacoCodeViewer
-              content={content}
-              language="html"
-              readOnly
-            />
+            <MonacoCodeViewer content={content} language="html" readOnly />
           </div>
         )}
       </div>

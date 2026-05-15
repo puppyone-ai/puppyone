@@ -413,7 +413,7 @@ export function ScopeSettingsBlock({
               color: confirmRotate ? COLOR_DANGER_FAINT : COLOR_FG,
               background: confirmRotate
                 ? COLOR_DANGER_BG
-                : 'rgba(255,255,255,0.04)',
+                : 'var(--po-hover)',
               border: `1px solid ${
                 confirmRotate ? COLOR_DANGER_BORDER : COLOR_BORDER_HOVER
               }`,
@@ -594,7 +594,7 @@ export function ScopeSettingsBlock({
               padding: '6px 12px',
               fontSize: 13,
               color: COLOR_FG,
-              background: 'rgba(255,255,255,0.04)',
+              background: 'var(--po-hover)',
               border: `1px solid ${COLOR_BORDER_HOVER}`,
               borderRadius: 6,
               cursor: saving ? 'default' : 'pointer',
@@ -610,7 +610,7 @@ export function ScopeSettingsBlock({
               padding: '6px 14px',
               fontSize: 13,
               fontWeight: 600,
-              color: '#0a0a0a',
+              color: 'var(--po-inset)',
               background: saving ? COLOR_BORDER_HOVER : COLOR_FG,
               border: `1px solid ${saving ? COLOR_BORDER_HOVER : COLOR_FG}`,
               borderRadius: 6,
@@ -757,7 +757,7 @@ function PermissionOption({
         padding: '10px 12px',
         borderRadius: 8,
         border: `1px solid ${active ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-        background: active ? 'rgba(255,255,255,0.055)' : COLOR_BG_SUNKEN,
+        background: active ? 'var(--po-hover)' : COLOR_BG_SUNKEN,
         textAlign: 'left',
         cursor: 'pointer',
         transition: 'border-color 150ms ease, background 150ms ease',
@@ -823,7 +823,7 @@ function IconButton({
         padding: 0,
         borderRadius: 6,
         border: 'none',
-        background: !disabled && hovered ? 'rgba(255,255,255,0.07)' : 'transparent',
+        background: !disabled && hovered ? 'var(--po-active)' : 'transparent',
         color: disabled
           ? COLOR_FG_DIM
           : hovered

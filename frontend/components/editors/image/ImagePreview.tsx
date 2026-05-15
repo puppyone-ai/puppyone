@@ -48,7 +48,7 @@ export function ImagePreview({ projectId, filePath, nodeName }: ImagePreviewProp
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#ef4444',
+          color: 'var(--po-danger)',
         }}
       >
         Failed to load image: {error}
@@ -70,10 +70,10 @@ export function ImagePreview({ projectId, filePath, nodeName }: ImagePreviewProp
         justifyContent: 'center',
         overflow: 'auto',
         padding: 24,
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
       }}
     >
-      <div style={{ fontSize: 13, color: '#71717a', marginBottom: 12 }}>{nodeName}</div>
+      <div style={{ fontSize: 13, color: 'var(--po-text-subtle)', marginBottom: 12 }}>{nodeName}</div>
       <img
         src={blobUrl}
         alt={nodeName}

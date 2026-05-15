@@ -294,8 +294,8 @@ export function ScopedConnectorsListPanel({
         fontWeight: 500,
         color: settingsOpen ? COLOR_FG : COLOR_FG_MUTED,
         background: settingsOpen
-          ? 'rgba(255,255,255,0.10)'
-          : 'rgba(255,255,255,0.055)',
+          ? 'var(--po-border-strong)'
+          : 'var(--po-hover)',
         border: 'none',
         borderRadius: 8,
         cursor: 'pointer',
@@ -412,7 +412,7 @@ export function ScopedConnectorsListPanel({
                       fontSize: 13,
                       fontWeight: 500,
                       color: COLOR_FG,
-                      background: 'rgba(255,255,255,0.06)',
+                      background: 'var(--po-border-subtle)',
                       border: `1px solid ${COLOR_BORDER_HOVER}`,
                       borderRadius: 6,
                       cursor: 'pointer',

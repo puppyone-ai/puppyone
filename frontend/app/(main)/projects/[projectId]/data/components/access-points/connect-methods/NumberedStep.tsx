@@ -21,7 +21,7 @@ export function NumberedStep({
           width: 20,
           height: 20,
           borderRadius: 999,
-          background: 'rgba(255,255,255,0.06)',
+          background: 'var(--po-border-subtle)',
           color: COLOR_FG_MUTED,
           fontSize: 11,
           fontWeight: 600,

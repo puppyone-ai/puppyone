@@ -127,6 +127,12 @@ def _files_for_scope(repo, scope: str = "") -> dict[str, bytes]:
     return flatten_tree_to_bytes(repo.store, tree_id)
 
 
+def _init_empty_project_shell(repo) -> str:
+    empty_tree = build_tree_from_files(repo.store, {})
+    repo.history.set_root_hash(empty_tree)
+    return empty_tree
+
+
 def _pkt_line(payload: bytes) -> bytes:
     return f"{len(payload) + 4:04x}".encode("ascii") + payload
 
@@ -866,6 +872,13 @@ class TestGitNativeHardeningContracts:
         assert project_head == indexed["project_view_commit_id"]
         assert commit_tree_id(server_repo, project_head) == indexed["project_root_hash"]
 
+    def test_empty_project_shell_has_no_git_head(self, server_repo):
+        empty_tree = _init_empty_project_shell(server_repo)
+
+        assert server_repo.get_root_hash() == empty_tree
+        assert server_repo.get_head_commit_id() == ""
+        assert git_view_head_commit(server_repo, "") == ""
+
     @pytest.mark.asyncio
     async def test_protocol_mode_gate_rejects_disabled_protocols(self, monkeypatch):
         monkeypatch.setattr(
@@ -1196,6 +1209,42 @@ def test_real_git_cli_can_clone_commit_push_and_clone_again(
     }
     assert (second / "README.md").read_text(encoding="utf-8") == "hello through real git\n"
     assert server_repo.audit.events[-1]["type"] == "git_push"
+
+
+def test_real_git_cli_first_push_to_empty_project_shell(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("root-scope", "")
+    _init_empty_project_shell(server_repo)
+    _patch_git_access_points(
+        monkeypatch,
+        {"root-key": ("root-scope", "", "rw")},
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/root-key.git"
+        work = tmp_path / "existing"
+        verify = tmp_path / "verify"
+        work.mkdir()
+        _run_git(["init"], work)
+        _configure_git_identity(work)
+        (work / "README.md").write_text("first project content\n", encoding="utf-8")
+        _run_git(["add", "README.md"], work)
+        _run_git(["commit", "-m", "first content"], work)
+        _run_git(["branch", "-M", "main"], work)
+        pushed_head = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        _run_git(["remote", "add", "origin", remote], work)
+        _run_git(["push", "-u", "origin", "main"], work)
+
+        _run_git(["clone", remote, str(verify)], tmp_path)
+
+    assert server_repo.get_scope_head_commit_id("") == pushed_head
+    assert server_repo.get_head_commit_id() == pushed_head
+    assert _files_for_scope(server_repo) == {"README.md": b"first project content\n"}
+    assert (verify / "README.md").read_text(encoding="utf-8") == "first project content\n"
 
 
 def test_real_git_cli_stale_force_push_is_server_side_merged(

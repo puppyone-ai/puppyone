@@ -16,12 +16,13 @@ import type { CSSProperties } from 'react';
  * from primitives live as named exports below.
  */
 
-const SHIMMER_BG = 'rgba(255,255,255,0.06)';
-const SHIMMER_HIGHLIGHT = 'rgba(255,255,255,0.15)';
+const SHIMMER_BG = 'var(--po-skeleton-base)';
+const SHIMMER_HIGHLIGHT = 'var(--po-skeleton-shimmer)';
 
 const baseBlockStyle: CSSProperties = {
   position: 'relative',
   background: SHIMMER_BG,
+  boxShadow: 'inset 0 0 0 1px var(--po-skeleton-edge)',
   borderRadius: 4,
   overflow: 'hidden',
 };
@@ -57,9 +58,9 @@ export function SkeletonBlock({
         style={{
           position: 'absolute',
           inset: 0,
-          background: `linear-gradient(90deg, transparent, ${SHIMMER_HIGHLIGHT}, transparent)`,
+          background: `linear-gradient(100deg, transparent 0%, transparent 35%, ${SHIMMER_HIGHLIGHT} 50%, transparent 65%, transparent 100%)`,
           transform: 'translateX(-100%)',
-          animation: 'puppy-shimmer 1.5s infinite',
+          animation: 'puppy-shimmer 1.8s linear infinite',
         }}
       />
     </div>
@@ -166,8 +167,8 @@ export function SkeletonCard({ className, style }: CardProps) {
       className={className}
       style={{
         padding: 16,
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.06)',
+        background: 'var(--po-panel)',
+        border: '1px solid var(--po-border-subtle)',
         borderRadius: 8,
         display: 'flex',
         flexDirection: 'column',
@@ -187,17 +188,12 @@ export function SkeletonCard({ className, style }: CardProps) {
 /**
  * `<SkeletonEditor />` — the original editor-area shimmer. Six rows
  * of indented "tree-like" lines that visually echo the JSON / table
- * structure that's about to load in. Used by the `dynamic` import
- * fallback for `TableDiscreteEditor` and `MonacoJsonEditor`.
- *
- * Replaces the legacy `EditorSkeleton` from `components/Skeleton.tsx`
- * — that file now re-exports this for backward compatibility.
+ * structure that the real editors render.
  */
 export function SkeletonEditor() {
   return (
     <div
       style={{
-        flex: 1,
         width: '100%',
         minWidth: 0,
         height: '100%',
@@ -247,14 +243,14 @@ export function SkeletonDashboard() {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        background: '#0e0e0e',
+        background: 'var(--po-canvas)',
         overflow: 'hidden',
       }}
     >
       <div
         style={{
           height: 46,
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--po-border-subtle)',
           flexShrink: 0,
         }}
       />

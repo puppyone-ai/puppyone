@@ -3,6 +3,7 @@
 import React from 'react';
 import { PanelShell } from './PanelShell';
 import { PageLoading } from '@/components/loading';
+import { StatusDot } from '@/components/ui/StatusDot';
 
 interface SandboxMount {
   path: string;
@@ -28,7 +29,7 @@ interface SandboxConfigPanelProps {
 }
 
 const SandboxIcon = (
-  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="var(--po-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
   </svg>
 );
@@ -39,7 +40,7 @@ const FolderIcon = (
 
 function ConnectionArrow() {
   return (
-    <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke="#4ade80" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="48" height="16" viewBox="0 0 48 16" fill="none" stroke="var(--po-success)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 5h44M6 2L2 5l4 3" />
       <path d="M42 8l4 3-4 3M2 11h44" />
     </svg>
@@ -48,7 +49,7 @@ function ConnectionArrow() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
       {children}
     </div>
   );
@@ -56,7 +57,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function CodeBlock({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 12, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+    <div style={{ fontSize: 12, color: 'var(--po-text-muted)', background: 'var(--po-control)', border: '1px solid var(--po-border)', borderRadius: 6, padding: '8px 10px', wordBreak: 'break-all', fontFamily: 'var(--po-font-sans)' }}>
       {children}
     </div>
   );
@@ -92,14 +93,14 @@ export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigP
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 88 }}>
               <div style={{
                 width: 36, height: 36, borderRadius: 8,
-                background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--po-panel-raised)', border: '1px solid var(--po-border)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke="var(--po-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
                 </svg>
               </div>
-              <div style={{ fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center' }}>
+              <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--po-text-muted)', textAlign: 'center' }}>
                 Sandbox
               </div>
             </div>
@@ -111,7 +112,7 @@ export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigP
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, width: 88 }}>
               {FolderIcon}
               <div style={{
-                fontSize: 11, fontWeight: 500, color: '#a3a3a3', textAlign: 'center',
+                fontSize: 11, fontWeight: 500, color: 'var(--po-text-muted)', textAlign: 'center',
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 88,
               }}>
                 {targetLabel}
@@ -120,14 +121,14 @@ export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigP
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: endpoint.status === 'active' ? '#22c55e' : '#f59e0b' }} />
-            <span style={{ fontSize: 11, color: '#a3a3a3' }}>{endpoint.status}</span>
+            <StatusDot tone={endpoint.status === 'active' ? 'success' : 'warning'} />
+            <span style={{ fontSize: 11, color: 'var(--po-text-muted)' }}>{endpoint.status}</span>
           </div>
         </div>
 
         <div>
           <SectionLabel>Runtime</SectionLabel>
-          <span style={{ fontSize: 13, color: '#e4e4e7' }}>{endpoint.runtime}</span>
+          <span style={{ fontSize: 13, color: 'var(--po-text)' }}>{endpoint.runtime}</span>
         </div>
         <div>
           <SectionLabel>Access Key</SectionLabel>
@@ -135,7 +136,7 @@ export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigP
         </div>
         <div>
           <SectionLabel>Usage</SectionLabel>
-          <pre style={{ fontSize: 11, color: '#a1a1aa', background: '#141414', border: '1px solid #252525', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+          <pre style={{ fontSize: 11, color: 'var(--po-text-muted)', background: 'var(--po-control)', border: '1px solid var(--po-border)', borderRadius: 6, padding: '8px 10px', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'var(--po-font-sans)' }}>
 {`curl -X POST ${execUrl} \\
   -H "X-Access-Key: ${endpoint.access_key}" \\
   -H "Content-Type: application/json" \\
@@ -144,7 +145,7 @@ export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigP
         </div>
         <div>
           <SectionLabel>Resource Limits</SectionLabel>
-          <span style={{ fontSize: 12, color: '#a1a1aa' }}>
+          <span style={{ fontSize: 12, color: 'var(--po-text-muted)' }}>
             {endpoint.resource_limits?.memory_mb ?? 128}MB RAM · {endpoint.resource_limits?.cpu_shares ?? 0.5} CPU · {endpoint.timeout_seconds}s timeout
           </span>
         </div>
@@ -152,7 +153,7 @@ export function SandboxConfigPanel({ endpoint, onClose, onBack }: SandboxConfigP
           <div>
             <SectionLabel>Mounts ({endpoint.mounts.length})</SectionLabel>
             {endpoint.mounts.map((m, i) => (
-              <div key={i} style={{ fontSize: 12, color: '#a1a1aa', padding: '4px 0' }}>
+              <div key={i} style={{ fontSize: 12, color: 'var(--po-text-muted)', padding: '4px 0' }}>
                 {m.mount_path} → {m.path} ({m.permissions?.write ? 'read-write' : 'read-only'})
               </div>
             ))}

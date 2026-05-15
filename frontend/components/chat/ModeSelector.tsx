@@ -45,7 +45,7 @@ export default function ModeSelector({
           background: 'transparent',
           border: 'none',
           borderRadius: '6px',
-          color: '#9ca3af',
+          color: 'var(--po-text-muted)',
           fontSize: '12px',
           fontWeight: 500,
           cursor: 'pointer',
@@ -53,13 +53,13 @@ export default function ModeSelector({
         }}
         onMouseEnter={e => {
           if (!isOpen) {
-            e.currentTarget.style.color = '#e2e8f0';
-            e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+            e.currentTarget.style.color = 'var(--po-text)';
+            e.currentTarget.style.background = 'var(--po-hover)';
           }
         }}
         onMouseLeave={e => {
           if (!isOpen) {
-            e.currentTarget.style.color = '#9ca3af';
+            e.currentTarget.style.color = 'var(--po-text-muted)';
             e.currentTarget.style.background = 'transparent';
           }
         }}
@@ -78,12 +78,12 @@ export default function ModeSelector({
             bottom: '100%',
             left: 0,
             marginBottom: '8px',
-            background: '#1a1a1a',
-            border: '1px solid #333',
+            background: 'var(--po-panel-raised)',
+            border: '1px solid var(--po-border-strong)',
             borderRadius: '10px',
             padding: '4px',
             minWidth: '140px',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+            boxShadow: '0 4px 20px var(--po-shadow)',
             zIndex: 50,
             display: 'flex',
             flexDirection: 'column',
@@ -105,17 +105,17 @@ export default function ModeSelector({
                 gap: '10px',
                 padding: '0 12px',
                 background:
-                  mode === opt.id ? 'rgba(52, 211, 153, 0.1)' : 'transparent',
+                  mode === opt.id ? 'var(--po-selected)' : 'transparent',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: 'background 0.15s',
-                color: mode === opt.id ? '#e2e8f0' : '#888',
+                color: mode === opt.id ? 'var(--po-text)' : 'var(--po-text-muted)',
               }}
               onMouseEnter={e => {
                 if (mode !== opt.id)
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.background = 'var(--po-hover)';
               }}
               onMouseLeave={e => {
                 if (mode !== opt.id)
@@ -126,7 +126,7 @@ export default function ModeSelector({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  color: mode === opt.id ? '#34d399' : 'currentColor',
+                  color: mode === opt.id ? 'var(--po-success)' : 'currentColor',
                 }}
               >
                 {opt.icon}

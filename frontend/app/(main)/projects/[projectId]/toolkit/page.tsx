@@ -2,7 +2,7 @@
 
 /**
  * Toolkit Page
- * 
+ *
  * Redesigned with flexible filtering:
  * - Single unified list of all tools
  * - Filter bar at top (Type, Context, Status)
@@ -12,12 +12,12 @@
 
 import React, { use, useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  getToolsByProjectId, 
-  deleteTool, 
+import {
+  getToolsByProjectId,
+  deleteTool,
   updateTool,
   createTool,
-  Tool, 
+  Tool,
   McpToolType,
   TOOL_INFO,
   getSearchIndexStatus,
@@ -25,7 +25,8 @@ import {
 } from '@/lib/mcpApi';
 import { listDir, type NodeInfo } from '@/lib/contentTreeApi';
 import { getNodeTypeConfig, isFolderType } from '@/lib/nodeTypeConfig';
-import { PulseGrid, InlineLoading, PageLoading, Dots } from '@/components/loading';
+import { PulseGrid, PageLoading, Dots } from '@/components/loading';
+import { ActionButton } from '@/components/ui/ActionButton';
 
 // ================= Types =================
 
@@ -48,35 +49,35 @@ const AVAILABLE_TOOL_TYPES: ToolTypeConfig[] = [
     label: 'Search',
     description: 'AI-powered search across content',
     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>,
-    color: '#3b82f6',
+    color: 'var(--po-accent)',
   },
   {
     key: 'get_all_data',
     label: 'Get Content',
     description: 'Retrieve all content',
     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" /><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg>,
-    color: '#64748b',
+    color: 'var(--po-text-subtle)',
   },
   {
     key: 'create',
     label: 'Add Element',
     description: 'Add new element to JSON data',
     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>,
-    color: '#22c55e',
+    color: 'var(--po-success)',
   },
   {
     key: 'update',
     label: 'Edit Data',
     description: 'Edit existing content',
     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>,
-    color: '#f59e0b',
+    color: 'var(--po-warning)',
   },
   {
     key: 'delete',
     label: 'Remove Element',
     description: 'Remove element from JSON data',
     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>,
-    color: '#ef4444',
+    color: 'var(--po-danger)',
   },
 ];
 
@@ -93,7 +94,7 @@ function formatRelativeTime(isoString: string) {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-  
+
   if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
@@ -104,16 +105,16 @@ function formatRelativeTime(isoString: string) {
 // ================= Components =================
 
 // Filter Chip Component
-function FilterChip({ 
-  label, 
-  active, 
+function FilterChip({
+  label,
+  active,
   count,
   onClick,
   icon,
   color,
-}: { 
-  label: string; 
-  active: boolean; 
+}: {
+  label: string;
+  active: boolean;
   count?: number;
   onClick: () => void;
   icon?: React.ReactNode;
@@ -127,10 +128,10 @@ function FilterChip({
         alignItems: 'center',
         gap: 6,
         padding: '4px 10px',
-        background: active ? (color ? `${color}15` : 'rgba(255, 255, 255, 0.08)') : 'transparent',
+        background: active ? (color ? `color-mix(in srgb, ${color} 9%, transparent)` : 'var(--po-border)') : 'transparent',
         border: '1px solid transparent', // Removing border for cleaner look
         borderRadius: 6,
-        color: active ? (color || '#e4e4e7') : '#71717a',
+        color: active ? (color || 'var(--po-text)') : 'var(--po-text-subtle)',
         fontSize: 12,
         cursor: 'pointer',
         transition: 'all 0.15s',
@@ -139,23 +140,23 @@ function FilterChip({
       }}
       onMouseEnter={e => {
         if (!active) {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)';
-          e.currentTarget.style.color = '#a1a1aa';
+          e.currentTarget.style.background = 'var(--po-hover)';
+          e.currentTarget.style.color = 'var(--po-text-muted)';
         }
       }}
       onMouseLeave={e => {
         if (!active) {
           e.currentTarget.style.background = 'transparent';
-          e.currentTarget.style.color = '#71717a';
+          e.currentTarget.style.color = 'var(--po-text-subtle)';
         }
       }}
     >
       {icon && <span style={{ display: 'flex', color: active ? color : 'inherit', opacity: active ? 1 : 0.7 }}>{icon}</span>}
       <span>{label}</span>
       {count !== undefined && count > 0 && (
-        <span style={{ 
-          background: active ? (color ? `${color}30` : 'rgba(255,255,255,0.15)') : 'rgba(255,255,255,0.06)', 
-          color: active ? (color || '#e4e4e7') : '#71717a',
+        <span style={{
+          background: active ? (color ? `color-mix(in srgb, ${color} 18%, transparent)` : 'var(--po-border-strong)') : 'var(--po-border-subtle)',
+          color: active ? (color || 'var(--po-text)') : 'var(--po-text-subtle)',
           padding: '0 5px',
           borderRadius: 4,
           fontSize: 10,
@@ -184,7 +185,7 @@ function FilterDropdown({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <span style={{ fontSize: 12, color: '#52525b' }}>{label}</span>
+      <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>{label}</span>
       <div style={{ position: 'relative' }}>
         <select
           value={value}
@@ -195,7 +196,7 @@ function FilterDropdown({
             border: 'none',
             padding: '4px 18px 4px 4px',
             fontSize: 12,
-            color: '#a1a1aa',
+            color: 'var(--po-text-muted)',
             cursor: 'pointer',
             outline: 'none',
             fontWeight: 500,
@@ -205,8 +206,8 @@ function FilterDropdown({
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" 
-          style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#52525b' }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--po-text-disabled)' }}>
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
@@ -214,47 +215,47 @@ function FilterDropdown({
   );
 }
 
-function ToolRow({ 
-  tool, 
-  searchStatus, 
+function ToolRow({
+  tool,
+  searchStatus,
   nodeName,
-  onClick, 
+  onClick,
   active,
   onEdit,
   onDelete
-}: { 
-  tool: Tool; 
+}: {
+  tool: Tool;
   searchStatus?: SearchIndexTask | null;
   nodeName?: string;
-  onClick: () => void; 
+  onClick: () => void;
   active: boolean;
   onEdit: (e: React.MouseEvent) => void;
   onDelete: (e: React.MouseEvent) => void;
 }) {
   const config = getToolConfig(tool.type);
-  const color = config?.color || '#71717a';
-  
+  const color = config?.color || 'var(--po-text-subtle)';
+
   // Status Logic
-  let statusColor = '#71717a';
+  let statusColor = 'var(--po-text-subtle)';
   let statusText = 'Active';
-  
+
   if (tool.type === 'search' && searchStatus) {
     if (searchStatus.status === 'ready') {
-      statusColor = '#22c55e';
+      statusColor = 'var(--po-success)';
       statusText = 'Ready';
     } else if (searchStatus.status === 'indexing') {
-      statusColor = '#eab308';
+      statusColor = 'var(--po-warning)';
       statusText = 'Indexing';
     } else if (searchStatus.status === 'error') {
-      statusColor = '#ef4444';
+      statusColor = 'var(--po-danger)';
       statusText = 'Error';
     }
   } else {
-    statusColor = '#22c55e';
+    statusColor = 'var(--po-success)';
   }
 
   return (
-    <div 
+    <div
       onClick={onClick}
       style={{
         display: 'grid',
@@ -262,19 +263,19 @@ function ToolRow({
         gap: 12,
         height: 40, // Slightly more compact
         padding: '0 20px',
-        borderBottom: '1px solid #1f1f23',
+        borderBottom: '1px solid var(--po-overlay)',
         cursor: 'pointer',
         fontSize: 13,
         alignItems: 'center',
-        background: active ? '#18181b' : 'transparent',
-        color: active ? '#e4e4e7' : '#a1a1aa',
+        background: active ? 'var(--po-hover)' : 'transparent',
+        color: active ? 'var(--po-text)' : 'var(--po-text-muted)',
         transition: 'background 0.1s',
       }}
-      onMouseEnter={(e) => !active && (e.currentTarget.style.background = '#0f0f10')}
+      onMouseEnter={(e) => !active && (e.currentTarget.style.background = 'var(--po-panel)')}
       onMouseLeave={(e) => !active && (e.currentTarget.style.background = 'transparent')}
     >
       {/* Name */}
-      <div style={{ fontWeight: 500, color: '#e4e4e7', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <div style={{ fontWeight: 500, color: 'var(--po-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {tool.name}
       </div>
 
@@ -285,9 +286,9 @@ function ToolRow({
       </div>
 
       {/* Context */}
-      <div style={{ 
-        fontSize: 12, 
-        color: '#71717a',
+      <div style={{
+        fontSize: 12,
+        color: 'var(--po-text-subtle)',
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
@@ -302,18 +303,18 @@ function ToolRow({
       </div>
 
       {/* Description */}
-      <div style={{ 
+      <div style={{
         whiteSpace: 'nowrap',
         overflow: 'hidden',
         textOverflow: 'ellipsis',
-        color: '#52525b',
+        color: 'var(--po-text-disabled)',
         fontSize: 12
       }}>
         {tool.description || '-'}
       </div>
 
       {/* Created */}
-      <div style={{ color: '#3f3f46', fontSize: 11 }}>
+      <div style={{ color: 'var(--po-text-disabled)', fontSize: 11 }}>
         {formatRelativeTime(tool.created_at)}
       </div>
 
@@ -321,19 +322,19 @@ function ToolRow({
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
         <button
           onClick={onEdit}
-          style={{ padding: 6, background: 'none', border: 'none', color: '#52525b', cursor: 'pointer', borderRadius: 4 }}
+          style={{ padding: 6, background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer', borderRadius: 4 }}
           title="Edit"
-          onMouseEnter={e => { e.currentTarget.style.color = '#e4e4e7'; e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#52525b'; e.currentTarget.style.background = 'none'; }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-text)'; e.currentTarget.style.background = 'var(--po-hover)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-disabled)'; e.currentTarget.style.background = 'none'; }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
         </button>
         <button
           onClick={onDelete}
-          style={{ padding: 6, background: 'none', border: 'none', color: '#52525b', cursor: 'pointer', borderRadius: 4 }}
+          style={{ padding: 6, background: 'none', border: 'none', color: 'var(--po-text-disabled)', cursor: 'pointer', borderRadius: 4 }}
           title="Delete"
-          onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#52525b'; e.currentTarget.style.background = 'none'; }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-danger)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 10%, transparent)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-disabled)'; e.currentTarget.style.background = 'none'; }}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
         </button>
@@ -396,32 +397,32 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
             padding: '6px 12px',
             paddingLeft: 12 + depth * 16,
             cursor: 'pointer',
-            background: isSelected ? 'rgba(59,130,246,0.15)' : 'transparent',
+            background: isSelected ? 'color-mix(in srgb, var(--po-accent) 15%, transparent)' : 'transparent',
             borderRadius: 6,
             transition: 'background 0.1s',
           }}
-          onMouseEnter={e => !isSelected && (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
+          onMouseEnter={e => !isSelected && (e.currentTarget.style.background = 'var(--po-hover)')}
           onMouseLeave={e => !isSelected && (e.currentTarget.style.background = 'transparent')}
         >
           {isFolder && (
-            <svg 
-              width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2"
+            <svg
+              width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--po-text-subtle)" strokeWidth="2"
               style={{ transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}
             >
               <polyline points="9 18 15 12 9 6" />
             </svg>
           )}
           {!isFolder && <div style={{ width: 12 }} />}
-          
-          <span style={{ 
-            fontSize: 12, 
-            color: isSelected ? '#3b82f6' : '#a1a1aa',
+
+          <span style={{
+            fontSize: 12,
+            color: isSelected ? 'var(--po-accent)' : 'var(--po-text-muted)',
             fontWeight: isSelected ? 500 : 400,
           }}>
             {node.name}
           </span>
         </div>
-        
+
         {isFolder && isExpanded && children.map(child => renderNode(child, depth + 1))}
       </div>
     );
@@ -431,20 +432,18 @@ function NodePicker({ projectId, selectedNodeId, onSelect }: NodePickerProps) {
     return (
       <div
         style={{
+          height: 96,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '32px 20px',
         }}
       >
-        <InlineLoading size="sm" />
+        <PageLoading variant="fill" />
       </div>
     );
   }
 
   return (
     <div style={{ maxHeight: 240, overflowY: 'auto' }}>
-      {nodes.length === 0 ? <div style={{ padding: 20, textAlign: 'center', color: '#52525b', fontSize: 12 }}>No files found</div> : nodes.map(node => renderNode(node))}
+      {nodes.length === 0 ? <div style={{ padding: 20, textAlign: 'center', color: 'var(--po-text-disabled)', fontSize: 12 }}>No files found</div> : nodes.map(node => renderNode(node))}
     </div>
   );
 }
@@ -484,25 +483,25 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#0c0c0c', border: '1px solid #1f1f23', borderRadius: 16, width: 480, maxWidth: '90vw', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #1f1f23', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: '#f4f4f5' }}>Create Tool</h2>
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--po-backdrop-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--po-canvas)', border: '1px solid var(--po-overlay)', borderRadius: 16, width: 480, maxWidth: '90vw', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--po-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--po-text)' }}>Create Tool</h2>
         </div>
-        
+
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
           {step === 'type' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {AVAILABLE_TOOL_TYPES.map(config => (
                 <div key={config.key} onClick={() => { setSelectedType(config.key); setStep('node'); }}
-                  style={{ padding: 12, borderRadius: 8, border: '1px solid #27272a', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#18181b'}
+                  style={{ padding: 12, borderRadius: 8, border: '1px solid var(--po-filetree-rail)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--po-hover)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   <div style={{ color: config.color }}>{config.icon}</div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{config.label}</div>
-                    <div style={{ fontSize: 11, color: '#71717a' }}>{config.description}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>{config.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--po-text-subtle)' }}>{config.description}</div>
                   </div>
                 </div>
               ))}
@@ -511,8 +510,8 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
 
           {step === 'node' && (
             <div>
-               <div style={{ marginBottom: 12, fontSize: 13, color: '#e4e4e7' }}>Select Data Source</div>
-               <div style={{ border: '1px solid #27272a', borderRadius: 8, background: '#0a0a0a', overflow: 'hidden' }}>
+               <div style={{ marginBottom: 12, fontSize: 13, color: 'var(--po-text)' }}>Select Data Source</div>
+               <div style={{ border: '1px solid var(--po-filetree-rail)', borderRadius: 8, background: 'var(--po-inset)', overflow: 'hidden' }}>
                 <NodePicker projectId={projectId} selectedNodeId={selectedNode?.id || null} onSelect={node => { setSelectedNode(node); if (node) setStep('config'); }} />
               </div>
             </div>
@@ -521,27 +520,27 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
           {step === 'config' && selectedNode && (
              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#a1a1aa', marginBottom: 6 }}>Tool Name</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--po-text-muted)', marginBottom: 6 }}>Tool Name</label>
                 <input type="text" value={toolName} onChange={e => setToolName(e.target.value)} placeholder={`${selectedType}_${selectedNode.name.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 20)}`}
-                  style={{ width: '100%', padding: '8px 12px', background: '#0a0a0a', border: '1px solid #27272a', borderRadius: 6, color: '#e4e4e7', fontSize: 13 }} />
+                  style={{ width: '100%', padding: '8px 12px', background: 'var(--po-inset)', border: '1px solid var(--po-filetree-rail)', borderRadius: 6, color: 'var(--po-text)', fontSize: 13 }} />
                </div>
                <div>
-                <label style={{ display: 'block', fontSize: 12, color: '#a1a1aa', marginBottom: 6 }}>Description</label>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--po-text-muted)', marginBottom: 6 }}>Description</label>
                 <textarea value={toolDescription} onChange={e => setToolDescription(e.target.value)} placeholder={selectedTypeConfig?.description} rows={3}
-                  style={{ width: '100%', padding: '8px 12px', background: '#0a0a0a', border: '1px solid #27272a', borderRadius: 6, color: '#e4e4e7', fontSize: 13 }} />
+                  style={{ width: '100%', padding: '8px 12px', background: 'var(--po-inset)', border: '1px solid var(--po-filetree-rail)', borderRadius: 6, color: 'var(--po-text)', fontSize: 13 }} />
                </div>
              </div>
           )}
         </div>
 
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #1f1f23', display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--po-overlay)', display: 'flex', justifyContent: 'space-between' }}>
           <button onClick={() => { if (step === 'config') setStep('node'); else if (step === 'node') setStep('type'); else onClose(); }}
-            style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #27272a', borderRadius: 6, color: '#a1a1aa', fontSize: 12, cursor: 'pointer' }}>
+            style={{ padding: '6px 12px', background: 'transparent', border: '1px solid var(--po-filetree-rail)', borderRadius: 6, color: 'var(--po-text-muted)', fontSize: 12, cursor: 'pointer' }}>
             {step === 'type' ? 'Cancel' : 'Back'}
           </button>
           {step === 'config' && (
             <button onClick={handleCreate} disabled={creating}
-              style={{ padding: '6px 16px', background: '#3b82f6', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 500, cursor: creating ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              style={{ padding: '6px 16px', background: 'var(--po-accent)', border: 'none', borderRadius: 6, color: 'var(--po-text-inverse)', fontSize: 12, fontWeight: 500, cursor: creating ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               {creating && <Dots size="xs" />}
               {creating ? 'Creating…' : 'Create Tool'}
             </button>
@@ -557,19 +556,19 @@ function CreateToolPanel({ projectId, onClose, onCreated }: { projectId: string;
 export default function ToolkitPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = use(params);
   const router = useRouter();
-  
+
   // Data State
   const [tools, setTools] = useState<Tool[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchStatuses, setSearchStatuses] = useState<Record<string, SearchIndexTask>>({});
-  
+
   // Filter State
   const [typeFilter, setTypeFilter] = useState<ToolFilterType>('all');
   const [contextFilter, setContextFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // UI State
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [editingTool, setEditingTool] = useState<Tool | null>(null);
@@ -584,7 +583,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
     try {
       const data = await getToolsByProjectId(projectId);
       setTools(data);
-      
+
       // Fetch status for search tools
       const searchTools = data.filter(t => t.type === 'search');
       const statuses: Record<string, SearchIndexTask> = {};
@@ -621,13 +620,13 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
     return tools.filter(tool => {
       // Hide deprecated tool types
       if (DEPRECATED_TOOL_TYPES.includes(tool.type)) return false;
-      
+
       // Type Filter
       if (typeFilter !== 'all' && tool.type !== typeFilter) return false;
-      
+
       // Context Filter
       if (contextFilter !== 'all' && tool.path !== contextFilter) return false;
-      
+
       // Status Filter
       if (statusFilter !== 'all') {
         const status = searchStatuses[tool.id];
@@ -635,13 +634,13 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
         if (statusFilter === 'indexing' && status?.status !== 'indexing') return false;
         if (statusFilter === 'error' && status?.status !== 'error') return false;
       }
-      
+
       // Search Query
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         if (!tool.name.toLowerCase().includes(query) && !tool.description?.toLowerCase().includes(query)) return false;
       }
-      
+
       return true;
     });
   }, [tools, typeFilter, contextFilter, statusFilter, searchQuery, searchStatuses]);
@@ -688,51 +687,51 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
   };
 
   return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#0e0e0e', overflow: 'hidden' }}>
-      
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--po-canvas)', overflow: 'hidden' }}>
+
       {/* Header */}
-      <div style={{ 
-        height: 46, minHeight: 46, borderBottom: '1px solid rgba(255,255,255,0.1)', 
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: '#0e0e0e', flexShrink: 0 
+      <div style={{
+        height: 46, minHeight: 46, borderBottom: '1px solid var(--po-active)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', background: 'var(--po-canvas)', flexShrink: 0
       }}>
-        <h1 style={{ fontFamily: '"Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif', fontSize: 13, fontWeight: 500, color: '#CDCDCD', margin: 0 }}>Toolkit</h1>
+        <h1 style={{ fontFamily: 'var(--po-font-sans)', fontSize: 13, fontWeight: 500, color: 'var(--po-text)', margin: 0 }}>Toolkit</h1>
         {/* Create Tool button hidden - tools are auto-created when users configure access in Context page */}
       </div>
 
       {/* Filter Bar - Unified */}
-      <div style={{ 
-        padding: '12px 20px', 
-        borderBottom: '1px solid rgba(255,255,255,0.06)', 
-        display: 'flex', 
+      <div style={{
+        padding: '12px 20px',
+        borderBottom: '1px solid var(--po-border-subtle)',
+        display: 'flex',
         alignItems: 'center',
         gap: 16,
-        background: '#0e0e0e',
+        background: 'var(--po-canvas)',
         overflowX: 'auto',
         whiteSpace: 'nowrap',
       }}>
         {/* Search Input - First */}
         <div style={{ position: 'relative', minWidth: 200, maxWidth: 300 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#52525b" strokeWidth="2" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-text-disabled)" strokeWidth="2" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
           <input type="text" placeholder="Search tools..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ width: '100%', background: '#09090b', border: '1px solid #27272a', borderRadius: 6, padding: '5px 10px 5px 32px', fontSize: 12, color: '#e4e4e7', outline: 'none', height: 30, transition: 'border-color 0.15s' }}
-            onFocus={(e) => e.target.style.borderColor = '#3f3f46'}
-            onBlur={(e) => e.target.style.borderColor = '#27272a'}
+            style={{ width: '100%', background: 'var(--po-editor-bg)', border: '1px solid var(--po-filetree-rail)', borderRadius: 6, padding: '5px 10px 5px 32px', fontSize: 12, color: 'var(--po-text)', outline: 'none', height: 30, transition: 'border-color 0.15s' }}
+            onFocus={(e) => e.target.style.borderColor = 'var(--po-text-disabled)'}
+            onBlur={(e) => e.target.style.borderColor = 'var(--po-filetree-rail)'}
           />
         </div>
 
         {/* Separator */}
-        <div style={{ width: 1, height: 20, background: '#27272a' }} />
+        <div style={{ width: 1, height: 20, background: 'var(--po-filetree-rail)' }} />
 
         {/* Type Filters (Chips) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <FilterChip 
-            label="All" 
-            active={typeFilter === 'all'} 
+          <FilterChip
+            label="All"
+            active={typeFilter === 'all'}
             count={typeCounts.all}
-            onClick={() => setTypeFilter('all')} 
+            onClick={() => setTypeFilter('all')}
           />
           {AVAILABLE_TOOL_TYPES.map(type => (
-            <FilterChip 
+            <FilterChip
               key={type.key}
               label={type.label}
               icon={type.icon}
@@ -774,7 +773,7 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
 
           {/* Refresh */}
           <button onClick={fetchTools} disabled={loading}
-            style={{ background: 'transparent', border: 'none', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: loading ? '#27272a' : '#52525b', cursor: loading ? 'not-allowed' : 'pointer' }}
+            style={{ background: 'transparent', border: 'none', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', color: loading ? 'var(--po-filetree-rail)' : 'var(--po-text-disabled)', cursor: loading ? 'not-allowed' : 'pointer' }}
             title="Refresh list"
           >
             {loading
@@ -788,18 +787,18 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
       {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {/* Table Header */}
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: '240px 140px 180px 100px 1fr 100px 80px', 
-          gap: 12, 
-          padding: '10px 20px', 
-          borderBottom: '1px solid #1f1f23', 
-          background: '#0c0c0c', 
-          fontSize: 10, 
-          fontWeight: 600, 
-          color: '#52525b', 
-          position: 'sticky', 
-          top: 0, 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '240px 140px 180px 100px 1fr 100px 80px',
+          gap: 12,
+          padding: '10px 20px',
+          borderBottom: '1px solid var(--po-overlay)',
+          background: 'var(--po-canvas)',
+          fontSize: 10,
+          fontWeight: 600,
+          color: 'var(--po-text-disabled)',
+          position: 'sticky',
+          top: 0,
           zIndex: 10,
           textTransform: 'uppercase',
           letterSpacing: '0.05em',
@@ -819,17 +818,17 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
             <PageLoading variant="fill" />
           </div>
         ) : filteredTools.length === 0 ? (
-          <div style={{ padding: 60, textAlign: 'center', color: '#27272a' }}>
+          <div style={{ padding: 60, textAlign: 'center', color: 'var(--po-filetree-rail)' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: '0 auto 12px' }}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <div style={{ fontSize: 13 }}>No tools found</div>
-            <div style={{ fontSize: 11, color: '#52525b', marginTop: 4 }}>Try adjusting your filters or create a new tool</div>
+            <div style={{ fontSize: 11, color: 'var(--po-text-disabled)', marginTop: 4 }}>Try adjusting your filters or create a new tool</div>
           </div>
         ) : (
           filteredTools.map(tool => (
-            <ToolRow 
-              key={tool.id} 
-              tool={tool} 
-              searchStatus={searchStatuses[tool.id]} 
+            <ToolRow
+              key={tool.id}
+              tool={tool}
+              searchStatus={searchStatuses[tool.id]}
               nodeName={getNodeName(tool)}
               onClick={() => setSelectedToolId(tool.id === selectedToolId ? null : tool.id)}
               active={selectedToolId === tool.id}
@@ -845,24 +844,24 @@ export default function ToolkitPage({ params }: { params: Promise<{ projectId: s
 
       {/* Edit Modal */}
       {editingTool && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }} onClick={() => setEditingTool(null)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#0c0c0c', border: '1px solid #1f1f23', borderRadius: 12, width: 400, padding: 24 }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: 15, fontWeight: 500, color: '#f4f4f5' }}>Edit Tool</h3>
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--po-backdrop-strong)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(8px)' }} onClick={() => setEditingTool(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--po-canvas)', border: '1px solid var(--po-overlay)', borderRadius: 12, width: 400, padding: 24 }}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: 15, fontWeight: 500, color: 'var(--po-text)' }}>Edit Tool</h3>
             <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 11, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name</label>
-              <input type="text" defaultValue={editingTool.name} id="edit-name" style={{ width: '100%', padding: '8px 12px', background: '#09090b', border: '1px solid #1f1f23', borderRadius: 6, color: '#e4e4e7', fontSize: 13 }} />
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--po-text-subtle)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name</label>
+              <input type="text" defaultValue={editingTool.name} id="edit-name" style={{ width: '100%', padding: '8px 12px', background: 'var(--po-editor-bg)', border: '1px solid var(--po-overlay)', borderRadius: 6, color: 'var(--po-text)', fontSize: 13 }} />
             </div>
             <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 11, color: '#71717a', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</label>
-              <textarea defaultValue={editingTool.description || ''} id="edit-desc" rows={3} style={{ width: '100%', padding: '8px 12px', background: '#09090b', border: '1px solid #1f1f23', borderRadius: 6, color: '#e4e4e7', fontSize: 13 }} />
+              <label style={{ display: 'block', fontSize: 11, color: 'var(--po-text-subtle)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</label>
+              <textarea defaultValue={editingTool.description || ''} id="edit-desc" rows={3} style={{ width: '100%', padding: '8px 12px', background: 'var(--po-editor-bg)', border: '1px solid var(--po-overlay)', borderRadius: 6, color: 'var(--po-text)', fontSize: 13 }} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button onClick={() => setEditingTool(null)} style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #27272a', borderRadius: 6, color: '#71717a', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => {
+              <ActionButton size='sm' onClick={() => setEditingTool(null)}>Cancel</ActionButton>
+              <ActionButton size='sm' variant='primary' onClick={() => {
                 const name = (document.getElementById('edit-name') as HTMLInputElement).value;
                 const desc = (document.getElementById('edit-desc') as HTMLTextAreaElement).value;
                 if(name) handleEdit(editingTool.id, { name, description: desc });
-              }} style={{ padding: '6px 16px', background: '#3b82f6', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer' }}>Save</button>
+              }}>Save</ActionButton>
             </div>
           </div>
         </div>

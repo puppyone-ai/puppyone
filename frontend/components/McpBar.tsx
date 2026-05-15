@@ -543,20 +543,20 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
               height: 32,
               padding: '4px 10px',
               borderRadius: 6,
-              border: '1px solid #333',
-              background: '#1a1a1a',
-              color: '#CDCDCD',
+              border: '1px solid var(--po-border-strong)',
+              background: 'var(--po-panel-raised)',
+              color: 'var(--po-text)',
               fontSize: 12,
               cursor: 'pointer',
               transition: 'background 0.15s, border-color 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = '#2a2a2a';
-              e.currentTarget.style.borderColor = '#444';
+              e.currentTarget.style.background = 'var(--po-border)';
+              e.currentTarget.style.borderColor = 'var(--po-border-strong)';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = '#1a1a1a';
-              e.currentTarget.style.borderColor = '#333';
+              e.currentTarget.style.background = 'var(--po-panel-raised)';
+              e.currentTarget.style.borderColor = 'var(--po-border-strong)';
             }}
           >
             Import Context
@@ -571,20 +571,20 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
               height: 32,
               padding: '4px 10px',
               borderRadius: 6,
-              border: '1px solid #333',
-              background: '#1a1a1a',
-              color: '#CDCDCD',
+              border: '1px solid var(--po-border-strong)',
+              background: 'var(--po-panel-raised)',
+              color: 'var(--po-text)',
               fontSize: 12,
               cursor: 'pointer',
               transition: 'background 0.15s, border-color 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = '#2a2a2a';
-              e.currentTarget.style.borderColor = '#444';
+              e.currentTarget.style.background = 'var(--po-border)';
+              e.currentTarget.style.borderColor = 'var(--po-border-strong)';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = '#1a1a1a';
-              e.currentTarget.style.borderColor = '#333';
+              e.currentTarget.style.background = 'var(--po-panel-raised)';
+              e.currentTarget.style.borderColor = 'var(--po-border-strong)';
             }}
           >
             Configure MCP
@@ -597,8 +597,8 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                 top: 36,
                 left: 0,
                 width: 180,
-                background: '#1a1a1a',
-                border: '1px solid #333',
+                background: 'var(--po-panel-raised)',
+                border: '1px solid var(--po-border-strong)',
                 borderRadius: 8,
                 padding: 10,
                 display: 'flex',
@@ -606,7 +606,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                 gap: 8,
                 zIndex: 50,
                 boxShadow:
-                  '0 8px 25px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.2)',
+                  '0 8px 25px var(--po-shadow), 0 4px 10px var(--po-shadow)',
                 opacity: importMenuHeight > 0 ? 1 : 0,
                 transform: `translateY(${importMenuHeight > 0 ? 0 : -10}px) scaleY(${importMenuHeight > 0 ? 1 : 0.8})`,
                 transformOrigin: 'top',
@@ -618,7 +618,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
               {/* Project Selection */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label
-                  style={{ fontSize: 10, color: '#CDCDCD', fontWeight: 500 }}
+                  style={{ fontSize: 10, color: 'var(--po-text)', fontWeight: 500 }}
                 >
                   Project
                 </label>
@@ -630,9 +630,9 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     height: 24,
                     padding: '0 8px',
                     borderRadius: 4,
-                    border: '1px solid #333',
-                    background: '#1a1a1a',
-                    color: '#CDCDCD',
+                    border: '1px solid var(--po-border-strong)',
+                    background: 'var(--po-panel-raised)',
+                    color: 'var(--po-text)',
                     fontSize: 10,
                     cursor: isImporting ? 'not-allowed' : 'pointer',
                   }}
@@ -649,7 +649,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
               {/* Table Name */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label
-                  style={{ fontSize: 10, color: '#CDCDCD', fontWeight: 500 }}
+                  style={{ fontSize: 10, color: 'var(--po-text)', fontWeight: 500 }}
                 >
                   Context Name
                 </label>
@@ -663,9 +663,9 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     height: 24,
                     padding: '0 8px',
                     borderRadius: 4,
-                    border: '1px solid #333',
-                    background: '#1a1a1a',
-                    color: '#CDCDCD',
+                    border: '1px solid var(--po-border-strong)',
+                    background: 'var(--po-panel-raised)',
+                    color: 'var(--po-text)',
                     fontSize: 10,
                   }}
                 />
@@ -674,7 +674,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
               {/* Folder Selection */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <label
-                  style={{ fontSize: 10, color: '#CDCDCD', fontWeight: 500 }}
+                  style={{ fontSize: 10, color: 'var(--po-text)', fontWeight: 500 }}
                 >
                   Import Folder
                 </label>
@@ -696,9 +696,9 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                       height: 24,
                       padding: '0 8px',
                       borderRadius: 4,
-                      border: '1px solid #333',
-                      background: '#1a1a1a',
-                      color: '#CDCDCD',
+                      border: '1px solid var(--po-border-strong)',
+                      background: 'var(--po-panel-raised)',
+                      color: 'var(--po-text)',
                       fontSize: 10,
                       cursor: isImporting ? 'not-allowed' : 'pointer',
                       whiteSpace: 'nowrap',
@@ -706,21 +706,21 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     }}
                     onMouseEnter={e => {
                       if (!isImporting) {
-                        e.currentTarget.style.background = '#2a2a2a';
-                        e.currentTarget.style.borderColor = '#444';
+                        e.currentTarget.style.background = 'var(--po-border)';
+                        e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                       }
                     }}
                     onMouseLeave={e => {
                       if (!isImporting) {
-                        e.currentTarget.style.background = '#1a1a1a';
-                        e.currentTarget.style.borderColor = '#333';
+                        e.currentTarget.style.background = 'var(--po-panel-raised)';
+                        e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                       }
                     }}
                   >
                     Select
                   </button>
                   {selectedFiles && selectedFiles.length > 0 && (
-                    <div style={{ fontSize: 9, color: '#94a3b8' }}>
+                    <div style={{ fontSize: 9, color: 'var(--po-text-subtle)' }}>
                       {selectedFiles[0].webkitRelativePath.split('/')[0]},{' '}
                       {selectedFiles.length} files
                     </div>
@@ -740,11 +740,11 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                       alignItems: 'center',
                     }}
                   >
-                    <span style={{ fontSize: 10, color: '#CDCDCD', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 10, color: 'var(--po-text)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                       <Dots size='xs' />
                       Processing…
                     </span>
-                    <span style={{ fontSize: 10, color: '#94a3b8' }}>
+                    <span style={{ fontSize: 10, color: 'var(--po-text-subtle)' }}>
                       {Math.round(importProgress)}%
                     </span>
                   </div>
@@ -752,17 +752,17 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     style={{
                       width: '100%',
                       height: 6,
-                      background: '#1a1a1a',
+                      background: 'var(--po-panel-raised)',
                       borderRadius: 3,
                       overflow: 'hidden',
-                      border: '1px solid #333',
+                      border: '1px solid var(--po-border-strong)',
                     }}
                   >
                     <div
                       style={{
                         width: `${importProgress}%`,
                         height: '100%',
-                        background: '#1e3a8a',
+                        background: 'var(--po-accent)',
                         transition: 'width 0.3s ease',
                       }}
                     />
@@ -789,15 +789,15 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     !selectedFiles ||
                     selectedFiles.length === 0 ||
                     !selectedProject
-                      ? '#374151'
-                      : '#1e3a8a',
+                      ? 'var(--po-control-hover)'
+                      : 'var(--po-accent)',
                   color:
                     isImporting ||
                     !selectedFiles ||
                     selectedFiles.length === 0 ||
                     !selectedProject
-                      ? '#9ca3af'
-                      : '#ffffff',
+                      ? 'var(--po-text-muted)'
+                      : 'var(--po-text-inverse)',
                   fontSize: 10,
                   fontWeight: 500,
                   cursor:
@@ -821,7 +821,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     selectedFiles.length > 0 &&
                     selectedProject
                   ) {
-                    e.currentTarget.style.background = '#1e40af';
+                    e.currentTarget.style.background = 'var(--po-accent-text)';
                   }
                 }}
                 onMouseLeave={e => {
@@ -831,7 +831,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     selectedFiles.length > 0 &&
                     selectedProject
                   ) {
-                    e.currentTarget.style.background = '#1e3a8a';
+                    e.currentTarget.style.background = 'var(--po-accent)';
                   }
                 }}
               >
@@ -848,8 +848,8 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                 top: 36,
                 right: 0,
                 width: 180,
-                background: '#1a1a1a',
-                border: '1px solid #333',
+                background: 'var(--po-panel-raised)',
+                border: '1px solid var(--po-border-strong)',
                 borderRadius: 8,
                 padding: 10,
                 display: 'flex',
@@ -857,7 +857,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                 gap: 8,
                 zIndex: 50,
                 boxShadow:
-                  '0 8px 25px rgba(0, 0, 0, 0.4), 0 4px 10px rgba(0, 0, 0, 0.2)',
+                  '0 8px 25px var(--po-shadow), 0 4px 10px var(--po-shadow)',
                 opacity: menuHeight > 0 ? 1 : 0,
                 transform: `translateY(${menuHeight > 0 ? 0 : -10}px) scaleY(${menuHeight > 0 ? 1 : 0.8})`,
                 transformOrigin: 'top',
@@ -889,11 +889,11 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                             height: 32,
                             padding: '6px 8px',
                             borderRadius: 4,
-                            border: added ? '1px solid #333' : '1px solid #333',
+                            border: added ? '1px solid var(--po-border-strong)' : '1px solid var(--po-border-strong)',
                             background: added
-                              ? 'rgba(107,114,128,0.15)'
+                              ? 'color-mix(in srgb, var(--po-text-muted) 15%, transparent)'
                               : 'transparent',
-                            color: added ? '#CDCDCD' : '#CDCDCD',
+                            color: added ? 'var(--po-text)' : 'var(--po-text)',
                             fontSize: 10,
                             cursor: 'pointer',
                             textAlign: 'left',
@@ -905,14 +905,14 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                           }}
                           onMouseEnter={e => {
                             if (!added) {
-                              e.currentTarget.style.background = '#2a2a2a';
-                              e.currentTarget.style.borderColor = '#444';
+                              e.currentTarget.style.background = 'var(--po-border)';
+                              e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                             }
                           }}
                           onMouseLeave={e => {
                             if (!added) {
                               e.currentTarget.style.background = 'transparent';
-                              e.currentTarget.style.borderColor = '#333';
+                              e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                             }
                           }}
                         >
@@ -925,10 +925,10 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                     <div
                       style={{
                         fontSize: 10,
-                        color: '#f87171',
+                        color: 'var(--po-danger)',
                         marginTop: 2,
                         padding: '3px 6px',
-                        background: 'rgba(248, 113, 113, 0.1)',
+                        background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)',
                         borderRadius: 3,
                       }}
                     >
@@ -938,7 +938,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                   )}
                   {addedMethods.length === 0 && (
                     <div
-                      style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}
+                      style={{ fontSize: 10, color: 'var(--po-text-subtle)', marginTop: 2 }}
                     >
                       Select at least one method
                     </div>
@@ -967,7 +967,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                             currentTreePath && currentTreePath !== ''
                               ? 'pointer'
                               : 'not-allowed',
-                          accentColor: '#2563eb',
+                          accentColor: 'var(--po-accent)',
                         }}
                       />
                       <label
@@ -976,8 +976,8 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                           fontSize: 10,
                           color:
                             currentTreePath && currentTreePath !== ''
-                              ? '#CDCDCD'
-                              : '#6b7280',
+                              ? 'var(--po-text)'
+                              : 'var(--po-text-subtle)',
                           cursor:
                             currentTreePath && currentTreePath !== ''
                               ? 'pointer'
@@ -990,7 +990,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                           <span
                             style={{
                               fontSize: 9,
-                              color: '#94a3b8',
+                              color: 'var(--po-text-subtle)',
                               marginLeft: 4,
                             }}
                           >
@@ -1007,7 +1007,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                       <div
                         style={{
                           fontSize: 9,
-                          color: '#94a3b8',
+                          color: 'var(--po-text-subtle)',
                           marginLeft: 20,
                         }}
                       >
@@ -1018,7 +1018,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                       <div
                         style={{
                           fontSize: 9,
-                          color: '#94a3b8',
+                          color: 'var(--po-text-subtle)',
                           marginLeft: 20,
                         }}
                       >
@@ -1030,7 +1030,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                         <div
                           style={{
                             fontSize: 9,
-                            color: '#f87171',
+                            color: 'var(--po-danger)',
                             marginLeft: 20,
                           }}
                         >
@@ -1063,15 +1063,15 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                         addedMethods.length === 0 ||
                         !userId ||
                         !projectId
-                          ? '#374151'
-                          : '#1e3a8a',
+                          ? 'var(--po-control-hover)'
+                          : 'var(--po-accent)',
                       color:
                         isApplying ||
                         addedMethods.length === 0 ||
                         !userId ||
                         !projectId
-                          ? '#9ca3af'
-                          : '#ffffff',
+                          ? 'var(--po-text-muted)'
+                          : 'var(--po-text-inverse)',
                       fontSize: 11,
                       fontWeight: 500,
                       cursor:
@@ -1090,7 +1090,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                         userId &&
                         projectId
                       ) {
-                        e.currentTarget.style.background = '#1e40af';
+                        e.currentTarget.style.background = 'var(--po-accent-text)';
                       }
                     }}
                     onMouseLeave={e => {
@@ -1100,7 +1100,7 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                         userId &&
                         projectId
                       ) {
-                        e.currentTarget.style.background = '#1e3a8a';
+                        e.currentTarget.style.background = 'var(--po-accent)';
                       }
                     }}
                   >
@@ -1137,20 +1137,20 @@ export const McpBar = forwardRef<{ closeMenus: () => void }, McpBarProps>(
                       marginTop: 6,
                       height: 32,
                       borderRadius: 6,
-                      border: '1px solid #333',
-                      background: '#1a1a1a',
-                      color: '#CDCDCD',
+                      border: '1px solid var(--po-border-strong)',
+                      background: 'var(--po-panel-raised)',
+                      color: 'var(--po-text)',
                       fontSize: 11,
                       cursor: 'pointer',
                       transition: 'background 0.15s, border-color 0.15s',
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.background = '#2a2a2a';
-                      e.currentTarget.style.borderColor = '#444';
+                      e.currentTarget.style.background = 'var(--po-border)';
+                      e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.background = '#1a1a1a';
-                      e.currentTarget.style.borderColor = '#333';
+                      e.currentTarget.style.background = 'var(--po-panel-raised)';
+                      e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                     }}
                   >
                     Back

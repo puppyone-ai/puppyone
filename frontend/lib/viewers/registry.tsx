@@ -15,7 +15,6 @@
 
 import dynamic from 'next/dynamic';
 import { ComponentType } from 'react';
-import { EditorSkeleton } from '@/components/Skeleton';
 import { EditorLoadingSurface } from '@/components/loading';
 import type { GenericViewerId } from '@/lib/fileFormats/types';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
@@ -61,7 +60,6 @@ export interface ViewerDefinition {
   requiresText: boolean;
 }
 
-const EditorLoading = () => <EditorSkeleton />;
 const PageLoadingFallback = () => <EditorLoadingSurface />;
 
 // Each viewer is a thin adapter from `ViewerProps` to the
@@ -113,7 +111,7 @@ const MonacoCodeAdapter = dynamic<ViewerProps>(
       Adapter.displayName = 'MonacoCodeAdapter';
       return Adapter;
     }),
-  { ssr: false, loading: EditorLoading },
+  { ssr: false, loading: PageLoadingFallback },
 );
 
 const HtmlArtifactAdapter = dynamic<ViewerProps>(

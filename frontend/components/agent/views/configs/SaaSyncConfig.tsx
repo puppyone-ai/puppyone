@@ -7,7 +7,8 @@ import { openOAuthPopup, type SaasType } from '@/lib/oauthApi';
 import { isWithinScope } from '@/lib/repoApi';
 import { SyncPreview, type AcceptedNodeType } from './SyncPreview';
 import { ScheduleTriggerSection } from './ScheduleAgentConfig';
-import { FolderIcon, JsonIcon, MarkdownIcon, CloseIcon, getNodeIcon } from '../_icons';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { FolderIcon, JsonIcon, MarkdownIcon, getNodeIcon } from '../_icons';
 import { getSyncTriggerPolicy, SYNC_MODE_META, type SyncModeType } from '@/lib/syncTriggerPolicy';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
 import { Dots } from '@/components/loading';
@@ -158,33 +159,33 @@ export function SaaSyncConfig({
           left: 'calc(50% + 68px)',
           width: '16px',
           height: '16px',
-          background: '#18181b',
-          borderLeft: '1px solid rgba(255,255,255,0.08)',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-hover)',
+          borderLeft: '1px solid var(--po-border)',
+          borderTop: '1px solid var(--po-border)',
           transform: 'rotate(45deg)',
           zIndex: 3,
         }} />
 
         <div style={{
           position: 'relative',
-          background: '#18181b',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--po-hover)',
+          border: '1px solid var(--po-border)',
           borderRadius: '8px',
           padding: '16px',
           zIndex: 2
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', paddingLeft: 2 }}>Workspace Sync Target</label>
-            <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />
+            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)', paddingLeft: 2 }}>Workspace Sync Target</label>
+            <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />
           </div>
-          <div style={{ color: '#a1a1aa', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
+          <div style={{ color: 'var(--po-text-muted)', fontSize: 13, marginBottom: 12, lineHeight: 1.4, paddingLeft: 2 }}>
             Drag and drop a folder or database here to set it as the destination for this integration.
           </div>
 
           {scopeBoundary !== undefined && (
-            <div style={{ fontSize: 11, color: '#71717a', paddingLeft: 2, marginBottom: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 11, color: 'var(--po-text-subtle)', paddingLeft: 2, marginBottom: 8, lineHeight: 1.5 }}>
               Only nodes inside{' '}
-              <code style={{ color: '#a1a1aa' }}>
+              <code style={{ color: 'var(--po-text-muted)' }}>
                 {scopeBoundary === '' ? '/ (root)' : `/${scopeBoundary}`}
               </code>{' '}
               can be attached.
@@ -194,9 +195,9 @@ export function SaaSyncConfig({
           {dropError && (
             <div
               style={{
-                fontSize: 12, color: '#fca5a5',
-                background: 'rgba(248,113,113,0.08)',
-                border: '1px solid rgba(248,113,113,0.25)',
+                fontSize: 12, color: 'var(--po-danger)',
+                background: 'color-mix(in srgb, var(--po-danger) 8%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--po-danger) 25%, transparent)',
                 borderRadius: 6, padding: '6px 10px',
                 marginBottom: 8, lineHeight: 1.5,
               }}
@@ -209,8 +210,8 @@ export function SaaSyncConfig({
           <div
             style={{
               minHeight: 72,
-              background: isDragging ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)',
-              border: isDragging ? '1px dashed #71717a' : targetRes ? '1px solid rgba(255,255,255,0.15)' : '1px dashed rgba(255,255,255,0.15)',
+              background: isDragging ? 'var(--po-hover)' : 'var(--po-panel)',
+              border: isDragging ? '1px dashed var(--po-text-subtle)' : targetRes ? '1px solid var(--po-border-strong)' : '1px dashed var(--po-border-strong)',
               borderRadius: 6, transition: 'all 0.15s',
             }}
             onDragOver={handleDragOver}
@@ -225,29 +226,23 @@ export function SaaSyncConfig({
                   <div
                     style={{
                       height: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '0 10px', borderRadius: 4, background: '#1a1a1a', border: '1px solid #252525', transition: 'all 0.1s',
+                      padding: '0 10px', borderRadius: 4, background: 'var(--po-panel-raised)', border: '1px solid var(--po-border-strong)', transition: 'all 0.1s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--po-hover)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--po-panel-raised)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden', flex: 1, minWidth: 0 }}>
                       <div style={{ color, flexShrink: 0, display: 'flex', alignItems: 'center' }}>{nodeIcon}</div>
-                      <span style={{ fontSize: 12, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span style={{ fontSize: 12, color: 'var(--po-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {targetRes.nodeName}
                       </span>
                     </div>
-                    <button
+                    <ActivityIconButton
+                      kind="close"
+                      title="Remove resource"
+                      size="sm"
                       onClick={() => removeDraftResource(targetRes.path)}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: 20, height: 20, borderRadius: 4, background: 'transparent',
-                        border: 'none', color: '#505050', cursor: 'pointer', transition: 'all 0.1s',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
-                    >
-                      <CloseIcon />
-                    </button>
+                    />
                   </div>
                 );
               })()}
@@ -258,12 +253,12 @@ export function SaaSyncConfig({
             <div style={{
               minHeight: 72, display: 'flex', flexDirection: 'column',
               alignItems: 'center', justifyContent: 'center', gap: 6,
-              color: isDragging ? '#a1a1aa' : '#71717a',
+              color: isDragging ? 'var(--po-text-muted)' : 'var(--po-text-subtle)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {accept.includes('folder') && <div style={{ color: isDragging ? '#d4d4d4' : '#a1a1aa' }}><FolderIcon /></div>}
-                {accept.includes('json') && <div style={{ color: isDragging ? '#6ee7b7' : '#34d399' }}><JsonIcon /></div>}
-                {accept.includes('markdown') && <div style={{ color: isDragging ? '#93c5fd' : '#60a5fa' }}><MarkdownIcon /></div>}
+                {accept.includes('folder') && <div style={{ color: isDragging ? 'var(--po-text)' : 'var(--po-text-muted)' }}><FolderIcon /></div>}
+                {accept.includes('json') && <div style={{ color: isDragging ? 'var(--po-success)' : 'var(--po-success)' }}><JsonIcon /></div>}
+                {accept.includes('markdown') && <div style={{ color: isDragging ? 'var(--po-accent-text)' : 'var(--po-accent)' }}><MarkdownIcon /></div>}
               </div>
               <span style={{ fontSize: 13 }}>
                 {isDragging ? 'Drop here' : `Drag ${TYPE_ARTICLE[primaryType]} into this zone`}
@@ -279,41 +274,41 @@ export function SaaSyncConfig({
         {requiresAuth && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: -2 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{providerLabel} account</span>
-              {!oauthStatus?.connected && <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%' }} title="Required" />}
+              <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>{providerLabel} account</span>
+              {!oauthStatus?.connected && <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%' }} title="Required" />}
             </div>
 
             {oauthUnsupported ? (
               <div style={{
                 padding: '12px 14px', borderRadius: 8,
-                background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)',
-                color: '#fca5a5', fontSize: 12, lineHeight: 1.5,
+                background: 'color-mix(in srgb, var(--po-danger) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--po-danger) 20%, transparent)',
+                color: 'var(--po-danger)', fontSize: 12, lineHeight: 1.5,
               }}>
                 OAuth is not available for this connector yet.
               </div>
             ) : checking ? (
-              <div style={{ textAlign: 'center', color: '#a1a1aa', fontSize: 13, padding: '8px 0' }}>
+              <div style={{ textAlign: 'center', color: 'var(--po-text-muted)', fontSize: 13, padding: '8px 0' }}>
                 Checking account...
               </div>
             ) : oauthStatus?.connected ? (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '8px 12px', borderRadius: 6,
-                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--po-panel)', border: '1px solid var(--po-border)',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
-                  <span style={{ fontSize: 13, color: '#e4e4e7', fontWeight: 400 }}>
+                  <span style={{ fontSize: 13, color: 'var(--po-text)', fontWeight: 400 }}>
                     {oauthStatus?.email || 'Signed in'}
                   </span>
                 </div>
                 <button
                   onClick={handleConnect}
-                  style={{ background: 'transparent', border: 'none', color: '#71717a', fontSize: 12, cursor: 'pointer', padding: '2px 0' }}
-                  onMouseEnter={e => e.currentTarget.style.color = '#e4e4e7'}
-                  onMouseLeave={e => e.currentTarget.style.color = '#71717a'}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--po-text-subtle)', fontSize: 12, cursor: 'pointer', padding: '2px 0' }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--po-text)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--po-text-subtle)'}
                 >
                   Switch
                 </button>
@@ -322,23 +317,23 @@ export function SaaSyncConfig({
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '12px 14px', borderRadius: 8,
-                background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
+                background: 'var(--po-panel)', border: '1px solid var(--po-border)',
               }}>
                 <span style={{ display: 'flex', flexShrink: 0 }}>{icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Sign in to {providerLabel}</div>
-                  <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 2 }}>{description}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>Sign in to {providerLabel}</div>
+                  <div style={{ fontSize: 12, color: 'var(--po-text-muted)', marginTop: 2 }}>{description}</div>
                 </div>
                 <button
                   onClick={handleConnect} disabled={connecting}
                   style={{
                     height: 28, padding: '0 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                    background: 'transparent', border: '1px solid rgba(255,255,255,0.12)',
-                    color: connecting ? '#525252' : '#e5e5e5', cursor: connecting ? 'not-allowed' : 'pointer',
+                    background: 'transparent', border: '1px solid var(--po-border-strong)',
+                    color: connecting ? 'var(--po-text-disabled)' : 'var(--po-text)', cursor: connecting ? 'not-allowed' : 'pointer',
                     transition: 'all 0.12s', flexShrink: 0, whiteSpace: 'nowrap',
                     display: 'inline-flex', alignItems: 'center', gap: 6,
                   }}
-                  onMouseEnter={e => { if (!connecting) e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+                  onMouseEnter={e => { if (!connecting) e.currentTarget.style.background = 'var(--po-hover)'; }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
                 >
                   {connecting && <Dots size='xs' />}
@@ -347,7 +342,7 @@ export function SaaSyncConfig({
               </div>
             )}
 
-            {error && <div style={{ fontSize: 12, color: '#ef4444', padding: '0 2px' }}>{error}</div>}
+            {error && <div style={{ fontSize: 12, color: 'var(--po-danger)', padding: '0 2px' }}>{error}</div>}
           </>
         )}
 
@@ -360,15 +355,15 @@ export function SaaSyncConfig({
               return (
                 <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{field.label}</label>
+                    <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>{field.label}</label>
                     {field.required ? (
-                      <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%', flexShrink: 0 }} title="Required" />
+                      <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%', flexShrink: 0 }} title="Required" />
                     ) : !field.defaultValue ? (
-                      <span style={{ fontSize: 11, color: '#52525b', fontWeight: 400 }}>optional</span>
+                      <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', fontWeight: 400 }}>optional</span>
                     ) : null}
                   </div>
                   {field.hint && (
-                    <span style={{ fontSize: 12, color: '#71717a', marginTop: -2, lineHeight: 1.4 }}>{field.hint}</span>
+                    <span style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginTop: -2, lineHeight: 1.4 }}>{field.hint}</span>
                   )}
                   {field.type === 'select' && field.options ? (
                     <div style={{ position: 'relative' }}>
@@ -378,18 +373,18 @@ export function SaaSyncConfig({
                         onChange={e => onConfigChange?.(field.key, e.target.value)}
                         style={{
                           width: '100%', height: 36, padding: '0 12px', fontSize: 13,
-                          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
-                          borderRadius: 6, color: '#e4e4e7', outline: 'none', appearance: 'none',
+                          background: 'var(--po-panel)', border: '1px solid var(--po-border)',
+                          borderRadius: 6, color: 'var(--po-text)', outline: 'none', appearance: 'none',
                           cursor: 'pointer', transition: 'border-color 0.2s',
                         }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-text) 22%, transparent)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--po-border)'}
                       >
                         <option value="">Select...</option>
                         {field.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                       <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ position: 'absolute', right: 12, top: 15, pointerEvents: 'none' }}>
-                        <path d="M1 1L5 5L9 1" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M1 1L5 5L9 1" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
                   ) : (
@@ -401,14 +396,14 @@ export function SaaSyncConfig({
                       onChange={e => onConfigChange?.(field.key, e.target.value)}
                       style={{
                         width: '100%', height: 36, padding: '0 12px', fontSize: 13,
-                        background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)',
-                        borderRadius: 6, color: '#e4e4e7', outline: 'none',
+                        background: 'var(--po-panel)', border: '1px solid var(--po-border)',
+                        borderRadius: 6, color: 'var(--po-text)', outline: 'none',
                         transition: 'border-color 0.2s',
                       }}
-                      onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
-                      onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                      onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
-                      onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+                      onFocus={e => e.currentTarget.style.borderColor = 'var(--po-focus-ring)'}
+                      onBlur={e => e.currentTarget.style.borderColor = 'var(--po-border)'}
+                      onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-text) 22%, transparent)' }}
+                      onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'var(--po-border)' }}
                     />
                   )}
                 </div>
@@ -465,8 +460,8 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>Sync frequency</label>
-        <span style={{ width: 5, height: 5, background: '#ef4444', borderRadius: '50%', flexShrink: 0 }} title="Required" />
+        <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>Sync frequency</label>
+        <span style={{ width: 5, height: 5, background: 'var(--po-danger)', borderRadius: '50%', flexShrink: 0 }} title="Required" />
       </div>
 
       <div style={{ position: 'relative' }}>
@@ -474,23 +469,23 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
           onClick={() => setIsOpen(!isOpen)}
           style={{
             width: '100%', height: 36, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: 'rgba(255,255,255,0.02)', border: `1px solid ${isOpen ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 6,
-            padding: '0 12px', color: '#e4e4e7', cursor: 'pointer', fontSize: 13, textAlign: 'left',
+            background: 'var(--po-panel)', border: `1px solid ${isOpen ? 'color-mix(in srgb, var(--po-text) 22%, transparent)' : 'var(--po-border)'}`, borderRadius: 6,
+            padding: '0 12px', color: 'var(--po-text)', cursor: 'pointer', fontSize: 13, textAlign: 'left',
             transition: 'border-color 0.2s',
           }}
         >
           <span>{selected.label}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none"
             style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-            <path d="M1 1L5 5L9 1" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M1 1L5 5L9 1" stroke="var(--po-text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
         {isOpen && (
           <div style={{
             position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
-            background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6,
-            overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            background: 'var(--po-panel-raised)', border: '1px solid var(--po-active)', borderRadius: 6,
+            overflow: 'hidden', boxShadow: '0 4px 16px var(--po-shadow)',
           }}>
             {options.map((opt, idx) => (
               <button
@@ -499,19 +494,19 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
                 style={{
                   width: '100%', display: 'flex', flexDirection: 'column', gap: 2,
                   padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
-                  background: draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent',
+                  background: draftSyncMode === opt.value ? 'var(--po-border-subtle)' : 'transparent',
                   border: 'none',
-                  borderBottom: idx !== options.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  borderBottom: idx !== options.length - 1 ? '1px solid var(--po-hover)' : 'none',
                   transition: 'background 0.15s',
                 }}
-                onMouseEnter={e => { if (draftSyncMode !== opt.value) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = draftSyncMode === opt.value ? 'rgba(255,255,255,0.06)' : 'transparent'; }}
+                onMouseEnter={e => { if (draftSyncMode !== opt.value) e.currentTarget.style.background = 'var(--po-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = draftSyncMode === opt.value ? 'var(--po-border-subtle)' : 'transparent'; }}
               >
                 <span style={{
                   fontSize: 13, fontWeight: 500,
-                  color: draftSyncMode === opt.value ? '#e4e4e7' : '#a1a1aa',
+                  color: draftSyncMode === opt.value ? 'var(--po-text)' : 'var(--po-text-muted)',
                 }}>{opt.label}</span>
-                <span style={{ fontSize: 12, color: '#71717a' }}>{opt.desc}</span>
+                <span style={{ fontSize: 12, color: 'var(--po-text-subtle)' }}>{opt.desc}</span>
               </button>
             ))}
 
@@ -523,7 +518,7 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
       {draftSyncMode === 'scheduled' && (
         <div style={{
           padding: '12px', marginTop: 4,
-          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8,
+          background: 'var(--po-panel)', border: '1px solid var(--po-border)', borderRadius: 8,
         }}>
           <ScheduleTriggerSection
             draftTriggerConfig={draftTriggerConfig}
@@ -534,7 +529,7 @@ function SyncFrequencySelector({ provider }: { provider: string }) {
       )}
 
       {/* Mode description */}
-      <div style={{ fontSize: 12, color: '#a1a1aa', padding: '0 2px', lineHeight: 1.5 }}>
+      <div style={{ fontSize: 12, color: 'var(--po-text-muted)', padding: '0 2px', lineHeight: 1.5 }}>
         {draftSyncMode === 'import_once' && 'A sync binding will be created and imported once. To refresh later, change the mode to Manual or Scheduled.'}
         {draftSyncMode === 'manual' && 'A sync binding will be created. Click "Refresh" anytime to pull the latest data.'}
         {draftSyncMode === 'scheduled' && 'Data will be automatically refreshed on the schedule above.'}

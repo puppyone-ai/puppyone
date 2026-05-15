@@ -32,15 +32,15 @@ export function ErrorConsole({
   const getTypeColor = (type: ErrorLog['type']) => {
     switch (type) {
       case 'error':
-        return '#ef4444';
+        return 'var(--po-danger)';
       case 'warning':
-        return '#f59e0b';
+        return 'var(--po-warning)';
       case 'info':
-        return '#3b82f6';
+        return 'var(--po-accent)';
       case 'success':
-        return '#10b981';
+        return 'var(--po-success)';
       default:
-        return '#6b7280';
+        return 'var(--po-text-subtle)';
     }
   };
 
@@ -68,26 +68,26 @@ export function ErrorConsole({
             width: 8px;
           }
           .error-console-scroll::-webkit-scrollbar-track {
-            background: rgba(20, 20, 24, 0.8);
+            background: var(--po-inset);
           }
           .error-console-scroll::-webkit-scrollbar-thumb {
-            background: rgba(48, 52, 60, 0.8);
+            background: var(--po-scrollbar-thumb);
             border-radius: 4px;
           }
           .error-console-scroll::-webkit-scrollbar-thumb:hover {
-            background: rgba(60, 64, 72, 0.9);
+            background: var(--po-scrollbar-thumb-hover);
           }
           .error-console-scroll {
             scrollbar-width: thin;
-            scrollbar-color: rgba(48, 52, 60, 0.8) rgba(20, 20, 24, 0.8);
+            scrollbar-color: var(--po-scrollbar-thumb) var(--po-inset);
           }
         `,
         }}
       />
       <div
         style={{
-          borderTop: '1px solid rgba(48,52,60,0.45)',
-          background: 'rgba(10,14,18,0.95)',
+          borderTop: '1px solid var(--po-border)',
+          background: 'var(--po-overlay)',
           maxHeight: `${maxHeight}px`,
           display: 'flex',
           flexDirection: 'column',
@@ -97,7 +97,7 @@ export function ErrorConsole({
         <div
           style={{
             padding: '8px 16px',
-            borderBottom: '1px solid rgba(48,52,60,0.45)',
+            borderBottom: '1px solid var(--po-border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -106,7 +106,7 @@ export function ErrorConsole({
           <div
             style={{
               fontSize: 11,
-              color: '#6F7580',
+              color: 'var(--po-text-subtle)',
               textTransform: 'uppercase',
               letterSpacing: 0.6,
             }}
@@ -119,9 +119,9 @@ export function ErrorConsole({
               style={{
                 padding: '2px 8px',
                 fontSize: 10,
-                color: '#9FA4B1',
+                color: 'var(--po-text-muted)',
                 background: 'transparent',
-                border: '1px solid rgba(48,52,60,0.45)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 4,
                 cursor: 'pointer',
               }}
@@ -136,7 +136,7 @@ export function ErrorConsole({
             flex: 1,
             overflowY: 'auto',
             padding: '8px 16px',
-            fontFamily: "'JetBrains Mono', SFMono-Regular, Menlo, monospace",
+            fontFamily: "var(--po-font-sans)",
             fontSize: 11,
             minHeight: 60,
           }}
@@ -145,7 +145,7 @@ export function ErrorConsole({
           {errors.length === 0 ? (
             <div
               style={{
-                color: '#6b7280',
+                color: 'var(--po-text-subtle)',
                 fontSize: 11,
                 fontStyle: 'italic',
                 padding: '8px 0',
@@ -182,13 +182,13 @@ export function ErrorConsole({
                   >
                     [{getTypeLabel(error.type)}]
                   </span>
-                  <span style={{ color: '#6b7280', fontSize: 10 }}>
+                  <span style={{ color: 'var(--po-text-subtle)', fontSize: 10 }}>
                     {error.timestamp.toLocaleTimeString()}
                   </span>
                 </div>
                 <div
                   style={{
-                    color: '#e5e7eb',
+                    color: 'var(--po-text)',
                     lineHeight: 1.5,
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',

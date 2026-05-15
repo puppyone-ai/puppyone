@@ -1281,11 +1281,33 @@ def _detect_provider_from_url(url: str) -> str:
     return "url"
 
 
+def _suggest_import_name(provider: str, url: str) -> str | None:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if provider == "github":
+        parts = [part for part in parsed.path.strip("/").split("/") if part]
+        if len(parts) < 2:
+            return None
+        repo = parts[1][:-4] if parts[1].endswith(".git") else parts[1]
+        repo = repo.strip().strip("/")
+        return repo or None
+
+    if provider == "url":
+        host = parsed.netloc.lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host or None
+
+    return None
+
+
 @router.post("/submit/saas", response_model=IngestSubmitResponse, status_code=202)
 async def submit_saas_ingest(
     project_id: str = Form(..., description="Target project ID"),
     url: str = Form(..., description="SaaS or Web URL"),
     name: str | None = Form(None, description="Custom name"),
+    crawl_options: str | None = Form(None, description="JSON crawl options for generic web URLs"),
 
     # Dependencies
     project_service: ProjectService = Depends(get_project_service),
@@ -1328,23 +1350,72 @@ async def submit_saas_ingest(
         config = {"source_url": url}
         if name:
             config["name"] = name
+        if provider == "url" and crawl_options:
+            try:
+                parsed_crawl_options = json.loads(crawl_options)
+            except json.JSONDecodeError as exc:
+                raise ValueError("crawl_options must be valid JSON") from exc
+            if not isinstance(parsed_crawl_options, dict):
+                raise ValueError("crawl_options must be a JSON object")
+            config["crawl_options"] = parsed_crawl_options
 
-        syncs = await sync_svc.bootstrap(
-            project_id=project_id,
-            provider=provider,
-            config=config,
-            sync_mode="import_once",
-            trigger={"type": "import_once"},
-            user_id=current_user.user_id,
-        )
+        connector = registry.get(provider)
+        if not connector and provider == "notion":
+            # Until a dedicated Notion one-time connector exists, route pasted
+            # Notion page URLs through the generic URL importer instead of
+            # failing a visible import path.
+            provider = "url"
+            connector = registry.get(provider)
+        if not connector:
+            raise ValueError(f"Unknown import provider: {provider}")
+
+        spec = connector.spec()
+        if spec.creation_mode == "direct":
+            if not config.get("name"):
+                suggested_name = _suggest_import_name(provider, url)
+                if suggested_name:
+                    config["name"] = suggested_name
+            syncs = [
+                await sync_svc.create_sync(
+                    project_id=project_id,
+                    provider=provider,
+                    config=config,
+                    target_folder_path="",
+                    direction="inbound",
+                    sync_mode="import_once",
+                    trigger={"type": "import_once"},
+                    user_id=current_user.user_id,
+                )
+            ]
+        else:
+            syncs = await sync_svc.bootstrap(
+                project_id=project_id,
+                provider=provider,
+                config=config,
+                sync_mode="import_once",
+                trigger={"type": "import_once"},
+                user_id=current_user.user_id,
+            )
 
         node_path = syncs[0].path if syncs else None
+        execution_errors: list[str] = []
 
         for s in syncs:
             try:
-                await engine.execute(s.id)
+                result = await engine.execute(s.id)
+                if result and result.get("path"):
+                    node_path = result["path"]
             except Exception as exc:
                 logger.error(f"[SaaS ingest] First fetch failed for sync {s.id}: {exc}")
+                execution_errors.append(str(exc))
+                continue
+
+            refreshed = sync_repo.get_by_id(s.id)
+            if refreshed and refreshed.error_message:
+                execution_errors.append(refreshed.error_message)
+
+        if execution_errors:
+            raise ValueError(execution_errors[0])
 
         return IngestSubmitResponse(
             items=[

@@ -15,21 +15,22 @@ export function PathMention({ path, onClick }: PathMentionProps) {
     <span
       onClick={() => onClick?.(path)}
       style={{
-        background: 'rgba(107, 179, 248, 0.15)',
-        color: '#6bb3f8',
+        background: 'var(--po-selected)',
+        color: 'var(--po-accent)',
         padding: '1px 5px',
         borderRadius: 4,
-        fontFamily: 'monospace',
+        fontFamily: 'var(--po-font-sans)',
         fontSize: '0.9em',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'background 0.15s',
       }}
       onMouseEnter={e => {
         if (onClick)
-          e.currentTarget.style.background = 'rgba(107, 179, 248, 0.25)';
+          e.currentTarget.style.background =
+            'color-mix(in srgb, var(--po-accent) 24%, transparent)';
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.background = 'rgba(107, 179, 248, 0.15)';
+        e.currentTarget.style.background = 'var(--po-selected)';
       }}
       title={`JSON Path: ${path}`}
     >

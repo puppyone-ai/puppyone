@@ -8,21 +8,20 @@ import type { CSSProperties } from 'react';
  * Goals:
  *
  *  - Read as "floating UI on top of the workspace", not as a marketing
- *    popup. Frosted-glass surface with backdrop blur lets the page show
- *    through and grounds the panel in the dark theme.
+ *    popup. The surface uses semantic tokens so it works in both light
+ *    and dark themes without a hardcoded black glass layer.
  *  - Match the visual weight of the rest of the chrome — sidebar nav,
  *    `PanelShell` headers, breadcrumb. That means medium (500) weight
- *    titles, soft borders (~6% white), and reserved use of brand blue
+ *    titles, soft borders, and reserved use of brand blue
  *    so accent moments still pop.
  *  - Stay narrow (280px) so the widget never dominates the canvas
  *    when it sits over the content rail in `/projects/.../data/...`.
  */
 export const ACTIVITY_WIDTH = 280;
-export const ACTIVITY_BG = 'rgba(22, 22, 26, 0.86)';
-export const ACTIVITY_BORDER = '1px solid rgba(255,255,255,0.06)';
+export const ACTIVITY_BG = 'var(--po-overlay)';
+export const ACTIVITY_BORDER = '1px solid var(--po-border-subtle)';
 export const ACTIVITY_RADIUS = 12;
-export const ACTIVITY_SHADOW =
-  '0 16px 40px rgba(0,0,0,0.48), 0 1px 2px rgba(0,0,0,0.32)';
+export const ACTIVITY_SHADOW = '0 16px 40px var(--po-shadow)';
 export const ACTIVITY_HEADER_HEIGHT = 44;
 const ACTIVITY_BACKDROP = 'blur(28px) saturate(160%)';
 
@@ -33,7 +32,7 @@ export const activityCardStyle: CSSProperties = {
   borderRadius: ACTIVITY_RADIUS,
   boxShadow: ACTIVITY_SHADOW,
   overflow: 'hidden',
-  color: '#e4e4e7',
+  color: 'var(--po-text)',
   backdropFilter: ACTIVITY_BACKDROP,
   WebkitBackdropFilter: ACTIVITY_BACKDROP,
 };
@@ -45,12 +44,12 @@ export const activityHeaderStyle: CSSProperties = {
   justifyContent: 'space-between',
   gap: 10,
   padding: '10px 8px 10px 14px',
-  borderBottom: '1px solid rgba(255,255,255,0.04)',
+  borderBottom: '1px solid var(--po-hover)',
   boxSizing: 'border-box',
 };
 
 export const activityTitleStyle: CSSProperties = {
-  color: '#fafafa',
+  color: 'var(--po-text)',
   fontSize: 13,
   fontWeight: 500,
   lineHeight: '18px',
@@ -58,7 +57,7 @@ export const activityTitleStyle: CSSProperties = {
 };
 
 export const activitySubtleTextStyle: CSSProperties = {
-  color: '#71717a',
+  color: 'var(--po-text-subtle)',
   fontSize: 11,
   lineHeight: '16px',
   letterSpacing: '-0.005em',
@@ -74,7 +73,6 @@ export const activityIconButtonStyle: CSSProperties = {
   border: 'none',
   borderRadius: 6,
   background: 'transparent',
-  color: '#71717a',
+  color: 'var(--po-text-subtle)',
   cursor: 'pointer',
 };
-

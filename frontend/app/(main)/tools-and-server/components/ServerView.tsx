@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { createBindings, deleteBinding, updateMcpInstance } from '@/lib/mcpApi';
 import { useBoundTools, refreshToolsAndMcp } from '@/lib/hooks/useData';
+import { PageLoading } from '@/components/loading';
 import {
   ToolsTable,
   ToolsEmptyState,
@@ -25,7 +26,7 @@ export function ServerView({
       <div
         style={{
           padding: 40,
-          color: '#3f3f46',
+          color: 'var(--po-text-disabled)',
           textAlign: 'center',
           fontSize: FONT.primary,
         }}
@@ -158,7 +159,7 @@ export function ServerView({
         style={{
           height: HEADER_HEIGHT,
           minHeight: HEADER_HEIGHT,
-          borderBottom: '1px solid #1a1a1c',
+          borderBottom: '1px solid var(--po-border)',
           flexShrink: 0,
           boxSizing: 'content-box',
         }}
@@ -196,13 +197,13 @@ export function ServerView({
                   autoFocus
                   style={{
                     height: 40,
-                    background: '#0a0a0c',
-                    border: '1px solid #27272a',
+                    background: 'var(--po-canvas)',
+                    border: '1px solid var(--po-filetree-rail)',
                     borderRadius: 6,
                     padding: '0 12px',
                     fontSize: 24,
                     fontWeight: 600,
-                    color: '#f4f4f5',
+                    color: 'var(--po-text)',
                     outline: 'none',
                     width: 320,
                     letterSpacing: '-0.02em',
@@ -212,11 +213,11 @@ export function ServerView({
                   onClick={handleSaveName}
                   style={{
                     fontSize: FONT.secondary,
-                    color: '#a1a1aa',
+                    color: 'var(--po-text-muted)',
                     cursor: 'pointer',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#a1a1aa')}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-text)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--po-text-muted)')}
                 >
                   {savingName ? '...' : 'Save'}
                 </span>
@@ -224,11 +225,11 @@ export function ServerView({
                   onClick={() => setEditingName(false)}
                   style={{
                     fontSize: FONT.secondary,
-                    color: '#525252',
+                    color: 'var(--po-text-disabled)',
                     cursor: 'pointer',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#71717a')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#525252')}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-text-subtle)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--po-text-disabled)')}
                 >
                   Cancel
                 </span>
@@ -243,7 +244,7 @@ export function ServerView({
                   style={{
                     fontSize: 24,
                     fontWeight: 600,
-                    color: '#f4f4f5',
+                    color: 'var(--po-text)',
                     cursor: 'text',
                     letterSpacing: '-0.02em',
                   }}
@@ -255,18 +256,18 @@ export function ServerView({
                     width: 8,
                     height: 8,
                     borderRadius: '50%',
-                    background: server.status ? '#22c55e' : '#3f3f46',
+                    background: server.status ? 'var(--po-success)' : 'var(--po-text-disabled)',
                   }}
                 />
                 <span
                   onClick={() => onDeleteServer(server.api_key)}
                   style={{
                     fontSize: FONT.secondary,
-                    color: '#525252',
+                    color: 'var(--po-text-disabled)',
                     cursor: 'pointer',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#525252')}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-danger)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--po-text-disabled)')}
                 >
                   Delete
                 </span>
@@ -290,7 +291,7 @@ export function ServerView({
                 style={{
                   fontSize: 15,
                   fontWeight: 600,
-                  color: '#a1a1aa',
+                  color: 'var(--po-text-muted)',
                   margin: '0 0 4px 0',
                 }}
               >
@@ -299,7 +300,7 @@ export function ServerView({
               <p
                 style={{
                   fontSize: FONT.secondary,
-                  color: '#525252',
+                  color: 'var(--po-text-disabled)',
                   margin: 0,
                 }}
               >
@@ -316,8 +317,8 @@ export function ServerView({
                 padding: '0 12px',
                 fontSize: 13,
                 fontWeight: 500,
-                color: '#fff',
-                background: '#22c55e',
+                color: 'var(--po-text-inverse)',
+                background: 'var(--po-success)',
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
@@ -334,22 +335,20 @@ export function ServerView({
 
           <div
             style={{
-              background: '#0f0f11',
+              background: 'var(--po-panel)',
               borderRadius: 8,
-              border: '1px solid #27272a',
+              border: '1px solid var(--po-filetree-rail)',
               overflow: 'hidden',
             }}
           >
             {boundToolsLoading ? (
               <div
                 style={{
-                  padding: '32px',
-                  color: '#71717a',
-                  fontSize: 13,
-                  textAlign: 'center',
+                  height: 96,
+                  display: 'flex',
                 }}
               >
-                Loading tools...
+                <PageLoading variant="fill" label="Loading tools" />
               </div>
             ) : boundTools.length === 0 ? (
               <div style={{ padding: '24px' }}>
@@ -380,14 +379,14 @@ export function ServerView({
               style={{
                 fontSize: 15,
                 fontWeight: 600,
-                color: '#a1a1aa',
+                color: 'var(--po-text-muted)',
                 margin: '0 0 4px 0',
               }}
             >
               Configuration
             </h2>
             <p
-              style={{ fontSize: FONT.secondary, color: '#525252', margin: 0 }}
+              style={{ fontSize: FONT.secondary, color: 'var(--po-text-disabled)', margin: 0 }}
             >
               Client configuration for using this server.
             </p>
@@ -395,16 +394,16 @@ export function ServerView({
 
           <div
             style={{
-              background: '#0f0f11',
+              background: 'var(--po-panel)',
               borderRadius: 8,
-              border: '1px solid #27272a',
+              border: '1px solid var(--po-filetree-rail)',
               overflow: 'hidden',
             }}
           >
             <div
               style={{
                 padding: '8px 12px',
-                borderBottom: '1px solid #1a1a1c',
+                borderBottom: '1px solid var(--po-border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
@@ -414,7 +413,7 @@ export function ServerView({
                 style={{
                   display: 'flex',
                   gap: 2,
-                  background: '#0a0a0c',
+                  background: 'var(--po-canvas)',
                   borderRadius: 5,
                   padding: 2,
                 }}
@@ -427,8 +426,8 @@ export function ServerView({
                       padding: '4px 10px',
                       fontSize: FONT.tertiary,
                       fontWeight: 500,
-                      color: activeTab === tab ? '#e2e8f0' : '#525252',
-                      background: activeTab === tab ? '#1a1a1c' : 'transparent',
+                      color: activeTab === tab ? 'var(--po-text)' : 'var(--po-text-disabled)',
+                      background: activeTab === tab ? 'var(--po-border)' : 'transparent',
                       border: 'none',
                       borderRadius: 4,
                       cursor: 'pointer',
@@ -446,7 +445,7 @@ export function ServerView({
                   padding: '0 8px',
                   fontSize: FONT.tertiary,
                   fontWeight: 500,
-                  color: copied ? '#22c55e' : '#71717a',
+                  color: copied ? 'var(--po-success)' : 'var(--po-text-subtle)',
                   background: 'transparent',
                   border: 'none',
                   borderRadius: 4,
@@ -456,10 +455,10 @@ export function ServerView({
                   gap: 4,
                 }}
                 onMouseEnter={e => {
-                  if (!copied) e.currentTarget.style.color = '#e2e8f0';
+                  if (!copied) e.currentTarget.style.color = 'var(--po-text)';
                 }}
                 onMouseLeave={e => {
-                  if (!copied) e.currentTarget.style.color = '#71717a';
+                  if (!copied) e.currentTarget.style.color = 'var(--po-text-subtle)';
                 }}
               >
                 {copied ? (
@@ -501,14 +500,14 @@ export function ServerView({
                 padding: '14px 16px',
                 fontSize: FONT.secondary,
                 fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                color: '#71717a',
+                  'var(--po-font-sans)',
+                color: 'var(--po-text-subtle)',
                 lineHeight: 1.6,
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-all',
                 maxHeight: 200,
                 overflow: 'auto',
-                background: '#0a0a0c',
+                background: 'var(--po-canvas)',
               }}
             >
               {configText}
@@ -523,7 +522,7 @@ export function ServerView({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.6)',
+            background: 'var(--po-backdrop)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -534,28 +533,28 @@ export function ServerView({
         >
           <div
             style={{
-              background: '#0a0a0c',
-              border: '1px solid #141416',
+              background: 'var(--po-canvas)',
+              border: '1px solid var(--po-border-subtle)',
               borderRadius: 10,
               width: 520,
               maxHeight: '70vh',
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+              boxShadow: '0 20px 40px var(--po-shadow)',
             }}
             onClick={e => e.stopPropagation()}
           >
             <div
               style={{
                 padding: '14px 16px',
-                borderBottom: '1px solid #141416',
+                borderBottom: '1px solid var(--po-border-subtle)',
               }}
             >
               <div
                 style={{
                   fontSize: FONT.primary,
                   fontWeight: 600,
-                  color: '#e2e8f0',
+                  color: 'var(--po-text)',
                   marginBottom: 10,
                 }}
               >
@@ -569,10 +568,10 @@ export function ServerView({
                 style={{
                   width: '100%',
                   padding: '8px 12px',
-                  background: '#111113',
-                  border: '1px solid #1a1a1c',
+                  background: 'var(--po-panel-raised)',
+                  border: '1px solid var(--po-border)',
                   borderRadius: 6,
-                  color: '#e2e8f0',
+                  color: 'var(--po-text)',
                   fontSize: FONT.primary,
                   outline: 'none',
                   boxSizing: 'border-box',
@@ -586,7 +585,7 @@ export function ServerView({
                   style={{
                     padding: 32,
                     textAlign: 'center',
-                    color: '#3f3f46',
+                    color: 'var(--po-text-disabled)',
                     fontSize: FONT.primary,
                   }}
                 >
@@ -598,8 +597,8 @@ export function ServerView({
                 filteredAvailableTools.map((t: any) => {
                   const typeConfig = TOOL_TYPE_CONFIG[t.type] || {
                     label: t.type?.toUpperCase() || 'TOOL',
-                    color: '#71717a',
-                    bg: 'rgba(113,113,122,0.15)',
+                    color: 'var(--po-text-subtle)',
+                    bg: 'color-mix(in srgb, var(--po-text-muted) 15%, transparent)',
                   };
                   const isSelected = selectedToolIds.has(t.id);
                   return (
@@ -616,14 +615,14 @@ export function ServerView({
                         alignItems: 'center',
                         gap: 12,
                         padding: '10px 16px',
-                        borderBottom: '1px solid #0f0f11',
+                        borderBottom: '1px solid var(--po-panel)',
                         cursor: 'pointer',
-                        background: isSelected ? '#141416' : 'transparent',
+                        background: isSelected ? 'var(--po-border-subtle)' : 'transparent',
                         transition: 'background 0.1s',
                       }}
                       onMouseEnter={e => {
                         if (!isSelected)
-                          e.currentTarget.style.background = '#0f0f11';
+                          e.currentTarget.style.background = 'var(--po-panel)';
                       }}
                       onMouseLeave={e => {
                         if (!isSelected)
@@ -636,8 +635,8 @@ export function ServerView({
                           width: 16,
                           height: 16,
                           borderRadius: 3,
-                          border: isSelected ? 'none' : '1px solid #3f3f46',
-                          background: isSelected ? '#22c55e' : 'transparent',
+                          border: isSelected ? 'none' : '1px solid var(--po-text-disabled)',
+                          background: isSelected ? 'var(--po-success)' : 'transparent',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -650,7 +649,7 @@ export function ServerView({
                             height='10'
                             viewBox='0 0 24 24'
                             fill='none'
-                            stroke='#fff'
+                            stroke='var(--po-text-inverse)'
                             strokeWidth='3'
                           >
                             <polyline points='20 6 9 17 4 12' />
@@ -679,7 +678,7 @@ export function ServerView({
                         style={{
                           fontSize: FONT.primary,
                           fontWeight: 500,
-                          color: '#e2e8f0',
+                          color: 'var(--po-text)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -693,7 +692,7 @@ export function ServerView({
                       <span
                         style={{
                           fontSize: FONT.secondary,
-                          color: '#525252',
+                          color: 'var(--po-text-disabled)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -712,13 +711,13 @@ export function ServerView({
             <div
               style={{
                 padding: '10px 16px',
-                borderTop: '1px solid #141416',
+                borderTop: '1px solid var(--po-border-subtle)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
               }}
             >
-              <span style={{ fontSize: FONT.secondary, color: '#525252' }}>
+              <span style={{ fontSize: FONT.secondary, color: 'var(--po-text-disabled)' }}>
                 {selectedToolIds.size > 0
                   ? `${selectedToolIds.size} selected`
                   : ''}
@@ -728,14 +727,14 @@ export function ServerView({
                   onClick={() => setShowAddTools(false)}
                   style={{
                     fontSize: FONT.secondary,
-                    color: '#71717a',
+                    color: 'var(--po-text-subtle)',
                     background: 'transparent',
                     border: 'none',
                     padding: '6px 12px',
                     cursor: 'pointer',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#71717a')}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-text)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--po-text-subtle)')}
                 >
                   Cancel
                 </button>
@@ -748,9 +747,9 @@ export function ServerView({
                   style={{
                     fontSize: FONT.secondary,
                     fontWeight: 500,
-                    color: selectedToolIds.size > 0 ? '#fff' : '#525252',
+                    color: selectedToolIds.size > 0 ? 'var(--po-text-inverse)' : 'var(--po-text-disabled)',
                     background:
-                      selectedToolIds.size > 0 ? '#22c55e' : '#1a1a1c',
+                      selectedToolIds.size > 0 ? 'var(--po-success)' : 'var(--po-border)',
                     border: 'none',
                     borderRadius: 5,
                     padding: '6px 14px',

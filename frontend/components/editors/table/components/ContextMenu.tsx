@@ -8,6 +8,16 @@ import React, {
   useLayoutEffect,
   CSSProperties,
 } from 'react';
+import { APP_Z_INDEX } from '@/lib/zIndex';
+import {
+  chooseSubmenuSide,
+  clampFloatingPoint,
+  type HorizontalSide,
+} from '@/components/ui/floatingPosition';
+
+const MENU_MIN_WIDTH = 160;
+const SUBMENU_WIDTH = 160;
+const SUBMENU_GAP = 4;
 
 // ============================================
 // Types
@@ -42,13 +52,13 @@ interface ContextMenuProps {
 // Utils
 // ============================================
 function getTypeInfo(value: JsonValue): { type: string; color: string } {
-  if (value === null) return { type: 'null', color: '#6b7280' };
-  if (typeof value === 'string') return { type: 'string', color: '#e2e8f0' };
-  if (typeof value === 'number') return { type: 'number', color: '#c084fc' };
-  if (typeof value === 'boolean') return { type: 'boolean', color: '#fb7185' };
-  if (Array.isArray(value)) return { type: 'array', color: '#fbbf24' };
-  if (typeof value === 'object') return { type: 'object', color: '#34d399' };
-  return { type: 'unknown', color: '#9ca3af' };
+  if (value === null) return { type: 'null', color: 'var(--po-json-null)' };
+  if (typeof value === 'string') return { type: 'string', color: 'var(--po-text)' };
+  if (typeof value === 'number') return { type: 'number', color: 'var(--po-json-number)' };
+  if (typeof value === 'boolean') return { type: 'boolean', color: 'var(--po-json-boolean)' };
+  if (Array.isArray(value)) return { type: 'array', color: 'var(--po-warning)' };
+  if (typeof value === 'object') return { type: 'object', color: 'var(--po-success)' };
+  return { type: 'unknown', color: 'var(--po-text-muted)' };
 }
 
 // ============================================
@@ -57,16 +67,16 @@ function getTypeInfo(value: JsonValue): { type: string; color: string } {
 const styles = {
   contextMenu: {
     position: 'fixed',
-    background: 'rgba(28, 28, 30, 0.98)',
+    background: 'var(--po-overlay)',
     backdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    border: '1px solid var(--po-active)',
     borderRadius: 8,
     padding: '4px 0',
-    minWidth: 160,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-    zIndex: 1000,
+    minWidth: MENU_MIN_WIDTH,
+    boxShadow: '0 8px 32px var(--po-shadow)',
+    zIndex: APP_Z_INDEX.popover,
     fontFamily:
-      "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+      "var(--po-font-sans)",
   } as CSSProperties,
 
   menuItem: (isDestructive = false): CSSProperties => ({
@@ -80,7 +90,7 @@ const styles = {
     background: 'transparent',
     border: 'none',
     borderRadius: 6,
-    color: isDestructive ? '#ef4444' : '#e4e4e7',
+    color: isDestructive ? 'var(--po-danger)' : 'var(--po-text)',
     fontSize: 13,
     fontFamily: 'inherit',
     cursor: 'pointer',
@@ -90,23 +100,24 @@ const styles = {
 
   menuDivider: {
     height: 1,
-    background: 'rgba(255,255,255,0.08)',
+    background: 'var(--po-border)',
     margin: '4px 8px',
   } as CSSProperties,
 
-  submenu: {
+  submenu: (side: HorizontalSide): CSSProperties => ({
     position: 'absolute',
-    left: '100%',
     top: 0,
-    marginLeft: 4,
-    background: 'rgba(28, 28, 30, 0.98)',
+    ...(side === 'left'
+      ? { right: '100%', marginRight: SUBMENU_GAP }
+      : { left: '100%', marginLeft: SUBMENU_GAP }),
+    background: 'var(--po-overlay)',
     backdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,0.1)',
+    border: '1px solid var(--po-active)',
     borderRadius: 8,
     padding: '4px 0',
-    minWidth: 160,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-  } as CSSProperties,
+    minWidth: SUBMENU_WIDTH,
+    boxShadow: '0 8px 32px var(--po-shadow)',
+  }),
 };
 
 // ============================================
@@ -133,8 +144,8 @@ function MenuItem({
       onClick={onClick}
       onMouseEnter={e => {
         e.currentTarget.style.background = destructive
-          ? 'rgba(239,68,68,0.10)'
-          : 'rgba(255,255,255,0.08)';
+          ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)'
+          : 'var(--po-border)';
       }}
       onMouseLeave={e => {
         e.currentTarget.style.background = 'transparent';
@@ -148,7 +159,7 @@ function MenuItem({
           alignItems: 'center',
           justifyContent: 'center',
           opacity: destructive ? 0.85 : 0.7,
-          color: destructive ? '#ef4444' : '#e4e4e7',
+          color: destructive ? 'var(--po-danger)' : 'var(--po-text)',
           flexShrink: 0,
         }}
       >
@@ -187,8 +198,12 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
   const typeInfo = getTypeInfo(state.value);
   const isExpandable = state.value !== null && typeof state.value === 'object';
 
-  // 动态位置（用于滚动时更新）
-  const [position, setPosition] = useState({ x: state.x, y: state.y });
+  // Anchor position follows the row while scrolling; fixed menu position is
+  // clamped after measuring so it cannot render outside the viewport.
+  const [anchorPoint, setAnchorPoint] = useState({ x: state.x, y: state.y });
+  const [position, setPosition] = useState({ left: state.x, top: state.y });
+  const [hasMeasuredPosition, setHasMeasuredPosition] = useState(false);
+  const [submenuSide, setSubmenuSide] = useState<HorizontalSide>('right');
 
   // 滚动监听 - 实时更新菜单位置
   useLayoutEffect(() => {
@@ -199,7 +214,7 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
       const updatePosition = () => {
         if (!state.anchorElement) return;
         const rect = state.anchorElement.getBoundingClientRect();
-        setPosition({
+        setAnchorPoint({
           x: rect.left + (state.offsetX ?? 0),
           y: rect.top + (state.offsetY ?? 0),
         });
@@ -221,7 +236,7 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
       };
     } else {
       // 没有 anchor element，使用传入的静态位置
-      setPosition({ x: state.x, y: state.y });
+      setAnchorPoint({ x: state.x, y: state.y });
     }
   }, [
     state.visible,
@@ -231,6 +246,31 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
     state.offsetX,
     state.offsetY,
   ]);
+
+  useLayoutEffect(() => {
+    if (!state.visible || !menuRef.current) return;
+
+    const width = menuRef.current.offsetWidth || MENU_MIN_WIDTH;
+    const height = menuRef.current.offsetHeight || 1;
+    const desiredLeft =
+      state.align === 'right' ? anchorPoint.x - width : anchorPoint.x;
+    const next = clampFloatingPoint(
+      { left: desiredLeft, top: anchorPoint.y },
+      { width, height },
+      { width: window.innerWidth, height: window.innerHeight },
+    );
+
+    setPosition(next);
+    setSubmenuSide(
+      chooseSubmenuSide(
+        new DOMRect(next.left, next.top, width, height),
+        SUBMENU_WIDTH,
+        window.innerWidth,
+        SUBMENU_GAP,
+      ),
+    );
+    setHasMeasuredPosition(true);
+  }, [anchorPoint, state.align, state.visible, showTurnInto]);
 
   // 延迟显示/隐藏子菜单
   const handleTurnIntoHover = useCallback((show: boolean) => {
@@ -282,7 +322,7 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
 
   const TurnIntoSubmenu = () => (
     <div
-      style={styles.submenu}
+      style={styles.submenu(submenuSide)}
       onMouseEnter={() => handleTurnIntoHover(true)}
       onMouseLeave={() => handleTurnIntoHover(false)}
     >
@@ -336,9 +376,9 @@ export function ContextMenu({ state, onClose, onAction }: ContextMenuProps) {
       ref={menuRef}
       style={{
         ...styles.contextMenu,
-        left: position.x,
-        top: position.y,
-        transform: state.align === 'right' ? 'translateX(-100%)' : 'none',
+        left: position.left,
+        top: position.top,
+        visibility: hasMeasuredPosition ? 'visible' : 'hidden',
       }}
     >
       {/* 添加新元素 */}

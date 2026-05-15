@@ -71,14 +71,14 @@ function Tooltip({ text, children }: TooltipProps) {
             transform: 'translateX(-50%)',
             marginTop: 8,
             padding: '6px 10px',
-            background: '#1a1a1a',
-            border: '1px solid #2a2a2a',
+            background: 'var(--po-panel-raised)',
+            border: '1px solid var(--po-border)',
             borderRadius: 4,
             fontSize: 11,
-            color: '#8B8B8B',
+            color: 'var(--po-text-muted)',
             whiteSpace: 'nowrap',
             zIndex: 1000,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+            boxShadow: '0 2px 8px var(--po-shadow)',
             pointerEvents: 'none',
           }}
         >
@@ -93,7 +93,7 @@ function Tooltip({ text, children }: TooltipProps) {
               height: 0,
               borderLeft: '5px solid transparent',
               borderRight: '5px solid transparent',
-              borderBottom: '5px solid #2a2a2a',
+              borderBottom: '5px solid var(--po-border)',
             }}
           />
         </div>
@@ -151,10 +151,10 @@ export default function CrawlOptionsPanel({
   const baseInputStyle: React.CSSProperties = {
     width: '100%',
     padding: '8px 12px',
-    background: '#1a1a1a',
-    border: '1px solid #333',
+    background: 'var(--po-panel-raised)',
+    border: '1px solid var(--po-border-strong)',
     borderRadius: 6,
-    color: '#e2e8f0',
+    color: 'var(--po-text)',
     fontSize: 14,
     outline: 'none',
     boxSizing: 'border-box',
@@ -179,15 +179,10 @@ export default function CrawlOptionsPanel({
     <div style={{ marginTop: 20 }}>
       <style jsx>{`
         .crawlInput::placeholder {
-          color: #5d6065;
+          color: var(--po-text-disabled);
           opacity: 1;
           font-family: inherit;
           font-size: inherit;
-        }
-        .crawlMono {
-          font-family:
-            ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-            'Liberation Mono', 'Courier New', monospace;
         }
         /* 让 include/exclude 的占位符字体风格和其它输入一致（不要 monospace） */
         .crawlMono::placeholder {
@@ -211,7 +206,7 @@ export default function CrawlOptionsPanel({
           style={{
             fontSize: 11,
             fontWeight: 600,
-            color: '#8B8B8B',
+            color: 'var(--po-text-muted)',
             textTransform: 'uppercase',
             letterSpacing: '0.5px',
             display: 'flex',
@@ -250,7 +245,7 @@ export default function CrawlOptionsPanel({
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#8B8B8B',
+                color: 'var(--po-text-muted)',
                 marginBottom: 12,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
@@ -272,7 +267,7 @@ export default function CrawlOptionsPanel({
                     display: 'block',
                     fontSize: 12,
                     fontWeight: 500,
-                    color: '#8B8B8B',
+                    color: 'var(--po-text-muted)',
                     marginBottom: 6,
                   }}
                 >
@@ -290,8 +285,8 @@ export default function CrawlOptionsPanel({
                   }
                   className='crawlInput'
                   style={baseInputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
                 />
               </div>
 
@@ -302,7 +297,7 @@ export default function CrawlOptionsPanel({
                     display: 'block',
                     fontSize: 12,
                     fontWeight: 500,
-                    color: '#8B8B8B',
+                    color: 'var(--po-text-muted)',
                     marginBottom: 6,
                   }}
                 >
@@ -324,8 +319,8 @@ export default function CrawlOptionsPanel({
                   placeholder='Unlimited'
                   className='crawlInput'
                   style={baseInputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
                 />
               </div>
             </div>
@@ -337,7 +332,7 @@ export default function CrawlOptionsPanel({
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#8B8B8B',
+                color: 'var(--po-text-muted)',
                 marginBottom: 12,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
@@ -353,7 +348,7 @@ export default function CrawlOptionsPanel({
                   display: 'block',
                   fontSize: 12,
                   fontWeight: 500,
-                  color: '#8B8B8B',
+                  color: 'var(--po-text-muted)',
                   marginBottom: 6,
                 }}
               >
@@ -374,16 +369,16 @@ export default function CrawlOptionsPanel({
                         gap: 8,
                         marginBottom: 6,
                         padding: '6px 10px',
-                        background: '#0a0a0a',
-                        border: '1px solid #2a2a2a',
+                        background: 'var(--po-inset)',
+                        border: '1px solid var(--po-border)',
                         borderRadius: 6,
                       }}
                     >
                       <span
                         style={{
                           fontSize: 14,
-                          color: '#CDCDCD',
-                          fontFamily: 'monospace',
+                          color: 'var(--po-text)',
+                          fontFamily: 'var(--po-font-sans)',
                           flex: 1,
                         }}
                       >
@@ -394,7 +389,7 @@ export default function CrawlOptionsPanel({
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#8B8B8B',
+                          color: 'var(--po-text-muted)',
                           cursor: 'pointer',
                           padding: '2px 6px',
                           fontSize: 16,
@@ -402,10 +397,10 @@ export default function CrawlOptionsPanel({
                           transition: 'color 0.15s',
                         }}
                         onMouseEnter={e =>
-                          (e.currentTarget.style.color = '#ff6b6b')
+                          (e.currentTarget.style.color = 'var(--po-danger)')
                         }
                         onMouseLeave={e =>
-                          (e.currentTarget.style.color = '#8B8B8B')
+                          (e.currentTarget.style.color = 'var(--po-text-muted)')
                         }
                         title='Remove'
                       >
@@ -431,28 +426,28 @@ export default function CrawlOptionsPanel({
                   placeholder='/docs/'
                   className='crawlInput crawlMono'
                   style={{ ...baseInputStyle, flex: 1 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
                 />
                 <button
                   onClick={addIncludePath}
                   style={{
-                    background: '#2a2a2a',
+                    background: 'var(--po-border)',
                     border: 'none',
                     borderRadius: 6,
                     padding: '8px 16px',
                     fontSize: 12,
                     fontWeight: 500,
-                    color: '#CDCDCD',
+                    color: 'var(--po-text)',
                     cursor: 'pointer',
                     transition: 'background 0.15s',
                     whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={e =>
-                    (e.currentTarget.style.background = '#353535')
+                    (e.currentTarget.style.background = 'var(--po-control-hover)')
                   }
                   onMouseLeave={e =>
-                    (e.currentTarget.style.background = '#2a2a2a')
+                    (e.currentTarget.style.background = 'var(--po-border)')
                   }
                 >
                   + Add
@@ -467,7 +462,7 @@ export default function CrawlOptionsPanel({
                   display: 'block',
                   fontSize: 12,
                   fontWeight: 500,
-                  color: '#8B8B8B',
+                  color: 'var(--po-text-muted)',
                   marginBottom: 6,
                 }}
               >
@@ -488,16 +483,16 @@ export default function CrawlOptionsPanel({
                         gap: 8,
                         marginBottom: 6,
                         padding: '6px 10px',
-                        background: '#0a0a0a',
-                        border: '1px solid #2a2a2a',
+                        background: 'var(--po-inset)',
+                        border: '1px solid var(--po-border)',
                         borderRadius: 6,
                       }}
                     >
                       <span
                         style={{
                           fontSize: 14,
-                          color: '#CDCDCD',
-                          fontFamily: 'monospace',
+                          color: 'var(--po-text)',
+                          fontFamily: 'var(--po-font-sans)',
                           flex: 1,
                         }}
                       >
@@ -508,7 +503,7 @@ export default function CrawlOptionsPanel({
                         style={{
                           background: 'none',
                           border: 'none',
-                          color: '#8B8B8B',
+                          color: 'var(--po-text-muted)',
                           cursor: 'pointer',
                           padding: '2px 6px',
                           fontSize: 16,
@@ -516,10 +511,10 @@ export default function CrawlOptionsPanel({
                           transition: 'color 0.15s',
                         }}
                         onMouseEnter={e =>
-                          (e.currentTarget.style.color = '#ff6b6b')
+                          (e.currentTarget.style.color = 'var(--po-danger)')
                         }
                         onMouseLeave={e =>
-                          (e.currentTarget.style.color = '#8B8B8B')
+                          (e.currentTarget.style.color = 'var(--po-text-muted)')
                         }
                         title='Remove'
                       >
@@ -545,28 +540,28 @@ export default function CrawlOptionsPanel({
                   placeholder='/api/'
                   className='crawlInput crawlMono'
                   style={{ ...baseInputStyle, flex: 1 }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
                 />
                 <button
                   onClick={addExcludePath}
                   style={{
-                    background: '#2a2a2a',
+                    background: 'var(--po-border)',
                     border: 'none',
                     borderRadius: 6,
                     padding: '8px 16px',
                     fontSize: 12,
                     fontWeight: 500,
-                    color: '#CDCDCD',
+                    color: 'var(--po-text)',
                     cursor: 'pointer',
                     transition: 'background 0.15s',
                     whiteSpace: 'nowrap',
                   }}
                   onMouseEnter={e =>
-                    (e.currentTarget.style.background = '#353535')
+                    (e.currentTarget.style.background = 'var(--po-control-hover)')
                   }
                   onMouseLeave={e =>
-                    (e.currentTarget.style.background = '#2a2a2a')
+                    (e.currentTarget.style.background = 'var(--po-border)')
                   }
                 >
                   + Add
@@ -581,7 +576,7 @@ export default function CrawlOptionsPanel({
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#8B8B8B',
+                color: 'var(--po-text-muted)',
                 marginBottom: 12,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
@@ -598,7 +593,7 @@ export default function CrawlOptionsPanel({
                   gap: 10,
                   fontSize: 14,
                   fontWeight: 500,
-                  color: '#CDCDCD',
+                  color: 'var(--po-text)',
                   cursor: 'pointer',
                 }}
               >
@@ -612,7 +607,7 @@ export default function CrawlOptionsPanel({
                     width: 16,
                     height: 16,
                     cursor: 'pointer',
-                    accentColor: '#404040',
+                    accentColor: 'var(--po-border-strong)',
                   }}
                 />
                 <Tooltip text='Allow crawling all paths within the domain'>
@@ -628,7 +623,7 @@ export default function CrawlOptionsPanel({
                   gap: 10,
                   fontSize: 14,
                   fontWeight: 500,
-                  color: '#CDCDCD',
+                  color: 'var(--po-text)',
                   cursor: 'pointer',
                 }}
               >
@@ -642,7 +637,7 @@ export default function CrawlOptionsPanel({
                     width: 16,
                     height: 16,
                     cursor: 'pointer',
-                    accentColor: '#404040',
+                    accentColor: 'var(--po-border-strong)',
                   }}
                 />
                 <Tooltip text='Allow crawling subdomains (e.g., blog.example.com)'>
@@ -658,7 +653,7 @@ export default function CrawlOptionsPanel({
                   gap: 10,
                   fontSize: 14,
                   fontWeight: 500,
-                  color: '#CDCDCD',
+                  color: 'var(--po-text)',
                   cursor: 'pointer',
                 }}
               >
@@ -672,7 +667,7 @@ export default function CrawlOptionsPanel({
                     width: 16,
                     height: 16,
                     cursor: 'pointer',
-                    accentColor: '#404040',
+                    accentColor: 'var(--po-border-strong)',
                   }}
                 />
                 <Tooltip text='Follow links pointing to external domains'>
@@ -688,7 +683,7 @@ export default function CrawlOptionsPanel({
               style={{
                 fontSize: 11,
                 fontWeight: 600,
-                color: '#8B8B8B',
+                color: 'var(--po-text-muted)',
                 marginBottom: 12,
                 textTransform: 'uppercase',
                 letterSpacing: '0.5px',
@@ -710,7 +705,7 @@ export default function CrawlOptionsPanel({
                     display: 'block',
                     fontSize: 12,
                     fontWeight: 500,
-                    color: '#8B8B8B',
+                    color: 'var(--po-text-muted)',
                     marginBottom: 6,
                   }}
                 >
@@ -728,16 +723,16 @@ export default function CrawlOptionsPanel({
                   }
                   className='crawlInput'
                   style={baseSelectStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
                 >
-                  <option value='include' style={{ background: '#1a1a1a' }}>
+                  <option value='include' style={{ background: 'var(--po-panel-raised)' }}>
                     Include
                   </option>
-                  <option value='only' style={{ background: '#1a1a1a' }}>
+                  <option value='only' style={{ background: 'var(--po-panel-raised)' }}>
                     Only
                   </option>
-                  <option value='skip' style={{ background: '#1a1a1a' }}>
+                  <option value='skip' style={{ background: 'var(--po-panel-raised)' }}>
                     Skip
                   </option>
                 </select>
@@ -750,7 +745,7 @@ export default function CrawlOptionsPanel({
                     display: 'block',
                     fontSize: 12,
                     fontWeight: 500,
-                    color: '#8B8B8B',
+                    color: 'var(--po-text-muted)',
                     marginBottom: 6,
                   }}
                 >
@@ -772,8 +767,8 @@ export default function CrawlOptionsPanel({
                   placeholder='0'
                   className='crawlInput'
                   style={baseInputStyle}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#444')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
                 />
               </div>
             </div>

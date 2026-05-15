@@ -1,0 +1,24 @@
+{
+  "workspace": "Get Started",
+  "goal": "Complete the first PuppyOne agent loop",
+  "success_criteria": [
+    "Agent reads files from Context",
+    "Agent creates Agent Output/first-run.md",
+    "User sees the write in PuppyOne history"
+  ],
+  "example_next_sources": [
+    {
+      "name": "Product docs",
+      "why": "Gives an agent stable product knowledge"
+    },
+    {
+      "name": "GitHub repository",
+      "why": "Lets an agent inspect real code and write changes back"
+    },
+    {
+      "name": "Meeting notes",
+      "why": "Turns messy human context into actionable agent input"
+    }
+  ],
+  "recommended_next_step": "Import a real file or GitHub repo after this starter loop works"
+}

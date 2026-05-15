@@ -7,7 +7,7 @@ import { FileIcon } from './FileIcon';
 // Recursive file tree.  Two visual layers, kept in strict separation so
 // they don't fight over the same pixels:
 //
-//   ─ Tree guide layer (always GREY, T.text4):
+//   ─ Tree guide layer (always GREY, T.treeGuide):
 //       Every elbow stub, every ╰─ hook, every parent-drawn delegate
 //       line.  Pure structure — nesting + sibling continuation.
 //
@@ -164,7 +164,7 @@ export function TreeRows({
                   highlighted row makes the band read as one continuous
                   rectangle (no per-row staircase).  z=0: sits behind
                   both indent and content columns.
-                  
+
                   No left accent stripe: an earlier version painted an
                   inset 2px cyan border, but full-saturation cyan against
                   the 6%-cyan fill read as too loud — the eye snapped to
@@ -215,11 +215,11 @@ export function TreeRows({
                     <rect
                       x={10} y={0} width={1}
                       height={isLast ? ROW_HEIGHT / 2 : ROW_HEIGHT}
-                      fill={T.text4}
+                      fill={T.treeGuide}
                     />
                     <rect
                       x={10} y={ROW_HEIGHT / 2} width={10} height={1}
-                      fill={T.text4}
+                      fill={T.treeGuide}
                     />
                   </svg>
                 )}
@@ -253,7 +253,7 @@ export function TreeRows({
                 {/* Name. Highlighted rows lift to text1 regardless of file
                     vs folder — when an AP scope is on, the whole subtree
                     should read as "fully present", not muted.
-                    
+
                     Muted / placeholder rows render in italic + text3 to
                     signal "context only, not the focus" — these are the
                     sibling examples (and "… N more" stand-in) that
@@ -273,7 +273,7 @@ export function TreeRows({
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     transition: `color 200ms ${T.ease}`,
                   }}
-                  className={isPlaceholder ? '' : 'group-hover/row:!text-[#fafafa]'}
+                  className={isPlaceholder ? '' : 'group-hover/row:!text-[var(--po-text)]'}
                 >
                   {entry.name}
                 </span>
@@ -307,7 +307,7 @@ export function TreeRows({
                     position: 'absolute',
                     left: 16 + (depth - 1) * 20 + 10,
                     top: 0, bottom: 0, width: 1,
-                    background: T.text4,
+                    background: T.treeGuide,
                   }} />
                 )}
                 <TreeRows

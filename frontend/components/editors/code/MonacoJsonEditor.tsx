@@ -1,54 +1,13 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
+import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
+import { definePuppyOneMonacoThemes, getPuppyOneMonacoTheme } from '@/lib/theme/monacoThemes';
 
-/**
- * Monaco's default loading state is a spinning ring while the worker
- * scripts and theme registration finish. The `<Editor />` component
- * accepts a `loading` prop for replacement; we feed it the unified
- * `<PageLoading />` (block + "Loading" label) so the brand-consistent
- * loader takes over from the generic Monaco spinner.
- */
-const MONACO_LOADING = (
-  <EditorLoadingSurface />
-);
-
-const JSON_SOURCE_FONT =
-  "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace";
-
-const DARK_THEME_CONFIG = {
-  base: 'vs-dark' as const,
-  inherit: true,
-  rules: [
-    { token: '', foreground: 'd4d4d4', background: '0a0a0a' },
-    { token: 'comment', foreground: '6b7280', fontStyle: 'italic' },
-    { token: 'keyword', foreground: 'f97316' },
-    { token: 'string', foreground: '86efac' },
-    { token: 'string.key.json', foreground: 'a5b4fc' },
-    { token: 'string.value.json', foreground: '86efac' },
-    { token: 'number', foreground: '7dd3fc' },
-    { token: 'delimiter', foreground: '737373' },
-  ],
-  colors: {
-    'editor.background': '#0e0e0e',
-    'editor.foreground': '#d4d4d4',
-    'editor.lineHighlightBackground': '#141414',
-    'editor.selectionBackground': '#3f3f46',
-    'editor.inactiveSelectionBackground': '#3f3f4655',
-    'editorLineNumber.foreground': '#404040',
-    'editorLineNumber.activeForeground': '#737373',
-    'editorCursor.foreground': '#d4d4d4',
-    'editor.selectionHighlightBackground': '#52525b33',
-    'editorIndentGuide.background': '#1a1a1a',
-    'editorIndentGuide.activeBackground': '#262626',
-    'scrollbar.shadow': '#00000000',
-    'scrollbarSlider.background': '#40404055',
-    'scrollbarSlider.hoverBackground': '#52525b88',
-    'scrollbarSlider.activeBackground': '#52525b88',
-  },
-};
+const MONACO_LOADING = <EditorLoadingSurface />;
+const JSON_SOURCE_FONT = 'var(--po-font-sans)';
 
 interface MonacoJsonEditorProps {
   json: object;
@@ -56,18 +15,17 @@ interface MonacoJsonEditorProps {
   onPathChange?: (path: string | null) => void;
 }
 
-export function MonacoJsonEditor({
-  json,
-  onChange,
-  onPathChange,
-}: MonacoJsonEditorProps) {
+export function MonacoJsonEditor({ json, onChange, onPathChange }: MonacoJsonEditorProps) {
   const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
+  const { resolvedTheme } = useTheme();
+  const themeName = getPuppyOneMonacoTheme('json', resolvedTheme);
 
   const handleEditorMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
-
-    monaco.editor.defineTheme('json-dark', DARK_THEME_CONFIG);
-    monaco.editor.setTheme('json-dark');
+    monacoRef.current = monaco;
+    definePuppyOneMonacoThemes(monaco);
+    monaco.editor.setTheme(themeName);
 
     editor.onDidChangeCursorPosition((e: any) => {
       if (!onPathChange) return;
@@ -75,38 +33,36 @@ export function MonacoJsonEditor({
       try {
         const model = editor.getModel();
         if (!model) return;
-
-        const position = e.position;
-        const offset = model.getOffsetAt(position);
-        const content = model.getValue();
-
-        const path = getJsonPathAtOffset(content, offset);
+        const offset = model.getOffsetAt(e.position);
+        const path = getJsonPathAtOffset(model.getValue(), offset);
         onPathChange(path);
-      } catch (error) {
-        // Ignore errors
+      } catch {
+        // Ignore cursor parsing errors.
       }
     });
   };
 
+  useEffect(() => {
+    monacoRef.current?.editor?.setTheme(themeName);
+  }, [themeName]);
+
   const handleEditorChange = (value: string | undefined) => {
     if (!value || !onChange) return;
-
     try {
-      const parsed = JSON.parse(value);
-      onChange(parsed);
-    } catch (error) {
-      // Invalid JSON, don't update
+      onChange(JSON.parse(value));
+    } catch {
+      // Invalid JSON: keep local editor state, don't publish upstream.
     }
   };
 
   return (
     <Editor
-      height='100%'
-      defaultLanguage='json'
+      height="100%"
+      defaultLanguage="json"
       value={JSON.stringify(json, null, 2)}
       onChange={handleEditorChange}
       onMount={handleEditorMount}
-      theme='json-dark'
+      theme={themeName}
       loading={MONACO_LOADING}
       options={{
         minimap: { enabled: false },
@@ -145,7 +101,6 @@ export function MonacoJsonEditor({
   );
 }
 
-// Helper function to extract JSON path at cursor offset
 function getJsonPathAtOffset(content: string, offset: number): string | null {
   try {
     const before = content.substring(0, offset);
@@ -161,16 +116,12 @@ function getJsonPathAtOffset(content: string, offset: number): string | null {
       if (char === '"' && (i === 0 || before[i - 1] !== '\\')) {
         inString = !inString;
         if (!inString && depth > 0) {
-          // End of a key
           const colonIndex = before.indexOf(':', i);
           if (
             (colonIndex !== -1 && colonIndex < before.indexOf(',', i)) ||
             before.indexOf(',', i) === -1
           ) {
-            currentKey = before.substring(
-              before.lastIndexOf('"', i - 1) + 1,
-              i
-            );
+            currentKey = before.substring(before.lastIndexOf('"', i - 1) + 1, i);
           }
         }
       } else if (!inString) {
@@ -184,21 +135,16 @@ function getJsonPathAtOffset(content: string, offset: number): string | null {
           depth++;
         } else if (char === '}' || char === ']') {
           depth--;
-          if (depth < path.length) {
-            path.pop();
-          }
+          if (depth < path.length) path.pop();
         } else if (char === ',') {
           arrayIndex++;
         }
       }
     }
 
-    if (currentKey) {
-      path.push(currentKey);
-    }
-
-    return path.length > 0 ? '/' + path.join('/') : null;
-  } catch (error) {
+    if (currentKey) path.push(currentKey);
+    return path.length > 0 ? `/${path.join('/')}` : null;
+  } catch {
     return null;
   }
 }

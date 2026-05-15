@@ -80,6 +80,8 @@ class RepoIdentityOut(BaseModel):
     url: str                              # https://<api>/api/v1/mut/<project_id>
     prompt_template: str
     scopes: list[RepoIdentityScopeOut]
+    content_initialized: bool = False
+    head_commit_id: Optional[str] = None
 
 
 class RepoIdentityPatch(BaseModel):

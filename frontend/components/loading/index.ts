@@ -40,6 +40,15 @@ export type { InlineLoadingProps } from './InlineLoading';
 export { PageLoading } from './PageLoading';
 export type { PageLoadingProps } from './PageLoading';
 
+export {
+  HeaderedPageLoadingShell,
+  ProjectPageLoadingShell,
+} from './ProjectPageLoadingShell';
+export type {
+  HeaderedPageLoadingShellProps,
+  ProjectPageLoadingShellProps,
+} from './ProjectPageLoadingShell';
+
 export { EditorLoadingSurface } from './EditorLoadingSurface';
 export type { EditorLoadingSurfaceProps } from './EditorLoadingSurface';
 

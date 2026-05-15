@@ -17,33 +17,33 @@ export const TOOL_TYPE_CONFIG: Record<
 > = {
   get_data_schema: {
     label: 'Schema',
-    color: '#67e8f9',
-    bg: 'rgba(6, 182, 212, 0.15)',
+    color: 'var(--po-info)',
+    bg: 'color-mix(in srgb, var(--po-info) 15%, transparent)',
   },
   query_data: {
     label: 'Query',
-    color: '#60a5fa',
-    bg: 'rgba(59, 130, 246, 0.15)',
+    color: 'var(--po-accent)',
+    bg: 'color-mix(in srgb, var(--po-accent) 15%, transparent)',
   },
   search: {
     label: 'Search',
-    color: '#22d3ee',
-    bg: 'rgba(34, 211, 238, 0.15)',
+    color: 'var(--po-info)',
+    bg: 'color-mix(in srgb, var(--po-info) 15%, transparent)',
   },
   get_all_data: {
     label: 'Get All',
-    color: '#60a5fa',
-    bg: 'rgba(59, 130, 246, 0.15)',
+    color: 'var(--po-accent)',
+    bg: 'color-mix(in srgb, var(--po-accent) 15%, transparent)',
   },
   preview: {
     label: 'Preview',
-    color: '#a78bfa',
-    bg: 'rgba(139, 92, 246, 0.15)',
+    color: 'var(--po-file-accent-audio)',
+    bg: 'color-mix(in srgb, var(--po-purple) 15%, transparent)',
   },
-  select: { label: 'Select', color: '#a78bfa', bg: 'rgba(139, 92, 246, 0.15)' },
-  create: { label: 'Create', color: '#34d399', bg: 'rgba(16, 185, 129, 0.15)' },
-  update: { label: 'Update', color: '#fbbf24', bg: 'rgba(245, 158, 11, 0.15)' },
-  delete: { label: 'Delete', color: '#f87171', bg: 'rgba(239, 68, 68, 0.15)' },
+  select: { label: 'Select', color: 'var(--po-file-accent-audio)', bg: 'color-mix(in srgb, var(--po-purple) 15%, transparent)' },
+  create: { label: 'Create', color: 'var(--po-success)', bg: 'color-mix(in srgb, var(--po-success) 15%, transparent)' },
+  update: { label: 'Update', color: 'var(--po-warning)', bg: 'color-mix(in srgb, var(--po-warning) 15%, transparent)' },
+  delete: { label: 'Delete', color: 'var(--po-danger)', bg: 'color-mix(in srgb, var(--po-danger) 15%, transparent)' },
 };
 
 export type ToolItem = {
@@ -82,24 +82,19 @@ export function ToolsTable({
   hoveredId: externalHoveredId,
   onHover: externalOnHover,
 }: ToolsTableProps) {
-  // 内部 hover 状态（如果外部没有传入）
-  const [internalHoveredId, setInternalHoveredId] = useState<string | null>(
-    null
-  );
+  const [internalHoveredId, setInternalHoveredId] = useState<string | null>(null);
   const hoveredId =
     externalHoveredId !== undefined ? externalHoveredId : internalHoveredId;
   const setHoveredId = externalOnHover || setInternalHoveredId;
 
-  // 列宽状态
   const [columnWidths, setColumnWidths] = useState(
     showPath
       ? { name: 35, description: 40, path: 25 }
-      : { name: 45, description: 55 }
+      : { name: 45, description: 55 },
   );
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  // 拖拽调整列宽
   const handleMouseDown = useCallback(
     (column: string, e: React.MouseEvent) => {
       e.preventDefault();
@@ -111,7 +106,7 @@ export function ToolsTable({
       const handleMouseMove = (e: MouseEvent) => {
         if (!headerRef.current) return;
         const headerRect = headerRef.current.getBoundingClientRect();
-        const fixedWidth = 40 + 70 + 36; // index, type, actions
+        const fixedWidth = 40 + 70 + 36;
         const flexAreaWidth = headerRect.width - fixedWidth;
         const deltaX = e.clientX - startX;
         const deltaPercent = (deltaX / flexAreaWidth) * 100;
@@ -182,10 +177,10 @@ export function ToolsTable({
           display: 'grid',
           gridTemplateColumns: gridTemplate,
           padding: '8px 24px',
-          borderBottom: '1px solid #141416',
+          borderBottom: '1px solid var(--po-border-subtle)',
           fontSize: FONT.tertiary,
           fontWeight: 500,
-          color: '#3f3f46',
+          color: 'var(--po-text-disabled)',
           letterSpacing: '0.3px',
           textTransform: 'uppercase',
           userSelect: draggingColumn ? 'none' : 'auto',
@@ -232,8 +227,8 @@ export function ToolsTable({
         const isSelected = selectedIds.has(tool.id);
         const typeConfig = TOOL_TYPE_CONFIG[tool.type] || {
           label: tool.type?.toUpperCase() || 'TOOL',
-          color: '#71717a',
-          bg: 'rgba(113,113,122,0.15)',
+          color: 'var(--po-text-subtle)',
+          bg: 'color-mix(in srgb, var(--po-text-muted) 15%, transparent)',
         };
 
         return (
@@ -249,12 +244,12 @@ export function ToolsTable({
               alignItems: 'center',
               cursor: selectable ? 'pointer' : 'default',
               background: isSelected
-                ? 'rgba(59, 130, 246, 0.08)'
+                ? 'color-mix(in srgb, var(--po-accent) 8%, transparent)'
                 : isHovered
-                  ? '#0f0f11'
+                  ? 'var(--po-panel)'
                   : 'transparent',
               borderLeft: isSelected
-                ? '2px solid #3b82f6'
+                ? '2px solid var(--po-accent)'
                 : '2px solid transparent',
               transition: 'background 0.1s',
             }}
@@ -263,7 +258,7 @@ export function ToolsTable({
             <div
               style={{
                 textAlign: 'center',
-                color: '#3f3f46',
+                color: 'var(--po-text-disabled)',
                 fontSize: FONT.secondary,
               }}
             >
@@ -273,9 +268,9 @@ export function ToolsTable({
                     width: 14,
                     height: 14,
                     margin: '0 auto',
-                    border: isSelected ? 'none' : '1.5px solid #3f3f46',
+                    border: isSelected ? 'none' : '1.5px solid var(--po-text-disabled)',
                     borderRadius: 3,
-                    background: isSelected ? '#3b82f6' : 'transparent',
+                    background: isSelected ? 'var(--po-accent)' : 'transparent',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -285,7 +280,7 @@ export function ToolsTable({
                     <svg width='8' height='8' viewBox='0 0 10 10' fill='none'>
                       <path
                         d='M2 5l2.5 2.5L8 3'
-                        stroke='#fff'
+                        stroke='var(--po-text-inverse)'
                         strokeWidth='1.5'
                         strokeLinecap='round'
                         strokeLinejoin='round'
@@ -320,7 +315,7 @@ export function ToolsTable({
               style={{
                 fontSize: FONT.primary,
                 fontWeight: 500,
-                color: isHovered ? '#fff' : '#e2e8f0',
+                color: isHovered ? 'var(--po-text)' : 'var(--po-text)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -334,7 +329,7 @@ export function ToolsTable({
             <div
               style={{
                 fontSize: FONT.secondary,
-                color: '#525252',
+                color: 'var(--po-text-disabled)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
@@ -349,7 +344,7 @@ export function ToolsTable({
               <div
                 style={{
                   fontSize: FONT.secondary,
-                  color: '#3f3f46',
+                  color: 'var(--po-text-disabled)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -376,15 +371,15 @@ export function ToolsTable({
                     height: 24,
                     background: 'none',
                     border: 'none',
-                    color: '#3f3f46',
+                    color: 'var(--po-text-disabled)',
                     cursor: 'pointer',
                     borderRadius: 4,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                  onMouseLeave={e => (e.currentTarget.style.color = '#3f3f46')}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-danger)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--po-text-disabled)')}
                 >
                   {removeIcon === 'delete' ? (
                     <svg
@@ -446,7 +441,7 @@ function ResizeHandle({
         style={{
           width: 1,
           height: 14,
-          background: active ? '#3b82f6' : '#1f1f22',
+          background: active ? 'var(--po-accent)' : 'var(--po-control)',
           transition: 'background 0.15s',
         }}
       />
@@ -469,7 +464,7 @@ export function ToolsEmptyState({
       style={{
         padding: '40px 20px',
         textAlign: 'center',
-        color: '#3f3f46',
+        color: 'var(--po-text-disabled)',
         fontSize: FONT.primary,
       }}
     >
@@ -491,7 +486,7 @@ export function ToolsEmptyState({
           onClick={onAction}
           style={{
             fontSize: FONT.secondary,
-            color: '#60a5fa',
+            color: 'var(--po-accent)',
             background: 'none',
             border: 'none',
             cursor: 'pointer',

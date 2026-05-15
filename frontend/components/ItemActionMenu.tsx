@@ -120,29 +120,29 @@ export function ItemActionMenu({
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
-  
+
   const isOpen = menuPosition !== null;
 
   const calculatePosition = () => {
     if (!buttonRef.current) return null;
-    
+
     const rect = buttonRef.current.getBoundingClientRect();
     const menuWidth = 160; // Increased width slightly for better padding
-    
+
     let left: number;
     if (position === 'bottom-right') {
       left = rect.right - menuWidth;
     } else {
       left = rect.left;
     }
-    
+
     if (left + menuWidth > window.innerWidth - 8) {
       left = window.innerWidth - menuWidth - 8;
     }
     if (left < 8) {
       left = 8;
     }
-    
+
     return {
       top: rect.bottom + 6,
       left,
@@ -329,20 +329,20 @@ export function ItemActionMenu({
           alignItems: 'center',
           justifyContent: 'center',
           cursor: 'pointer',
-          color: isOpen ? '#fff' : '#71717a',
-          background: isOpen ? 'rgba(255,255,255,0.1)' : 'transparent',
+          color: isOpen ? 'var(--po-text)' : 'var(--po-text-subtle)',
+          background: isOpen ? 'var(--po-selected)' : 'transparent',
           transition: 'all 0.1s',
         }}
         onMouseEnter={(e) => {
           if (!isOpen) {
-            e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-            e.currentTarget.style.color = '#a1a1aa';
+            e.currentTarget.style.background = 'var(--po-border)';
+            e.currentTarget.style.color = 'var(--po-text-muted)';
           }
         }}
         onMouseLeave={(e) => {
           if (!isOpen) {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#71717a';
+            e.currentTarget.style.color = 'var(--po-text-subtle)';
           }
         }}
       >
@@ -357,11 +357,11 @@ export function ItemActionMenu({
             top: menuPosition.top,
             left: menuPosition.left,
             minWidth: 160,
-            background: '#1f1f23',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'var(--po-overlay)',
+            border: '1px solid var(--po-border)',
             borderRadius: 12, // More rounded corners for menu container
             padding: 4, // Padding around the list
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.1)',
+            boxShadow: '0 16px 44px color-mix(in srgb, var(--po-text) 18%, transparent), 0 1px 0 var(--po-border-subtle)',
             zIndex: APP_Z_INDEX.popover,
             display: 'flex',
             flexDirection: 'column',
@@ -372,13 +372,13 @@ export function ItemActionMenu({
           {menuItems.map((item, index) => {
             if (item.type === 'separator') {
               return (
-                <div 
-                  key={`sep-${index}`} 
-                  style={{ 
-                    height: 1, 
-                    background: 'rgba(255,255,255,0.1)', 
+                <div
+                  key={`sep-${index}`}
+                  style={{
+                    height: 1,
+                    background: 'var(--po-border-subtle)',
                     margin: '4px 8px' // Indented separator
-                  }} 
+                  }}
                 />
               );
             }
@@ -397,24 +397,24 @@ export function ItemActionMenu({
                   padding: '6px 8px', // Inner padding for the item
                   borderRadius: 6, // Rounded items
                   cursor: 'pointer',
-                  color: item.danger 
-                    ? '#f87171' 
-                    : item.highlightColor || '#e4e4e7',
+                  color: item.danger
+                    ? 'var(--po-danger)'
+                    : item.highlightColor || 'var(--po-text)',
                   fontSize: 13,
                   transition: 'background 0.1s, color 0.1s',
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = item.danger
-                    ? 'rgba(248, 113, 113, 0.1)'
-                    : item.highlightColor 
-                      ? 'rgba(249, 115, 22, 0.1)' // Orange bg for highlight
-                      : 'rgba(255,255,255,0.08)';
+                    ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)'
+                    : item.highlightColor
+                      ? 'color-mix(in srgb, var(--po-warning) 10%, transparent)' // Orange bg for highlight
+                      : 'var(--po-border)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', color: item.danger ? 'inherit' : (item.highlightColor || '#a1a1aa') }}>
+                <div style={{ display: 'flex', alignItems: 'center', color: item.danger ? 'inherit' : (item.highlightColor || 'var(--po-text-muted)') }}>
                   {item.icon}
                 </div>
                 <span style={{ fontWeight: 400 }}>{item.label}</span>

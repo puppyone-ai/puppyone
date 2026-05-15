@@ -43,7 +43,7 @@ const AVAILABLE_TOOLS: ToolTypeConfig[] = [
     label: 'Search',
     description: 'Semantic search across file contents using vector embeddings.',
     icon: <SearchIcon />,
-    color: '#3b82f6',
+    color: 'var(--po-accent)',
     category: 'ai',
     appliesTo: ['folder', 'json', 'markdown'],
   },
@@ -53,7 +53,7 @@ const AVAILABLE_TOOLS: ToolTypeConfig[] = [
     label: 'Read Content',
     description: 'Read the full content of the file or folder structure.',
     icon: <DatabaseIcon />,
-    color: '#64748b',
+    color: 'var(--po-text-subtle)',
     category: 'read',
     appliesTo: ['folder', 'json', 'markdown', 'image'],
   },
@@ -63,7 +63,7 @@ const AVAILABLE_TOOLS: ToolTypeConfig[] = [
     label: 'Add Item',
     description: 'Append new items or fields to the data.',
     icon: <PlusIcon />,
-    color: '#22c55e',
+    color: 'var(--po-success)',
     category: 'write',
     appliesTo: ['json'],
   },
@@ -72,7 +72,7 @@ const AVAILABLE_TOOLS: ToolTypeConfig[] = [
     label: 'Update Data',
     description: 'Modify existing values or content.',
     icon: <EditIcon />,
-    color: '#f59e0b',
+    color: 'var(--po-warning)',
     category: 'write',
     appliesTo: ['json', 'markdown'],
   },
@@ -81,7 +81,7 @@ const AVAILABLE_TOOLS: ToolTypeConfig[] = [
     label: 'Delete Item',
     description: 'Remove items or fields from the data.',
     icon: <TrashIcon />,
-    color: '#ef4444',
+    color: 'var(--po-danger)',
     category: 'write',
     appliesTo: ['json'],
   },
@@ -172,7 +172,7 @@ export function NodeAccessPanel({
   nodeId,
   nodeType,
   nodeName,
-  jsonPath = '', // 默认为空
+  jsonPath = '',
   existingTools,
   onToolsChange,
   onClose,
@@ -182,13 +182,11 @@ export function NodeAccessPanel({
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Get existing tools for this node and jsonPath
   const getExistingTool = (type: McpToolType) => 
     existingTools.find(t => t.path === nodeId && t.type === type && (t.json_path || '') === jsonPath);
 
   const searchTool = getExistingTool('search');
 
-  // Poll Search Index Status
   useEffect(() => {
     if (searchTool) {
       fetchSearchStatus();
@@ -228,7 +226,7 @@ export function NodeAccessPanel({
         const safeName = nodeName.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 20);
         // 如果有 jsonPath，添加到 tool name 中以防冲突
         const pathSuffix = jsonPath ? `_${jsonPath.split('/').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'item'}` : '';
-        
+
         const toolRequest = {
           path: nodeId,
           json_path: jsonPath,
@@ -237,7 +235,7 @@ export function NodeAccessPanel({
           description: `${TOOL_INFO[toolType]?.label || toolType} for ${nodeName}${jsonPath ? ` at ${jsonPath}` : ''}`,
           category: 'builtin' as const,
         };
-        
+
         // Search 工具使用异步索引端点
         if (toolType === 'search') {
           await createSearchTool(toolRequest);
@@ -261,7 +259,7 @@ export function NodeAccessPanel({
         ? Math.round((searchStatus.indexed_files / searchStatus.total_files) * 100)
         : null;
       return (
-        <span style={{ fontSize: 10, color: '#fb923c', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 10, color: 'var(--po-warning)', display: 'flex', alignItems: 'center', gap: 4 }}>
           <LoadingIcon />
           {progress !== null ? `${progress}%` : ''}
         </span>
@@ -270,11 +268,11 @@ export function NodeAccessPanel({
 
     if (searchStatus.status === 'ready') {
       // Small dot indicator for ready state
-      return <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#4ade80' }} title="Indexed" />;
+      return <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--po-success)' }} title="Indexed" />;
     }
 
     if (searchStatus.status === 'error') {
-      return <span style={{ fontSize: 10, color: '#f87171' }}>Error</span>;
+      return <span style={{ fontSize: 10, color: 'var(--po-danger)' }}>Error</span>;
     }
 
     return null;
@@ -299,11 +297,11 @@ export function NodeAccessPanel({
           cursor: isLoading ? 'wait' : 'pointer',
           borderRadius: 8,
           transition: 'all 0.15s',
-          background: isEnabled ? 'rgba(255,255,255,0.03)' : 'transparent',
-          border: isEnabled ? '1px solid rgba(255,255,255,0.08)' : '1px solid transparent',
+          background: isEnabled ? 'var(--po-hover)' : 'transparent',
+          border: isEnabled ? '1px solid var(--po-border)' : '1px solid transparent',
         }}
         onMouseEnter={e => {
-          if (!isEnabled) e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+          if (!isEnabled) e.currentTarget.style.background = 'var(--po-hover)';
         }}
         onMouseLeave={e => {
           if (!isEnabled) e.currentTarget.style.background = 'transparent';
@@ -316,12 +314,12 @@ export function NodeAccessPanel({
             width: 16,
             height: 16,
             borderRadius: 4,
-            border: isEnabled ? `1px solid ${tool.color}` : '1px solid #52525b',
+            border: isEnabled ? `1px solid ${tool.color}` : '1px solid var(--po-text-disabled)',
             background: isEnabled ? tool.color : 'transparent',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
+            color: 'var(--po-text-inverse)',
             flexShrink: 0,
             transition: 'all 0.15s',
           }}
@@ -333,16 +331,16 @@ export function NodeAccessPanel({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 500, color: isEnabled ? '#e4e4e7' : '#a1a1aa' }}>
+              <span style={{ fontSize: 13, fontWeight: 500, color: isEnabled ? 'var(--po-text)' : 'var(--po-text-muted)' }}>
                 {tool.label}
               </span>
               {/* Category Badge */}
-              <span style={{ 
-                fontSize: 9, 
-                padding: '1px 5px', 
-                borderRadius: 4, 
-                background: tool.category === 'ai' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.05)', 
-                color: tool.category === 'ai' ? '#60a5fa' : '#71717a',
+              <span style={{
+                fontSize: 9,
+                padding: '1px 5px',
+                borderRadius: 4,
+                background: tool.category === 'ai' ? 'var(--po-selected)' : 'var(--po-hover)',
+                color: tool.category === 'ai' ? 'var(--po-accent)' : 'var(--po-text-subtle)',
                 textTransform: 'uppercase',
                 fontWeight: 600,
                 letterSpacing: '0.05em'
@@ -350,12 +348,12 @@ export function NodeAccessPanel({
                 {tool.category}
               </span>
             </div>
-            
+
             {/* Status (e.g. for search) */}
             {tool.key === 'search' && isEnabled && renderSearchStatus()}
           </div>
-          
-          <div style={{ fontSize: 12, color: '#71717a', lineHeight: 1.4 }}>
+
+          <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', lineHeight: 1.4 }}>
             {tool.description}
           </div>
         </div>
@@ -367,28 +365,28 @@ export function NodeAccessPanel({
     <div
       ref={panelRef}
       style={{
-        background: '#18181b',
-        border: '1px solid #27272a',
+        background: 'var(--po-overlay)',
+        border: '1px solid var(--po-filetree-rail)',
         borderRadius: 12,
-        fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+        fontFamily: "var(--po-font-sans)",
         width: 340, // Wider for descriptions
-        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+        boxShadow: '0 20px 25px -5px var(--po-shadow), 0 10px 10px -5px var(--po-shadow)',
         overflow: 'hidden',
       }}
       onClick={e => e.stopPropagation()}
     >
       {/* Header */}
-      <div style={{ 
+      <div style={{
         padding: '16px 16px 12px',
-        borderBottom: '1px solid #27272a',
-        background: '#1f1f22'
+        borderBottom: '1px solid var(--po-filetree-rail)',
+        background: 'var(--po-panel-raised)'
       }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: '#e4e4e7', margin: '0 0 2px 0' }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--po-text)', margin: '0 0 2px 0' }}>
           Configure Tools
         </h3>
-        <p style={{ fontSize: 12, color: '#a1a1aa', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          Enable access for <span style={{ color: '#e4e4e7' }} title={nodeName}>{nodeName}</span>
-          {jsonPath && <span style={{ color: '#fb923c', marginLeft: 4 }}>({jsonPath})</span>}
+        <p style={{ fontSize: 12, color: 'var(--po-text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          Enable access for <span style={{ color: 'var(--po-text)' }} title={nodeName}>{nodeName}</span>
+          {jsonPath && <span style={{ color: 'var(--po-warning)', marginLeft: 4 }}>({jsonPath})</span>}
         </p>
       </div>
 
@@ -397,19 +395,19 @@ export function NodeAccessPanel({
         {applicableTools.length > 0 ? (
           applicableTools.map(renderToolRow)
         ) : (
-          <div style={{ padding: '24px', textAlign: 'center', color: '#52525b', fontSize: 13 }}>
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--po-text-disabled)', fontSize: 13 }}>
             No applicable tools for this item type.
           </div>
         )}
       </div>
-      
+
       {/* Footer hint */}
-      <div style={{ 
-        padding: '8px 16px 12px', 
-        borderTop: '1px solid #27272a',
-        background: '#1a1a1d',
+      <div style={{
+        padding: '8px 16px 12px',
+        borderTop: '1px solid var(--po-filetree-rail)',
+        background: 'var(--po-panel-raised)',
         fontSize: 11,
-        color: '#52525b',
+        color: 'var(--po-text-disabled)',
         textAlign: 'center'
       }}>
         Changes apply immediately to all Agents.
@@ -488,8 +486,8 @@ export function NodeAccessButton({
           cursor: 'pointer',
           transition: 'all 0.15s',
           background: hasConfig
-            ? isExpanded ? '#22c55e' : isHovered ? 'rgba(34,197,94,0.25)' : 'rgba(34,197,94,0.15)'
-            : isExpanded ? 'rgba(255,255,255,0.12)' : isHovered ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)',
+            ? isExpanded ? 'var(--po-success)' : isHovered ? 'color-mix(in srgb, var(--po-success) 25%, transparent)' : 'color-mix(in srgb, var(--po-success) 15%, transparent)'
+            : isExpanded ? 'var(--po-border-strong)' : isHovered ? 'var(--po-border)' : 'var(--po-hover)',
           position: 'relative',
         }}
         onMouseEnter={() => setIsHovered(true)}
@@ -500,8 +498,8 @@ export function NodeAccessButton({
         <PawIcon
           color={
             hasConfig
-              ? isExpanded ? '#fff' : isHovered ? '#22c55e' : '#4ade80'
-              : isExpanded ? '#e5e5e5' : isHovered ? '#d4d4d8' : '#6b7280'
+              ? isExpanded ? 'var(--po-text-inverse)' : isHovered ? 'var(--po-success)' : 'var(--po-success)'
+              : isExpanded ? 'var(--po-text)' : isHovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'
           }
         />
         {/* Badge */}
@@ -513,8 +511,8 @@ export function NodeAccessButton({
             width: 14,
             height: 14,
             borderRadius: '50%',
-            background: '#22c55e',
-            color: '#fff',
+            background: 'var(--po-success)',
+            color: 'var(--po-text-inverse)',
             fontSize: 9,
             fontWeight: 600,
             display: 'flex',

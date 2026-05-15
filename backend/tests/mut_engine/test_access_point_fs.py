@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from mut.core.object_store import ObjectStore, StorageBackend
-from mut.foundation.git_format import MODE_FILE, TreeEntry, encode_tree
+from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
 from fastapi import HTTPException
 
@@ -291,6 +291,38 @@ def test_tree_reader_includes_size_only_when_requested(tmp_path):
     assert default_entry.size_bytes is None
     assert sized_entry.size_bytes == 5
     assert stat_entry.size_bytes == 5
+
+
+def test_tree_reader_prioritizes_root_readme_before_folders(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    readme_hash = store.put_blob(b"start")
+    file_hash = store.put_blob(b"note")
+    docs_hash = store.put_tree(encode_tree([]))
+    root_hash = store.put_tree(encode_tree([
+        TreeEntry(name="docs", mode=MODE_DIR, sha1_hex=docs_hash),
+        TreeEntry(name="README.md", mode=MODE_FILE, sha1_hex=readme_hash),
+        TreeEntry(name="note.md", mode=MODE_FILE, sha1_hex=file_hash),
+    ]))
+
+    class _History:
+        def get_root_hash(self):
+            return root_hash
+
+    class _Repo:
+        pass
+
+    repo = _Repo()
+    repo.history = _History()
+    repo.store = store
+
+    class _Repos:
+        def get_repo(self, project_id):
+            return repo
+
+    reader = MutTreeReader(_Repos())
+
+    entries = reader.list_dir("project-id")
+    assert [entry.name for entry in entries] == ["README.md", "docs", "note.md"]
 
 
 def test_tree_reader_ranges_decoded_git_blob_content(tmp_path):

@@ -66,12 +66,12 @@ export function SettingsSidebar({
       ref={sidebarRef}
       style={{
         width: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth,
-        borderRight: '1px solid #404040',
+        borderRight: '1px solid var(--po-border-strong)',
         display: 'flex',
         flexDirection: 'column',
-        background: '#181818',
+        background: 'var(--po-overlay)',
         fontFamily:
-          "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+          "var(--po-font-sans)",
         boxSizing: 'border-box',
         position: 'relative',
         flexShrink: 0,
@@ -88,7 +88,7 @@ export function SettingsSidebar({
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
           padding: isCollapsed ? '0' : '0 9px 0 16px',
-          borderBottom: '1px solid #404040',
+          borderBottom: '1px solid var(--po-border-strong)',
           boxSizing: 'border-box',
         }}
       >
@@ -106,16 +106,16 @@ export function SettingsSidebar({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#6b7280',
+              color: 'var(--po-text-subtle)',
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-              e.currentTarget.style.color = '#9ca3af';
+              e.currentTarget.style.background = 'var(--po-border)';
+              e.currentTarget.style.color = 'var(--po-text)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#6b7280';
+              e.currentTarget.style.color = 'var(--po-text-subtle)';
             }}
           >
             <svg
@@ -138,7 +138,7 @@ export function SettingsSidebar({
               style={{
                 fontSize: 16,
                 fontWeight: 600,
-                color: '#EDEDED',
+                color: 'var(--po-text)',
                 letterSpacing: '0.3px',
               }}
             >
@@ -157,16 +157,16 @@ export function SettingsSidebar({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#6b7280',
+                color: 'var(--po-text-subtle)',
                 transition: 'all 0.15s',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                e.currentTarget.style.color = '#9ca3af';
+                e.currentTarget.style.background = 'var(--po-border)';
+                e.currentTarget.style.color = 'var(--po-text)';
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#6b7280';
+                e.currentTarget.style.color = 'var(--po-text-subtle)';
               }}
             >
               <svg
@@ -204,7 +204,7 @@ export function SettingsSidebar({
                 style={{
                   fontSize: 12,
                   fontWeight: 600,
-                  color: '#6D7177',
+                  color: 'var(--po-text-subtle)',
                 }}
               >
                 Workspace
@@ -251,24 +251,24 @@ export function SettingsSidebar({
               justifyContent: 'center',
               background:
                 currentView === 'import'
-                  ? 'rgba(59, 130, 246, 0.15)'
+                  ? 'var(--po-selected)'
                   : 'transparent',
               border: 'none',
               borderRadius: 5,
               cursor: 'pointer',
-              color: currentView === 'import' ? '#60a5fa' : '#808080',
+              color: currentView === 'import' ? 'var(--po-accent)' : 'var(--po-text-subtle)',
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
               if (currentView !== 'import') {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                e.currentTarget.style.color = '#e2e8f0';
+                e.currentTarget.style.background = 'var(--po-border)';
+                e.currentTarget.style.color = 'var(--po-text)';
               }
             }}
             onMouseLeave={e => {
               if (currentView !== 'import') {
                 e.currentTarget.style.background = 'transparent';
-                e.currentTarget.style.color = '#808080';
+                e.currentTarget.style.color = 'var(--po-text-subtle)';
               }
             }}
           >
@@ -297,12 +297,12 @@ export function SettingsSidebar({
             height: '100%',
             cursor: 'col-resize',
             zIndex: 10,
-            background: isResizing ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            background: isResizing ? 'var(--po-active)' : 'transparent',
             transition: 'background 0.15s',
           }}
           onMouseEnter={e => {
             if (!isResizing)
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              e.currentTarget.style.background = 'var(--po-active)';
           }}
           onMouseLeave={e => {
             if (!isResizing) e.currentTarget.style.background = 'transparent';
@@ -329,7 +329,7 @@ function NavItem({ active, onClick, label }: any) {
         padding: '0 4px 0 12px',
         borderRadius: 6,
         cursor: 'pointer',
-        background: active || hovered ? '#2C2C2C' : 'transparent',
+        background: active ? 'var(--po-selected)' : hovered ? 'var(--po-hover)' : 'transparent',
         border: 'none',
         width: '100%',
         textAlign: 'left',
@@ -351,7 +351,7 @@ function NavItem({ active, onClick, label }: any) {
         <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
           <path
             d='M7 9.5V2.5M7 9.5l-2.5-2.5M7 9.5l2.5-2.5M3.5 12h7'
-            stroke={active ? '#CDCDCD' : hovered ? '#9B9B9B' : '#5D6065'}
+            stroke={active ? 'var(--po-text)' : hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
             strokeWidth='1.2'
             strokeLinecap='round'
             strokeLinejoin='round'
@@ -365,7 +365,7 @@ function NavItem({ active, onClick, label }: any) {
           flex: 1,
           fontSize: 13,
           fontWeight: 500,
-          color: active ? '#FFFFFF' : hovered ? '#F0EFED' : '#9B9B9B',
+          color: active ? 'var(--po-text)' : hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',

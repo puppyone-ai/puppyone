@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, Request
 
 from src.common_schemas import ApiResponse
 from src.config import settings
+from src.mut_engine.dependencies import get_mut_ops
+from src.mut_engine.services.ops import MutOps
 from src.platform.project.dependencies import (
     get_project_service, get_verified_project,
 )
@@ -53,12 +55,15 @@ def get_access_point(
     request: Request,
     project: Project = Depends(get_verified_project),
     scope_service: ScopeService = Depends(get_scope_service),
+    ops: MutOps = Depends(get_mut_ops),
 ):
     scopes = scope_service.list_for_project(str(project.id))
     # Defensive: ensure root exists. Idempotent — just returns existing if so.
     if not any(s.is_root for s in scopes):
         scope_service.ensure_root_scope(str(project.id))
         scopes = scope_service.list_for_project(str(project.id))
+
+    head_commit_id = ops.get_head_commit_id(str(project.id)) or ""
 
     return ApiResponse.success(
         data=RepoIdentityOut(
@@ -75,6 +80,8 @@ def get_access_point(
                 )
                 for s in scopes
             ],
+            content_initialized=bool(head_commit_id),
+            head_commit_id=head_commit_id or None,
         ),
         message="Access point retrieved",
     )

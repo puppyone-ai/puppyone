@@ -140,7 +140,7 @@ export function EditorArea({
           isTextLoading={isLoadingText}
           monacoLanguage={format.monacoLanguage}
           formatLabel={format.label}
-          mimeType={format.mimeTypes[0] ?? activeMimeType ?? undefined}
+          mimeType={format.mimeTypes?.[0] ?? activeMimeType ?? undefined}
           editable={format.editable}
           onTextChange={format.editable ? onTextChange : undefined}
           markdownViewMode={markdownViewMode}

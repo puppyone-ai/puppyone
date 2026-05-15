@@ -11,7 +11,7 @@ import {
   type FileVersionDetail,
 } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
-import { InlineLoading, PageLoading } from '@/components/loading';
+import { PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
 
@@ -236,10 +236,10 @@ function formatScopeLabel(scopePath: string): string {
 function getTrackInfo(who: string) {
   const { type } = parseOperator(who);
   switch (type) {
-    case 'user': return { color: '#60a5fa' }; // blue-400
-    case 'agent': return { color: '#c084fc' }; // purple-400
-    case 'sync': return { color: '#34d399' }; // emerald-400
-    default: return { color: '#a1a1aa' }; // zinc-400
+    case 'user': return { color: 'var(--po-accent)' };
+    case 'agent': return { color: 'var(--po-file-accent-audio)' };
+    case 'sync': return { color: 'var(--po-success)' };
+    default: return { color: 'var(--po-text-muted)' };
   }
 }
 
@@ -267,13 +267,13 @@ function VerticalCommitNode({
   const ITEM_HEIGHT = 30;
   const MARGIN_Y = 1;
   const ROW_HEIGHT = ITEM_HEIGHT + MARGIN_Y * 2; // 32px total row space
-  
+
   // Left side for the short commit id
   const VERSION_WIDTH = 56;
   const GRAPH_WIDTH = 20;
   const LINE_X = GRAPH_WIDTH / 2;
-  const trackColor = '#27272a';
-  const dotStroke = isSelected ? currentInfo.color : hovered ? '#71717a' : '#52525b';
+  const trackColor = 'var(--po-filetree-rail)';
+  const dotStroke = isSelected ? currentInfo.color : hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)';
 
   const shortId = commit.commit_id ? commit.commit_id.slice(0, 8) : '';
 
@@ -290,8 +290,8 @@ function VerticalCommitNode({
           margin: `${MARGIN_Y}px 6px`,
           height: ITEM_HEIGHT, boxSizing: 'border-box',
           borderRadius: 6,
-          background: isSelected ? '#2a2a2a' : hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
-          color: isSelected ? '#fff' : hovered ? '#d4d4d4' : '#a1a1aa',
+          background: isSelected ? 'var(--po-selected)' : hovered ? 'var(--po-hover)' : 'transparent',
+          color: isSelected ? 'var(--po-text)' : hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
           fontSize: 13, userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
           cursor: 'pointer',
@@ -316,9 +316,9 @@ function VerticalCommitNode({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'flex-start',
-              fontFamily: 'monospace',
+              fontFamily: 'var(--po-font-sans)',
               fontSize: 11,
-              color: isSelected ? '#fff' : '#71717a',
+              color: isSelected ? 'var(--po-text)' : 'var(--po-text-subtle)',
               transition: 'color 0.1s',
               overflow: 'hidden',
               whiteSpace: 'nowrap',
@@ -374,7 +374,7 @@ function VerticalCommitNode({
               cx={LINE_X}
               cy={ROW_HEIGHT / 2}
               r={3}
-              fill={isSelected ? currentInfo.color : hovered ? '#1e1e1e' : '#0e0e0e'}
+              fill={isSelected ? currentInfo.color : hovered ? 'var(--po-panel)' : 'var(--po-canvas)'}
               stroke={dotStroke}
               strokeWidth={1.5}
               style={{ transition: 'fill 0.12s, stroke 0.12s' }}
@@ -389,8 +389,8 @@ function VerticalCommitNode({
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {/* Actor Prefix (Optional context) */}
-            <span style={{ 
-              display: 'inline-flex', alignItems: 'center', gap: 4, 
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
               color: currentInfo.color, fontSize: 11, fontWeight: 500,
               opacity: isSelected ? 1 : 0.8,
             }}>
@@ -403,28 +403,28 @@ function VerticalCommitNode({
             </span>
 
             {/* Right area actions/meta */}
-            <div style={{ 
+            <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              justifyContent: 'flex-end', flexShrink: 0, 
+              justifyContent: 'flex-end', flexShrink: 0,
               marginLeft: 'auto',
             }}>
               {isHead && (
                 <span style={{
-                  fontSize: 9, fontWeight: 600, color: '#22c55e',
-                  border: '1px solid rgba(34,197,94,0.2)', background: 'rgba(34,197,94,0.1)',
+                  fontSize: 9, fontWeight: 600, color: 'var(--po-success)',
+                  border: '1px solid color-mix(in srgb, var(--po-success) 25%, transparent)', background: 'color-mix(in srgb, var(--po-success) 12%, transparent)',
                   padding: '0 4px', borderRadius: 3, display: 'inline-flex', alignItems: 'center', height: 16
                 }}>
                   HEAD
                 </span>
               )}
-              
+
               {/* Minimal Time */}
-              <div style={{ 
+              <div style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 opacity: hovered || isSelected ? 1 : 0.7,
                 transition: 'opacity 0.2s',
               }}>
-                <span style={{ fontSize: 11, color: '#71717a', minWidth: 28, textAlign: 'right' }}>
+                <span style={{ fontSize: 11, color: 'var(--po-text-subtle)', minWidth: 28, textAlign: 'right' }}>
                   {formatTimeShort(commit.created_at)}
                 </span>
               </div>
@@ -439,9 +439,9 @@ function VerticalCommitNode({
 // ─── DiffRow + FileDiffBlock (showcase parity) ───────────────────────
 
 const OP_TONE: Record<string, { bg: string; fg: string }> = {
-  added:    { bg: 'rgba(34,197,94,0.15)',  fg: '#22c55e' },
-  modified: { bg: 'rgba(59,130,246,0.15)', fg: '#3b82f6' },
-  deleted:  { bg: 'rgba(239,68,68,0.15)',  fg: '#ef4444' },
+  added:    { bg: 'color-mix(in srgb, var(--po-success) 15%, transparent)',  fg: 'var(--po-success)' },
+  modified: { bg: 'color-mix(in srgb, var(--po-accent) 15%, transparent)', fg: 'var(--po-accent)' },
+  deleted:  { bg: 'color-mix(in srgb, var(--po-danger) 15%, transparent)',  fg: 'var(--po-danger)' },
 };
 
 function DiffRow({ line }: { line: DiffLine }) {
@@ -453,12 +453,12 @@ function DiffRow({ line }: { line: DiffLine }) {
           alignItems: 'center',
           height: 24,
           paddingLeft: 14,
-          background: 'rgba(255,255,255,0.025)',
-          color: '#52525b',
-          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          background: 'var(--po-control)',
+          color: 'var(--po-text-disabled)',
+          fontFamily: 'var(--po-font-sans)',
           fontSize: 11,
-          borderTop: '1px solid rgba(255,255,255,0.03)',
-          borderBottom: '1px solid rgba(255,255,255,0.03)',
+          borderTop: '1px solid var(--po-hover)',
+          borderBottom: '1px solid var(--po-hover)',
         }}
       >
         {line.text}
@@ -469,20 +469,20 @@ function DiffRow({ line }: { line: DiffLine }) {
   const isAdd = line.kind === 'add';
   const isRem = line.kind === 'remove';
   const bg = isAdd
-    ? 'rgba(34,197,94,0.08)'
+    ? 'var(--po-diff-added-bg)'
     : isRem
-    ? 'rgba(239,68,68,0.08)'
+    ? 'var(--po-diff-removed-bg)'
     : 'transparent';
-  const numColor = isAdd ? '#22c55e' : isRem ? '#ef4444' : '#52525b';
+  const numColor = isAdd ? 'var(--po-success)' : isRem ? 'var(--po-danger)' : 'var(--po-text-disabled)';
   const prefix = isAdd ? '+' : isRem ? '-' : ' ';
-  const textColor = isAdd ? '#86efac' : isRem ? '#fca5a5' : '#a1a1aa';
+  const textColor = isAdd ? 'var(--po-diff-added-text)' : isRem ? 'var(--po-diff-removed-text)' : 'var(--po-text-muted)';
   const lineNum = isRem ? line.oldLine : line.newLine ?? line.oldLine;
   return (
     <div
       style={{
         display: 'flex',
         background: bg,
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontFamily: 'var(--po-font-sans)',
         fontSize: 11.5,
         lineHeight: '20px',
         minHeight: 20,
@@ -588,7 +588,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
         marginBottom: 16,
         borderRadius: 8,
         overflow: 'hidden',
-        border: '1px solid rgba(255,255,255,0.06)',
+        border: '1px solid var(--po-border-subtle)',
       }}
     >
       {/* File header */}
@@ -599,8 +599,8 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          background: 'rgba(255,255,255,0.025)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--po-control)',
+          borderBottom: '1px solid var(--po-border-subtle)',
         }}
       >
         <svg
@@ -608,7 +608,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           height='14'
           viewBox='0 0 24 24'
           fill='none'
-          stroke={ext === 'json' ? '#34d399' : ext === 'markdown' ? '#a1a1aa' : '#71717a'}
+          stroke={ext === 'json' ? 'var(--po-success)' : ext === 'markdown' ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'}
           strokeWidth='1.5'
           strokeLinecap='round'
           strokeLinejoin='round'
@@ -620,8 +620,8 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
         <span
           style={{
             fontSize: 11.5,
-            color: '#fff',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            color: 'var(--po-text)',
+            fontFamily: 'var(--po-font-sans)',
             flex: 1,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -636,7 +636,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
             fontSize: 9.5,
             fontWeight: 600,
             borderRadius: 3,
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontFamily: 'var(--po-font-sans)',
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
             background: tone.bg,
@@ -651,27 +651,28 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
       {isLoading ? (
         <div
           style={{
-            padding: '14px 16px',
-            background: 'rgba(0,0,0,0.2)',
+            height: 56,
+            display: 'flex',
+            background: 'var(--po-inset)',
           }}
         >
-          <InlineLoading label="Loading diff…" />
+          <PageLoading variant="fill" label="Loading diff" />
         </div>
       ) : placeholder ? (
         <div
           style={{
             padding: '14px 16px',
             fontSize: 11,
-            color: '#71717a',
-            background: 'rgba(0,0,0,0.2)',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            color: 'var(--po-text-subtle)',
+            background: 'var(--po-inset)',
+            fontFamily: 'var(--po-font-sans)',
             fontStyle: 'italic',
           }}
         >
           {placeholder}
         </div>
       ) : lines && lines.length > 0 ? (
-        <div style={{ padding: '6px 0', background: 'rgba(0,0,0,0.25)' }}>
+        <div style={{ padding: '6px 0', background: 'var(--po-inset)' }}>
           {lines.map((line, j) => (
             <DiffRow key={j} line={line} />
           ))}
@@ -681,8 +682,8 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           style={{
             padding: '14px 16px',
             fontSize: 11,
-            color: '#71717a',
-            background: 'rgba(0,0,0,0.2)',
+            color: 'var(--po-text-subtle)',
+            background: 'var(--po-inset)',
             fontStyle: 'italic',
           }}
         >
@@ -703,11 +704,27 @@ function CommitDetail({
   parentCommitId: string | null;
 }) {
   const { type, id } = parseOperator(commit.who);
-  const opColors: Record<string, { bg: string; text: string; border: string }> = {
-    user: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20' },
-    agent: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/20' },
-    sync: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20' },
-    system: { bg: 'bg-zinc-500/10', text: 'text-zinc-400', border: 'border-zinc-500/20' },
+  const opColors: Record<string, { background: string; color: string; borderColor: string }> = {
+    user: {
+      background: 'color-mix(in srgb, var(--po-accent) 10%, transparent)',
+      color: 'var(--po-accent)',
+      borderColor: 'color-mix(in srgb, var(--po-accent) 20%, transparent)',
+    },
+    agent: {
+      background: 'color-mix(in srgb, var(--po-purple) 10%, transparent)',
+      color: 'var(--po-purple)',
+      borderColor: 'color-mix(in srgb, var(--po-purple) 20%, transparent)',
+    },
+    sync: {
+      background: 'color-mix(in srgb, var(--po-success) 10%, transparent)',
+      color: 'var(--po-success)',
+      borderColor: 'color-mix(in srgb, var(--po-success) 20%, transparent)',
+    },
+    system: {
+      background: 'var(--po-control)',
+      color: 'var(--po-text-muted)',
+      borderColor: 'var(--po-border)',
+    },
   };
   const opColor = opColors[type] || opColors.system;
 
@@ -716,31 +733,34 @@ function CommitDetail({
       <div className="flex flex-wrap items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
           <span
-            className="text-lg font-medium text-white font-mono"
+            className="text-lg font-medium text-[var(--po-text)] font-sans"
             title={commit.commit_id}
           >
             {commit.commit_id.slice(0, 8)}
           </span>
-          <span className="text-sm text-zinc-400">
+          <span className="text-sm text-[var(--po-text-muted)]">
             {commit.message || '(no message)'}
           </span>
         </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${opColor.bg} ${opColor.text} ${opColor.border} font-medium`}>
+          <span
+            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border font-medium"
+            style={opColor}
+          >
             {formatOperatorLabel(type)}
-            {id && <span className="opacity-70 font-normal font-mono">{id.slice(0, 8)}</span>}
+            {id && <span className="opacity-70 font-normal font-sans">{id.slice(0, 8)}</span>}
           </span>
 
           <span
-            className="text-xs text-zinc-500 font-medium"
+            className="text-xs text-[var(--po-text-subtle)] font-medium"
             title={formatFullTime(commit.created_at)}
           >
             {formatTime(commit.created_at)}
           </span>
 
           {commit.root_hash && (
-            <span className="text-xs text-zinc-600 font-mono bg-white/[0.03] px-2 py-1 rounded border border-white/[0.05]">
+            <span className="text-xs text-[var(--po-text-subtle)] font-sans bg-[var(--po-control)] px-2 py-1 rounded border border-[var(--po-border-subtle)]">
               {commit.root_hash.slice(0, 10)}
             </span>
           )}
@@ -755,11 +775,11 @@ function CommitDetail({
               alignItems: 'center',
               gap: 12,
               fontSize: 11,
-              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-              color: '#71717a',
+              fontFamily: 'var(--po-font-sans)',
+              color: 'var(--po-text-subtle)',
               marginBottom: 16,
               paddingBottom: 14,
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              borderBottom: '1px solid var(--po-border-subtle)',
             }}
           >
             <span>
@@ -778,14 +798,20 @@ function CommitDetail({
           ))}
         </>
       ) : (
-        <div className="px-6 py-12 text-center text-zinc-500 text-sm border border-white/[0.06] rounded-xl">
+        <div className="px-6 py-12 text-center text-[var(--po-text-subtle)] text-sm border border-[var(--po-border-subtle)] rounded-xl">
           No file changes in this commit
         </div>
       )}
 
       {commit.conflicts.length > 0 && (
-        <div className="mt-4 bg-amber-500/[0.02] border border-amber-500/20 rounded-xl p-4">
-          <div className="text-xs font-medium text-amber-500 mb-3 flex items-center gap-2">
+        <div
+          className="mt-4 rounded-xl border p-4"
+          style={{
+            background: 'color-mix(in srgb, var(--po-warning) 3%, transparent)',
+            borderColor: 'color-mix(in srgb, var(--po-warning) 22%, transparent)',
+          }}
+        >
+          <div className="text-xs font-medium text-[var(--po-warning)] mb-3 flex items-center gap-2">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
               <line x1="12" y1="9" x2="12" y2="13" />
@@ -795,11 +821,11 @@ function CommitDetail({
           </div>
           <div className="space-y-1.5">
             {commit.conflicts.map((conflict, i) => (
-              <div key={i} className="text-xs font-mono text-zinc-400 flex items-center gap-2 bg-black/20 p-2 rounded border border-white/[0.02]">
-                <span className="text-zinc-300">{conflict.path}</span>
-                <span className="text-zinc-600">-</span>
-                <span className="text-amber-500/80">{conflict.strategy}</span>
-                {conflict.kept && <span className="text-zinc-500">(kept: {conflict.kept})</span>}
+              <div key={i} className="text-xs font-sans text-[var(--po-text-muted)] flex items-center gap-2 bg-[var(--po-inset)] p-2 rounded border border-[var(--po-border-subtle)]">
+                <span className="text-[var(--po-text)]">{conflict.path}</span>
+                <span className="text-[var(--po-text-subtle)]">-</span>
+                <span style={{ color: 'color-mix(in srgb, var(--po-warning) 80%, var(--po-text-muted))' }}>{conflict.strategy}</span>
+                {conflict.kept && <span className="text-[var(--po-text-subtle)]">(kept: {conflict.kept})</span>}
               </div>
             ))}
           </div>
@@ -971,27 +997,27 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   }, [commits, selectedCommit]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: '#0e0e0e' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--po-canvas)' }}>
 
       {/* ── Header ── */}
       <div style={{
         height: 46, minHeight: 46, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 16px',
-        borderBottom: '1px solid rgba(255,255,255,0.08)',
-        background: '#0e0e0e',
+        borderBottom: '1px solid var(--po-divider)',
+        background: 'var(--po-canvas)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>
             Commit History
           </span>
           {history && (
-            <span style={{ fontSize: 12, color: '#52525b' }}>
+            <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>
               {history.total} commit{history.total !== 1 ? 's' : ''}
               {history.head_commit_id && (
                 <> · <span
                   title={history.head_commit_id}
-                  style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}
+                  style={{ fontFamily: 'var(--po-font-sans)' }}
                 >
                   {history.head_commit_id.slice(0, 12)}
                 </span></>
@@ -1001,8 +1027,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         </div>
         {history?.root_hash && (
           <span style={{
-            fontSize: 10, color: '#3f3f46',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+            fontSize: 10, color: 'var(--po-text-subtle)',
+            fontFamily: 'var(--po-font-sans)',
           }}>
             tree {history.root_hash.slice(0, 12)}
           </span>
@@ -1017,7 +1043,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       )}
 
       {error && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#ef4444', fontSize: 13 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--po-danger)', fontSize: 13 }}>
           Failed to load history
         </div>
       )}
@@ -1025,14 +1051,14 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       {!isInitialLoading && !error && commits.length === 0 && (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          flex: 1, gap: 12, color: '#3f3f46',
+          flex: 1, gap: 12, color: 'var(--po-text-subtle)',
         }}>
           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
           <span style={{ fontSize: 14 }}>No commits yet</span>
-          <span style={{ fontSize: 12, color: '#27272a' }}>Changes to your context space will appear here</span>
+          <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>Changes to your context space will appear here</span>
         </div>
       )}
 
@@ -1048,12 +1074,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             defaultWidth={260}
             minWidth={260}
             maxWidth={520}
-            className="border-r border-white/[0.06] bg-[#0e0e0e] z-10"
+            className="border-r border-[var(--po-divider)] bg-[var(--po-canvas)] z-10"
           >
-            
+
             {/* Filter Header */}
             {(scopeOptions.length > 1 || actorOptions.length > 1) && (
-              <div ref={filterMenuRef} className="flex flex-col border-b border-white/[0.04] bg-[#0e0e0e]">
+              <div ref={filterMenuRef} className="flex flex-col border-b border-[var(--po-divider)] bg-[var(--po-canvas)]">
                 <div className="px-3 h-[44px] min-h-[44px] flex items-center gap-2">
                   <button
                     onClick={() => {
@@ -1063,8 +1089,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                     }}
                     className={`flex-shrink-0 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
                       activeScopeFilter === null && activeActorFilter === null
-                        ? 'bg-white/[0.1] text-zinc-100' 
-                        : 'bg-transparent text-zinc-400 hover:bg-white/[0.06]'
+                        ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
+                        : 'bg-transparent text-[var(--po-text-muted)] hover:bg-[var(--po-hover)]'
                     }`}
                   >
                     All
@@ -1075,8 +1101,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                       onClick={() => setFilterMenuOpen(open => open === 'scope' ? null : 'scope')}
                       className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
                         activeScopeFilter !== null
-                          ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]'
-                          : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
+                          ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
+                          : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
                       }`}
                       title={activeScope ? formatScopeLabel(activeScope.scope) : 'Filter by scope'}
                       aria-haspopup="menu"
@@ -1085,9 +1111,9 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                       {activeScope ? (
                         <span className="truncate">{formatScopeLabel(activeScope.scope)}</span>
                       ) : (
-                        <span className="truncate text-zinc-400">
+                        <span className="truncate text-[var(--po-text-muted)]">
                           Scope
-                          <span className="ml-1 font-mono opacity-60">{scopeOptions.length}</span>
+                          <span className="ml-1 font-sans opacity-60">{scopeOptions.length}</span>
                         </span>
                       )}
                       <svg
@@ -1108,7 +1134,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                     {filterMenuOpen === 'scope' && (
                       <div
                         role="menu"
-                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-white/[0.08] bg-[#151515] shadow-xl"
+                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-[var(--po-border)] bg-[var(--po-overlay)] shadow-xl"
                       >
                         <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
                           {scopeOptions.map(option => {
@@ -1124,12 +1150,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                                 }}
                                 className={`w-full min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors ${
                                   isSelected
-                                    ? 'bg-white/[0.08] text-zinc-100'
-                                    : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
+                                    ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
+                                    : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
                                 }`}
                               >
-                                <span className="min-w-0 flex-1 truncate font-mono">{formatScopeLabel(option.scope)}</span>
-                                <span className="flex-shrink-0 font-mono text-[10px] opacity-50">
+                                <span className="min-w-0 flex-1 truncate font-sans">{formatScopeLabel(option.scope)}</span>
+                                <span className="flex-shrink-0 font-sans text-[10px] opacity-50">
                                   {option.count}
                                 </span>
                               </button>
@@ -1145,8 +1171,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                       onClick={() => setFilterMenuOpen(open => open === 'actor' ? null : 'actor')}
                       className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border ${
                         activeActorFilter
-                          ? 'bg-white/[0.1] text-zinc-100 border-white/[0.05]'
-                          : 'bg-transparent text-zinc-400 border-white/[0.04] hover:bg-white/[0.06]'
+                          ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
+                          : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
                       }`}
                       title={activeActor ? formatOperatorLabel(activeActor.type) : 'Filter by actor type'}
                       aria-haspopup="menu"
@@ -1158,9 +1184,9 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                           <span className="truncate">{formatOperatorLabel(activeActor.type)}</span>
                         </>
                       ) : (
-                        <span className="truncate text-zinc-400">
+                        <span className="truncate text-[var(--po-text-muted)]">
                           Who
-                          <span className="ml-1 font-mono opacity-60">{actorOptions.length}</span>
+                          <span className="ml-1 font-sans opacity-60">{actorOptions.length}</span>
                         </span>
                       )}
                       <svg
@@ -1181,7 +1207,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                     {filterMenuOpen === 'actor' && (
                       <div
                         role="menu"
-                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-white/[0.08] bg-[#151515] shadow-xl"
+                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-[var(--po-border)] bg-[var(--po-overlay)] shadow-xl"
                       >
                         <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
                           {actorOptions.map(option => {
@@ -1198,13 +1224,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                                 }}
                                 className={`w-full min-w-0 flex items-center gap-2 px-2.5 py-1.5 text-left text-[11px] transition-colors ${
                                   isSelected
-                                    ? 'bg-white/[0.08] text-zinc-100'
-                                    : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
+                                    ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
+                                    : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
                                 }`}
                               >
                                 <span style={{ color, fontSize: 8 }}>●</span>
                                 <span className="min-w-0 flex-1 truncate">{formatOperatorLabel(option.type)}</span>
-                                <span className="flex-shrink-0 font-mono text-[10px] opacity-50">
+                                <span className="flex-shrink-0 font-sans text-[10px] opacity-50">
                                   {option.count}
                                 </span>
                               </button>
@@ -1234,7 +1260,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
           </ResizableSidebarColumn>
 
           {/* Right: Commit Detail */}
-          <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-[#0e0e0e]">
+          <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-[var(--po-canvas)]">
             {selectedCommit ? (
               <CommitDetail
                 commit={selectedCommit}
@@ -1244,7 +1270,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             ) : (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                height: '100%', color: '#52525b', fontSize: 13,
+                height: '100%', color: 'var(--po-text-disabled)', fontSize: 13,
               }}>
                 Select a commit
               </div>

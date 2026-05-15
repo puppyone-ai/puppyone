@@ -48,7 +48,7 @@ export function SyncProgressPanel({
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#71717A',
+              color: 'var(--po-text-subtle)',
               fontSize: 12,
               cursor: 'pointer',
               padding: '2px 6px',
@@ -64,18 +64,18 @@ export function SyncProgressPanel({
           style={{
             ...progressBarFillStyle,
             width: isTerminal ? '100%' : '50%',
-            background: status === 'failed' ? '#ef4444' :
-                       status === 'completed' ? '#22c55e' : '#3b82f6',
+            background: status === 'failed' ? 'var(--po-danger)' :
+                       status === 'completed' ? 'var(--po-success)' : 'var(--po-accent)',
           }}
         />
       </div>
 
-      <div style={{ color: '#A1A1AA', fontSize: 12, minHeight: 16 }}>
+      <div style={{ color: 'var(--po-text-muted)', fontSize: 12, minHeight: 16 }}>
         {message || (status === 'completed' ? 'Import completed' : 'Processing...')}
       </div>
 
       {error && (
-        <div style={{ color: '#ef4444', fontSize: 12, marginTop: 4 }}>
+        <div style={{ color: 'var(--po-danger)', fontSize: 12, marginTop: 4 }}>
           {error}
         </div>
       )}
@@ -88,15 +88,15 @@ const containerStyle: React.CSSProperties = {
   flexDirection: 'column',
   gap: 8,
   padding: '12px 16px',
-  background: '#1C1C1E',
+  background: 'var(--po-overlay)',
   borderRadius: 8,
-  border: '1px solid #3F3F46',
+  border: '1px solid var(--po-border)',
 };
 
 const progressBarContainerStyle: React.CSSProperties = {
   height: 4,
   borderRadius: 2,
-  background: '#27272A',
+  background: 'var(--po-border-subtle)',
   overflow: 'hidden',
 };
 

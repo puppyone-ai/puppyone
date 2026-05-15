@@ -310,7 +310,7 @@ export function GetStartedPanel({
             inset: -12,
             border: `2px dashed ${T.live}`,
             borderRadius: 12,
-            background: 'rgba(34,211,238,0.05)',
+            background: 'color-mix(in srgb, var(--po-info) 5%, transparent)',
             pointerEvents: 'none',
             display: 'flex',
             alignItems: 'flex-start',
@@ -323,7 +323,7 @@ export function GetStartedPanel({
               padding: '6px 14px',
               borderRadius: 999,
               background: T.live,
-              color: '#0a0a0a',
+              color: 'var(--po-inset)',
               fontSize: 12,
               fontWeight: 600,
               letterSpacing: '0.02em',
@@ -374,7 +374,7 @@ function DropFilesCard({
         padding: '40px 24px',
         borderRadius: 8,
         border: `1px dashed ${active ? T.live : T.cardBorderH}`,
-        background: active ? 'rgba(34,211,238,0.04)' : T.cardBg,
+        background: active ? 'color-mix(in srgb, var(--po-info) 4%, transparent)' : T.cardBg,
         cursor: 'pointer',
         transition: `all 200ms ${T.ease}`,
         display: 'flex',
@@ -413,7 +413,7 @@ function DropFilesCard({
             borderRadius: 6,
             border: `1px solid ${T.text1}`,
             background: T.text1,
-            color: '#0a0a0a',
+            color: 'var(--po-inset)',
             fontSize: 13,
             fontWeight: 500,
             cursor: uploading ? 'not-allowed' : 'pointer',
@@ -709,7 +709,7 @@ function CmdLineSkeleton() {
         alignItems: 'center',
         gap: 8,
         padding: '8px 12px',
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
         border: `1px solid ${T.cardBorder}`,
         borderRadius: 6,
       }}
@@ -729,7 +729,7 @@ function CmdLineSkeleton() {
         style={{
           flex: 1,
           height: 12,
-          background: 'rgba(255,255,255,0.06)',
+          background: 'var(--po-border-subtle)',
           borderRadius: 2,
         }}
       />
@@ -749,7 +749,7 @@ function CmdLineError({ onRetry }: { onRetry: () => void }) {
     <div
       style={{
         padding: '10px 12px',
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
         border: `1px solid ${T.cardBorder}`,
         borderRadius: 6,
         fontSize: 13,
@@ -808,7 +808,7 @@ function CmdLine({
         justifyContent: 'space-between',
         gap: 12,
         padding: '8px 12px',
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
         border: `1px solid ${T.cardBorder}`,
         borderRadius: 6,
       }}
@@ -857,8 +857,8 @@ function CmdLine({
           padding: '3px 10px',
           borderRadius: 4,
           border: `1px solid ${T.cardBorder}`,
-          background: 'rgba(255,255,255,0.04)',
-          color: copied ? '#4ade80' : T.text2,
+          background: 'var(--po-hover)',
+          color: copied ? 'var(--po-success)' : T.text2,
           fontSize: 11,
           fontWeight: 500,
           cursor: 'pointer',

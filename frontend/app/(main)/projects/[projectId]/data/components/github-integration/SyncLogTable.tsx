@@ -149,7 +149,7 @@ function FilterChip({
       type="button"
       onClick={onClick}
       style={{
-        background: active ? 'rgba(255,255,255,0.08)' : 'transparent',
+        background: active ? 'var(--po-border)' : 'transparent',
         border: `1px solid ${active ? T.cardBorderStrong : T.cardBorder}`,
         borderRadius: 6,
         color: active ? T.text1 : T.text2,
@@ -165,10 +165,10 @@ function FilterChip({
 }
 
 const STATUS_COLORS: Record<SyncStatus, string> = {
-  pending: '#a1a1aa',
-  success: '#22c55e',
-  failed: '#ef4444',
-  conflict: '#f59e0b',
+  pending: 'var(--po-text-muted)',
+  success: 'var(--po-success)',
+  failed: 'var(--po-danger)',
+  conflict: 'var(--po-warning)',
 };
 
 function SyncLogRow({

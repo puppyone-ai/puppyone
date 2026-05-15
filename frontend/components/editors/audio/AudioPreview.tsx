@@ -49,7 +49,7 @@ export function AudioPreview({ projectId, filePath, nodeName, mimeType }: AudioP
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#ef4444',
+          color: 'var(--po-danger)',
         }}
       >
         Failed to load audio: {error}
@@ -70,11 +70,11 @@ export function AudioPreview({ projectId, filePath, nodeName, mimeType }: AudioP
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
         gap: 16,
       }}
     >
-      <div style={{ fontSize: 13, color: '#a1a1aa' }}>{nodeName}</div>
+      <div style={{ fontSize: 13, color: 'var(--po-text-muted)' }}>{nodeName}</div>
       <audio key={previewUrl} controls preload="metadata" style={{ width: 'min(560px, 90%)' }}>
         <source src={previewUrl} type={mimeType} />
         Your browser does not support audio playback.

@@ -257,7 +257,7 @@ export function LibraryView({
             height: HEADER_HEIGHT,
             minHeight: HEADER_HEIGHT,
             padding: '0 24px',
-            borderBottom: '1px solid #1a1a1c',
+            borderBottom: '1px solid var(--po-border)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -270,12 +270,12 @@ export function LibraryView({
               style={{
                 fontSize: FONT.primary,
                 fontWeight: 600,
-                color: '#e2e8f0',
+                color: 'var(--po-text)',
               }}
             >
               Tools List
             </div>
-            <div style={{ fontSize: FONT.secondary, color: '#3f3f46' }}>
+            <div style={{ fontSize: FONT.secondary, color: 'var(--po-text-disabled)' }}>
               {tools.length}
             </div>
           </div>
@@ -287,7 +287,7 @@ export function LibraryView({
                 <div
                   style={{
                     fontSize: FONT.secondary,
-                    color: '#60a5fa',
+                    color: 'var(--po-accent)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
@@ -300,7 +300,7 @@ export function LibraryView({
                     style={{
                       background: 'none',
                       border: 'none',
-                      color: '#3f3f46',
+                      color: 'var(--po-text-disabled)',
                       cursor: 'pointer',
                       fontSize: FONT.tertiary,
                     }}
@@ -317,8 +317,8 @@ export function LibraryView({
                       padding: '0 12px',
                       borderRadius: 6,
                       border: 'none',
-                      background: '#2563eb',
-                      color: '#fff',
+                      background: 'var(--po-accent)',
+                      color: 'var(--po-text-inverse)',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -357,13 +357,13 @@ export function LibraryView({
                         top: '100%',
                         right: 0,
                         marginTop: 4,
-                        background: '#111113',
-                        border: '1px solid #1a1a1c',
+                        background: 'var(--po-panel-raised)',
+                        border: '1px solid var(--po-border)',
                         borderRadius: 8,
                         padding: 4,
                         minWidth: 220,
                         zIndex: 100,
-                        boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                        boxShadow: '0 10px 25px var(--po-shadow)',
                       }}
                     >
                       <button
@@ -377,7 +377,7 @@ export function LibraryView({
                           background: 'transparent',
                           border: 'none',
                           borderRadius: 4,
-                          color: '#60a5fa',
+                          color: 'var(--po-accent)',
                           fontSize: FONT.primary,
                           textAlign: 'left',
                           cursor: 'pointer',
@@ -387,7 +387,7 @@ export function LibraryView({
                           fontWeight: 500,
                         }}
                         onMouseEnter={e =>
-                          (e.currentTarget.style.background = '#1a1a1c')
+                          (e.currentTarget.style.background = 'var(--po-border)')
                         }
                         onMouseLeave={e =>
                           (e.currentTarget.style.background = 'transparent')
@@ -410,7 +410,7 @@ export function LibraryView({
                           <div
                             style={{
                               height: 1,
-                              background: '#1a1a1c',
+                              background: 'var(--po-border)',
                               margin: '4px 0',
                             }}
                           />
@@ -418,7 +418,7 @@ export function LibraryView({
                             style={{
                               padding: '6px 12px',
                               fontSize: FONT.tertiary,
-                              color: '#3f3f46',
+                              color: 'var(--po-text-disabled)',
                               fontWeight: 600,
                             }}
                           >
@@ -434,7 +434,7 @@ export function LibraryView({
                                 background: 'transparent',
                                 border: 'none',
                                 borderRadius: 4,
-                                color: '#e2e8f0',
+                                color: 'var(--po-text)',
                                 fontSize: FONT.primary,
                                 textAlign: 'left',
                                 cursor: 'pointer',
@@ -443,7 +443,7 @@ export function LibraryView({
                                 gap: 10,
                               }}
                               onMouseEnter={e =>
-                                (e.currentTarget.style.background = '#1a1a1c')
+                                (e.currentTarget.style.background = 'var(--po-border)')
                               }
                               onMouseLeave={e =>
                                 (e.currentTarget.style.background =
@@ -456,8 +456,8 @@ export function LibraryView({
                                   height: 6,
                                   borderRadius: '50%',
                                   background: mcp.status
-                                    ? '#22c55e'
-                                    : '#3f3f46',
+                                    ? 'var(--po-success)'
+                                    : 'var(--po-text-disabled)',
                                 }}
                               />
                               <span
@@ -504,9 +504,9 @@ export function LibraryView({
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
-              background: '#0f0f11',
+              background: 'var(--po-panel)',
               borderRadius: 10,
-              border: '1px solid #1a1a1c',
+              border: '1px solid var(--po-border)',
               overflow: 'hidden',
             }}
           >
@@ -517,10 +517,10 @@ export function LibraryView({
                 display: 'grid',
                 gridTemplateColumns: gridTemplate,
                 padding: '10px 20px',
-                borderBottom: '1px solid #141416',
+                borderBottom: '1px solid var(--po-border-subtle)',
                 fontSize: FONT.tertiary,
                 fontWeight: 500,
-                color: '#525252',
+                color: 'var(--po-text-disabled)',
                 letterSpacing: '0.3px',
                 textTransform: 'uppercase',
                 userSelect: draggingColumn ? 'none' : 'auto',
@@ -556,7 +556,7 @@ export function LibraryView({
                       width: 1,
                       height: 14,
                       background:
-                        draggingColumn === 'name' ? '#3b82f6' : '#1f1f22',
+                        draggingColumn === 'name' ? 'var(--po-accent)' : 'var(--po-control)',
                       transition: 'background 0.15s',
                     }}
                   />
@@ -570,7 +570,7 @@ export function LibraryView({
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {tools.length === 0 ? (
                 <div
-                  style={{ textAlign: 'center', padding: 60, color: '#3f3f46' }}
+                  style={{ textAlign: 'center', padding: 60, color: 'var(--po-text-disabled)' }}
                 >
                   <svg
                     width='40'
@@ -599,7 +599,7 @@ export function LibraryView({
                         padding: '6px 20px',
                         alignItems: 'center',
                         borderTop:
-                          groupIndex > 0 ? '1px solid #141416' : 'none',
+                          groupIndex > 0 ? '1px solid var(--po-border-subtle)' : 'none',
                         marginTop: groupIndex > 0 ? 4 : 0,
                       }}
                     >
@@ -608,7 +608,7 @@ export function LibraryView({
                         style={{
                           gridColumn: 'span 2',
                           fontSize: FONT.tertiary,
-                          color: '#3f3f46',
+                          color: 'var(--po-text-disabled)',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap',
@@ -628,8 +628,8 @@ export function LibraryView({
                       const isSelected = selectedTools.has(tool.id);
                       const typeConfig = TOOL_TYPE_CONFIG[tool.type] || {
                         label: tool.type?.toUpperCase() || 'TOOL',
-                        color: '#71717a',
-                        bg: 'rgba(113,113,122,0.15)',
+                        color: 'var(--po-text-subtle)',
+                        bg: 'color-mix(in srgb, var(--po-text-muted) 15%, transparent)',
                       };
 
                       return (
@@ -644,12 +644,12 @@ export function LibraryView({
                             height: 40,
                             alignItems: 'center',
                             background: isSelected
-                              ? 'rgba(59, 130, 246, 0.08)'
+                              ? 'color-mix(in srgb, var(--po-accent) 8%, transparent)'
                               : isHovered
-                                ? '#141416'
+                                ? 'var(--po-border-subtle)'
                                 : 'transparent',
                             borderLeft: isSelected
-                              ? '2px solid #3b82f6'
+                              ? '2px solid var(--po-accent)'
                               : '2px solid transparent',
                             transition: 'background 0.1s',
                           }}
@@ -659,7 +659,7 @@ export function LibraryView({
                             onClick={() => toggleSelect(tool.id)}
                             style={{
                               textAlign: 'center',
-                              color: '#3f3f46',
+                              color: 'var(--po-text-disabled)',
                               fontSize: FONT.secondary,
                               cursor: 'pointer',
                             }}
@@ -672,10 +672,10 @@ export function LibraryView({
                                   margin: '0 auto',
                                   border: isSelected
                                     ? 'none'
-                                    : '1.5px solid #3f3f46',
+                                    : '1.5px solid var(--po-text-disabled)',
                                   borderRadius: 3,
                                   background: isSelected
-                                    ? '#3b82f6'
+                                    ? 'var(--po-accent)'
                                     : 'transparent',
                                   display: 'flex',
                                   alignItems: 'center',
@@ -691,7 +691,7 @@ export function LibraryView({
                                   >
                                     <path
                                       d='M2 5l2.5 2.5L8 3'
-                                      stroke='#fff'
+                                      stroke='var(--po-text-inverse)'
                                       strokeWidth='1.5'
                                       strokeLinecap='round'
                                       strokeLinejoin='round'
@@ -735,7 +735,7 @@ export function LibraryView({
                               style={{
                                 fontSize: FONT.primary,
                                 fontWeight: 500,
-                                color: isHovered ? '#fff' : '#e2e8f0',
+                                color: isHovered ? 'var(--po-text)' : 'var(--po-text)',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -750,7 +750,7 @@ export function LibraryView({
                                 height: 26,
                                 background: 'none',
                                 border: 'none',
-                                color: '#52525b',
+                                color: 'var(--po-text-disabled)',
                                 cursor: 'pointer',
                                 borderRadius: 5,
                                 display: 'flex',
@@ -763,10 +763,10 @@ export function LibraryView({
                                 transition: 'opacity 0.1s',
                               }}
                               onMouseEnter={e =>
-                                (e.currentTarget.style.color = '#60a5fa')
+                                (e.currentTarget.style.color = 'var(--po-accent)')
                               }
                               onMouseLeave={e =>
-                                (e.currentTarget.style.color = '#52525b')
+                                (e.currentTarget.style.color = 'var(--po-text-disabled)')
                               }
                               title='Edit'
                             >
@@ -799,7 +799,7 @@ export function LibraryView({
                             <span
                               style={{
                                 fontSize: FONT.secondary,
-                                color: '#525252',
+                                color: 'var(--po-text-disabled)',
                                 overflow: 'hidden',
                                 textOverflow: 'ellipsis',
                                 whiteSpace: 'nowrap',
@@ -814,7 +814,7 @@ export function LibraryView({
                                 height: 26,
                                 background: 'none',
                                 border: 'none',
-                                color: '#52525b',
+                                color: 'var(--po-text-disabled)',
                                 cursor: 'pointer',
                                 borderRadius: 5,
                                 display: 'flex',
@@ -827,10 +827,10 @@ export function LibraryView({
                                 transition: 'opacity 0.1s',
                               }}
                               onMouseEnter={e =>
-                                (e.currentTarget.style.color = '#60a5fa')
+                                (e.currentTarget.style.color = 'var(--po-accent)')
                               }
                               onMouseLeave={e =>
-                                (e.currentTarget.style.color = '#52525b')
+                                (e.currentTarget.style.color = 'var(--po-text-disabled)')
                               }
                               title='Edit'
                             >
@@ -869,9 +869,9 @@ export function LibraryView({
                               style={{
                                 height: 24,
                                 padding: '0 8px 0 6px',
-                                background: 'rgba(16, 185, 129, 0.1)',
-                                border: '1px solid rgba(16, 185, 129, 0.2)',
-                                color: '#34d399',
+                                background: 'color-mix(in srgb, var(--po-success) 10%, transparent)',
+                                border: '1px solid color-mix(in srgb, var(--po-success) 20%, transparent)',
+                                color: 'var(--po-success)',
                                 cursor: 'pointer',
                                 borderRadius: 4,
                                 display: 'flex',
@@ -884,15 +884,15 @@ export function LibraryView({
                               }}
                               onMouseEnter={e => {
                                 e.currentTarget.style.background =
-                                  'rgba(16, 185, 129, 0.2)';
+                                  'color-mix(in srgb, var(--po-success) 20%, transparent)';
                                 e.currentTarget.style.borderColor =
-                                  'rgba(16, 185, 129, 0.3)';
+                                  'color-mix(in srgb, var(--po-success) 30%, transparent)';
                               }}
                               onMouseLeave={e => {
                                 e.currentTarget.style.background =
-                                  'rgba(16, 185, 129, 0.1)';
+                                  'color-mix(in srgb, var(--po-success) 10%, transparent)';
                                 e.currentTarget.style.borderColor =
-                                  'rgba(16, 185, 129, 0.2)';
+                                  'color-mix(in srgb, var(--po-success) 20%, transparent)';
                               }}
                             >
                               <svg
@@ -916,9 +916,9 @@ export function LibraryView({
                               style={{
                                 height: 24,
                                 padding: '0 8px 0 6px',
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                border: '1px solid rgba(59, 130, 246, 0.2)',
-                                color: '#60a5fa',
+                                background: 'color-mix(in srgb, var(--po-accent) 10%, transparent)',
+                                border: '1px solid color-mix(in srgb, var(--po-accent) 20%, transparent)',
+                                color: 'var(--po-accent)',
                                 cursor: 'pointer',
                                 borderRadius: 4,
                                 display: 'flex',
@@ -931,15 +931,15 @@ export function LibraryView({
                               }}
                               onMouseEnter={e => {
                                 e.currentTarget.style.background =
-                                  'rgba(59, 130, 246, 0.2)';
+                                  'color-mix(in srgb, var(--po-accent) 20%, transparent)';
                                 e.currentTarget.style.borderColor =
-                                  'rgba(59, 130, 246, 0.3)';
+                                  'color-mix(in srgb, var(--po-accent) 30%, transparent)';
                               }}
                               onMouseLeave={e => {
                                 e.currentTarget.style.background =
-                                  'rgba(59, 130, 246, 0.1)';
+                                  'color-mix(in srgb, var(--po-accent) 10%, transparent)';
                                 e.currentTarget.style.borderColor =
-                                  'rgba(59, 130, 246, 0.2)';
+                                  'color-mix(in srgb, var(--po-accent) 20%, transparent)';
                               }}
                             >
                               <svg
@@ -961,7 +961,7 @@ export function LibraryView({
                               style={{
                                 width: 1,
                                 height: 14,
-                                background: '#27272a',
+                                background: 'var(--po-filetree-rail)',
                                 margin: '0 4px',
                               }}
                             />
@@ -974,7 +974,7 @@ export function LibraryView({
                                 height: 24,
                                 background: 'none',
                                 border: 'none',
-                                color: '#3f3f46',
+                                color: 'var(--po-text-disabled)',
                                 cursor: 'pointer',
                                 borderRadius: 4,
                                 display: 'flex',
@@ -983,10 +983,10 @@ export function LibraryView({
                                 marginLeft: 2,
                               }}
                               onMouseEnter={e =>
-                                (e.currentTarget.style.color = '#ef4444')
+                                (e.currentTarget.style.color = 'var(--po-danger)')
                               }
                               onMouseLeave={e =>
-                                (e.currentTarget.style.color = '#3f3f46')
+                                (e.currentTarget.style.color = 'var(--po-text-disabled)')
                               }
                               title='Delete'
                             >
@@ -1018,7 +1018,7 @@ export function LibraryView({
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0,0,0,0.7)',
+              background: 'var(--po-backdrop)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1029,12 +1029,12 @@ export function LibraryView({
           >
             <div
               style={{
-                background: '#111113',
-                border: '1px solid #1a1a1c',
+                background: 'var(--po-panel-raised)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 10,
                 width: 400,
                 padding: 20,
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                boxShadow: '0 25px 50px -12px var(--po-shadow)',
               }}
               onClick={e => e.stopPropagation()}
             >
@@ -1042,7 +1042,7 @@ export function LibraryView({
                 style={{
                   fontSize: FONT.primary,
                   fontWeight: 600,
-                  color: '#e2e8f0',
+                  color: 'var(--po-text)',
                   marginBottom: 4,
                 }}
               >
@@ -1051,7 +1051,7 @@ export function LibraryView({
               <div
                 style={{
                   fontSize: FONT.secondary,
-                  color: '#525252',
+                  color: 'var(--po-text-disabled)',
                   marginBottom: 16,
                 }}
               >
@@ -1063,7 +1063,7 @@ export function LibraryView({
                 <label
                   style={{
                     fontSize: FONT.tertiary,
-                    color: '#71717a',
+                    color: 'var(--po-text-subtle)',
                     display: 'block',
                     marginBottom: 6,
                   }}
@@ -1081,10 +1081,10 @@ export function LibraryView({
                   style={{
                     width: '100%',
                     padding: '10px 12px',
-                    background: '#0a0a0c',
-                    border: '1px solid #1a1a1c',
+                    background: 'var(--po-canvas)',
+                    border: '1px solid var(--po-border)',
                     borderRadius: 6,
-                    color: '#e2e8f0',
+                    color: 'var(--po-text)',
                     fontSize: FONT.primary,
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -1101,9 +1101,9 @@ export function LibraryView({
                     height: 32,
                     padding: '0 14px',
                     background: 'transparent',
-                    border: '1px solid #27272a',
+                    border: '1px solid var(--po-filetree-rail)',
                     borderRadius: 6,
-                    color: '#71717a',
+                    color: 'var(--po-text-subtle)',
                     fontSize: FONT.secondary,
                     cursor: 'pointer',
                   }}
@@ -1117,17 +1117,17 @@ export function LibraryView({
                     height: 32,
                     padding: '0 14px',
                     background: creating
-                      ? '#1e40af'
+                      ? 'var(--po-accent-text)'
                       : newServerName.trim()
-                        ? '#2563eb'
-                        : '#1a1a1c',
+                        ? 'var(--po-accent)'
+                        : 'var(--po-border)',
                     border: 'none',
                     borderRadius: 6,
                     color: creating
-                      ? 'rgba(255,255,255,0.7)'
+                      ? 'color-mix(in srgb, var(--po-text) 70%, transparent)'
                       : newServerName.trim()
-                        ? '#fff'
-                        : '#3f3f46',
+                        ? 'var(--po-text-inverse)'
+                        : 'var(--po-text-disabled)',
                     fontSize: FONT.secondary,
                     cursor: creating
                       ? 'wait'
@@ -1154,7 +1154,7 @@ export function LibraryView({
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0,0,0,0.7)',
+              background: 'var(--po-backdrop)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1165,12 +1165,12 @@ export function LibraryView({
           >
             <div
               style={{
-                background: '#111113',
-                border: '1px solid #1a1a1c',
+                background: 'var(--po-panel-raised)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 10,
                 width: 420,
                 padding: 20,
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                boxShadow: '0 25px 50px -12px var(--po-shadow)',
               }}
               onClick={e => e.stopPropagation()}
             >
@@ -1178,7 +1178,7 @@ export function LibraryView({
                 style={{
                   fontSize: FONT.primary,
                   fontWeight: 600,
-                  color: '#e2e8f0',
+                  color: 'var(--po-text)',
                   marginBottom: 16,
                 }}
               >
@@ -1189,7 +1189,7 @@ export function LibraryView({
                 <label
                   style={{
                     fontSize: FONT.tertiary,
-                    color: '#71717a',
+                    color: 'var(--po-text-subtle)',
                     display: 'block',
                     marginBottom: 6,
                   }}
@@ -1207,10 +1207,10 @@ export function LibraryView({
                   style={{
                     width: '100%',
                     padding: '10px 12px',
-                    background: '#0a0a0c',
-                    border: '1px solid #1a1a1c',
+                    background: 'var(--po-canvas)',
+                    border: '1px solid var(--po-border)',
                     borderRadius: 6,
-                    color: '#e2e8f0',
+                    color: 'var(--po-text)',
                     fontSize: FONT.primary,
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -1222,7 +1222,7 @@ export function LibraryView({
                 <label
                   style={{
                     fontSize: FONT.tertiary,
-                    color: '#71717a',
+                    color: 'var(--po-text-subtle)',
                     display: 'block',
                     marginBottom: 6,
                   }}
@@ -1237,10 +1237,10 @@ export function LibraryView({
                   style={{
                     width: '100%',
                     padding: '10px 12px',
-                    background: '#0a0a0c',
-                    border: '1px solid #1a1a1c',
+                    background: 'var(--po-canvas)',
+                    border: '1px solid var(--po-border)',
                     borderRadius: 6,
-                    color: '#e2e8f0',
+                    color: 'var(--po-text)',
                     fontSize: FONT.secondary,
                     outline: 'none',
                     boxSizing: 'border-box',
@@ -1260,9 +1260,9 @@ export function LibraryView({
                     height: 32,
                     padding: '0 14px',
                     background: 'transparent',
-                    border: '1px solid #27272a',
+                    border: '1px solid var(--po-filetree-rail)',
                     borderRadius: 6,
-                    color: '#71717a',
+                    color: 'var(--po-text-subtle)',
                     fontSize: FONT.secondary,
                     cursor: 'pointer',
                   }}
@@ -1275,10 +1275,10 @@ export function LibraryView({
                   style={{
                     height: 32,
                     padding: '0 14px',
-                    background: saving ? '#1e40af' : '#2563eb',
+                    background: saving ? 'var(--po-accent-text)' : 'var(--po-accent)',
                     border: 'none',
                     borderRadius: 6,
-                    color: saving ? 'rgba(255,255,255,0.7)' : '#fff',
+                    color: saving ? 'color-mix(in srgb, var(--po-text) 70%, transparent)' : 'var(--po-text-inverse)',
                     fontSize: FONT.secondary,
                     cursor: saving ? 'wait' : 'pointer',
                     opacity: saving ? 0.8 : 1,

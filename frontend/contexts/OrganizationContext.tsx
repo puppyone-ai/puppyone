@@ -16,6 +16,7 @@ interface OrganizationContextValue {
   members: OrgMember[];
   myRole: 'owner' | 'member' | 'viewer' | null;
   isLoading: boolean;
+  isMembersLoading: boolean;
   switchOrg: (orgId: string) => void;
   refreshOrgs: () => Promise<void>;
   refreshMembers: () => Promise<void>;
@@ -56,6 +57,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
 
   const {
     data: members = [],
+    isLoading: isMembersLoading,
     mutate: mutateMembers,
   } = useSWR(
     currentOrgId ? ['org-members', currentOrgId] : null,
@@ -92,6 +94,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         members,
         myRole,
         isLoading: isOrgsLoading,
+        isMembersLoading,
         switchOrg,
         refreshOrgs,
         refreshMembers,

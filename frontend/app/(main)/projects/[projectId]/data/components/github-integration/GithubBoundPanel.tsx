@@ -153,7 +153,7 @@ export function GithubBoundPanel({ projectId, status, onChanged, onSyncRun }: Re
               background: T.accent,
               border: 'none',
               borderRadius: 6,
-              color: '#fff',
+              color: 'var(--po-text-inverse)',
               cursor: importing || exporting ? 'not-allowed' : 'pointer',
               fontFamily: T.fontSans,
               fontSize: 13,

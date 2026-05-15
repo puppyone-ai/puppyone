@@ -30,7 +30,7 @@ export function ProviderIcon({ provider, size = 16 }: { readonly provider: strin
   }
   if (provider === 'cli') {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="4 17 10 11 4 5" />
         <line x1="12" y1="19" x2="20" y2="19" />
       </svg>
@@ -38,7 +38,7 @@ export function ProviderIcon({ provider, size = 16 }: { readonly provider: strin
   }
   if (provider === 'filesystem') {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#22d3ee" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 6.5a2 2 0 0 1 2-2h4.59a2 2 0 0 1 1.41.59l1 1a2 2 0 0 0 1.41.58H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5z" />
         <path d="M9 16v-5" />
         <polyline points="7 13 9 11 11 13" />
@@ -49,7 +49,7 @@ export function ProviderIcon({ provider, size = 16 }: { readonly provider: strin
   }
   if (provider === 'agent') {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-file-accent-audio)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path d="M12 1v6m0 10v6m11-11h-6m-10 0H1m17.07-7.07l-4.24 4.24m-5.66 5.66l-4.24 4.24m12.73 0l-4.24-4.24m-5.66-5.66L1.93 4.93" />
       </svg>
@@ -57,7 +57,7 @@ export function ProviderIcon({ provider, size = 16 }: { readonly provider: strin
   }
   if (provider === 'mcp') {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="3" width="20" height="14" rx="2" />
         <line x1="8" y1="21" x2="16" y2="21" />
         <line x1="12" y1="17" x2="12" y2="21" />
@@ -66,14 +66,14 @@ export function ProviderIcon({ provider, size = 16 }: { readonly provider: strin
   }
   if (provider === 'sandbox') {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2" />
         <path d="M9 9l2 2-2 2M13 15h2" />
       </svg>
     );
   }
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#71717a" strokeWidth="2">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-text-subtle)" strokeWidth="2">
       <circle cx="12" cy="12" r="10" />
       <line x1="2" y1="12" x2="22" y2="12" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -118,12 +118,12 @@ export const ScopeFolderGlyph = ({ size = 16 }: { readonly size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
     <path
       d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z"
-      fill="#60a5fa"
+      fill="var(--po-accent)"
       fillOpacity="0.25"
     />
     <path
       d="M 9.5 10 L 23 10 Q 24 10 23.5 11 L 19.5 19 Q 19 20 18 20 L 4.5 20 Q 3.5 20 4 19 L 8 11 Q 8.5 10 9.5 10 Z"
-      fill="#60a5fa"
+      fill="var(--po-accent)"
       fillOpacity="0.55"
     />
   </svg>
@@ -144,8 +144,8 @@ export const ScopeFolderGlyph = ({ size = 16 }: { readonly size?: number }) => (
  */
 export const ScopePinGlyph = ({ size = 16 }: { readonly size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
-    <circle cx="8" cy="8" r="5.25" fill="#60a5fa" fillOpacity="0.18" stroke="#60a5fa" strokeOpacity="0.75" strokeWidth="1.25" />
-    <circle cx="8" cy="8" r="1.75" fill="#60a5fa" fillOpacity="0.95" />
+    <circle cx="8" cy="8" r="5.25" fill="var(--po-accent)" fillOpacity="0.18" stroke="var(--po-accent)" strokeOpacity="0.75" strokeWidth="1.25" />
+    <circle cx="8" cy="8" r="1.75" fill="var(--po-accent)" fillOpacity="0.95" />
   </svg>
 );
 export const FileGlyph = ({ size = 11, color = T.text3 }: { readonly size?: number; readonly color?: string }) => (

@@ -25,6 +25,9 @@ detect_type = detect_node_type
 __all__ = ["detect_type", "detect_mime", "MutBlobRead", "MutEntry", "MutTreeReader"]
 
 
+_ENTRYPOINT_FILE_NAMES = {"readme.md", "start here.md"}
+
+
 @dataclass
 class MutEntry:
     """A single entry (file or directory) in the Mut tree."""
@@ -37,6 +40,15 @@ class MutEntry:
     children_count: int | None = None
     created_at: str | None = None
     modified_at: str | None = None
+
+
+def _entry_sort_key(entry: MutEntry) -> tuple[int, str]:
+    name = entry.name.lower()
+    if entry.type != "folder" and name in _ENTRYPOINT_FILE_NAMES:
+        return (0, name)
+    if entry.type == "folder":
+        return (1, name)
+    return (2, name)
 
 
 @dataclass
@@ -99,7 +111,7 @@ class MutTreeReader:
             for name, (typ, hash_val) in entries.items()
             if name != ".keep"
         ]
-        result.sort(key=lambda e: (e.type != "folder", e.name.lower()))
+        result.sort(key=_entry_sort_key)
         return result
 
     def read_file_in_scope(self, project_id: str, scope_path: str, path: str) -> bytes:
@@ -299,7 +311,7 @@ class MutTreeReader:
             for name, (typ, hash_val) in entries.items()
             if name != ".keep"
         ]
-        result.sort(key=lambda e: (e.type != "folder", e.name.lower()))
+        result.sort(key=_entry_sort_key)
         return result
 
     def _build_entry(

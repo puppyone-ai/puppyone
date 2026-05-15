@@ -31,6 +31,7 @@ class Capability(Flag):
 class AuthRequirement(str, Enum):
     NONE       = "none"
     OAUTH      = "oauth"
+    OPTIONAL_OAUTH = "optional_oauth"
     API_KEY    = "api_key"
     ACCESS_KEY = "access_key"
 
@@ -63,14 +64,17 @@ class FetchResult:
     Returned by connector.fetch() — the data pulled from an external source.
 
     SyncEngine uses content_hash to decide whether to write (compare with
-    sync.remote_hash). If changed, it constructs a Mutation and commits
-    through CollaborationService.
+    sync.remote_hash). If `files` is provided, the engine writes the
+    returned path->bytes map through MutOps.bulk_write at the sync mount
+    point. Otherwise it writes `content` as the connector's single output
+    file. Connectors stay storage-agnostic in both cases.
     """
     content: Any
     content_hash: str
     node_type: str = "json"
     node_name: Optional[str] = None
     summary: Optional[str] = None
+    files: Optional[dict[str, bytes]] = None
 
 
 # ============================================================

@@ -22,7 +22,7 @@ function FolderMini({ size }: { size: number }) {
       height={size}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#34d399"
+      stroke="var(--po-success)"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -46,8 +46,8 @@ export function ProviderAvatar({
     return (
       <div style={{
         width: size, height: size, borderRadius: '50%',
-        background: 'rgba(255,255,255,0.06)',
-        border: '1px solid rgba(255,255,255,0.15)',
+        background: 'var(--po-border-subtle)',
+        border: '1px solid var(--po-border-strong)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: size * 0.6,
       }}>
@@ -92,13 +92,13 @@ export function ProviderAvatar({
 
   // Last-resort letter chip — only hit for unknown providers that the
   // backend hasn't surfaced via /connector_specs at all.
-  const color = PROVIDER_COLORS[provider] || '#8b949e';
+  const color = PROVIDER_COLORS[provider] || 'var(--po-text-muted)';
   const label = (PROVIDER_LABELS[provider] || provider).charAt(0).toUpperCase();
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
-      background: 'rgba(255,255,255,0.06)',
-      border: '1px solid rgba(255,255,255,0.15)',
+      background: 'var(--po-border-subtle)',
+      border: '1px solid var(--po-border-strong)',
       color,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: size * 0.55, fontWeight: 600,

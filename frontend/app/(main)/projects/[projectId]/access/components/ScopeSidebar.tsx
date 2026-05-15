@@ -45,10 +45,10 @@ export function ScopeSidebar({
         height: '100%',
         flex: 1,
         minWidth: 0,
-        borderRight: '1px solid rgba(255,255,255,0.06)',
+        borderRight: '1px solid var(--po-border-subtle)',
         display: 'flex',
         flexDirection: 'column',
-        background: '#0e0e0e',
+        background: 'var(--po-canvas)',
       }}
     >
       {/*
@@ -137,7 +137,7 @@ function ScopeSidebarRow({
         // through. Mirrors `ExplorerTreeRow` which made the same
         // switch — the two views are intentionally lock-stepped on
         // visual rhythm.
-        background: isSelected ? 'rgba(255,255,255,0.085)' : hovered ? 'rgba(255,255,255,0.045)' : 'transparent',
+        background: isSelected ? 'var(--po-selected)' : hovered ? 'var(--po-hover)' : 'transparent',
         color: isSelected ? T.text1 : hovered ? T.text1 : T.text2,
         fontSize: 13,
         fontFamily: T.fontSans,
@@ -219,7 +219,7 @@ function ScopeSidebarRow({
             fontWeight: 600,
             padding: '1px 5px',
             borderRadius: 4,
-            background: isSelected ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)',
+            background: isSelected ? 'var(--po-border-strong)' : 'var(--po-hover)',
             color: isSelected ? T.text1 : T.text3,
             fontFamily: T.fontMono,
             letterSpacing: '0.04em',

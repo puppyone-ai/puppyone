@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '../app/supabase/SupabaseAuthProvider';
 import {
   getGithubStatus,
@@ -18,37 +19,42 @@ import {
   openOAuthPopup,
   type SaasType,
 } from '../lib/oauthApi';
-import { InlineLoading } from './loading';
-import packageJson from '../package.json';
+import { refreshProjects } from '../lib/hooks/useData';
+import { createProject } from '../lib/projectsApi';
+import { PageLoading, SkeletonBlock } from './loading';
+import { ThemeToggle } from './theme/ThemeToggle';
+import { ActionButton } from './ui/ActionButton';
+import { ToggleSwitch } from './ui/ToggleSwitch';
+import { ModalPortal } from './ui/ModalPortal';
+import { StatusDot } from './ui/StatusDot';
+import { APP_VERSION_LABEL } from '@/lib/appVersion';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 
-// Single source of truth for the product version shown in the
-// About card. Pulled from `package.json` so a `npm version` bump
-// propagates here automatically — no hardcoded "1.0.0" drift.
-const APP_VERSION = (packageJson as { version: string }).version;
+const SHOW_DEV_TOOLS = process.env.NEXT_PUBLIC_DEV_MODE === 'true';
 
 // ─── Local design tokens ─────────────────────────────────────────────
 //
-// The original panel used a one-off palette (gradient cards, #2a2a2a
-// borders, vivid #22c55e everywhere) that read as a different product
+// The original panel used a one-off palette (gradient cards, var(--po-border)
+// borders, vivid var(--po-success) everywhere) that read as a different product
 // from the rest of the app. We now mirror the same neutral palette
 // used by the access page (`./access/lib/tokens.ts`) — same hairline
 // alpha, same text greys, same card surface — so flipping into this
 // modal feels like the same product surface, not a separate dialog.
 const T = {
-  cardBg: 'rgba(255,255,255,0.02)',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  cardBorderHover: 'rgba(255,255,255,0.10)',
-  border: 'rgba(255,255,255,0.08)',
-  rowHoverBg: 'rgba(255,255,255,0.04)',
-  text1: '#fafafa',
-  text2: '#a1a1aa',
-  text3: '#52525b',
-  success: '#22c55e',
-  danger: '#ef4444',
+  cardBg: 'var(--po-panel)',
+  cardBorder: 'var(--po-border-subtle)',
+  cardBorderHover: 'var(--po-border-strong)',
+  border: 'var(--po-border)',
+  rowHoverBg: 'var(--po-hover)',
+  text1: 'var(--po-text)',
+  text2: 'var(--po-text-muted)',
+  text3: 'var(--po-text-disabled)',
+  success: 'var(--po-success)',
+  danger: 'var(--po-danger)',
   fontSans:
-    'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+    'var(--po-font-sans)',
   fontMono:
-    'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+    'var(--po-font-sans)',
 } as const;
 
 interface UserMenuPanelProps {
@@ -150,14 +156,16 @@ const statusColors: Record<PlatformStatusType, string> = {
 };
 
 export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
-  const { session, signOut } = useAuth();
+  const router = useRouter();
+  const { session, signOut, isAuthReady } = useAuth();
   const [isRendered, setIsRendered] = React.useState(false);
   const [animateIn, setAnimateIn] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<'account' | 'integrations' | 'about'>(
+  const [activeTab, setActiveTab] = React.useState<'account' | 'appearance' | 'integrations' | 'about'>(
     'account'
   );
 
-  const email = session?.user?.email ?? '—';
+  const accountIdentityLoading = !isAuthReady || !session;
+  const email = session?.user?.email ?? '';
   const userMeta = (session?.user?.user_metadata ?? {}) as Record<
     string,
     unknown
@@ -165,7 +173,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
   const userName =
     (typeof userMeta?.['name'] === 'string' && userMeta['name']) ||
     (typeof userMeta?.['full_name'] === 'string' && userMeta['full_name']) ||
-    (email.includes('@') ? email.split('@')[0] : 'User');
+    (email.includes('@') ? email.split('@')[0] : 'Account');
 
   // Integration states
   const [githubStatus, setGithubStatus] = useState<GithubStatusResponse>({ connected: false });
@@ -176,6 +184,8 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
   const [googleDocsStatus, setGoogleDocsStatus] = useState<{ connected: boolean; email?: string }>({ connected: false });
   const [platformStates, setPlatformStates] = useState<Record<PlatformId, PlatformState>>(() => getDefaultPlatformStates());
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [starterRepoLoading, setStarterRepoLoading] = useState(false);
+  const [starterRepoError, setStarterRepoError] = useState<string | null>(null);
   const [disconnectConfirmation, setDisconnectConfirmation] = useState<{
     visible: boolean;
     platformId: PlatformId | null;
@@ -306,12 +316,12 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
   const startOAuthConnect = async (platformId: PlatformId) => {
     const saasType = platformToSaasType[platformId];
     const platformName = getPlatformName(platformId);
-    
+
     updatePlatformState(platformId, { isLoading: true, label: `Connecting to ${platformName}…` });
-    
+
     try {
       const completed = await openOAuthPopup(saasType);
-      
+
       if (completed) {
         await platformStatusCheckers[platformId]();
       } else {
@@ -369,6 +379,33 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
       setDisconnectConfirmation({ visible: true, platformId });
     }
   };
+
+  const handleCreateStarterRepo = useCallback(async () => {
+    if (starterRepoLoading) return;
+
+    setStarterRepoLoading(true);
+    setStarterRepoError(null);
+    try {
+      const created = await createProject(
+        'Get Started',
+        'A guided starter repo seeded from the new-user onboarding template.',
+        undefined,
+        false,
+        'get-started',
+      );
+      await refreshProjects();
+      onClose();
+      router.push(`/projects/${created.id}/data`);
+    } catch (error) {
+      setStarterRepoError(
+        error instanceof Error
+          ? error.message
+          : 'Failed to create Get Started repo',
+      );
+    } finally {
+      setStarterRepoLoading(false);
+    }
+  }, [onClose, router, starterRepoLoading]);
 
   const closeDisconnectModal = () => {
     setDisconnectConfirmation({ visible: false, platformId: null });
@@ -437,7 +474,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     label,
     icon,
   }: {
-    id: 'account' | 'integrations' | 'about';
+    id: 'account' | 'appearance' | 'integrations' | 'about';
     label: string;
     icon?: React.ReactNode;
   }) => {
@@ -454,7 +491,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           padding: '0 10px',
           borderRadius: 6,
           border: 'none',
-          background: isActive ? 'rgba(255,255,255,0.06)' : 'transparent',
+          background: isActive ? 'var(--po-border-subtle)' : 'transparent',
           color: isActive ? T.text1 : T.text2,
           cursor: 'pointer',
           transition: 'background 150ms ease, color 150ms ease',
@@ -465,7 +502,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
         }}
         onMouseEnter={e => {
           if (isActive) return;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+          e.currentTarget.style.background = 'var(--po-hover)';
           e.currentTarget.style.color = T.text1;
         }}
         onMouseLeave={e => {
@@ -541,50 +578,15 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
     },
   ];
 
-  // Integration toggle component
-  const IntegrationToggle = ({ checked, onChange, disabled }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) => (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      style={{
-        width: 36,
-        height: 20,
-        borderRadius: 10,
-        border: 'none',
-        background: checked ? '#22c55e' : '#3a3a3a',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        position: 'relative',
-        transition: 'background 200ms ease',
-        opacity: disabled ? 0.5 : 1,
-        flexShrink: 0,
-      }}
-    >
-      <span
-        style={{
-          position: 'absolute',
-          top: 2,
-          left: checked ? 18 : 2,
-          width: 16,
-          height: 16,
-          borderRadius: '50%',
-          background: '#fff',
-          transition: 'left 200ms ease',
-        }}
-      />
-    </button>
-  );
-
   return (
+    <ModalPortal>
     <div
       role='dialog'
       aria-modal='true'
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 1000,
+        zIndex: APP_Z_INDEX.modal,
         opacity: animateIn ? 1 : 0,
         transition: 'opacity 450ms cubic-bezier(0.22, 1, 0.36, 1)',
       }}
@@ -595,19 +597,18 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0,0,0,0.45)',
+          background: 'var(--po-backdrop)',
           backdropFilter: 'blur(2px)',
           opacity: animateIn ? 1 : 0,
           transition: 'opacity 400ms ease',
         }}
       />
 
-      {/* Panel — flat dark surface with a translucent hairline. The
-          earlier copy used a 140° gradient (`rgba(22,22,22,0.98) →
-          rgba(14,14,14,0.98)`) plus a hardcoded `#2a2a2a` border,
+      {/* Panel — flat surface with a translucent hairline. The
+          earlier copy used a dark-only gradient plus a hardcoded border,
           which is a treatment nothing else in the product uses; it
           made the modal feel like a different surface from
-          everything around it. The flat `#161618` over `T.border`
+          everything around it. The flat `var(--po-panel)` over `T.border`
           + a soft drop-shadow now matches the rest of the chrome
           (page cards, dropdown menus, dialogs). */}
       <div
@@ -621,11 +622,11 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           width: 'min(720px, 96vw)',
           height: '480px',
           overflow: 'hidden',
-          background: '#161618',
+          background: 'var(--po-panel)',
           border: `1px solid ${T.border}`,
           borderRadius: 14,
           boxShadow:
-            '0 20px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)',
+            '0 20px 48px var(--po-shadow), 0 0 0 1px var(--po-hover)',
           transition: 'all 400ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
@@ -673,6 +674,32 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   >
                     <circle cx='12' cy='8' r='4' />
                     <path d='M4 22c0-4 4-7 8-7s8 3 8 7' />
+                  </svg>
+                }
+              />
+              <NavBtn
+                id='appearance'
+                label='Appearance'
+                icon={
+                  <svg
+                    width='16'
+                    height='16'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='currentColor'
+                    strokeWidth='2'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  >
+                    <circle cx='12' cy='12' r='4' />
+                    <path d='M12 2v2' />
+                    <path d='M12 20v2' />
+                    <path d='m4.93 4.93 1.41 1.41' />
+                    <path d='m17.66 17.66 1.41 1.41' />
+                    <path d='M2 12h2' />
+                    <path d='M20 12h2' />
+                    <path d='m6.34 17.66-1.41 1.41' />
+                    <path d='m19.07 4.93-1.41 1.41' />
                   </svg>
                 }
               />
@@ -752,6 +779,8 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
               >
                 {activeTab === 'account'
                   ? 'Account'
+                  : activeTab === 'appearance'
+                  ? 'Appearance'
                   : activeTab === 'integrations'
                   ? 'Integrations'
                   : 'About'}
@@ -804,7 +833,11 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                           lineHeight: 1.3,
                         }}
                       >
-                        {userName}
+                        {accountIdentityLoading ? (
+                          <SkeletonBlock width={140} height={12} radius={3} />
+                        ) : (
+                          userName
+                        )}
                       </div>
                       <div
                         style={{
@@ -813,12 +846,17 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                           fontFamily: T.fontMono,
                         }}
                       >
-                        {email}
+                        {accountIdentityLoading ? (
+                          <SkeletonBlock width={180} height={10} radius={3} />
+                        ) : (
+                          email
+                        )}
                       </div>
                     </div>
                     <button
                       type='button'
                       onClick={signOut}
+                      disabled={accountIdentityLoading}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -832,14 +870,15 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                         fontSize: 12,
                         fontWeight: 500,
                         fontFamily: T.fontSans,
-                        cursor: 'pointer',
+                        cursor: accountIdentityLoading ? 'not-allowed' : 'pointer',
+                        opacity: accountIdentityLoading ? 0.5 : 1,
                         whiteSpace: 'nowrap',
                         transition:
                           'background 150ms ease, border-color 150ms ease, color 150ms ease',
                       }}
                       onMouseEnter={e => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+                        e.currentTarget.style.background = 'var(--po-hover)';
+                        e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                         e.currentTarget.style.color = T.text1;
                       }}
                       onMouseLeave={e => {
@@ -908,6 +947,57 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
               </div>
             )}
 
+            {/* Appearance Tab */}
+            {activeTab === 'appearance' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    border: `1px solid ${T.cardBorder}`,
+                    borderRadius: 10,
+                    background: T.cardBg,
+                    padding: 20,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 6,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: T.text1,
+                        lineHeight: 1.3,
+                      }}
+                    >
+                      Color mode
+                    </div>
+                    <div
+                      style={{
+                        maxWidth: 460,
+                        fontSize: 12,
+                        color: T.text2,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Choose how PuppyOne appears on this device.
+                    </div>
+                  </div>
+                  <ThemeToggle />
+                </div>
+              </div>
+            )}
+
             {/* Integrations Tab */}
             {activeTab === 'integrations' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -925,13 +1015,11 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                 {isInitialLoading ? (
                   <div
                     style={{
+                      height: 96,
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: 40,
                     }}
                   >
-                    <InlineLoading />
+                    <PageLoading variant="fill" />
                   </div>
                 ) : (
                   <div
@@ -941,11 +1029,6 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                       const state = platformStates[platform.id];
                       const isConnected = state.status === 'connected';
                       const isError = state.status === 'error';
-                      const dotColor = isConnected
-                        ? T.success
-                        : isError
-                          ? T.danger
-                          : T.text3;
 
                       return (
                         <div
@@ -987,10 +1070,9 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                             {platform.icon}
                           </div>
 
-                          {/* Name + status — status uses the dot+text
-                              pattern from the sidebar footer (`● shortId`)
-                              so the modal feels native to the rest of
-                              the chrome instead of glowing green. */}
+                          {/* Name + status — status stays compact and
+                              neutral so the modal feels native to the
+                              rest of the chrome instead of glowing green. */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div
                               style={{
@@ -1015,19 +1097,10 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                                 textOverflow: 'ellipsis',
                               }}
                             >
-                              <span
-                                aria-hidden
-                                style={{
-                                  flexShrink: 0,
-                                  width: 6,
-                                  height: 6,
-                                  borderRadius: '50%',
-                                  background: dotColor,
-                                  boxShadow: isConnected
-                                    ? `0 0 5px ${dotColor}`
-                                    : 'none',
-                                  opacity: state.isLoading ? 0.5 : 1,
-                                }}
+                              <StatusDot
+                                status={isError ? 'error' : state.status}
+                                pulse={isConnected}
+                                style={{ opacity: state.isLoading ? 0.5 : 1 }}
                               />
                               <span
                                 style={{
@@ -1043,9 +1116,10 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                             </div>
                           </div>
 
-                          <IntegrationToggle
+                          <ToggleSwitch
                             checked={isConnected}
-                            onChange={checked =>
+                            ariaLabel={`Toggle ${platform.name}`}
+                            onCheckedChange={checked =>
                               handlePlatformToggle(platform.id, checked)
                             }
                             disabled={state.isLoading}
@@ -1078,9 +1152,9 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   {/* Identity row — real `/puppyone-logo.svg` (the
                       same asset rendered in the collapsed sidebar
                       chip) instead of the placeholder gradient block
-                      with a generic "stack" glyph. Version is pulled
-                      from `package.json` at import time so a future
-                      `npm version` bump propagates here automatically. */}
+                      with a generic "stack" glyph. Version comes from
+                      the shared appVersion helper so chrome and About
+                      never drift. */}
                   <div
                     style={{
                       display: 'flex',
@@ -1122,7 +1196,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                           letterSpacing: '0.02em',
                         }}
                       >
-                        Version {APP_VERSION}
+                        Version {APP_VERSION_LABEL}
                       </div>
                     </div>
                   </div>
@@ -1185,8 +1259,8 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                           boxSizing: 'border-box',
                         }}
                         onMouseEnter={e => {
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+                          e.currentTarget.style.background = 'var(--po-hover)';
+                          e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                           e.currentTarget.style.color = T.text1;
                         }}
                         onMouseLeave={e => {
@@ -1218,6 +1292,64 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                     ))}
                   </div>
                 </div>
+
+                {SHOW_DEV_TOOLS && (
+                  <div
+                    style={{
+                      border: `1px solid ${T.cardBorder}`,
+                      borderRadius: 10,
+                      background: T.cardBg,
+                      padding: 16,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 16,
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: T.text1,
+                          marginBottom: 4,
+                        }}
+                      >
+                        Developer tools
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          lineHeight: 1.45,
+                          color: T.text2,
+                        }}
+                      >
+                        Create a fresh Get Started repo from the first-run template.
+                      </div>
+                      {starterRepoError && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            fontSize: 12,
+                            lineHeight: 1.45,
+                            color: T.danger,
+                          }}
+                        >
+                          {starterRepoError}
+                        </div>
+                      )}
+                    </div>
+                    <ActionButton
+                      variant='primary'
+                      size='md'
+                      loading={starterRepoLoading}
+                      onClick={handleCreateStarterRepo}
+                      style={{ flexShrink: 0 }}
+                    >
+                      Create starter repo
+                    </ActionButton>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1230,7 +1362,7 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 1001,
+            zIndex: APP_Z_INDEX.modalNested,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1241,18 +1373,18 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
             style={{
               position: 'absolute',
               inset: 0,
-              background: 'rgba(0,0,0,0.5)',
+              background: 'var(--po-backdrop)',
             }}
           />
           <div
             style={{
               position: 'relative',
-              background: '#161618',
+              background: 'var(--po-panel)',
               border: `1px solid ${T.border}`,
               borderRadius: 12,
               padding: 20,
               width: 'min(400px, 90vw)',
-              boxShadow: '0 16px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04)',
+              boxShadow: '0 16px 48px var(--po-shadow), 0 0 0 1px var(--po-hover)',
               fontFamily: T.fontSans,
             }}
           >
@@ -1283,8 +1415,8 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+                  e.currentTarget.style.background = 'var(--po-hover)';
+                  e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                   e.currentTarget.style.color = T.text1;
                 }}
                 onMouseLeave={e => {
@@ -1305,9 +1437,9 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   height: 26,
                   padding: '0 12px',
                   borderRadius: 6,
-                  border: '1px solid rgba(239,68,68,0.32)',
-                  background: 'rgba(239,68,68,0.12)',
-                  color: '#fca5a5',
+                  border: '1px solid color-mix(in srgb, var(--po-danger) 32%, transparent)',
+                  background: 'color-mix(in srgb, var(--po-danger) 12%, transparent)',
+                  color: 'var(--po-danger)',
                   fontSize: 12,
                   fontWeight: 500,
                   fontFamily: T.fontSans,
@@ -1315,14 +1447,14 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
                   transition: 'background 150ms ease, color 150ms ease, border-color 150ms ease',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(239,68,68,0.2)';
-                  e.currentTarget.style.borderColor = 'rgba(239,68,68,0.45)';
-                  e.currentTarget.style.color = '#fff';
+                  e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 20%, transparent)';
+                  e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-danger) 45%, transparent)';
+                  e.currentTarget.style.color = 'var(--po-danger)';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(239,68,68,0.12)';
-                  e.currentTarget.style.borderColor = 'rgba(239,68,68,0.32)';
-                  e.currentTarget.style.color = '#fca5a5';
+                  e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 12%, transparent)';
+                  e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-danger) 32%, transparent)';
+                  e.currentTarget.style.color = 'var(--po-danger)';
                 }}
               >
                 Disconnect
@@ -1332,5 +1464,6 @@ export default function UserMenuPanel({ isOpen, onClose }: UserMenuPanelProps) {
         </div>
       )}
     </div>
+    </ModalPortal>
   );
 }

@@ -21,7 +21,7 @@ import {
 import { matchScopeForPath, type Connector, type RepoIdentity, type RepoScope } from '@/lib/repoApi';
 import type { SyncStatusSync } from '../../DataLayoutContext';
 import type { PanelState } from '../../usePanelStore';
-import { PageLoading, InlineLoading } from '@/components/loading';
+import { PageLoading } from '@/components/loading';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 
 const PanelLoading = () => <PageLoading variant="fill" />;
@@ -268,8 +268,8 @@ export function DataPageRightPanel({
       isVisible={!!editorTarget || panelState.type !== 'none'}
       topOffset={isTopAlignedSheet ? 46 : 0}
       zIndex={isTopAlignedSheet ? 80 : 20}
-      borderLeftColor={isPageSheet ? 'rgba(255,255,255,0.08)' : '#2a2a2a'}
-      background={isPageSheet ? '#0e0e0e' : '#111111'}
+      borderLeftColor="var(--po-divider)"
+      background={isPageSheet ? 'var(--po-canvas)' : 'var(--po-panel)'}
       width={panelWidth}
       onWidthChange={onPanelWidthChange}
     >
@@ -306,10 +306,10 @@ export function DataPageRightPanel({
       {!editorTarget && panelState.type === 'sync_config' && !activeSyncId && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
           {!syncStatusData ? (
-            <InlineLoading />
+            <PageLoading variant="fill" />
           ) : (
             <>
-              <span style={{ color: '#525252', fontSize: 13 }}>No access configured</span>
+              <span style={{ color: 'var(--po-text-disabled)', fontSize: 13 }}>No access configured</span>
               <button
                 onClick={() => {
                   const nodeId = panelState.nodeId ?? panelScopePath;
@@ -324,8 +324,8 @@ export function DataPageRightPanel({
                 }}
                 style={{
                   padding: '6px 14px', fontSize: 12, fontWeight: 500,
-                  background: '#242424', border: '1px solid rgba(255,255,255,0.12)',
-                  borderRadius: 6, color: '#e4e4e7', cursor: 'pointer',
+                  background: 'var(--po-control)', border: '1px solid var(--po-border-strong)',
+                  borderRadius: 6, color: 'var(--po-text)', cursor: 'pointer',
                 }}
               >
                 + New Integration
@@ -450,7 +450,7 @@ export function DataPageRightPanel({
         if (!chatAgent) {
           return !editorTarget ? (
             <PanelShell title="Chat Agent" onClose={onClose} onBack={backToAccessList}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 13 }}>Agent not found</div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--po-text-disabled)', fontSize: 13 }}>Agent not found</div>
             </PanelShell>
           ) : null;
         }

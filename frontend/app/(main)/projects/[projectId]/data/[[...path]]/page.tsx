@@ -9,7 +9,7 @@
  *   /projects/{projectId}/data/{folderId}/{nodeId} -> Node editor
  */
 
-import { useEffect, useMemo, useState, useRef, useCallback, use } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback, use, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
@@ -73,13 +73,14 @@ import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
 import { AccessPointsHeaderButton } from '../components/access-points';
+import { getApiBase } from '../components/access-points/labels';
 import { SelectionActionBar } from '../components/SelectionActionBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import { DataPageRightPanel, type EditorTarget } from '../components/right-panel';
 import { usePanelStore } from '../usePanelStore';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
-import { PageLoading } from '@/components/loading';
+import { PageLoading, ProjectPageLoadingShell, SkeletonBlock } from '@/components/loading';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
 import { resolveFormat } from '@/lib/fileFormats';
 import { FileViewerHeaderActions } from '../components/FileViewerHeaderActions';
@@ -90,6 +91,19 @@ interface DataPageProps {
 }
 
 const DEFAULT_RIGHT_PANEL_WIDTH = 450;
+const EMPTY_PROJECT_OPEN_KEY_PREFIX = 'puppyone-empty-project-opened:';
+
+type FolderBreadcrumb = { id: string; name: string };
+
+type PendingFolderNavigation = {
+  path: string | null;
+  pathKey: string;
+  breadcrumbs: FolderBreadcrumb[];
+};
+
+function emptyProjectOpenKey(projectId: string): string {
+  return `${EMPTY_PROJECT_OPEN_KEY_PREFIX}${projectId}`;
+}
 
 function decodePath(segments: string[]): string[] {
   return segments.map(s => {
@@ -97,9 +111,93 @@ function decodePath(segments: string[]): string[] {
   });
 }
 
+function buildFolderBreadcrumbs(segments: string[]): FolderBreadcrumb[] {
+  return segments.map((seg, index) => ({
+    id: segments.slice(0, index + 1).join('/'),
+    name: seg,
+  }));
+}
+
+function ProjectUnavailableShell({ onBackHome }: { onBackHome: () => void }) {
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        background: 'var(--po-canvas)',
+      }}
+    >
+      <div
+        style={{
+          height: 46,
+          minHeight: 46,
+          flexShrink: 0,
+          borderBottom: '1px solid var(--po-divider)',
+          background: 'var(--po-canvas)',
+        }}
+      />
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+        }}
+      >
+        <div
+          style={{
+            width: 'min(360px, 100%)',
+            textAlign: 'center',
+            color: 'var(--po-text-muted)',
+            fontFamily:
+              'var(--po-font-sans)',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--po-text)',
+              marginBottom: 6,
+            }}
+          >
+            Project unavailable
+          </div>
+          <div style={{ fontSize: 13, lineHeight: 1.55, marginBottom: 16 }}>
+            This project may have been deleted, moved, or you may not have access.
+          </div>
+          <button
+            type='button'
+            onClick={onBackHome}
+            style={{
+              height: 32,
+              padding: '0 14px',
+              borderRadius: 6,
+              border: '1px solid var(--po-border-strong)',
+              background: 'transparent',
+              color: 'var(--po-text)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DataPage({ params }: DataPageProps) {
   const { projectId, path: rawPath = [] } = use(params);
   const path = decodePath(rawPath);
+  const routePathKey = path.join('/');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, isAuthReady } = useAuth();
@@ -116,13 +214,17 @@ export default function DataPage({ params }: DataPageProps) {
   } = useWorkspace();
 
   // Data fetching
-  const { project: routeProject, isLoading: routeProjectLoading } = useProject(session ? projectId : null);
+  const {
+    project: routeProject,
+    isLoading: routeProjectLoading,
+    error: routeProjectError,
+  } = useProject(session ? projectId : null);
   const { projects, isLoading: projectsLoading } = useProjects(currentOrg?.id ?? null);
 
   // Project-level data from layout (sync status, tools, endpoints, scopes, connectors)
   const {
     syncStatusData, mutateSyncStatus, projectTools, syncEndpoints, nodeEndpointMap,
-    scopes, connectorsByScope, repoIdentity, mutateRepo,
+    scopes, connectorsByScope, repoIdentity, repoIdentityLoading, mutateRepo,
   } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
@@ -155,6 +257,7 @@ export default function DataPage({ params }: DataPageProps) {
 
   // Legacy welcome query param — strip it without triggering old onboarding guide
   const hasWelcomeParam = searchParams.get('welcome') === 'true';
+  const hasSetupParam = searchParams.get('setup') === 'true';
   useEffect(() => {
     if (hasWelcomeParam) {
       router.replace(`/projects/${projectId}/data`);
@@ -165,12 +268,43 @@ export default function DataPage({ params }: DataPageProps) {
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
   const [hoverHighlightNodeId, setHoverHighlightNodeId] = useState<string | null>(null);
+  const [emptyProjectOpened, setEmptyProjectOpened] = useState(() => {
+    if (hasSetupParam) return false;
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(emptyProjectOpenKey(projectId)) === 'true';
+  });
+  const [pendingFolderNavigation, setPendingFolderNavigation] =
+    useState<PendingFolderNavigation | null>(null);
+  const [isRouteTransitionPending, startRouteTransition] = useTransition();
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (hasSetupParam) {
+      window.localStorage.removeItem(emptyProjectOpenKey(projectId));
+      setEmptyProjectOpened(false);
+      router.replace(`/projects/${projectId}/data`);
+      return;
+    }
+    setEmptyProjectOpened(window.localStorage.getItem(emptyProjectOpenKey(projectId)) === 'true');
+  }, [hasSetupParam, projectId, router]);
+
+  const handleOpenEmptyProject = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(emptyProjectOpenKey(projectId), 'true');
+    }
+    setEmptyProjectOpened(true);
+  }, [projectId]);
 
   // ───── Custom Hooks ─────
 
   const {
-    currentFolderId, folderBreadcrumbs, isResolvingPath,
-    activeNodeId, activeNodeType, activePreviewType, activeMimeType,
+    currentFolderId: resolvedCurrentFolderId,
+    folderBreadcrumbs: resolvedFolderBreadcrumbs,
+    isResolvingPath: resolvedIsResolvingPath,
+    activeNodeId: resolvedActiveNodeId,
+    activeNodeType: resolvedActiveNodeType,
+    activePreviewType: resolvedActivePreviewType,
+    activeMimeType: resolvedActiveMimeType,
     // `textContent` here is the **server-side** value (any text-like
     // file: markdown, code, yaml, csv, plaintext). Fed into
     // `useMarkdownSave` as the dirty-check baseline. The page-level
@@ -182,6 +316,47 @@ export default function DataPage({ params }: DataPageProps) {
     isLoadingText,
     markdownViewMode, setMarkdownViewMode,
   } = usePathResolver(projectId, path);
+
+  const shouldUsePendingFolderNavigation =
+    pendingFolderNavigation !== null &&
+    (isRouteTransitionPending || pendingFolderNavigation.pathKey === routePathKey);
+  const currentFolderId = shouldUsePendingFolderNavigation
+    ? pendingFolderNavigation.path
+    : resolvedCurrentFolderId;
+  const folderBreadcrumbs = shouldUsePendingFolderNavigation
+    ? pendingFolderNavigation.breadcrumbs
+    : resolvedFolderBreadcrumbs;
+  const isResolvingPath = shouldUsePendingFolderNavigation ? false : resolvedIsResolvingPath;
+  const activeNodeId = shouldUsePendingFolderNavigation ? '' : resolvedActiveNodeId;
+  const activeNodeType = shouldUsePendingFolderNavigation ? '' : resolvedActiveNodeType;
+  const activePreviewType = shouldUsePendingFolderNavigation ? null : resolvedActivePreviewType;
+  const activeMimeType = shouldUsePendingFolderNavigation ? null : resolvedActiveMimeType;
+
+  useEffect(() => {
+    if (!pendingFolderNavigation) return;
+
+    if (pendingFolderNavigation.pathKey !== routePathKey) {
+      if (!isRouteTransitionPending) {
+        setPendingFolderNavigation(null);
+      }
+      return;
+    }
+
+    if (
+      !resolvedIsResolvingPath &&
+      !resolvedActiveNodeId &&
+      (resolvedCurrentFolderId ?? null) === pendingFolderNavigation.path
+    ) {
+      setPendingFolderNavigation(null);
+    }
+  }, [
+    isRouteTransitionPending,
+    pendingFolderNavigation,
+    resolvedActiveNodeId,
+    resolvedCurrentFolderId,
+    resolvedIsResolvingPath,
+    routePathKey,
+  ]);
 
   const { nodes: contentNodes, isLoading: contentNodesLoading, refresh: refreshCurrentNodes } = useContentNodes(projectId, currentFolderId);
 
@@ -328,6 +503,11 @@ export default function DataPage({ params }: DataPageProps) {
   const accessHeaderSubtitle = undefined;
   const showAccessHeaderBack =
     isAccessPanelOpen && (accessListView === 'create' || accessListView === 'detail');
+  const rootScope = useMemo(() => matchScopeForPath('', scopes), [scopes]);
+  const rootGitRemoteUrl = useMemo(() => {
+    if (!rootScope?.access_key) return null;
+    return `${getApiBase()}/git/ap/${rootScope.access_key}.git`;
+  }, [rootScope?.access_key]);
 
   // ───── Navigation (path only, panel state is independent) ─────
 
@@ -335,8 +515,22 @@ export default function DataPage({ params }: DataPageProps) {
     const encoded = nextPath.map(s => encodeURIComponent(s)).join('/');
     const basePath = `/projects/${projectId}/data${encoded ? `/${encoded}` : ''}`;
     const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
-    router.push(url);
-  }, [projectId, router]);
+    const nextPathKey = nextPath.join('/');
+
+    if (typeHint === 'folder') {
+      setPendingFolderNavigation({
+        path: nextPathKey || null,
+        pathKey: nextPathKey,
+        breadcrumbs: buildFolderBreadcrumbs(nextPath),
+      });
+    } else {
+      setPendingFolderNavigation(null);
+    }
+
+    startRouteTransition(() => {
+      router.push(url);
+    });
+  }, [projectId, router, startRouteTransition]);
 
   const refreshRepoAndAgents = useCallback(async () => {
     await mutateRepo();
@@ -364,6 +558,22 @@ export default function DataPage({ params }: DataPageProps) {
       nodeId: targetScopePath ?? currentFolderId ?? undefined,
     });
   }, [currentFolderId, openPanel]);
+
+  const openRootGitRemotePanel = useCallback(() => {
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    setHoverHighlightNodeId(null);
+
+    if (rootScope) {
+      openPanel({
+        type: 'access_list',
+        view: 'detail',
+        selectedScopeId: rootScope.id,
+      });
+    } else {
+      openPanel({ type: 'access_list', view: 'create', nodeId: '' });
+    }
+  }, [openPanel, rootScope]);
 
   // Same as openSyncCreatePanel, but with a *given* folder path
   // pre-filled as the target resource.  Two callsites:
@@ -692,7 +902,9 @@ export default function DataPage({ params }: DataPageProps) {
   }, [gridSelection, bulkDeleteOpen, openBulkDeleteDialog]);
 
   const handleMillerNavigate = useCallback((item: MillerColumnItem) => {
-    setPendingActiveId(item.id);
+    if (item.type !== 'folder') {
+      setPendingActiveId(item.id);
+    }
     navigateTo(item.id.split('/').filter(Boolean), item.type || undefined);
   }, [navigateTo]);
 
@@ -710,7 +922,8 @@ export default function DataPage({ params }: DataPageProps) {
 
   const pathSegments = useMemo<BreadcrumbSegment[]>(() => {
     const segments: BreadcrumbSegment[] = [];
-    const projectName = activeProject?.name || projectId;
+    const projectName =
+      activeProject?.name ?? <SkeletonBlock width={120} height={10} radius={3} />;
     const hasSubContent = path.length > 0 || currentFolderId || activeNodeId;
     segments.push({
       label: projectName,
@@ -719,7 +932,7 @@ export default function DataPage({ params }: DataPageProps) {
 
     if (isResolvingPath && path.length > 0 && folderBreadcrumbs.length === 0) {
       path.forEach(() => {
-        segments.push({ label: '…' });
+        segments.push({ label: <SkeletonBlock width={72} height={10} radius={3} /> });
       });
     } else {
       folderBreadcrumbs.forEach((folder, index) => {
@@ -734,7 +947,7 @@ export default function DataPage({ params }: DataPageProps) {
       if (activeNodeId && currentTableData) {
         segments.push({ label: currentTableData.name });
       } else if (activeNodeId) {
-        segments.push({ label: '…' });
+        segments.push({ label: <SkeletonBlock width={88} height={10} radius={3} /> });
       }
     }
     return segments;
@@ -771,8 +984,28 @@ export default function DataPage({ params }: DataPageProps) {
   const isFolderView = !activeNodeId;
   const isLoading = isResolvingPath || contentNodesLoading;
   const isProjectIdentityLoading = !isAuthReady || projectsLoading || routeProjectLoading;
+  const isProjectIdentityReady = Boolean(activeProject?.name);
+  const projectIdentityError =
+    !routeProjectLoading && !activeProject && routeProjectError ? routeProjectError : null;
+  const shouldBlockForProjectIdentity =
+    !projectIdentityError && !isProjectIdentityReady && isProjectIdentityLoading;
+  const isRootFolderView = isFolderView && !currentFolderId;
+  const isRootEmptyDecisionLoading =
+    isRootFolderView && (isProjectIdentityLoading || isLoading || repoIdentityLoading);
+  const projectHasContentCommit = repoIdentity?.content_initialized === true;
+  const showEmptyWorkspace =
+    isRootFolderView && !isRootEmptyDecisionLoading && items.length === 0 && !projectHasContentCommit && !emptyProjectOpened;
+  const suppressExplorerSidebar = showEmptyWorkspace || isRootEmptyDecisionLoading;
 
   // ───── Render ─────
+
+  if (shouldBlockForProjectIdentity) {
+    return <ProjectPageLoadingShell />;
+  }
+
+  if (projectIdentityError) {
+    return <ProjectUnavailableShell onBackHome={() => router.push('/home')} />;
+  }
 
   return (
     <>
@@ -890,15 +1123,15 @@ export default function DataPage({ params }: DataPageProps) {
           {/* Right slot of the header — Access entry. The vertical
               hairline on the left anchors the button into a "section"
               instead of letting it float as a standalone chip. Same
-              ``rgba(255,255,255,0.08)`` alpha as every other divider
+              ``var(--po-divider)`` alpha as every other divider
               in the chrome (sidebar / header bottom / footer top), so
               all four lines visually belong to the same grid. */}
           <div style={{
             display: 'flex', alignItems: 'center',
             paddingLeft: 12, paddingRight: 12,
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
-            borderLeft: '1px solid rgba(255,255,255,0.08)',
-            background: '#0e0e0e',
+            borderBottom: '1px solid var(--po-divider)',
+            borderLeft: '1px solid var(--po-divider)',
+            background: 'var(--po-canvas)',
             height: '100%',
             width: isAccessPanelOpen ? rightPanelWidth : undefined,
             flexShrink: 0,
@@ -938,7 +1171,7 @@ export default function DataPage({ params }: DataPageProps) {
                       minWidth: 0,
                       fontSize: 13,
                       fontWeight: 600,
-                      color: '#e4e4e7',
+                      color: 'var(--po-text)',
                       lineHeight: '18px',
                     }}
                     title={accessHeaderTitle}
@@ -951,7 +1184,7 @@ export default function DataPage({ params }: DataPageProps) {
                         style={{
                           fontSize: 13,
                           fontWeight: 400,
-                          color: '#71717a',
+                          color: 'var(--po-text-subtle)',
                           fontVariantNumeric: 'tabular-nums',
                         }}
                       >
@@ -964,7 +1197,7 @@ export default function DataPage({ params }: DataPageProps) {
                       style={{
                         fontSize: 11,
                         fontWeight: 400,
-                        color: '#71717a',
+                        color: 'var(--po-text-subtle)',
                         lineHeight: '14px',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -1025,95 +1258,104 @@ export default function DataPage({ params }: DataPageProps) {
               the right edge to widen the file tree (long sync/AP
               names + deep paths can outgrow the compact default). The
               storageKey persists per-page so the data view's preferred
-              width doesn't bleed into history / access. */}
-          <ResizableSidebarColumn
-            storageKey='explorer-sidebar:data'
-            defaultWidth={220}
-            minWidth={220}
-            maxWidth={480}
-            style={{ borderRight: '1px solid rgba(255,255,255,0.08)' }}
-          >
-            <ExplorerSidebar
-              projectId={projectId}
-              currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
-              activeNodeId={
-                (panelState.type !== 'none' && panelState.nodeId !== undefined)
-                  ? panelState.nodeId
-                  : (activeNodeId || undefined)
-              }
-              onNavigate={handleMillerNavigate}
-              onCreate={handleMillerCreateClick}
-              // Per-folder access link button — Pp.2 trigger in the
-              // 3-page Access hierarchy (2026-05-08 UX spec):
-              //
-              //   - Folder IS a scope    → Pp.2a Detail of that scope
-              //                            (selectedScopeId pinned).
-              //   - Folder is NOT a scope → Pp.2b Create, pre-filled
-              //                            with the row's nodeId.
-              //
-              // Critical: we explicitly set `view='create'` for the
-              // non-scope branch so the right panel opens DIRECTLY on
-              // the create form pre-filled with the clicked folder.
-              // Previously this routed to Overview which read
-              // `currentScopePath` (= file-tree cursor), so clicking
-              // /iiinote's chain icon while cursor was at Root made
-              // Root the activated context — the user had to manually
-              // navigate the file tree to /iiinote first. Now the
-              // sidebar trigger fully owns the context, no manual
-              // file-tree dance required.
-              //
-              // The chain icon and the row's "+" share this handler
-              // so both surfaces produce identical navigation; the
-              // event arg distinguishes them upstream if/when needed.
-              onCreateSync={(_event, nodeId) => {
-                setHoverHighlightNodeId(null);
-                const matched = matchScopeForPath(nodeId, scopes);
-                if (matched) {
-                  openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
-                } else {
-                  openPanel({ type: 'access_list', view: 'create', nodeId });
-                }
+              width doesn't bleed into history / access.
+
+              Hidden while the project is still uninitialized: before the
+              first content commit, the tree would only show a fake-feeling
+              Root row and compete with the onboarding choices. */}
+          {!suppressExplorerSidebar && (
+            <ResizableSidebarColumn
+              storageKey='explorer-sidebar:data'
+              defaultWidth={220}
+              minWidth={220}
+              maxWidth={480}
+              style={{
+                borderRight: '1px solid var(--po-divider)',
+                background: 'var(--po-canvas)',
               }}
-              onOpenAccess={(_endpoints, nodeId) => {
-                setHoverHighlightNodeId(null);
-                const matched = matchScopeForPath(nodeId, scopes);
-                if (matched) {
-                  openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
-                } else {
-                  openPanel({ type: 'access_list', view: 'create', nodeId });
+            >
+              <ExplorerSidebar
+                projectId={projectId}
+                currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
+                activeNodeId={
+                  (panelState.type !== 'none' && panelState.nodeId !== undefined)
+                    ? panelState.nodeId
+                    : (activeNodeId || undefined)
                 }
-              }}
-              endpointByNodeId={nodeEndpointMap}
-              onRename={nodeActions.handleRename}
-              onDelete={nodeActions.handleDelete}
-              onDownload={nodeActions.handleDownload}
-              onFilesDrop={fileImport.openFileImportForTarget}
-              onMoveNode={nodeActions.handleMoveNode}
-              activeSyncNodeId={
-                panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
-                  ? (panelState.nodeId ?? null)
-                  : null
-              }
-              highlightNodeId={hoverHighlightNodeId || highlightNodeId}
-              highlightVariant={hoverHighlightNodeId !== null ? 'access-point' : 'default'}
-              createMenuOpenForId={createMenuOpenForId}
-              createMenuOpenAction={createMenuOpenAction}
-              style={{ flex: 1, width: '100%', background: 'transparent', minHeight: 0 }}
-            />
-          </ResizableSidebarColumn>
+                onNavigate={handleMillerNavigate}
+                onCreate={handleMillerCreateClick}
+                // Per-folder access link button — Pp.2 trigger in the
+                // 3-page Access hierarchy (2026-05-08 UX spec):
+                //
+                //   - Folder IS a scope    → Pp.2a Detail of that scope
+                //                            (selectedScopeId pinned).
+                //   - Folder is NOT a scope → Pp.2b Create, pre-filled
+                //                            with the row's nodeId.
+                //
+                // Critical: we explicitly set `view='create'` for the
+                // non-scope branch so the right panel opens DIRECTLY on
+                // the create form pre-filled with the clicked folder.
+                // Previously this routed to Overview which read
+                // `currentScopePath` (= file-tree cursor), so clicking
+                // /iiinote's chain icon while cursor was at Root made
+                // Root the activated context — the user had to manually
+                // navigate the file tree to /iiinote first. Now the
+                // sidebar trigger fully owns the context, no manual
+                // file-tree dance required.
+                //
+                // The chain icon and the row's "+" share this handler
+                // so both surfaces produce identical navigation; the
+                // event arg distinguishes them upstream if/when needed.
+                onCreateSync={(_event, nodeId) => {
+                  setHoverHighlightNodeId(null);
+                  const matched = matchScopeForPath(nodeId, scopes);
+                  if (matched) {
+                    openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
+                  } else {
+                    openPanel({ type: 'access_list', view: 'create', nodeId });
+                  }
+                }}
+                onOpenAccess={(_endpoints, nodeId) => {
+                  setHoverHighlightNodeId(null);
+                  const matched = matchScopeForPath(nodeId, scopes);
+                  if (matched) {
+                    openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
+                  } else {
+                    openPanel({ type: 'access_list', view: 'create', nodeId });
+                  }
+                }}
+                endpointByNodeId={nodeEndpointMap}
+                onRename={nodeActions.handleRename}
+                onDelete={nodeActions.handleDelete}
+                onDownload={nodeActions.handleDownload}
+                onFilesDrop={fileImport.openFileImportForTarget}
+                onMoveNode={nodeActions.handleMoveNode}
+                activeSyncNodeId={
+                  panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
+                    ? (panelState.nodeId ?? null)
+                    : null
+                }
+                highlightNodeId={hoverHighlightNodeId || highlightNodeId}
+                highlightVariant={hoverHighlightNodeId !== null ? 'access-point' : 'default'}
+                createMenuOpenForId={createMenuOpenForId}
+                createMenuOpenAction={createMenuOpenAction}
+                style={{ flex: 1, width: '100%', background: 'transparent', minHeight: 0 }}
+              />
+            </ResizableSidebarColumn>
+          )}
 
           {/* Content column */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
             <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             {/* Loading state */}
             {isResolvingPath && (
-              <div style={{ flex: 1, background: '#0e0e0e' }}>
+              <div style={{ flex: 1, background: 'var(--po-canvas)' }}>
                 <PageLoading variant="fill" />
               </div>
             )}
 
             {isEditorView && !isResolvingPath && !activeProject && isProjectIdentityLoading && (
-              <div style={{ flex: 1, background: '#0e0e0e' }}>
+              <div style={{ flex: 1, background: 'var(--po-canvas)' }}>
                 <PageLoading variant="fill" />
               </div>
             )}
@@ -1181,15 +1423,26 @@ export default function DataPage({ params }: DataPageProps) {
 
             {/* Folder View (Grid mode) */}
             {isFolderView && !isResolvingPath && (
-              <div style={{ flex: 1, overflow: 'auto', padding: items.length === 0 && !currentFolderId ? 0 : 24, display: 'flex', flexDirection: 'column' }}>
-                {isLoading ? (
+              <div style={{ flex: 1, overflow: 'auto', padding: suppressExplorerSidebar ? 0 : 24, display: 'flex', flexDirection: 'column' }}>
+                {isRootEmptyDecisionLoading ? (
+                  <div style={{ flex: 1, minHeight: 200, background: 'var(--po-canvas)' }}>
+                    <PageLoading variant="fill" />
+                  </div>
+                ) : isLoading ? (
                   <div style={{ height: '100%', minHeight: 200 }}>
                     <PageLoading variant="fill" />
                   </div>
-                ) : items.length === 0 && !currentFolderId ? (
+                ) : showEmptyWorkspace ? (
                   <EmptyWorkspaceState
                     project={activeProject}
-                    onCreateClick={handleCreateClick}
+                    gitRemoteUrl={rootGitRemoteUrl}
+                    onOpenGitSetup={openRootGitRemotePanel}
+                    onImportFiles={createMenuActions.onImportFromFiles}
+                    onFilesDrop={(files) => {
+                      fileImport.openFileImportForTarget(files, { path: null, name: 'Root' });
+                    }}
+                    onImportGitHub={createMenuActions.onImportGitHub}
+                    onOpenEmptyProject={handleOpenEmptyProject}
                   />
                 ) : (
                   <GridView

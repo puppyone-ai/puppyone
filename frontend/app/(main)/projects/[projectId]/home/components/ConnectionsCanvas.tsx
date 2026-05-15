@@ -110,12 +110,12 @@ const AP_ROW_H = 64;
 // panel's body, which reads as "broken / leaky".  These solids
 // override `T.cardBg` (rgba 2% white, basically transparent) for
 // canvas-internal use so panels are crisp cutouts on the dot grid.
-const CANVAS_BG = '#0a0a0a';        // Viewport floor — dots paint on
+const CANVAS_BG = 'var(--po-inset)';        // Viewport floor — dots paint on
                                     // top of this.  Slightly darker
                                     // than the surrounding section
                                     // card's effective color so the
                                     // canvas reads as recessed.
-const CANVAS_PANEL_BG = '#161618';  // Node body — solid so the dots
+const CANVAS_PANEL_BG = 'var(--po-panel)';  // Node body — solid so the dots
                                     // don't show through.  Lighter
                                     // than CANVAS_BG so panels read
                                     // as raised plates on the grid.
@@ -426,7 +426,7 @@ const DataTreeNode = memo(function DataTreeNode({
                 height: 16,
                 padding: '0 5px',
                 borderRadius: 8,
-                background: 'rgba(255,255,255,0.06)',
+                background: 'var(--po-border-subtle)',
                 fontSize: 10,
                 fontWeight: 600,
                 color: T.text3,
@@ -441,7 +441,7 @@ const DataTreeNode = memo(function DataTreeNode({
 
         {/* Root scope chip — the visible anchor for root-attached
             AP edges (filesystem at "/", path='' or null).
-            
+
             Why a labeled chip + embedded invisible Handle instead
             of a visible Handle:
               1. xyflow uses `getBoundingClientRect` on the Handle
@@ -478,8 +478,8 @@ const DataTreeNode = memo(function DataTreeNode({
               height: 18,
               padding: '0 6px',
               borderRadius: 4,
-              background: 'rgba(110, 231, 183, 0.08)',
-              border: '1px solid rgba(110, 231, 183, 0.30)',
+              background: 'color-mix(in srgb, var(--po-success) 8%, transparent)',
+              border: '1px solid color-mix(in srgb, var(--po-success) 30%, transparent)',
               fontFamily: T.fontMono,
               fontSize: 11,
               fontWeight: 600,
@@ -623,7 +623,7 @@ const APNode = memo(function APNode({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'rgba(255,255,255,0.04)',
+          background: 'var(--po-hover)',
           flexShrink: 0,
         }}
       >
@@ -918,7 +918,7 @@ export function ConnectionsCanvas({
           transition: `background 200ms ${T.ease}`,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
+          e.currentTarget.style.background = 'var(--po-hover)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = T.sectionHeaderBg;
@@ -939,7 +939,7 @@ export function ConnectionsCanvas({
               height: 18,
               padding: '0 6px',
               borderRadius: 9,
-              background: 'rgba(255,255,255,0.08)',
+              background: 'var(--po-border)',
               fontSize: 11,
               fontWeight: 600,
               color: connections.length > 0 ? T.text2 : T.text3,
@@ -999,16 +999,16 @@ export function ConnectionsCanvas({
       <style>{`
         .cb-controls.react-flow__controls {
           box-shadow: none;
-          background: rgba(0, 0, 0, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: var(--po-shadow);
+          border: 1px solid var(--po-border);
           border-radius: 6px;
           overflow: hidden;
         }
         .cb-controls .react-flow__controls-button {
           background: transparent;
           border: none;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-          color: #a1a1aa;
+          border-bottom: 1px solid var(--po-border-subtle);
+          color: var(--po-text-muted);
           width: 22px;
           height: 22px;
           padding: 0;
@@ -1017,8 +1017,8 @@ export function ConnectionsCanvas({
           border-bottom: none;
         }
         .cb-controls .react-flow__controls-button:hover {
-          background: rgba(255, 255, 255, 0.06);
-          color: #fafafa;
+          background: var(--po-border-subtle);
+          color: var(--po-text);
         }
         .cb-controls .react-flow__controls-button svg {
           fill: currentColor;
@@ -1100,22 +1100,18 @@ export function ConnectionsCanvas({
                 screen-space density doesn't change with zoom, but
                 with smaller content + more padding around it the
                 user reads MORE empty space, making faint dots feel
-                even more faded).  Bumped to size=2 / 20% white to
-                push them back to "clearly a grid" without becoming
-                a foreground texture. */}
+                even more faded).  Bumped to size=2 / tokenized grid
+                color to push them back to "clearly a grid" without
+                becoming a foreground texture. */}
             <Background
               variant={BackgroundVariant.Dots}
               gap={22}
               size={2}
-              color="rgba(255,255,255,0.2)"
+              color="var(--po-border)"
             />
-            {/* Zoom in / out + fit-view controls.  showInteractive
-                is off — there's no "lock the canvas" affordance to
-                expose since the view is read-only relational, not
-                an editable graph.  Stacked vertically (orientation
-                = 'vertical' is xyflow default) at bottom-left,
-                where they don't overlap the tree's typical seed
-                position (top-left) or the AP rail (right). */}
+            {/* Zoom in / out + fit-view controls. showInteractive is off
+                because this is a read-only relational graph, not an
+                editable wiring canvas. */}
             <Controls
               showInteractive={false}
               position="bottom-left"
@@ -1124,10 +1120,6 @@ export function ConnectionsCanvas({
           </ReactFlow>
         </HoverContext.Provider>
         {connections.length === 0 && (
-          // Overlay over the (empty) flow so the dot grid is still
-          // visible in the empty state — teaches "this is a canvas"
-          // even before there's anything to graph.  Pointer-events
-          // off so the canvas itself stays pannable.
           <div
             style={{
               position: 'absolute',

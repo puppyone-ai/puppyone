@@ -48,10 +48,10 @@ export default function LoadingShowcasePage() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#0a0a0a',
-        color: '#e4e4e7',
+        background: 'var(--po-inset)',
+        color: 'var(--po-text)',
         fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif',
+          'var(--po-font-sans)',
       }}
     >
       {/* ── Header ─────────────────────────────────────────────── */}
@@ -61,7 +61,7 @@ export default function LoadingShowcasePage() {
           top: 0,
           zIndex: 10,
           padding: '20px 32px',
-          borderBottom: '1px solid #1f1f23',
+          borderBottom: '1px solid var(--po-overlay)',
           background: 'rgba(10,10,10,0.92)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
@@ -72,10 +72,10 @@ export default function LoadingShowcasePage() {
         }}
       >
         <div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#fafafa' }}>
+          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--po-text)' }}>
             Loading System
           </div>
-          <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', marginTop: 2 }}>
             <code>components/loading/</code> · live preview
           </div>
         </div>
@@ -98,9 +98,9 @@ export default function LoadingShowcasePage() {
             style={{
               padding: '6px 12px',
               borderRadius: 6,
-              background: '#27272a',
-              border: '1px solid #3f3f46',
-              color: '#e4e4e7',
+              background: 'var(--po-filetree-rail)',
+              border: '1px solid var(--po-text-disabled)',
+              color: 'var(--po-text)',
               fontSize: 12,
               cursor: 'pointer',
             }}
@@ -235,7 +235,7 @@ export default function LoadingShowcasePage() {
               />
             </PreviewBox>
           </div>
-          <div style={{ marginTop: 12, fontSize: 12, color: '#71717a' }}>
+          <div style={{ marginTop: 12, fontSize: 12, color: 'var(--po-text-subtle)' }}>
             Tap <em>“Preview full-screen”</em> in the header to see{' '}
             <code>variant=&quot;screen&quot;</code> over the whole viewport
             (auto-closes after 4s).
@@ -278,7 +278,7 @@ export default function LoadingShowcasePage() {
             <div
               style={{
                 fontSize: 11,
-                color: '#71717a',
+                color: 'var(--po-text-subtle)',
                 marginBottom: 8,
                 textTransform: 'uppercase',
                 letterSpacing: '0.06em',
@@ -299,11 +299,11 @@ export default function LoadingShowcasePage() {
               width: '100%',
               borderCollapse: 'collapse',
               fontSize: 13,
-              color: '#d4d4d8',
+              color: 'var(--po-text-muted)',
             }}
           >
             <thead>
-              <tr style={{ borderBottom: '1px solid #27272a' }}>
+              <tr style={{ borderBottom: '1px solid var(--po-filetree-rail)' }}>
                 <Th>Surface</Th>
                 <Th>Component</Th>
                 <Th>Replaces</Th>
@@ -385,7 +385,7 @@ function Section({
             margin: 0,
             fontSize: 15,
             fontWeight: 600,
-            color: '#fafafa',
+            color: 'var(--po-text)',
             letterSpacing: '-0.01em',
           }}
         >
@@ -396,7 +396,7 @@ function Section({
             style={{
               margin: '4px 0 0',
               fontSize: 13,
-              color: '#71717a',
+              color: 'var(--po-text-subtle)',
               lineHeight: 1.5,
               maxWidth: 720,
             }}
@@ -435,7 +435,7 @@ function Swatch({
     <div
       style={{
         background: '#111114',
-        border: '1px solid #1f1f23',
+        border: '1px solid var(--po-overlay)',
         borderRadius: 8,
         padding: '24px 16px 12px',
         display: 'flex',
@@ -456,7 +456,7 @@ function Swatch({
       >
         {children}
       </div>
-      <code style={{ fontSize: 11, color: '#71717a' }}>{label}</code>
+      <code style={{ fontSize: 11, color: 'var(--po-text-subtle)' }}>{label}</code>
     </div>
   );
 }
@@ -477,11 +477,11 @@ function DemoRow({
         gap: 16,
         padding: '12px 16px',
         background: '#111114',
-        border: '1px solid #1f1f23',
+        border: '1px solid var(--po-overlay)',
         borderRadius: 6,
       }}
     >
-      <code style={{ fontSize: 11, color: '#71717a' }}>{label}</code>
+      <code style={{ fontSize: 11, color: 'var(--po-text-subtle)' }}>{label}</code>
       <div>{children}</div>
     </div>
   );
@@ -499,8 +499,8 @@ function PreviewBox({
   return (
     <div
       style={{
-        background: '#0e0e0e',
-        border: '1px solid #1f1f23',
+        background: 'var(--po-canvas)',
+        border: '1px solid var(--po-overlay)',
         borderRadius: 8,
         overflow: 'hidden',
         position: 'relative',
@@ -515,7 +515,7 @@ function PreviewBox({
             top: 8,
             left: 12,
             fontSize: 10,
-            color: '#52525b',
+            color: 'var(--po-text-disabled)',
             textTransform: 'uppercase',
             letterSpacing: '0.06em',
             zIndex: 1,
@@ -542,12 +542,12 @@ function ControlGroup({
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      <span style={{ fontSize: 11, color: '#52525b' }}>{label}</span>
+      <span style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>{label}</span>
       <div
         style={{
           display: 'inline-flex',
           background: '#111114',
-          border: '1px solid #27272a',
+          border: '1px solid var(--po-filetree-rail)',
           borderRadius: 6,
           padding: 2,
         }}
@@ -564,8 +564,8 @@ function ControlGroup({
                 lineHeight: 1.4,
                 borderRadius: 4,
                 border: 'none',
-                background: active ? '#27272a' : 'transparent',
-                color: active ? '#fafafa' : '#71717a',
+                background: active ? 'var(--po-filetree-rail)' : 'transparent',
+                color: active ? 'var(--po-text)' : 'var(--po-text-subtle)',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
               }}
@@ -587,7 +587,7 @@ function Th({ children }: { children: React.ReactNode }) {
         padding: '10px 12px',
         fontSize: 11,
         fontWeight: 500,
-        color: '#71717a',
+        color: 'var(--po-text-subtle)',
         textTransform: 'uppercase',
         letterSpacing: '0.06em',
       }}
@@ -622,7 +622,7 @@ function Row({
           {code}
         </code>
       </td>
-      <td style={{ padding: '10px 12px', color: '#71717a' }}>{replaces}</td>
+      <td style={{ padding: '10px 12px', color: 'var(--po-text-subtle)' }}>{replaces}</td>
     </tr>
   );
 }
@@ -633,9 +633,9 @@ const demoButtonStyle: React.CSSProperties = {
   gap: 8,
   padding: '8px 14px',
   borderRadius: 6,
-  background: '#27272a',
-  border: '1px solid #3f3f46',
-  color: '#e4e4e7',
+  background: 'var(--po-filetree-rail)',
+  border: '1px solid var(--po-text-disabled)',
+  color: 'var(--po-text)',
   fontSize: 13,
   cursor: 'default',
 };

@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAgent, type SavedAgent } from '@/contexts/AgentContext';
 import { get } from '@/lib/apiClient';
-import { InlineLoading } from '@/components/loading';
+import { PageLoading } from '@/components/loading';
+import { IconButton } from '@/components/ui/IconButton';
 
 interface ExecutionLog {
   id: string;
@@ -86,9 +87,9 @@ const FileIcon = () => (
 
 const getNodeIcon = (nodeType: string) => {
   switch (nodeType) {
-    case 'folder': return { icon: <FolderIcon />, color: '#a1a1aa' };
-    case 'json': return { icon: <JsonIcon />, color: '#34d399' };
-    default: return { icon: <FileIcon />, color: '#60a5fa' };
+    case 'folder': return { icon: <FolderIcon />, color: 'var(--po-text-muted)' };
+    case 'json': return { icon: <JsonIcon />, color: 'var(--po-success)' };
+    default: return { icon: <FileIcon />, color: 'var(--po-accent)' };
   }
 };
 
@@ -212,23 +213,10 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
   // 解析 task content 为任务列表
   const tasks = agent.task_content ? agent.task_content.split('\n').filter(t => t.trim()) : [];
 
-  const buttonStyle: React.CSSProperties = {
-    width: 28,
-    height: 28,
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    color: '#666',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 4,
-  };
-
   const sectionTitleStyle: React.CSSProperties = {
     fontSize: 11,
     fontWeight: 600,
-    color: '#525252',
+    color: 'var(--po-text-disabled)',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
     marginBottom: 8,
@@ -237,17 +225,17 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div style={{ 
-        padding: '12px 16px', 
-        borderBottom: '1px solid #222', 
-        background: '#0d0d0d',
-        display: 'flex', 
-        justifyContent: 'space-between', 
+      <div style={{
+        padding: '12px 16px',
+        borderBottom: '1px solid var(--po-hover)',
+        background: 'var(--po-panel)',
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        flexShrink: 0 
+        flexShrink: 0
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--po-text-subtle)' }}>
             {agent.name}
           </span>
           <span style={{
@@ -255,51 +243,44 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
             alignItems: 'center',
             gap: 4,
             padding: '2px 6px',
-            background: isPaused ? 'rgba(251, 191, 36, 0.1)' : 'rgba(74, 222, 128, 0.1)',
-            border: isPaused ? '1px solid rgba(251, 191, 36, 0.2)' : '1px solid rgba(74, 222, 128, 0.2)',
+            background: isPaused ? 'color-mix(in srgb, var(--po-warning) 10%, transparent)' : 'color-mix(in srgb, var(--po-success) 10%, transparent)',
+            border: isPaused ? '1px solid color-mix(in srgb, var(--po-warning) 20%, transparent)' : '1px solid color-mix(in srgb, var(--po-success) 20%, transparent)',
             borderRadius: 4,
             fontSize: 10,
-            color: isPaused ? '#fbbf24' : '#4ade80',
+            color: isPaused ? 'var(--po-warning)' : 'var(--po-success)',
           }}>
             ● {isPaused ? 'Paused' : 'Active'}
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {isScheduleAgent && (
-            <button 
-              onClick={handleTogglePause} 
+            <IconButton
+              onClick={handleTogglePause}
               title={isPaused ? "Resume schedule" : "Pause schedule"}
-              style={buttonStyle}
-              onMouseEnter={e => { e.currentTarget.style.color = isPaused ? '#4ade80' : '#fbbf24'; e.currentTarget.style.background = '#252525'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'transparent'; }}
+              tone={isPaused ? 'success' : 'warning'}
             >
               {isPaused ? <PlayIcon /> : <PauseIcon />}
-            </button>
+            </IconButton>
           )}
-          <button 
-            onClick={handleEdit} 
+          <IconButton
+            onClick={handleEdit}
             title="Edit settings"
-            style={buttonStyle}
-            onMouseEnter={e => { e.currentTarget.style.color = '#aaa'; e.currentTarget.style.background = '#252525'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'transparent'; }}
           >
             <SettingsIcon />
-          </button>
-          <button 
-            onClick={handleDelete} 
+          </IconButton>
+          <IconButton
+            onClick={handleDelete}
             title="Delete"
-            style={buttonStyle}
-            onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = '#252525'; }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'transparent'; }}
+            tone="danger"
           >
             <TrashIcon />
-          </button>
+          </IconButton>
         </div>
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto', padding: 16, color: '#e5e5e5' }}>
-        
+      <div style={{ flex: 1, overflow: 'auto', padding: 16, color: 'var(--po-text)' }}>
+
         {/* 1. Schedule - 紧凑单行显示 */}
         {isScheduleAgent && (
           <div style={{ marginBottom: 16 }}>
@@ -309,19 +290,19 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
               alignItems: 'center',
               gap: 8,
               padding: '10px 12px',
-              background: '#161616',
-              border: '1px solid #2a2a2a',
+              background: 'var(--po-panel)',
+              border: '1px solid var(--po-border)',
               borderRadius: 6,
               fontSize: 13,
-              color: '#a3a3a3',
+              color: 'var(--po-text-muted)',
             }}>
-              <span style={{ color: '#e5e5e5', fontWeight: 500 }}>{scheduleInfo.time}</span>
+              <span style={{ color: 'var(--po-text)', fontWeight: 500 }}>{scheduleInfo.time}</span>
               <span>·</span>
               <span>{scheduleInfo.date}</span>
               <span>·</span>
-              <span style={{ 
-                padding: '2px 6px', 
-                background: '#252525', 
+              <span style={{
+                padding: '2px 6px',
+                background: 'var(--po-border-strong)',
                 borderRadius: 4,
                 fontSize: 11,
               }}>
@@ -345,8 +326,8 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                       alignItems: 'flex-start',
                       gap: 10,
                       padding: '10px 12px',
-                      background: '#161616',
-                      border: '1px solid #2a2a2a',
+                      background: 'var(--po-panel)',
+                      border: '1px solid var(--po-border)',
                       borderRadius: 6,
                     }}
                   >
@@ -354,17 +335,17 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                       width: 18,
                       height: 18,
                       borderRadius: '50%',
-                      background: '#252525',
+                      background: 'var(--po-border-strong)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: 10,
-                      color: '#737373',
+                      color: 'var(--po-text-subtle)',
                       flexShrink: 0,
                     }}>
                       {index + 1}
                     </span>
-                    <span style={{ fontSize: 13, color: '#d4d4d4', lineHeight: 1.4 }}>
+                    <span style={{ fontSize: 13, color: 'var(--po-text)', lineHeight: 1.4 }}>
                       {task}
                     </span>
                   </div>
@@ -373,10 +354,10 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
             ) : (
               <div style={{
                 padding: '12px',
-                background: '#161616',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-panel)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 6,
-                color: '#525252',
+                color: 'var(--po-text-disabled)',
                 fontSize: 13,
                 textAlign: 'center',
               }}>
@@ -398,15 +379,15 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                   background: 'transparent',
                   border: 'none',
                   cursor: loadingExecutions ? 'not-allowed' : 'pointer',
-                  color: '#525252',
+                  color: 'var(--po-text-disabled)',
                   padding: 4,
                   borderRadius: 4,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
-                onMouseEnter={e => { if (!loadingExecutions) e.currentTarget.style.color = '#a3a3a3'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#525252'; }}
+                onMouseEnter={e => { if (!loadingExecutions) e.currentTarget.style.color = 'var(--po-text-muted)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-disabled)'; }}
                 title="Refresh"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: loadingExecutions ? 0.5 : 1 }}>
@@ -419,14 +400,13 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
             </div>
             {loadingExecutions ? (
               <div style={{
-                padding: '12px',
-                background: '#161616',
-                border: '1px solid #2a2a2a',
+                height: 64,
+                background: 'var(--po-panel)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 6,
                 display: 'flex',
-                justifyContent: 'center',
               }}>
-                <InlineLoading />
+                <PageLoading variant="fill" />
               </div>
             ) : executions.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -434,10 +414,10 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                   const startedAt = new Date(exec.started_at);
                   const timeStr = startedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
                   const dateStr = startedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                  const statusColor = exec.status === 'success' ? '#4ade80' : exec.status === 'failed' ? '#ef4444' : '#fbbf24';
+                  const statusColor = exec.status === 'success' ? 'var(--po-success)' : exec.status === 'failed' ? 'var(--po-danger)' : 'var(--po-warning)';
                   const statusIcon = exec.status === 'success' ? '✓' : exec.status === 'failed' ? '✗' : '●';
                   const isExpanded = expandedExecution === exec.id;
-                  
+
                   return (
                     <div key={exec.id}>
                       <div
@@ -447,33 +427,33 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                           alignItems: 'center',
                           justifyContent: 'space-between',
                           padding: '8px 10px',
-                          background: '#161616',
-                          border: '1px solid #2a2a2a',
+                          background: 'var(--po-panel)',
+                          border: '1px solid var(--po-border)',
                           borderRadius: isExpanded ? '6px 6px 0 0' : 6,
                           cursor: 'pointer',
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ 
-                            color: '#525252', 
-                            fontSize: 10, 
+                          <span style={{
+                            color: 'var(--po-text-disabled)',
+                            fontSize: 10,
                             transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                             transition: 'transform 0.15s ease',
                           }}>▶</span>
                           <span style={{ color: statusColor, fontSize: 12 }}>{statusIcon}</span>
-                          <span style={{ fontSize: 12, color: '#a3a3a3' }}>{dateStr} {timeStr}</span>
+                          <span style={{ fontSize: 12, color: 'var(--po-text-muted)' }}>{dateStr} {timeStr}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           {exec.duration_ms && (
-                            <span style={{ fontSize: 11, color: '#525252' }}>
+                            <span style={{ fontSize: 11, color: 'var(--po-text-disabled)' }}>
                               {exec.duration_ms < 1000 ? `${exec.duration_ms}ms` : `${(exec.duration_ms / 1000).toFixed(1)}s`}
                             </span>
                           )}
                           <span style={{
                             fontSize: 10,
                             padding: '2px 6px',
-                            background: exec.status === 'success' ? 'rgba(74, 222, 128, 0.1)' : exec.status === 'failed' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(251, 191, 36, 0.1)',
-                            border: `1px solid ${exec.status === 'success' ? 'rgba(74, 222, 128, 0.2)' : exec.status === 'failed' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(251, 191, 36, 0.2)'}`,
+                            background: exec.status === 'success' ? 'color-mix(in srgb, var(--po-success) 10%, transparent)' : exec.status === 'failed' ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)' : 'color-mix(in srgb, var(--po-warning) 10%, transparent)',
+                            border: `1px solid ${exec.status === 'success' ? 'color-mix(in srgb, var(--po-success) 20%, transparent)' : exec.status === 'failed' ? 'color-mix(in srgb, var(--po-danger) 20%, transparent)' : 'color-mix(in srgb, var(--po-warning) 20%, transparent)'}`,
                             borderRadius: 4,
                             color: statusColor,
                             textTransform: 'capitalize',
@@ -485,36 +465,36 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                       {isExpanded && (
                         <div style={{
                           padding: '10px 12px',
-                          background: '#0f0f0f',
-                          border: '1px solid #2a2a2a',
+                          background: 'var(--po-panel)',
+                          border: '1px solid var(--po-border)',
                           borderTop: 'none',
                           borderRadius: '0 0 6px 6px',
                           fontSize: 12,
                         }}>
                           {exec.error_message ? (
-                            <div style={{ color: '#ef4444' }}>
+                            <div style={{ color: 'var(--po-danger)' }}>
                               <div style={{ fontWeight: 500, marginBottom: 4 }}>Error:</div>
-                              <pre style={{ 
-                                margin: 0, 
-                                whiteSpace: 'pre-wrap', 
+                              <pre style={{
+                                margin: 0,
+                                whiteSpace: 'pre-wrap',
                                 wordBreak: 'break-word',
-                                fontFamily: 'monospace',
+                                fontFamily: 'var(--po-font-sans)',
                                 fontSize: 11,
-                                color: '#f87171',
+                                color: 'var(--po-danger)',
                               }}>
                                 {exec.error_message}
                               </pre>
                             </div>
                           ) : exec.output_summary ? (
                             <div>
-                              <div style={{ color: '#737373', fontWeight: 500, marginBottom: 4 }}>Output:</div>
-                              <pre style={{ 
-                                margin: 0, 
-                                whiteSpace: 'pre-wrap', 
+                              <div style={{ color: 'var(--po-text-subtle)', fontWeight: 500, marginBottom: 4 }}>Output:</div>
+                              <pre style={{
+                                margin: 0,
+                                whiteSpace: 'pre-wrap',
                                 wordBreak: 'break-word',
-                                fontFamily: 'monospace',
+                                fontFamily: 'var(--po-font-sans)',
                                 fontSize: 11,
-                                color: '#d4d4d4',
+                                color: 'var(--po-text)',
                                 maxHeight: 200,
                                 overflow: 'auto',
                               }}>
@@ -522,7 +502,7 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                               </pre>
                             </div>
                           ) : (
-                            <div style={{ color: '#525252', fontStyle: 'italic' }}>
+                            <div style={{ color: 'var(--po-text-disabled)', fontStyle: 'italic' }}>
                               No output recorded
                             </div>
                           )}
@@ -535,11 +515,11 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
             ) : (
               <div style={{
                 padding: '12px',
-                background: '#161616',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-panel)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 6,
                 textAlign: 'center',
-                color: '#525252',
+                color: 'var(--po-text-disabled)',
                 fontSize: 13,
               }}>
                 No runs yet
@@ -564,8 +544,8 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '8px 10px',
-                      background: '#161616',
-                      border: '1px solid #2a2a2a',
+                      background: 'var(--po-panel)',
+                      border: '1px solid var(--po-border)',
                       borderRadius: 6,
                     }}
                   >
@@ -576,10 +556,10 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
                     <span style={{
                       fontSize: 10,
                       padding: '2px 6px',
-                      background: isReadonly ? '#1a1a1a' : 'rgba(251, 191, 36, 0.1)',
-                      border: isReadonly ? '1px solid #2a2a2a' : '1px solid rgba(251, 191, 36, 0.2)',
+                      background: isReadonly ? 'var(--po-panel-raised)' : 'color-mix(in srgb, var(--po-warning) 10%, transparent)',
+                      border: isReadonly ? '1px solid var(--po-border)' : '1px solid color-mix(in srgb, var(--po-warning) 20%, transparent)',
                       borderRadius: 4,
-                      color: isReadonly ? '#737373' : '#fbbf24',
+                      color: isReadonly ? 'var(--po-text-subtle)' : 'var(--po-warning)',
                     }}>
                       {isReadonly ? 'Read' : 'Edit'}
                     </span>
@@ -590,10 +570,10 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
           ) : (
             <div style={{
               padding: '12px',
-              background: '#161616',
-              border: '1px solid #2a2a2a',
+              background: 'var(--po-panel)',
+              border: '1px solid var(--po-border)',
               borderRadius: 6,
-              color: '#525252',
+              color: 'var(--po-text-disabled)',
               fontSize: 13,
               textAlign: 'center',
             }}>

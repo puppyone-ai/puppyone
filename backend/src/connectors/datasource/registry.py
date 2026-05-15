@@ -52,17 +52,23 @@ class ConnectorRegistry:
         self,
         oauth_type: Optional[str],
         user_id: str,
+        *,
+        required: bool = True,
     ) -> Credentials:
         """
         Resolve credentials for a given oauth_type and user_id.
 
         Handles token refresh automatically. Returns empty Credentials
-        if no OAuth is needed (e.g. URL connector).
+        if no OAuth is needed (e.g. URL connector). Optional OAuth callers
+        can continue without a token, which lets public URL imports work while
+        still using a connected account for private resources when available.
         """
         if not oauth_type or oauth_type not in self._oauth_services:
             return Credentials()
 
         if not user_id:
+            if not required:
+                return Credentials()
             raise ValueError(
                 f"Cannot resolve {oauth_type} credentials: user_id is empty. "
                 f"Please re-create this sync."
@@ -73,6 +79,8 @@ class ConnectorRegistry:
         try:
             connection = await service.refresh_token_if_needed(user_id)
             if not connection:
+                if not required:
+                    return Credentials()
                 raise ValueError(
                     f"No {oauth_type} connection found for user. Please authorize first."
                 )
@@ -83,6 +91,8 @@ class ConnectorRegistry:
             )
         except Exception as e:
             log_error(f"[Registry] Failed to resolve credentials for {oauth_type}: {e}")
+            if not required:
+                return Credentials()
             raise
 
     # ── Serialization (for API response) ─────────────────────

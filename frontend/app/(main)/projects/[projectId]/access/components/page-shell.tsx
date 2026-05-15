@@ -12,6 +12,7 @@
  */
 
 import { PageLoading } from '@/components/loading';
+import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 import { T } from '../lib/tokens';
 
 // ─── Header ──────────────────────────────────────────────────────────
@@ -22,25 +23,25 @@ export function AccessHeader({ count }: { readonly count: number }) {
       style={{
         height: 46,
         minHeight: 46,
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: '1px solid var(--po-active)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 16px',
-        background: '#0e0e0e',
+        background: 'var(--po-canvas)',
         flexShrink: 0,
         fontFamily: T.fontSans,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontSize: 13, fontWeight: 500, color: T.text1 }}>Access</span>
+        <span style={{ ...CHROME_LABEL_TYPOGRAPHY, color: T.text1 }}>Access</span>
         <span
           style={{
             fontSize: 11,
             fontFamily: T.fontSans,
             padding: '1px 7px',
             borderRadius: 999,
-            background: 'rgba(255,255,255,0.06)',
+            background: 'var(--po-border-subtle)',
             color: T.text2,
           }}
         >
@@ -100,8 +101,8 @@ export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: (
           transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+          e.currentTarget.style.background = 'var(--po-hover)';
+          e.currentTarget.style.borderColor = 'var(--po-border-strong)';
           e.currentTarget.style.color = T.text1;
         }}
         onMouseLeave={(e) => {

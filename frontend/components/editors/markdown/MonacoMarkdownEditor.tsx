@@ -1,54 +1,12 @@
 'use client';
 
 import Editor, { OnMount, Monaco } from '@monaco-editor/react';
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
+import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
+import { definePuppyOneMonacoThemes, getPuppyOneMonacoTheme } from '@/lib/theme/monacoThemes';
 
-/**
- * Monaco's default loading state is a spinning ring while worker
- * scripts and theme registration finish. The `<Editor />` component
- * accepts a `loading` prop for replacement; we feed it the unified
- * `<PageLoading />` (block + "Loading" label) so the brand-consistent
- * loader takes over from the generic Monaco spinner.
- */
-const MONACO_LOADING = (
-  <EditorLoadingSurface />
-);
-
-const DARK_THEME_CONFIG = {
-  base: 'vs-dark' as const,
-  inherit: true,
-  rules: [
-    { token: '', foreground: 'd4d4d4', background: '0a0a0a' },
-    { token: 'comment', foreground: '6b7280', fontStyle: 'italic' },
-    { token: 'keyword', foreground: 'f97316' },
-    { token: 'string', foreground: '86efac' },
-    { token: 'number', foreground: '7dd3fc' },
-    { token: 'markup.heading', foreground: 'f9fafb', fontStyle: 'bold' },
-    { token: 'markup.bold', fontStyle: 'bold' },
-    { token: 'markup.italic', fontStyle: 'italic' },
-    { token: 'markup.inline.raw', foreground: '86efac' },
-    { token: 'markup.quote', foreground: '6b7280' },
-    { token: 'markup.list', foreground: 'f97316' },
-  ],
-  colors: {
-    'editor.background': '#0e0e0e',
-    'editor.foreground': '#d4d4d4',
-    'editor.lineHighlightBackground': '#141414',
-    'editor.selectionBackground': '#3f3f46',
-    'editor.inactiveSelectionBackground': '#3f3f4655',
-    'editorLineNumber.foreground': '#404040',
-    'editorLineNumber.activeForeground': '#737373',
-    'editorCursor.foreground': '#d4d4d4',
-    'editor.selectionHighlightBackground': '#52525b33',
-    'editorIndentGuide.background': '#1a1a1a',
-    'editorIndentGuide.activeBackground': '#262626',
-    'scrollbar.shadow': '#00000000',
-    'scrollbarSlider.background': '#40404055',
-    'scrollbarSlider.hoverBackground': '#52525b88',
-    'scrollbarSlider.activeBackground': '#52525b88',
-  },
-};
+const MONACO_LOADING = <EditorLoadingSurface />;
 
 interface Props {
   content: string;
@@ -59,16 +17,22 @@ interface Props {
 export default function MonacoMarkdownEditor({ content, onChange, readOnly }: Props) {
   const editorRef = useRef<any>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const { resolvedTheme } = useTheme();
+  const themeName = getPuppyOneMonacoTheme('markdown', resolvedTheme);
 
   const handleMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    monaco.editor.defineTheme('markdown-dark', DARK_THEME_CONFIG);
-    monaco.editor.setTheme('markdown-dark');
+    definePuppyOneMonacoThemes(monaco);
+    monaco.editor.setTheme(themeName);
     monaco.languages.setLanguageConfiguration('markdown', {
-      wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
+      wordPattern: /(-?\d*\.\d\w*)|([^`~!@#%^&*()=\-[\]{}\\|;:'",.<>/?\s]+)/g,
     });
   };
+
+  useEffect(() => {
+    monacoRef.current?.editor?.setTheme(themeName);
+  }, [themeName]);
 
   const handleChange = useCallback((value: string | undefined) => {
     if (onChange && !readOnly) onChange(value || '');
@@ -78,10 +42,15 @@ export default function MonacoMarkdownEditor({ content, onChange, readOnly }: Pr
     <div style={{ height: '100%', position: 'relative' }}>
       {!content && (
         <div style={{
-          position: 'absolute', top: 16, left: 24,
-          color: '#525252', fontStyle: 'italic', fontSize: 13,
-          pointerEvents: 'none', zIndex: 1,
-          fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
+          position: 'absolute',
+          top: 16,
+          left: 24,
+          color: 'var(--po-text-disabled)',
+          fontStyle: 'italic',
+          fontSize: 13,
+          pointerEvents: 'none',
+          zIndex: 1,
+          fontFamily: 'var(--po-font-sans)',
         }}>
           Start writing...
         </div>
@@ -92,12 +61,12 @@ export default function MonacoMarkdownEditor({ content, onChange, readOnly }: Pr
         value={content}
         onChange={handleChange}
         onMount={handleMount}
-        theme="markdown-dark"
+        theme={themeName}
         loading={MONACO_LOADING}
         options={{
           minimap: { enabled: false },
           fontSize: 13,
-          fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
+          fontFamily: 'var(--po-font-sans)',
           lineNumbers: 'off',
           scrollBeyondLastLine: false,
           automaticLayout: true,

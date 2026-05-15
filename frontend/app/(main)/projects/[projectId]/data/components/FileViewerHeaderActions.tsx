@@ -91,7 +91,7 @@ export function FileViewerHeaderActions({
       <HeaderActionGroup>
         <span
           style={{
-            color: '#71717a',
+            color: 'var(--po-text-subtle)',
             fontSize: 12,
             whiteSpace: 'nowrap',
           }}
@@ -214,9 +214,9 @@ function FileActionsMenu({
           width: 26,
           height: 26,
           borderRadius: 5,
-          background: open || hovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+          background: open || hovered ? 'var(--po-hover)' : 'transparent',
           border: 'none',
-          color: open || hovered ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)',
+          color: open || hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
           cursor: 'pointer',
           transition: 'background 0.12s ease, color 0.12s ease',
         }}
@@ -234,10 +234,10 @@ function FileActionsMenu({
             left: pos.left,
             minWidth: 156,
             padding: 4,
-            background: '#1a1a1a',
-            border: '1px solid #262626',
+            background: 'var(--po-panel-raised)',
+            border: '1px solid var(--po-border)',
             borderRadius: 6,
-            boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+            boxShadow: '0 14px 34px var(--po-shadow)',
             zIndex: APP_Z_INDEX.popover,
           }}
         >
@@ -286,10 +286,10 @@ function ActionMenuItem({
         width: '100%',
         height: 30,
         padding: '0 8px',
-        background: hovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         border: 'none',
         borderRadius: 4,
-        color: '#d4d4d8',
+        color: 'var(--po-text-muted)',
         fontSize: 12.5,
         fontWeight: 400,
         textAlign: 'left',
@@ -304,7 +304,7 @@ function ActionMenuItem({
           justifyContent: 'center',
           width: 14,
           height: 14,
-          color: '#a3a3a3',
+          color: 'var(--po-text-muted)',
           flexShrink: 0,
         }}
       >
@@ -365,9 +365,9 @@ function ModePicker<TMode extends string>({
           width: 26,
           height: 26,
           borderRadius: 5,
-          background: open || hovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+          background: open || hovered ? 'var(--po-hover)' : 'transparent',
           border: 'none',
-          color: open || hovered ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)',
+          color: open || hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
           cursor: 'pointer',
           transition: 'background 0.12s ease, color 0.12s ease',
         }}
@@ -384,10 +384,10 @@ function ModePicker<TMode extends string>({
             right: 0,
             minWidth: 156,
             padding: 4,
-            background: '#1a1a1a',
-            border: '1px solid #262626',
+            background: 'var(--po-panel-raised)',
+            border: '1px solid var(--po-border)',
             borderRadius: 6,
-            boxShadow: '0 6px 20px rgba(0,0,0,0.5)',
+            boxShadow: '0 14px 34px var(--po-shadow)',
             zIndex: APP_Z_INDEX.popover,
           }}
         >
@@ -433,10 +433,10 @@ function ModeOptionRow<TMode extends string>({
         gap: 8,
         width: '100%',
         padding: '5px 8px',
-        background: hovered ? 'rgba(255,255,255,0.05)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         border: 'none',
         borderRadius: 4,
-        color: '#d4d4d8',
+        color: 'var(--po-text-muted)',
         fontSize: 12.5,
         fontWeight: 400,
         textAlign: 'left',
@@ -451,7 +451,7 @@ function ModeOptionRow<TMode extends string>({
           justifyContent: 'center',
           width: 14,
           height: 14,
-          color: active ? '#e4e4e7' : '#a3a3a3',
+          color: active ? 'var(--po-text)' : 'var(--po-text-muted)',
           flexShrink: 0,
         }}
       >
@@ -465,7 +465,7 @@ function ModeOptionRow<TMode extends string>({
           justifyContent: 'center',
           width: 14,
           height: 14,
-          color: '#d4d4d8',
+          color: 'var(--po-text-muted)',
           flexShrink: 0,
         }}
       >

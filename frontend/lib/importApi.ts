@@ -85,17 +85,17 @@ export function getStatusInfo(status: ImportStatus): {
 } {
   switch (status) {
     case 'pending':
-      return { label: 'Pending', color: 'text-gray-500', bgColor: 'bg-gray-100' };
+      return { label: 'Pending', color: 'text-[var(--po-text-subtle)]', bgColor: 'bg-[var(--po-control)]' };
     case 'processing':
-      return { label: 'Processing', color: 'text-blue-600', bgColor: 'bg-blue-100' };
+      return { label: 'Processing', color: 'text-[var(--po-accent)]', bgColor: 'bg-[color-mix(in_srgb,var(--po-accent)_12%,transparent)]' };
     case 'completed':
-      return { label: 'Completed', color: 'text-green-600', bgColor: 'bg-green-100' };
+      return { label: 'Completed', color: 'text-[var(--po-success)]', bgColor: 'bg-[color-mix(in_srgb,var(--po-success)_12%,transparent)]' };
     case 'failed':
-      return { label: 'Failed', color: 'text-red-600', bgColor: 'bg-red-100' };
+      return { label: 'Failed', color: 'text-[var(--po-danger)]', bgColor: 'bg-[color-mix(in_srgb,var(--po-danger)_12%,transparent)]' };
     case 'cancelled':
-      return { label: 'Cancelled', color: 'text-gray-500', bgColor: 'bg-gray-100' };
+      return { label: 'Cancelled', color: 'text-[var(--po-text-subtle)]', bgColor: 'bg-[var(--po-control)]' };
     default:
-      return { label: status, color: 'text-gray-500', bgColor: 'bg-gray-100' };
+      return { label: status, color: 'text-[var(--po-text-subtle)]', bgColor: 'bg-[var(--po-control)]' };
   }
 }
 
@@ -161,6 +161,9 @@ export async function submitImport(
   if (request.name) {
     formData.append('name', request.name);
   }
+  if (request.url && request.crawl_options && supportsCrawlOptions(request.url)) {
+    formData.append('crawl_options', JSON.stringify(request.crawl_options));
+  }
 
   const response = await fetch('/api/ingest?path=submit/saas', {
     method: 'POST',
@@ -217,6 +220,22 @@ export function detectImportType(url: string): ImportType {
   if (urlLower.includes('mail.google.com') || urlLower.includes('gmail.com')) return 'gmail';
   if (urlLower.includes('linear.app')) return 'linear';
   return 'web_page';
+}
+
+export function supportsCrawlOptions(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  return detectImportType(trimmed) === 'web_page';
 }
 
 // === Deprecated stubs (kept for compatibility during migration) ===
