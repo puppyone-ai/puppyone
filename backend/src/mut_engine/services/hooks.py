@@ -16,11 +16,8 @@ import asyncio
 import threading
 
 from src.mut_engine.application.root_projection import (
-    build_root_from_scope_state,
-    graft_subtree,
+    rebuild_project_root_after_commit,
 )
-from src.mut_engine.application.git_commit import build_git_commit, commit_tree_id
-from src.mut_engine.adapters.git.view_projection import git_compatible_head_commit
 from src.utils.logger import log_error, log_info, log_warning
 
 
@@ -255,211 +252,18 @@ def _broadcast_commit_update(project_id: str, entry: dict, changes: list[dict]) 
 
 
 def _update_global_root(repo, push_result: dict) -> None:
-    """Rebuild ``projects.mut_root_hash`` from DB-authoritative scope state.
+    """Delegate to application/root_projection.
 
-    Architecture: "DB-Authoritative Registry + Materialized Root"
-    (see ``docs/design/mut-scope-concurrency.md`` and
-    ``mut-bug-checklist.md`` P0-5).
-
-    Why we don't read the previous root tree from S3:
-        The old graft path read ``projects.mut_root_hash`` → fetched the
-        corresponding tree from S3 → spliced in the pushed scope → wrote
-        a new root tree → CAS. That made S3 *both* the SoT and the input
-        for deriving the next SoT. Any silent partial read inside the
-        graft (e.g. ``_safe_flatten`` returning ``{}`` on a transient S3
-        error) produced a structurally valid but data-losing root which
-        CAS happily accepted.
-
-    What we do instead:
-        ``mut_scope_state`` is already the SoT for "where does each
-        scope point right now". We:
-          1. SELECT every scope's current hash from DB (cheap, ~1 ms).
-          2. Patch in the freshly pushed scope's hash.
-          3. Start from the root scope's tree (which carries any
-             non-scope files like a top-level README.md) or an empty
-             tree if root scope has never been pushed.
-          4. Overlay each non-root scope by path-length order so
-             parents land before children.
-          5. CAS-update ``projects.mut_root_hash``.
-
-    Concurrent pushes are naturally idempotent: any attempt that reads
-    the latest DB snapshot produces the same new root, so CAS retries
-    converge on the canonical state.
-
-    Failure mode: any S3 read/write raises; the retry loop handles
-    transients, then ``log_error`` flags persistent issues. We do NOT
-    silently fall back to an empty/partial tree — that's the entire
-    bug class we're closing.
+    The graft + CAS retry algorithm and the project-view index update both
+    live in application/root_projection now (per
+    docs/architecture/07-version-engine-supplement.md §4: graft is an
+    application-layer primitive, not a service-layer one). This wrapper
+    is kept only because run_post_push_hook and the version-outbox
+    worker still call it by name.
     """
-    scope_hash = push_result.get("root", "")
-    if not scope_hash:
-        return
 
-    commit_id = push_result["commit_id"]
-    entry = repo.history.get_entry(commit_id)
-    if not entry:
-        log_error(f"[PostCommit] No history entry for commit {commit_id}")
-        return
+    rebuild_project_root_after_commit(repo, push_result)
 
-    scope_path = (entry.get("scope_path") or "").strip("/")
-
-    MAX_GRAFT_RETRIES = 5
-    for attempt in range(MAX_GRAFT_RETRIES):
-        try:
-            # After a CAS failure the DB holds a newer root_hash than our
-            # cached copy. Clear the in-process cache so the next
-            # get_root_hash() reads the current DB value as the CAS pre-image
-            # instead of looping with the same stale value forever.
-            if attempt > 0:
-                history = getattr(repo, 'history', None) or repo
-                if hasattr(history, '_root_hash_cache'):
-                    del history._root_hash_cache
-
-            # Some test doubles expose only the history backend methods.
-            # Fall back to history-based lookup for that compatibility path.
-            if hasattr(repo, "get_root_hash"):
-                db_root = repo.get_root_hash() or ""
-            else:
-                db_root = repo.history.get_root_hash() if hasattr(repo.history, "get_root_hash") else ""
-
-            new_root = _build_root_from_scope_state(
-                repo, scope_path, scope_hash,
-            )
-
-            if hasattr(repo, "cas_update_root_hash"):
-                success = repo.cas_update_root_hash(db_root, new_root)
-            else:
-                # Fallback: direct set (no CAS protection, but better than failing)
-                repo.history.set_root_hash(new_root)
-                success = True
-
-            if success:
-                try:
-                    _record_project_view_index(
-                        repo=repo,
-                        entry=entry,
-                        scope_path=scope_path,
-                        scope_hash=scope_hash,
-                        project_root_hash=new_root,
-                        source_commit_id=commit_id,
-                    )
-                except Exception as exc:
-                    log_warning(
-                        f"[PostCommit] project-view Git index update failed "
-                        f"for commit {commit_id[:12]}: {exc}",
-                    )
-                log_info(
-                    f"[PostCommit] Rebuilt global root from DB state: "
-                    f"scope='{scope_path}' root={new_root[:16]} "
-                    f"(attempt {attempt + 1})"
-                )
-                return
-
-            log_info(
-                f"[PostCommit] Root CAS lost — retrying "
-                f"(attempt {attempt + 1}, scope='{scope_path}')"
-            )
-
-        except Exception as e:
-            log_warning(
-                f"[PostCommit] Graft attempt {attempt + 1} failed "
-                f"(will retry): {e}"
-            )
-            continue
-
-    log_error(
-        f"[PostCommit] Graft failed after {MAX_GRAFT_RETRIES} retries "
-        f"for scope='{scope_path}' — root_hash may lag behind scope state. "
-        f"Investigate S3 / DB connectivity."
-    )
-
-
-def _record_project_view_index(
-    *,
-    repo,
-    entry: dict,
-    scope_path: str,
-    scope_hash: str,
-    project_root_hash: str,
-    source_commit_id: str,
-) -> None:
-    """Persist the Git-visible project history graft for one scope commit."""
-
-    if not hasattr(repo, "record_version_index"):
-        return
-    try:
-        source_tree = commit_tree_id(repo, source_commit_id)
-    except Exception:
-        source_tree = ""
-
-    if source_tree == project_root_hash:
-        project_view_commit_id = source_commit_id
-    else:
-        parent = ""
-        if hasattr(repo, "get_latest_project_view_commit_id"):
-            parent = repo.get_latest_project_view_commit_id() or ""
-        parent = git_compatible_head_commit(repo, parent) if parent else ""
-        created_at = entry.get("created_at") or entry.get("time") or ""
-        project_view_commit_id = build_git_commit(
-            repo,
-            tree_sha=project_root_hash,
-            parent_sha=parent,
-            who="puppyone-project-view",
-            message=f"Puppyone project view for {source_commit_id}",
-            created_at_iso=created_at,
-        )
-
-    repo.record_version_index(
-        scope_path=scope_path,
-        source_commit_id=source_commit_id,
-        source_scope_hash=scope_hash,
-        project_root_hash=project_root_hash,
-        project_view_commit_id=project_view_commit_id,
-    )
-
-
-def _build_root_from_scope_state(
-    repo,
-    just_pushed_scope: str,
-    just_pushed_hash: str,
-) -> str:
-    """Build a complete root tree from DB scope state + the just-pushed hash.
-
-    Steps:
-        1. Read all ``(scope_path → scope_hash)`` from
-           ``mut_scope_state`` (DB SoT).
-        2. Overwrite the just-pushed scope's entry with the accepted
-           transaction result. The publish boundary has already written it;
-           the explicit override exists so retries see a consistent input
-           even if a sibling's CAS races between our SELECT and our build.
-        3. Use the root scope's tree as the base — it carries any
-           non-scope files (e.g. a top-level README.md). If root scope
-           has never been pushed, start from the empty git tree.
-        4. Overlay each non-root scope using :func:`_graft_subtree` (a
-           local reimplementation; ``mut.server.graft`` was removed in
-           the feat/git-format-storage refactor since the upstream
-           server no longer needs scope-grafting). Sort by path depth
-           so parents are grafted before children.
-
-    Raises on S3 read/write failure (no silent fallback). Callers
-    decide whether to retry.
-    """
-    return build_root_from_scope_state(repo, just_pushed_scope, just_pushed_hash)
-
-
-# ── Local graft helpers (replaces removed mut.server.graft) ───────
-
-def _graft_subtree(store, old_root_hash: str,
-                   scope_path: str, new_subtree_hash: str) -> str:
-    """Replace the subtree at *scope_path* under *old_root_hash* with
-    *new_subtree_hash*, recomputing parent trees upward.
-
-    Pure git tree manipulation against the new ObjectStore API
-    (``put_tree`` / ``get_object`` / ``encode_tree`` / ``decode_tree``).
-    Mirrors the removed ``mut/server/graft.py`` implementation but with
-    no PuppyOne-specific logic so it stays trivially reviewable.
-    """
-    return graft_subtree(store, old_root_hash, scope_path, new_subtree_hash)
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:

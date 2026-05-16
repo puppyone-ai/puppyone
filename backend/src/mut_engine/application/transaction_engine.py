@@ -433,6 +433,34 @@ class GitNativeTransactionEngine:
                         **intent.audit_detail,
                     },
                 )
+                # B6: record a rejected version_transactions row so the
+                # ledger captures cross-scope guard hits, not just
+                # successful commits.
+                try:
+                    await asyncio.to_thread(
+                        _insert_version_transaction_row,
+                        project_id=intent.project_id,
+                        scope_path=scope_norm,
+                        source_channel=intent.source_channel,
+                        actor=intent.actor,
+                        intent_type="submission",
+                        status="rejected",
+                        base_commit_id=intent.base_commit_id,
+                        client_commit_id=intent.client_commit_id,
+                        proposed_tree_id=intent.proposed_tree_id,
+                        current_head_at_start=current_head_commit_id,
+                        message=intent.message,
+                        audit_detail={
+                            "rejected_paths": rejected[:50],
+                            **(intent.audit_detail or {}),
+                        },
+                        reason="cross_scope_paths_outside_scope",
+                    )
+                except Exception as exc:
+                    log_warning(
+                        f"[version_engine] failed to record rejected "
+                        f"version_transactions row: {exc}",
+                    )
                 raise CrossScopeSubmissionError(
                     scope_path=scope_norm,
                     rejected_paths=rejected,
@@ -756,6 +784,38 @@ class GitNativeTransactionEngine:
             intent.actor,
             audit,
         )
+        # Record a non-committed version_transactions row so the ledger
+        # captures the full lifecycle (received → pending_manual_review),
+        # not just successful commits. The row's id is used as the FK in
+        # mut_conflicts so the conflict resolver UI can join cleanly.
+        txn_id: int | None = None
+        try:
+            txn_id = await asyncio.to_thread(
+                _insert_version_transaction_row,
+                project_id=intent.project_id,
+                scope_path=scope_path,
+                source_channel=intent.source_channel,
+                actor=intent.actor,
+                intent_type="submission",
+                status="pending_manual_review",
+                policy="manual_review",
+                base_commit_id=intent.base_commit_id,
+                client_commit_id=intent.client_commit_id,
+                proposed_tree_id=intent.proposed_tree_id,
+                current_head_at_start=current_head_commit_id,
+                message=intent.message,
+                audit_detail={
+                    "pending_conflict_id": pending_conflict_id,
+                    **(intent.audit_detail or {}),
+                },
+                reason=policy_reason,
+            )
+        except Exception as exc:
+            log_warning(
+                f"[version_engine] failed to record pending version_transactions "
+                f"row for {pending_conflict_id[:12]}: {exc}",
+            )
+
         try:
             await asyncio.to_thread(
                 _record_pending_conflict_row,
@@ -771,6 +831,7 @@ class GitNativeTransactionEngine:
                 policy="manual_review",
                 source_channel=intent.source_channel,
                 actor=intent.actor,
+                transaction_id=txn_id,
             )
         except Exception as exc:
             log_warning(
@@ -1106,12 +1167,15 @@ def _record_pending_conflict_row(
     policy: str,
     source_channel: str,
     actor: str,
+    transaction_id: int | None = None,
 ) -> None:
     """Insert (or refresh) the structured pending-conflict row.
 
     Idempotent on ``pending_conflict_id`` so retried submissions that
-    produce the same conflict do not error out. Failures are logged by
-    the caller; this function does not retry.
+    produce the same conflict do not error out. ``transaction_id`` is
+    the FK back to the ``version_transactions`` row recorded for this
+    pending state (B6) — passing ``None`` is allowed only for legacy
+    callers that haven't been wired up yet.
     """
 
     from src.infra.supabase.client import SupabaseClient
@@ -1133,9 +1197,74 @@ def _record_pending_conflict_row(
         "resolver_kind": _resolver_kind_for(source_channel),
         "resolution_detail": {"actor": actor, "source_channel": source_channel},
     }
+    if transaction_id is not None:
+        payload["transaction_id"] = transaction_id
     client.table("mut_conflicts").upsert(
         payload, on_conflict="pending_conflict_id",
     ).execute()
+
+
+def _insert_version_transaction_row(
+    *,
+    project_id: str,
+    scope_path: str,
+    source_channel: str,
+    actor: str,
+    intent_type: str,
+    status: str,
+    policy: str = "",
+    base_commit_id: str = "",
+    client_commit_id: str = "",
+    proposed_tree_id: str = "",
+    current_head_at_start: str = "",
+    committed_commit_id: str = "",
+    message: str = "",
+    audit_detail: dict | None = None,
+    reason: str = "",
+) -> int | None:
+    """Insert a non-``committed`` version_transactions row from Python.
+
+    The ``committed`` status is owned by the SQL ``publish_mut_scope_update``
+    RPC (atomic with the rest of the ledger). This helper covers the
+    other terminal/transient states:
+
+    * ``pending_manual_review`` / ``pending_agent_resolution`` — waiting
+      for a resolver before any commit lands.
+    * ``rejected`` — cross-scope guard fires, payload validation fails,
+      conflict policy rejects, etc.
+    * ``resolving`` — manual/agent resolver picked up a pending row.
+
+    Returns the new row id, or ``None`` if the insert failed. Failures
+    are logged by the caller; this helper does not retry. The audit
+    ledger is still complete via ``audit_logs``, so a single missed
+    version_transactions row degrades to V0 behavior, not data loss.
+    """
+
+    from src.infra.supabase.client import SupabaseClient
+
+    client = SupabaseClient().client
+    payload = {
+        "project_id": project_id,
+        "scope_path": scope_path or "",
+        "source_channel": source_channel or "papi",
+        "actor": actor or "",
+        "intent_type": intent_type,
+        "status": status,
+        "policy": policy or "",
+        "base_commit_id": base_commit_id or "",
+        "client_commit_id": client_commit_id or "",
+        "proposed_tree_id": proposed_tree_id or "",
+        "current_head_at_start": current_head_at_start or "",
+        "committed_commit_id": committed_commit_id or "",
+        "message": message or "",
+        "audit_detail": audit_detail or {},
+        "reason": reason or "",
+    }
+    resp = client.table("version_transactions").insert(payload).execute()
+    data = getattr(resp, "data", None) or []
+    if data and isinstance(data[0], dict):
+        return data[0].get("id")
+    return None
 
 
 def _resolver_kind_for(source_channel: str) -> str:

@@ -1889,7 +1889,13 @@ def test_real_git_cli_stale_same_file_conflict_requires_manual_review(
         _run_git(["clone", remote, str(verify)], tmp_path)
 
     assert proc.returncode != 0
-    assert b"conflict requires manual review" in proc.stderr
+    # V1 outcome format: ng line tagged "puppyone-pending:" plus side-band
+    # stderr "PuppyOne: ..." lines giving the resolver UI hint.
+    assert (
+        b"puppyone-pending" in proc.stderr
+        or b"PuppyOne: this push touched files that need manual review" in proc.stderr
+    )
+    assert b"pending_conflict_id=" in proc.stderr
     assert (verify / "shared.txt").read_text(encoding="utf-8") == "alice\n"
     assert server_repo.audit.events[-1]["type"] == "git_push_conflict_pending"
     assert server_repo.audit.events[-1]["detail"]["status"] == "pending_manual_review"

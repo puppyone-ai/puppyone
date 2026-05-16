@@ -124,30 +124,43 @@ async def receive_pack_response(
         if result.status == "pending":
             return receive_pack_result(
                 command.ref,
-                ok=False,
+                outcome="pending_resolution",
                 message=(
-                    "conflict requires manual review on Puppyone "
+                    f"puppyone-pending: review required "
                     f"(pending_conflict_id={result.pending_conflict_id})"
                 ),
                 capabilities=command.capabilities,
+                stderr_lines=[
+                    "PuppyOne: this push touched files that need manual review.",
+                    f"PuppyOne: pending_conflict_id={result.pending_conflict_id}",
+                    "PuppyOne: open the conflict in the PuppyOne UI to accept or "
+                    "reject the resolution, then retry the push.",
+                ],
             )
     except CrossScopeSubmissionError as exc:
         return receive_pack_result(
             command.ref,
-            ok=False,
-            message=str(exc),
+            outcome="rejected",
+            message=f"puppyone-rejected: {exc}",
             capabilities=command.capabilities,
+            stderr_lines=[
+                "PuppyOne: this push spans multiple scopes — split it across "
+                "the corresponding scope remotes and retry.",
+            ],
         )
     except Exception as exc:
         return receive_pack_result(
             command.ref,
-            ok=False,
-            message=f"puppyone receive failed: {exc}",
+            outcome="rejected",
+            message=f"puppyone-rejected: {exc}",
             capabilities=command.capabilities,
         )
 
     _ = result
-    return receive_pack_result(command.ref, ok=True, message="ok", capabilities=command.capabilities)
+    return receive_pack_result(
+        command.ref, outcome="committed", message="ok",
+        capabilities=command.capabilities,
+    )
 
 
 def parse_receive_pack_request(body: bytes) -> ReceiveCommand:
@@ -190,23 +203,70 @@ def parse_receive_pack_request(body: bytes) -> ReceiveCommand:
     )
 
 
+_OUTCOMES_OK = frozenset({"committed"})
+_OUTCOMES_REJECTED = frozenset({"rejected", "pending_resolution"})
+
+
 def receive_pack_result(
     ref: str,
     *,
-    ok: bool,
+    outcome: str | None = None,
+    ok: bool | None = None,
     message: str,
     capabilities: set[str] | None = None,
+    stderr_lines: list[str] | None = None,
 ) -> Response:
-    lines = [pkt_line(b"unpack ok\n")]
-    if ok:
-        lines.append(pkt_line(f"ok {ref}\n".encode("utf-8")))
+    """Build a receive-pack response for one of the three V1 outcomes.
+
+    Implements 01-version-engine.md §10.3:
+      * ``committed`` → standard ``ok <ref>``
+      * ``rejected``  → ``ng <ref> <reason>`` (split spans / engine error)
+      * ``pending_resolution`` → ``ng`` plus an explicit reason tagged so
+        tooling can recognise "needs human review" vs "real reject".
+
+    When the client negotiated ``side-band`` / ``side-band-64k``, any
+    ``stderr_lines`` are emitted on channel 2 so ``git push`` prints them
+    as ``remote: ...`` lines before the rejection summary.
+
+    ``outcome`` is the preferred input; the legacy ``ok=`` parameter is
+    accepted for tests that haven't migrated yet.
+    """
+
+    if outcome is None and ok is None:
+        raise ValueError("receive_pack_result requires either outcome= or ok=")
+    if outcome is None:
+        outcome = "committed" if ok else "rejected"
+
+    is_ok = outcome in _OUTCOMES_OK
+    if not is_ok and outcome not in _OUTCOMES_REJECTED:
+        raise ValueError(f"unknown receive-pack outcome: {outcome!r}")
+
+    report_lines = [pkt_line(b"unpack ok\n")]
+    if is_ok:
+        report_lines.append(pkt_line(f"ok {ref}\n".encode("utf-8")))
     else:
         safe_message = message.replace("\n", " ")[:800]
-        lines.append(pkt_line(f"ng {ref} {safe_message}\n".encode("utf-8")))
-    lines.append(flush_pkt())
-    content = b"".join(lines)
-    if capabilities and ("side-band-64k" in capabilities or "side-band" in capabilities):
-        content = pkt_line(b"\x01" + content) + flush_pkt()
+        report_lines.append(pkt_line(f"ng {ref} {safe_message}\n".encode("utf-8")))
+    report_lines.append(flush_pkt())
+    report_status = b"".join(report_lines)
+
+    use_sideband = bool(
+        capabilities
+        and ("side-band-64k" in capabilities or "side-band" in capabilities)
+    )
+    if not use_sideband:
+        content = report_status
+    else:
+        chunks: list[bytes] = []
+        # Channel 2 = stderr ("remote: ..." in the git client).
+        for line in stderr_lines or []:
+            safe = line.replace("\n", " ")[:900]
+            chunks.append(pkt_line(b"\x02" + safe.encode("utf-8") + b"\n"))
+        # Channel 1 = data (the report-status payload).
+        chunks.append(pkt_line(b"\x01" + report_status))
+        chunks.append(flush_pkt())
+        content = b"".join(chunks)
+
     return Response(
         content=content,
         media_type="application/x-git-receive-pack-result",
