@@ -788,6 +788,7 @@ class GitNativeTransactionEngine:
         cas_attempt: int,
         merged: bool,
         merged_changes: list[dict],
+        defer_projection: bool = False,
     ) -> TransactionResult | None:
         audit = {
             "scope": scope_path,
