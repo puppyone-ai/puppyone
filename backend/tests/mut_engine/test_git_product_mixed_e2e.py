@@ -251,8 +251,8 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
         scope for message, scope in history_scopes_by_type if "git " in message
     ) == ["docs", "docs"]
 
-    max_operation_ms = max(item["elapsed_ms"] for item in results)
-    assert max_operation_ms < 20_000
+    max_single_operation_ms = max(item["elapsed_ms"] for item in results)
+    assert max_single_operation_ms < 20_000
     assert total_elapsed_ms < 30_000
 
     print(
@@ -267,6 +267,7 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
                     }
                     for item in results
                 ],
+                "max_single_operation_ms": max_single_operation_ms,
                 "total_elapsed_ms": total_elapsed_ms,
                 "history_entries": len(server_repo.history._entries),
                 "audit_types": audit_types,
