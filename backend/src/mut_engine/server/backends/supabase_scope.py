@@ -12,7 +12,7 @@ Interface-compatible with Mut's native FileSystemScopeBackend:
 
 from __future__ import annotations
 
-from mut.server.scope_manager import ScopeBackend
+from src.mut_engine.infrastructure.scope_manager import ScopeBackend
 
 from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_error

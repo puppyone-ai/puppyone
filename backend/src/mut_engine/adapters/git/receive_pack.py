@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException
 from fastapi.responses import Response
-from mut.foundation.git_format import decode_commit
+from src.mut_engine.infrastructure.git_format import decode_commit
 
 from src.mut_engine.adapters.git.object_quarantine import quarantine_pack
 from src.mut_engine.adapters.git.protocol import (

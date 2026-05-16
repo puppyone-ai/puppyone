@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 
 from fastapi import APIRouter, Depends, Request
-from mut.core.protocol import normalize_path
+from src.mut_engine.infrastructure.paths import normalize_path
 
 from src.mut_engine.adapters.git.auth import (
     request_actor,

@@ -19,13 +19,13 @@ import threading
 from collections import OrderedDict
 from typing import ClassVar
 
-from mut.core.object_store import ObjectStore
-from mut.core.protocol import normalize_path
-from mut.core.tree import read_tree, tree_to_flat
-from mut.foundation.git_format import (
+from src.mut_engine.infrastructure.git_format import (
     MODE_DIR, MODE_FILE, TreeEntry, encode_tree,
 )
-from mut.server.scope_manager import ScopeManager
+from src.mut_engine.infrastructure.object_store import ObjectStore
+from src.mut_engine.infrastructure.paths import normalize_path
+from src.mut_engine.infrastructure.scope_manager import ScopeManager
+from src.mut_engine.infrastructure.tree import read_tree, tree_to_flat
 
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
 from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
@@ -202,17 +202,23 @@ class PuppyOneServerRepo:
         audit_event_type: str,
         audit_agent_id: str,
         audit_detail: dict,
-    ) -> bool:
-        """Publish the accepted version transaction.
+        source_channel: str = "",
+        policy: str = "",
+        base_commit_id: str = "",
+        client_commit_id: str = "",
+        proposed_tree_id: str = "",
+        intent_type: str = "operation",
+    ) -> tuple[bool, int | None]:
+        """Publish the accepted version transaction atomically.
 
-        Supabase-backed repos delegate to a single SQL RPC that updates the
-        scope ref, history, audit, and outbox atomically. Test/in-memory repos
-        without that RPC keep the same interface and use the existing CAS path.
+        Returns ``(published, transaction_id)`` so the engine can cross-link
+        downstream rows (audit metadata, projection mappings) to the
+        ``version_transactions`` row created in the same SQL transaction.
         """
 
         publish = getattr(self.history, "publish_scope_update", None)
         if callable(publish):
-            return publish(
+            result = publish(
                 scope_path=scope_path,
                 old_scope_hash=old_scope_hash,
                 new_scope_hash=new_scope_hash,
@@ -225,7 +231,16 @@ class PuppyOneServerRepo:
                 audit_event_type=audit_event_type,
                 audit_agent_id=audit_agent_id,
                 audit_detail=audit_detail,
+                source_channel=source_channel,
+                policy=policy,
+                base_commit_id=base_commit_id,
+                client_commit_id=client_commit_id,
+                proposed_tree_id=proposed_tree_id,
+                intent_type=intent_type,
             )
+            if isinstance(result, tuple):
+                return result
+            return bool(result), None
 
         if not self.cas_update_scope(
             scope_path,
@@ -233,7 +248,7 @@ class PuppyOneServerRepo:
             new_scope_hash,
             head_commit_id=commit_id,
         ):
-            return False
+            return False, None
         self.record_history(
             commit_id,
             who,
@@ -246,7 +261,7 @@ class PuppyOneServerRepo:
         )
         self.set_head_commit_id(commit_id)
         self.record_audit(audit_event_type, audit_agent_id, audit_detail)
-        return True
+        return True, None
 
     def record_version_index(
         self,

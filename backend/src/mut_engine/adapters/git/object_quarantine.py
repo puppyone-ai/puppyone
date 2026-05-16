@@ -6,7 +6,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
-from mut.foundation.git_format import MODE_DIR, decode_commit, decode_tree
+from src.mut_engine.infrastructure.git_format import MODE_DIR, decode_commit, decode_tree
 
 from src.mut_engine.adapters.git.protocol import (
     ZERO_ID,

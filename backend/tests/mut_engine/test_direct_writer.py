@@ -25,8 +25,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from mut.core import tree as tree_mod
-from mut.core.object_store import ObjectStore
+from src.mut_engine.infrastructure import tree as tree_mod
+from src.mut_engine.infrastructure.object_store import ObjectStore
 
 from src.mut_engine.services.direct_writer import ConcurrentMutationError
 from src.mut_engine.services.ops import BlobRef, MissingBlobError, MutOps
@@ -53,7 +53,7 @@ def memory_store(tmp_path) -> ObjectStore:
 @pytest.fixture
 def server_repo(memory_store):
     """A PuppyOneServerRepo backed by in-memory fakes."""
-    from mut.server.scope_manager import ScopeManager
+    from src.mut_engine.infrastructure.scope_manager import ScopeManager
     from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
     history = FakeHistoryManager()
@@ -359,7 +359,7 @@ class TestStageBlobFromBytes:
     async def test_stage_returns_correct_hash_and_size(
         self, ops, server_repo,
     ):
-        from mut.foundation.hash import hash_bytes as mut_hash
+        from src.mut_engine.infrastructure.hash import hash_bytes as mut_hash
 
         ref = await ops.stage_blob_from_bytes("test-proj", b"hello world")
 

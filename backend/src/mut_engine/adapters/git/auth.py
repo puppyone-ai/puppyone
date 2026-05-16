@@ -6,7 +6,7 @@ import asyncio
 import base64
 
 from fastapi import HTTPException, Request
-from mut.core.protocol import normalize_path
+from src.mut_engine.infrastructure.paths import normalize_path
 
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.routers.access_point import resolve_access_point

@@ -10,8 +10,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from mut.core.object_store import ObjectStore
-from mut.core.protocol import normalize_path
+from src.mut_engine.infrastructure.object_store import ObjectStore
+from src.mut_engine.infrastructure.paths import normalize_path
 
 from src.infra.file_formats import detect_mime, detect_node_type
 from src.mut_engine.server.repo_manager import MutRepoManager

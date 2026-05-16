@@ -299,8 +299,20 @@ class SupabaseHistoryManager:
         audit_event_type: str,
         audit_agent_id: str,
         audit_detail: dict,
-    ) -> bool:
-        """Atomically publish scope head, history, audit, and outbox rows."""
+        source_channel: str = "",
+        policy: str = "",
+        base_commit_id: str = "",
+        client_commit_id: str = "",
+        proposed_tree_id: str = "",
+        intent_type: str = "operation",
+    ) -> tuple[bool, int | None]:
+        """Atomically publish scope head, history, audit, transaction, outbox.
+
+        Returns ``(published, transaction_id)`` where ``transaction_id`` is
+        the newly-inserted ``version_transactions`` row id (or ``None`` if
+        the older single-bool RPC shape is in use, which happens during the
+        rolling migration window before the v2 RPC is deployed).
+        """
 
         scope_path = _normalize(scope_path)
         try:
@@ -318,19 +330,20 @@ class SupabaseHistoryManager:
                 "p_created_at": created_at_iso or "",
                 "p_audit_agent_id": audit_agent_id,
                 "p_audit_detail": audit_detail or {},
+                "p_source_channel": source_channel or "",
+                "p_policy": policy or "",
+                "p_base_commit_id": base_commit_id or "",
+                "p_client_commit_id": client_commit_id or "",
+                "p_proposed_tree_id": proposed_tree_id or "",
+                "p_intent_type": intent_type or "operation",
             }).execute()
             data = resp.data
-            if isinstance(data, bool):
-                ok = data
-            elif isinstance(data, list) and data:
-                ok = bool(data[0])
-            else:
-                ok = False
+            ok, txn_id = _decode_publish_result(data)
             if ok:
                 for attr in ("_head_cid_cache", "_root_hash_cache"):
                     if hasattr(self, attr):
                         delattr(self, attr)
-            return ok
+            return ok, txn_id
         except Exception as e:
             log_error(
                 f"[Publish] publish_mut_scope_update RPC failed for "
@@ -710,6 +723,28 @@ def _serialize_conflicts(conflicts: list | None) -> list:
         asdict(c) if hasattr(c, "__dataclass_fields__") else c
         for c in (conflicts or [])
     ]
+
+
+def _decode_publish_result(data) -> tuple[bool, int | None]:
+    """Decode publish_mut_scope_update's return value across RPC variants.
+
+    The v1 RPC (pre-2026-05-16) returned a plain BOOLEAN. The v2 RPC
+    returns ``TABLE(published BOOLEAN, txn_id BIGINT)`` so the engine can
+    cross-link the audit row to the new ``version_transactions`` row.
+    Supabase's REST layer surfaces these as ``bool`` and
+    ``list[dict]`` respectively.
+    """
+
+    if isinstance(data, bool):
+        return data, None
+    if isinstance(data, dict):
+        return bool(data.get("published")), data.get("txn_id")
+    if isinstance(data, list) and data:
+        first = data[0]
+        if isinstance(first, dict):
+            return bool(first.get("published")), first.get("txn_id")
+        return bool(first), None
+    return False, None
 
 
 def _parse_json_fields(entry: dict) -> None:

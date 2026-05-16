@@ -120,6 +120,12 @@ def run_post_push_hook(
         if deleted_paths:
             post_commit_delete(project_id, deleted_paths)
 
+        # Child-promotes-parent (07-version-engine-supplement.md §7.B).
+        # The promote step is best-effort: each ancestor's CAS happens
+        # independently, so a stale ancestor head triggers a retry but
+        # cannot block the just-landed child commit.
+        _promote_to_ancestor_scopes(repo, project_id, entry, scope_path)
+
         # Fan out commit_update over WebSocket to subscribed clients.
         # Best-effort: a notification failure must not block the
         # commit. We schedule on the running loop if there is one;
@@ -131,6 +137,40 @@ def run_post_push_hook(
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
         if raise_errors:
             raise
+
+
+def _promote_to_ancestor_scopes(repo, project_id: str, entry: dict, scope_path: str) -> None:
+    """Run scope-promote projections for the child commit's ancestor scopes.
+
+    No-op for root-scope commits and for commits whose own message already
+    carries the ``scope-promote`` trailer (so the projection does not
+    recurse into itself when the parent scope is itself a child of a
+    further ancestor).
+    """
+
+    if not scope_path:
+        return
+    message = entry.get("message", "") or ""
+    if "PuppyOne-Source: scope-promote" in message:
+        return
+    new_tree_hash = entry.get("scope_hash") or ""
+    new_commit_id = entry.get("commit_id") or ""
+    if not new_tree_hash or not new_commit_id:
+        return
+
+    try:
+        from src.mut_engine.application.parent_scope_promote import promote_to_parents
+        promote_to_parents(
+            repo,
+            project_id=project_id,
+            child_scope_path=scope_path,
+            child_new_tree_hash=new_tree_hash,
+            child_commit_actor=entry.get("who", "") or "",
+            child_commit_id=new_commit_id,
+            created_at_iso=entry.get("created_at", "") or "",
+        )
+    except Exception as exc:
+        log_warning(f"[PostCommit] scope-promote failed: {exc}")
 
 
 def schedule_post_push_hook(project_id: str, repo_manager, push_result: dict) -> None:

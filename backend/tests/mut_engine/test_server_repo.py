@@ -14,8 +14,8 @@ import threading
 
 import pytest
 
-from mut.core.object_store import ObjectStore
-from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+from src.mut_engine.infrastructure.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+from src.mut_engine.infrastructure.object_store import ObjectStore
 
 
 class FakeHistoryManager:
@@ -192,7 +192,7 @@ def memory_store(tmp_path):
 @pytest.fixture
 def server_repo(memory_store):
     from src.mut_engine.server.server_repo import PuppyOneServerRepo
-    from mut.server.scope_manager import ScopeManager
+    from src.mut_engine.infrastructure.scope_manager import ScopeManager
 
     history = FakeHistoryManager()
     audit = FakeAuditManager()
@@ -375,7 +375,7 @@ class TestWriteAndBuildScopeTree:
         server_repo.write_scope_files(scope, {"a.txt": b"content-a"})
         tree_hash = server_repo.build_scope_tree(scope)
 
-        from mut.core.tree import tree_to_flat
+        from src.mut_engine.infrastructure.tree import tree_to_flat
         flat = tree_to_flat(memory_store, tree_hash)
         assert "a.txt" in flat
         content = memory_store.get(flat["a.txt"])

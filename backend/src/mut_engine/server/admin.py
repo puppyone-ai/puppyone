@@ -17,10 +17,10 @@ from __future__ import annotations
 
 import asyncio
 
-from mut.core.diff import diff_trees
-from mut.core.object_store import ObjectStore
-from mut.core.tree import read_tree
-from mut.foundation.git_format import encode_object, encode_tree
+from src.mut_engine.infrastructure.diff import diff_trees
+from src.mut_engine.infrastructure.git_format import encode_object, encode_tree
+from src.mut_engine.infrastructure.object_store import ObjectStore
+from src.mut_engine.infrastructure.tree import read_tree
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_info, log_warning

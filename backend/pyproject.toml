@@ -41,7 +41,6 @@ dependencies = [
     "apscheduler>=3.10.4",
     "watchdog>=6.0.0",
     "pymupdf>=1.25.0",
-    "mutai>=0.1.6",
     "zipstream-ng>=1.9.0",
 ]
 

@@ -31,8 +31,8 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from mut.core import tree as tree_mod
-from mut.core.object_store import ObjectStore
+from src.mut_engine.infrastructure import tree as tree_mod
+from src.mut_engine.infrastructure.object_store import ObjectStore
 
 from src.mut_engine.services.object_compat import promote_tree_compat
 

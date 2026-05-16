@@ -1,2 +1,0 @@
-"""Legacy MUT protocol adapter."""
-

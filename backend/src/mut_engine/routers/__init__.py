@@ -1,8 +1,13 @@
 """
-HTTP entry points for the MUT engine.
+HTTP entry points for the version engine.
 
-  content_router    Content API (/api/v1/content/...)
-  protocol_router   MUT wire protocol (/api/v1/mut/...)
-  access_point      Access Key URL variant (/api/v1/mut/ap/{key}/...)
-  audit_router      Audit log query (read-only, does not go through MUT)
+  content_router       Content API (/api/v1/content/...)
+  content_history      Version history & rollback API
+  access_point         Access-key → (project, scope) resolver (no HTTP routes)
+  access_point_fs      Scoped cloud filesystem CLI backend (/api/v1/ap-fs/...)
+  audit_router         Audit log query (read-only)
+  ws_router            Server→client commit notifications (WebSocket)
+
+Git smart-HTTP routes live under ``adapters/git/router.py``; the legacy
+MUT wire protocol has been removed.
 """

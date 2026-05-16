@@ -11,12 +11,12 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from mut.core.merge import merge_file_sets, three_way_merge
-from mut.core.object_store import ObjectStore
-from mut.core.protocol import normalize_path
-from mut.server.scope_manager import ScopeManager
+from src.mut_engine.infrastructure.merge import merge_file_sets, three_way_merge
+from src.mut_engine.infrastructure.object_store import ObjectStore
+from src.mut_engine.infrastructure.paths import normalize_path
+from src.mut_engine.infrastructure.scope_manager import ScopeManager
 
-from src.mut_engine.adapters.git.router import _parse_receive_pack_request
+from src.mut_engine.adapters.git.receive_pack import parse_receive_pack_request as _parse_receive_pack_request
 from src.mut_engine.application.conflict_policy import (
     merge_file_sets_for_manual_review,
     select_conflict_policy,
@@ -381,7 +381,9 @@ def test_manual_review_policy_merge_matrix(
     assert [c.strategy for c in result.manual_conflicts] == expected_manual_strategies
 
 
-def test_conflict_policy_defaults_to_manual_review():
+def test_conflict_policy_default_is_last_write_wins():
+    """V1 default per 07-version-engine-supplement.md §7: safe auto-merge
+    runs first, then parent-scope-wins, then LWW. Manual review is opt-in."""
     decision = select_conflict_policy(
         scope_path="docs",
         source_channel="git",
@@ -389,8 +391,8 @@ def test_conflict_policy_defaults_to_manual_review():
         paths=["README.md"],
     )
 
-    assert decision.policy == "manual_review"
-    assert decision.reason == "default_manual_review"
+    assert decision.policy == "last_write_wins"
+    assert decision.reason == "default:last_write_wins"
 
 
 _VALID_REFS = [
