@@ -1,5 +1,12 @@
 # CLI 架构
 
+> **Historical — current model is in
+> [07-version-engine-supplement.md](07-version-engine-supplement.md).**
+> The `mut` data-plane CLI has been removed. The PuppyOne data plane
+> is now **stock `git`** against the access-point URL
+> `https://<host>/git/ap/<access_key>.git`. `puppyone fs` is unchanged
+> and remains the cloud-side scoped filesystem CLI.
+
 PuppyOne 有两个 CLI 工具，职责分明：
 
 - **`puppyone`** — 控制平面 + Access Point scoped filesystem 操作（登录、项目管理、Access Point 管理、`puppyone fs` 文件操作）

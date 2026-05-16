@@ -266,6 +266,14 @@ class Settings(BaseSettings):
     MUT_VERSION_OUTBOX_ENABLED: bool = True
     MUT_VERSION_OUTBOX_INTERVAL_SECONDS: int = 30
     MUT_VERSION_OUTBOX_BATCH_SIZE: int = 50
+
+    # B14: optional in-process per-scope lock that runs ahead of the SQL
+    # CAS. It does NOT change correctness — the SQL CAS is still the
+    # linearisation point — but on pathologically hot scopes it sheds
+    # load by serialising the local merge/build work so the workers
+    # don't all race and burn S3 reads. Off by default; flip on if a
+    # specific project is CAS-thrashing.
+    MUT_PER_SCOPE_LOCAL_LOCK: bool = False
     MUT_OBJECT_GC_ENABLED: bool = False
     MUT_OBJECT_GC_DRY_RUN: bool = True
     MUT_OBJECT_GC_INTERVAL_SECONDS: int = 60 * 60

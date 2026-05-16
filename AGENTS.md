@@ -1,5 +1,15 @@
 # PuppyOne (ContextBase)
 
+> **AI assistants working on this codebase**: the current version-engine
+> architecture is in
+> [`docs/architecture/07-version-engine-supplement.md`](docs/architecture/07-version-engine-supplement.md).
+> The MUT wire-protocol references elsewhere in this file are
+> historical — PuppyOne is now a Git server, and the data plane is
+> stock `git` against `https://<host>/git/ap/<access_key>.git` plus
+> the `puppyone fs` HTTP API. See
+> [`docs/architecture/07-version-engine-todo.md`](docs/architecture/07-version-engine-todo.md)
+> for the migration status.
+
 ## Overview
 
 PuppyOne is a **cloud file system built for AI Agents**, centered around two core pillars: **Connect** and **Collaborate**.

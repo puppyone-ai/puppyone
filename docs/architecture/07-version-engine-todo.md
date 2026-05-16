@@ -17,6 +17,79 @@
 
 ---
 
+## V1 status summary (Rounds 1–5 shipped on `feat/version-engine-v1`)
+
+V1 closes the new-Git-server pipeline end-to-end. Below is what
+actually shipped vs what remains for a future phase. Per-item status
+in the tables further down is left at "☐" so the original PR-shape
+breakdown stays browsable, but **this summary is authoritative**.
+
+### Shipped (V1)
+
+| Area | Items | Where |
+|------|-------|-------|
+| A.  MUT removal | A1–A12 | Rounds 1–2 commits |
+| B.  Engine core | B1–B12, B14 | Rounds 2–3 + Round 5 |
+| B13 resolver-agent dispatch (scaffold) | outbox event + worker dispatch + HTTP API | Round 4 |
+| C.  Package layout | C2–C4 | Round 3 |
+| D.  Storage migrations | D1–D8 | Rounds 1–2 + Round 5 |
+| E.  Git adapter polish | E1, E2, E4 (curated branch allowlist), E5 (LFS reject), E6 (tagged outcomes) | Rounds 3 + 5 |
+| F.  Connectors | F1 (audit), F2 (docs + ap_base now Git URL), F3 (doc disambiguation) | Round 5 |
+| H.  FS indexing | H1, H2, H4, H5 (path index only; H3 full-text deferred) | Round 5 |
+| I.  Shadow snapshots | I1 spec, I2 ingest endpoint | Round 5 |
+| J.  Audit | J1 backfill, J2 join view | Round 5 |
+| K.  Tests | K1–K9 (covered via unit + acceptance tests; real-git CLI K-tests Windows-flaky on baseline) | Rounds 3–4 |
+| L.  Docs | L1, L2 (supplement + this TODO), L3, L4, L7 | Rounds 1, 5 |
+
+Total shipped: ~ 60 of the original ~80 items.
+
+### Deferred to the next phase
+
+These are out of scope for V1 because they need either external
+service wiring, a separate desktop/client deliverable, or a load
+budget V1 doesn't have time for. The interfaces V1 ships are designed
+so each is a plug-in, not a re-architecture.
+
+| Area | Items | Why deferred |
+|------|-------|--------------|
+| B13 (extension) | hosted-resolver-agent worker that actually proposes resolutions | needs a product decision on who runs the agent (in-house, customer-side, Slack-bot bridge). V1 ships the outbox event + the resolve API; production registers a hook via `register_pending_conflict_hook`. |
+| C1 | full `infrastructure/` split of `server/backends/*` into ref/version/audit/scope/outbox/conflict repositories | tests + admin + GC depend on the current shape; refactor is behavior-preserving but large. Tracked separately. |
+| C5 | drop `backends/__init__.py:safe_data` shim | depends on C1. |
+| E3 | SSH transport (`git@host:project.git`) | requires SSH server + key-management plumbing on Railway. Smart-HTTP works for V1. |
+| F4 | format-conversion adaptor layer (Notion/CSV/sheet → tree) | each format is its own subsystem. The existing connectors already cover ingest; structured-conversion is a separate roadmap. |
+| G1 | rewrite `03-cli.md` (the "mut data plane" CLI doc) | annotated in V1 (L3); a full rewrite waits for the puppyone CLI command set to stabilise. |
+| G2 | `puppyone clone` sugar | discoverable but the stock `git clone` URL is shown in the access-create response now, which closes the immediate gap. |
+| G3, G4 | CLI integration with FS index / shadow snapshots | depends on a CLI release. The server endpoints are ready (`/api/v1/ap-fs/find`, `/api/v1/local-snapshots`). |
+| G5 | local PuppyOne sync daemon | desktop deliverable. |
+| H3 | content full-text index (Turbopuffer / pg_trgm over blob bytes) | needs the Turbopuffer wiring decision. V1 path/metadata index is in. |
+| I3 | object upload pipeline for shadow snapshots | spec'd in 08-shadow-snapshots §4; lands when the client daemon starts pushing blobs. |
+| I4 | `puppyone fs grep --ref local:…` query path | depends on H3 + I3. |
+| I5 | promote-shadow-to-commit | depends on I3 (blobs need to be on the server). |
+| I6 | shadow-snapshot TTL / GC | depends on usage data; no urgency until shadow snapshots have real traffic. |
+| J3 | read-access audit (clone/fetch) | low signal until SSH lands; smart-HTTP fetches already appear in nginx logs. |
+| K10 | 100k-file load test | needs a perf rig that runs on hosted Supabase. |
+| K11 | outbox chaos test | needs a failure-injection harness. |
+| L5 | dedicated 09-conflict-policy.md doc | content lives in the supplement §7 + the policy module docstring. |
+| L6 | "policy DSL" doc | depends on B11 productisation. |
+
+### Open design questions that need product input
+
+These come from supplement §9 — they did NOT block V1, but the
+deferred items above can't fully land until they have answers.
+
+- Q1: how deep is the shadow-snapshot index (path-only vs content)?
+- Q2: shadow-snapshot retention / TTL policy.
+- Q3: promote-commit attribution shape.
+- Q4: where conflict-policy rules live (admin DSL vs JSON file vs UI).
+- Q5: stock-git vs `puppyone clone` sugar.
+- Q6: connector / service-adapter naming finalisation.
+- Q7: where the MUT git utilities ultimately live (already done as
+  `application/*` per Round 2; leaving as-is).
+
+---
+
+---
+
 ## A. Remove MUT wire protocol and `mut` package dependency
 
 | # | Status | P | Item |

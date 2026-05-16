@@ -1,7 +1,17 @@
 # Connector 架构设计
 
+> **Terminology note** (per
+> [07-version-engine-supplement.md](07-version-engine-supplement.md)
+> §4): "Connector" here means **Service Adapter** — third-party data
+> source / OAuth / sync code. Protocol-layer adapters (Git
+> smart-HTTP, the Product Operation Adapter, the FS CLI backend)
+> live under `backend/src/mut_engine/adapters/` and are a different
+> kind of "adapter". When in doubt, treat this doc as "service-layer
+> connector spec" and consult the supplement for the protocol-layer
+> contract.
+
 > Connector 是 PuppyOne 的数据接入层——将外部世界的各种数据源、执行环境、协议端点
-> 统一接入 MUT tree。
+> 统一接入 PuppyOne hosted file system。
 >
 > 前置阅读：[01-mut-engine.md](01-mut-engine.md)（MUT 引擎架构）、
 > [02-access-points.md](02-access-points.md)（Access Point 与认证）

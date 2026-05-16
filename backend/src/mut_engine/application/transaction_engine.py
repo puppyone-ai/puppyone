@@ -87,6 +87,41 @@ class CrossScopeSubmissionError(PermissionError):
         )
 
 
+_SCOPE_LOCK_REGISTRY: dict[tuple[str, str], asyncio.Lock] = {}
+_SCOPE_LOCK_REGISTRY_LOCK = asyncio.Lock()
+
+
+async def _acquire_scope_local_lock(project_id: str, scope_path: str):
+    """B14: cheap per-scope coalescing valve.
+
+    Returns a context manager. When ``MUT_PER_SCOPE_LOCAL_LOCK`` is on,
+    publishes targeting the same ``(project_id, scope_path)`` queue up
+    in-process so concurrent writers don't all simultaneously download
+    the same scope tree, build the same merge candidate, and race the
+    SQL CAS. This is OPTIONAL load-shedding — the SQL CAS remains the
+    correctness boundary. When off, the helper returns a no-op context
+    manager and behavior is identical to today.
+    """
+
+    from src.config import settings
+    if not settings.MUT_PER_SCOPE_LOCAL_LOCK:
+        class _NoLock:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+        return _NoLock()
+
+    key = (project_id, scope_path)
+    async with _SCOPE_LOCK_REGISTRY_LOCK:
+        lock = _SCOPE_LOCK_REGISTRY.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _SCOPE_LOCK_REGISTRY[key] = lock
+    return lock
+
+
 class GitNativeTransactionEngine:
     """Single publish authority for operation and version submissions."""
 
@@ -114,11 +149,13 @@ class GitNativeTransactionEngine:
             f"actor={intent.actor}",
         )
 
-        return await self._apply_operation_optimistic(
-            intent=intent,
-            splice=splice,
-            started_ms=started_ms,
-        )
+        lock_ctx = await _acquire_scope_local_lock(intent.project_id, scope_norm)
+        async with lock_ctx:
+            return await self._apply_operation_optimistic(
+                intent=intent,
+                splice=splice,
+                started_ms=started_ms,
+            )
 
     async def submit_version(
         self,
@@ -134,7 +171,9 @@ class GitNativeTransactionEngine:
             f"actor={intent.actor}",
         )
 
-        return await self._submit_version_optimistic(intent, started_ms)
+        lock_ctx = await _acquire_scope_local_lock(intent.project_id, scope_norm)
+        async with lock_ctx:
+            return await self._submit_version_optimistic(intent, started_ms)
 
     async def rollback(
         self,
@@ -150,7 +189,9 @@ class GitNativeTransactionEngine:
             f"actor={intent.actor} target={intent.target_commit_id[:12]}",
         )
 
-        return await self._rollback_optimistic(intent, started_ms)
+        lock_ctx = await _acquire_scope_local_lock(intent.project_id, scope_norm)
+        async with lock_ctx:
+            return await self._rollback_optimistic(intent, started_ms)
 
     async def resolve(
         self,

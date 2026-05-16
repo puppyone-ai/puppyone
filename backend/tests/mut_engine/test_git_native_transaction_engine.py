@@ -1328,7 +1328,9 @@ def test_git_access_point_readonly_push_is_rejected(
         )
 
     assert response.status_code == 200
-    assert b"ng refs/heads/main access point is read-only" in response.content
+    # E4/E6: ng line now carries the structured "puppyone-rejected:" tag
+    # so tooling can disambiguate the rejection class.
+    assert b"ng refs/heads/main puppyone-rejected: access point is read-only" in response.content
     assert server_repo.get_scope_head_commit_id("docs") == ""
     assert server_repo.audit.events == []
 
@@ -2016,8 +2018,13 @@ def test_git_receive_pack_rejects_non_main_delete_multiple_and_malformed_request
             headers={"content-type": "application/x-git-receive-pack-request"},
         )
 
-    assert b"only refs/heads/main is writable" in non_main_resp.content
-    assert b"delete is not supported" in delete_resp.content
+    # E4: the allowlist now accepts conventional feature-branch prefixes
+    # (feat/, fix/, feature/, etc.). ``refs/heads/side`` is not on the
+    # list and gets the new structured rejection.
+    assert b"puppyone-rejected" in non_main_resp.content
+    assert b"not in the writable allowlist" in non_main_resp.content
+    # E4: delete is still refused; new wording cites the rollback API.
+    assert b"puppyone-rejected: delete is not supported" in delete_resp.content
     assert multiple_resp.status_code == 400
     assert "one scope-bound ref update" in multiple_resp.json()["detail"]
     assert malformed_resp.status_code == 400

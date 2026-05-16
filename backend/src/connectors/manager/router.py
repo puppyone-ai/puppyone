@@ -658,12 +658,14 @@ async def _create_filesystem(
         name=payload.name or "Filesystem Sync",
         status=sync.status or "active",
         access_key=sync.access_key,
-        ap_base=f"/api/v1/mut/ap/{sync.access_key}" if sync.access_key else None,
+        # Post-MUT: the access_key now authorises Git smart-HTTP at
+        # /git/ap/<key>.git and the FS HTTP API at /api/v1/ap-fs/*.
+        ap_base=f"/git/ap/{sync.access_key}.git" if sync.access_key else None,
     )
 
 
 def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
-    """Create a direct access point (generic MUT protocol access)."""
+    """Create a direct access point (Git + FS HTTP API)."""
     sb = _get_client()
     cfg = payload.config
     scope = cfg.get("scope", {})
@@ -690,7 +692,7 @@ def _create_direct(payload: UnifiedConnectionCreate) -> UnifiedConnectionOut:
         name=payload.name or "Direct Access",
         status="active",
         access_key=key,
-        ap_base=f"/api/v1/mut/ap/{key}",
+        ap_base=f"/git/ap/{key}.git",
     )
 
 

@@ -421,6 +421,8 @@ def create_app() -> FastAPI:
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
     from src.mut_engine.routers.conflict_router import router as conflict_router
     app.include_router(conflict_router, prefix="/api/v1/content", tags=["conflicts"])
+    from src.mut_engine.routers.shadow_snapshot_router import router as shadow_router
+    app.include_router(shadow_router, prefix="/api/v1", tags=["shadow-snapshots"])
     from src.mut_engine.adapters.git.router import router as git_protocol_router
     app.include_router(git_protocol_router, tags=["git-protocol"])
     # WebSocket /ws — server→client commit_update notifications. Required

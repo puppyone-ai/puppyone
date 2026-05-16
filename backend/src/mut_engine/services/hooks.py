@@ -123,6 +123,12 @@ def run_post_push_hook(
         # cannot block the just-landed child commit.
         _promote_to_ancestor_scopes(repo, project_id, entry, scope_path)
 
+        # Refresh the materialised fs_path_index so the next
+        # `puppyone fs find` / `stat` query sees the new files (H1).
+        # Best-effort: a Supabase blip degrades fs queries to live S3
+        # walks, not a write failure.
+        _refresh_fs_path_index(repo, project_id, entry, commit_id, scope_path)
+
         # Fan out commit_update over WebSocket to subscribed clients.
         # Best-effort: a notification failure must not block the
         # commit. We schedule on the running loop if there is one;
@@ -134,6 +140,44 @@ def run_post_push_hook(
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
         if raise_errors:
             raise
+
+
+def _refresh_fs_path_index(
+    repo, project_id: str, entry: dict, commit_id: str, scope_path: str,
+) -> None:
+    """Update the materialised fs_path_index for the just-landed commit.
+
+    Diffs against the previous head of the same scope so we only touch
+    rows that actually changed; on first-ever scope write the "previous"
+    is empty and every file becomes an insert.
+    """
+
+    try:
+        from src.mut_engine.services.fs_path_index import (
+            refresh_fs_path_index_for_commit,
+        )
+    except Exception as exc:
+        log_warning(f"[PostCommit] fs_path_index import failed: {exc}")
+        return
+
+    parents = entry.get("parents") or []
+    previous_commit_id = ""
+    if isinstance(parents, list) and parents:
+        previous_commit_id = parents[0]
+    elif entry.get("parent_commit_id"):
+        previous_commit_id = entry["parent_commit_id"]
+
+    try:
+        refresh_fs_path_index_for_commit(
+            repo,
+            project_id=project_id,
+            commit_id=commit_id,
+            scope_path=scope_path,
+            previous_commit_id=previous_commit_id,
+            actor=entry.get("who", "") or "",
+        )
+    except Exception as exc:
+        log_warning(f"[PostCommit] fs_path_index refresh failed: {exc}")
 
 
 def _promote_to_ancestor_scopes(repo, project_id: str, entry: dict, scope_path: str) -> None:

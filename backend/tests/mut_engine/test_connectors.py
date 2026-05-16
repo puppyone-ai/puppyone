@@ -220,9 +220,9 @@ class TestUnifiedFilesystemOutput:
             out = await _create_filesystem(payload, _user_id="user_1")
 
         assert out.access_key == "cli_secret_xyz", \
-            "access_key must be returned so UI can render the mut connect command"
-        assert out.ap_base == "/api/v1/mut/ap/cli_secret_xyz", \
-            "ap_base must point to the MUT protocol endpoint for this access key"
+            "access_key must be returned so the UI can render the git remote URL"
+        assert out.ap_base == "/git/ap/cli_secret_xyz.git", \
+            "ap_base must point at the Git smart-HTTP URL for this access key"
         assert out.id == "ap_42"
         assert out.provider == "filesystem"
 
