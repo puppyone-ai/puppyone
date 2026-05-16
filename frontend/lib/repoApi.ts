@@ -55,7 +55,7 @@ export interface Connector {
 
 export interface RepoIdentity {
   project_id: string;
-  url: string;                 // https://<api>/api/v1/mut/<project_id>
+  url: string;                 // https://<api>/git/<project_id>.git — Git remote
   prompt_template: string;
   content_initialized?: boolean;
   head_commit_id?: string | null;

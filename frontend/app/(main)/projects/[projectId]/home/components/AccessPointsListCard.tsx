@@ -78,7 +78,10 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
 
   switch (conn.provider) {
     case 'filesystem':
-      return `${apiBase}/api/v1/mut/ap/${conn.access_key}`;
+      // V1 post-MUT-removal: filesystem access keys authorise the Git
+      // smart-HTTP remote at /git/ap/<key>.git. The old MUT URL
+      // (/api/v1/mut/ap/<key>) was removed with the wire protocol.
+      return `${apiBase}/git/ap/${conn.access_key}.git`;
     case 'mcp':
     case 'agent':
       return `${apiBase}/api/v1/mcp/proxy/${conn.access_key}`;
@@ -101,7 +104,10 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
 function buildCliCommand(conn: DashboardConnection, url: string | null): string | null {
   if (!url || !conn.access_key) return null;
   if (conn.provider !== 'filesystem') return null;
-  return `mut connect ${url} --credential ${conn.access_key}`;
+  // V1 (post-MUT removal): stock git clone is the canonical setup. The
+  // user authenticates once via `git credential.helper store`; see the
+  // detail panel's "Authenticate" step for the full one-line helper.
+  return `git clone ${url}`;
 }
 
 // Single-line "label + Copy" row.  Earlier versions also rendered
@@ -601,10 +607,10 @@ function ApListRow({
                 onCopy={onCopy}
               />
             )}
-            {/* `mut connect` is the *one-time setup* command, not a
+            {/* `git clone` is the *one-time setup* command, not a
                 command the user runs daily.  Once the local folder
                 is connected, day-to-day work happens via local
-                `mut push` / `mut pull` and the user never needs to
+                `git push` / `git pull` and the user never needs to
                 touch the URL again.  The `SETUP` label makes that
                 lifecycle explicit so users who already connected
                 don't try to re-paste this every time they revisit

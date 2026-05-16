@@ -103,7 +103,10 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 
   const accessKey = sync.access_key || '';
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  // V1 (post-MUT-removal): the access key now authorises a stock Git
+  // smart-HTTP remote at /git/ap/<key>.git. The legacy MUT wire URL
+  // (/api/v1/mut/ap/<key>) was deleted with the protocol.
+  const cloneUrl = `${apiBase}/git/ap/${accessKey}.git`;
 
   return (
     <PanelShell
@@ -318,10 +321,10 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
         {accessKey && (
           <CollapsibleSection title="Manual Sync Steps" defaultOpen={false}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <SyncStep step={1} command="mut pull" hint="Get the latest from cloud" />
+              <SyncStep step={1} command="git pull --ff-only" hint="Get the latest from cloud" />
               <SyncStep step={2} label="Edit files" />
-              <SyncStep step={3} command={'mut commit -m "your message"'} hint="Snapshot your changes locally" />
-              <SyncStep step={4} command="mut push" hint="Send your changes to cloud" isLast />
+              <SyncStep step={3} command={'git add -A && git commit -m "your message"'} hint="Snapshot your changes locally" />
+              <SyncStep step={4} command="git push origin main" hint="Send your changes to cloud" isLast />
             </div>
           </CollapsibleSection>
         )}
@@ -362,29 +365,34 @@ function SetupTabs({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; acces
         />
       </div>
 
-      <CommandBlock command="pip install mutai" label="Install" />
+      <CommandBlock
+        command={`git config --global credential.helper store\necho "https://x-access-token:${accessKey}@$(echo ${cloneUrl} | awk -F/ '{print $3}')" > ~/.git-credentials`}
+        label="Authenticate"
+      />
 
       {mode === 'clone' ? (
         <>
           <CommandBlock
-            command={`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
+            command={`git clone ${cloneUrl}`}
             label="Clone"
           />
           <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4, lineHeight: 1.5 }}>
             Run once. Creates a local <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>./{scopeName}/</code> folder
-            populated from this context.
+            populated from this context. Uses stock <code>git</code> — no extra
+            tools to install.
           </div>
         </>
       ) : (
         <>
           <CommandBlock
-            command={`cd /path/to/your/folder\nmut connect ${cloneUrl} \\\n  --credential ${accessKey}`}
-            label="Connect"
+            command={`cd /path/to/your/folder\ngit init -b main\ngit remote add origin ${cloneUrl}\ngit pull --rebase origin main\ngit push -u origin main`}
+            label="Connect existing folder"
           />
           <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4, lineHeight: 1.5 }}>
-            Run inside an existing folder. Three-way merges your local files with cloud state and pushes
-            the result. Files only on disk get uploaded; files only in cloud get downloaded.
-            <span style={{ color: 'var(--po-warning)', fontWeight: 500 }}> No overwrite, no data loss.</span>
+            Run inside an existing folder. <code>git pull --rebase</code> brings in
+            cloud-side work; the server applies its V1 conflict policy (safe
+            auto-merge → parent-scope-wins → LWW) on push.
+            <span style={{ color: 'var(--po-warning)', fontWeight: 500 }}> Any unsafe conflict pauses the push as a manual-review row.</span>
           </div>
         </>
       )}
@@ -416,39 +424,48 @@ function SetupModeTab({ active, label, hint, onClick }: { active: boolean; label
 function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; accessKey: string; scopeName: string }) {
   const [copied, setCopied] = useState(false);
 
+  const host = (() => {
+    try { return new URL(cloneUrl).host; }
+    catch { return 'qubits-api.puppyone.ai'; }
+  })();
   const prompt = [
-    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
+    `Sync my local folder with PuppyOne cloud using stock \`git\`.`,
     ``,
-    `## Install (one-time)`,
+    `## Authenticate (one-time)`,
     `\`\`\`bash`,
-    `pip install mutai`,
+    `# Tell git to use this access key as the password for ${host}.`,
+    `git config --global credential.helper store`,
+    String.raw`printf "https://x-access-token:%s@%s\n" "` + accessKey + `" "` + host + `" >> ~/.git-credentials`,
     `\`\`\``,
     ``,
     `## Setup — choose one path`,
     ``,
     `**A. Clone to a new folder** (no local files yet):`,
     `\`\`\`bash`,
-    `mut clone ${cloneUrl} --credential ${accessKey}`,
+    `git clone ${cloneUrl}`,
     `cd ${scopeName}`,
     `\`\`\``,
     ``,
     `**B. Connect an existing folder** (already have files locally):`,
     `\`\`\`bash`,
     `cd /path/to/your/existing/folder`,
-    `mut connect ${cloneUrl} --credential ${accessKey}`,
+    `git init -b main`,
+    `git remote add origin ${cloneUrl}`,
+    `git pull --rebase origin main`,
+    `git push -u origin main`,
     `\`\`\``,
-    `Three-way merges with whatever is on disk — no overwrite, no data loss.`,
     ``,
     `## Sync workflow`,
     `\`\`\`bash`,
-    `mut pull                          # get latest from cloud`,
+    `git pull --ff-only               # get latest from cloud`,
     `# ... make your edits ...`,
-    `mut commit -m "describe changes"  # snapshot locally`,
-    `mut push                          # send to cloud`,
+    `git add -A && git commit -m "describe changes"`,
+    `git push origin main             # send to cloud`,
     `\`\`\``,
     ``,
-    `Run \`mut status\` to check for uncommitted changes.`,
-    `Run \`mut log\` to view commit history.`,
+    `If a push is rejected with \`puppyone-pending: review required\`,`,
+    `open the PuppyOne UI; the conflict is queued for manual review.`,
+    `Use \`git status\` to check uncommitted changes, \`git log --oneline\` for history.`,
   ].join('\n');
 
   const handleCopy = () => {
