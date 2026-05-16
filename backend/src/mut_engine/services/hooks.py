@@ -1,13 +1,14 @@
 """
-Post-commit hooks — maintain PuppyOne access_points table consistency after MUT writes.
+Post-commit hooks — keep ``repo_scopes`` consistent with tree mutations.
 
-These hooks update the access_points table when files are deleted or moved
-in the MUT tree, ensuring access point paths and scope paths stay consistent.
+When files/folders are deleted or moved in a PuppyOne project, scopes
+that referenced those paths need to follow the change (rename) or get
+surfaced as orphaned (delete). Both hooks are best-effort: failures
+log and don't propagate.
 
-Best-effort: failures are logged, not propagated to the caller.
-
-Also provides `push_and_finalize` — the canonical async helper that ensures
-every push (regardless of call site) triggers the post-push hook.
+Also provides ``push_and_finalize`` — the canonical async helper that
+ensures every push (regardless of call site) triggers the post-push
+hook.
 """
 
 from __future__ import annotations
@@ -311,56 +312,13 @@ def _update_global_root(repo, push_result: dict) -> None:
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
-    """After deleting paths from MUT tree, clean up dangling access points
-    AND repo_scopes (the new home for scope geometry).
-
-    Both legacy access_points rows and new repo_scopes rows are visited;
-    each table's cleanup is independently best-effort so a failure on
-    one doesn't skip the other. Once access_points is dropped post-data-
-    migration, the legacy block runs and finds nothing — no-op.
+    """After deleting paths from the tree, surface any ``repo_scopes`` rows
+    whose path is now orphaned. Best-effort: failures log and don't
+    propagate.
     """
     if not deleted_paths:
         return
-    _post_commit_delete_legacy_access_points(project_id, deleted_paths)
     _post_commit_delete_repo_scopes(project_id, deleted_paths)
-
-
-def _post_commit_delete_legacy_access_points(
-    project_id: str, deleted_paths: list[str],
-) -> None:
-    """Legacy: nullify path / orphan scope on access_points rows."""
-    try:
-        from src.infra.supabase.client import SupabaseClient
-        client = SupabaseClient().client
-        resp = (
-            client.table("access_points")
-            .select("id, path, config")
-            .eq("project_id", project_id)
-            .execute()
-        )
-        for row in resp.data or []:
-            node_path = row.get("path") or ""
-            conn_id = row["id"]
-
-            if node_path and _path_matches_any(node_path, deleted_paths):
-                client.table("access_points").update(
-                    {"path": None}
-                ).eq("id", conn_id).execute()
-                log_info(f"[PostCommit] Cleared dangling path on access point {conn_id}")
-
-            config = row.get("config") or {}
-            scope = config.get("scope") or {}
-            scope_path = scope.get("path", "")
-            if scope_path and _path_matches_any(scope_path, deleted_paths):
-                config = dict(config)
-                config["scope"] = {**scope, "path": "", "_orphaned_from": scope_path}
-                client.table("access_points").update(
-                    {"config": config}
-                ).eq("id", conn_id).execute()
-                log_warning(f"[PostCommit] Orphaned scope path on access point {conn_id}")
-
-    except Exception as e:
-        log_error(f"[PostCommit] delete hook (access_points) failed: {e}")
 
 
 def _post_commit_delete_repo_scopes(
@@ -399,35 +357,10 @@ def _post_commit_delete_repo_scopes(
 
 
 def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
-    """After moving/renaming paths in MUT tree, update access point AND
-    repo_scopes references.
-
-    Both updates are best-effort + independent."""
-    _post_commit_move_legacy_access_points(project_id, old_prefix, new_prefix)
+    """After moving/renaming paths in the tree, rewrite ``repo_scopes.path``
+    so scopes that lived under ``old_prefix`` follow the move.
+    """
     _post_commit_move_repo_scopes(project_id, old_prefix, new_prefix)
-
-
-def _post_commit_move_legacy_access_points(
-    project_id: str, old_prefix: str, new_prefix: str,
-) -> None:
-    """Legacy: rewrite access_points.path / config.scope.path on rename."""
-    try:
-        from src.infra.supabase.client import SupabaseClient
-        client = SupabaseClient().client
-        resp = (
-            client.table("access_points")
-            .select("id, path, config")
-            .eq("project_id", project_id)
-            .execute()
-        )
-        for row in resp.data or []:
-            updates = _build_move_updates(row, old_prefix, new_prefix)
-            if updates:
-                client.table("access_points").update(updates).eq("id", row["id"]).execute()
-                log_info(f"[PostCommit] Updated access point {row['id']} after move")
-
-    except Exception as e:
-        log_error(f"[PostCommit] move hook (access_points) failed: {e}")
 
 
 def _post_commit_move_repo_scopes(
@@ -472,27 +405,6 @@ def _post_commit_move_repo_scopes(
                 )
     except Exception as e:
         log_error(f"[PostCommit] move hook (repo_scopes) failed: {e}")
-
-
-def _build_move_updates(row: dict, old_prefix: str, new_prefix: str) -> dict:
-    """Build update dict for a single access point row after a path move."""
-    updates: dict = {}
-
-    node_path = row.get("path") or ""
-    if node_path:
-        new_node_path = _rewrite_path(node_path, old_prefix, new_prefix)
-        if new_node_path != node_path:
-            updates["path"] = new_node_path
-
-    config = row.get("config") or {}
-    scope = config.get("scope") or {}
-    scope_path = scope.get("path", "")
-    if scope_path:
-        new_scope_path = _rewrite_path(scope_path, old_prefix, new_prefix)
-        if new_scope_path != scope_path:
-            updates["config"] = {**config, "scope": {**scope, "path": new_scope_path}}
-
-    return updates
 
 
 def _path_matches_any(path: str, deleted_paths: list[str]) -> bool:

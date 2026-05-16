@@ -870,21 +870,22 @@ async def get_agent_by_mcp_key(
         }
         accesses_data.append(access_entry)
 
-    # Lookup the access_point creator (user_id) so the MCP service can pass
+    # Lookup the connector creator so the MCP service can pass
     # X-Acting-User-Id on subsequent /internal/nodes/* calls (security: C-3).
+    # ``agent.id`` is the row id in ``connectors`` for the agent.
     owner_user_id = ""
     try:
         from src.infra.supabase.client import SupabaseClient
         ap_row = (
             SupabaseClient().get_client()
-            .table("access_points")
-            .select("user_id")
+            .table("connectors")
+            .select("created_by")
             .eq("id", agent.id)
             .limit(1)
             .execute()
         )
         if ap_row.data:
-            owner_user_id = ap_row.data[0].get("user_id") or ""
+            owner_user_id = ap_row.data[0].get("created_by") or ""
     except Exception:
         pass
 

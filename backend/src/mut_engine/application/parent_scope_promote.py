@@ -19,7 +19,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from src.mut_engine.application.git_commit import build_git_commit
+from src.mut_engine.application.git_commit import (
+    GitCommitInvariantError,
+    build_git_commit,
+)
 from src.mut_engine.application.root_projection import graft_subtree
 from src.mut_engine.application.tree_objects import flatten_tree_to_bytes
 from src.mut_engine.application.path_utils import normalize_path
@@ -103,14 +106,20 @@ def promote_to_parents(
                 f"PuppyOne-Child-Commit: {child_commit_id}\n"
                 f"PuppyOne-Child-Scope: {child_norm}\n"
             )
-            new_commit = build_git_commit(
+            new_commit, cordon_used = _build_promote_commit(
                 repo,
+                ancestor=ancestor,
                 tree_sha=new_tree,
                 parent_sha=current_head or "",
                 who=child_commit_actor or "scope-promote",
                 message=promote_message,
                 created_at_iso=created_at_iso,
             )
+            # When ancestry is cordoned (parent_sha dropped), don't tell
+            # publish_scope_update that we still chain off current_head —
+            # the new commit is an orphan, so the CAS precondition has to
+            # match. We still pass current_head as the *scope* base for
+            # the optimistic update of mut_scope_state itself.
             publish = getattr(repo, "publish_scope_update", None)
             if publish is None:
                 log_warning(
@@ -149,9 +158,10 @@ def promote_to_parents(
                     "new_commit_id": new_commit,
                     "new_scope_hash": new_tree,
                 })
+                cordon_note = "  [cordon: legacy ancestry dropped]" if cordon_used else ""
                 log_info(
                     f"[scope-promote] {child_norm} -> {ancestor or '/'} "
-                    f"new_commit={new_commit[:12]}",
+                    f"new_commit={new_commit[:12]}{cordon_note}",
                 )
         except Exception as exc:
             log_warning(
@@ -191,6 +201,83 @@ def _scope_head(repo, scope_path: str) -> tuple[str, str]:
         repo.get_scope_hash(scope_path) or "",
         repo.get_scope_head_commit_id(scope_path) or "",
     )
+
+
+def _build_promote_commit(
+    repo,
+    *,
+    ancestor: str,
+    tree_sha: str,
+    parent_sha: str,
+    who: str,
+    message: str,
+    created_at_iso: str,
+) -> tuple[str, bool]:
+    """Build a Git commit for a scope-promote, cordoning broken ancestry.
+
+    Returns ``(commit_id, cordon_used)``.
+
+    ``build_git_commit`` walks the *full* ancestor chain of ``parent_sha``
+    to ensure the resulting commit is fetchable by any ``git clone``
+    client. When a legacy commit anywhere in that chain has a
+    non-Git-format reference (e.g. a 16-hex MUT tree id stored as a
+    parent), the strict check raises ``GitCommitInvariantError`` and
+    the whole promotion is lost — even though the promoting code path
+    has nothing to do with the broken legacy commit.
+
+    For scope-promote specifically we'd rather record SOMETHING than
+    nothing on the parent branch: the data is already valid, the audit
+    trail wants the event, and dropping the parent link only loses the
+    backward connection (which was already unreachable to git clients
+    through the broken legacy commit). So we retry with
+    ``parent_sha=""`` to produce an orphan boundary commit, signalling
+    the cordon via the trailer and the returned flag.
+    """
+
+    if not parent_sha:
+        return (
+            build_git_commit(
+                repo,
+                tree_sha=tree_sha,
+                parent_sha="",
+                who=who,
+                message=message,
+                created_at_iso=created_at_iso,
+            ),
+            False,
+        )
+    try:
+        return (
+            build_git_commit(
+                repo,
+                tree_sha=tree_sha,
+                parent_sha=parent_sha,
+                who=who,
+                message=message,
+                created_at_iso=created_at_iso,
+            ),
+            False,
+        )
+    except GitCommitInvariantError as exc:
+        log_warning(
+            f"[scope-promote] ancestry of {ancestor or '/'} is not "
+            f"Git-clean ({exc}); promoting as orphan boundary commit",
+        )
+        cordon_message = message + (
+            f"PuppyOne-Cordon: legacy-ancestry\n"
+            f"PuppyOne-Cordon-Reason: {exc}\n"
+        )
+        return (
+            build_git_commit(
+                repo,
+                tree_sha=tree_sha,
+                parent_sha="",
+                who=who,
+                message=cordon_message,
+                created_at_iso=created_at_iso,
+            ),
+            True,
+        )
 
 
 def _build_parent_skeleton(repo, relative: str, child_tree_hash: str) -> str:

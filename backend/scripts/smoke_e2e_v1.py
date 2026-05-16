@@ -128,15 +128,18 @@ def pick_project() -> str:
     return project_id
 
 
-def create_test_scope(project_id: str) -> tuple[str, str]:
+def create_test_scope(project_id: str, suffix: str = "") -> tuple[str, str]:
     """Insert a fresh ``repo_scopes`` row + return (scope_path, access_key).
 
     The V1 scope model lives in ``repo_scopes`` (path, mode, is_root,
     access_key). The runtime head/root_hash is tracked separately in
     ``mut_scope_state`` and is created lazily by the engine on the
     first commit, so we don't seed that row here.
+
+    ``suffix`` lets callers create multiple distinct scopes within the
+    same second without colliding on the timestamp portion of the path.
     """
-    scope_path = f".smoke-tests/e2e/{_now_ts()}"
+    scope_path = f".smoke-tests/e2e/{_now_ts()}{suffix}"
     existing = (
         sb.table("repo_scopes")
         .select("path")
@@ -147,7 +150,7 @@ def create_test_scope(project_id: str) -> tuple[str, str]:
     )
     if existing:
         sys.exit(f"!! scope {scope_path} already exists, change timestamp")
-    access_key = f"cli_e2e_{_now_ts()}"
+    access_key = f"cli_e2e_{_now_ts()}{suffix}"
     sb.table("repo_scopes").insert({
         "project_id": project_id,
         "name": f"e2e-{_now_ts()}",
@@ -372,34 +375,124 @@ def verify_concurrent(scope: str, commit_a: str, commit_b: str) -> None:
 
 
 # ──────────────────────────────────────────────────────────────
-# Phase 5 — cleanup hints
+# Phase 5 — bulk write + delete roundtrip
 # ──────────────────────────────────────────────────────────────
-def cleanup_hints(project_id: str, scope: str, commits: list[str]) -> None:
-    print()
-    print("── cleanup tips ──")
-    print(f"-- remove scope + ledger rows for this E2E run:")
-    print(f"DELETE FROM mut_scope_state WHERE project_id='{project_id}' "
-          f"AND scope_path='{scope}';")
-    print(f"DELETE FROM mut_scopes WHERE project_id='{project_id}' "
-          f"AND scope_path='{scope}';")
-    if commits:
-        in_clause = ",".join(f"'{c}'" for c in commits)
-        print(f"DELETE FROM mut_version_outbox WHERE commit_id IN ({in_clause});")
-        print(f"DELETE FROM audit_logs WHERE transaction_id IN "
-              f"(SELECT id FROM version_transactions WHERE "
-              f"committed_commit_id IN ({in_clause}));")
-        print(f"DELETE FROM version_transactions WHERE "
-              f"committed_commit_id IN ({in_clause});")
-        print(f"DELETE FROM mut_commits WHERE commit_id IN ({in_clause});")
+async def bulk_and_delete(ops: MutOps, project_id: str, scope: str) -> None:
+    """One bulk_write, then a delete, then verify reads reflect both."""
+    files = {
+        "a.txt": b"alpha\n",
+        "b.txt": b"bravo\n",
+        "nested/c.txt": b"charlie\n",
+    }
+    bw = await ops.bulk_write(
+        project_id, files,
+        who="user:e2e-bulk",
+        scope=scope,
+        message="bulk write three files",
+    )
+    print(f"  bulk_write -> commit={bw.commit_id[:12]} status={bw.status} "
+          f"paths={len(bw.paths)}")
+    if not bw.commit_id:
+        sys.exit("!! bulk_write returned no commit_id")
+
+    # Verify all three landed
+    for rel, expected in files.items():
+        got = ops.read_file_in_scope(project_id, scope, rel)
+        if got != expected:
+            sys.exit(f"!! bulk readback mismatch for {rel}")
+    print("  bulk readback: 3/3 files match")
+
+    # Delete a.txt + nested/c.txt; b.txt remains
+    rm = await ops.delete(
+        project_id, ["a.txt", "nested/c.txt"],
+        who="user:e2e-bulk",
+        scope=scope,
+        message="delete two files",
+    )
+    print(f"  delete -> commit={rm.commit_id[:12]} status={rm.status} "
+          f"paths={len(rm.paths)}")
+
+    # Confirm deletion semantics: removed files raise FileNotFoundError,
+    # b.txt still readable.
+    for rel in ("a.txt", "nested/c.txt"):
+        try:
+            ops.read_file_in_scope(project_id, scope, rel)
+            sys.exit(f"!! {rel} should be gone but reads OK")
+        except FileNotFoundError:
+            pass
+    if ops.read_file_in_scope(project_id, scope, "b.txt") != b"bravo\n":
+        sys.exit("!! b.txt should survive the delete")
+    print("  delete semantics: a.txt + nested/c.txt gone, b.txt survives")
+
+
+# ──────────────────────────────────────────────────────────────
+# Phase 6 — scope isolation
+# ──────────────────────────────────────────────────────────────
+def scope_isolation(ops: MutOps, project_id: str, scope_a: str, scope_b: str) -> None:
+    """A file written under scope A must not be readable under scope B
+    (the two scopes have disjoint trees by construction).
+    """
+    try:
+        leaked = ops.read_file_in_scope(project_id, scope_b, "b.txt")
+        sys.exit(f"!! scope leak: scope_b sees scope_a's b.txt "
+                 f"({len(leaked)} bytes)")
+    except FileNotFoundError:
+        print(f"  scope_b cannot see scope_a/b.txt: OK")
+
+
+# ──────────────────────────────────────────────────────────────
+# Phase 7 — auto-cleanup
+# ──────────────────────────────────────────────────────────────
+def cleanup(project_id: str, scopes: list[str]) -> None:
+    """Delete the rows this run wrote, in FK-safe order. Idempotent.
+
+    Set ``SMOKE_KEEP=1`` to leave the rows in place for postmortem.
+    """
+    if os.environ.get("SMOKE_KEEP"):
+        print("  SMOKE_KEEP set; leaving test rows in place")
+        return
+
+    for sp in scopes:
+        commits = (
+            sb.table("mut_commits")
+            .select("commit_id")
+            .eq("project_id", project_id)
+            .eq("scope_path", sp)
+            .execute()
+            .data
+            or []
+        )
+        cids = [c["commit_id"] for c in commits]
+        if cids:
+            txns = (
+                sb.table("version_transactions")
+                .select("id")
+                .in_("committed_commit_id", cids)
+                .execute()
+                .data
+                or []
+            )
+            tids = [t["id"] for t in txns]
+            if tids:
+                sb.table("audit_logs").delete().in_("transaction_id", tids).execute()
+            sb.table("mut_version_outbox").delete().in_("commit_id", cids).execute()
+            sb.table("version_transactions").delete().in_("committed_commit_id", cids).execute()
+            sb.table("mut_commits").delete().in_("commit_id", cids).execute()
+        sb.table("mut_scope_state").delete().eq("project_id", project_id).eq("scope_path", sp).execute()
+        sb.table("mut_version_index").delete().eq("project_id", project_id).eq("scope_path", sp).execute()
+        sb.table("repo_scopes").delete().eq("project_id", project_id).eq("path", sp).execute()
+        print(f"  cleaned scope {sp} ({len(cids)} commits)")
 
 
 # ──────────────────────────────────────────────────────────────
 # Main
 # ──────────────────────────────────────────────────────────────
 async def main() -> int:
-    banner("phase 1: pick project + create test scope")
+    banner("phase 1: pick project + create two test scopes")
     project_id = pick_project()
     scope, access_key = create_test_scope(project_id)
+    # Sibling scope to exercise isolation in phase 6
+    scope_b, _ = create_test_scope(project_id, suffix="-sib")
 
     banner("phase 2: resolve scope-bound access-point auth")
     resolve_auth_demo(project_id, access_key)
@@ -414,7 +507,14 @@ async def main() -> int:
     commit_a, commit_b = await concurrent_race(ops, project_id, scope)
     verify_concurrent(scope, commit_a, commit_b)
 
-    cleanup_hints(project_id, scope, [single_commit, commit_a, commit_b])
+    banner("phase 5: bulk_write + delete roundtrip")
+    await bulk_and_delete(ops, project_id, scope)
+
+    banner("phase 6: scope isolation (sibling scope can't see scope's files)")
+    scope_isolation(ops, project_id, scope, scope_b)
+
+    banner("phase 7: auto-cleanup")
+    cleanup(project_id, [scope, scope_b])
 
     print()
     print("== e2e smoke OK ==")
