@@ -275,8 +275,8 @@ def _update_global_root(repo, push_result: dict) -> None:
                 if hasattr(history, '_root_hash_cache'):
                     del history._root_hash_cache
 
-            # get_root_hash / cas_update_root_hash may not exist on older
-            # mutai PyPI releases (<0.1.7). Fall back to history-based lookup.
+            # Some test doubles expose only the history backend methods.
+            # Fall back to history-based lookup for that compatibility path.
             if hasattr(repo, "get_root_hash"):
                 db_root = repo.get_root_hash() or ""
             else:

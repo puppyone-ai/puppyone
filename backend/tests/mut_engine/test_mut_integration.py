@@ -10,8 +10,8 @@ Commits are identified by git object IDs (``commit_id``, 40-hex SHA-1).
 import base64
 import pytest
 
-from mut.core import tree as tree_mod
-from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
     handle_negotiate, handle_rollback, handle_pull_commit,
@@ -26,7 +26,7 @@ from tests.mut_engine.test_server_repo import (
 def repo(memory_store):
     """PuppyOneServerRepo wired with real Mut handlers."""
     from src.mut_engine.server.server_repo import PuppyOneServerRepo
-    from mut.server.scope_manager import ScopeManager
+    from src.mut_engine.server.scope_manager import ScopeManager
 
     history = FakeHistoryManager()
     audit = FakeAuditManager()
@@ -185,7 +185,7 @@ class TestPush:
             "_scope": {"id": "scope-all", "path": "/", "exclude": [], "mode": "r"},
         }
         body = _make_push_body(repo.store, {"x.txt": b"data"})
-        from mut.foundation.error import PermissionDenied
+        from src.mut_engine.application.errors import PermissionDenied
         with pytest.raises(PermissionDenied):
             handle_push(repo, ro_auth, body)
 

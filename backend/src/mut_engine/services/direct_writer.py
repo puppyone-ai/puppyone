@@ -12,8 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from mut.core.object_store import ObjectStore
-
+from src.mut_engine.application.object_store import ObjectStore
 from src.mut_engine.application.transaction_engine import (
     ConcurrentMutationError,
     GitNativeTransactionEngine,

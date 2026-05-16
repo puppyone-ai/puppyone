@@ -195,9 +195,14 @@ async def rollback(
 ):
     ensure_write_access(project_service, current_user, project_id)
 
-    from mut.core.protocol import PROTOCOL_VERSION
-    from mut.foundation.error import ClientTooOldError, LockError, ObjectNotFoundError, PermissionDenied
     from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
+    from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
+    from src.mut_engine.application.errors import (
+        ClientTooOldError,
+        LockError,
+        ObjectNotFoundError,
+        PermissionDenied,
+    )
 
     who = f"user:{current_user.user_id}"
     auth = {

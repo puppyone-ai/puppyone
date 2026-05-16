@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import re
 
-from mut.core.protocol import normalize_path
-from mut.foundation.git_format import decode_commit
-
+from src.mut_engine.application.git_object_format import decode_commit
 from src.mut_engine.application.git_commit import build_git_commit, commit_tree_id
+from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.application.tree_objects import (
     build_tree_from_files,
     flatten_tree_to_bytes,

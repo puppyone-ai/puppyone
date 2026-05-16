@@ -16,14 +16,14 @@ import base64
 import json
 import pytest
 
-from mut.core import tree as tree_mod
-from mut.core.protocol import PROTOCOL_VERSION
-from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
+from src.mut_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
     handle_negotiate, handle_rollback, handle_pull_commit,
 )
-from mut.foundation.error import PermissionDenied
+from src.mut_engine.application.errors import PermissionDenied
 
 from tests.mut_engine.test_server_repo import (
     FakeHistoryManager, FakeAuditManager,
@@ -40,9 +40,9 @@ class RepoFactory:
         self._repos = {}
 
     def create(self, project_id: str, project_name: str = ""):
-        from mut.core.object_store import ObjectStore
+        from src.mut_engine.application.object_store import ObjectStore
         from src.mut_engine.server.server_repo import PuppyOneServerRepo
-        from mut.server.scope_manager import ScopeManager
+        from src.mut_engine.server.scope_manager import ScopeManager
 
         obj_dir = self._tmp / project_id / "objects"
         obj_dir.mkdir(parents=True)

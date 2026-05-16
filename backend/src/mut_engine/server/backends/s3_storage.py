@@ -24,15 +24,9 @@ from contextvars import ContextVar
 
 import cachetools
 
-from mut.core.object_store import StorageBackend
-from mut.foundation.git_format import decode_object, hash_object
-from mut.foundation.error import ObjectNotFoundError
-
-try:
-    from mut.foundation.error import StorageWriteError
-except ImportError:
-    class StorageWriteError(Exception):
-        """S3 write failure. Fallback for mutai < 0.1.7."""
+from src.mut_engine.application.errors import ObjectNotFoundError, StorageWriteError
+from src.mut_engine.application.object_store import StorageBackend
+from src.mut_engine.application.git_object_format import decode_object, hash_object
 
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error

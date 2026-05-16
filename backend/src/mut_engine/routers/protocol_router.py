@@ -6,7 +6,7 @@ Exposes the MUT native HTTP sync protocol to external clients:
   - Remote MUT clients operate on the content tree via the standard protocol
 
 This router is a thin HTTP shell: it handles parameter parsing, authentication,
-delegates to mut.server.handlers via MutRepoManager, and formats responses.
+delegates to local legacy MUT handlers via MutRepoManager, and formats responses.
 """
 
 from __future__ import annotations
@@ -15,14 +15,14 @@ import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from mut.core.protocol import require_supported_protocol
-from mut.foundation.error import ClientTooOldError, LockError, PermissionDenied
-from mut.server.handlers import (
+from src.mut_engine.adapters.mut.protocol import require_supported_protocol
+from src.mut_engine.adapters.mut.legacy_handlers import (
     handle_clone,
     handle_negotiate,
     handle_pull,
     handle_scopes,
 )
+from src.mut_engine.application.errors import ClientTooOldError, LockError, PermissionDenied
 
 from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
 from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
@@ -291,7 +291,7 @@ async def mut_pull_commit(
     repo_manager: MutRepoManager = Depends(get_repo_manager),
 ):
     """Pull files at a specific historical commit (not just latest)."""
-    from mut.server.handlers import handle_pull_commit
+    from src.mut_engine.adapters.mut.legacy_handlers import handle_pull_commit
 
     body = await request.json()
     await ensure_protocol_enabled(project_id, "mut")

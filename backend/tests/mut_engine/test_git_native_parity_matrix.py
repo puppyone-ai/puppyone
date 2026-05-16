@@ -11,10 +11,10 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from mut.core.merge import merge_file_sets, three_way_merge
-from mut.core.object_store import ObjectStore
-from mut.core.protocol import normalize_path
-from mut.server.scope_manager import ScopeManager
+from src.mut_engine.application.merge import merge_file_sets, three_way_merge
+from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.application.path_utils import normalize_path
+from src.mut_engine.server.scope_manager import ScopeManager
 
 from src.mut_engine.adapters.git.router import _parse_receive_pack_request
 from src.mut_engine.application.conflict_policy import (

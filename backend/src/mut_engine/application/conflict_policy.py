@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-from mut.core.merge import (
+from src.mut_engine.application.merge import (
     ConflictRecord,
     IdenticalStrategy,
     JsonMergeStrategy,

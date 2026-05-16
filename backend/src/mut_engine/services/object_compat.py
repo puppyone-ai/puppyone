@@ -11,8 +11,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from mut.core import tree as tree_mod
-from mut.core.object_store import ObjectStore
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.object_store import ObjectStore
 
 
 def read_tree_compat(store: ObjectStore, tree_hash: str) -> dict:

@@ -34,14 +34,14 @@ import time
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
-from mut.core.protocol import require_supported_protocol
-from mut.foundation.error import ClientTooOldError, LockError, PermissionDenied
-from mut.server.handlers import (
+from src.mut_engine.adapters.mut.protocol import require_supported_protocol
+from src.mut_engine.adapters.mut.legacy_handlers import (
     handle_clone,
     handle_negotiate,
     handle_pull,
     handle_scopes,
 )
+from src.mut_engine.application.errors import ClientTooOldError, LockError, PermissionDenied
 
 from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
 from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
@@ -332,7 +332,6 @@ async def ap_negotiate(access_key: str, request: Request):
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)
         body = await request.json()
 
-        from mut.core.protocol import require_supported_protocol
         require_supported_protocol(body)
 
         hashes = body.get("hashes", [])
@@ -407,7 +406,7 @@ async def ap_scopes(access_key: str, request: Request):
 @ap_router.post("/{access_key}/pull-commit")
 async def ap_pull_commit(access_key: str, request: Request):
     """Pull a specific historical commit via Access Point URL."""
-    from mut.server.handlers import handle_pull_commit
+    from src.mut_engine.adapters.mut.legacy_handlers import handle_pull_commit
 
     try:
         project_id, auth, repo_manager = await _resolve_and_validate(access_key, request)

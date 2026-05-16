@@ -25,9 +25,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from mut.core.merge import ConflictResolver
-from mut.core.object_store import ObjectStore
-
+from src.mut_engine.application.merge import ConflictResolver
+from src.mut_engine.application.object_store import ObjectStore
 from src.infra.s3.service import S3Service
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.backends import safe_data
@@ -101,7 +100,7 @@ class MutRepoManager:
         """
         proj = self.get_repo(project_id)
         project_name = self._get_project_name(project_id)
-        from mut.server.scope_manager import ScopeManager
+        from src.mut_engine.server.scope_manager import ScopeManager
         scope_backend = SupabaseScopeBackend(self._supabase, project_id)
         return PuppyOneServerRepo(
             project_id=project_id,

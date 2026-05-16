@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 
 from fastapi import APIRouter, Depends, Request
-from mut.core.protocol import normalize_path
 
 from src.mut_engine.adapters.git.auth import (
     request_actor,
@@ -26,6 +25,7 @@ from src.mut_engine.adapters.git.upload_pack import (
     upload_pack_response,
 )
 from src.mut_engine.application.protocol_mode import ensure_protocol_enabled
+from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.dependencies import get_repo_manager
 from src.mut_engine.routers.access_point import resolve_access_point
 from src.mut_engine.server.auth import enforce_channel_pause

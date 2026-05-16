@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import base64
 
-from mut.core.protocol import PushRequest, PushResponse, normalize_path, require_supported_protocol
-from mut.foundation.error import PermissionDenied
-
+from src.mut_engine.adapters.mut.protocol import (
+    PushRequest,
+    PushResponse,
+    require_supported_protocol,
+)
+from src.mut_engine.application.errors import PermissionDenied
+from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
 from src.mut_engine.domain.intents import VersionSubmissionIntent
 from src.mut_engine.server.repo_manager import MutRepoManager
