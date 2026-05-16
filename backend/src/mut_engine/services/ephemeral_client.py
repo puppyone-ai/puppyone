@@ -41,10 +41,22 @@ class MutEphemeralClient:
         repo_manager: MutRepoManager,
         project_id: str,
         auth_context: dict,
+        source_channel: str = "agent",
     ):
+        """In-process client used by agent / sandbox / connector flows.
+
+        ``source_channel`` tags every push this client makes so audit
+        rows and conflict-policy rules can distinguish ``agent`` writes
+        from ``sync`` connector imports or hosted ``web`` UI calls. The
+        default is ``agent`` because every current caller is an agent
+        or sandbox flow; legacy product API entry points pass
+        ``source_channel="papi"`` explicitly.
+        """
+
         self._repo_manager = repo_manager
         self._project_id = project_id
         self._auth = auth_context
+        self._source_channel = source_channel or "agent"
 
         self._head_commit_id: str = ""
         self._scope: dict = {}
@@ -357,7 +369,7 @@ class MutEphemeralClient:
             project_id=self._project_id,
             scope_path=scope.get("path", "") or "",
             actor=self._auth.get("agent", "ephemeral"),
-            source_channel="papi",
+            source_channel=self._source_channel,
             base_commit_id=body.get("base_commit_id", "") or "",
             proposed_tree_id=snapshot["root"],
             client_commit_id=snapshot.get("commit_id", ""),

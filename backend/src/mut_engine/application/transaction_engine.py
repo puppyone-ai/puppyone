@@ -247,18 +247,42 @@ class GitNativeTransactionEngine:
         )
         result = await self._submit_version_optimistic(submission, started_ms)
 
+        # The resolution may itself land as ``pending`` if the merge against
+        # the *current* scope head produced fresh unsafe conflicts (rare; a
+        # concurrent write between conflict-record-time and resolve-time that
+        # the resolver did not account for). In that case we have a NEW
+        # pending row, and the original row should stay in ``resolving`` so
+        # a follow-up resolution can re-close it — marking it ``resolved``
+        # with an empty commit_id would lie to the audit ledger.
+        if result.status == "ok" and result.commit_id:
+            new_status = "resolved"
+            commit_id_for_row = result.commit_id
+            detail = {"decision": "accept", "message": intent.resolution_message}
+        elif result.status == "pending":
+            new_status = "resolving"
+            commit_id_for_row = ""
+            detail = {
+                "decision": "accept",
+                "message": intent.resolution_message,
+                "follow_up_pending_conflict_id": result.pending_conflict_id,
+            }
+        else:
+            new_status = "rejected"
+            commit_id_for_row = ""
+            detail = {
+                "decision": "accept",
+                "message": intent.resolution_message,
+                "reason": result.reason or f"submission_status:{result.status}",
+            }
         try:
             await asyncio.to_thread(
                 _close_pending_conflict_row,
                 project_id=intent.project_id,
                 pending_conflict_id=intent.pending_conflict_id,
-                status="resolved",
+                status=new_status,
                 resolver_actor=intent.resolver_actor,
-                resolution_commit_id=result.commit_id,
-                resolution_detail={
-                    "decision": "accept",
-                    "message": intent.resolution_message,
-                },
+                resolution_commit_id=commit_id_for_row,
+                resolution_detail=detail,
             )
         except Exception as exc:
             log_warning(
