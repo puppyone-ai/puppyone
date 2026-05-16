@@ -507,7 +507,7 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "lxml", specifier = ">=5.0.0" },
     { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
-    { name = "mutai", editable = "../../mut" },
+    { name = "mutai", specifier = ">=0.1.6" },
     { name = "openai", specifier = ">=2.8.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
@@ -1737,7 +1737,11 @@ wheels = [
 [[package]]
 name = "mutai"
 version = "0.1.6"
-source = { editable = "../../mut" }
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/1a/adcd9eb80e2cbf28aa5cd458412387afcd306441188df35dd76f6b7368e7/mutai-0.1.6.tar.gz", hash = "sha256:6b090859cd59d9b91d888d249aa91c76168f84a13fff1b84ada142c39b20a649", size = 118081, upload-time = "2026-04-17T13:34:17.325Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/69/e41fbd192f004173ee3967dc8a2fc2c28a23b66e8fa002040a09f12c2908/mutai-0.1.6-py3-none-any.whl", hash = "sha256:bd9bc18a973cc115e828841b0b5afcfa7ff632f8b1ffff6a42b2c795fc2cc7e5", size = 88931, upload-time = "2026-04-17T13:34:15.841Z" },
+]
 
 [[package]]
 name = "nest-asyncio"
