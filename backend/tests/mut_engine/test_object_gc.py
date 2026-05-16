@@ -8,9 +8,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
-from src.mut_engine.infrastructure.object_store import ObjectStore
-from src.mut_engine.infrastructure.scope_manager import ScopeManager
-from src.mut_engine.infrastructure.tree import tree_to_flat
+from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.application.tree import tree_to_flat
+from src.mut_engine.server.scope_manager import ScopeManager
 
 from src.mut_engine.application.git_commit import build_git_commit
 from src.mut_engine.application.tree_objects import build_tree_from_files

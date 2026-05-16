@@ -17,20 +17,20 @@ from __future__ import annotations
 import fnmatch
 from dataclasses import asdict, dataclass
 
-from src.mut_engine.domain.conflicts import (
-    ConflictPolicyConfig,
-    ConflictPolicyDecision,
-    ConflictPolicyRule,
-)
-from src.mut_engine.infrastructure.hash import hash_bytes
-from src.mut_engine.infrastructure.merge import (
+from src.mut_engine.application.hash_utils import hash_bytes
+from src.mut_engine.application.merge import (
     ConflictRecord,
     IdenticalStrategy,
     JsonMergeStrategy,
     LineMergeStrategy,
     OneSideOnlyStrategy,
 )
-from src.mut_engine.infrastructure.paths import normalize_path
+from src.mut_engine.application.path_utils import normalize_path
+from src.mut_engine.domain.conflicts import (
+    ConflictPolicyConfig,
+    ConflictPolicyDecision,
+    ConflictPolicyRule,
+)
 
 
 @dataclass

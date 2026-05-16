@@ -49,6 +49,9 @@
 | 02 | [Access Point 接入模型](architecture/02-access-points.md) | 外部客户端如何连接：URL + credential、connector 类型、权限模型 | 后端/CLI 开发 |
 | 03 | [CLI 规范](architecture/03-cli.md) | MUT CLI + PuppyOne CLI 命令规范 | CLI 开发、用户文档 |
 | 04 | [Connector 架构](architecture/04-connectors.md) | 统一 access_points 表、6 种 connector 类型、数据流、插件接口 | 后端/集成开发 |
+| 05 | [MUT Init / Clone / Access Point](architecture/05-mut-init-clone-accesspoint.md) | init、clone、Access Point 绑定与初始化流程 | CLI/后端开发 |
+| 06 | [Gateway 与 Access Point 拆分](architecture/06-gateway-access-point-split.md) | Gateway、Access Point、Git 接入边界拆分 | 后端/架构演进 |
+| 07 | [Git Kernel Migration Plan](architecture/07-git-kernel-migration.md) | 移除外部 `mutai`，以 Git 为版本内核并保留 PuppyOne 协作语义 | 架构迁移、后端开发 |
 
 ---
 
@@ -61,3 +64,4 @@
 | 02-access-points | `backend/src/mut_engine/auth.py` + `access_points` 表 |
 | 03-cli | `cli/` |
 | 04-connectors | `backend/src/connectors/` + `access_points` 表 |
+| 07-git-kernel-migration | `backend/src/mut_engine/` + Git adapters + storage ports |

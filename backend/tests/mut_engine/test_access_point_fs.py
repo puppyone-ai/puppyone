@@ -3,8 +3,8 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from src.mut_engine.infrastructure.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
-from src.mut_engine.infrastructure.object_store import ObjectStore, StorageBackend
+from src.mut_engine.application.object_store import ObjectStore, StorageBackend
+from src.mut_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
 from fastapi import HTTPException
 

@@ -1,26 +1,15 @@
-"""Server-side scope management with pluggable backends.
-
-Formerly ``mut.server.scope_manager``. A scope defines a subtree of the
-project tree:
-
-    {"id": "scope-src", "path": "/src/", "exclude": ["/src/vendor/"]}
-
-Scopes are pure geometry — they define WHERE a subtree is, not WHO
-can access it. Access control lives in the auth layer.
-"""
+"""Server-side scope management owned by PuppyOne."""
 
 from __future__ import annotations
 
 import abc
+import json
 from pathlib import Path
 
-from src.mut_engine.infrastructure.fs_utils import read_json, write_json
-from src.mut_engine.infrastructure.paths import normalize_path
+from src.mut_engine.application.path_utils import normalize_path
 
 
 class ScopeBackend(abc.ABC):
-    """Abstract interface for scope definition storage."""
-
     @abc.abstractmethod
     def get(self, scope_id: str) -> dict | None: ...
 
@@ -37,15 +26,13 @@ class ScopeBackend(abc.ABC):
         prefix = normalize_path(path_prefix)
         results = []
         for scope in self.list_all():
-            sp = normalize_path(scope.get("path", ""))
-            if not prefix or sp.startswith(prefix + "/") or sp == prefix:
+            scope_path = normalize_path(scope.get("path", ""))
+            if not prefix or scope_path == prefix or scope_path.startswith(prefix + "/"):
                 results.append(scope)
         return results
 
 
 class FileSystemScopeBackend(ScopeBackend):
-    """One JSON file per scope under a directory (testing only)."""
-
     def __init__(self, scopes_dir: Path):
         self.dir = scopes_dir
 
@@ -53,10 +40,11 @@ class FileSystemScopeBackend(ScopeBackend):
         path = self.dir / f"{scope_id}.json"
         if not path.exists():
             return None
-        return read_json(path)
+        return json.loads(path.read_text())
 
     def put(self, scope_id: str, scope: dict) -> None:
-        write_json(self.dir / f"{scope_id}.json", scope)
+        self.dir.mkdir(parents=True, exist_ok=True)
+        (self.dir / f"{scope_id}.json").write_text(json.dumps(scope, indent=2))
 
     def delete(self, scope_id: str) -> bool:
         path = self.dir / f"{scope_id}.json"
@@ -68,21 +56,18 @@ class FileSystemScopeBackend(ScopeBackend):
     def list_all(self) -> list[dict]:
         if not self.dir.exists():
             return []
-        scopes = []
-        for f in sorted(self.dir.iterdir()):
-            if f.suffix == ".json":
-                scopes.append(read_json(f))
-        return scopes
+        return [
+            json.loads(path.read_text())
+            for path in sorted(self.dir.iterdir())
+            if path.suffix == ".json"
+        ]
 
 
 class ScopeManager:
-    """Manages scope definitions via a pluggable ScopeBackend."""
-
     def __init__(self, backend: ScopeBackend):
         self._backend = backend
 
-    def add(self, scope_id: str, path: str,
-            exclude: list | None = None) -> dict:
+    def add(self, scope_id: str, path: str, exclude: list | None = None) -> dict:
         scope = {"id": scope_id, "path": path, "exclude": exclude or []}
         self._backend.put(scope_id, scope)
         return scope
@@ -107,30 +92,28 @@ class ScopeManager:
         self._backend.put(scope_id, scope)
         return scope
 
-    def split_scope(self, old_scope_id: str,
-                    new_scopes: list[dict]) -> list[dict]:
+    def split_scope(self, old_scope_id: str, new_scopes: list[dict]) -> list[dict]:
         old = self._backend.get(old_scope_id)
         if not old:
             raise ValueError(f"scope '{old_scope_id}' not found")
-
-        created = []
-        for ns in new_scopes:
-            scope = self.add(ns["id"], ns["path"], ns.get("exclude"))
-            created.append(scope)
-
+        created = [
+            self.add(scope["id"], scope["path"], scope.get("exclude"))
+            for scope in new_scopes
+        ]
         self._backend.delete(old_scope_id)
         return created
 
-    def merge_scopes(self, scope_ids: list[str],
-                     new_scope_id: str, new_path: str,
-                     new_exclude: list | None = None) -> dict:
-        for sid in scope_ids:
-            if not self._backend.get(sid):
-                raise ValueError(f"scope '{sid}' not found")
-
+    def merge_scopes(
+        self,
+        scope_ids: list[str],
+        new_scope_id: str,
+        new_path: str,
+        new_exclude: list | None = None,
+    ) -> dict:
+        for scope_id in scope_ids:
+            if not self._backend.get(scope_id):
+                raise ValueError(f"scope '{scope_id}' not found")
         new_scope = self.add(new_scope_id, new_path, new_exclude)
-
-        for sid in scope_ids:
-            self._backend.delete(sid)
-
+        for scope_id in scope_ids:
+            self._backend.delete(scope_id)
         return new_scope

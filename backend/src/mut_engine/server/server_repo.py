@@ -19,13 +19,13 @@ import threading
 from collections import OrderedDict
 from typing import ClassVar
 
-from src.mut_engine.infrastructure.git_format import (
+from src.mut_engine.application.git_object_format import (
     MODE_DIR, MODE_FILE, TreeEntry, encode_tree,
 )
-from src.mut_engine.infrastructure.object_store import ObjectStore
-from src.mut_engine.infrastructure.paths import normalize_path
-from src.mut_engine.infrastructure.scope_manager import ScopeManager
-from src.mut_engine.infrastructure.tree import read_tree, tree_to_flat
+from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.application.path_utils import normalize_path
+from src.mut_engine.application.tree import read_tree, tree_to_flat
+from src.mut_engine.server.scope_manager import ScopeManager
 
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
 from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager

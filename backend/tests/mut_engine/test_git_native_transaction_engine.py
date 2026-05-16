@@ -25,9 +25,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from src.mut_engine.infrastructure import tree as tree_mod
-from src.mut_engine.infrastructure.git_format import encode_commit
-from src.mut_engine.infrastructure.object_store import ObjectStore
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.git_object_format import encode_commit
+from src.mut_engine.application.object_store import ObjectStore
 
 # Sentinel preserved so legacy tests that send a request body keep working;
 # the engine no longer reads a wire-protocol version.
@@ -133,7 +133,7 @@ def memory_store(tmp_path) -> ObjectStore:
 
 @pytest.fixture
 def server_repo(memory_store):
-    from src.mut_engine.infrastructure.scope_manager import ScopeManager
+    from src.mut_engine.server.scope_manager import ScopeManager
     from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
     history = FakeHistoryManager()

@@ -331,7 +331,7 @@ def _make_overwrite_splice(files: dict[str, bytes]):
       * ``("rm",      path)``
       * ``("mv",      old_path, new_path)``
     """
-    from src.mut_engine.infrastructure.tree import tree_to_flat
+    from src.mut_engine.application.tree import tree_to_flat
     from src.mut_engine.services.tree_splice import splice_batch
 
     def splice(store, root_hash):

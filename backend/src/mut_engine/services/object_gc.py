@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from src.mut_engine.infrastructure.git_format import decode_commit, decode_tree
+from src.mut_engine.application.git_object_format import decode_commit, decode_tree
 
 from src.mut_engine.adapters.git.protocol import ZERO_ID, is_object_id
 from src.mut_engine.services.object_compat import read_tree_compat

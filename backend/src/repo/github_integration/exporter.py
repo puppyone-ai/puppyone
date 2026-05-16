@@ -175,7 +175,7 @@ async def _list_scope_files(project_id: str) -> dict[str, bytes]:
     so we don't have to instantiate per-file readers.
     """
     import asyncio
-    from src.mut_engine.infrastructure.tree import tree_to_flat
+    from src.mut_engine.application.tree import tree_to_flat
 
     repo_manager = get_repo_manager_standalone()
     repo = repo_manager.get_server_repo(project_id)

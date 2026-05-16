@@ -17,8 +17,8 @@ import hashlib
 import json
 
 import pytest
-from src.mut_engine.infrastructure import tree as tree_mod
-from src.mut_engine.infrastructure.object_store import ObjectStore
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.object_store import ObjectStore
 
 from src.mut_engine.services.tree_splice import (
     splice_batch,

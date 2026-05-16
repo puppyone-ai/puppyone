@@ -16,8 +16,8 @@ import time
 from datetime import datetime, timezone
 from typing import Callable
 
-from src.mut_engine.infrastructure.object_store import ObjectStore
-from src.mut_engine.infrastructure.paths import normalize_path
+from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.application.path_utils import normalize_path
 
 from src.mut_engine.application.conflict_policy import (
     conflict_to_dict,
@@ -30,6 +30,7 @@ from src.mut_engine.application.git_commit import (
     git_compatibility_error,
     is_git_compatible_commit,
 )
+from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.application.tree_objects import (
     build_full_changes,
     build_tree_from_files,
@@ -1019,7 +1020,7 @@ def _files_at_commit(repo, scope_path: str, commit_id: str) -> dict[str, bytes]:
         return {}
 
     try:
-        from src.mut_engine.infrastructure import tree as tree_mod
+        from src.mut_engine.application import tree as tree_mod
 
         parts = [p for p in normalize_path(scope_path).split("/") if p]
         current = root_hash

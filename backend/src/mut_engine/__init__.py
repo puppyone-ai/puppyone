@@ -17,12 +17,14 @@ external wire protocol; the in-process Product Operation Adapter
 Directory structure:
 
   domain/          Write-intent dataclasses and conflict records
-  application/     Transaction engine, conflict policy, projection
+  application/     Transaction engine, conflict policy, projection, and the
+                   PuppyOne-owned Git/tree/merge/object-store primitives
+                   (git_object_format, object_store, tree, merge, diff,
+                   errors, path_utils, hash_utils, scope, ...).
   adapters/        Protocol adapters
     git/             Git smart HTTP / SSH
     operations/      Product Operation Adapter (planned; today in services/ops.py)
-  infrastructure/  (planned) Storage repositories — see 01-version-engine §3
-  server/          Repo manager, server-side auth, storage backends
+  server/          Repo manager, server-side auth, scope manager, storage backends
     backends/        S3 + Supabase History/Audit/Scope adapters
   services/        Business orchestration (MutOps, tree reader, hooks, outbox)
   routers/         HTTP endpoints

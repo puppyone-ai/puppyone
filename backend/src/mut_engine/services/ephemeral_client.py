@@ -18,12 +18,12 @@ import base64
 import asyncio
 from datetime import UTC
 
-from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
-from src.mut_engine.domain.intents import VersionSubmissionIntent
-from src.mut_engine.infrastructure import tree as tree_mod
-from src.mut_engine.infrastructure.git_format import (
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.git_object_format import (
     MODE_DIR, MODE_FILE, TreeEntry, encode_object, encode_tree, hash_object,
 )
+from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
+from src.mut_engine.domain.intents import VersionSubmissionIntent
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
@@ -155,7 +155,7 @@ class MutEphemeralClient:
         caller that mistakenly assumes full content fails loudly rather
         than silently operating on empty bytes.
         """
-        from src.mut_engine.infrastructure.paths import normalize_path
+        from src.mut_engine.application.path_utils import normalize_path
 
         repo = self._get_server_repo()
 
@@ -211,7 +211,7 @@ class MutEphemeralClient:
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        from src.mut_engine.infrastructure.tree import read_tree
+        from src.mut_engine.application.tree import read_tree
 
         result: dict[str, str] = {}
         if not root_hash:

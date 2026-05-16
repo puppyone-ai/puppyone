@@ -137,7 +137,7 @@ class _RecordingRepo:
     def __init__(self):
         self._scopes = {"": ""}  # root scope only
         self.publish_calls: list[dict] = []
-        from src.mut_engine.infrastructure.object_store import ObjectStore
+        from src.mut_engine.application.object_store import ObjectStore
         from pathlib import Path
         import tempfile
         self._tmp = tempfile.mkdtemp()
@@ -161,11 +161,11 @@ class _RecordingRepo:
 
 
 def test_promote_to_parents_calls_publish_for_ancestor_scope(tmp_path):
-    from src.mut_engine.infrastructure.git_format import encode_tree
+    from src.mut_engine.application.git_object_format import encode_tree
     repo = _RecordingRepo()
     # Build a non-empty child subtree so the graft produces a different root.
     blob = repo.store.put_blob(b"hello")
-    from src.mut_engine.infrastructure.git_format import MODE_FILE, TreeEntry
+    from src.mut_engine.application.git_object_format import MODE_FILE, TreeEntry
     child_tree = repo.store.put_tree(encode_tree([
         TreeEntry(name="readme.md", mode=MODE_FILE, sha1_hex=blob),
     ]))

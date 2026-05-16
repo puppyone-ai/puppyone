@@ -60,7 +60,7 @@ class TableService:
         root = repo.history.get_root_hash()
         if not root:
             return {}
-        from src.mut_engine.infrastructure.tree import tree_to_flat
+        from src.mut_engine.application.tree import tree_to_flat
         flat = tree_to_flat(repo.store, root)
         blob_hash = flat.get(mut_path, "")
         if not blob_hash:

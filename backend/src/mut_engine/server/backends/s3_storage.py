@@ -24,12 +24,9 @@ from contextvars import ContextVar
 
 import cachetools
 
-from src.mut_engine.infrastructure.errors import (
-    ObjectNotFoundError,
-    StorageWriteError,
-)
-from src.mut_engine.infrastructure.git_format import decode_object, hash_object
-from src.mut_engine.infrastructure.object_store import StorageBackend
+from src.mut_engine.application.errors import ObjectNotFoundError, StorageWriteError
+from src.mut_engine.application.object_store import StorageBackend
+from src.mut_engine.application.git_object_format import decode_object, hash_object
 
 from src.infra.s3.service import S3Service
 from src.utils.logger import log_error

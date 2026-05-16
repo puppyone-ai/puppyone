@@ -6,9 +6,9 @@ import asyncio
 import base64
 
 from fastapi import HTTPException, Request
-from src.mut_engine.infrastructure.paths import normalize_path
 
 from src.infra.supabase.client import SupabaseClient
+from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.routers.access_point import resolve_access_point
 from src.mut_engine.server.auth import PuppyOneAuthenticator, enforce_channel_pause
 

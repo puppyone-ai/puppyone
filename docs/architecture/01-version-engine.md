@@ -92,6 +92,101 @@ PuppyOne transaction engine from the inside.
 
 ## 2. System Overview
 
+### 2.0 Current Architecture Snapshot
+
+As of the Git-kernel dependency-removal pass, PuppyOne's version system is
+best understood as:
+
+> Git-native version facts, PuppyOne-owned transaction semantics.
+
+There is no production dependency on the external `mutai` package and no
+runtime import from `mut.*` in backend source or tests. The package name
+`mut_engine` remains for continuity, but the package role is now
+**Version Transaction Engine**, not a second Git implementation.
+
+```text
+                         User / System Write Surfaces
+                         ============================
+
+   Git Smart HTTP              Product API / Web / CLI             Legacy MUT API
+   clone/fetch/push            file ops / uploads / sync           clone/pull/push
+        |                                |                              |
+        v                                v                              v
+┌───────────────────┐          ┌───────────────────────┐      ┌───────────────────┐
+│ adapters/git      │          │ services/ops + routers │      │ adapters/mut      │
+│                   │          │                       │      │                   │
+│ upload-pack       │          │ MutOps / direct writer │      │ protocol DTOs     │
+│ receive-pack      │          │ tree splice/read       │      │ legacy handlers   │
+│ quarantine/fsck   │          │ file-upload staging    │      │ push/rollback map │
+│ scoped Git views  │          │ product auth/scope     │      │                   │
+└─────────┬─────────┘          └───────────┬───────────┘      └─────────┬─────────┘
+          |                                |                              |
+          | VersionSubmissionIntent        | OperationWriteIntent          |
+          | RollbackIntent                 | + splice function             |
+          +--------------------------------+------------------------------+
+                                           |
+                                           v
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ application/transaction_engine.py                                            │
+│ GitNativeTransactionEngine                                                   │
+│                                                                              │
+│ - actor, access point, and scope authorization                                │
+│ - proposed Git tree / operation splice validation                             │
+│ - scope ownership and exclude checks                                          │
+│ - base/current validation                                                     │
+│ - optimistic per-scope CAS retry loop                                         │
+│ - conflict policy: auto merge / pending manual review / reject                │
+│ - canonical Git commit decision                                               │
+│ - atomic publish of scope head + history + audit + outbox                     │
+│ - deferrable project/root projection                                          │
+└──────────────────────────────────┬───────────────────────────────────────────┘
+                                   |
+                  ┌────────────────+────────────────┐
+                  |                                 |
+                  v                                 v
+┌──────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ Git kernel services owned here   │   │ Server state / infrastructure         │
+│                                  │   │                                      │
+│ application/git_object_format.py │   │ server/repo_manager.py               │
+│ application/object_store.py      │   │ server/server_repo.py                │
+│ application/tree.py              │   │ server/scope_manager.py              │
+│ application/git_commit.py        │   │ server/backends/s3_storage.py        │
+│ application/root_projection.py   │   │ server/backends/supabase_history.py  │
+│ application/merge.py             │   │ server/backends/supabase_scope.py    │
+│ application/diff.py              │   │ server/backends/supabase_audit.py    │
+│ application/scope.py             │   │ services/hooks.py                    │
+└──────────────────┬───────────────┘   └──────────────────┬───────────────────┘
+                   |                                      |
+                   v                                      v
+┌──────────────────────────────────┐   ┌──────────────────────────────────────┐
+│ S3 Git object storage            │   │ Postgres / Supabase control plane    │
+│                                  │   │                                      │
+│ - Git loose blob/tree/commit     │   │ - repo scopes / scope heads          │
+│ - object id verification         │   │ - root/project projection state      │
+│ - cache + batch writes           │   │ - version index                      │
+│ - conservative GC reachability   │   │ - audit, conflicts, outbox           │
+└──────────────────────────────────┘   └──────────────────────────────────────┘
+
+                                   Read / derived consumers
+                                   ========================
+
+        PuppyOne Web / CLI / Git clone/fetch        Search / index / sync consumers
+                    |                                           |
+                    v                                           v
+       Project or scope Git-compatible view        Version index + outbox + content reads
+       Search never owns version semantics         Search never resolves conflicts
+```
+
+The important distinction:
+
+- Git is the version fact model: blob, tree, commit, ref, clone/fetch/push.
+- PuppyOne owns product policy: scope, CAS, conflict handling, audit,
+  outbox, projection, and access-point semantics.
+- Search and indexing are consumers of committed views/events. They do
+  not implement Git or MUT semantics.
+
+### 2.1 Conceptual System Overview
+
 ```
 User-visible interfaces
 ┌──────────────────────────────────────────────────────────────┐
@@ -143,7 +238,7 @@ Adapters translate external input into transaction intents. They do not
 own publish authority. `mut_engine` is the only component allowed to
 advance a scope head, project ref, version index, or audit state.
 
-### 2.1 End-to-End Write Wiring
+### 2.2 End-to-End Write Wiring
 
 The most important implementation rule is that PuppyOne has many write
 entrances, but one write authority. Frontend actions, PAPI-1/CLI
@@ -332,6 +427,110 @@ After:
 The module is not a thin Git compatibility shim and not a renamed legacy
 MUT server. It is the shared Git-native write transaction core behind
 Git, legacy MUT, and Product Operations.
+
+Current implementation shape:
+
+```text
+backend/src/mut_engine/
+  _routes.py
+  dependencies.py
+  history_changes.py
+  schemas.py
+  text_detection.py
+
+  adapters/
+    git/
+      auth.py                 # Git/AP credential resolution
+      object_quarantine.py    # temporary object import before publish
+      protocol.py             # Git pkt-line / smart HTTP helpers
+      receive_pack.py         # push parser and engine handoff
+      router.py               # Git HTTP routes
+      submission.py           # Git push -> VersionSubmissionIntent
+      upload_pack.py          # clone/fetch serving
+      view_projection.py      # Git-compatible scope/project views
+
+    mut/
+      protocol.py             # PuppyOne-owned legacy MUT DTOs
+      legacy_handlers.py      # clone/pull/negotiate compatibility
+      push_adapter.py         # legacy push -> VersionSubmissionIntent
+      rollback_adapter.py     # legacy rollback -> RollbackIntent
+
+  application/
+    transaction_engine.py     # single write/publish authority
+    conflict_policy.py        # auto merge vs manual/pending policy
+    git_commit.py             # commit parsing/building helpers
+    git_object_format.py      # Git loose object/tree/commit format
+    object_store.py           # Git object store abstraction
+    tree.py                   # Git tree read/write/flatten helpers
+    tree_objects.py           # scoped tree build/validation helpers
+    root_projection.py        # child scope -> project/root grafting
+    merge.py                  # PuppyOne merge strategy chain
+    diff.py                   # Git tree diff helpers
+    scope.py                  # scope path permission checks
+    path_utils.py             # path normalization
+    errors.py                 # local error taxonomy
+    protocol_mode.py          # adapter exposure flag
+
+  domain/
+    conflicts.py              # conflict policy data model
+    intents.py                # write/submission/rollback intent DTOs
+
+  routers/
+    access_point.py           # AP legacy protocol routes
+    access_point_fs.py        # AP filesystem/product routes
+    audit_router.py
+    content_history.py
+    content_read.py
+    content_router.py
+    content_write.py
+    protocol_router.py        # legacy MUT project routes
+    ws_router.py
+
+  server/
+    repo_manager.py           # per-project repo factory/cache
+    server_repo.py            # PuppyOne repo facade over S3/PG
+    scope_manager.py          # local scope manager abstraction
+    audit_repository.py
+    auth.py
+    notifications.py
+    validation.py
+
+    backends/
+      s3_storage.py           # Git object storage on S3
+      supabase_history.py     # scope heads, root hash, version index
+      supabase_scope.py       # repo_scopes-backed scope backend
+      supabase_audit.py
+
+  services/
+    ops.py                    # Product Operation Adapter / MutOps
+    direct_writer.py          # compatibility wrapper over transaction engine
+    tree_reader.py
+    tree_splice.py
+    object_compat.py
+    object_gc.py
+    object_gc_worker.py
+    hooks.py                  # projection/outbox repair hooks
+    ephemeral_client.py       # in-process legacy-client compatibility
+    version_outbox.py
+```
+
+Boundary notes for this current shape:
+
+- `application/transaction_engine.py` is the only accepted-write publish
+  authority.
+- `adapters/git` and `adapters/mut` translate protocols into intents;
+  they do not define version semantics.
+- `services/ops.py` is product-operation language, not the old MUT
+  protocol. It should eventually be renamed, but its role is already
+  correct.
+- `application/git_object_format.py`, `object_store.py`, and `tree.py`
+  are PuppyOne-owned Git storage helpers. They are not a replacement Git
+  protocol; they are the storage/plumbing facade behind the transaction
+  engine and can later be backed more deeply by mature Git libraries or
+  Git CLI plumbing.
+- Search/indexing code should sit outside this package as a consumer of
+  committed project/scope views, version index rows, content reads, or
+  outbox events. It must not make transaction decisions.
 
 Recommended final package shape:
 

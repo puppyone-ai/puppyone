@@ -1,36 +1,29 @@
-"""Content-addressable object store using git's loose-object format.
-
-Formerly ``mut.core.object_store``. Stores objects as
-``<dir>/<sha1[:2]>/<sha1[2:]>`` where each file holds
-``zlib(b"<type> <size>\\x00<content>")`` — byte-identical to git's own
-loose object encoding so a server-side dump is consumable by stock git.
-"""
+"""Git-format content-addressed object store owned by PuppyOne."""
 
 from __future__ import annotations
 
 import abc
 import asyncio
+import os
+import tempfile
 from pathlib import Path
 
-from src.mut_engine.infrastructure.errors import ObjectNotFoundError
-from src.mut_engine.infrastructure.fs_utils import atomic_write
-from src.mut_engine.infrastructure.git_format import (
+from src.mut_engine.application.errors import ObjectNotFoundError
+from src.mut_engine.application.git_object_format import (
     decode_object,
     encode_object,
     hash_object,
 )
 
 
-# ── Backend ───────────────────────────────────
-
 class StorageBackend(abc.ABC):
     @abc.abstractmethod
     def get(self, h: str) -> bytes:
-        """Return the raw on-disk bytes for an object hash (zlib-compressed)."""
+        """Return Git loose-object bytes for object id ``h``."""
 
     @abc.abstractmethod
     def put(self, h: str, loose_bytes: bytes) -> None:
-        """Store the zlib-compressed bytes under hash *h* (idempotent)."""
+        """Store Git loose-object bytes under object id ``h``."""
 
     @abc.abstractmethod
     def exists(self, h: str) -> bool: ...
@@ -46,7 +39,7 @@ class StorageBackend(abc.ABC):
 
 
 class FileSystemBackend(StorageBackend):
-    """Default backend mirroring git's ``objects/<aa>/<bb..>`` layout."""
+    """Git loose-object filesystem layout: ``objects/aa/bb...``."""
 
     def __init__(self, objects_dir: Path):
         self.dir = objects_dir
@@ -62,8 +55,19 @@ class FileSystemBackend(StorageBackend):
 
     def put(self, h: str, loose_bytes: bytes) -> None:
         path = self._path_for(h)
-        if not path.exists():
-            atomic_write(path, loose_bytes)
+        if path.exists():
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+        try:
+            with os.fdopen(fd, "wb") as tmp:
+                tmp.write(loose_bytes)
+            os.replace(tmp_name, path)
+        finally:
+            try:
+                os.unlink(tmp_name)
+            except FileNotFoundError:
+                pass
 
     def exists(self, h: str) -> bool:
         return self._path_for(h).exists()
@@ -72,44 +76,40 @@ class FileSystemBackend(StorageBackend):
         result: list[str] = []
         if not self.dir.exists():
             return result
-        for d in sorted(self.dir.iterdir()):
-            if d.is_dir() and len(d.name) == 2:
-                for f in sorted(d.iterdir()):
-                    result.append(d.name + f.name)
+        for shard in sorted(self.dir.iterdir()):
+            if shard.is_dir() and len(shard.name) == 2:
+                for obj in sorted(shard.iterdir()):
+                    result.append(shard.name + obj.name)
         return result
 
     def count(self) -> tuple[int, int]:
         n, size = 0, 0
         if not self.dir.exists():
             return 0, 0
-        for d in self.dir.iterdir():
-            if d.is_dir():
-                for f in d.iterdir():
+        for shard in self.dir.iterdir():
+            if shard.is_dir():
+                for obj in shard.iterdir():
                     n += 1
-                    size += f.stat().st_size
+                    size += obj.stat().st_size
         return n, size
 
     def delete(self, h: str) -> bool:
         path = self._path_for(h)
-        if path.exists():
-            path.unlink()
-            parent = path.parent
-            if parent.exists() and not any(parent.iterdir()):
-                parent.rmdir()
-            return True
-        return False
+        if not path.exists():
+            return False
+        path.unlink()
+        parent = path.parent
+        if parent.exists() and not any(parent.iterdir()):
+            parent.rmdir()
+        return True
 
-
-# ── Object store ──────────────────────────────
 
 class ObjectStore:
-    """Git-format loose object store with high-level put/get for each type."""
+    """High-level store for Git loose objects."""
 
     def __init__(self, objects_dir: Path, backend: StorageBackend | None = None):
         self.dir = objects_dir
         self._backend = backend or FileSystemBackend(objects_dir)
-
-    # ── high-level (typed) ─────────────────────
 
     def _put_typed(self, obj_type: str, content: bytes) -> str:
         sha1, loose = encode_object(obj_type, content)
@@ -130,32 +130,23 @@ class ObjectStore:
         try:
             obj_type, content = decode_object(loose)
         except Exception as exc:
-            raise ObjectNotFoundError(
-                f"object corrupt: {sha1} ({exc})"
-            ) from exc
+            raise ObjectNotFoundError(f"object corrupt: {sha1} ({exc})") from exc
         actual = hash_object(obj_type, content)
         if actual != sha1:
-            raise ObjectNotFoundError(
-                f"object corrupt: expected {sha1}, got {actual}"
-            )
+            raise ObjectNotFoundError(f"object corrupt: expected {sha1}, got {actual}")
         return obj_type, content
 
-    # ── low-level (loose bytes pass-through) ───
-
     def put_loose(self, sha1: str, loose_bytes: bytes) -> None:
-        """Store pre-encoded loose bytes (used by Git receive-pack)."""
         self._backend.put(sha1, loose_bytes)
 
     def get_loose(self, sha1: str) -> bytes:
         return self._backend.get(sha1)
 
-    # ── back-compat thin wrappers ──────────────
-
     def put(self, data: bytes) -> str:
         return self.put_blob(data)
 
     def get(self, h: str) -> bytes:
-        _type, content = self.get_object(h)
+        _obj_type, content = self.get_object(h)
         return content
 
     def exists(self, h: str) -> bool:
@@ -173,8 +164,6 @@ class ObjectStore:
             if h not in reachable and self._backend.delete(h):
                 deleted += 1
         return deleted
-
-    # ── async wrappers ─────────────────────────
 
     async def async_put(self, data: bytes) -> str:
         return await asyncio.to_thread(self.put, data)

@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-from src.mut_engine.infrastructure import tree as tree_mod
-from src.mut_engine.infrastructure.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
-from src.mut_engine.infrastructure.paths import normalize_path
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.git_object_format import (
+    MODE_DIR,
+    MODE_FILE,
+    TreeEntry,
+    encode_tree,
+)
+from src.mut_engine.application.path_utils import normalize_path
 
 
 def flatten_tree_to_bytes(store, tree_hash: str) -> dict[str, bytes]:

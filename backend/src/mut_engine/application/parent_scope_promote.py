@@ -22,7 +22,7 @@ from typing import Any
 from src.mut_engine.application.git_commit import build_git_commit
 from src.mut_engine.application.root_projection import graft_subtree
 from src.mut_engine.application.tree_objects import flatten_tree_to_bytes
-from src.mut_engine.infrastructure.paths import normalize_path
+from src.mut_engine.application.path_utils import normalize_path
 from src.utils.logger import log_info, log_warning
 
 
@@ -201,7 +201,7 @@ def _build_parent_skeleton(repo, relative: str, child_tree_hash: str) -> str:
     skeleton normally.
     """
 
-    from src.mut_engine.infrastructure.git_format import encode_tree
+    from src.mut_engine.application.git_object_format import encode_tree
 
     empty = repo.store.put_tree(encode_tree([]))
     return graft_subtree(repo.store, empty, relative, child_tree_hash)

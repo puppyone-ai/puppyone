@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 
-from src.mut_engine.infrastructure.git_format import decode_commit, encode_commit
+from src.mut_engine.application.git_object_format import decode_commit, encode_commit
 
 HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 
