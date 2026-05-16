@@ -564,7 +564,7 @@ async def finalize_uploads_to_mut_batch(
 ) -> list[dict]:
     """
     Batch finalize: take N completed multipart uploads and commit them
-    to MUT in **one** push (= one version-control entry per scope).
+    in **one** project-root push (= one visible version-control entry).
 
     Why this exists:
       Dropping a folder of 100 files via the single-file finalize
@@ -592,10 +592,10 @@ async def finalize_uploads_to_mut_batch(
         upload protocol enforces this — one ``/upload/init`` request
         creates tasks under one project). We assert this and reject
         an entire mixed batch as a programming error.
-      * The actual ``ops.bulk_write`` call is responsible for
-        grouping by the narrowest containing scope, so dropping
-        files into different sub-scopes still commits efficiently
-        (one commit per scope rather than one commit per file).
+      * The actual ``ops.bulk_write`` call is responsible for keeping
+        the browser/upload action as one project-root product
+        transaction. Child scope refs are derived afterwards for
+        Git/AP clients; they are not extra user-visible commits.
     """
     results: list[dict] = []
     if not task_ids:

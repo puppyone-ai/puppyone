@@ -253,7 +253,7 @@ class UploadCompleteItem(BaseModel):
 
 
 class UploadCompleteBatchRequest(BaseModel):
-    """Finalize multiple uploads as a SINGLE MUT commit.
+    """Finalize multiple uploads as a single project-root product commit.
 
     The whole point: dropping a folder of N files should record as
     one commit ("uploaded N files at HH:MM"), not N commits. Per-file
@@ -262,9 +262,9 @@ class UploadCompleteBatchRequest(BaseModel):
     N×2s down to ~2s for the whole batch. Same as ``git add a b c
     && git commit`` vs three separate commits.
 
-    Files in a batch may target different scopes; ``bulk_write``
-    groups them per-scope and emits one commit per scope (typical
-    case: all files share one scope = one commit).
+    Files in a batch may land under paths that also have access-point
+    scopes. The product upload still records one root transaction; child
+    scope refs are derived afterwards for Git/AP clients.
     """
     items: list[UploadCompleteItem] = Field(..., min_length=1)
 
@@ -309,4 +309,3 @@ class UploadAbortRequest(BaseModel):
 class UploadAbortResponse(BaseModel):
     task_id: str
     cancelled: bool
-

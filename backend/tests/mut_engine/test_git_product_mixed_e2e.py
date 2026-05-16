@@ -224,14 +224,32 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
     assert audit_types.count("git_push") == 2
     assert audit_types.count("write_file") == 2
     assert len(server_repo.history._entries) == 4
+    history_scopes_by_type = [
+        (entry["message"], entry["scope_path"])
+        for entry in server_repo.history._entries
+    ]
 
     for event in server_repo.audit.events:
         detail = event["detail"]
-        assert detail["scope"] == "docs"
         assert detail["commit_id"]
         assert detail["scope_hash"]
         assert detail["cas_attempts"] >= 1
         assert detail["changes"] >= 1
+        if event["type"] == "write_file":
+            assert detail["scope"] == ""
+            assert detail["project_root_operation"] is True
+            assert detail["root_hash"] == detail["scope_hash"]
+        else:
+            assert event["type"] == "git_push"
+            assert detail["scope"] == "docs"
+            assert "project_root_operation" not in detail
+
+    assert sorted(
+        scope for message, scope in history_scopes_by_type if "frontend-" in message
+    ) == ["", ""]
+    assert sorted(
+        scope for message, scope in history_scopes_by_type if "git " in message
+    ) == ["docs", "docs"]
 
     max_operation_ms = max(item["elapsed_ms"] for item in results)
     assert max_operation_ms < 20_000

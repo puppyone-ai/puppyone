@@ -1135,6 +1135,66 @@ def test_version_outbox_worker_replays_hook_and_marks_complete(monkeypatch):
     ]
 
 
+def test_version_outbox_worker_routes_project_rows_to_project_hook(monkeypatch):
+    project_calls = []
+    scope_calls = []
+
+    def fake_project_hook(project_id, repo_manager, push_result, *, raise_errors=False):
+        project_calls.append((project_id, repo_manager, push_result, raise_errors))
+
+    def fake_scope_hook(project_id, repo_manager, push_result, *, raise_errors=False):
+        scope_calls.append((project_id, repo_manager, push_result, raise_errors))
+
+    monkeypatch.setattr(
+        "src.mut_engine.services.version_outbox.run_post_project_update_hook",
+        fake_project_hook,
+    )
+    monkeypatch.setattr(
+        "src.mut_engine.services.version_outbox.run_post_push_hook",
+        fake_scope_hook,
+    )
+    client = _FakeOutboxClient([
+        {
+            "id": 12,
+            "project_id": "test-proj",
+            "commit_id": "e" * 40,
+            "event_type": "project_version_committed",
+            "payload": {
+                "root_hash": "f" * 40,
+                "scope_hash": "0" * 40,
+                "conflicts": 0,
+            },
+            "attempts": 1,
+        }
+    ])
+    repo_manager = object()
+
+    processed = process_version_outbox_batch(
+        repo_manager=repo_manager,
+        client=client,
+        limit=10,
+    )
+
+    assert processed == 1
+    assert client.completed == [12]
+    assert client.failed == []
+    assert scope_calls == []
+    assert project_calls == [
+        (
+            "test-proj",
+            repo_manager,
+            {
+                "status": "ok",
+                "commit_id": "e" * 40,
+                "root": "f" * 40,
+                "merged": False,
+                "conflicts": 0,
+            },
+            True,
+        )
+    ]
+
+
 def test_version_outbox_worker_marks_failure_for_retry(monkeypatch):
     def fake_hook(*_args, **_kwargs):
         raise RuntimeError("projection unavailable")

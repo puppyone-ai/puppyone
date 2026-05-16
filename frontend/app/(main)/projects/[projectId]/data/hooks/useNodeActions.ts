@@ -10,6 +10,28 @@ function parentOf(path: string): string {
   return path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
 }
 
+function collapseDescendantPaths(paths: string[]): string[] {
+  const clean = Array.from(new Set(
+    paths
+      .map((p) => p.trim().replace(/^\/+|\/+$/g, ''))
+      .filter(Boolean),
+  ));
+
+  clean.sort((a, b) => {
+    const depth = a.split('/').length - b.split('/').length;
+    return depth || a.localeCompare(b);
+  });
+
+  const roots: string[] = [];
+  for (const path of clean) {
+    if (roots.some((root) => path === root || path.startsWith(`${root}/`))) {
+      continue;
+    }
+    roots.push(path);
+  }
+  return roots;
+}
+
 export function useNodeActions(projectId: string, currentFolderPath: string | null) {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
@@ -80,13 +102,13 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
   /**
    * Multi-select bulk delete.
    *
-   * Frontend bundles the selected paths into a single ``/rm`` POST
-   * (``paths`` array), which the backend turns into one versioned
-   * delete commit per scope. Selecting 50 files = 1 round-trip,
-   * usually 1 commit, 1 audit entry — not 50.
+   * A product-level delete action should stay one request from the
+   * browser's point of view. If selection contains both a folder and
+   * its descendants, submit only the folder root so the backend can
+   * unlink the subtree as one versioned operation.
    */
   const handleBulkDelete = useCallback(async (paths: string[]): Promise<void> => {
-    const clean = paths.filter(Boolean);
+    const clean = collapseDescendantPaths(paths);
     if (!clean.length) return;
     const inFlight = clean.filter((p) => deletingPathsRef.current.has(p));
     if (inFlight.length) {

@@ -474,10 +474,9 @@ export async function removeFile(
 }
 
 /**
- * Delete multiple files in one round-trip. Backend bundles the paths
- * into one versioned delete commit per scope, so the size of ``paths``
- * does not change the number of commits or audit entries in the common
- * single-scope case.
+ * Delete multiple files in one round-trip. Product/Data-page deletes
+ * are project-root transactions, so one confirmed browser action maps
+ * to one visible history/audit entry.
  *
  * POST /api/v1/content/{projectId}/rm  with ``{ paths, permanent }``
  */

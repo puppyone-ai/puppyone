@@ -29,6 +29,7 @@ from src.mut_engine.application.git_commit import (
     git_compatibility_error,
     is_git_compatible_commit,
 )
+from src.mut_engine.application.git_object_format import encode_tree
 from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.application.tree_objects import (
     build_full_changes,
@@ -113,6 +114,31 @@ class GitNativeTransactionEngine:
         )
 
         return await self._apply_operation_optimistic(
+            intent=intent,
+            splice=splice,
+            started_ms=started_ms,
+        )
+
+    async def apply_project_operation(
+        self,
+        intent: OperationWriteIntent,
+        splice: SpliceFn,
+    ) -> TransactionResult:
+        """Apply a product API operation against the project root.
+
+        Frontend/Data-page writes are repository-level actions. They use
+        the materialized project root as their CAS base and publish one
+        user-visible history/audit event. Scope refs are derived after
+        commit so access-point remotes stay current without becoming
+        separate product commits.
+        """
+
+        started_ms = int(time.time() * 1000)
+        log_info(
+            f"[version_engine][{intent.operation_type}:project] start "
+            f"project={intent.project_id} actor={intent.actor}",
+        )
+        return await self._apply_project_operation_optimistic(
             intent=intent,
             splice=splice,
             started_ms=started_ms,
@@ -206,6 +232,7 @@ class GitNativeTransactionEngine:
                     who=intent.actor,
                     message=intent.message,
                     created_at_iso=created_at_iso,
+                    validate_parent_graph=False,
                 )
 
                 if object_batch is not None:
@@ -247,6 +274,109 @@ class GitNativeTransactionEngine:
             f"after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}, scope={scope_norm!r}); "
             f"last error: {last_error}",
+        )
+
+    async def _apply_project_operation_optimistic(
+        self,
+        *,
+        intent: OperationWriteIntent,
+        splice: SpliceFn,
+        started_ms: int,
+    ) -> TransactionResult:
+        repo = self._repos.get_server_repo(intent.project_id)
+
+        last_error: Exception | None = None
+        for attempt in range(_MAX_CAS_ATTEMPTS):
+            old_root_hash = _get_project_root_hash(repo)
+            base_root_hash = old_root_hash or repo.store.put_tree(encode_tree([]))
+            current_head_commit_id = _get_project_view_head(repo, old_root_hash)
+            if (
+                intent.expected_head_commit_id is not None
+                and current_head_commit_id != intent.expected_head_commit_id
+            ):
+                raise ConcurrentMutationError(
+                    scope_path="",
+                    expected_head_commit_id=intent.expected_head_commit_id,
+                    current_head_commit_id=current_head_commit_id,
+                )
+
+            with stage_object_writes(repo.store) as object_batch:
+                new_root_hash, changes = await asyncio.to_thread(
+                    splice, repo.store, base_root_hash,
+                )
+
+                if (
+                    not changes
+                    or (
+                        new_root_hash == base_root_hash
+                        and not intent.allow_same_tree_commit
+                    )
+                ):
+                    elapsed = int(time.time() * 1000) - started_ms
+                    log_info(
+                        f"[version_engine][{intent.operation_type}:project] noop "
+                        f"project={intent.project_id} elapsed={elapsed}ms",
+                    )
+                    return TransactionResult(
+                        status="ok",
+                        is_noop=True,
+                        new_scope_hash=base_root_hash,
+                    )
+
+                created_at_iso = _now_iso()
+                new_commit_id = await asyncio.to_thread(
+                    build_git_commit,
+                    repo,
+                    tree_sha=new_root_hash,
+                    parent_sha=_git_safe_parent(repo, current_head_commit_id),
+                    who=intent.actor,
+                    message=intent.message,
+                    created_at_iso=created_at_iso,
+                    validate_parent_graph=False,
+                )
+
+                if object_batch is not None:
+                    await asyncio.to_thread(object_batch.flush)
+
+            full_changes = build_full_changes("", changes)
+            result = await self._publish_project_update(
+                repo=repo,
+                project_id=intent.project_id,
+                old_root_hash=old_root_hash,
+                new_root_hash=new_root_hash,
+                commit_id=new_commit_id,
+                actor=intent.actor,
+                message=intent.message,
+                op_type=intent.operation_type,
+                audit_detail=intent.audit_detail,
+                changes=full_changes,
+                conflicts=None,
+                created_at_iso=created_at_iso,
+                cas_attempt=attempt + 1,
+                merged=False,
+                merged_changes=[],
+            )
+            if result is not None:
+                _log_done(
+                    f"{intent.operation_type}:project",
+                    intent.project_id,
+                    "",
+                    result,
+                    started_ms,
+                )
+                return result
+
+            last_error = RuntimeError("project root CAS lost")
+            log_info(
+                f"[version_engine][{intent.operation_type}:project] root CAS lost "
+                f"(attempt {attempt + 1}/{_MAX_CAS_ATTEMPTS}) "
+                f"project={intent.project_id}",
+            )
+
+        raise RuntimeError(
+            f"[version_engine][{intent.operation_type}:project] root CAS still "
+            f"failing after {_MAX_CAS_ATTEMPTS} attempts "
+            f"(project={intent.project_id}); last error: {last_error}",
         )
 
     async def _submit_version_optimistic(
@@ -481,6 +611,7 @@ class GitNativeTransactionEngine:
                 who=intent.actor,
                 message=intent.message or f"rollback to {target_commit_id}",
                 created_at_iso=created_at_iso,
+                validate_parent_graph=False,
             )
 
             result = await self._publish_scope_update(
@@ -635,6 +766,7 @@ class GitNativeTransactionEngine:
             who=intent.actor,
             message=intent.message,
             created_at_iso=created_at_iso,
+            validate_parent_graph=False,
         )
 
     async def _publish_scope_update(
@@ -656,7 +788,6 @@ class GitNativeTransactionEngine:
         cas_attempt: int,
         merged: bool,
         merged_changes: list[dict],
-        defer_projection: bool,
     ) -> TransactionResult | None:
         audit = {
             "scope": scope_path,
@@ -742,6 +873,109 @@ class GitNativeTransactionEngine:
             commit_object=commit_object,
         )
 
+    async def _publish_project_update(
+        self,
+        *,
+        repo,
+        project_id: str,
+        old_root_hash: str,
+        new_root_hash: str,
+        commit_id: str,
+        actor: str,
+        message: str,
+        op_type: str,
+        audit_detail: dict,
+        changes: list[dict],
+        conflicts,
+        created_at_iso: str,
+        cas_attempt: int,
+        merged: bool,
+        merged_changes: list[dict],
+    ) -> TransactionResult | None:
+        audit = {
+            "scope": "",
+            "commit_id": commit_id,
+            "root_hash": new_root_hash,
+            "scope_hash": new_root_hash,
+            "cas_attempts": cas_attempt,
+            "changes": len(changes),
+            "merged": merged,
+            "conflict_count": len(conflicts or []),
+            "project_root_operation": True,
+            **(audit_detail or {}),
+        }
+        published = await asyncio.to_thread(
+            repo.publish_project_update,
+            old_root_hash=old_root_hash,
+            new_root_hash=new_root_hash,
+            commit_id=commit_id,
+            who=actor,
+            message=message,
+            changes=changes,
+            conflicts=conflicts,
+            created_at_iso=created_at_iso,
+            audit_event_type=op_type,
+            audit_agent_id=actor,
+            audit_detail=audit,
+        )
+        if not published:
+            return None
+
+        push_result = {
+            "status": "ok",
+            "commit_id": commit_id,
+            "root": new_root_hash,
+            "merged": merged,
+            "conflicts": len(conflicts or []),
+        }
+        try:
+            from src.mut_engine.services.hooks import (
+                run_post_project_update_hook,
+            )
+            from src.mut_engine.services.version_outbox import (
+                complete_version_outbox_for_commit,
+            )
+
+            # Project-root product operations must update child scope refs before
+            # the request returns. A later scoped Git/AP push should see every
+            # frontend/Data-page write that committed before it starts merging.
+            await asyncio.to_thread(
+                run_post_project_update_hook,
+                project_id,
+                self._repos,
+                push_result,
+                raise_errors=True,
+            )
+            await asyncio.to_thread(
+                complete_version_outbox_for_commit,
+                project_id,
+                commit_id,
+            )
+        except Exception as e:
+            log_error(
+                f"[version_engine][{op_type}:project] projection hook failed "
+                f"(commit landed but scope refs may lag): {e}",
+            )
+
+        commit_object = ""
+        try:
+            commit_object = base64.b64encode(repo.store.get_loose(commit_id)).decode()
+        except Exception:
+            pass
+
+        return TransactionResult(
+            commit_id=commit_id,
+            status="ok",
+            merged=merged,
+            conflicts=len(conflicts or []),
+            paths=[c["path"] for c in changes],
+            changes=changes,
+            new_scope_hash=new_root_hash,
+            is_noop=False,
+            merged_changes=merged_changes,
+            commit_object=commit_object,
+        )
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds")
@@ -768,6 +1002,39 @@ def _get_scope_state(repo, scope_path: str) -> tuple[str, str]:
         repo.get_scope_hash(scope_path) or "",
         repo.get_scope_head_commit_id(scope_path) or "",
     )
+
+
+def _get_project_root_hash(repo) -> str:
+    try:
+        return repo.get_root_hash() or ""
+    except Exception:
+        return ""
+
+
+def _get_project_view_head(repo, project_root_hash: str = "") -> str:
+    root_state = getattr(repo, "get_scope_state", None)
+    if callable(root_state):
+        try:
+            root_hash, root_head = root_state("")
+            if root_head and root_hash == project_root_hash:
+                return root_head
+        except Exception:
+            pass
+    latest = getattr(repo, "get_latest_project_view_commit_id", None)
+    if callable(latest):
+        try:
+            commit_id = latest() or ""
+            if commit_id:
+                return commit_id
+        except Exception:
+            pass
+    head = getattr(repo, "get_head_commit_id", None)
+    if callable(head):
+        try:
+            return head() or ""
+        except Exception:
+            return ""
+    return ""
 
 
 def _pending_conflict_id(

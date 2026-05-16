@@ -20,6 +20,8 @@ from src.mut_engine.application.root_projection import (
     graft_subtree,
 )
 from src.mut_engine.application.git_commit import build_git_commit, commit_tree_id
+from src.mut_engine.application.git_object_format import decode_tree
+from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.adapters.git.view_projection import git_compatible_head_commit
 from src.utils.logger import log_error, log_info, log_warning
 
@@ -133,6 +135,81 @@ def run_post_push_hook(
             raise
 
 
+def run_post_project_update_hook(
+    project_id: str,
+    repo_manager,
+    push_result: dict,
+    *,
+    raise_errors: bool = False,
+) -> None:
+    """Finalize a product-root transaction.
+
+    Product API writes already CAS-updated ``projects.mut_root_hash``.
+    The hook therefore does not rebuild the project root from child
+    scopes. Instead it derives child-scope refs from the accepted root
+    so scoped Git/AP clients see the new product state without creating
+    extra user-visible commits.
+    """
+
+    status = push_result.get("status", "")
+    if status not in _SUCCESS_STATUSES:
+        return
+
+    commit_id = push_result.get("commit_id") or push_result.get("new_commit_id") or ""
+    root_hash = push_result.get("root", "")
+    if not commit_id or not root_hash:
+        return
+
+    try:
+        repo = repo_manager.get_server_repo(project_id)
+        entry = repo.history.get_entry(commit_id)
+        if not entry:
+            return
+
+        _sync_child_scope_refs_from_project_root(
+            repo=repo,
+            project_root_hash=root_hash,
+            source_commit_id=commit_id,
+            created_at_iso=entry.get("created_at") or entry.get("time") or "",
+        )
+
+        try:
+            _record_project_view_index(
+                repo=repo,
+                entry=entry,
+                scope_path="",
+                scope_hash=root_hash,
+                project_root_hash=root_hash,
+                source_commit_id=commit_id,
+            )
+        except Exception as exc:
+            log_warning(
+                f"[PostCommit] project-root version index update failed "
+                f"for commit {commit_id[:12]}: {exc}",
+            )
+
+        changes = entry.get("changes", [])
+        if isinstance(changes, str):
+            import json
+            changes = json.loads(changes)
+
+        deleted_paths = [
+            c["path"] for c in changes
+            if c.get("action") == "delete" or c.get("op") == "deleted"
+        ]
+        if deleted_paths:
+            post_commit_delete(project_id, deleted_paths)
+
+        _broadcast_commit_update(project_id, entry, changes)
+
+    except Exception as e:
+        log_error(
+            f"[PostCommit] project-root hook failed for project {project_id}: {e}"
+        )
+        if raise_errors:
+            raise
+
+
 def schedule_post_push_hook(project_id: str, repo_manager, push_result: dict) -> None:
     """Run post-commit projection work off the user request path.
 
@@ -143,13 +220,46 @@ def schedule_post_push_hook(project_id: str, repo_manager, push_result: dict) ->
     background execution fails or the process exits before it completes.
     """
 
+    _schedule_post_commit_hook(
+        project_id,
+        repo_manager,
+        push_result,
+        run_post_push_hook,
+        label="scope projection",
+    )
+
+
+def schedule_post_project_update_hook(
+    project_id: str,
+    repo_manager,
+    push_result: dict,
+) -> None:
+    """Run product-root derived work off the user request path."""
+
+    _schedule_post_commit_hook(
+        project_id,
+        repo_manager,
+        push_result,
+        run_post_project_update_hook,
+        label="project-root projection",
+    )
+
+
+def _schedule_post_commit_hook(
+    project_id: str,
+    repo_manager,
+    push_result: dict,
+    hook_fn,
+    *,
+    label: str,
+) -> None:
     commit_id = push_result.get("commit_id") or push_result.get("new_commit_id") or ""
     if not commit_id:
         return
 
     def _run() -> None:
         try:
-            run_post_push_hook(
+            hook_fn(
                 project_id,
                 repo_manager,
                 push_result,
@@ -168,7 +278,7 @@ def schedule_post_push_hook(project_id: str, repo_manager, push_result: dict) ->
                 )
         except Exception as exc:
             log_error(
-                f"[PostCommit] async projection failed for project "
+                f"[PostCommit] async {label} failed for project "
                 f"{project_id} commit={commit_id[:12]}: {exc}",
             )
 
@@ -367,6 +477,7 @@ def _record_project_view_index(
             who="puppyone-project-view",
             message=f"Puppyone project view for {source_commit_id}",
             created_at_iso=created_at,
+            validate_parent_graph=False,
         )
 
     repo.record_version_index(
@@ -376,6 +487,96 @@ def _record_project_view_index(
         project_root_hash=project_root_hash,
         project_view_commit_id=project_view_commit_id,
     )
+
+
+def _sync_child_scope_refs_from_project_root(
+    *,
+    repo,
+    project_root_hash: str,
+    source_commit_id: str,
+    created_at_iso: str,
+) -> None:
+    """Derive scoped access-point refs from an accepted project root."""
+
+    scopes = []
+    try:
+        scopes = repo.scopes.list_all()
+    except Exception as exc:
+        log_warning(f"[PostCommit] could not list repo scopes for root sync: {exc}")
+        return
+
+    for scope in scopes:
+        scope_path = normalize_path(scope.get("path", ""))
+        if not scope_path:
+            continue
+
+        subtree_hash = _tree_hash_at_path(repo.store, project_root_hash, scope_path)
+        current_hash, current_head = ("", "")
+        try:
+            current_hash, current_head = repo.get_scope_state(scope_path)
+        except Exception:
+            try:
+                current_hash = repo.get_scope_hash(scope_path)
+                current_head = repo.get_scope_head_commit_id(scope_path)
+            except Exception:
+                pass
+
+        if not subtree_hash:
+            if current_hash or current_head:
+                _set_scope_state(repo, scope_path, "", "")
+                log_info(
+                    f"[PostCommit] cleared child scope {scope_path!r} after "
+                    f"project-root commit {source_commit_id[:12]}"
+                )
+            continue
+
+        if current_hash == subtree_hash:
+            continue
+
+        parent = ""
+        if current_head:
+            try:
+                parent = git_compatible_head_commit(repo, current_head)
+            except Exception:
+                parent = ""
+        scope_commit_id = build_git_commit(
+            repo,
+            tree_sha=subtree_hash,
+            parent_sha=parent,
+            who="puppyone-scope-view",
+            message=f"Puppyone scope view for {source_commit_id}",
+            created_at_iso=created_at_iso,
+            validate_parent_graph=False,
+        )
+        _set_scope_state(repo, scope_path, subtree_hash, scope_commit_id)
+        log_info(
+            f"[PostCommit] synced child scope {scope_path!r} from "
+            f"project-root commit {source_commit_id[:12]}"
+        )
+
+
+def _set_scope_state(repo, scope_path: str, scope_hash: str, head_commit_id: str) -> None:
+    history = getattr(repo, "history", repo)
+    history.set_scope_hash(scope_path, scope_hash)
+    history.set_scope_head_commit_id(scope_path, head_commit_id)
+
+
+def _tree_hash_at_path(store, root_hash: str, path: str) -> str:
+    if not root_hash:
+        return ""
+    current = root_hash
+    for part in [p for p in normalize_path(path).split("/") if p]:
+        try:
+            obj_type, body = store.get_object(current)
+        except Exception:
+            return ""
+        if obj_type != "tree":
+            return ""
+        match = next((entry for entry in decode_tree(body) if entry.name == part), None)
+        if match is None or not match.is_dir:
+            return ""
+        current = match.sha1_hex
+    return current
 
 
 def _build_root_from_scope_state(
