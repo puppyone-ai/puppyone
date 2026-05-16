@@ -14,8 +14,8 @@ All identifiers are hash-based (``commit_id``, 16 hex chars).
 import base64
 import pytest
 
-from mut.core import tree as tree_mod
-from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
     handle_rollback, handle_pull_commit,
@@ -29,7 +29,7 @@ from tests.mut_engine.test_server_repo import (
 @pytest.fixture
 def repo(memory_store):
     from src.mut_engine.server.server_repo import PuppyOneServerRepo
-    from mut.server.scope_manager import ScopeManager
+    from src.mut_engine.server.scope_manager import ScopeManager
 
     history = FakeHistoryManager()
     audit = FakeAuditManager()
@@ -140,7 +140,7 @@ class TestAccessPointAuthContext:
             "_scope": {"id": "scope-docs", "path": "/docs/", "exclude": [], "mode": "r"},
         }
         body = _make_push(repo.store, {"readme.md": b"data"})
-        from mut.foundation.error import PermissionDenied
+        from src.mut_engine.application.errors import PermissionDenied
         with pytest.raises(PermissionDenied):
             handle_push(repo, ro_auth, body)
 
@@ -153,7 +153,7 @@ class TestAccessPointAuthContext:
             },
         }
         body = _make_push(repo.store, {"secret/classified.txt": b"top secret"})
-        from mut.foundation.error import PermissionDenied
+        from src.mut_engine.application.errors import PermissionDenied
         with pytest.raises(PermissionDenied):
             handle_push(repo, auth, body)
 

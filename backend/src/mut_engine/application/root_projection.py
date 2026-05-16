@@ -8,7 +8,7 @@ that registry.
 
 from __future__ import annotations
 
-from mut.foundation.git_format import (
+from src.mut_engine.application.git_object_format import (
     MODE_DIR,
     MODE_FILE,
     TreeEntry,

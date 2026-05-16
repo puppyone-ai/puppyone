@@ -18,11 +18,11 @@ import base64
 import asyncio
 from datetime import UTC
 
-from mut.core.protocol import PROTOCOL_VERSION
-from mut.foundation.git_format import (
+from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
+from src.mut_engine.application.git_object_format import (
     MODE_DIR, MODE_FILE, TreeEntry, encode_object, encode_tree, hash_object,
 )
-from mut.server.handlers import (
+from src.mut_engine.adapters.mut.legacy_handlers import (
     handle_clone,
     handle_negotiate,
     handle_pull,
@@ -147,7 +147,7 @@ class MutEphemeralClient:
         caller that mistakenly assumes full content fails loudly rather
         than silently operating on empty bytes.
         """
-        from mut.core.protocol import normalize_path
+        from src.mut_engine.application.path_utils import normalize_path
 
         repo = self._get_server_repo()
 
@@ -203,7 +203,7 @@ class MutEphemeralClient:
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        from mut.core.tree import read_tree
+        from src.mut_engine.application.tree import read_tree
 
         result: dict[str, str] = {}
         if not root_hash:

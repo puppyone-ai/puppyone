@@ -14,9 +14,9 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
-from mut.core.object_store import ObjectStore
-from mut.core.protocol import PROTOCOL_VERSION, PushResponse, RollbackResponse
-from mut.core.scope import check_path_permission
+from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION, PushResponse, RollbackResponse
+from src.mut_engine.application.scope import check_path_permission
 from tests.mut_engine._handlers import handle_clone, handle_push, handle_rollback
 
 from tests.mut_engine.test_server_repo import (
@@ -39,7 +39,7 @@ def memory_store(tmp_path):
 @pytest.fixture
 def server_repo(memory_store):
     from src.mut_engine.server.server_repo import PuppyOneServerRepo
-    from mut.server.scope_manager import ScopeManager
+    from src.mut_engine.server.scope_manager import ScopeManager
 
     history = FakeHistoryManager()
     audit = FakeAuditManager()
@@ -90,8 +90,8 @@ def _push_file(
 ) -> dict:
     """Push files through the MUT protocol handler and return the raw result."""
     import base64
-    from mut.core import tree as tree_mod
-    from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+    from src.mut_engine.application import tree as tree_mod
+    from src.mut_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
     nested: dict = {}
     for path, content in files.items():
@@ -421,7 +421,7 @@ class TestP1_2_ScopeFailClosed:
         mock_manager = MagicMock()
         mock_manager.get_by_id.return_value = None
 
-        with patch("mut.server.scope_manager.ScopeManager", return_value=mock_manager):
+        with patch("src.mut_engine.server.scope_manager.ScopeManager", return_value=mock_manager):
             with patch(
                 "src.mut_engine.server.backends.supabase_scope.SupabaseScopeBackend"
             ):
@@ -445,7 +445,7 @@ class TestP1_2_ScopeFailClosed:
         mock_manager = MagicMock()
         mock_manager.get_by_id.return_value = None
 
-        with patch("mut.server.scope_manager.ScopeManager", return_value=mock_manager):
+        with patch("src.mut_engine.server.scope_manager.ScopeManager", return_value=mock_manager):
             with patch(
                 "src.mut_engine.server.backends.supabase_scope.SupabaseScopeBackend"
             ):
@@ -584,7 +584,7 @@ class TestP2_1_CacheThreadSafety:
 
     def test_concurrent_get_put(self):
         from src.mut_engine.server.backends.s3_storage import CachedStorageBackend
-        from mut.core.object_store import StorageBackend
+        from src.mut_engine.application.object_store import StorageBackend
 
         class MemoryBackend(StorageBackend):
             def __init__(self):
@@ -633,7 +633,7 @@ class TestP2_5_ReadFileNavigates:
     def test_read_uses_navigation(self, memory_store):
         from src.mut_engine.services.tree_reader import MutTreeReader
         from src.mut_engine.server.repo_manager import MutRepoManager
-        from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+        from src.mut_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
         blob_hash = memory_store.put_blob(b"hello")
         inner_hash = memory_store.put_tree(encode_tree([
@@ -660,7 +660,7 @@ class TestP2_5_ReadFileNavigates:
     def test_read_nonexistent_returns_none(self, memory_store):
         from src.mut_engine.services.tree_reader import MutTreeReader
         from src.mut_engine.server.repo_manager import MutRepoManager
-        from mut.foundation.git_format import encode_tree
+        from src.mut_engine.application.git_object_format import encode_tree
 
         root_hash = memory_store.put_tree(encode_tree([]))
 
@@ -963,7 +963,7 @@ class TestMutaiCompat:
     def test_push_handler_module_has_cas(self):
         """The handlers module must reference cas_update_scope."""
         import inspect
-        from mut.server import handlers as h
+        from src.mut_engine.adapters.mut import legacy_handlers as h
         source = inspect.getsource(h)
         assert "cas_update_scope" in source
 
@@ -989,7 +989,7 @@ class TestMutaiCompat:
     def test_rollback_uses_cas_not_direct_set(self):
         """handle_rollback should use CAS via _rollback_cas_attempt."""
         import inspect
-        from mut.server.handlers import _rollback_cas_attempt
+        from src.mut_engine.adapters.mut.legacy_handlers import _rollback_cas_attempt
         src = inspect.getsource(_rollback_cas_attempt)
         assert "cas_update_scope" in src
         assert "set_scope_hash" not in src

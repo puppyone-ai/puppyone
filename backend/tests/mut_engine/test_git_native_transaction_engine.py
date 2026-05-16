@@ -25,10 +25,10 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from mut.core import tree as tree_mod
-from mut.core.object_store import ObjectStore
-from mut.core.protocol import PROTOCOL_VERSION
-from mut.foundation.git_format import encode_commit
+from src.mut_engine.application import tree as tree_mod
+from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
+from src.mut_engine.application.git_object_format import encode_commit
 from pydantic import ValidationError
 
 from src.mut_engine.dependencies import get_repo_manager
@@ -73,7 +73,7 @@ def memory_store(tmp_path) -> ObjectStore:
 
 @pytest.fixture
 def server_repo(memory_store):
-    from mut.server.scope_manager import ScopeManager
+    from src.mut_engine.server.scope_manager import ScopeManager
     from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
     history = FakeHistoryManager()

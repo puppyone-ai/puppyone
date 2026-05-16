@@ -465,7 +465,6 @@ dependencies = [
     { name = "loguru" },
     { name = "lxml" },
     { name = "moto", extra = ["s3"] },
-    { name = "mutai" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -507,7 +506,6 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "lxml", specifier = ">=5.0.0" },
     { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
-    { name = "mutai", editable = "../../mut" },
     { name = "openai", specifier = ">=2.8.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
@@ -1733,11 +1731,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7f/ae/3148b988a9c6239903e786eac19c889fab607c31d6efa7fb2147e5680f23/multidict-6.7.0-cp314-cp314t-win_arm64.whl", hash = "sha256:cc41db090ed742f32bd2d2c721861725e6109681eddf835d0a82bd3a5c382827", size = 44804, upload-time = "2025-10-06T14:51:55.415Z" },
     { url = "https://files.pythonhosted.org/packages/b7/da/7d22601b625e241d4f23ef1ebff8acfc60da633c9e7e7922e24d10f592b3/multidict-6.7.0-py3-none-any.whl", hash = "sha256:394fc5c42a333c9ffc3e421a4c85e08580d990e08b99f6bf35b4132114c5dcb3", size = 12317, upload-time = "2025-10-06T14:52:29.272Z" },
 ]
-
-[[package]]
-name = "mutai"
-version = "0.1.6"
-source = { editable = "../../mut" }
 
 [[package]]
 name = "nest-asyncio"

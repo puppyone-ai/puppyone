@@ -1,4 +1,4 @@
-"""Test-only wrappers around :mod:`mut.server.handlers`.
+"""Test-only wrappers around :mod:`src.mut_engine.adapters.mut.legacy_handlers`.
 
 The real handlers require every request to carry the current
 ``protocol_version`` (enforced by ``require_supported_protocol``).
@@ -8,13 +8,13 @@ have to repeat ``{"protocol_version": PROTOCOL_VERSION, ...}`` at ~80
 call sites. These thin wrappers auto-inject the current protocol
 version so tests stay focused on the semantic behavior they care
 about; if a test needs to exercise the version-rejection path it
-should import from :mod:`mut.server.handlers` directly instead.
+should import from :mod:`src.mut_engine.adapters.mut.legacy_handlers` directly instead.
 """
 
 from __future__ import annotations
 
-from mut.core.protocol import PROTOCOL_VERSION
-from mut.server import handlers as _h
+from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
+from src.mut_engine.adapters.mut import legacy_handlers as _h
 
 
 def _v(body):

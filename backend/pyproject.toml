@@ -41,7 +41,6 @@ dependencies = [
     "apscheduler>=3.10.4",
     "watchdog>=6.0.0",
     "pymupdf>=1.25.0",
-    "mutai>=0.1.6",
     "zipstream-ng>=1.9.0",
 ]
 
@@ -80,16 +79,3 @@ asyncio_mode = "auto"
 markers = [
     "e2e: end-to-end tests that may call real external services",
 ]
-
-[tool.uv.sources]
-# Until the mut-git wire-format work lands on PyPI, every developer on the
-# ``mut-git`` branch needs the local ``../../mut`` source — the published
-# ``mutai 0.1.6`` is missing ``mut.foundation.git_format`` and the loose-
-# object ObjectStore. ``editable = true`` so changes to mut/ are picked up
-# without a re-sync.
-#
-# This dev-time override does NOT change public package metadata: the
-# regular ``mutai>=0.1.6`` entry in ``[project.dependencies]`` is what the
-# project's published wheel advertises.  Drop this section once the
-# git-format-storage release is on PyPI.
-mutai = { path = "../../mut", editable = true }
