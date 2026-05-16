@@ -49,11 +49,11 @@ export const NodeGroup = ({
           padding: '6px 8px',
           borderRadius: 6,
           cursor: 'pointer',
-          background: isCurrentNode ? 'rgba(74, 222, 128, 0.08)' : 'transparent',
+          background: isCurrentNode ? 'color-mix(in srgb, var(--po-success) 8%, transparent)' : 'transparent',
           transition: 'all 0.15s',
         }}
         onMouseEnter={e => {
-          if (!isCurrentNode) e.currentTarget.style.background = '#1a1a1a';
+          if (!isCurrentNode) e.currentTarget.style.background = 'var(--po-panel-raised)';
         }}
         onMouseLeave={e => {
           if (!isCurrentNode) e.currentTarget.style.background = 'transparent';
@@ -65,7 +65,7 @@ export const NodeGroup = ({
             height="10"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#666"
+            stroke="var(--po-text-subtle)"
             strokeWidth="2"
             style={{
               transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -78,7 +78,7 @@ export const NodeGroup = ({
           <span style={{
             fontSize: 12,
             fontWeight: 500,
-            color: isCurrentNode ? '#4ade80' : '#999',
+            color: isCurrentNode ? 'var(--po-success)' : 'var(--po-text-subtle)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -90,8 +90,8 @@ export const NodeGroup = ({
               fontSize: 10,
               padding: '1px 4px',
               borderRadius: 3,
-              background: 'rgba(74, 222, 128, 0.15)',
-              color: '#4ade80',
+              background: 'color-mix(in srgb, var(--po-success) 15%, transparent)',
+              color: 'var(--po-success)',
               fontWeight: 600,
             }}>
               {selectedCount}
@@ -115,19 +115,19 @@ export const NodeGroup = ({
                 borderRadius: 4,
                 cursor: 'pointer',
                 fontSize: 12,
-                color: selectedAccess.has(tool.id) ? '#eee' : '#777',
-                background: selectedAccess.has(tool.id) ? '#262626' : 'transparent',
+                color: selectedAccess.has(tool.id) ? 'var(--po-text)' : 'var(--po-text-muted)',
+                background: selectedAccess.has(tool.id) ? 'var(--po-border)' : 'transparent',
                 transition: 'all 0.1s',
               }}
               onMouseEnter={e => {
-                if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = '#1f1f1f';
+                if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = 'var(--po-hover)';
               }}
               onMouseLeave={e => {
                 if (!selectedAccess.has(tool.id)) e.currentTarget.style.background = 'transparent';
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                <span style={{ opacity: 0.8, flexShrink: 0, color: selectedAccess.has(tool.id) ? '#fff' : '#555' }}>
+                <span style={{ opacity: 0.8, flexShrink: 0, color: selectedAccess.has(tool.id) ? 'var(--po-text-inverse)' : 'var(--po-text-subtle)' }}>
                   {tool.type === 'bash' ? (
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="4 17 10 11 4 5" />
@@ -142,7 +142,7 @@ export const NodeGroup = ({
                 </span>
               </div>
               {selectedAccess.has(tool.id) && (
-                <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#4ade80', flexShrink: 0 }} />
+                <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--po-success)', flexShrink: 0 }} />
               )}
             </div>
           ))}

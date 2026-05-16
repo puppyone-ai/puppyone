@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("APP_ENV", "ENVIRONMENT"),
     )
     DEBUG: bool | None = None
-    VERSION: str = "0.0.1"
+    VERSION: str = "0.0.3"
 
     # Local storage configuration, mostly using Supabase now
     DATA_PATH: Path = Path("./data")
@@ -258,6 +258,20 @@ class Settings(BaseSettings):
     # Search Tool indexing (async)
     # - Only used for async indexing wait_for timeout control, preventing background tasks from hanging indefinitely
     SEARCH_INDEX_TIMEOUT_SECONDS: int = 120
+
+    # MUT/Git-native version engine hardening.
+    # Protocol mode falls open only in development/test by default; production
+    # should fail closed if the project flag cannot be read.
+    MUT_PROTOCOL_MODE_FAIL_OPEN: bool | None = None
+    MUT_VERSION_OUTBOX_ENABLED: bool = True
+    MUT_VERSION_OUTBOX_INTERVAL_SECONDS: int = 30
+    MUT_VERSION_OUTBOX_BATCH_SIZE: int = 50
+    MUT_OBJECT_GC_ENABLED: bool = False
+    MUT_OBJECT_GC_DRY_RUN: bool = True
+    MUT_OBJECT_GC_INTERVAL_SECONDS: int = 60 * 60
+    MUT_OBJECT_GC_RETENTION_SECONDS: int = 7 * 24 * 60 * 60
+    MUT_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
+    MUT_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
 
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key

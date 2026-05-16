@@ -2,7 +2,10 @@
 
 import clsx from 'clsx';
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
+import { APP_Z_INDEX } from '@/lib/zIndex';
+import { SkeletonBlock } from '@/components/loading';
 
 // Brand blue — same constant as `BRAND_BLUE` in SidebarLayout.tsx.
 // Used for every workspace identity chip so the project's "color"
@@ -18,6 +21,7 @@ export type ProjectOption = {
 export type ProjectSwitcherProps = {
   currentProject: ProjectOption | null; // null = Home/Organization view
   projects: ProjectOption[];
+  projectsLoading?: boolean;
   onSelectProject: (projectId: string) => void;
   onGoHome: () => void;
   onHoverProject?: (projectId: string) => void;
@@ -29,21 +33,54 @@ export type ProjectSwitcherProps = {
   // pre-org states. Used both for the row text and for the first-letter
   // glyph so org view renders the same blue letter-chip as project view.
   globalLabel?: string;
+  identityLoading?: boolean;
 };
 
 export function ProjectSwitcher({
   currentProject,
   projects,
+  projectsLoading = false,
   onSelectProject,
   onGoHome,
   onHoverProject,
   isCollapsed = false,
   globalLabel,
+  identityLoading = false,
 }: ProjectSwitcherProps) {
   const t = useTranslations('sidebar');
   const [isOpen, setIsOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+  } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const rect = buttonRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuPosition({
+        left: rect.left,
+        top: rect.bottom + 4,
+        width: Math.max(220, rect.width),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -110,7 +147,7 @@ export function ProjectSwitcher({
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
           'flex h-8 w-full items-center gap-2.5 rounded-[5px] px-2 transition-colors duration-150',
-          isOpen ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
+          isOpen ? 'bg-[var(--po-selected)]' : 'hover:bg-[var(--po-hover)]'
         )}
       >
         {/* Identity glyph — 18×18 brand-blue chip carrying the
@@ -120,20 +157,28 @@ export function ProjectSwitcher({
             inside (project initial vs. org initial). The dropdown
             rows below reuse the same chip spec so the active
             workspace stays visually constant from trigger → menu. */}
-        <span
-          aria-hidden
-          className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
-          style={{
-            background: BRAND_BLUE,
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-            letterSpacing: 0,
-          }}
-        >
-          {firstLetter}
-        </span>
+        {identityLoading ? (
+          <SkeletonBlock width={18} height={18} radius={5} className='flex-shrink-0' />
+        ) : (
+          <span
+            aria-hidden
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[var(--po-text-inverse)]'
+            style={{
+              background: BRAND_BLUE,
+              fontFamily: 'var(--po-font-sans)',
+              letterSpacing: 0,
+            }}
+          >
+            {firstLetter}
+          </span>
+        )}
 
-        <span className='flex-1 truncate text-left text-[13px] font-medium text-[#fafafa]'>
-          {displayName}
+        <span className='flex-1 truncate text-left text-[13px] font-medium text-[var(--po-text)]'>
+          {identityLoading ? (
+            <SkeletonBlock width="65%" height={10} radius={3} />
+          ) : (
+            displayName
+          )}
         </span>
 
         {/* Chevron — only revealed on header hover or while the
@@ -153,10 +198,10 @@ export function ProjectSwitcher({
           strokeLinejoin='round'
           aria-hidden
           className={clsx(
-            'flex-shrink-0 text-[#52525b] transition-[transform,opacity,colors] duration-150',
+            'flex-shrink-0 text-[var(--po-text-disabled)] transition-[transform,opacity,colors] duration-150',
             isOpen
-              ? 'rotate-180 opacity-100 text-[#a1a1aa]'
-              : 'opacity-0 group-hover/header:opacity-100 group-hover/header:text-[#a1a1aa]'
+              ? 'rotate-180 opacity-100 text-[var(--po-text-muted)]'
+              : 'opacity-0 group-hover/header:opacity-100 group-hover/header:text-[var(--po-text-muted)]'
           )}
         >
           <polyline points='6 9 12 15 18 9' />
@@ -166,19 +211,27 @@ export function ProjectSwitcher({
       {/* Dropdown Menu — follows the sidebar design system 1:1 so the
           panel reads as a continuation of the sidebar rather than a
           separate widget:
-            • Border alpha matches the sidebar (rgba(255,255,255,0.08))
+            • Border alpha matches the sidebar (var(--po-border))
             • Row height / typography / hover / active states are
               identical to the SidebarLayout nav rows (32px h-8,
               13px text, gap-2.5, white/[0.03] hover, white/[0.06]
-              active, #a1a1aa → #fafafa text ramp)
+              active, var(--po-text-muted) → var(--po-text) text ramp)
             • Project rows reuse the same cyan→blue first-letter chip
               from the trigger button so the "active workspace"
               identity glyph stays visually constant. */}
-      {isOpen && (
+      {isOpen && menuPosition && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className='absolute left-0 top-full z-50 mt-1 w-[220px] overflow-hidden rounded-md bg-[#181818] shadow-xl shadow-black/40'
-          style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+          className='overflow-hidden rounded-md bg-[var(--po-overlay)] shadow-xl'
+          style={{
+            position: 'fixed',
+            left: menuPosition.left,
+            top: menuPosition.top,
+            width: menuPosition.width,
+            border: '1px solid var(--po-border)',
+            boxShadow: '0 18px 46px var(--po-shadow)',
+            zIndex: APP_Z_INDEX.popover,
+          }}
         >
           {/* Go to organization — action-oriented label rather than
               echoing the org name (which would visually collide with
@@ -189,7 +242,7 @@ export function ProjectSwitcher({
               below so the dropdown reads as one consistent set
               (rather than mixing a detailed logo glyph with flat
               letter chips). */}
-          <div className='p-1' style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className='p-1' style={{ borderBottom: '1px solid var(--po-border-subtle)' }}>
             <button
               type='button'
               onClick={() => {
@@ -198,17 +251,21 @@ export function ProjectSwitcher({
               }}
               className={dropdownRowClass(!isInProject)}
             >
-              <span
-                aria-hidden
-                className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
-                style={{
-                  background: BRAND_BLUE,
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  letterSpacing: 0,
-                }}
-              >
-                {(globalLabel?.[0] || 'P').toUpperCase()}
-              </span>
+              {identityLoading && !currentProject ? (
+                <SkeletonBlock width={18} height={18} radius={5} className='flex-shrink-0' />
+              ) : (
+                <span
+                  aria-hidden
+                  className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[var(--po-text-inverse)]'
+                  style={{
+                    background: BRAND_BLUE,
+                    fontFamily: 'var(--po-font-sans)',
+                    letterSpacing: 0,
+                  }}
+                >
+                  {(globalLabel?.[0] || 'P').toUpperCase()}
+                </span>
+              )}
               <span className={dropdownLabelClass(!isInProject)}>
                 {t('goToOrganization')}
               </span>
@@ -222,12 +279,17 @@ export function ProjectSwitcher({
               (11px) and untracked since proper case doesn't need
               extra letterspacing for legibility. */}
           <div className='p-1'>
-            <div className='px-2 pt-1.5 pb-1 text-[11px] font-medium text-[#52525b]'>
+            <div className='px-2 pt-1.5 pb-1 text-[11px] font-medium text-[var(--po-text-subtle)]'>
               {t('projects')}
             </div>
             <div className='max-h-[240px] overflow-y-auto'>
-              {projects.length === 0 ? (
-                <div className='px-2 py-3 text-center text-[12px] text-[#52525b]'>
+              {(identityLoading || projectsLoading) && projects.length === 0 ? (
+                <div className='flex flex-col gap-2 px-2 py-2'>
+                  <SkeletonBlock width="70%" height={10} radius={3} />
+                  <SkeletonBlock width="52%" height={10} radius={3} />
+                </div>
+              ) : projects.length === 0 ? (
+                <div className='px-2 py-3 text-center text-[12px] text-[var(--po-text-subtle)]'>
                   {t('noProjects')}
                 </div>
               ) : (
@@ -246,11 +308,11 @@ export function ProjectSwitcher({
                     >
                       <span
                         aria-hidden
-                        className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-white'
+                        className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-[5px] text-[10px] font-bold uppercase text-[var(--po-text-inverse)]'
                         style={{
                           background: BRAND_BLUE,
                           fontFamily:
-                            'ui-monospace, SFMono-Regular, Menlo, monospace',
+                            'var(--po-font-sans)',
                         }}
                       >
                         {(project.name?.[0] || '?').toUpperCase()}
@@ -266,6 +328,7 @@ export function ProjectSwitcher({
             </div>
           </div>
         </div>
+        , document.body
       )}
     </div>
   );
@@ -276,14 +339,14 @@ export function ProjectSwitcher({
 function dropdownRowClass(isActive: boolean) {
   return clsx(
     'flex h-8 w-full items-center gap-2.5 rounded-[5px] px-2 text-left transition-colors duration-150',
-    isActive ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]'
+    isActive ? 'bg-[var(--po-selected)]' : 'hover:bg-[var(--po-hover)]'
   );
 }
 
 function dropdownLabelClass(isActive: boolean) {
   return clsx(
     'flex-1 truncate text-[13px]',
-    isActive ? 'font-medium text-[#fafafa]' : 'font-normal text-[#a1a1aa]'
+    isActive ? 'font-medium text-[var(--po-text)]' : 'font-medium text-[var(--po-text-muted)]'
   );
 }
 
@@ -294,7 +357,7 @@ function CheckIcon() {
       height='12'
       viewBox='0 0 24 24'
       fill='none'
-      stroke='#22d3ee'
+      stroke='var(--po-accent)'
       strokeWidth='2.5'
       strokeLinecap='round'
       strokeLinejoin='round'

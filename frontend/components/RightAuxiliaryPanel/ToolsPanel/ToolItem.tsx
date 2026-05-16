@@ -53,7 +53,7 @@ export function ToolItem({
         flexDirection: 'column',
         borderRadius: 6,
         overflow: 'hidden',
-        background: isExpanded ? 'rgba(255,255,255,0.03)' : 'transparent',
+        background: isExpanded ? 'var(--po-hover)' : 'transparent',
         transition: 'background 0.15s',
       }}
     >
@@ -73,7 +73,7 @@ export function ToolItem({
         {/* Icon */}
         <span
           style={{
-            color: isBash ? ACCENT_COLOR : '#71717a',
+            color: isBash ? ACCENT_COLOR : 'var(--po-text-subtle)',
             display: 'flex',
             alignItems: 'center',
             flexShrink: 0,
@@ -90,7 +90,7 @@ export function ToolItem({
         <span
           style={{
             fontSize: 12,
-            color: '#a1a1aa',
+            color: 'var(--po-text-muted)',
             flex: 1,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -104,8 +104,8 @@ export function ToolItem({
         <span
           style={{
             fontSize: 11,
-            color: '#52525b',
-            fontFamily: 'monospace',
+            color: 'var(--po-text-disabled)',
+            fontFamily: 'var(--po-font-sans)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -121,9 +121,11 @@ export function ToolItem({
           style={{
             background: 'none',
             border: 'none',
-            padding: 4,
+            width: 30,
+            height: 30,
+            padding: 0,
             cursor: 'pointer',
-            color: '#52525b',
+            color: 'var(--po-text-disabled)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -134,11 +136,11 @@ export function ToolItem({
           }}
           onMouseEnter={e => {
             e.currentTarget.style.opacity = '1';
-            e.currentTarget.style.color = '#ef4444';
+            e.currentTarget.style.color = 'var(--po-danger)';
           }}
           onMouseLeave={e => {
             e.currentTarget.style.opacity = '0.6';
-            e.currentTarget.style.color = '#52525b';
+            e.currentTarget.style.color = 'var(--po-text-disabled)';
           }}
           title='Remove capability'
         >
@@ -163,27 +165,27 @@ export function ToolItem({
         <div
           style={{
             padding: '8px 12px',
-            borderTop: '1px solid rgba(255,255,255,0.05)',
+            borderTop: '1px solid var(--po-hover)',
             fontSize: 11,
-            color: '#71717a',
+            color: 'var(--po-text-subtle)',
             display: 'flex',
             flexDirection: 'column',
             gap: 6,
           }}
         >
           <div style={{ display: 'flex', gap: 8 }}>
-            <span style={{ color: '#52525b', width: 50 }}>Type:</span>
-            <span style={{ color: '#a1a1aa' }}>{config.label}</span>
+            <span style={{ color: 'var(--po-text-disabled)', width: 50 }}>Type:</span>
+            <span style={{ color: 'var(--po-text-muted)' }}>{config.label}</span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <span style={{ color: '#52525b', width: 50 }}>Name:</span>
-            <span style={{ color: '#a1a1aa', fontFamily: 'monospace' }}>
+            <span style={{ color: 'var(--po-text-disabled)', width: 50 }}>Name:</span>
+            <span style={{ color: 'var(--po-text-muted)', fontFamily: 'var(--po-font-sans)' }}>
               {toolName}
             </span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <span style={{ color: '#52525b', width: 50 }}>Path:</span>
-            <span style={{ color: '#a1a1aa', fontFamily: 'monospace' }}>
+            <span style={{ color: 'var(--po-text-disabled)', width: 50 }}>Path:</span>
+            <span style={{ color: 'var(--po-text-muted)', fontFamily: 'var(--po-font-sans)' }}>
               {ap.path || '/'}
             </span>
           </div>
@@ -192,7 +194,7 @@ export function ToolItem({
 
       <style jsx>{`
         .tool-item-hover:hover {
-          background: rgba(255, 255, 255, 0.05) !important;
+          background: var(--po-hover) !important;
         }
       `}</style>
     </div>

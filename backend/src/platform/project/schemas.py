@@ -5,6 +5,8 @@ Defines frontend API request/response models, matching the frontend ProjectInfo 
 """
 
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -23,6 +25,10 @@ class ProjectOut(BaseModel):
     id: str
     name: str
     description: str | None = None
+    org_id: str
+    visibility: str = "org"
+    bound_git_branch: str = "main"
+    protocol_mode: Literal["git", "mut", "both"] = "git"
     nodes: list[NodeInfo] = []
     updated_at: str | None = None
     access_point_count: int = 0
@@ -44,6 +50,8 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     visibility: str | None = None
+    bound_git_branch: str | None = None
+    protocol_mode: Literal["git", "mut", "both"] | None = None
 
 
 class ProjectMemberOut(BaseModel):

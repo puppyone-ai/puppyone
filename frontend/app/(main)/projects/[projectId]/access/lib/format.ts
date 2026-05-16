@@ -99,7 +99,7 @@ export function getPrimaryAction(status: string): { label: string; icon: 'pause'
 // single "connect prompt" string. That sounded right but produced a
 // terrible UX: pasting "Sync my puppyone scope using mut CLI" into
 // ChatGPT for an *AI Agent* connector makes no sense — agents are
-// PuppyOne's own in-app chat, they aren't driven by external prompts.
+// Puppyone's own in-app chat, they aren't driven by external prompts.
 // We deleted the helper and now render a per-provider body component
 // (`ConnectorAccessPanel`) instead, mirroring `ConnectMethods` in the
 // data view: cli + filesystem render a prompt + install steps; agent

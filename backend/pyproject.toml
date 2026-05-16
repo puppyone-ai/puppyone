@@ -1,6 +1,6 @@
 [project]
 name = "contextbase"
-version = "0.0.1"
+version = "0.0.3"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -80,5 +80,3 @@ asyncio_mode = "auto"
 markers = [
     "e2e: end-to-end tests that may call real external services",
 ]
-
-[tool.uv.sources]

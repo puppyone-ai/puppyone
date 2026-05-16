@@ -8,12 +8,6 @@ interface ResizablePanelProps {
   defaultWidth?: number;
   minWidth?: number;
   maxWidth?: number;
-  /**
-   * Pull the panel upward by this many pixels while keeping its bottom
-   * anchored to the body row. Used by data-page right sheets so their
-   * header replaces the page header's right slot instead of hanging
-   * underneath it.
-   */
   topOffset?: number;
   zIndex?: number;
   borderLeftColor?: string;
@@ -34,8 +28,8 @@ export function ResizablePanel({
   maxWidth = MAX_WIDTH,
   topOffset = 0,
   zIndex = 20,
-  borderLeftColor = '#2a2a2a',
-  background = '#111111',
+  borderLeftColor = 'var(--po-divider)',
+  background = 'var(--po-panel)',
   width: controlledWidth,
   onWidthChange,
 }: ResizablePanelProps) {
@@ -47,10 +41,7 @@ export function ResizablePanel({
   };
   const [isResizing, setIsResizing] = useState(false);
   const [isResizeHovered, setIsResizeHovered] = useState(false);
-  const [dragStart, setDragStart] = useState<{
-    startX: number;
-    startWidth: number;
-  } | null>(null);
+  const [dragStart, setDragStart] = useState<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
     if (!isResizing || !dragStart) return;
@@ -58,9 +49,7 @@ export function ResizablePanel({
     const handleMouseMove = (e: MouseEvent) => {
       const deltaX = dragStart.startX - e.clientX;
       const newWidth = dragStart.startWidth + deltaX;
-      if (newWidth >= minWidth && newWidth <= maxWidth) {
-        setWidth(newWidth);
-      }
+      if (newWidth >= minWidth && newWidth <= maxWidth) setWidth(newWidth);
     };
 
     const handleMouseUp = () => {
@@ -102,7 +91,6 @@ export function ResizablePanel({
         pointerEvents: isVisible || isResizing ? 'auto' : 'none',
       }}
     >
-      {/* Resize Handle */}
       <div
         onMouseDown={e => {
           e.preventDefault();
@@ -120,15 +108,11 @@ export function ResizablePanel({
           height: '100%',
           cursor: 'col-resize',
           zIndex: 10,
-          background:
-            isResizing || isResizeHovered
-              ? 'rgba(255, 255, 255, 0.1)'
-              : 'transparent',
+          background: isResizing || isResizeHovered ? 'var(--po-active)' : 'transparent',
           transition: 'background 0.15s',
         }}
       />
 
-      {/* Content */}
       <div
         style={{
           flex: 1,

@@ -67,7 +67,7 @@ const STAGGER_S = 0.07;
 const DURATION_S = 0.9;
 
 /**
- * `PulseGrid` — the canonical PuppyOne loader.
+ * `PulseGrid` — the canonical Puppyone loader.
  *
  * 3×3 matrix of fading dots. Reads as "data nodes pulsing through a
  * grid", which mirrors the product's own ContextBase (a tree of file

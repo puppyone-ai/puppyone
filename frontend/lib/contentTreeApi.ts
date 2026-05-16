@@ -68,18 +68,12 @@ export interface TreeMkdirResponse {
 
 export interface TreeRmResponse {
   path: string;
-  permanent: boolean;
+  commit_id?: string;
 }
 
 export interface TreeBulkRmResponse {
   commit_id: string;
   paths: string[];
-  trash_paths?: string[];
-}
-
-export interface TreeRestoreResponse {
-  path: string;
-  restored_to: string;
 }
 
 // NodeInfo compatibility type — used across the frontend
@@ -460,6 +454,12 @@ export async function moveFile(
 
 /**
  * Remove file or folder.
+ *
+ * Delete removes the path from the current tree. Recovery is through
+ * Puppyone version history/rollback, not a hidden .trash directory.
+ * The permanent argument is kept only for older callers; the backend
+ * treats delete as tree unlink semantics either way.
+ *
  * POST /api/v1/content/{projectId}/rm
  */
 export async function removeFile(
@@ -474,11 +474,10 @@ export async function removeFile(
 }
 
 /**
- * Soft-delete (default) or permanent-delete multiple files in one
- * round-trip. Backend bundles every move into a single commit per
- * scope via ``MutOps.bulk_trash`` (or ``MutOps.delete`` when
- * ``permanent`` is true), so the size of ``paths`` does not change
- * the number of commits or audit entries.
+ * Delete multiple files in one round-trip. Backend bundles the paths
+ * into one versioned delete commit per scope, so the size of ``paths``
+ * does not change the number of commits or audit entries in the common
+ * single-scope case.
  *
  * POST /api/v1/content/{projectId}/rm  with ``{ paths, permanent }``
  */
@@ -491,37 +490,6 @@ export async function bulkRemoveFiles(
     method: 'POST',
     body: JSON.stringify({ paths, permanent }),
   });
-}
-
-/**
- * Restore from trash.
- * POST /api/v1/content/{projectId}/restore
- */
-export async function restoreFile(
-  projectId: string,
-  trashPath: string,
-  originalPath: string
-): Promise<TreeRestoreResponse> {
-  return treeRequest<TreeRestoreResponse>(
-    `/api/v1/content/${projectId}/restore`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ trash_path: trashPath, original_path: originalPath }),
-    }
-  );
-}
-
-/**
- * List trash entries.
- * GET /api/v1/content/{projectId}/trash
- */
-export async function listTrash(
-  projectId: string
-): Promise<TreeEntry[]> {
-  const data = await treeRequest<{ entries: TreeEntry[] }>(
-    `/api/v1/content/${projectId}/trash`
-  );
-  return data.entries || [];
 }
 
 // === Backward-compatible aliases ===
@@ -678,8 +646,10 @@ export async function getNodeContent(
 // === Commit History API ===
 // These types match the Mut-Native commit-based model.
 // The backend returns commit history from mut_commits table.
-// Commits are identified by opaque 16-hex `commit_id` strings — we no longer
-// expose monotonic integer versions on the wire.
+// Post mut/feat/git-format-storage: commits are identified by 40-hex SHA-1
+// over the git ``commit`` object body (same hash any standard git tool
+// derives from the same commit body byte-for-byte). The old monotonic
+// integer ``version`` is gone.
 
 export interface FileVersionInfo {
   commit_id: string;

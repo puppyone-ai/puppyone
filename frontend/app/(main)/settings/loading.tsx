@@ -6,8 +6,8 @@
  * (this segment's `layout.tsx`) both stay mounted; only the inner
  * content area shows this loader.
  */
-import { PageLoading } from '@/components/loading';
+import { HeaderedPageLoadingShell } from '@/components/loading';
 
 export default function SettingsLoading() {
-  return <PageLoading variant="fill" />;
+  return <HeaderedPageLoadingShell />;
 }

@@ -8,7 +8,9 @@ valid ``config.scope`` can use it.
 from __future__ import annotations
 
 import asyncio
+import fnmatch
 import json as _json
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
@@ -43,6 +45,54 @@ _READ_MODES = frozenset({"r", "rw", "read", "write"})
 _WRITE_MODES = frozenset({"rw", "write", "w"})
 _RECURSIVE_DEFAULT_LIMIT = 5000
 _RECURSIVE_MAX_LIMIT = 50000
+_GREP_DEFAULT_LIMIT = 1000
+_GREP_MAX_LIMIT = 20000
+_GREP_DEFAULT_FILE_LIMIT = 5000
+_GREP_MAX_FILE_LIMIT = 50000
+_GREP_DEFAULT_BYTE_LIMIT = 16 * 1024 * 1024
+_GREP_MAX_BYTE_LIMIT = 256 * 1024 * 1024
+_GREP_PATTERN_MAX_CHARS = 2048
+_BINARY_SAMPLE_BYTES = 4096
+_TEXT_MIME_EXACT = frozenset({
+    "application/dart",
+    "application/graphql",
+    "application/javascript",
+    "application/json",
+    "application/sql",
+    "application/toml",
+    "application/typescript",
+    "application/vnd.coffeescript",
+    "application/x-bat",
+    "application/x-csh",
+    "application/x-ipynb+json",
+    "application/x-ndjson",
+    "application/x-php",
+    "application/x-powershell",
+    "application/x-sh",
+    "application/x-subrip",
+    "application/x-tcl",
+    "application/x-tex",
+    "application/xml",
+    "application/yaml",
+    "image/svg+xml",
+})
+_TEXT_BASENAMES = frozenset({
+    ".babelrc",
+    ".dockerignore",
+    ".env",
+    ".eslintrc",
+    ".gitattributes",
+    ".gitignore",
+    ".npmrc",
+    ".nvmrc",
+    ".prettierrc",
+    ".python-version",
+    ".tool-versions",
+    "Dockerfile",
+    "Makefile",
+    "README",
+})
+_TEXT_BASENAMES_LOWER = frozenset(name.lower() for name in _TEXT_BASENAMES)
 
 
 def _normalize_access_key(x_access_key: str | None) -> str:
@@ -222,8 +272,209 @@ def _query_optional_int(value: Any) -> int | None:
     return value if isinstance(value, int) else None
 
 
+def _query_limited_int(value: Any, default: int, maximum: int) -> int:
+    return validate_limit(_query_int(value, default), default=default, maximum=maximum)
+
+
 def _operator(auth: dict) -> str:
     return f"access_point:{auth.get('agent', 'unknown')}"
+
+
+def _ops_stat(
+    ops: MutOps,
+    project_id: str,
+    scope: dict,
+    rel_path: str,
+    *,
+    include_size: bool = False,
+):
+    scoped = getattr(ops, "stat_in_scope", None)
+    if scoped is not None:
+        return scoped(
+            project_id,
+            scope["path"],
+            rel_path,
+            include_size=include_size,
+        )
+    return ops.stat(
+        project_id,
+        _join_scope(scope["path"], rel_path),
+        include_size=include_size,
+    )
+
+
+def _ops_list_dir(
+    ops: MutOps,
+    project_id: str,
+    scope: dict,
+    rel_path: str,
+    *,
+    include_size: bool = False,
+):
+    scoped = getattr(ops, "list_dir_in_scope", None)
+    if scoped is not None:
+        return scoped(
+            project_id,
+            scope["path"],
+            rel_path,
+            include_size=include_size,
+        )
+    return ops.list_dir(
+        project_id,
+        _join_scope(scope["path"], rel_path),
+        include_size=include_size,
+    )
+
+
+def _ops_list_tree(
+    ops: MutOps,
+    project_id: str,
+    scope: dict,
+    rel_path: str,
+    max_depth: int,
+    *,
+    include_size: bool = False,
+    max_entries: int | None = None,
+):
+    scoped = getattr(ops, "list_tree_in_scope", None)
+    if scoped is not None:
+        return scoped(
+            project_id,
+            scope["path"],
+            rel_path,
+            max_depth=max_depth,
+            include_size=include_size,
+            max_entries=max_entries,
+        )
+    return ops.list_tree(
+        project_id,
+        _join_scope(scope["path"], rel_path),
+        max_depth=max_depth,
+        include_size=include_size,
+        max_entries=max_entries,
+    )
+
+
+def _ops_read_file(ops: MutOps, project_id: str, scope: dict, rel_path: str):
+    scoped = getattr(ops, "read_file_in_scope", None)
+    if scoped is not None:
+        return scoped(project_id, scope["path"], rel_path)
+    return ops.read_file(project_id, _join_scope(scope["path"], rel_path))
+
+
+def _ops_read_file_range(
+    ops: MutOps,
+    project_id: str,
+    scope: dict,
+    rel_path: str,
+    *,
+    start: int = 0,
+    limit: int | None = None,
+):
+    scoped = getattr(ops, "read_file_range_in_scope", None)
+    if scoped is not None:
+        return scoped(
+            project_id,
+            scope["path"],
+            rel_path,
+            start=start,
+            limit=limit,
+        )
+    return ops.read_file_range(
+        project_id,
+        _join_scope(scope["path"], rel_path),
+        start=start,
+        limit=limit,
+    )
+
+
+def _looks_text_entry(entry) -> bool:
+    if getattr(entry, "type", "") in {"json", "markdown"}:
+        return True
+    mime = (getattr(entry, "mime_type", "") or "").lower()
+    if mime.startswith("text/"):
+        return True
+    if mime in _TEXT_MIME_EXACT:
+        return True
+    base = _basename(getattr(entry, "path", "") or getattr(entry, "name", ""))
+    return base.lower() in _TEXT_BASENAMES_LOWER
+
+
+def _looks_binary(content: bytes) -> bool:
+    sample = content[:_BINARY_SAMPLE_BYTES]
+    return b"\x00" in sample
+
+
+def _decode_grep_text(content: bytes) -> str:
+    try:
+        return content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return content.decode("utf-8", errors="replace")
+
+
+def _split_grep_globs(value: str | None) -> list[str]:
+    if not isinstance(value, str) or not value:
+        return []
+    return [item.strip() for item in str(value).splitlines() if item.strip()]
+
+
+def _matches_grep_glob(path: str, pattern: str) -> bool:
+    clean = path.strip("/")
+    base = _basename(clean)
+    return fnmatch.fnmatchcase(clean, pattern) or fnmatch.fnmatchcase(base, pattern)
+
+
+def _matches_any_grep_glob(path: str, patterns: list[str]) -> bool:
+    return any(_matches_grep_glob(path, pattern) for pattern in patterns)
+
+
+def _matches_exclude_dir_glob(path: str, patterns: list[str]) -> bool:
+    parts = [part for part in path.strip("/").split("/")[:-1] if part]
+    return any(fnmatch.fnmatchcase(part, pattern) for part in parts for pattern in patterns)
+
+
+def _grep_matcher(pattern: str, *, regex: bool, ignore_case: bool):
+    if len(pattern) > _GREP_PATTERN_MAX_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"grep pattern exceeds {_GREP_PATTERN_MAX_CHARS} characters",
+        )
+
+    if regex:
+        flags = re.IGNORECASE if ignore_case else 0
+        try:
+            compiled = re.compile(pattern, flags)
+        except re.error as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid regex: {exc}") from exc
+
+        def _match(line: str) -> list[tuple[int, int]]:
+            spans: list[tuple[int, int]] = []
+            for match in compiled.finditer(line):
+                start, end = match.start(), match.end()
+                if start == end:
+                    continue
+                spans.append((start, end))
+            return spans
+
+        return _match
+
+    needle = pattern.casefold() if ignore_case else pattern
+
+    def _fixed_match(line: str) -> list[tuple[int, int]]:
+        if needle == "":
+            return [(0, 0)]
+        haystack = line.casefold() if ignore_case else line
+        spans: list[tuple[int, int]] = []
+        start_at = 0
+        while True:
+            index = haystack.find(needle, start_at)
+            if index < 0:
+                break
+            spans.append((index, index + len(pattern)))
+            start_at = index + max(len(needle), 1)
+        return spans
+
+    return _fixed_match
 
 
 def _basename(path: str) -> str:
@@ -260,7 +511,7 @@ def _resolve_copy_move_destination(
         )
 
     new_full = _join_scope(scope["path"], new_rel)
-    new_entry = ops.stat(project_id, new_full)
+    new_entry = _ops_stat(ops, project_id, scope, new_rel)
 
     if target_directory:
         if new_entry is None or new_entry.type != "folder":
@@ -273,29 +524,28 @@ def _resolve_copy_move_destination(
         new_rel = _destination_child_path(new_rel, old_rel)
         _assert_not_excluded(new_rel, scope)
         new_full = _join_scope(scope["path"], new_rel)
-        new_entry = ops.stat(project_id, new_full)
+        new_entry = _ops_stat(ops, project_id, scope, new_rel)
     elif new_entry and new_entry.type == "folder" and not no_target_directory:
         new_rel = _destination_child_path(new_rel, old_rel)
         _assert_not_excluded(new_rel, scope)
         new_full = _join_scope(scope["path"], new_rel)
-        new_entry = ops.stat(project_id, new_full)
+        new_entry = _ops_stat(ops, project_id, scope, new_rel)
 
     return new_rel, new_full, new_entry
 
 
-def _is_directory_empty(project_id: str, path: str, ops: MutOps) -> bool:
-    return len(ops.list_dir(project_id, path)) == 0
+def _is_directory_empty(project_id: str, rel_path: str, scope: dict, ops: MutOps) -> bool:
+    return len(_ops_list_dir(ops, project_id, scope, rel_path)) == 0
 
 
 def _rmdir_chain(project_id: str, rel_path: str, scope: dict, ops: MutOps, *, parents: bool) -> list[str]:
     """Return deepest-first empty directory chain removable by rmdir."""
-    full_path = _join_scope(scope["path"], rel_path)
-    entry = ops.stat(project_id, full_path)
+    entry = _ops_stat(ops, project_id, scope, rel_path)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"No such file or directory: {rel_path}")
     if entry.type != "folder":
         raise HTTPException(status_code=400, detail=f"Not a directory: {rel_path}")
-    if not _is_directory_empty(project_id, full_path, ops):
+    if not _is_directory_empty(project_id, rel_path, scope, ops):
         raise HTTPException(status_code=400, detail=f"Directory not empty: {rel_path}")
 
     removable = [rel_path]
@@ -306,14 +556,12 @@ def _rmdir_chain(project_id: str, rel_path: str, scope: dict, ops: MutOps, *, pa
     parent_rel = _dirname(rel_path)
     while parent_rel:
         _assert_not_excluded(parent_rel, scope)
-        parent_full = _join_scope(scope["path"], parent_rel)
-        parent = ops.stat(project_id, parent_full)
+        parent = _ops_stat(ops, project_id, scope, parent_rel)
         if parent is None or parent.type != "folder":
             break
-        child_full = _join_scope(scope["path"], child_rel)
         remaining = [
-            e for e in ops.list_dir(project_id, parent_full)
-            if e.path.strip("/") != child_full.strip("/")
+            e for e in _ops_list_dir(ops, project_id, scope, parent_rel)
+            if e.path.strip("/") != _join_scope(scope["path"], child_rel).strip("/")
         ]
         if remaining:
             break
@@ -357,7 +605,7 @@ async def list_dir(
     _assert_not_excluded(rel_path, scope)
 
     full_path = _join_scope(scope["path"], rel_path)
-    target = ops.stat(project_id, full_path, include_size=include_size)
+    target = _ops_stat(ops, project_id, scope, rel_path, include_size=include_size)
     if target is None and rel_path:
         raise HTTPException(status_code=404, detail=f"Path not found: {rel_path}")
     target_type = target.type if target else ""
@@ -366,7 +614,7 @@ async def list_dir(
         entries = [target]
     else:
         entries = _filter_entries(
-            ops.list_dir(project_id, full_path, include_size=include_size), scope,
+            _ops_list_dir(ops, project_id, scope, rel_path, include_size=include_size), scope,
             include_hidden=include_hidden,
         )
     if include_times:
@@ -413,7 +661,7 @@ async def tree(
     )
 
     full_path = _join_scope(scope["path"], rel_path)
-    target = ops.stat(project_id, full_path, include_size=include_size)
+    target = _ops_stat(ops, project_id, scope, rel_path, include_size=include_size)
     if target is None and rel_path:
         raise HTTPException(status_code=404, detail=f"Path not found: {rel_path}")
     target_type = target.type if target else ""
@@ -422,8 +670,8 @@ async def tree(
         truncated = False
     else:
         entries = _filter_entries(
-            ops.list_tree(
-                project_id, full_path, max_depth=max_depth,
+            _ops_list_tree(
+                ops, project_id, scope, rel_path, max_depth=max_depth,
                 include_size=include_size,
                 max_entries=safe_limit + 1,
             ), scope,
@@ -453,6 +701,271 @@ async def tree(
     })
 
 
+@router.get("/grep", response_model=ApiResponse)
+async def grep(
+    pattern: str = Query(..., description="Fixed string or regex pattern to match"),
+    path: str = Query("", description="File or directory path relative to the access point scope"),
+    regex: bool = Query(False, description="Treat pattern as a regular expression"),
+    ignore_case: bool = Query(False, description="Case-insensitive matching"),
+    invert_match: bool = Query(False, description="Select non-matching lines"),
+    only_matching: bool = Query(False, description="Return only the matching text"),
+    include_hidden: bool = Query(False, description="Include entries whose names begin with '.'"),
+    include: str = Query("", description="Newline-separated file glob patterns to include"),
+    exclude: str = Query("", description="Newline-separated file glob patterns to exclude"),
+    exclude_dir: str = Query("", description="Newline-separated directory glob patterns to exclude"),
+    max_depth: int = Query(-1, description="Maximum recursion depth for directories, -1 = unlimited"),
+    max_count: int = Query(0, description="Maximum matching lines returned per file, 0 = unlimited"),
+    before_context: int = Query(0, description="Context lines before each match"),
+    after_context: int = Query(0, description="Context lines after each match"),
+    include_offsets: bool = Query(False, description="Include byte offsets in match metadata"),
+    limit: int = Query(_GREP_DEFAULT_LIMIT, description="Maximum matching lines returned"),
+    max_files: int = Query(_GREP_DEFAULT_FILE_LIMIT, description="Maximum file candidates scanned"),
+    max_bytes: int = Query(_GREP_DEFAULT_BYTE_LIMIT, description="Maximum decoded text bytes scanned"),
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_mut_user: str | None = Header(None, alias="X-Mut-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: MutOps = Depends(get_mut_ops),
+):
+    project_id, _auth, scope = await _resolve_auth(x_access_key, x_mut_user, x_puppy_client)
+    rel_path = _clean_relative(path)
+    _assert_not_excluded(rel_path, scope)
+    max_depth = _query_int(max_depth, -1)
+    include_hidden = _query_bool(include_hidden)
+    invert_match = _query_bool(invert_match)
+    only_matching = _query_bool(only_matching)
+    include_offsets = _query_bool(include_offsets)
+    per_file_limit = max(0, _query_int(max_count, 0))
+    before_context = min(max(0, _query_int(before_context, 0)), 100)
+    after_context = min(max(0, _query_int(after_context, 0)), 100)
+    include_patterns = _split_grep_globs(include)
+    exclude_patterns = _split_grep_globs(exclude)
+    exclude_dir_patterns = _split_grep_globs(exclude_dir)
+    safe_limit = _query_limited_int(limit, _GREP_DEFAULT_LIMIT, _GREP_MAX_LIMIT)
+    safe_file_limit = _query_limited_int(max_files, _GREP_DEFAULT_FILE_LIMIT, _GREP_MAX_FILE_LIMIT)
+    safe_byte_limit = _query_limited_int(max_bytes, _GREP_DEFAULT_BYTE_LIMIT, _GREP_MAX_BYTE_LIMIT)
+    match_line = _grep_matcher(pattern, regex=regex, ignore_case=ignore_case)
+
+    full_path = _join_scope(scope["path"], rel_path)
+    target = _ops_stat(ops, project_id, scope, rel_path)
+    if target is None and rel_path:
+        raise HTTPException(status_code=404, detail=f"Path not found: {rel_path}")
+
+    truncated = False
+    truncation_reason = ""
+
+    def mark_truncated(reason: str) -> None:
+        nonlocal truncated, truncation_reason
+        truncated = True
+        if not truncation_reason:
+            truncation_reason = reason
+
+    if target and target.type != "folder":
+        target_type = target.type
+        candidates = [target]
+    else:
+        target_type = "folder"
+        tree_entries = _filter_entries(
+            _ops_list_tree(
+                ops,
+                project_id,
+                scope,
+                rel_path,
+                max_depth=max_depth,
+                include_size=False,
+                max_entries=safe_file_limit + 1,
+            ),
+            scope,
+            include_hidden=include_hidden,
+        )
+        if len(tree_entries) > safe_file_limit:
+            mark_truncated("file_limit_exceeded")
+            tree_entries = tree_entries[:safe_file_limit]
+        candidates = [entry for entry in tree_entries if entry.type != "folder"]
+
+    matches: list[dict[str, Any]] = []
+    files: list[dict[str, Any]] = []
+    content_cache: dict[str, bytes] = {}
+    scanned_files = 0
+    scanned_bytes = 0
+    skipped = {
+        "non_text": 0,
+        "binary": 0,
+        "too_large": 0,
+        "read_errors": 0,
+    }
+
+    for entry in candidates:
+        rel_entry_path = _relative_to_scope(entry.path, scope["path"])
+        if _matches_exclude(rel_entry_path, scope.get("exclude") or []):
+            continue
+        if include_patterns and not _matches_any_grep_glob(rel_entry_path, include_patterns):
+            continue
+        if exclude_patterns and _matches_any_grep_glob(rel_entry_path, exclude_patterns):
+            continue
+        if exclude_dir_patterns and _matches_exclude_dir_glob(rel_entry_path, exclude_dir_patterns):
+            continue
+        if not _looks_text_entry(entry):
+            skipped["non_text"] += 1
+            continue
+
+        content_hash = getattr(entry, "content_hash", None) or ""
+        try:
+            if content_hash and content_hash in content_cache:
+                content = content_cache[content_hash]
+            else:
+                content = _ops_read_file(ops, project_id, scope, rel_entry_path)
+                if content_hash:
+                    content_cache[content_hash] = content
+        except FileNotFoundError:
+            skipped["read_errors"] += 1
+            mark_truncated("read_error")
+            continue
+        except Exception:
+            skipped["read_errors"] += 1
+            mark_truncated("read_error")
+            continue
+
+        if _looks_binary(content):
+            skipped["binary"] += 1
+            continue
+        if scanned_bytes + len(content) > safe_byte_limit:
+            skipped["too_large"] += 1
+            mark_truncated("byte_limit_exceeded")
+            break
+
+        scanned_files += 1
+        scanned_bytes += len(content)
+        text = _decode_grep_text(content)
+        need_line_offsets = include_offsets or before_context > 0 or after_context > 0
+        if need_line_offsets:
+            raw_lines = text.splitlines(keepends=True)
+            line_items: list[tuple[str, int | None]] = []
+            byte_cursor = 0
+            for raw_line in raw_lines:
+                clean_line = raw_line.rstrip("\r\n")
+                line_items.append((clean_line, byte_cursor))
+                byte_cursor += len(raw_line.encode("utf-8"))
+            if text and not raw_lines:
+                line_items.append((text, 0))
+        else:
+            line_items = [(line, None) for line in text.splitlines()]
+
+        file_match_count = 0
+        for line_number, (line_text, line_byte_offset) in enumerate(line_items, start=1):
+            spans = match_line(line_text)
+            matched = bool(spans)
+            if invert_match:
+                matched = not matched
+            if not matched:
+                continue
+            if only_matching and not invert_match and spans:
+                output_spans = spans
+            else:
+                first_span = spans[0] if spans else (None, None)
+                output_spans = [first_span]
+
+            for match_start, match_end in output_spans:
+                match_text = (
+                    line_text[match_start:match_end]
+                    if isinstance(match_start, int) and isinstance(match_end, int)
+                    else ""
+                )
+                match_byte_offset = None
+                if isinstance(line_byte_offset, int):
+                    match_byte_offset = (
+                        line_byte_offset + len(line_text[:match_start].encode("utf-8"))
+                        if isinstance(match_start, int)
+                        else line_byte_offset
+                    )
+                before_lines = []
+                if before_context:
+                    start_index = max(0, line_number - 1 - before_context)
+                    for ctx_index in range(start_index, line_number - 1):
+                        before_lines.append({
+                            "line_number": ctx_index + 1,
+                            "line_text": line_items[ctx_index][0],
+                            "byte_offset": line_items[ctx_index][1],
+                        })
+                after_lines = []
+                if after_context:
+                    end_index = min(len(line_items), line_number + after_context)
+                    for ctx_index in range(line_number, end_index):
+                        after_lines.append({
+                            "line_number": ctx_index + 1,
+                            "line_text": line_items[ctx_index][0],
+                            "byte_offset": line_items[ctx_index][1],
+                        })
+                matches.append({
+                    "path": rel_entry_path,
+                    "mut_path": _join_scope(scope["path"], rel_entry_path),
+                    "line_number": line_number,
+                    "line_text": line_text,
+                    "match_start": match_start,
+                    "match_end": match_end,
+                    "match_text": match_text,
+                    "byte_offset": line_byte_offset,
+                    "match_byte_offset": match_byte_offset,
+                    "before_context": before_lines,
+                    "after_context": after_lines,
+                    "content_hash": content_hash or None,
+                })
+                file_match_count += 1
+                if len(matches) >= safe_limit:
+                    mark_truncated("result_limit_exceeded")
+                    break
+                if per_file_limit and file_match_count >= per_file_limit:
+                    break
+            if truncated and truncation_reason == "result_limit_exceeded":
+                break
+            if per_file_limit and file_match_count >= per_file_limit:
+                break
+        files.append({
+            "path": rel_entry_path,
+            "mut_path": _join_scope(scope["path"], rel_entry_path),
+            "match_count": file_match_count,
+            "content_hash": content_hash or None,
+        })
+        if truncated and truncation_reason == "result_limit_exceeded":
+            break
+
+    scope_head_commit_id = ops.get_scope_head_commit_id(project_id, scope["path"])
+    matched_files = len([item for item in files if item.get("match_count", 0) > 0])
+    return ApiResponse.success(data={
+        "pattern": pattern,
+        "path": rel_path,
+        "mut_path": full_path,
+        "scope": _scope_payload(scope),
+        "target_type": target_type,
+        "regex": regex,
+        "ignore_case": ignore_case,
+        "invert_match": invert_match,
+        "only_matching": only_matching,
+        "include_offsets": include_offsets,
+        "include": include_patterns,
+        "exclude": exclude_patterns,
+        "exclude_dir": exclude_dir_patterns,
+        "limit": safe_limit,
+        "max_count": per_file_limit,
+        "before_context": before_context,
+        "after_context": after_context,
+        "max_files": safe_file_limit,
+        "max_bytes": safe_byte_limit,
+        "returned_count": len(matches),
+        "matched_files": matched_files,
+        "candidate_files": len(candidates),
+        "scanned_files": scanned_files,
+        "scanned_bytes": scanned_bytes,
+        "skipped": skipped,
+        "complete": not truncated,
+        "truncated": truncated,
+        "truncation_reason": truncation_reason,
+        "files": files,
+        "matches": matches,
+        "head_commit_id": scope_head_commit_id,
+        "scope_head_commit_id": scope_head_commit_id,
+    })
+
+
 @router.get("/cat", response_model=ApiResponse)
 async def read_file(
     path: str = Query(..., description="File path relative to the access point scope"),
@@ -470,7 +983,7 @@ async def read_file(
 
     full_path = _join_scope(scope["path"], rel_path)
     try:
-        content = ops.read_file(project_id, full_path)
+        content = _ops_read_file(ops, project_id, scope, rel_path)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {rel_path}")
 
@@ -516,17 +1029,19 @@ async def raw_file(
 
     full_path = _join_scope(scope["path"], rel_path)
     try:
-        if hasattr(ops, "read_file_range"):
-            blob = ops.read_file_range(
+        if hasattr(ops, "read_file_range_in_scope") or hasattr(ops, "read_file_range"):
+            blob = _ops_read_file_range(
+                ops,
                 project_id,
-                full_path,
+                scope,
+                rel_path,
                 start=start,
                 limit=limit,
             )
             chunk = blob.content
             total = blob.total_size
         else:
-            content = ops.read_file(project_id, full_path)
+            content = _ops_read_file(ops, project_id, scope, rel_path)
             total = len(content)
             end = total if limit is None else min(total, start + limit)
             chunk = content[start:end]
@@ -583,6 +1098,7 @@ async def upload_file(
             scope=scope["path"],
             message=message or f"ap upload {rel_path}",
             base_commit_id=base_commit_id,
+            defer_projection=True,
         )
     except ConcurrentMutationError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
@@ -608,9 +1124,35 @@ async def stat(
     _assert_not_excluded(rel_path, scope)
 
     full_path = _join_scope(scope["path"], rel_path)
-    head_commit_id = ops.get_head_commit_id(project_id)
     scope_head_commit_id = ops.get_scope_head_commit_id(project_id, scope["path"])
-    entry = ops.stat(project_id, full_path, include_size=True)
+    if not rel_path:
+        return ApiResponse.success(data={
+            "path": "",
+            "mut_path": full_path,
+            "scope": _scope_payload(scope),
+            "exists": True,
+            "type": "folder",
+            "name": _basename(scope["path"]) if scope["path"] else "",
+            "content_hash": "",
+            "size_bytes": 0,
+            "mime_type": "inode/directory",
+            "children_count": None,
+            "head_commit_id": scope_head_commit_id,
+            "scope_head_commit_id": scope_head_commit_id,
+            "metadata_source": "scope_state",
+            "timestamp_source": "scope_state",
+            "compatibility": {
+                "mode": "pseudo",
+                "uid": "pseudo",
+                "gid": "pseudo",
+                "device": "not_modeled",
+                "inode": "not_modeled",
+                "links": "pseudo",
+            },
+        })
+
+    head_commit_id = ops.get_head_commit_id(project_id)
+    entry = _ops_stat(ops, project_id, scope, rel_path, include_size=True)
     if not entry:
         return ApiResponse.success(data={
             "path": rel_path,
@@ -669,6 +1211,7 @@ async def write_file(
             scope=scope["path"],
             message=body.message or f"ap write {stored_rel_path}",
             base_commit_id=body.base_commit_id,
+            defer_projection=True,
         )
     except ConcurrentMutationError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
@@ -698,7 +1241,7 @@ async def mkdir(
     _assert_not_excluded(rel_path, scope)
 
     full_path = _join_scope(scope["path"], rel_path)
-    existing = ops.stat(project_id, full_path)
+    existing = _ops_stat(ops, project_id, scope, rel_path)
     if existing is not None:
         if existing.type == "folder" and body.parents:
             return ApiResponse.success(data={
@@ -712,8 +1255,7 @@ async def mkdir(
 
     parent_rel = _dirname(rel_path)
     if parent_rel and not body.parents:
-        parent_full = _join_scope(scope["path"], parent_rel)
-        parent = ops.stat(project_id, parent_full)
+        parent = _ops_stat(ops, project_id, scope, parent_rel)
         if parent is None:
             raise HTTPException(status_code=404, detail=f"No such file or directory: {parent_rel}")
         if parent.type != "folder":
@@ -727,6 +1269,7 @@ async def mkdir(
             scope=scope["path"],
             message=f"ap mkdir {rel_path}",
             base_commit_id=body.base_commit_id,
+            defer_projection=True,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -759,8 +1302,7 @@ async def touch(
     missing_files: list[str] = []
     for rel_path in rel_paths:
         _assert_not_excluded(rel_path, scope)
-        full_path = _join_scope(scope["path"], rel_path)
-        existing = ops.stat(project_id, full_path)
+        existing = _ops_stat(ops, project_id, scope, rel_path)
         if existing is not None:
             if existing.type == "folder":
                 raise HTTPException(status_code=400, detail=f"Is a directory: {rel_path}")
@@ -783,6 +1325,7 @@ async def touch(
                     else f"ap touch {len(existing_files)} files"
                 ),
                 base_commit_id=body.base_commit_id,
+                defer_projection=True,
             )
             base_used = True
         except FileNotFoundError as e:
@@ -811,6 +1354,7 @@ async def touch(
                 scope=scope["path"],
                 message=f"ap touch {rel_path}",
                 base_commit_id=body.base_commit_id if index == 0 and not base_used else None,
+                defer_projection=True,
             )
         except ConcurrentMutationError as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
@@ -852,7 +1396,7 @@ async def move(
     _assert_not_excluded(new_rel, scope)
 
     old_full = _join_scope(scope["path"], old_rel)
-    old_entry = ops.stat(project_id, old_full)
+    old_entry = _ops_stat(ops, project_id, scope, old_rel)
     if old_entry is None:
         raise _fs_error(404, "NOT_FOUND", f"Path not found: {old_rel}", path=old_rel)
 
@@ -894,6 +1438,7 @@ async def move(
             scope=scope["path"],
             message=body.message or f"ap move {old_rel} -> {new_rel}",
             base_commit_id=body.base_commit_id,
+            defer_projection=True,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -931,7 +1476,7 @@ async def copy(
     _assert_not_excluded(new_rel, scope)
 
     old_full = _join_scope(scope["path"], old_rel)
-    old_entry = ops.stat(project_id, old_full)
+    old_entry = _ops_stat(ops, project_id, scope, old_rel)
     if old_entry is None:
         raise _fs_error(404, "NOT_FOUND", f"Path not found: {old_rel}", path=old_rel)
     if old_entry.type == "folder" and not body.recursive:
@@ -975,6 +1520,7 @@ async def copy(
             scope=scope["path"],
             message=body.message or f"ap copy {old_rel} -> {new_rel}",
             base_commit_id=body.base_commit_id,
+            defer_projection=True,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -1036,6 +1582,7 @@ async def rmdir(
                 else f"ap rmdir {len(remove_paths)} directories"
             ),
             base_commit_id=body.base_commit_id,
+            defer_projection=True,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -1077,8 +1624,7 @@ async def remove(
     missing_paths: list[str] = []
     for rel_path in rel_paths:
         _assert_not_excluded(rel_path, scope)
-        full_path = _join_scope(scope["path"], rel_path)
-        entry = ops.stat(project_id, full_path)
+        entry = _ops_stat(ops, project_id, scope, rel_path)
         if entry is None:
             missing_paths.append(rel_path)
             continue
@@ -1113,6 +1659,7 @@ async def remove(
                 else f"ap delete {len(existing_paths)} paths"
             ),
             base_commit_id=body.base_commit_id,
+            defer_projection=True,
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

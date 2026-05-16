@@ -12,10 +12,10 @@ All identifiers are hash-based (``commit_id``, 16 hex chars).
 """
 
 import base64
-import json
 import pytest
 
 from mut.core import tree as tree_mod
+from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 from tests.mut_engine._handlers import (
     handle_clone, handle_push, handle_pull,
     handle_rollback, handle_pull_commit,
@@ -72,16 +72,16 @@ def _make_push(store, files, base_commit_id: str = "") -> dict:
         d = nested
         for p in parts[:-1]:
             d = d.setdefault(p, {})
-        d[parts[-1]] = ("B", store.put(content))
+        d[parts[-1]] = ("B", store.put_blob(content))
 
     def build(node):
-        entries = {}
+        entries: list[TreeEntry] = []
         for name, val in sorted(node.items()):
             if isinstance(val, tuple):
-                entries[name] = list(val)
+                entries.append(TreeEntry(name=name, mode=MODE_FILE, sha1_hex=val[1]))
             else:
-                entries[name] = ["T", build(val)]
-        return store.put(json.dumps(entries, sort_keys=True).encode())
+                entries.append(TreeEntry(name=name, mode=MODE_DIR, sha1_hex=build(val)))
+        return store.put_tree(encode_tree(entries))
 
     root = build(nested)
     reachable = tree_mod.collect_reachable_hashes(store, root)
@@ -92,7 +92,7 @@ def _make_push(store, files, base_commit_id: str = "") -> dict:
             "who": "test", "time": "",
         }],
         "objects": {
-            h: base64.b64encode(store.get(h)).decode()
+            h: base64.b64encode(store.get_loose(h)).decode()
             for h in reachable
         },
     }

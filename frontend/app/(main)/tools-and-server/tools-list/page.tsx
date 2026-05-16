@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LibraryView } from '../components/LibraryView';
 import {
@@ -8,10 +9,14 @@ import {
   refreshToolsAndMcp,
 } from '@/lib/hooks/useData';
 import { deleteTool, type McpV2Instance } from '@/lib/mcpApi';
-import { PageLoading } from '@/components/loading';
+import { HeaderedPageLoadingShell } from '@/components/loading';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function ToolsListPage() {
   const router = useRouter();
+  const [deleteToolId, setDeleteToolId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // 使用 SWR hooks
   const {
@@ -27,15 +32,24 @@ export default function ToolsListPage() {
 
   const loading = toolsLoading || instancesLoading;
 
-  const handleDeleteTool = async (toolId: string) => {
-    if (!confirm('Delete this tool?')) return;
+  const handleDeleteTool = (toolId: string) => {
+    setDeleteError(null);
+    setDeleteToolId(toolId);
+  };
+
+  const confirmDeleteTool = async () => {
+    if (!deleteToolId) return;
+    setDeleteLoading(true);
     try {
-      await deleteTool(toolId);
+      await deleteTool(deleteToolId);
       // 刷新 tools
       refreshToolsAndMcp();
+      setDeleteToolId(null);
     } catch (e) {
       console.error('Failed to delete tool', e);
-      alert('Error deleting tool');
+      setDeleteError('Error deleting tool');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -50,18 +64,17 @@ export default function ToolsListPage() {
     router.push(`/tools-and-server/servers/${newMcp.api_key}`);
   };
 
-  const handleNavigateToTable = (tableId: number) => {
-    // 这里需要根据 tableId 找到 projectId，暂时先跳到 projects 根目录或者需要更复杂的逻辑
-    // 为了简单起见，我们先跳到 /projects
-    // 理想情况下，我们应该通过 API 获取 table 所属的 project
-    router.push('/projects');
+  const handleNavigateToTable = (_tableId: number) => {
+    // This table-id-only callback does not have enough information to
+    // build a project data URL. Fall back to the canonical workspace
+    // home route instead of the redirect-only `/projects` route so the
+    // shell and content never disagree during navigation.
+    router.push('/home');
   };
 
   if (loading) {
     return (
-      <div style={{ flex: 1 }}>
-        <PageLoading variant="fill" />
-      </div>
+      <HeaderedPageLoadingShell title="Tools List" />
     );
   }
 
@@ -74,6 +87,29 @@ export default function ToolsListPage() {
         onNavigateToTable={handleNavigateToTable}
         onRefresh={handleRefresh}
         onMcpCreated={handleMcpCreated}
+      />
+      <ConfirmDialog
+        open={deleteToolId !== null}
+        title="Delete tool?"
+        description={
+          <div>
+            <div>This removes the tool from the library.</div>
+            {deleteError && (
+              <div style={{ marginTop: 10, color: 'var(--po-danger)' }}>
+                {deleteError}
+              </div>
+            )}
+          </div>
+        }
+        confirmLabel="Delete"
+        loading={deleteLoading}
+        onCancel={() => {
+          if (!deleteLoading) {
+            setDeleteError(null);
+            setDeleteToolId(null);
+          }
+        }}
+        onConfirm={() => void confirmDeleteTool()}
       />
     </div>
   );

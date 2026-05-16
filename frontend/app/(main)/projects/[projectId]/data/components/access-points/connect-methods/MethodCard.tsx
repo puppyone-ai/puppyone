@@ -1,25 +1,37 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
-  COLOR_BG_CARD,
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
   COLOR_FG,
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
-  COLOR_SUCCESS,
-  COLOR_SUCCESS_BORDER,
 } from '../tokens';
 import { AgentIcon, SyncIcon, TerminalIcon } from './icons';
 import type { MethodMeta } from './meta';
+
+const ACTIVE_METHOD_BG =
+  'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)';
+const ACTIVE_METHOD_BG_HOVER =
+  'color-mix(in srgb, var(--po-text) 12%, var(--po-panel) 88%)';
+const PAUSED_METHOD_BG =
+  'color-mix(in srgb, var(--po-text) 3%, var(--po-panel) 97%)';
+const PAUSED_METHOD_BG_HOVER =
+  'color-mix(in srgb, var(--po-text) 5%, var(--po-panel) 95%)';
 
 /**
  * MethodCard — wrapper for one connection method.
  *
  * Header layout (left to right):
  *
- *   [icon] [title + subtitle]                          [toggle]
+ *   [icon] [method hint]                               [toggle]
+ *
+ * The method title lives one level above the card (`Puppyone CLI`,
+ * `Git Remote`, etc.). Keeping the title outside the card makes the
+ * panel read like normal settings sections instead of mixing section
+ * labels into card chrome.
  *
  * Body visibility is **a pure function of the toggle**:
  *
@@ -38,14 +50,14 @@ import type { MethodMeta } from './meta';
  * Other behaviours:
  *
  *   - Toggle is the only interactive element. The header chrome is a
- *     plain `<div>` (not a `<button>`) — clicking on the title /
- *     subtitle / icon does nothing, which prevents the "looks
+ *     plain `<div>` (not a `<button>`) — clicking on the hint /
+ *     icon does nothing, which prevents the "looks
  *     clickable but isn't" trap.
  *   - Toggle is wired to the connector's `status` field via the
  *     `pauseConnector` / `resumeConnector` API (the parent owns the
  *     request; we just emit `onToggle`).
- *   - When the method is paused, the icon, title, and subtitle dim,
- *     and the subtitle picks up a "(paused)" suffix so the off state
+ *   - When the method is paused, the icon and hint dim,
+ *     and the hint picks up a "(paused)" suffix so the off state
  *     reads at a glance even without the body for context.
  */
 export function MethodCard({
@@ -76,13 +88,20 @@ export function MethodCard({
   // Single source of truth: body visibility = active state. No
   // useState, no manual override.
   const expanded = active;
+  const cardBackground = expanded
+    ? hovered
+      ? ACTIVE_METHOD_BG_HOVER
+      : ACTIVE_METHOD_BG
+    : hovered
+      ? PAUSED_METHOD_BG_HOVER
+      : PAUSED_METHOD_BG;
 
   return (
     <div
       style={{
         borderRadius: 10,
         border: `1px solid ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
-        background: expanded ? COLOR_BG_CARD : 'rgba(255,255,255,0.012)',
+        background: cardBackground,
         overflow: 'hidden',
         transition: 'border-color 0.15s, background 0.15s',
       }}
@@ -110,29 +129,18 @@ export function MethodCard({
             flex: 1,
             minWidth: 0,
             display: 'flex',
-            alignItems: 'baseline',
-            gap: 7,
+            alignItems: 'center',
           }}
         >
-          <span
-            style={{
-              flexShrink: 0,
-              fontSize: 13,
-              fontWeight: 600,
-              color: active ? COLOR_FG : COLOR_FG_MUTED,
-              lineHeight: 1.3,
-            }}
-          >
-            {meta.title}
-          </span>
           <span
             style={{
               minWidth: 0,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              fontSize: 12,
-              color: COLOR_FG_DIM,
+              fontSize: 13,
+              fontWeight: 500,
+              color: active ? COLOR_FG_MUTED : COLOR_FG_DIM,
               lineHeight: 1.45,
             }}
           >
@@ -156,7 +164,6 @@ export function MethodCard({
       {expanded && (
         <div
           style={{
-            borderTop: `1px solid ${COLOR_BORDER}`,
             padding: '12px',
             display: 'flex',
             flexDirection: 'column',
@@ -183,7 +190,7 @@ function MethodIcon({
         width: 24,
         height: 24,
         borderRadius: 7,
-        background: active ? meta.accentBg : 'rgba(255,255,255,0.025)',
+        background: active ? meta.accentBg : 'var(--po-control)',
         border: `1px solid ${active ? meta.accentBorder : COLOR_BORDER}`,
         color: active ? meta.accent : COLOR_FG_DIM,
         display: 'flex',
@@ -233,75 +240,17 @@ function MethodToggle({
   readonly onClick: () => void;
   readonly label: string;
 }) {
-  const [hovered, setHovered] = useState(false);
-
   return (
-    <span
-      role="switch"
-      aria-checked={active}
-      aria-label={label}
+    <ToggleSwitch
+      as="span"
+      checked={active}
+      pending={pending}
+      ariaLabel={label}
       title={label}
-      tabIndex={0}
-      onClick={(e) => {
-        e.stopPropagation();
-        // `pending` is for de-duping rapid double-clicks while the
-        // first request is still in flight — the click is silently
-        // dropped (no visual cue) because by the time the user
-        // clicked again the optimistic state already reflects what
-        // they wanted.
-        if (pending) return;
-        onClick();
-      }}
-      onKeyDown={(e) => {
-        // Space / Enter toggle — treat the switch like a real form
-        // control even though it's a span (we'd use <button> but the
-        // parent row is also a button, and nesting buttons is
-        // semantically illegal).
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          e.stopPropagation();
-          if (pending) return;
-          onClick();
-        }
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative',
-        display: 'inline-block',
-        width: 32,
-        height: 18,
-        borderRadius: 999,
-        cursor: 'pointer',
-        background: active ? 'rgba(52,211,153,0.10)' : 'rgba(255,255,255,0.06)',
-        border: `1px solid ${
-          active
-            ? hovered
-              ? COLOR_SUCCESS
-              : COLOR_SUCCESS_BORDER
-            : hovered
-              ? 'rgba(255,255,255,0.20)'
-              : 'rgba(255,255,255,0.10)'
-        }`,
-        transition: 'background 0.15s ease, border-color 0.15s ease',
-        flexShrink: 0,
-        outline: 'none',
-      }}
-    >
-      <span
-        aria-hidden
-        style={{
-          position: 'absolute',
-          top: 1,
-          left: active ? 15 : 1,
-          width: 14,
-          height: 14,
-          borderRadius: '50%',
-          background: active ? COLOR_SUCCESS : COLOR_FG_DIM,
-          transition: 'left 0.18s ease, background 0.15s ease',
-        }}
-      />
-    </span>
+      size="sm"
+      stopPropagation
+      onCheckedChange={onClick}
+    />
   );
 }
 
@@ -345,9 +294,9 @@ export function NoAccessKeyNotice() {
     <div
       style={{
         borderRadius: 8,
-        border: `1px solid rgba(245,158,11,0.25)`,
-        background: 'rgba(245,158,11,0.06)',
-        color: '#fcd34d',
+        border: '1px solid color-mix(in srgb, var(--po-warning) 28%, transparent)',
+        background: 'color-mix(in srgb, var(--po-warning) 8%, transparent)',
+        color: 'var(--po-warning)',
         fontSize: 13,
         lineHeight: 1.5,
         padding: '10px 12px',

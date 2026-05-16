@@ -28,6 +28,9 @@ import {
 import { useProjects } from '../lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { Dots } from './loading';
+import { ToggleSwitch } from './ui/ToggleSwitch';
+import { ActionButton } from './ui/ActionButton';
+import { StatusDot } from './ui/StatusDot';
 
 type ConnectContentViewProps = {
   onBack: () => void;
@@ -127,14 +130,14 @@ const getDefaultPlatformStates = (): Record<PlatformId, PlatformState> =>
   );
 
 const statusColors: Record<PlatformStatusType, string> = {
-  connected: '#22c55e',
-  disconnected: '#595959',
-  error: '#ef4444',
+  connected: 'var(--po-success)',
+  disconnected: 'var(--po-text-disabled)',
+  error: 'var(--po-danger)',
 };
 
 export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const { currentOrg } = useOrganization();
-  const { projects } = useProjects(currentOrg?.id);
+  const { projects } = useProjects(currentOrg?.id ?? null);
 
   // URL parsing功能已移至 TableManageDialog
   // const [url, setUrl] = useState('');
@@ -378,15 +381,15 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
   const startOAuthConnect = async (platformId: PlatformId) => {
     const saasType = platformToSaasType[platformId];
     const platformName = getPlatformName(platformId);
-    
+
     updatePlatformState(platformId, {
       isLoading: true,
       label: `Connecting to ${platformName}…`,
     });
-    
+
     try {
       const completed = await openOAuthPopup(saasType);
-      
+
       if (completed) {
         // Popup closed, refresh the status
         await platformStatusCheckers[platformId]();
@@ -666,19 +669,19 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
           height: 8px;
         }
         .connect-preview-scrollbar::-webkit-scrollbar-track {
-          background: #0a0a0a;
+          background: var(--po-inset);
           border-radius: 4px;
         }
         .connect-preview-scrollbar::-webkit-scrollbar-thumb {
-          background: #404040;
+          background: var(--po-border-strong);
           border-radius: 4px;
         }
         .connect-preview-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #555;
+          background: var(--po-scrollbar-thumb-hover);
         }
         /* For Firefox */
         .connect-preview-scrollbar {
-          scrollbar-color: #404040 #0a0a0a;
+          scrollbar-color: var(--po-border-strong) var(--po-inset);
           scrollbar-width: thin;
         }
       `}</style>
@@ -697,7 +700,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             display: 'flex',
             alignItems: 'center',
             padding: '0 20px',
-            borderBottom: '1px solid #262626',
+            borderBottom: '1px solid var(--po-border)',
             gap: 12,
           }}
         >
@@ -707,22 +710,22 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 28,
-              height: 32,
+              width: 30,
+              height: 30,
               background: 'transparent',
               border: 'none',
               borderRadius: 6,
               cursor: 'pointer',
-              color: '#6D7177',
+              color: 'var(--po-text-subtle)',
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = '#2C2C2C';
-              e.currentTarget.style.color = '#CDCDCD';
+              e.currentTarget.style.background = 'var(--po-hover)';
+              e.currentTarget.style.color = 'var(--po-text)';
             }}
             onMouseLeave={e => {
               e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = '#6D7177';
+              e.currentTarget.style.color = 'var(--po-text-subtle)';
             }}
           >
             <svg width='16' height='16' viewBox='0 0 16 16' fill='none'>
@@ -735,7 +738,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               />
             </svg>
           </button>
-          <span style={{ fontSize: 16, color: '#CDCDCD', fontWeight: 500 }}>
+          <span style={{ fontSize: 16, color: 'var(--po-text)', fontWeight: 500 }}>
             Integrations
           </span>
         </div>
@@ -778,8 +781,8 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        background: '#1a1a1a',
-                        border: '1px solid #2a2a2a',
+                        background: 'var(--po-panel-raised)',
+                        border: '1px solid var(--po-border)',
                         borderRadius: 8,
                         padding: '12px 16px',
                         gap: 16,
@@ -790,7 +793,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     >
                       <div
                         style={{
-                          color: '#CDCDCD',
+                          color: 'var(--po-text)',
                           display: 'flex',
                           alignItems: 'center',
                         }}
@@ -803,7 +806,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                           style={{
                             fontSize: 16,
                             fontWeight: 500,
-                            color: '#CDCDCD',
+                            color: 'var(--po-text)',
                           }}
                         >
                           {platform.name}
@@ -812,7 +815,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                           <div
                             style={{
                               fontSize: 12,
-                              color: '#8B8B8B',
+                              color: 'var(--po-text-muted)',
                             }}
                           >
                             {platform.description}
@@ -829,17 +832,10 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                           justifyContent: 'flex-end',
                         }}
                       >
-                        <span
-                          style={{
-                            width: 12,
-                            height: 12,
-                            borderRadius: '50%',
-                            background: lampColor,
-                            boxShadow:
-                              state?.status === 'connected'
-                                ? '0 0 8px rgba(34, 197, 94, 0.6)'
-                                : 'none',
-                          }}
+                        <StatusDot
+                          status={state?.status}
+                          size={12}
+                          pulse={state?.status === 'connected'}
                         />
                         <span
                           style={{
@@ -853,47 +849,15 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                         </span>
                       </div>
 
-                      <button
-                        type='button'
-                        aria-pressed={isConnected}
-                        aria-label={`Toggle ${platform.name}`}
-                        onClick={e => {
-                          e.stopPropagation();
-                          if (isToggleDisabled) {
-                            return;
-                          }
-                          handlePlatformToggle(platform.id, !isConnected);
-                        }}
+                      <ToggleSwitch
+                        checked={isConnected}
+                        ariaLabel={`Toggle ${platform.name}`}
                         disabled={isToggleDisabled}
-                        style={{
-                          width: 48,
-                          height: 26,
-                          borderRadius: 999,
-                          border: `1px solid ${isConnected ? '#15803d' : '#3a3a3a'}`,
-                          background: isConnected ? '#22c55e' : '#2a2a2a',
-                          position: 'relative',
-                          padding: 0,
-                          cursor: isToggleDisabled ? 'not-allowed' : 'pointer',
-                          opacity: isToggleDisabled ? 0.4 : 1,
-                          transition:
-                            'background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease',
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            left: isConnected ? 26 : 4,
-                            width: 18,
-                            height: 18,
-                            borderRadius: '50%',
-                            background: '#ffffff',
-                            transition: 'left 0.2s ease',
-                            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.4)',
-                          }}
-                        />
-                      </button>
+                        stopPropagation
+                        onCheckedChange={checked =>
+                          handlePlatformToggle(platform.id, checked)
+                        }
+                      />
                     </div>
                   );
                 })}
@@ -904,8 +868,8 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
             {/* URL parsing功能已移至 TableManageDialog */}
             {/* <div
               style={{
-                background: '#111111',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-panel)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 8,
                 padding: 20,
                 marginBottom: 16,
@@ -915,7 +879,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                 style={{
                   fontSize: 11,
                   fontWeight: 600,
-                  color: '#8B8B8B',
+                  color: 'var(--po-text-muted)',
                   marginBottom: 12,
                   textTransform: 'uppercase',
                   letterSpacing: '0.5px',
@@ -938,17 +902,17 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   disabled={isLoading || isImporting}
                   style={{
                     flex: 1,
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
+                    background: 'var(--po-inset)',
+                    border: '1px solid var(--po-border)',
                     borderRadius: 6,
                     padding: '8px 12px',
                     fontSize: 16,
-                    color: '#CDCDCD',
+                    color: 'var(--po-text)',
                     outline: 'none',
                     transition: 'border-color 0.15s',
                   }}
-                  onFocus={e => (e.currentTarget.style.borderColor = '#404040')}
-                  onBlur={e => (e.currentTarget.style.borderColor = '#2a2a2a')}
+                  onFocus={e => (e.currentTarget.style.borderColor = 'var(--po-border-strong)')}
+                  onBlur={e => (e.currentTarget.style.borderColor = 'var(--po-border)')}
                 />
 
                 <button
@@ -957,17 +921,18 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   style={{
                     background:
                       isLoading || isImporting || !url.trim()
-                        ? '#1a1a1a'
-                        : '#2a2a2a',
+                        ? 'var(--po-panel-raised)'
+                        : 'var(--po-border)',
                     border: 'none',
                     borderRadius: 6,
-                    padding: '8px 16px',
+                    height: 30,
+                    padding: '0 16px',
                     fontSize: 12,
                     fontWeight: 500,
                     color:
                       isLoading || isImporting || !url.trim()
-                        ? '#505050'
-                        : '#CDCDCD',
+                        ? 'var(--po-text-disabled)'
+                        : 'var(--po-text)',
                     cursor:
                       isLoading || isImporting || !url.trim()
                         ? 'not-allowed'
@@ -979,12 +944,12 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   }}
                   onMouseEnter={e => {
                     if (!isLoading && !isImporting && url.trim()) {
-                      e.currentTarget.style.background = '#353535';
+                      e.currentTarget.style.background = 'var(--po-control-hover)';
                     }
                   }}
                   onMouseLeave={e => {
                     if (!isLoading && !isImporting && url.trim()) {
-                      e.currentTarget.style.background = '#2a2a2a';
+                      e.currentTarget.style.background = 'var(--po-border)';
                     }
                   }}
                 >
@@ -996,7 +961,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               <div
                 style={{
                   fontSize: 11,
-                  color: '#5D6065',
+                  color: 'var(--po-text-subtle)',
                   marginTop: 10,
                 }}
               >
@@ -1016,7 +981,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                 style={{
                   position: 'fixed',
                   inset: 0,
-                  background: 'rgba(0, 0, 0, 0.65)',
+                  background: 'var(--po-backdrop)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1025,20 +990,20 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
               >
                 <div
                   style={{
-                    background: '#1a1a1a',
-                    border: '1px solid #3a3a3a',
+                    background: 'var(--po-panel-raised)',
+                    border: '1px solid var(--po-border)',
                     borderRadius: 10,
                     padding: 24,
                     width: 360,
                     maxWidth: '90%',
-                    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+                    boxShadow: '0 10px 40px var(--po-shadow)',
                   }}
                 >
                   <h3
                     style={{
                       fontSize: 16,
                       fontWeight: 600,
-                      color: '#CDCDCD',
+                      color: 'var(--po-text)',
                       marginBottom: 8,
                     }}
                   >
@@ -1047,7 +1012,7 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                   <p
                     style={{
                       fontSize: 16,
-                      color: '#8B8B8B',
+                      color: 'var(--po-text-muted)',
                       marginBottom: 16,
                       lineHeight: 1.5,
                     }}
@@ -1056,36 +1021,19 @@ export function ConnectContentView({ onBack }: ConnectContentViewProps) {
                     content until you reconnect.
                   </p>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <button
+                    <ActionButton
                       onClick={closeDisconnectModal}
-                      style={{
-                        flex: 1,
-                        padding: '8px 16px',
-                        borderRadius: 6,
-                        border: '1px solid #3a3a3a',
-                        background: '#2a2a2a',
-                        color: '#CDCDCD',
-                        cursor: 'pointer',
-                        fontSize: 16,
-                      }}
+                      style={{ flex: 1 }}
                     >
                       Cancel
-                    </button>
-                    <button
+                    </ActionButton>
+                    <ActionButton
                       onClick={handleDisconnectConfirm}
-                      style={{
-                        flex: 1,
-                        padding: '8px 16px',
-                        borderRadius: 6,
-                        border: '1px solid #b91c1c',
-                        background: '#7f1d1d',
-                        color: '#f87171',
-                        cursor: 'pointer',
-                        fontSize: 16,
-                      }}
+                      variant='danger'
+                      style={{ flex: 1 }}
                     >
                       Disconnect
-                    </button>
+                    </ActionButton>
                   </div>
                 </div>
               </div>

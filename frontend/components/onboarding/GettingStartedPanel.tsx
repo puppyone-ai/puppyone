@@ -31,52 +31,38 @@ interface StepDef {
 const STEP_DEFS: StepDef[] = [
   {
     id: 'project',
-    label: 'Create your first project',
-    description: "Projects are containers for your data. Click '+ New Project' to get started.",
+    label: 'Create a project',
+    description: 'Start with an empty workspace so real context can land in the right place.',
     actionLabel: 'Create project',
-    getHref: () => '/home',
+    getHref: () => '/home?create=true',
   },
   {
     id: 'file',
-    label: 'Upload your first file',
-    description: 'Go to the Context page, drag files or use mut push to sync a local folder.',
-    actionLabel: 'Upload files',
+    label: 'Bring in existing context',
+    description: 'Import files, GitHub, Notion, a local folder, URLs, or docs from the empty project screen.',
+    actionLabel: 'Import context',
     getHref: (pid) => (pid ? `/projects/${pid}/data` : '/home'),
   },
   {
     id: 'access_point',
-    label: 'Add an integration',
-    description: 'Integrations let Claude, Cursor, and other tools access your data.',
-    actionLabel: 'Add integration',
-    getHref: (pid) => (pid ? `/projects/${pid}/access` : '/home'),
-  },
-  {
-    id: 'local_sync',
-    label: 'Sync with mut CLI',
-    description: 'Install mut CLI and run mut push for bidirectional real-time sync with PuppyOne.',
-    actionLabel: 'View guide',
+    label: 'Give a tool access',
+    description: 'Create an access point so Claude, Cursor, MCP clients, or Git remotes can use this project.',
+    actionLabel: 'Open Access',
     getHref: (pid) => (pid ? `/projects/${pid}/access` : '/home'),
   },
   {
     id: 'agent',
     label: 'Create an AI Agent',
-    description: "Click '+ New Agent' in the right panel of the Context page, then bind data resources.",
+    description: 'Bind an agent to the context it should read and write.',
     actionLabel: 'Create Agent',
     getHref: (pid) => (pid ? `/projects/${pid}/data` : '/home'),
   },
   {
     id: 'chat',
     label: 'Chat with your Agent',
-    description: 'Select an Agent and start chatting to let AI help you process data.',
+    description: 'Send one message so the loop closes: context in, agent work out.',
     actionLabel: 'Start chatting',
     getHref: (pid) => (pid ? `/projects/${pid}/data` : '/home'),
-  },
-  {
-    id: 'invite',
-    label: 'Invite team members',
-    description: 'Invite members on the team page to manage projects and Agents together.',
-    actionLabel: 'Invite',
-    getHref: () => '/team',
   },
 ];
 
@@ -87,14 +73,14 @@ interface Props {
 
 // Brand blue — applied surgically (progress fill + completed checks +
 // active "you are here" dot). Three small, contained surfaces is enough
-// to feel like PuppyOne; a fourth (filled CTA) is what made the panel
+// to feel like Puppyone; a fourth (filled CTA) is what made the panel
 // read as a marketing widget last time, so the CTA stays as a neutral
 // ghost button on purpose.
-const ACCENT = '#3b82f6';
+const ACCENT = 'var(--po-accent)';
 const PROGRESS_FILL = ACCENT;
-const PROGRESS_TRACK = 'rgba(255,255,255,0.06)';
-const NEXT_RING = 'rgba(255,255,255,0.55)';
-const PENDING_RING = 'rgba(255,255,255,0.18)';
+const PROGRESS_TRACK = 'var(--po-border-subtle)';
+const NEXT_RING = 'var(--po-border-strong)';
+const PENDING_RING = 'var(--po-border)';
 
 export function GettingStartedPanel({ projectId, inline = false }: Readonly<Props>) {
   const router = useRouter();
@@ -126,6 +112,10 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
     (s) => !completedSteps.includes(s.id),
   );
 
+  if (total > 0 && done >= total) {
+    return null;
+  }
+
   if (collapsedChecklist || dismissedChecklist) {
     return (
       <button
@@ -141,7 +131,7 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
           borderRadius: 999,
           background: ACTIVITY_BG,
           border: ACTIVITY_BORDER,
-          color: '#e4e4e7',
+          color: 'var(--po-text)',
           fontSize: 12,
           fontWeight: 500,
           letterSpacing: '-0.01em',
@@ -153,12 +143,12 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
           transition: 'background 0.12s ease, border-color 0.12s ease',
         }}
         onMouseEnter={e => {
-          e.currentTarget.style.background = 'rgba(30, 30, 34, 0.9)';
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+          e.currentTarget.style.background = 'var(--po-panel-raised)';
+          e.currentTarget.style.borderColor = 'var(--po-border-strong)';
         }}
         onMouseLeave={e => {
           e.currentTarget.style.background = ACTIVITY_BG;
-          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
+          e.currentTarget.style.borderColor = 'var(--po-border-subtle)';
         }}
       >
         <div style={{
@@ -166,7 +156,7 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
           background: `conic-gradient(${PROGRESS_FILL} ${pct}%, ${PROGRESS_TRACK} 0)`,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
-          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(22,22,26,0.95)' }} />
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--po-overlay)' }} />
         </div>
         <span style={{ flex: 1, textAlign: 'left' }}>
           Getting started
@@ -229,17 +219,17 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
           const completed = completedSteps.includes(step.id);
           const isNext = i === nextIdx;
           const labelColor = completed
-            ? '#52525b'
+            ? 'var(--po-text-disabled)'
             : isNext
-              ? '#fafafa'
-              : '#a1a1aa';
+              ? 'var(--po-text)'
+              : 'var(--po-text-muted)';
           const href = step.getHref?.(projectId);
           return (
             <div
               key={step.id}
               style={{
                 padding: isNext ? '10px 14px 12px' : '7px 14px',
-                background: isNext ? 'rgba(255,255,255,0.035)' : 'transparent',
+                background: isNext ? 'var(--po-control)' : 'transparent',
                 display: 'flex', gap: 10, alignItems: 'flex-start',
                 position: 'relative',
               }}
@@ -256,7 +246,7 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
               }}>
                 {completed && (
                   <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-                    <path d="M2.5 6l2.5 2.5L9.5 4" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2.5 6l2.5 2.5L9.5 4" stroke="var(--po-text-inverse)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
                 {!completed && isNext && (
@@ -272,7 +262,7 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
                   letterSpacing: '-0.005em',
                   color: labelColor,
                   textDecoration: completed ? 'line-through' : 'none',
-                  textDecorationColor: 'rgba(82, 82, 91, 0.6)',
+                  textDecorationColor: 'var(--po-text-disabled)',
                   marginBottom: isNext ? 4 : 0,
                 }}>
                   {step.label}
@@ -281,7 +271,7 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
                   <>
                     <div style={{
                       ...activitySubtleTextStyle,
-                      color: '#a1a1aa',
+                      color: 'var(--po-text-muted)',
                       marginBottom: 10,
                       lineHeight: '15px',
                     }}>
@@ -291,13 +281,13 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
                       <button
                         onClick={() => router.push(href)}
                         style={{
-                          height: 26,
+                          height: 30,
                           fontSize: 11.5,
                           fontWeight: 500,
                           letterSpacing: '-0.005em',
-                          color: '#fafafa',
-                          background: 'rgba(255,255,255,0.06)',
-                          border: '1px solid rgba(255,255,255,0.12)',
+                          color: 'var(--po-text)',
+                          background: 'var(--po-border-subtle)',
+                          border: '1px solid var(--po-border-strong)',
                           borderRadius: 6,
                           padding: '0 10px',
                           cursor: 'pointer',
@@ -307,12 +297,12 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
                           transition: 'background 0.12s ease, border-color 0.12s ease',
                         }}
                         onMouseEnter={e => {
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.10)';
-                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)';
+                          e.currentTarget.style.background = 'var(--po-border-strong)';
+                          e.currentTarget.style.borderColor = 'var(--po-focus-ring)';
                         }}
                         onMouseLeave={e => {
-                          e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)';
+                          e.currentTarget.style.background = 'var(--po-border-subtle)';
+                          e.currentTarget.style.borderColor = 'var(--po-border-strong)';
                         }}
                       >
                         {step.actionLabel}
@@ -332,7 +322,7 @@ export function GettingStartedPanel({ projectId, inline = false }: Readonly<Prop
           here paired with the intro replay. */}
       <div style={{
         padding: '8px 12px',
-        borderTop: '1px solid rgba(255,255,255,0.04)',
+        borderTop: '1px solid var(--po-hover)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -363,7 +353,7 @@ const footerLinkStyle: CSSProperties = {
   fontSize: 11,
   lineHeight: '16px',
   letterSpacing: '-0.005em',
-  color: '#71717a',
+  color: 'var(--po-text-subtle)',
   background: 'none',
   border: 'none',
   cursor: 'pointer',
@@ -373,9 +363,9 @@ const footerLinkStyle: CSSProperties = {
 };
 
 function onFooterLinkEnter(e: MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.color = '#d4d4d8';
+  e.currentTarget.style.color = 'var(--po-text-muted)';
 }
 
 function onFooterLinkLeave(e: MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.color = '#71717a';
+  e.currentTarget.style.color = 'var(--po-text-subtle)';
 }

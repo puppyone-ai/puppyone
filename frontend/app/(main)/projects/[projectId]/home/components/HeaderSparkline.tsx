@@ -104,6 +104,8 @@ export function HeaderSparkline({
         background: framed ? T.cardBg : 'transparent',
         border: framed ? `1px solid ${T.cardBorder}` : 'none',
         borderRadius: framed ? 4 : 0,
+        width: framed ? W + 4 : W,
+        height: framed ? H + 4 : 30,
         padding: framed ? 2 : 0,
         margin: 0,
         cursor: 'pointer',

@@ -49,7 +49,7 @@ export function PdfPreview({ projectId, filePath, nodeName }: PdfPreviewProps) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#ef4444',
+          color: 'var(--po-danger)',
           padding: 24,
         }}
       >
@@ -69,20 +69,9 @@ export function PdfPreview({ projectId, filePath, nodeName }: PdfPreviewProps) {
         display: 'flex',
         flexDirection: 'column',
         minHeight: 0,
-        background: '#0a0a0a',
+        background: 'var(--po-inset)',
       }}
     >
-      <div
-        style={{
-          padding: '8px 16px',
-          borderBottom: '1px solid #262626',
-          fontSize: 12,
-          color: '#a1a1aa',
-          flexShrink: 0,
-        }}
-      >
-        <span style={{ fontWeight: 500 }}>{nodeName}</span>
-      </div>
       <iframe
         src={previewUrl}
         title={nodeName}
@@ -90,7 +79,7 @@ export function PdfPreview({ projectId, filePath, nodeName }: PdfPreviewProps) {
           flex: 1,
           width: '100%',
           border: 'none',
-          background: '#1a1a1a',
+          background: 'var(--po-panel-raised)',
         }}
       />
     </div>

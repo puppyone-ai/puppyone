@@ -33,19 +33,19 @@ export function Pill({
       border: COLOR_ACCENT_BORDER_BRIGHT,
     },
     rw: {
-      bg: 'rgba(255,255,255,0.06)',
+      bg: 'var(--po-border-subtle)',
       color: COLOR_FG,
-      border: 'rgba(255,255,255,0.10)',
+      border: 'var(--po-border-strong)',
     },
     r: {
-      bg: 'rgba(255,255,255,0.03)',
+      bg: 'var(--po-hover)',
       color: COLOR_FG_MUTED,
-      border: 'rgba(255,255,255,0.08)',
+      border: 'var(--po-border)',
     },
     meta: {
       bg: 'transparent',
       color: COLOR_FG_DIM,
-      border: 'rgba(255,255,255,0.08)',
+      border: 'var(--po-border)',
     },
   };
   const s = styles[variant];

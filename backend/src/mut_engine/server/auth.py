@@ -15,6 +15,9 @@ Supports:
 
 from __future__ import annotations
 
+import threading
+import time
+
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials
 
@@ -31,6 +34,38 @@ from src.utils.logger import log_error, log_warning
 # case is that pause becomes informational for that client kind, never
 # that a legitimate request gets rejected.
 _KNOWN_CHANNELS = frozenset({"cli", "filesystem"})
+_CHANNEL_PAUSE_CACHE_TTL_SECONDS = 2.0
+_channel_pause_cache: dict[tuple[str, str], tuple[float, str | None, str | None]] = {}
+_channel_pause_cache_lock = threading.Lock()
+
+
+def _get_cached_channel_pause(scope_id: str, channel: str) -> tuple[str | None, str | None] | None:
+    now = time.monotonic()
+    key = (scope_id, channel)
+    with _channel_pause_cache_lock:
+        cached = _channel_pause_cache.get(key)
+        if cached is None:
+            return None
+        expires_at, connector_id, status = cached
+        if expires_at <= now:
+            _channel_pause_cache.pop(key, None)
+            return None
+        return connector_id, status
+
+
+def _set_cached_channel_pause(
+    scope_id: str,
+    channel: str,
+    connector_id: str | None,
+    status: str | None,
+) -> None:
+    key = (scope_id, channel)
+    with _channel_pause_cache_lock:
+        _channel_pause_cache[key] = (
+            time.monotonic() + _CHANNEL_PAUSE_CACHE_TTL_SECONDS,
+            connector_id,
+            status,
+        )
 
 
 class PuppyOneAuthenticator:
@@ -120,7 +155,14 @@ class PuppyOneAuthenticator:
     def _try_jwt(self, token: str) -> dict | None:
         try:
             from src.platform.auth.service import AuthService
-            auth_svc = AuthService(SupabaseClient())
+            # AuthService expects the *underlying* supabase-py ``Client``
+            # (which exposes ``.auth.get_claims`` for the JWKS fallback),
+            # not our ``SupabaseClient`` wrapper. Passing the wrapper
+            # silently falls back to the local JWT path until the JWKS
+            # branch is reached, then crashes with
+            # ``'SupabaseClient' object has no attribute 'auth'`` and the
+            # caller treats every JWT as invalid.
+            auth_svc = AuthService(SupabaseClient().client)
             user = auth_svc.get_current_user(token)
             return {"user_id": user.user_id}
         except HTTPException:
@@ -317,25 +359,39 @@ def enforce_channel_pause(
         # there — JWT users see the full project tree by membership and
         # aren't subject to per-channel pause. Access-key auth always
         # returns a real scope_id, which is the only case we enforce.
-        try:
-            connector = ConnectorRepository().get_by_scope_provider(
-                scope_id, normalized_channel,
-            )
-        except Exception as e:
-            # Defensive: if the lookup fails (e.g. transient DB blip), we
-            # don't want to suddenly start 5xx-ing legitimate traffic.
-            # Log and fail open — pause stays as informational on this
-            # request, the next one re-tries.
-            log_error(
-                f"{log_prefix} Channel-pause lookup failed for scope={scope_id} "
-                f"channel={normalized_channel}: {e}; failing open"
-            )
-            connector = None
+        cached = _get_cached_channel_pause(scope_id, normalized_channel)
+        if cached is None:
+            try:
+                connector = ConnectorRepository().get_by_scope_provider(
+                    scope_id, normalized_channel,
+                )
+            except Exception as e:
+                # Defensive: if the lookup fails (e.g. transient DB blip), we
+                # don't want to suddenly start 5xx-ing legitimate traffic.
+                # Log and fail open — pause stays as informational on this
+                # request, the next one re-tries.
+                log_error(
+                    f"{log_prefix} Channel-pause lookup failed for scope={scope_id} "
+                    f"channel={normalized_channel}: {e}; failing open"
+                )
+                connector_id = None
+                connector_status = None
+            else:
+                connector_id = connector.id if connector is not None else None
+                connector_status = connector.status if connector is not None else None
+                _set_cached_channel_pause(
+                    scope_id,
+                    normalized_channel,
+                    connector_id,
+                    connector_status,
+                )
+        else:
+            connector_id, connector_status = cached
 
-        if connector is not None and connector.status == "paused":
+        if connector_status == "paused":
             log_warning(
                 f"{log_prefix} Rejected {normalized_channel} request to scope={scope_id}: "
-                f"connector {connector.id} is paused"
+                f"connector {connector_id} is paused"
             )
             raise HTTPException(
                 status_code=403,

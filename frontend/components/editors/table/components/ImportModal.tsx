@@ -5,10 +5,13 @@ import React, {
   useCallback,
   CSSProperties,
 } from 'react';
-import { createPortal } from 'react-dom';
+import { APP_Z_INDEX } from '@/lib/zIndex';
+import { ModalPortal } from '@/components/ui/ModalPortal';
+import { ActionButton } from '@/components/ui/ActionButton';
 import { Dots } from '@/components/loading';
 import {
   submitImport,
+  supportsCrawlOptions,
   type CrawlOptions,
 } from '../../../../lib/importApi';
 import CrawlOptionsPanel from '../../../CrawlOptionsPanel';
@@ -36,83 +39,79 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0, 0, 0, 0.8)',
+    background: 'var(--po-backdrop)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 2000,
+    zIndex: APP_Z_INDEX.modalNested,
+    backdropFilter: 'blur(2px)',
+    WebkitBackdropFilter: 'blur(2px)',
   } as CSSProperties,
 
   modal: {
-    background: '#1a1a1e',
-    border: '1px solid #333',
-    borderRadius: 8,
-    padding: 24,
-    maxWidth: 600,
-    width: '90%',
+    background: 'var(--po-overlay)',
+    border: '1px solid var(--po-border)',
+    borderRadius: 12,
+    padding: '14px 20px 20px',
+    maxWidth: 'calc(100vw - 32px)',
+    width: 520,
     maxHeight: '80vh',
     overflowY: 'auto',
     overflowX: 'hidden',
+    boxShadow: '0 24px 48px var(--po-shadow)',
     fontFamily:
-      "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+      "var(--po-font-sans)",
   } as CSSProperties,
 
   header: {
-    fontSize: 16,
-    fontWeight: 600,
-    color: '#CDCDCD',
+    fontSize: 13,
+    fontWeight: 500,
+    lineHeight: '18px',
+    color: 'var(--po-text-muted)',
     marginBottom: 8,
   } as CSSProperties,
 
   pathInfo: {
     fontSize: 12,
-    color: '#8B8B8B',
+    color: 'var(--po-text-muted)',
     marginBottom: 20,
     fontFamily:
-      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+      'var(--po-font-sans)',
   } as CSSProperties,
 
   label: {
-    fontSize: 12,
-    fontWeight: 500,
-    color: '#CDCDCD',
+    fontSize: 11,
+    lineHeight: '14px',
+    fontWeight: 600,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: 'var(--po-text-subtle)',
     marginBottom: 8,
     display: 'block',
   } as CSSProperties,
 
   input: {
     width: '100%',
-    background: '#0a0a0a',
-    border: '1px solid #2a2a2a',
+    height: 32,
+    background: 'var(--po-panel-raised)',
+    border: '1px solid var(--po-border-strong)',
     borderRadius: 6,
-    padding: '8px 12px',
-    fontSize: 14,
-    color: '#CDCDCD',
+    padding: '0 10px',
+    fontSize: 13,
+    color: 'var(--po-text)',
     outline: 'none',
     marginBottom: 16,
   } as CSSProperties,
 
   buttonRow: {
     display: 'flex',
-    gap: 8,
-    marginBottom: 16,
+    gap: 10,
+    marginTop: 4,
   } as CSSProperties,
 
-  button: (disabled = false, primary = false): CSSProperties => ({
-    flex: 1,
-    background: disabled ? '#1a1a1a' : primary ? '#2a2a2a' : '#2a2a2a',
-    border: primary ? '1px solid #404040' : '1px solid #3a3a3a',
-    borderRadius: 6,
-    padding: '8px 16px',
-    fontSize: 14,
-    color: disabled ? '#505050' : '#CDCDCD',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontWeight: primary ? 500 : 400,
-  }),
-
   previewBox: {
-    background: '#0a0a0a',
-    border: '1px solid #2a2a2a',
+    background: 'var(--po-inset)',
+    border: '1px solid var(--po-border)',
     borderRadius: 6,
     padding: 12,
     marginBottom: 16,
@@ -120,27 +119,27 @@ const styles = {
     overflow: 'auto',
     // Custom dark scrollbar
     scrollbarWidth: 'thin' as any,
-    scrollbarColor: '#404040 #0a0a0a',
+    scrollbarColor: 'var(--po-border-strong) var(--po-inset)',
   } as CSSProperties,
 
   previewText: {
     fontSize: 11,
-    color: '#CDCDCD',
+    color: 'var(--po-text)',
     fontFamily:
-      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+      'var(--po-font-sans)',
     whiteSpace: 'pre-wrap',
     margin: 0,
   } as CSSProperties,
 
   infoText: {
     fontSize: 12,
-    color: '#8B8B8B',
+    color: 'var(--po-text-muted)',
     marginBottom: 12,
   } as CSSProperties,
 
   errorBox: {
-    background: '#2a1a1a',
-    border: '1px solid #4a2a2a',
+    background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)',
+    border: '1px solid color-mix(in srgb, var(--po-danger) 20%, transparent)',
     borderRadius: 6,
     padding: 12,
     marginBottom: 16,
@@ -148,7 +147,7 @@ const styles = {
 
   errorText: {
     fontSize: 12,
-    color: '#f87171',
+    color: 'var(--po-danger)',
   } as CSSProperties,
 
   strategySelector: {
@@ -165,7 +164,7 @@ const styles = {
 
   radioLabel: {
     fontSize: 12,
-    color: '#CDCDCD',
+    color: 'var(--po-text)',
     cursor: 'pointer',
   } as CSSProperties,
 };
@@ -188,7 +187,6 @@ export function ImportModal({
   const [error, setError] = useState<string | null>(null);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [newTableName, setNewTableName] = useState(tableName);
-  const [tableDescription, setTableDescription] = useState('');
 
   const [crawlOptions, setCrawlOptions] = useState<CrawlOptions>(
     initialCrawlOptions || {
@@ -198,15 +196,11 @@ export function ImportModal({
       sitemap: 'include',
     }
   );
+  const urlSupportsCrawlOptions = supportsCrawlOptions(url);
 
   const handleImport = useCallback(async () => {
     if (!url.trim()) {
       setError('Please enter a URL');
-      return;
-    }
-
-    if (mode === 'create_table' && !newTableName.trim()) {
-      setError('Please enter a table name');
       return;
     }
 
@@ -218,8 +212,8 @@ export function ImportModal({
       const response = await submitImport({
         project_id: String(projectId),
         url: url.trim(),
-        name: mode === 'create_table' ? newTableName.trim() : undefined,
-        crawl_options: crawlOptions,
+        name: mode === 'create_table' && newTableName.trim() ? newTableName.trim() : undefined,
+        crawl_options: urlSupportsCrawlOptions ? crawlOptions : undefined,
       });
 
       onSuccess({
@@ -243,6 +237,7 @@ export function ImportModal({
     projectId,
     newTableName,
     crawlOptions,
+    urlSupportsCrawlOptions,
     mode,
     onSuccess,
     onClose,
@@ -273,22 +268,26 @@ export function ImportModal({
 
   if (!visible) return null;
 
-  return createPortal(
-    <div style={styles.overlay} onClick={onClose}>
+  return (
+    <ModalPortal>
+    <div role='presentation' style={styles.overlay} onClick={onClose}>
       <div
+        role='dialog'
+        aria-modal='true'
+        aria-labelledby='url-import-dialog-title'
         style={styles.modal}
         onClick={e => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >
-        <div style={styles.header}>
+        <div id='url-import-dialog-title' style={styles.header}>
           {mode === 'create_table'
-            ? 'Create Table from URL'
+            ? 'Import from URL'
             : 'Import Data from URL'}
         </div>
 
-        <div style={{ fontSize: 11, color: '#8B8B8B', marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: 'var(--po-text-muted)', marginBottom: 16 }}>
           {mode === 'create_table'
-            ? 'Create a new table with data from a URL'
+            ? 'Create a context item from a URL'
             : 'Import data from a URL'}
         </div>
 
@@ -298,37 +297,29 @@ export function ImportModal({
           type='url'
           value={url}
           onChange={e => setUrl(e.target.value)}
-          placeholder='https://api.example.com/data.json or https://yourworkspace.notion.so/...'
+          placeholder='https://github.com/org/repo, https://yourworkspace.notion.so/..., or https://example.com'
           disabled={isImporting}
           style={styles.input}
           autoFocus
         />
 
-        <CrawlOptionsPanel
-          url={url}
-          options={crawlOptions}
-          onChange={setCrawlOptions}
-        />
+        {urlSupportsCrawlOptions && (
+          <CrawlOptionsPanel
+            url={url}
+            options={crawlOptions}
+            onChange={setCrawlOptions}
+          />
+        )}
 
         {/* Create Table Mode - Table Name Input */}
         {mode === 'create_table' && (
           <div style={{ marginBottom: 16 }}>
-            <label style={styles.label}>Table Name *</label>
+            <label style={styles.label}>Destination name (optional)</label>
             <input
               type='text'
               value={newTableName}
               onChange={e => setNewTableName(e.target.value)}
-              placeholder='Enter table name...'
-              disabled={isImporting}
-              style={styles.input}
-            />
-
-            <label style={styles.label}>Description (Optional)</label>
-            <input
-              type='text'
-              value={tableDescription}
-              onChange={e => setTableDescription(e.target.value)}
-              placeholder='Enter table description...'
+              placeholder='Leave blank to use the source name'
               disabled={isImporting}
               style={styles.input}
             />
@@ -340,56 +331,33 @@ export function ImportModal({
           <div style={styles.errorBox}>
             <div style={styles.errorText}>{error}</div>
             {needsAuth && (
-              <button
+              <ActionButton
                 onClick={handleGoToAuth}
-                style={{
-                  marginTop: 12,
-                  padding: '8px 16px',
-                  background: '#3b82f6',
-                  border: 'none',
-                  borderRadius: 6,
-                  color: 'white',
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  width: '100%',
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = '#2563eb';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = '#3b82f6';
-                }}
+                variant='primary'
+                fullWidth
+                style={{ marginTop: 12 }}
               >
                 Go to Authorization
-              </button>
+              </ActionButton>
             )}
           </div>
         )}
 
         {/* Action Buttons */}
         <div style={styles.buttonRow}>
-          <button
+          <ActionButton
             onClick={onClose}
             disabled={isImporting}
-            style={styles.button(isImporting, false)}
+            style={{ flex: 1 }}
           >
             Cancel
-          </button>
-          <button
+          </ActionButton>
+          <ActionButton
             onClick={handleImport}
             disabled={isImporting || !url.trim()}
-            style={{ ...styles.button(isImporting || !url.trim(), true), display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
-            onMouseEnter={e => {
-              if (!isImporting && url.trim()) {
-                e.currentTarget.style.background = '#353535';
-              }
-            }}
-            onMouseLeave={e => {
-              if (!isImporting && url.trim()) {
-                e.currentTarget.style.background = '#2a2a2a';
-              }
-            }}
+            variant='primary'
+            loading={isImporting}
+            style={{ flex: 1 }}
           >
             {isImporting && <Dots size='xs' />}
             {isImporting
@@ -399,11 +367,11 @@ export function ImportModal({
               : mode === 'create_table'
                 ? 'Create Table'
                 : 'Import'}
-          </button>
+          </ActionButton>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
+    </ModalPortal>
   );
 }
 

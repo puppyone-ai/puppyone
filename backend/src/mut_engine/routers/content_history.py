@@ -1,6 +1,7 @@
 """Commit history API — commits, commit-content, diff, rollback.
 
-All commit identity is hash-based (16-hex ``commit_id``). Commits are
+All commit identity is hash-based (40-hex SHA-1 ``commit_id`` over the
+git ``commit`` object body). Commits are
 returned ordered by ``(created_at ASC, commit_id ASC)`` — matching the
 ``mut.server.history`` filesystem backend contract. The frontend
 history page reverses in-place to show newest-first; the ASC order
@@ -106,7 +107,7 @@ async def get_commits(
 async def get_commit_content(
     project_id: str,
     path: str = Query(..., description="File path"),
-    commit_id: str = Query(..., description="Commit id (16-hex hash)"),
+    commit_id: str = Query(..., description="Commit id (40-hex SHA-1)"),
     mut_admin: MutAdminService = Depends(get_mut_admin_service),
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
@@ -195,14 +196,8 @@ async def rollback(
     ensure_write_access(project_service, current_user, project_id)
 
     from mut.core.protocol import PROTOCOL_VERSION
-    from mut.foundation.error import (
-        ClientTooOldError,
-        LockError,
-        ObjectNotFoundError,
-        PermissionDenied,
-    )
-    from mut.server.handlers import handle_rollback
-    from src.mut_engine.services.hooks import run_post_push_hook
+    from mut.foundation.error import ClientTooOldError, LockError, ObjectNotFoundError, PermissionDenied
+    from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
 
     who = f"user:{current_user.user_id}"
     auth = {
@@ -215,10 +210,7 @@ async def rollback(
     }
 
     try:
-        repo = repo_manager.get_server_repo(project_id)
-        result = await asyncio.to_thread(
-            handle_rollback, repo, auth, mut_body,
-        )
+        result = await submit_mut_rollback(repo_manager, project_id, auth, mut_body)
     except ClientTooOldError as e:
         raise HTTPException(status_code=426, detail=str(e))
     except PermissionDenied as e:
@@ -229,8 +221,6 @@ async def rollback(
         raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
-
-    await asyncio.to_thread(run_post_push_hook, project_id, repo_manager, result)
 
     return ApiResponse.success(data=RollbackResponse(
         project_id=project_id,

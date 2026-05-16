@@ -116,12 +116,12 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
           right: 0;
           top: 50%;
           height: 1px;
-          background: rgba(255, 255, 255, 0.08);
+          background: var(--po-border);
           transition: background 0.15s ease;
         }
         .resize-bar:hover .center-line,
         .resize-bar.dragging .center-line {
-          background: rgba(255, 255, 255, 0.2);
+          background: color-mix(in srgb, var(--po-text) 22%, transparent);
         }
         .resize-bar .handle {
           position: absolute;
@@ -149,12 +149,12 @@ export const DepthResizeBar = React.memo(function DepthResizeBar({
         .resize-bar .handle .line {
           width: 2px;
           height: 12px;
-          background: #6b7280;
+          background: var(--po-text-subtle);
           border-radius: 1px;
         }
         .resize-bar .handle:hover .line,
         .resize-bar .handle.active .line {
-          background: #60a5fa;
+          background: var(--po-accent);
         }
       `}</style>
       <div className={`resize-bar ${isDragging ? 'dragging' : ''}`}>

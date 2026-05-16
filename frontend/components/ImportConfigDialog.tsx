@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect } from 'react';
 import { getETLHealth } from '@/lib/etlApi';
+import { ActionButton } from './ui/ActionButton';
+import { DialogBody, DialogFooter, DialogHeader, DialogRoot, DialogSurface } from './ui/Dialog';
 
 interface ImportConfigDialogProps {
   isOpen: boolean;
@@ -55,7 +56,7 @@ export function ImportConfigDialog({
         .then(health => {
           const isOnline = health.file_worker.worker_count > 0;
           setWorkerOnline(isOnline);
-          
+
           // Auto-downgrade if offline and has binary files
           if (!isOnline && fileStats.binaryCount > 0) {
             setMode('raw');
@@ -71,71 +72,28 @@ export function ImportConfigDialog({
     }
   }, [isOpen, fileStats.binaryCount]);
 
-  // 处理 overlay 点击 - 只有点击背景才关闭
-  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
-    // 只有直接点击 overlay 背景时才关闭
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  }, [onClose]);
-
-  // 阻止模态框内部点击冒泡
-  const handleModalClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-  }, []);
-
   if (!isOpen) return null;
 
-  return createPortal(
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1100,
-        backdropFilter: 'blur(2px)',
-      }}
-      onClick={handleOverlayClick}
-      onMouseDown={e => e.stopPropagation()}
-    >
-      <div
-        onClick={handleModalClick}
-        onMouseDown={e => e.stopPropagation()}
-        style={{
-          width: 500,
-          background: '#1e1e1e',
-          border: '1px solid #333',
-          borderRadius: 8,
-          padding: 24,
-          color: '#e5e5e5',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-        }}
-      >
-        <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600 }}>
-          Import {files.length} Files
-        </h2>
-
+  return (
+    <DialogRoot onClose={onClose} layer="modalNested">
+      <DialogSurface width={500}>
+        <DialogHeader title={`Import ${files.length} Files`} onClose={onClose} />
+        <DialogBody>
         {/* File Summary */}
-        <div style={{ 
-          background: '#262626', 
-          padding: 12, 
-          borderRadius: 6, 
+        <div style={{
+          background: 'var(--po-control)',
+          padding: 12,
+          borderRadius: 6,
           marginBottom: 20,
           fontSize: 13,
-          color: '#a3a3a3',
+          color: 'var(--po-text-muted)',
           display: 'flex',
           justifyContent: 'space-between'
         }}>
           <div>
-            <span style={{ color: '#e5e5e5', fontWeight: 500 }}>{fileStats.textCount}</span> Text files
+            <span style={{ color: 'var(--po-text)', fontWeight: 500 }}>{fileStats.textCount}</span> Text files
             <span style={{ margin: '0 8px', opacity: 0.3 }}>|</span>
-            <span style={{ color: fileStats.binaryCount > 0 ? '#fbbf24' : '#e5e5e5', fontWeight: 500 }}>
+            <span style={{ color: fileStats.binaryCount > 0 ? 'var(--po-warning)' : 'var(--po-text)', fontWeight: 500 }}>
               {fileStats.binaryCount}
             </span> Documents/Images
           </div>
@@ -147,19 +105,19 @@ export function ImportConfigDialog({
 
         {/* Mode Selection */}
         <div style={{ marginBottom: 24 }}>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 12, color: '#d4d4d4' }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 12, color: 'var(--po-text)' }}>
             Processing Mode
           </label>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* Smart Parse */}
-            <div 
+            <div
               onClick={() => workerOnline !== false && setMode('smart')}
               style={{
                 padding: 12,
                 borderRadius: 6,
-                border: `1px solid ${mode === 'smart' ? '#3b82f6' : '#333'}`,
-                background: mode === 'smart' ? 'rgba(59, 130, 246, 0.1)' : '#262626',
+                border: `1px solid ${mode === 'smart' ? 'var(--po-accent)' : 'var(--po-border-strong)'}`,
+                background: mode === 'smart' ? 'var(--po-selected)' : 'var(--po-control)',
                 cursor: workerOnline === false ? 'not-allowed' : 'pointer',
                 opacity: workerOnline === false ? 0.5 : 1,
                 transition: 'all 0.2s'
@@ -168,29 +126,29 @@ export function ImportConfigDialog({
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                 <div style={{
                   width: 16, height: 16, borderRadius: '50%',
-                  border: `4px solid ${mode === 'smart' ? '#3b82f6' : '#525252'}`,
+                  border: `4px solid ${mode === 'smart' ? 'var(--po-accent)' : 'var(--po-text-disabled)'}`,
                   marginRight: 10
                 }} />
                 <span style={{ fontWeight: 500, fontSize: 14 }}>Smart Parse (Default)</span>
                 {workerOnline === false && (
-                  <span style={{ marginLeft: 'auto', fontSize: 11, color: '#ef4444', background: 'rgba(239,68,68,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--po-danger)', background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)', padding: '2px 6px', borderRadius: 4 }}>
                     Unavailable
                   </span>
                 )}
               </div>
-              <div style={{ paddingLeft: 26, fontSize: 12, color: '#a3a3a3', lineHeight: 1.4 }}>
+              <div style={{ paddingLeft: 26, fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.4 }}>
                 Text files imported directly. PDFs and images undergo OCR for full-text search.
               </div>
             </div>
 
             {/* Raw Storage */}
-            <div 
+            <div
               onClick={() => setMode('raw')}
               style={{
                 padding: 12,
                 borderRadius: 6,
-                border: `1px solid ${mode === 'raw' ? '#3b82f6' : '#333'}`,
-                background: mode === 'raw' ? 'rgba(59, 130, 246, 0.1)' : '#262626',
+                border: `1px solid ${mode === 'raw' ? 'var(--po-accent)' : 'var(--po-border-strong)'}`,
+                background: mode === 'raw' ? 'var(--po-selected)' : 'var(--po-control)',
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
@@ -198,20 +156,20 @@ export function ImportConfigDialog({
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
                 <div style={{
                   width: 16, height: 16, borderRadius: '50%',
-                  border: `4px solid ${mode === 'raw' ? '#3b82f6' : '#525252'}`,
+                  border: `4px solid ${mode === 'raw' ? 'var(--po-accent)' : 'var(--po-text-disabled)'}`,
                   marginRight: 10
                 }} />
                 <span style={{ fontWeight: 500, fontSize: 14 }}>Raw Storage</span>
               </div>
-              <div style={{ paddingLeft: 26, fontSize: 12, color: '#a3a3a3', lineHeight: 1.4 }}>
+              <div style={{ paddingLeft: 26, fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.4 }}>
                 Files stored as-is without processing. Faster import, but PDFs/Images won't be searchable.
               </div>
             </div>
-            
+
             {/* Structured (Disabled for now as placeholder) */}
-            <div style={{ padding: 12, borderRadius: 6, border: '1px solid #333', background: '#262626', opacity: 0.5, cursor: 'not-allowed' }}>
+            <div style={{ padding: 12, borderRadius: 6, border: '1px solid var(--po-border-strong)', background: 'var(--po-control)', opacity: 0.5, cursor: 'not-allowed' }}>
               <div style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ width: 16, height: 16, borderRadius: '50%', border: '4px solid #525252', marginRight: 10 }} />
+                <div style={{ width: 16, height: 16, borderRadius: '50%', border: '4px solid var(--po-text-disabled)', marginRight: 10 }} />
                 <span style={{ fontWeight: 500, fontSize: 14 }}>Structured Data (Coming Soon)</span>
               </div>
             </div>
@@ -219,19 +177,19 @@ export function ImportConfigDialog({
         </div>
 
         {/* Worker Status Footer */}
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          fontSize: 12, 
-          color: workerOnline ? '#22c55e' : (workerOnline === false ? '#ef4444' : '#a3a3a3'),
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          fontSize: 12,
+          color: workerOnline ? 'var(--po-success)' : (workerOnline === false ? 'var(--po-danger)' : 'var(--po-text-muted)'),
           marginBottom: 24,
-          background: workerOnline ? 'rgba(34,197,94,0.05)' : (workerOnline === false ? 'rgba(239,68,68,0.05)' : 'transparent'),
+          background: workerOnline ? 'color-mix(in srgb, var(--po-success) 5%, transparent)' : (workerOnline === false ? 'color-mix(in srgb, var(--po-danger) 5%, transparent)' : 'transparent'),
           padding: '8px 12px',
           borderRadius: 6
         }}>
-          <div style={{ 
-            width: 8, height: 8, borderRadius: '50%', 
-            background: workerOnline ? '#22c55e' : (workerOnline === false ? '#ef4444' : '#737373'),
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: workerOnline ? 'var(--po-success)' : (workerOnline === false ? 'var(--po-danger)' : 'var(--po-text-subtle)'),
             marginRight: 8
           }} />
           {checking ? 'Checking ETL service...' : (
@@ -239,44 +197,23 @@ export function ImportConfigDialog({
           )}
         </div>
 
-        {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button
+        </DialogBody>
+
+        <DialogFooter>
+          <ActionButton
             onClick={onClose}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              border: '1px solid #333',
-              background: 'transparent',
-              color: '#a3a3a3',
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: 500
-            }}
           >
             Cancel
-          </button>
-          <button
+          </ActionButton>
+          <ActionButton
             onClick={() => onConfirm({ mode })}
             disabled={checking}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 6,
-              border: 'none',
-              background: '#e5e5e5',
-              color: '#000',
-              cursor: checking ? 'not-allowed' : 'pointer',
-              fontSize: 13,
-              fontWeight: 600,
-              opacity: checking ? 0.7 : 1
-            }}
+            variant='primary'
           >
             Import Files
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
+          </ActionButton>
+        </DialogFooter>
+      </DialogSurface>
+    </DialogRoot>
   );
 }
-

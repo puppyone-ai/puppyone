@@ -30,6 +30,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { APP_Z_INDEX } from '@/lib/zIndex';
 import { T } from '../lib/tokens';
 import {
   PROVIDER_LABELS,
@@ -152,7 +153,7 @@ export function ConnectorCard({
                   height: 6,
                   borderRadius: '50%',
                   background: statusColor,
-                  boxShadow: `0 0 6px ${statusColor}88`,
+                  boxShadow: `0 0 6px color-mix(in srgb, ${statusColor} 55%, transparent)`,
                 }}
               />
               <span style={{ color: statusColor, fontWeight: 500 }}>
@@ -301,10 +302,11 @@ function NameField({
           alignItems: 'center',
           gap: 8,
           maxWidth: '100%',
-          padding: '2px 6px',
+          height: 30,
+          padding: '0 6px',
           marginLeft: -6,
           borderRadius: 4,
-          background: hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+          background: hovered ? 'var(--po-hover)' : 'transparent',
           transition: 'background 0.12s ease',
         }}
       >
@@ -367,8 +369,8 @@ function NameField({
           color: T.text1,
           fontFamily: T.fontSans,
           letterSpacing: '-0.01em',
-          background: '#08080a',
-          border: `1px solid ${error ? '#f87171' : 'rgba(255,255,255,0.16)'}`,
+          background: 'var(--po-canvas)',
+          border: `1px solid ${error ? 'var(--po-danger)' : 'var(--po-border-strong)'}`,
           borderRadius: 6,
           padding: '4px 8px',
           marginLeft: -8,
@@ -381,7 +383,7 @@ function NameField({
         <span
           style={{
             fontSize: 11,
-            color: '#f87171',
+            color: 'var(--po-danger)',
             fontFamily: T.fontSans,
             paddingLeft: 1,
           }}
@@ -527,11 +529,11 @@ function ConnectorActionMenu({
         fontWeight: 500,
         color: T.text1,
         fontFamily: T.fontSans,
-        background: '#1f1f23',
+        background: 'var(--po-overlay)',
         border: `1px solid ${T.cardBorder}`,
         borderRadius: 6,
         padding: '4px 8px',
-        boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+        boxShadow: '0 6px 20px var(--po-shadow)',
         whiteSpace: 'nowrap',
         pointerEvents: 'none',
         zIndex: 50,
@@ -553,19 +555,19 @@ function ConnectorActionMenu({
         style={{
           all: 'unset',
           cursor: 'pointer',
-          width: 26,
-          height: 26,
+          width: 30,
+          height: 30,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 6,
           color: open ? T.text1 : T.text3,
-          background: open ? 'rgba(255,255,255,0.06)' : 'transparent',
+          background: open ? 'var(--po-border-subtle)' : 'transparent',
           transition: 'background 0.12s ease, color 0.12s ease',
         }}
         onMouseEnter={(e) => {
           if (!open) {
-            (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--po-hover)';
             (e.currentTarget as HTMLButtonElement).style.color = T.text2;
           }
         }}
@@ -589,12 +591,12 @@ function ConnectorActionMenu({
                 top: pos.top,
                 left: pos.left,
                 minWidth: 188,
-                background: '#1f1f23',
+                background: 'var(--po-overlay)',
                 border: `1px solid ${T.cardBorder}`,
                 borderRadius: 10,
                 padding: 4,
-                boxShadow: '0 12px 28px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.18)',
-                zIndex: 10000,
+                boxShadow: '0 12px 28px var(--po-shadow), 0 2px 4px var(--po-shadow)',
+                zIndex: APP_Z_INDEX.popover,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 1,
@@ -661,14 +663,15 @@ function MenuItem({
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '7px 9px',
+        height: 30,
+        padding: '0 9px',
         borderRadius: 6,
         fontSize: 12.5,
-        color: danger ? '#f87171' : T.text1,
+        color: danger ? 'var(--po-danger)' : T.text1,
         background: hovered
           ? danger
-            ? 'rgba(248,113,113,0.10)'
-            : 'rgba(255,255,255,0.06)'
+            ? 'color-mix(in srgb, var(--po-danger) 10%, transparent)'
+            : 'var(--po-border-subtle)'
           : 'transparent',
         transition: 'background 0.1s ease',
       }}
@@ -678,7 +681,7 @@ function MenuItem({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: danger ? '#f87171' : T.text3,
+          color: danger ? 'var(--po-danger)' : T.text3,
         }}
       >
         {icon}
@@ -723,8 +726,8 @@ function PausedBanner({
         gap: 12,
         padding: '10px 12px',
         marginBottom: 14,
-        background: 'rgba(245, 158, 11, 0.08)',
-        border: '1px solid rgba(245, 158, 11, 0.25)',
+        background: 'color-mix(in srgb, var(--po-warning) 8%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--po-warning) 25%, transparent)',
         borderRadius: 8,
         fontFamily: T.fontSans,
       }}
@@ -780,7 +783,7 @@ function ConnectorConfigPanel({
       <SubSectionLabel>Configuration</SubSectionLabel>
       <div
         style={{
-          background: '#08080a',
+          background: 'var(--po-canvas)',
           border: `1px solid ${T.cardBorder}`,
           borderRadius: 6,
           overflow: 'hidden',
@@ -1119,8 +1122,8 @@ function InlineSelect({
     fontSize: 12,
     fontFamily: T.fontSans,
     color: T.text1,
-    background: hovered ? 'rgba(255,255,255,0.05)' : 'transparent',
-    border: `1px solid ${hovered ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
+    background: hovered ? 'var(--po-hover)' : 'transparent',
+    border: `1px solid ${hovered ? 'var(--po-border-strong)' : 'var(--po-hover)'}`,
     borderRadius: 6,
     padding: '4px 26px 4px 8px',
     margin: 0,
@@ -1143,7 +1146,7 @@ function InlineSelect({
         style={baseStyle}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value} style={{ background: '#1f1f23', color: T.text1 }}>
+          <option key={o.value} value={o.value} style={{ background: 'var(--po-overlay)', color: T.text1 }}>
             {o.label}
           </option>
         ))}
@@ -1208,7 +1211,8 @@ function ProviderConfigDisclosure({ connector }: { readonly connector: Connector
           fontSize: 11.5,
           color: T.text3,
           fontFamily: T.fontSans,
-          padding: '4px 0',
+          height: 30,
+          padding: '0',
         }}
       >
         <span
@@ -1229,7 +1233,7 @@ function ProviderConfigDisclosure({ connector }: { readonly connector: Connector
           style={{
             margin: '6px 0 0',
             padding: '10px 12px',
-            background: '#08080a',
+            background: 'var(--po-canvas)',
             border: `1px solid ${T.cardBorder}`,
             borderRadius: 6,
             fontSize: 11.5,
@@ -1266,7 +1270,7 @@ function ConnectorActivityPanel() {
           fontSize: 12,
           color: T.text3,
           fontFamily: T.fontSans,
-          background: '#08080a',
+          background: 'var(--po-canvas)',
           border: `1px solid ${T.cardBorder}`,
           borderRadius: 6,
           fontStyle: 'italic',

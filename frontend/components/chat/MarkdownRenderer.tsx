@@ -5,11 +5,11 @@ import remarkBreaks from 'remark-breaks';
 
 // @path 高亮样式
 const PATH_MENTION_STYLE: CSSProperties = {
-  background: 'rgba(107, 179, 248, 0.15)',
-  color: '#6bb3f8',
+  background: 'var(--po-selected)',
+  color: 'var(--po-accent)',
   padding: '1px 5px',
   borderRadius: 4,
-  fontFamily: 'monospace',
+  fontFamily: 'var(--po-font-sans)',
   fontSize: '0.9em',
   cursor: 'pointer',
   transition: 'background 0.15s',
@@ -35,10 +35,11 @@ function parseTextWithPathMentions(text: string): ReactNode[] {
         style={PATH_MENTION_STYLE}
         title={`JSON Path: ${path}`}
         onMouseEnter={e => {
-          e.currentTarget.style.background = 'rgba(107, 179, 248, 0.25)';
+          e.currentTarget.style.background =
+            'color-mix(in srgb, var(--po-accent) 24%, transparent)';
         }}
         onMouseLeave={e => {
-          e.currentTarget.style.background = 'rgba(107, 179, 248, 0.15)';
+          e.currentTarget.style.background = 'var(--po-selected)';
         }}
       >
         @{path}
@@ -85,9 +86,9 @@ const DEFAULT_STYLES: Record<string, CSSProperties> = {
   ol: { margin: '8px 0', paddingLeft: '20px', fontSize: '13px' },
   li: { margin: '4px 0' },
   link: {
-    color: '#4a90e2',
+    color: 'var(--po-accent)',
     textDecoration: 'underline',
-    textDecorationColor: '#4a90e2',
+    textDecorationColor: 'var(--po-accent)',
     transition: 'all 0.2s ease',
     cursor: 'pointer',
     fontWeight: 500,
@@ -103,7 +104,7 @@ const DEFAULT_STYLES: Record<string, CSSProperties> = {
     width: '100%',
     margin: '12px 0',
     fontSize: '12px',
-    border: '1px solid rgba(255,255,255,0.2)',
+    border: '1px solid var(--po-border)',
     backgroundColor: 'transparent',
     borderRadius: '6px',
     overflow: 'hidden',
@@ -113,17 +114,17 @@ const DEFAULT_STYLES: Record<string, CSSProperties> = {
   th: {
     padding: '8px 10px',
     textAlign: 'left',
-    borderBottom: '1px solid rgba(255,255,255,0.15)',
-    borderRight: '1px solid rgba(255,255,255,0.12)',
+    borderBottom: '1px solid var(--po-border-strong)',
+    borderRight: '1px solid var(--po-border-strong)',
     fontWeight: 500,
-    color: 'rgba(255,255,255,0.5)',
-    backgroundColor: 'transparent',
+    color: 'var(--po-text)',
+    backgroundColor: 'var(--po-control)',
   },
   td: {
     padding: '6px 10px',
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
-    borderRight: '1px solid rgba(255,255,255,0.1)',
-    color: 'rgba(255,255,255,0.6)',
+    borderBottom: '1px solid var(--po-border-subtle)',
+    borderRight: '1px solid var(--po-border-subtle)',
+    color: 'var(--po-text-muted)',
     verticalAlign: 'top',
   },
 };

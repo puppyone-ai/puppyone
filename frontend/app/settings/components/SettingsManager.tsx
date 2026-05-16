@@ -14,7 +14,7 @@ export function SettingsManager({ onBack }: SettingsManagerProps) {
   const [currentView, setCurrentView] = useState<SettingsView>('import');
 
   return (
-    <div style={{ display: 'flex', height: '100%', background: '#0a0a0c' }}>
+    <div style={{ display: 'flex', height: '100%', background: 'var(--po-canvas)' }}>
       {/* Sub-Sidebar */}
       <SettingsSidebar
         currentView={currentView}

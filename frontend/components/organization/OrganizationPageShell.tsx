@@ -16,15 +16,15 @@ export function OrganizationPageShell({
   children,
 }: OrganizationPageShellProps) {
   return (
-    <div className="flex-1 overflow-y-auto bg-[#0e0e0e]">
+    <div className="flex-1 overflow-y-auto bg-[var(--po-canvas)]">
       <div className="mx-auto w-full max-w-[900px] px-8 py-8 pb-24">
-        <div className="mb-8 flex items-start justify-between gap-6">
+        <div className={`${description ? 'mb-8' : 'mb-12'} flex items-start justify-between gap-6`}>
           <div className="min-w-0">
-            <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-[#f4f4f5]">
+            <h1 className="text-[24px] font-semibold leading-tight tracking-tight text-[var(--po-text)]">
               {title}
             </h1>
             {description && (
-              <p className="mt-1.5 text-[14px] leading-6 text-[#6f6f78]">
+              <p className="mt-1.5 text-[14px] leading-6 text-[var(--po-text-muted)]">
                 {description}
               </p>
             )}

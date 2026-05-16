@@ -15,18 +15,20 @@ Usage:
 from __future__ import annotations
 
 import base64
-import json
+import asyncio
 from datetime import UTC
 
 from mut.core.protocol import PROTOCOL_VERSION
-from mut.foundation.hash import hash_bytes as mut_hash
+from mut.foundation.git_format import (
+    MODE_DIR, MODE_FILE, TreeEntry, encode_object, encode_tree, hash_object,
+)
 from mut.server.handlers import (
     handle_clone,
     handle_negotiate,
     handle_pull,
-    handle_push,
 )
 
+from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
@@ -35,8 +37,8 @@ class MutEphemeralClient:
     """Stateless MUT client that calls handlers in-process.
 
     Each instance represents one clone → modify → push cycle.
-    Commit identity is a 16-hex hash (``head_commit_id``); the old
-    integer ``version`` counter is gone.
+    Commit identity is a 40-hex SHA-1 over the framed git commit body
+    (``head_commit_id``); the old integer ``version`` counter is gone.
     """
 
     def __init__(
@@ -145,10 +147,7 @@ class MutEphemeralClient:
         caller that mistakenly assumes full content fails loudly rather
         than silently operating on empty bytes.
         """
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-
         from mut.core.protocol import normalize_path
-        from mut.core.tree import read_tree
 
         repo = self._get_server_repo()
 
@@ -294,8 +293,9 @@ class MutEphemeralClient:
             who: override agent identity
 
         Returns:
-            Push result dict with ``status``, ``commit_id`` (16-hex hash),
-            ``merged``, and ``conflicts``.
+            Push result dict with ``status``, ``commit_id`` (40-hex
+            SHA-1 of the git commit object), ``merged``, and
+            ``conflicts``.
         """
         import time as _time
 
@@ -332,9 +332,11 @@ class MutEphemeralClient:
         )
 
         t2 = _time.monotonic()
-        result = handle_push(repo, self._auth, body)
+        result = _run_async_from_sync(
+            submit_mut_push(self._repo_manager, self._project_id, self._auth, body)
+        )
         log_info(
-            f"{op_tag} handle_push returned "
+            f"{op_tag} engine push returned "
             f"status={result.get('status', '?')} "
             f"commit={(result.get('commit_id') or '')[:12] or '<empty>'} "
             f"merged={result.get('merged', False)} "
@@ -502,16 +504,18 @@ class MutEphemeralClient:
     def _build_snapshot(
         self, files: dict[str, bytes]
     ) -> tuple[str, dict[str, bytes]]:
-        """Build a Merkle tree snapshot from file dict.
+        """Build a git Merkle tree snapshot from a file dict.
 
-        Returns (root_hash, {hash: raw_bytes} for new objects).
+        Returns ``(root_sha1, {sha1: loose_bytes})`` where ``loose_bytes``
+        is the zlib-compressed framed git object — exactly what the
+        server stores via ``ObjectStore.put_loose`` and what the wire
+        protocol ships base64-encoded.
         """
         new_objects: dict[str, bytes] = {}
 
         nested: dict = {}
         for path, content in files.items():
-            blob_hash = _content_hash(content)
-            new_objects[blob_hash] = content
+            blob_hash = _put_blob(content, new_objects)
 
             parts = path.split("/")
             d = nested
@@ -528,31 +532,23 @@ class MutEphemeralClient:
         modified: dict[str, bytes],
         deleted: list[str],
     ) -> tuple[str, dict[str, bytes]]:
-        """Build a Merkle tree snapshot from a hash-only base + a small
-        modifications set.
+        """Snapshot variant for the ``clone_lite`` → ``push`` fast path.
 
-        Counterpart to ``_build_snapshot`` for the ``clone_lite`` →
-        ``push`` fast path. Reuses ``existing_hashes`` for unchanged
-        files (no re-hashing, no blob bytes carried) and only loads new
-        blob bytes into ``new_objects`` for entries actually being
-        added or replaced. Tree-node bytes are produced on the fly the
-        same way as ``_build_snapshot``.
+        Reuses ``existing_hashes`` for unchanged files (no re-hashing,
+        no blob bytes carried) and only adds loose-encoded blobs to
+        ``new_objects`` for entries actually being added or replaced.
+        Tree nodes are encoded as binary git ``tree`` objects.
 
-        Returns ``(root_hash, {hash: raw_bytes})`` where ``raw_bytes``
-        contains the new tree nodes plus the modified blobs only.
+        Returns ``(root_sha1, {sha1: loose_bytes})``.
         """
-        # Apply modifications + deletions to the existing path→hash map.
         merged_hashes: dict[str, str] = dict(existing_hashes)
         new_objects: dict[str, bytes] = {}
         for path, content in modified.items():
-            blob_hash = _content_hash(content)
-            new_objects[blob_hash] = content
+            blob_hash = _put_blob(content, new_objects)
             merged_hashes[path] = blob_hash
         for path in deleted:
             merged_hashes.pop(path, None)
 
-        # Nest into a tree dict keyed on path components, leaves are
-        # ("B", blob_hash) tuples — same shape as _build_snapshot uses.
         nested: dict = {}
         for path, blob_hash in merged_hashes.items():
             parts = path.split("/")
@@ -567,23 +563,83 @@ class MutEphemeralClient:
     def _build_tree_node(
         self, node: dict, new_objects: dict[str, bytes]
     ) -> str:
-        entries: dict = {}
-        for name, val in sorted(node.items()):
+        """Encode one tree level as a git ``tree`` object.
+
+        Children are either ``("B", blob_sha)`` leaves or nested dicts
+        (sub-trees). Stores the loose-encoded tree bytes in
+        ``new_objects[sha]`` and returns the SHA-1.
+        """
+        entries: list[TreeEntry] = []
+        for name, val in node.items():
             if isinstance(val, tuple):
-                entries[name] = list(val)
+                _, blob_hash = val
+                entries.append(
+                    TreeEntry(name=name, mode=MODE_FILE, sha1_hex=blob_hash)
+                )
             else:
                 sub_hash = self._build_tree_node(val, new_objects)
-                entries[name] = ["T", sub_hash]
+                entries.append(
+                    TreeEntry(name=name, mode=MODE_DIR, sha1_hex=sub_hash)
+                )
 
-        tree_bytes = json.dumps(entries, sort_keys=True).encode()
-        tree_hash = _content_hash(tree_bytes)
-        new_objects[tree_hash] = tree_bytes
+        tree_body = encode_tree(entries)
+        tree_hash, loose = encode_object("tree", tree_body)
+        new_objects[tree_hash] = loose
         return tree_hash
 
 
+def _put_blob(content: bytes, new_objects: dict[str, bytes]) -> str:
+    """Loose-encode *content* as a git ``blob`` object, store its
+    zlib bytes in *new_objects*, and return the SHA-1 hex.
+
+    Centralised so blob-loose framing and hash domain match what
+    ``ObjectStore.put_blob`` produces server-side — clients and server
+    agree byte-for-byte on the on-disk representation.
+    """
+    sha1, loose = encode_object("blob", content)
+    new_objects[sha1] = loose
+    return sha1
+
+
 def _content_hash(data: bytes) -> str:
-    """Truncated SHA-256 hash matching MUT ObjectStore."""
-    return mut_hash(data)
+    """SHA-1 over a git ``blob`` frame of *data* — the canonical git
+    blob hash, equal to what ``ObjectStore.put_blob`` returns.
+
+    Use this only when the caller wants a hash without also keeping
+    the loose-encoded bytes; the push pipeline builds both at once via
+    :func:`_put_blob`.
+    """
+    return hash_object("blob", data)
+
+
+def _run_async_from_sync(coro):
+    """Run an adapter coroutine from this intentionally synchronous client."""
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    # Defensive fallback for accidental direct calls from an event-loop thread.
+    # The usual callers already wrap ``MutEphemeralClient.push`` in
+    # ``asyncio.to_thread``.
+    import threading
+
+    result: dict = {}
+    error: list[BaseException] = []
+
+    def _runner() -> None:
+        try:
+            result["value"] = asyncio.run(coro)
+        except BaseException as exc:  # noqa: BLE001 - shuttle to caller
+            error.append(exc)
+
+    thread = threading.Thread(target=_runner, name="mut-ephemeral-push", daemon=True)
+    thread.start()
+    thread.join()
+    if error:
+        raise error[0]
+    return result.get("value")
 
 
 def _now_iso() -> str:

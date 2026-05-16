@@ -451,10 +451,10 @@ export default function TableDiscreteEditor({
         display: 'flex',
         flexDirection: 'column',
         background: 'transparent',
-        color: '#d4d4d4',
+        color: 'var(--po-text)',
         overflow: 'hidden',
         fontFamily:
-          "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif",
+          "var(--po-font-sans)",
         fontSize: 14,
       }}
     >
@@ -534,20 +534,20 @@ export default function TableDiscreteEditor({
               top: 4, // 上下留白
               bottom: 4,
               width: 6, // 加宽到 6px
-              background: 'rgba(255,255,255,0.03)', // 轨道颜色更淡
+              background: 'var(--po-hover)', // 轨道颜色更淡
               borderRadius: 3,
               zIndex: 20,
               transition: 'background 0.2s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+              e.currentTarget.style.background = 'var(--po-border)';
               const thumb = e.currentTarget.firstElementChild as HTMLElement;
-              if (thumb) thumb.style.background = 'rgba(255,255,255,0.5)';
+              if (thumb) thumb.style.background = 'color-mix(in srgb, var(--po-text) 45%, transparent)';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+              e.currentTarget.style.background = 'var(--po-hover)';
               const thumb = e.currentTarget.firstElementChild as HTMLElement;
-              if (thumb) thumb.style.background = 'rgba(255,255,255,0.3)';
+              if (thumb) thumb.style.background = 'var(--po-focus-ring)';
             }}
           >
             <div
@@ -556,7 +556,7 @@ export default function TableDiscreteEditor({
                 top: `${(scrollIndex / flatNodes.length) * 100}%`,
                 height: `${Math.max((visibleCount / flatNodes.length) * 100, 5)}%`, // 确保最小高度，避免太小看不见
                 width: '100%',
-                background: 'rgba(255,255,255,0.3)',
+                background: 'var(--po-focus-ring)',
                 borderRadius: 3,
                 transition: 'background 0.2s',
               }}

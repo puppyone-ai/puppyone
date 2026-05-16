@@ -300,7 +300,6 @@ export function useDataCreateFlow({
     linear: 'json',
     supabase: 'json',
     docs: 'markdown',
-    github: 'folder',
     notion: 'folder',
   };
 
@@ -310,7 +309,6 @@ export function useDataCreateFlow({
     sheets: 'Sheet Data',
     linear: 'Linear Issues',
     docs: 'Document',
-    github: 'GitHub Repo',
     notion: 'Notion Pages',
     supabase: 'Supabase Data',
   };

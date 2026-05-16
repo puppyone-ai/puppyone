@@ -11,15 +11,16 @@ import {
 import type { ContentType } from '../views/GridView';
 import type { FileImportTarget } from '../../hooks/useFileImport';
 import { ensureExpandedBatch, usePendingActiveId } from './explorerState';
-import { ExplorerTreeRow, FolderIcon } from './ExplorerTreeRow';
+import { ExplorerTreeMetaRow, ExplorerTreeRow, FolderIcon } from './ExplorerTreeRow';
 import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 import { Dots } from '@/components/loading';
+import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 
-const FILE_DROP_TARGET_BG = 'rgba(255, 255, 255, 0.11)';
-const FILE_DROP_ROOT_SCOPE_BG = 'rgba(255, 255, 255, 0.035)';
-const FILE_DROP_TARGET_BORDER = 'rgba(255, 255, 255, 0.24)';
-const FILE_DROP_SCOPE_BORDER = 'rgba(255, 255, 255, 0.12)';
+const FILE_DROP_TARGET_BG = 'var(--po-active)';
+const FILE_DROP_ROOT_SCOPE_BG = 'var(--po-hover)';
+const FILE_DROP_TARGET_BORDER = 'var(--po-border-strong)';
+const FILE_DROP_SCOPE_BORDER = 'var(--po-border)';
 const ROOT_DROP_TARGET: FileImportTarget = { path: null, name: 'Root' };
 
 function hasExternalFiles(event: DragEvent): boolean {
@@ -184,24 +185,24 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               background: isRootDropTarget || isRootFileDropTarget
                 ? FILE_DROP_TARGET_BG
                 : isRootAccessPointHighlight
-                  ? 'rgba(52, 211, 153, 0.14)'
+                  ? 'color-mix(in srgb, var(--po-success) 14%, transparent)'
                 : isRootActive || rootOpenMenuAction
                   // Translucent — see ExplorerTreeRow for the full
-                  // rationale. tldr: opaque #2a2a2a was visually
+                  // rationale. tldr: opaque var(--po-border) was visually
                   // indistinguishable from the tree-line colour
-                  // #27272a, so selecting a row "ate" the elbow.
-                  ? 'rgba(255,255,255,0.085)'
+                  // var(--po-tree-guide), so selecting a row "ate" the elbow.
+                  ? 'var(--po-selected)'
                   : isRootSoftHovered
-                    ? 'rgba(255,255,255,0.045)'
+                    ? 'var(--po-hover)'
                     : 'transparent',
               color: isRootDropTarget || isRootFileDropTarget
-                ? '#f4f4f5'
-                : isRootAccessPointHighlight ? '#d1fae5' : isRootActive || rootOpenMenuAction ? '#fff' : isRootSoftHovered ? '#d4d4d8' : '#a1a1aa',
+                ? 'var(--po-text)'
+                : isRootAccessPointHighlight ? 'var(--po-success)' : isRootActive || rootOpenMenuAction ? 'var(--po-text)' : isRootSoftHovered ? 'var(--po-text-muted)' : 'var(--po-text-muted)',
               transition: 'background 0.1s, color 0.1s',
               boxShadow: isRootDropTarget || isRootFileDropTarget
                 ? `inset 0 0 0 1px ${FILE_DROP_TARGET_BORDER}`
                 : isRootAccessPointHighlight
-                ? 'inset 2px 0 0 0 rgba(52, 211, 153, 0.9)'
+                ? 'inset 2px 0 0 0 color-mix(in srgb, var(--po-success) 90%, transparent)'
                 : 'none',
               position: 'relative',
               cursor: 'pointer',
@@ -242,10 +243,9 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
               </div>
               <span
                 style={{
+                  ...SIDEBAR_ROW_TYPOGRAPHY,
                   flex: 1,
                   minWidth: 0,
-                  fontSize: 13,
-                  fontWeight: 500,
                   color: 'inherit',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -273,7 +273,9 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
           </div>
 
           {loading && rootItems.length === 0 ? (
-            <div style={{ padding: '4px 16px' }}><Dots size="xs" /></div>
+            <ExplorerTreeMetaRow depth={1}>
+              <Dots size="xs" />
+            </ExplorerTreeMetaRow>
           ) : (
             rootItems.map((item, idx) => (
               <ExplorerTreeRow

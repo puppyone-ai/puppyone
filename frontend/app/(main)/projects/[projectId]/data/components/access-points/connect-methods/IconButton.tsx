@@ -28,7 +28,7 @@ export function IconButton({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: hovered ? 'rgba(255,255,255,0.06)' : 'transparent',
+        background: hovered ? 'var(--po-border-subtle)' : 'transparent',
         border: 'none',
         borderRadius: 6,
         color: hovered ? COLOR_FG : COLOR_FG_DIM,

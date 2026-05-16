@@ -160,11 +160,12 @@ function CopyableLine({
         }}
         style={{
           flexShrink: 0,
-          padding: '2px 10px',
+          height: 30,
+          padding: '0 10px',
           fontSize: 10,
           fontWeight: 500,
           color: isCopied ? T.live : T.text3,
-          background: 'rgba(255,255,255,0.04)',
+          background: 'var(--po-hover)',
           border: `1px solid ${T.cardBorder}`,
           borderRadius: 3,
           cursor: 'pointer',
@@ -173,12 +174,12 @@ function CopyableLine({
         }}
         onMouseEnter={(e) => {
           if (isCopied) return;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+          e.currentTarget.style.background = 'var(--po-border)';
           e.currentTarget.style.color = T.text1;
         }}
         onMouseLeave={(e) => {
           if (isCopied) return;
-          e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+          e.currentTarget.style.background = 'var(--po-hover)';
           e.currentTarget.style.color = T.text3;
         }}
       >
@@ -244,7 +245,7 @@ export function AccessPointsListCard({
               height: 18,
               padding: '0 6px',
               borderRadius: 9,
-              background: 'rgba(255,255,255,0.08)',
+              background: 'var(--po-border)',
               fontSize: 11,
               fontWeight: 600,
               color: total > 0 ? T.text2 : T.text3,
@@ -262,6 +263,8 @@ export function AccessPointsListCard({
             background: 'none',
             border: 'none',
             cursor: 'pointer',
+            width: 30,
+            height: 30,
             padding: 0,
             fontSize: 12,
             color: T.text2,
@@ -424,7 +427,7 @@ function ApListRow({
             fontFamily: T.fontSans,
           }}
         >
-          {/* Provider avatar — 28 (was 32) to fit the 280px sidebar
+          {/* Provider avatar — 30 (was 32) to fit the 280px sidebar
               width without crowding the name + Open button on the
               same row.  Icon stays 18 (was 20) for the same reason.
               Avatar shape is still the primary multi-AP
@@ -432,13 +435,13 @@ function ApListRow({
               of the work and the avatar plays a supporting role. */}
           <div
             style={{
-              width: 28,
-              height: 28,
+              width: 30,
+              height: 30,
               borderRadius: 7,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(255,255,255,0.05)',
+              background: 'var(--po-hover)',
               flexShrink: 0,
             }}
           >
@@ -541,7 +544,9 @@ function ApListRow({
               background: 'none',
               border: 'none',
               cursor: 'pointer',
-              padding: '4px 6px',
+              width: 30,
+              height: 30,
+              padding: 0,
               color: T.text3,
               display: 'inline-flex',
               alignItems: 'center',
@@ -550,7 +555,7 @@ function ApListRow({
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = T.text1;
-              e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+              e.currentTarget.style.background = 'var(--po-border-subtle)';
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = T.text3;

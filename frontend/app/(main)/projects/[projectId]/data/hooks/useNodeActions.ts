@@ -81,9 +81,9 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
    * Multi-select bulk delete.
    *
    * Frontend bundles the selected paths into a single ``/rm`` POST
-   * (``paths`` array), which the backend turns into one MUT commit
-   * per scope via ``bulk_trash``. Selecting 50 files = 1 round-trip,
-   * 1 commit, 1 audit entry — not 50.
+   * (``paths`` array), which the backend turns into one versioned
+   * delete commit per scope. Selecting 50 files = 1 round-trip,
+   * usually 1 commit, 1 audit entry — not 50.
    */
   const handleBulkDelete = useCallback(async (paths: string[]): Promise<void> => {
     const clean = paths.filter(Boolean);

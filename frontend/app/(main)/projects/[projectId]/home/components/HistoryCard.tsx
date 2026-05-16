@@ -66,11 +66,10 @@ function smoothLinePath(pts: { x: number; y: number }[]): string {
   return segs.join(' ');
 }
 
-// ── Wide sparkline with X-axis tick labels ─────────────────────
+// Wide sparkline with X-axis tick labels.
 // Stretches to the full width of its container via viewBox +
-// `preserveAspectRatio="none"`.  `vector-effect: non-scaling-stroke`
-// keeps the line/dot the same visual weight regardless of how wide
-// the card grows.
+// `preserveAspectRatio="none"`. `vector-effect: non-scaling-stroke`
+// keeps the line/dot the same visual weight regardless of the card's CSS box.
 function WideSparkline({
   buckets,
   hasHistory,
@@ -81,9 +80,6 @@ function WideSparkline({
   height?: number;
 }) {
   const id = useId();
-  // Internal viewBox dimensions — these are arbitrary "design units"
-  // because preserveAspectRatio="none" stretches the SVG to its
-  // container's CSS box.
   const W = 200;
   const H = height;
   const max = Math.max(...buckets.map(b => b.count), 1);
@@ -271,7 +267,7 @@ export function HistoryCard({
               height: 18,
               padding: '0 6px',
               borderRadius: 9,
-              background: 'rgba(255,255,255,0.08)',
+              background: 'var(--po-border)',
               fontSize: 11,
               fontWeight: 600,
               // Dimmed from text1 → text2 (chip number was glaring
@@ -290,6 +286,7 @@ export function HistoryCard({
             background: 'none',
             border: 'none',
             cursor: 'pointer',
+            height: 30,
             padding: 0,
             fontSize: 12,
             color: T.text2,

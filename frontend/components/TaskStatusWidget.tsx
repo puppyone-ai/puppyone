@@ -151,29 +151,38 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
     removeTaskById(task.taskId);
   }, []);
 
+  const processingCount = tasks.filter(
+    t => !isTaskTerminal(t.displayStatus)
+  ).length;
+  const allTerminal = tasks.length > 0 && processingCount === 0;
+  const failedCount = tasks.filter(t => t.displayStatus === 'failed').length;
+
+  // Completed uploads should feel like a receipt, not permanent chrome.
+  // Keep failures visible for manual review, but retire all-success batches
+  // after a short grace period.
+  useEffect(() => {
+    if (!allTerminal || failedCount > 0) return;
+    const timer = window.setTimeout(handleClear, 8000);
+    return () => window.clearTimeout(timer);
+  }, [allTerminal, failedCount, handleClear]);
+
   // 无任务时不显示
   if (tasks.length === 0) {
     return null;
   }
 
-  const processingCount = tasks.filter(
-    t => !isTaskTerminal(t.displayStatus)
-  ).length;
-  const allTerminal = processingCount === 0;
-  const failedCount = tasks.filter(t => t.displayStatus === 'failed').length;
-
   // Position styles based on inline prop
   const containerStyle: React.CSSProperties = inline
     ? {
         position: 'relative',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: 'var(--po-font-sans)',
       }
     : {
         position: 'fixed',
         bottom: 20,
         right: 20,
         zIndex: 9999,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: 'var(--po-font-sans)',
       };
 
   return (
@@ -210,7 +219,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
             backdropFilter: 'blur(28px) saturate(160%)',
             WebkitBackdropFilter: 'blur(28px) saturate(160%)',
             position: 'relative',
-            color: '#e4e4e7',
+            color: 'var(--po-text)',
           }}
         >
           {processingCount > 0 ? (
@@ -225,7 +234,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
                 cx='9'
                 cy='9'
                 r='6'
-                stroke='#3b82f6'
+                stroke='var(--po-accent)'
                 strokeWidth='2'
                 strokeLinecap='round'
                 strokeDasharray='28 10'
@@ -235,7 +244,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
             <svg width='14' height='14' viewBox='0 0 16 16' fill='none'>
               <path
                 d='M4 4L12 12M12 4L4 12'
-                stroke='#f87171'
+                stroke='var(--po-danger)'
                 strokeWidth='2'
                 strokeLinecap='round'
               />
@@ -244,7 +253,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
             <svg width='14' height='14' viewBox='0 0 16 16' fill='none'>
               <path
                 d='M4 8L7 11L12 5'
-                stroke='#4ade80'
+                stroke='var(--po-success)'
                 strokeWidth='2'
                 strokeLinecap='round'
                 strokeLinejoin='round'
@@ -255,7 +264,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
           <span style={{ ...activityTitleStyle, flex: 1, textAlign: 'left' }}>
             {processingCount > 0 ? `${processingCount} processing` : 'Done'}
           </span>
-          <span style={{ color: '#71717a', fontSize: 11 }}>
+          <span style={{ color: 'var(--po-text-subtle)', fontSize: 11 }}>
             {tasks.length} {tasks.length === 1 ? 'item' : 'items'}
           </span>
         </button>
@@ -279,7 +288,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
                     cx='7'
                     cy='7'
                     r='5'
-                    stroke='#3b82f6'
+                    stroke='var(--po-accent)'
                     strokeWidth='2'
                     strokeLinecap='round'
                     strokeDasharray='24 8'
@@ -289,7 +298,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
                 <svg width='12' height='12' viewBox='0 0 14 14' fill='none'>
                   <path
                     d='M3 7L6 10L11 4'
-                    stroke='#4ade80'
+                    stroke='var(--po-success)'
                     strokeWidth='2'
                     strokeLinecap='round'
                     strokeLinejoin='round'
@@ -403,19 +412,19 @@ function TaskRow({
   const getStatusColor = () => {
     switch (task.displayStatus) {
       case 'completed':
-        return '#4ade80';
+        return 'var(--po-success)';
       case 'failed':
-        return '#f87171';
+        return 'var(--po-danger)';
       case 'uploading':
-        return '#fbbf24';
+        return 'var(--po-warning)';
       case 'finalizing':
         // Same palette family as ``processing`` — the user crossed
         // the "bytes uploaded" threshold so the row should advance
         // visually to the cool blue, signalling "the work is on
         // the server now, just waiting for it to land".
-        return '#3b82f6';
+        return 'var(--po-accent)';
       default:
-        return '#3b82f6';
+        return 'var(--po-accent)';
     }
   };
 
@@ -430,7 +439,7 @@ function TaskRow({
         alignItems: 'center',
         gap: 10,
         padding: '9px 12px',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
+        borderBottom: '1px solid var(--po-hover)',
       }}
     >
       {/* 状态图标 */}
@@ -439,7 +448,7 @@ function TaskRow({
           <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
             <path
               d='M3 7L6 10L11 4'
-              stroke='#4ade80'
+              stroke='var(--po-success)'
               strokeWidth='1.5'
               strokeLinecap='round'
               strokeLinejoin='round'
@@ -449,7 +458,7 @@ function TaskRow({
           <svg width='14' height='14' viewBox='0 0 14 14' fill='none'>
             <path
               d='M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5'
-              stroke='#f87171'
+              stroke='var(--po-danger)'
               strokeWidth='1.5'
               strokeLinecap='round'
             />
@@ -473,17 +482,18 @@ function TaskRow({
             />
           </svg>
         )}
-        
+
         {/* SaaS 图标角标 */}
         {SaasIcon && (
           <div style={{
             position: 'absolute',
             bottom: -3,
             right: -5,
-            background: '#1e1e22',
+            background: 'var(--po-panel-raised)',
+            border: '1px solid var(--po-border-subtle)',
             borderRadius: 3,
             padding: 1,
-            color: '#a1a1aa',
+            color: 'var(--po-text-muted)',
           }}>
             <SaasIcon size={8} />
           </div>
@@ -494,7 +504,7 @@ function TaskRow({
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
-            color: '#e4e4e7',
+            color: 'var(--po-text)',
             fontSize: 13,
             lineHeight: '18px',
             whiteSpace: 'nowrap',
@@ -537,7 +547,7 @@ function TaskRow({
                 marginTop: 4,
                 width: '100%',
                 height: 3,
-                background: 'rgba(255,255,255,0.08)',
+                background: 'var(--po-border)',
                 borderRadius: 2,
                 overflow: 'hidden',
               }}
@@ -551,8 +561,8 @@ function TaskRow({
                   height: '100%',
                   background:
                     task.displayStatus === 'finalizing'
-                      ? '#3b82f6'
-                      : '#fbbf24',
+                      ? 'var(--po-accent)'
+                      : 'var(--po-warning)',
                   transition: 'width 0.2s ease',
                   // Subtle pulse during finalize tells the user the
                   // server is actively working — without it, a static
@@ -588,11 +598,11 @@ function TaskRow({
           borderRadius: 5,
           background: 'transparent',
           cursor: 'pointer',
-          color: hovered ? '#d4d4d8' : '#52525b',
+          color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
           opacity: hovered ? 1 : 0.6,
           transition: 'color 0.12s ease, opacity 0.12s ease, background 0.12s ease',
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--po-border-subtle)'; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
       >
         {isProcessing ? (

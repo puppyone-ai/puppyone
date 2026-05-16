@@ -9,6 +9,7 @@ import { SaaSyncConfig, type SaaSConfigField } from '@/components/agent/views/co
 import type { AcceptedNodeType } from '@/components/agent/views/configs/SyncPreview';
 import { SyncPreview } from '@/components/agent/views/configs/SyncPreview';
 import { PanelShell } from './PanelShell';
+import { GithubIntegrationPanel } from './github-integration/GithubIntegrationPanel';
 import { usePanelStore } from '../usePanelStore';
 import type { SaasType } from '@/lib/oauthApi';
 import { useConnectorSpecs } from '@/lib/hooks/useData';
@@ -67,8 +68,13 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
 
 // Providers whose backend code exists but isn't production-ready yet.
 // Rendered as disabled "Coming soon" rows; remove an id here to re-enable.
+//
+// Note (mut-git branch): the LEGACY scope-level GitHub connector
+// (URL-based one-shot ZIP fetch via the ``connectors`` table) is now
+// re-enabled. The NEW project-level GitHub Integration with branch
+// binding + bidirectional import/export lives under
+// ``/projects/{id}/integrations`` and is unrelated to this list.
 const COMING_SOON_PROVIDERS: ReadonlySet<string> = new Set([
-  'github',
   'google_search_console',
 ]);
 
@@ -82,7 +88,7 @@ function ProviderImg({ src }: { src: string }) {
 
 function McpMini() {
   return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
     </svg>
   );
@@ -90,7 +96,7 @@ function McpMini() {
 
 function SandboxMini() {
   return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
     </svg>
   );
@@ -98,7 +104,7 @@ function SandboxMini() {
 
 function FolderMini() {
   return (
-    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   );
@@ -456,29 +462,29 @@ function CreateView({
               isActive={draftResources.length > 0}
             />
             <div style={{ marginBottom: 12, marginTop: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 6, display: 'block' }}>Name</label>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)', marginBottom: 6, display: 'block' }}>Name</label>
               <input
                 value={displayName}
                 onChange={e => setDisplayName(e.target.value)}
                 placeholder="Chat Agent"
                 style={{
-                  width: '100%', height: 36, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
+                  width: '100%', height: 36, padding: '0 12px', fontSize: 13, background: 'var(--po-panel)',
+                  border: '1px solid var(--po-border)', borderRadius: 6, color: 'var(--po-text)',
                   outline: 'none', transition: 'border-color 0.2s'
                 }}
-                onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
-                onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
-                onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+                onFocus={e => e.currentTarget.style.borderColor = 'var(--po-focus-ring)'}
+                onBlur={e => e.currentTarget.style.borderColor = 'var(--po-border)'}
+                onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-text) 22%, transparent)' }}
+                onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'var(--po-border)' }}
               />
             </div>
             <ConfigComponent scopeBoundary={scopeBoundary} scopeBoundaryLabel={scopeBoundaryLabel} />
           </div>
-          
-          <div style={{ 
-            padding: '12px', 
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            background: '#0e0e0e',
+
+          <div style={{
+            padding: '12px',
+            borderTop: '1px solid var(--po-border-subtle)',
+            background: 'var(--po-canvas)',
             flexShrink: 0
           }}>
             <button
@@ -486,8 +492,8 @@ function CreateView({
               disabled={deploying || draftResources.length === 0}
               style={{
                 width: '100%', height: 36,
-                background: (deploying || draftResources.length === 0) ? '#27272a' : '#3b82f6',
-                color: (deploying || draftResources.length === 0) ? '#71717a' : '#fff',
+                background: (deploying || draftResources.length === 0) ? 'var(--po-filetree-rail)' : 'var(--po-accent)',
+                color: (deploying || draftResources.length === 0) ? 'var(--po-text-subtle)' : 'var(--po-text-inverse)',
                 border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
                 cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
@@ -517,28 +523,28 @@ function CreateView({
               isActive={draftResources.length > 0}
             />
             <div style={{ marginBottom: 12, marginTop: 12 }}>
-              <label style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7', marginBottom: 6, display: 'block' }}>Name</label>
+              <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)', marginBottom: 6, display: 'block' }}>Name</label>
               <input
                 value={displayName}
                 onChange={e => setDisplayName(e.target.value)}
                 placeholder={endpointDef.label}
                 style={{
-                  width: '100%', height: 36, padding: '0 12px', fontSize: 13, background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, color: '#e4e4e7',
+                  width: '100%', height: 36, padding: '0 12px', fontSize: 13, background: 'var(--po-panel)',
+                  border: '1px solid var(--po-border)', borderRadius: 6, color: 'var(--po-text)',
                   outline: 'none', transition: 'border-color 0.2s'
                 }}
-                onFocus={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}
-                onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
-                onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
-                onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+                onFocus={e => e.currentTarget.style.borderColor = 'var(--po-focus-ring)'}
+                onBlur={e => e.currentTarget.style.borderColor = 'var(--po-border)'}
+                onMouseEnter={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-text) 22%, transparent)' }}
+                onMouseLeave={e => { if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'var(--po-border)' }}
               />
             </div>
-            <div style={{ padding: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, marginBottom: 12 }}>
+            <div style={{ padding: '12px', background: 'var(--po-panel)', border: '1px solid var(--po-border)', borderRadius: 8, marginBottom: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 {endpointDef.icon}
-                <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{endpointDef.label}</span>
+                <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>{endpointDef.label}</span>
               </div>
-              <p style={{ fontSize: 12, color: '#a1a1aa', lineHeight: 1.5, margin: 0 }}>
+              <p style={{ fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.5, margin: 0 }}>
                 {selectedEndpointType === 'mcp'
                   ? 'Creates a Model Context Protocol endpoint. Configure tool bindings and node access from the detail page after creation.'
                   : 'Creates an isolated sandbox environment. Configure mounted nodes and execution permissions from the detail page after creation.'}
@@ -553,11 +559,11 @@ function CreateView({
               scopeBoundaryLabel={scopeBoundaryLabel}
             />
           </div>
-          
-          <div style={{ 
-            padding: '12px', 
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            background: '#0e0e0e',
+
+          <div style={{
+            padding: '12px',
+            borderTop: '1px solid var(--po-border-subtle)',
+            background: 'var(--po-canvas)',
             flexShrink: 0
           }}>
             <button
@@ -565,8 +571,8 @@ function CreateView({
               disabled={deploying || draftResources.length === 0}
               style={{
                 width: '100%', height: 36,
-                background: (deploying || draftResources.length === 0) ? '#27272a' : '#3b82f6',
-                color: (deploying || draftResources.length === 0) ? '#71717a' : '#fff',
+                background: (deploying || draftResources.length === 0) ? 'var(--po-filetree-rail)' : 'var(--po-accent)',
+                color: (deploying || draftResources.length === 0) ? 'var(--po-text-subtle)' : 'var(--po-text-inverse)',
                 border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
                 cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
@@ -582,6 +588,23 @@ function CreateView({
 
   // If a sync provider is selected, show config
   if (selectedSyncProvider) {
+    // GitHub is the project-level git-branch binding (≠ legacy scope-level
+    // URL-import connector). It's surfaced under this same picker so all
+    // third-party flows live in one place, but the underlying API +
+    // storage live in ``github_integrations``, not ``connectors``.
+    // Re-uses the panel wrapper from when this UI had its own top-level
+    // route at ``/projects/{id}/integrations`` (deleted 2026-05-10 in
+    // favour of this consolidated entry point).
+    if (selectedSyncProvider === 'github') {
+      return (
+        <PanelShell title="GitHub" onClose={onClose} onBack={handleBack}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 24px' }}>
+            <GithubIntegrationPanel projectId={projectId} />
+          </div>
+        </PanelShell>
+      );
+    }
+
     if (selectedSyncProvider === 'filesystem') {
       return (
         <PanelShell title="Machine Folder" onClose={onClose} onBack={handleBack}>
@@ -602,26 +625,26 @@ function CreateView({
                 />
               </div>
             </div>
-            
+
             <div style={{
               padding: '12px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              background: '#0e0e0e',
+              borderTop: '1px solid var(--po-border-subtle)',
+              background: 'var(--po-canvas)',
               flexShrink: 0
             }}>
               {deployError && (
                 <div style={{
                   display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10,
                   padding: '8px 10px', borderRadius: 6,
-                  background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+                  background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--po-danger) 26%, transparent)',
                 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-danger)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
                     <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
                   </svg>
-                  <span style={{ fontSize: 12, color: '#fca5a5', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
+                  <span style={{ fontSize: 12, color: 'var(--po-danger)', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
                   <button
                     onClick={() => setDeployError(null)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ef4444', flexShrink: 0, opacity: 0.7 }}
+                    style={{ width: 30, height: 30, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--po-danger)', flexShrink: 0, opacity: 0.7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                     onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                     onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
                   >
@@ -634,8 +657,8 @@ function CreateView({
                 disabled={deploying || draftResources.length === 0}
                 style={{
                   width: '100%', height: 36,
-                  background: (deploying || draftResources.length === 0) ? '#27272a' : '#3b82f6',
-                  color: (deploying || draftResources.length === 0) ? '#71717a' : '#fff',
+                  background: (deploying || draftResources.length === 0) ? 'var(--po-filetree-rail)' : 'var(--po-accent)',
+                  color: (deploying || draftResources.length === 0) ? 'var(--po-text-subtle)' : 'var(--po-text-inverse)',
                   border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
                   cursor: (deploying || draftResources.length === 0) ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s',
@@ -670,26 +693,26 @@ function CreateView({
             scopeBoundaryLabel={scopeBoundaryLabel}
           />
         </div>
-        
-        <div style={{ 
-          padding: '12px', 
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          background: '#0e0e0e', // Match panel background to prevent transparency issues when scrolling
+
+        <div style={{
+          padding: '12px',
+          borderTop: '1px solid var(--po-border-subtle)',
+          background: 'var(--po-canvas)', // Match panel background to prevent transparency issues when scrolling
           flexShrink: 0
         }}>
           {deployError && (
             <div style={{
               display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 10,
               padding: '8px 10px', borderRadius: 6,
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
+              background: 'color-mix(in srgb, var(--po-danger) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--po-danger) 26%, transparent)',
             }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-danger)" strokeWidth="2" strokeLinecap="round" style={{ flexShrink: 0, marginTop: 1 }}>
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
-              <span style={{ fontSize: 12, color: '#fca5a5', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
+              <span style={{ fontSize: 12, color: 'var(--po-danger)', flex: 1, lineHeight: 1.5 }}>{deployError}</span>
               <button
                 onClick={() => setDeployError(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#ef4444', flexShrink: 0, opacity: 0.7 }}
+                style={{ width: 30, height: 30, background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--po-danger)', flexShrink: 0, opacity: 0.7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                 onMouseLeave={e => (e.currentTarget.style.opacity = '0.7')}
               >
@@ -702,8 +725,8 @@ function CreateView({
             disabled={deploying || draftResources.length === 0 || syncRequiredFieldsMissing}
             style={{
               width: '100%', height: 36,
-              background: (deploying || draftResources.length === 0 || syncRequiredFieldsMissing) ? '#27272a' : '#3b82f6',
-              color: (deploying || draftResources.length === 0 || syncRequiredFieldsMissing) ? '#71717a' : '#fff',
+              background: (deploying || draftResources.length === 0 || syncRequiredFieldsMissing) ? 'var(--po-filetree-rail)' : 'var(--po-accent)',
+              color: (deploying || draftResources.length === 0 || syncRequiredFieldsMissing) ? 'var(--po-text-subtle)' : 'var(--po-text-inverse)',
               border: 'none', borderRadius: 6, fontSize: 13, fontWeight: 500,
               cursor: (deploying || draftResources.length === 0 || syncRequiredFieldsMissing) ? 'not-allowed' : 'pointer',
               transition: 'all 0.2s',
@@ -799,7 +822,7 @@ function CreateView({
                 paddingTop: 4
               }}>
                 <ProviderRow
-                  icon={<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
+                  icon={<svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--po-file-accent-audio)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></svg>}
                   label="SSH Terminal"
                   description="Coming soon"
                   onClick={() => {}}
@@ -853,7 +876,7 @@ function CreateView({
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{
-      fontSize: 11, fontWeight: 600, color: '#71717a', textTransform: 'uppercase',
+      fontSize: 11, fontWeight: 600, color: 'var(--po-text-subtle)', textTransform: 'uppercase',
       letterSpacing: '0.04em', marginBottom: 6, padding: '0 4px',
     }}>
       {children}
@@ -886,13 +909,13 @@ function DirectionalSectionLabel({ type, title, hint, isExpanded, onClick }: {
   const displayTitle = title;
 
   return (
-    <button 
+    <button
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ 
+      style={{
         display: 'flex', alignItems: 'center', width: '100%', gap: 12,
-        background: hovered ? 'rgba(255,255,255,0.03)' : 'transparent',
+        background: hovered ? 'var(--po-hover)' : 'transparent',
         border: 'none', cursor: 'pointer',
         padding: '8px 8px', textAlign: 'left',
         borderRadius: 6,
@@ -904,30 +927,30 @@ function DirectionalSectionLabel({ type, title, hint, isExpanded, onClick }: {
         display: 'flex', alignItems: 'center', gap: 8,
         flexShrink: 0
       }}>
-        <div style={{ 
-          color: hovered ? '#a1a1aa' : '#71717a', display: 'flex', 
+        <div style={{
+          color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)', display: 'flex',
           transition: 'all 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-          opacity: isExpanded ? 0.8 : 0.5 
+          opacity: isExpanded ? 0.8 : 0.5
         }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </div>
-        <div style={{ 
-          color: (isExpanded || hovered) ? '#e4e4e7' : '#71717a', 
-          display: 'flex', transition: 'all 0.2s' 
+        <div style={{
+          color: (isExpanded || hovered) ? 'var(--po-text)' : 'var(--po-text-subtle)',
+          display: 'flex', transition: 'all 0.2s'
         }}>
           {iconContent}
         </div>
         <div style={{
-          fontSize: 13, fontWeight: 500, 
-          color: (isExpanded || hovered) ? '#e4e4e7' : '#71717a', 
+          fontSize: 13, fontWeight: 500,
+          color: (isExpanded || hovered) ? 'var(--po-text)' : 'var(--po-text-subtle)',
           transition: 'color 0.2s',
           whiteSpace: 'nowrap',
         }}>
           {displayTitle}
           {hint && (
-            <span style={{ 
-              fontWeight: 400, 
-              color: (isExpanded || hovered) ? '#71717a' : '#52525b',
+            <span style={{
+              fontWeight: 400,
+              color: (isExpanded || hovered) ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)',
               fontSize: 12,
               marginLeft: 4,
               transition: 'color 0.2s',
@@ -937,10 +960,10 @@ function DirectionalSectionLabel({ type, title, hint, isExpanded, onClick }: {
           )}
         </div>
       </div>
-      <div style={{ 
-        flex: 1, 
-        height: '1px', 
-        backgroundColor: (isExpanded || hovered) ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+      <div style={{
+        flex: 1,
+        height: '1px',
+        backgroundColor: (isExpanded || hovered) ? 'var(--po-active)' : 'var(--po-hover)',
         transition: 'background-color 0.2s'
       }} />
     </button>
@@ -962,9 +985,9 @@ function ProviderRow({ icon, label, description, onClick, disabled }: {
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
-        background: hovered && !disabled ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.02)',
+        background: hovered && !disabled ? 'var(--po-border-subtle)' : 'var(--po-panel)',
         border: '1px solid',
-        borderColor: hovered && !disabled ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.06)',
+        borderColor: hovered && !disabled ? 'var(--po-border-strong)' : 'var(--po-border-subtle)',
         borderRadius: 8, cursor: disabled ? 'default' : 'pointer', width: '100%',
         textAlign: 'left', transition: 'all 0.15s',
         opacity: disabled ? 0.45 : 1,
@@ -972,7 +995,7 @@ function ProviderRow({ icon, label, description, onClick, disabled }: {
     >
       <div style={{
         width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: disabled ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)', flexShrink: 0,
+        background: disabled ? 'var(--po-panel)' : 'var(--po-hover)', flexShrink: 0,
         filter: disabled ? 'grayscale(1)' : undefined,
       }}>
         {icon}
@@ -980,19 +1003,19 @@ function ProviderRow({ icon, label, description, onClick, disabled }: {
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{
           fontSize: 13, fontWeight: 500,
-          color: disabled ? '#52525b' : (hovered ? '#ffffff' : '#e4e4e7'),
+          color: disabled ? 'var(--po-text-disabled)' : (hovered ? 'var(--po-text)' : 'var(--po-text)'),
           transition: 'all 0.15s', lineHeight: 1.3,
         }}>{label}</div>
         <div style={{
           fontSize: 12,
-          color: disabled ? '#52525b' : '#71717a',
+          color: disabled ? 'var(--po-text-disabled)' : 'var(--po-text-subtle)',
           lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {description}
         </div>
       </div>
       {!disabled && (
-        <div style={{ color: hovered ? '#71717a' : '#3f3f46', transition: 'color 0.15s', flexShrink: 0 }}>
+        <div style={{ color: hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)', transition: 'color 0.15s', flexShrink: 0 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </div>
       )}

@@ -7,18 +7,20 @@ Handles:
   - Commit diff (compute_diff)
 
 All writes (including rollback) go through MutOps → MUT protocol handlers.
-Commits are identified by hash-based ``commit_id`` strings (16 hex chars);
-the old integer ``version`` is no longer used at any layer.
+Commits are identified by 40-hex SHA-1 git commit-object IDs (the
+hash of the loose-encoded ``commit`` body produced by
+``encode_commit``); the old integer ``version`` is no longer used at
+any layer.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 
 from mut.core.diff import diff_trees
 from mut.core.object_store import ObjectStore
 from mut.core.tree import read_tree
+from mut.foundation.git_format import encode_object, encode_tree
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_info, log_warning
@@ -52,16 +54,17 @@ class MutAdminService:
                 return existing
             log_warning(f"[MutAdmin] root_hash {existing} set in PG but missing in S3, re-uploading")
 
-        empty_tree = json.dumps({}, sort_keys=True).encode()
+        # Empty git tree object: framed as ``tree 0\x00`` and then
+        # zlib-compressed for storage. ``encode_object`` returns both
+        # the SHA-1 hex (the canonical hash an empty tree gets in any
+        # git tool — ``4b825dc642cb6eb9a060e54bf8d69288fbee4904``) and
+        # the loose bytes that go on disk.
+        root_hash, loose_bytes = encode_object("tree", encode_tree([]))
 
-        from mut.core.object_store import hash_bytes
-        root_hash = hash_bytes(empty_tree)
-
-        if hasattr(backend, 'async_put'):
-            await backend.async_put(root_hash, empty_tree)
+        if hasattr(backend, "async_put"):
+            await backend.async_put(root_hash, loose_bytes)
         else:
-            import asyncio
-            await asyncio.to_thread(repo.store.put, empty_tree)
+            await asyncio.to_thread(backend.put, root_hash, loose_bytes)
 
         repo.history.set_root_hash(root_hash)
 

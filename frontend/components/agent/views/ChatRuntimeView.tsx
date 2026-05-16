@@ -20,6 +20,7 @@ import { useMention } from '../../../lib/hooks/useMention';
 import { useAgent } from '@/contexts/AgentContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { Dots } from '@/components/loading';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
 
 // 时间格式化
 const getTimeAgo = (date: Date): string => {
@@ -28,7 +29,7 @@ const getTimeAgo = (date: Date): string => {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
-  
+
   if (diffMins < 1) return 'now';
   if (diffMins < 60) return `${diffMins}m`;
   if (diffHours < 24) return `${diffHours}h`;
@@ -68,28 +69,28 @@ function getAgentTypeIcon(type?: string): React.ReactNode {
     case 'webhook':
       return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>;
     case 'devbox':
-      return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="18" rx="2" /><line x1="2" y1="7" x2="22" y2="7" /><polyline points="8 13 11 16 8 19" /><line x1="14" y1="19" x2="18" y2="19" /></svg>;
+      return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="18" rx="2" /><line x1="2" y1="7" x2="22" y2="7" /><polyline points="8 13 11 16 8 19" /><line x1="14" y1="19" x2="18" y2="19" /></svg>;
     default:
       return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>;
   }
 }
 
 // Sub-component for agent name button with hover state
-function AgentNameButton({ 
-  agentIcon, 
-  agentName, 
-  isEditing, 
-  canEdit, 
-  onClick 
-}: { 
-  agentIcon: React.ReactNode; 
-  agentName: string; 
-  isEditing: boolean; 
-  canEdit: boolean; 
-  onClick: () => void; 
+function AgentNameButton({
+  agentIcon,
+  agentName,
+  isEditing,
+  canEdit,
+  onClick
+}: {
+  agentIcon: React.ReactNode;
+  agentName: string;
+  isEditing: boolean;
+  canEdit: boolean;
+  onClick: () => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
-  
+
   return (
     <button
       onClick={onClick}
@@ -100,9 +101,9 @@ function AgentNameButton({
         display: 'flex',
         alignItems: 'center',
         gap: 6,
-        height: 28,
+        height: 30,
         padding: '0 8px',
-        background: isEditing ? 'rgba(255,255,255,0.08)' : isHovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+        background: isEditing ? 'var(--po-border)' : isHovered ? 'var(--po-hover)' : 'transparent',
         border: '1px solid transparent',
         borderRadius: 6,
         cursor: canEdit ? 'pointer' : 'default',
@@ -110,19 +111,19 @@ function AgentNameButton({
       }}
     >
       {/* Agent icon */}
-      <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', color: '#999' }}>{agentIcon}</span>
+      <span style={{ fontSize: 14, display: 'flex', alignItems: 'center', color: 'var(--po-text-subtle)' }}>{agentIcon}</span>
       {/* Agent name */}
-      <span style={{ fontSize: 13, fontWeight: 500, color: '#a1a1aa' }}>{agentName}</span>
+      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text-muted)' }}>{agentName}</span>
       {/* Edit pencil icon - only show on hover */}
       {canEdit && (
-        <svg 
-          width="12" 
-          height="12" 
-          viewBox="0 0 24 24" 
-          fill="none" 
-          stroke="#525252" 
-          strokeWidth="2" 
-          strokeLinecap="round" 
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--po-text-disabled)"
+          strokeWidth="2"
+          strokeLinecap="round"
           strokeLinejoin="round"
           style={{
             opacity: isHovered || isEditing ? 1 : 0,
@@ -146,10 +147,10 @@ export function ChatRuntimeView({
   onClose,
   onBack,
 }: ChatRuntimeViewProps) {
-  const { 
-    selectedCapabilities, 
-    toggleCapability, 
-    currentAgentId, 
+  const {
+    selectedCapabilities,
+    toggleCapability,
+    currentAgentId,
     savedAgents,
     draftResources,
     addDraftResource,
@@ -178,7 +179,7 @@ export function ChatRuntimeView({
 
   // 编辑 agent 信息
   const [editingName, setEditingName] = useState('');
-  
+
   const [isEditingInfo, setIsEditingInfo] = useState(false);
 
   // Chat history 菜单
@@ -226,7 +227,7 @@ export function ChatRuntimeView({
     if (draftResources.length !== currentAgent.resources.length) return true;
     return draftResources.some((draft, i) => {
       const original = currentAgent.resources![i];
-      return draft.path !== original.path || 
+      return draft.path !== original.path ||
              (draft.readonly ?? true) !== (original.readonly ?? true);
     });
   }, [draftResources, currentAgent?.resources]);
@@ -605,17 +606,17 @@ export function ChatRuntimeView({
   }, []);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#141414' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-control)' }}>
       {/* Header */}
-      <div style={{ 
+      <div style={{
         height: 40,
         minHeight: 40,
-        padding: '0 12px', 
-        borderBottom: '1px solid rgba(255,255,255,0.06)', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+        padding: '0 12px',
+        borderBottom: '1px solid var(--po-border-subtle)',
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        flexShrink: 0 
+        flexShrink: 0
       }}>
         {/* Left: Agent name with edit button */}
         <div style={{ position: 'relative' }} ref={editPopoverRef}>
@@ -633,16 +634,16 @@ export function ChatRuntimeView({
               position: 'absolute',
               top: 'calc(100% + 4px)',
               left: 0,
-              background: '#161616',
-              border: '1px solid #262626',
+              background: 'var(--po-panel)',
+              border: '1px solid var(--po-border)',
               borderRadius: 8,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+              boxShadow: '0 4px 16px var(--po-shadow)',
               zIndex: 100,
               overflow: 'hidden',
             }}>
               {/* Input row with type icon + name */}
-              <div style={{ 
-                display: 'flex', 
+              <div style={{
+                display: 'flex',
                 alignItems: 'center',
                 padding: 8,
                 gap: 8,
@@ -651,19 +652,19 @@ export function ChatRuntimeView({
                 <span style={{
                   width: 32, height: 32,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: '#1f1f1f', border: '1px solid #333', borderRadius: 6,
-                  flexShrink: 0, color: '#999',
+                  background: 'var(--po-hover)', border: '1px solid var(--po-border-strong)', borderRadius: 6,
+                  flexShrink: 0, color: 'var(--po-text-subtle)',
                 }}>
                   {getAgentTypeIcon(currentAgent?.type)}
                 </span>
-                
+
                 {/* Name input */}
                 <input
                   type="text"
                   value={editingName}
                   onChange={e => setEditingName(e.target.value)}
-                  onKeyDown={e => { 
-                    if (e.key === 'Enter') handleSaveAgentInfo(); 
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') handleSaveAgentInfo();
                     if (e.key === 'Escape') setIsEditingInfo(false);
                   }}
                   placeholder="Agent name"
@@ -672,16 +673,16 @@ export function ChatRuntimeView({
                     minWidth: 0,
                     height: 32,
                     padding: '0 10px',
-                    background: '#1f1f1f',
-                    border: '1px solid #333',
+                    background: 'var(--po-hover)',
+                    border: '1px solid var(--po-border-strong)',
                     borderRadius: 6,
-                    color: '#e4e4e7',
+                    color: 'var(--po-text)',
                     fontSize: 13,
                     outline: 'none',
                   }}
                   autoFocus
                 />
-                
+
                 {/* Save button */}
                 <button
                   onClick={handleSaveAgentInfo}
@@ -689,10 +690,10 @@ export function ChatRuntimeView({
                   style={{
                     height: 32,
                     padding: '0 12px',
-                    background: editingName.trim() ? '#22c55e' : '#262626',
+                    background: editingName.trim() ? 'var(--po-success)' : 'var(--po-border)',
                     border: 'none',
                     borderRadius: 6,
-                    color: editingName.trim() ? '#fff' : '#525252',
+                    color: editingName.trim() ? 'var(--po-text-inverse)' : 'var(--po-text-disabled)',
                     fontSize: 12,
                     fontWeight: 500,
                     cursor: editingName.trim() ? 'pointer' : 'not-allowed',
@@ -705,36 +706,36 @@ export function ChatRuntimeView({
             </div>
           )}
         </div>
-        
+
         {/* Right side buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           {/* Chat History Button - 点击显示菜单 */}
           {currentAgentId && (
             <div style={{ position: 'relative' }} ref={historyMenuRef}>
-              <button 
+              <button
                 onClick={() => setIsHistoryMenuOpen(!isHistoryMenuOpen)}
                 title={sessions.length > 0 ? `${sessions.length} chat${sessions.length > 1 ? 's' : ''} - Click to view` : 'No chat history yet'}
                 style={{
-                  width: 28,
-                  height: 28,
-                  background: isHistoryMenuOpen ? '#252525' : 'transparent',
+                  width: 30,
+                  height: 30,
+                  background: isHistoryMenuOpen ? 'var(--po-border-strong)' : 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  color: isHistoryMenuOpen ? '#fff' : (sessions.length > 0 ? '#888' : '#444'),
+                  color: isHistoryMenuOpen ? 'var(--po-text-inverse)' : (sessions.length > 0 ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'),
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRadius: 4,
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => { if (!isHistoryMenuOpen) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#252525'; }}}
-                onMouseLeave={e => { if (!isHistoryMenuOpen) { e.currentTarget.style.color = sessions.length > 0 ? '#888' : '#444'; e.currentTarget.style.background = 'transparent'; }}}
+                onMouseEnter={e => { if (!isHistoryMenuOpen) { e.currentTarget.style.color = 'var(--po-text)'; e.currentTarget.style.background = 'var(--po-border-strong)'; }}}
+                onMouseLeave={e => { if (!isHistoryMenuOpen) { e.currentTarget.style.color = sessions.length > 0 ? 'var(--po-text-muted)' : 'var(--po-text-subtle)'; e.currentTarget.style.background = 'transparent'; }}}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                 </svg>
               </button>
-              
+
               {/* Chat History 下拉菜单 */}
               {isHistoryMenuOpen && (
                 <div style={{
@@ -744,10 +745,10 @@ export function ChatRuntimeView({
                   minWidth: 220,
                   maxHeight: 300,
                   overflowY: 'auto',
-                  background: '#161616',
-                  border: '1px solid #2a2a2a',
+                  background: 'var(--po-panel)',
+                  border: '1px solid var(--po-border)',
                   borderRadius: 6,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
+                  boxShadow: '0 4px 12px var(--po-shadow)',
                   zIndex: 100,
                 }}>
                   {sessions.length > 0 ? (
@@ -770,26 +771,26 @@ export function ChatRuntimeView({
                             justifyContent: 'space-between',
                             gap: 8,
                             padding: '0 12px',
-                            background: session.id === currentSessionId ? '#252525' : 'transparent',
+                            background: session.id === currentSessionId ? 'var(--po-border-strong)' : 'transparent',
                             border: 'none',
-                            borderBottom: idx < sessions.length - 1 ? '1px solid #1f1f1f' : 'none',
-                            color: session.id === currentSessionId ? '#fff' : '#a3a3a3',
+                            borderBottom: idx < sessions.length - 1 ? '1px solid var(--po-hover)' : 'none',
+                            color: session.id === currentSessionId ? 'var(--po-text-inverse)' : 'var(--po-text-muted)',
                             cursor: 'pointer',
                             textAlign: 'left',
                             fontSize: 13,
                           }}
-                          onMouseEnter={e => { if (session.id !== currentSessionId) e.currentTarget.style.background = '#1f1f1f'; }}
+                          onMouseEnter={e => { if (session.id !== currentSessionId) e.currentTarget.style.background = 'var(--po-hover)'; }}
                           onMouseLeave={e => { if (session.id !== currentSessionId) e.currentTarget.style.background = 'transparent'; }}
                         >
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                           {session.title || `Chat ${sessions.length - idx}`}
                         </span>
-                          {timeAgo && <span style={{ fontSize: 11, color: '#525252', flexShrink: 0 }}>{timeAgo}</span>}
+                          {timeAgo && <span style={{ fontSize: 11, color: 'var(--po-text-disabled)', flexShrink: 0 }}>{timeAgo}</span>}
                         </button>
                       );
                     })
                   ) : (
-                    <div style={{ padding: '16px 12px', fontSize: 13, color: '#525252', textAlign: 'center' }}>
+                    <div style={{ padding: '16px 12px', fontSize: 13, color: 'var(--po-text-disabled)', textAlign: 'center' }}>
                       No chat history yet
                     </div>
                   )}
@@ -800,26 +801,26 @@ export function ChatRuntimeView({
 
           {/* New Chat Button */}
           {currentAgentId && (
-            <button 
+            <button
               onClick={handleNewChat}
               title="New chat"
               style={{
-                width: 28,
-                height: 28,
-                background: currentSessionId === null && messages.length === 0 ? '#252525' : 'transparent',
+                width: 30,
+                height: 30,
+                background: currentSessionId === null && messages.length === 0 ? 'var(--po-border-strong)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                color: currentSessionId === null && messages.length === 0 ? '#fff' : '#666',
+                color: currentSessionId === null && messages.length === 0 ? 'var(--po-text-inverse)' : 'var(--po-text-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 4,
                 transition: 'all 0.15s',
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#252525'; }}
-              onMouseLeave={e => { 
-                e.currentTarget.style.color = currentSessionId === null && messages.length === 0 ? '#fff' : '#666'; 
-                e.currentTarget.style.background = currentSessionId === null && messages.length === 0 ? '#252525' : 'transparent';
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-text)'; e.currentTarget.style.background = 'var(--po-border-strong)'; }}
+              onMouseLeave={e => {
+                e.currentTarget.style.color = currentSessionId === null && messages.length === 0 ? 'var(--po-text-inverse)' : 'var(--po-text-subtle)';
+                e.currentTarget.style.background = currentSessionId === null && messages.length === 0 ? 'var(--po-border-strong)' : 'transparent';
               }}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -831,24 +832,24 @@ export function ChatRuntimeView({
 
           {/* Settings Button */}
           {currentAgentId && (
-            <button 
-              onClick={() => setIsSettingsExpanded(!isSettingsExpanded)} 
+            <button
+              onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
               title={isSettingsExpanded ? "Close settings" : "Edit settings"}
               style={{
-                width: 28,
-                height: 28,
-                background: isSettingsExpanded ? '#252525' : 'transparent',
+                width: 30,
+                height: 30,
+                background: isSettingsExpanded ? 'var(--po-border-strong)' : 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                color: isSettingsExpanded ? '#fff' : '#666',
+                color: isSettingsExpanded ? 'var(--po-text-inverse)' : 'var(--po-text-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 borderRadius: 4,
                 transition: 'all 0.15s',
               }}
-              onMouseEnter={e => { if (!isSettingsExpanded) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#252525'; }}}
-              onMouseLeave={e => { if (!isSettingsExpanded) { e.currentTarget.style.color = '#666'; e.currentTarget.style.background = 'transparent'; }}}
+              onMouseEnter={e => { if (!isSettingsExpanded) { e.currentTarget.style.color = 'var(--po-text)'; e.currentTarget.style.background = 'var(--po-border-strong)'; }}}
+              onMouseLeave={e => { if (!isSettingsExpanded) { e.currentTarget.style.color = 'var(--po-text-subtle)'; e.currentTarget.style.background = 'transparent'; }}}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3"></circle>
@@ -861,12 +862,12 @@ export function ChatRuntimeView({
               onClick={onBack}
               title="Back to integrations"
               style={{
-                width: 28,
-                height: 28,
+                width: 30,
+                height: 30,
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
-                color: '#71717a',
+                color: 'var(--po-text-subtle)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -875,36 +876,14 @@ export function ChatRuntimeView({
                 fontSize: 14,
                 lineHeight: 1,
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#252525'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#71717a'; e.currentTarget.style.background = 'transparent'; }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--po-text)'; e.currentTarget.style.background = 'var(--po-border-strong)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--po-text-subtle)'; e.currentTarget.style.background = 'transparent'; }}
             >
               ←
             </button>
           )}
           {onClose && (
-            <button
-              onClick={onClose}
-              title="Close panel"
-              style={{
-                width: 28,
-                height: 28,
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#71717a',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 4,
-                transition: 'all 0.15s',
-                fontSize: 16,
-                lineHeight: 1,
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = '#252525'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#71717a'; e.currentTarget.style.background = 'transparent'; }}
-            >
-              ×
-            </button>
+            <ActivityIconButton kind="close" title="Close panel" onClick={onClose} />
           )}
         </div>
       </div>
@@ -913,8 +892,8 @@ export function ChatRuntimeView({
       {isSettingsExpanded && currentAgent && (
         <div style={{
           padding: '12px 16px',
-          background: '#1a1a1a',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: 'var(--po-panel-raised)',
+          borderBottom: '1px solid var(--po-border-subtle)',
           display: 'flex',
           flexDirection: 'column',
           gap: 12,
@@ -924,13 +903,13 @@ export function ChatRuntimeView({
             {/* Type icon — fixed, non-editable */}
             <span style={{
               width: 32, height: 32, borderRadius: '50%',
-              background: '#161616', border: '1px solid #2a2a2a',
+              background: 'var(--po-panel)', border: '1px solid var(--po-border)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0, color: '#999',
+              flexShrink: 0, color: 'var(--po-text-subtle)',
             }}>
               {getAgentTypeIcon(currentAgent.type)}
             </span>
-            
+
             {/* 名字输入 */}
             <input
               type="text"
@@ -939,18 +918,18 @@ export function ChatRuntimeView({
               style={{
                 flex: 1,
                 height: 32,
-                background: '#161616',
-                border: '1px solid #2a2a2a',
+                background: 'var(--po-panel)',
+                border: '1px solid var(--po-border)',
                 borderRadius: 4,
                 padding: '0 10px',
-                color: '#e5e5e5',
+                color: 'var(--po-text)',
                 fontSize: 14,
                 outline: 'none',
               }}
-              onFocus={e => e.currentTarget.style.borderColor = '#4ade80'}
-              onBlur={e => e.currentTarget.style.borderColor = '#2a2a2a'}
+              onFocus={e => e.currentTarget.style.borderColor = 'var(--po-success)'}
+              onBlur={e => e.currentTarget.style.borderColor = 'var(--po-border)'}
             />
-            
+
             {/* 保存按钮 */}
             <button
               onClick={async () => {
@@ -962,8 +941,8 @@ export function ChatRuntimeView({
               style={{
                 height: 32,
                 padding: '0 12px',
-                background: editingName.trim() && editingName !== currentAgent.name ? '#4ade80' : '#262626',
-                color: editingName.trim() && editingName !== currentAgent.name ? '#000' : '#525252',
+                background: editingName.trim() && editingName !== currentAgent.name ? 'var(--po-success)' : 'var(--po-border)',
+                color: editingName.trim() && editingName !== currentAgent.name ? 'var(--po-text-inverse)' : 'var(--po-text-disabled)',
                 border: 'none',
                 borderRadius: 4,
                 cursor: editingName.trim() && editingName !== currentAgent.name ? 'pointer' : 'not-allowed',
@@ -978,28 +957,28 @@ export function ChatRuntimeView({
 
           {/* Agent's bash access - 和 AgentSettingView 保持一致 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 500, color: '#666' }}>Agent's bash access</span>
+            <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text-subtle)' }}>Agent's bash access</span>
           </div>
-          <div 
-            style={{ 
+          <div
+            style={{
               minHeight: 88,
               background: 'transparent',
-              border: '1px dashed #2a2a2a',
+              border: '1px dashed var(--po-border)',
               borderRadius: 6,
               transition: 'all 0.15s',
             }}
             onDragOver={(e) => {
               e.preventDefault();
-              e.currentTarget.style.borderColor = '#4ade80';
-              e.currentTarget.style.background = 'rgba(74, 222, 128, 0.04)';
+              e.currentTarget.style.borderColor = 'var(--po-success)';
+              e.currentTarget.style.background = 'color-mix(in srgb, var(--po-success) 4%, transparent)';
             }}
             onDragLeave={(e) => {
-              e.currentTarget.style.borderColor = '#2a2a2a';
+              e.currentTarget.style.borderColor = 'var(--po-border)';
               e.currentTarget.style.background = 'transparent';
             }}
             onDrop={(e) => {
               e.preventDefault();
-              e.currentTarget.style.borderColor = '#2a2a2a';
+              e.currentTarget.style.borderColor = 'var(--po-border)';
               e.currentTarget.style.background = 'transparent';
               try {
                 const data = e.dataTransfer.getData('application/json');
@@ -1024,64 +1003,66 @@ export function ChatRuntimeView({
               {draftResources.map(resource => {
                 const isReadonly = resource.readonly ?? true;
                 return (
-                  <div 
+                  <div
                     key={resource.path}
-                    style={{ 
+                    style={{
                       height: 32,
-                      display: 'flex', 
+                      display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       padding: '0 10px',
                       borderRadius: 4,
-                      background: '#1a1a1a',
-                      border: '1px solid #252525',
+                      background: 'var(--po-panel-raised)',
+                      border: '1px solid var(--po-border-strong)',
                       transition: 'all 0.1s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#222'; e.currentTarget.style.borderColor = '#333'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.borderColor = '#252525'; }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'var(--po-hover)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'var(--po-panel-raised)'; e.currentTarget.style.borderColor = 'var(--po-border-strong)'; }}
                   >
                     {/* 左侧：名称 */}
-                    <span style={{ fontSize: 14, color: '#e5e5e5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, color: 'var(--po-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
                       {resource.nodeName}
                     </span>
-                    
+
                     {/* 右侧：权限切换 + 删除 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                       {/* Segmented Control: Read | Write */}
                       <div style={{
                         display: 'flex',
-                        background: '#0f0f0f',
-                        border: '1px solid #2a2a2a',
+                        background: 'var(--po-panel)',
+                        border: '1px solid var(--po-border)',
                         borderRadius: 4,
                         padding: 2,
                         gap: 1,
                       }}>
-                        <button 
+                        <button
                           onClick={() => updateDraftResource(resource.path, { readonly: true })}
                           style={{
-                            background: isReadonly ? '#333' : 'transparent',
+                            background: isReadonly ? 'var(--po-border-strong)' : 'transparent',
                             border: 'none',
                             borderRadius: 3,
-                            color: isReadonly ? '#e5e5e5' : '#505050',
+                            color: isReadonly ? 'var(--po-text)' : 'var(--po-text-disabled)',
                             cursor: 'pointer',
                             fontSize: 11,
-                            padding: '2px 8px',
+                            height: 30,
+                            padding: '0 8px',
                             fontWeight: 500,
                             transition: 'all 0.1s',
                           }}
                         >
                           Read
                         </button>
-                        <button 
+                        <button
                           onClick={() => updateDraftResource(resource.path, { readonly: false })}
                           style={{
-                            background: !isReadonly ? 'rgba(251, 191, 36, 0.15)' : 'transparent',
+                            background: !isReadonly ? 'color-mix(in srgb, var(--po-warning) 15%, transparent)' : 'transparent',
                             border: 'none',
                             borderRadius: 3,
-                            color: !isReadonly ? '#fbbf24' : '#505050',
+                            color: !isReadonly ? 'var(--po-warning)' : 'var(--po-text-disabled)',
                             cursor: 'pointer',
                             fontSize: 11,
-                            padding: '2px 8px',
+                            height: 30,
+                            padding: '0 8px',
                             fontWeight: 500,
                             transition: 'all 0.1s',
                           }}
@@ -1089,20 +1070,20 @@ export function ChatRuntimeView({
                           Write
                         </button>
                       </div>
-                      
+
                       <button
                         onClick={() => removeDraftResource(resource.path)}
-                        style={{ 
+                        style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           width: 20, height: 20, borderRadius: 4,
-                          background: 'transparent', 
-                          border: 'none', 
-                          color: '#505050', 
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--po-text-disabled)',
                           cursor: 'pointer',
                           transition: 'all 0.1s',
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#262626'; e.currentTarget.style.color = '#ef4444'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#505050'; }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--po-border)'; e.currentTarget.style.color = 'var(--po-danger)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--po-text-disabled)'; }}
                       >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -1114,14 +1095,14 @@ export function ChatRuntimeView({
                 );
               })}
             </div>
-            
+
             {/* 拖拽提示 */}
-            <div style={{ 
+            <div style={{
               minHeight: draftResources.length > 0 ? 32 : 88,
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              color: '#525252',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--po-text-disabled)',
             }}>
               <span style={{ fontSize: 12 }}>
                 {draftResources.length > 0 ? 'Drag more' : 'Drag items into this'}
@@ -1136,11 +1117,12 @@ export function ChatRuntimeView({
               disabled={isSavingResources}
               style={{
                 marginTop: 4,
-                padding: '8px 12px',
-                background: isSavingResources ? '#262626' : '#4ade80',
+                height: 30,
+                padding: '0 12px',
+                background: isSavingResources ? 'var(--po-border)' : 'var(--po-success)',
                 border: 'none',
                 borderRadius: 4,
-                color: isSavingResources ? '#525252' : '#000',
+                color: isSavingResources ? 'var(--po-text-disabled)' : 'var(--po-text-inverse)',
                 fontSize: 12,
                 fontWeight: 500,
                 cursor: isSavingResources ? 'not-allowed' : 'pointer',
@@ -1176,11 +1158,12 @@ export function ChatRuntimeView({
             }}
             style={{
               marginTop: 4,
-              padding: '6px 10px',
+              height: 30,
+              padding: '0 10px',
               background: 'transparent',
-              border: '1px solid #2a2a2a',
+              border: '1px solid var(--po-border)',
               borderRadius: 4,
-              color: '#525252',
+              color: 'var(--po-text-disabled)',
               fontSize: 11,
               cursor: 'pointer',
               display: 'flex',
@@ -1190,13 +1173,13 @@ export function ChatRuntimeView({
               transition: 'all 0.15s',
             }}
             onMouseEnter={e => {
-              e.currentTarget.style.borderColor = '#ef4444';
-              e.currentTarget.style.color = '#ef4444';
-              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+              e.currentTarget.style.borderColor = 'var(--po-danger)';
+              e.currentTarget.style.color = 'var(--po-danger)';
+              e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 8%, transparent)';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.borderColor = '#2a2a2a';
-              e.currentTarget.style.color = '#525252';
+              e.currentTarget.style.borderColor = 'var(--po-border)';
+              e.currentTarget.style.color = 'var(--po-text-disabled)';
               e.currentTarget.style.background = 'transparent';
             }}
           >
@@ -1219,7 +1202,7 @@ export function ChatRuntimeView({
           display: 'flex',
           flexDirection: 'column',
           gap: 20,
-          background: '#141414',
+          background: 'var(--po-control)',
         }}
       >
         {messagesLoading ? (
@@ -1230,7 +1213,7 @@ export function ChatRuntimeView({
                   width: '70%',
                   height: 36,
                   borderRadius: 12,
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: 'var(--po-hover)',
                   position: 'relative',
                   overflow: 'hidden',
                 }}
@@ -1246,7 +1229,7 @@ export function ChatRuntimeView({
                     width: `${w}%`,
                     height: 14,
                     borderRadius: 4,
-                    background: 'rgba(255, 255, 255, 0.04)',
+                    background: 'var(--po-hover)',
                     position: 'relative',
                     overflow: 'hidden',
                   }}
@@ -1277,11 +1260,11 @@ export function ChatRuntimeView({
                 strokeWidth='1.5'
                 strokeLinecap='round'
                 strokeLinejoin='round'
-                style={{ color: '#444', marginBottom: 10 }}
+                style={{ color: 'var(--po-text-subtle)', marginBottom: 10 }}
               >
                 <path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' />
               </svg>
-              <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6, maxWidth: 200 }}>
+              <div style={{ fontSize: 12, color: 'var(--po-text-subtle)', lineHeight: 1.6, maxWidth: 200 }}>
                 {`Ask ${agentName} a question...`}
               </div>
             </div>
@@ -1341,7 +1324,7 @@ export function ChatRuntimeView({
           background: linear-gradient(
             90deg,
             transparent,
-            rgba(255, 255, 255, 0.08),
+            var(--po-border),
             transparent
           );
           animation: shimmer 1.5s infinite;
@@ -1350,4 +1333,3 @@ export function ChatRuntimeView({
     </div>
   );
 }
-

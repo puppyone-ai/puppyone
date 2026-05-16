@@ -13,6 +13,9 @@ purely the tree-shape logic.
 
 from __future__ import annotations
 
+import hashlib
+import json
+
 import pytest
 from mut.core import tree as tree_mod
 from mut.core.object_store import ObjectStore
@@ -87,6 +90,25 @@ class TestPutBlob:
 
         assert _files(store, r2) == {"a.md": b"alpha", "b.md": b"beta"}
         assert changes == [("add", "b.md")]
+
+    def test_put_rewrites_legacy_raw_json_root_to_git_tree(self, store):
+        legacy_blob = b"old"
+        legacy_blob_hash = hashlib.sha1(legacy_blob).hexdigest()
+        legacy_tree_raw = json.dumps(
+            {"old.md": ["B", legacy_blob_hash]},
+            sort_keys=True,
+        ).encode("utf-8")
+        legacy_root = hashlib.sha1(legacy_tree_raw).hexdigest()
+        store.put_loose(legacy_blob_hash, legacy_blob)
+        store.put_loose(legacy_root, legacy_tree_raw)
+
+        new_root, changes = splice_put_blob(store, legacy_root, "new.md", b"new")
+
+        assert _files(store, new_root) == {
+            "old.md": b"old",
+            "new.md": b"new",
+        }
+        assert changes == [("add", "new.md")]
 
     def test_put_update_existing(self, store, empty_root):
         r1, _ = splice_put_blob(store, empty_root, "x.md", b"old")

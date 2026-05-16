@@ -1,10 +1,11 @@
 'use client';
 
-import { use, useMemo } from 'react';
+import { use, useCallback, useMemo } from 'react';
 import useSWR from 'swr';
 import { get } from '@/lib/apiClient';
-import { useProjectTools } from '@/lib/hooks/useData';
+import { useProjectTools, refreshFolderNodes } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
+import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
 import { listScopes, listConnectors, getRepoIdentity, type Connector } from '@/lib/repoApi';
@@ -13,6 +14,20 @@ import {
   type SyncEndpointInfo,
   type SyncStatusSync,
 } from './DataLayoutContext';
+
+/** Combine a scope-relative path with the scope path to get a
+ *  project-root-relative path. Empty scope = root scope. */
+function _toRootRelative(scope: string, scopeRelativePath: string): string {
+  const file = scopeRelativePath.replaceAll(/^\/+|\/+$/g, '');
+  if (!scope) return file;
+  return file ? `${scope}/${file}` : scope;
+}
+
+/** Parent folder of a root-relative path (root = empty string). */
+function _parentFolder(rootRelativePath: string): string {
+  const idx = rootRelativePath.lastIndexOf('/');
+  return idx >= 0 ? rootRelativePath.slice(0, idx) : '';
+}
 
 interface DataLayoutProps {
   children: React.ReactNode;
@@ -29,6 +44,30 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
 
   const { savedAgents } = useAgent();
   const { tools: projectTools } = useProjectTools(projectId);
+
+  // Auto-refresh affected folder listings when *any* client (sandbox,
+  // agent, GitHub webhook, another browser tab) lands a commit. Replaces
+  // the manual "user must refocus the tab" revalidation flow and closes
+  // the §六 "侧栏永不刷新" bug class once and for all.
+  //
+  // ``changed_files`` is scope-relative; we lift each path back to
+  // project-root, take its parent folder, dedupe, and revalidate only
+  // those folders' SWR caches via the existing ``refreshFolderNodes``
+  // helper (which also revalidates ``__shallow_1`` for the sidebar).
+  const onCommitUpdate = useCallback((event: { scope: string; changed_files: string[] }) => {
+    const folders = new Set<string>();
+    for (const rel of event.changed_files || []) {
+      const root = _toRootRelative(event.scope || '', rel);
+      folders.add(_parentFolder(root));
+    }
+    if (folders.size === 0) {
+      // Commit had no path-bearing changes (e.g. metadata-only). Refresh
+      // the root sidebar anyway so the user's view of HEAD stays fresh.
+      folders.add('');
+    }
+    void refreshFolderNodes(projectId, ...folders);
+  }, [projectId]);
+  useCommitUpdates(onCommitUpdate);
 
   const { data: syncStatusData, mutate: mutateSyncStatus } = useSWR<{
     syncs: SyncStatusSync[];
@@ -59,7 +98,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
     () => listConnectors(projectId),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
-  const { data: repoIdentity, mutate: mutateIdentity } = useSWR(
+  const { data: repoIdentity, isLoading: repoIdentityLoading, mutate: mutateIdentity } = useSWR(
     projectId ? ['repo-identity', projectId] : null,
     () => getRepoIdentity(projectId),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
@@ -201,6 +240,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       scopes: scopes || [],
       connectorsByScope,
       repoIdentity,
+      repoIdentityLoading,
       mutateRepo,
     }),
     [
@@ -212,6 +252,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       scopes,
       connectorsByScope,
       repoIdentity,
+      repoIdentityLoading,
       mutateRepo,
     ],
   );

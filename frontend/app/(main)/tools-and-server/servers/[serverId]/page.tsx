@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ServerView } from '../../components/ServerView';
 import {
@@ -9,7 +9,8 @@ import {
   refreshToolsAndMcp,
 } from '@/lib/hooks/useData';
 import { deleteMcpV2 } from '@/lib/mcpApi';
-import { PageLoading } from '@/components/loading';
+import { HeaderedPageLoadingShell } from '@/components/loading';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 export default function ServerDetailPage({
   params,
@@ -18,6 +19,9 @@ export default function ServerDetailPage({
 }) {
   const { serverId } = use(params);
   const router = useRouter();
+  const [deleteTargetApiKey, setDeleteTargetApiKey] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const {
     tools,
@@ -40,15 +44,24 @@ export default function ServerDetailPage({
     }
   }, [loading, server, router]);
 
-  const handleDeleteServer = async (apiKey: string) => {
-    if (!confirm('Delete this MCP instance?')) return;
+  const handleDeleteServer = (apiKey: string) => {
+    setDeleteError(null);
+    setDeleteTargetApiKey(apiKey);
+  };
+
+  const confirmDeleteServer = async () => {
+    if (!deleteTargetApiKey) return;
+    setDeleteLoading(true);
     try {
-      await deleteMcpV2(apiKey);
+      await deleteMcpV2(deleteTargetApiKey);
       refreshInstances();
+      setDeleteTargetApiKey(null);
       router.push('/tools-and-server/tools-list');
     } catch (e) {
       console.error('Failed to delete MCP', e);
-      alert('Error deleting MCP instance');
+      setDeleteError('Error deleting MCP instance');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -59,9 +72,7 @@ export default function ServerDetailPage({
 
   if (loading) {
     return (
-      <div style={{ flex: 1 }}>
-        <PageLoading variant="fill" />
-      </div>
+      <HeaderedPageLoadingShell />
     );
   }
 
@@ -74,6 +85,29 @@ export default function ServerDetailPage({
         allTools={tools}
         onDeleteServer={handleDeleteServer}
         onRefresh={handleRefresh}
+      />
+      <ConfirmDialog
+        open={deleteTargetApiKey !== null}
+        title="Delete server?"
+        description={
+          <div>
+            <div>This removes the MCP server and its tool bindings from this workspace.</div>
+            {deleteError && (
+              <div style={{ marginTop: 10, color: 'var(--po-danger)' }}>
+                {deleteError}
+              </div>
+            )}
+          </div>
+        }
+        confirmLabel="Delete"
+        loading={deleteLoading}
+        onCancel={() => {
+          if (!deleteLoading) {
+            setDeleteError(null);
+            setDeleteTargetApiKey(null);
+          }
+        }}
+        onConfirm={() => void confirmDeleteServer()}
       />
     </div>
   );

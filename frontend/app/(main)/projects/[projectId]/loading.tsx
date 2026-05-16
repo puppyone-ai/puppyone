@@ -23,8 +23,8 @@
  * AFTER the page mounts (SWR / useEffect). That second loading layer
  * usually shows a skeleton matching the page's eventual layout.
  */
-import { PageLoading } from '@/components/loading';
+import { ProjectPageLoadingShell } from '@/components/loading';
 
 export default function ProjectSegmentLoading() {
-  return <PageLoading variant="fill" />;
+  return <ProjectPageLoadingShell />;
 }

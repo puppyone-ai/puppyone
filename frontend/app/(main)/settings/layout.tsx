@@ -7,20 +7,12 @@
  * Visual grammar matches the rest of `/(main)`:
  *
  *   - Page-level header is a single 46px row with a hairline border,
- *     13px / 500 / `#e4e4e7` title in Geist Sans. Same as
+ *     13px / 500 / `var(--po-text)` title in Geist Sans. Same as
  *     `AccessHeader` and the project Settings page.
- *   - Secondary sidebar uses the AppSidebar's row spec — 32px tall,
- *     13px label, white/[0.06] active fill — so the two rails
- *     visually rhyme when stacked side-by-side. The earlier copy was
- *     16px / weight 500-600 in Plus Jakarta Sans, which made every
- *     nav row feel about 25% larger than the workspace nav next to
- *     it.
- *   - No outer "floating card" wrapper. The previous shell wrapped
- *     everything in `margin: 8 / borderRadius: 12 / border: #2a2a2a`,
- *     which is a treatment nothing else in /(main) uses — you'd
- *     navigate Settings → anywhere else and the page would visibly
- *     "snap" to the screen edge. Pages render flush against the
- *     AppSidebar now, like every other surface.
+ *   - Secondary sidebar uses the same chrome sizing as AppSidebar.
+ *     Before this, navigating Settings → anywhere else visibly
+ *     snapped the page to the screen edge. Pages render flush against
+ *     the AppSidebar now, like every other surface.
  *   - Collapsed nav active state is the same neutral lift as the
  *     AppSidebar (white/[0.06]), not the blue tint the old version
  *     used. Blue is reserved for the sidebar's `active accent bar`
@@ -33,21 +25,21 @@ import { usePathname } from 'next/navigation';
 
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 320;
-const DEFAULT_WIDTH = 220;
+const DEFAULT_WIDTH = MIN_WIDTH;
 const COLLAPSED_WIDTH = 47;
 
 // Local design tokens. Same family as the project Access page +
 // the project Settings page so all three surfaces share a single
 // font stack / border alpha / text scale.
 const T = {
-  bg: '#0e0e0e',
-  rail: '#121212',
-  border: 'rgba(255,255,255,0.08)',
-  text1: '#fafafa',
-  text2: '#a1a1aa',
-  text3: '#52525b',
+  bg: 'var(--po-canvas)',
+  rail: 'var(--po-sidebar)',
+  border: 'var(--po-border)',
+  text1: 'var(--po-text)',
+  text2: 'var(--po-text-muted)',
+  text3: 'var(--po-text-disabled)',
   fontSans:
-    'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+    'var(--po-font-sans)',
 } as const;
 
 export default function SettingsLayout({
@@ -128,7 +120,7 @@ export default function SettingsLayout({
         }}
       >
         {/* Header — 46px row, single border-bottom, matches every
-            other page header in /(main). 13px / 500 / #e4e4e7 in
+            other page header in /(main). 13px / 500 / var(--po-text) in
             Geist Sans. The collapse / expand button hover-fades in,
             same pattern the AppSidebar uses for its own collapse
             toggle. */}
@@ -164,7 +156,7 @@ export default function SettingsLayout({
                 style={{
                   fontSize: 13,
                   fontWeight: 500,
-                  color: '#e4e4e7',
+                  color: 'var(--po-text)',
                   letterSpacing: 0,
                 }}
               >
@@ -198,6 +190,12 @@ export default function SettingsLayout({
               }}
             >
               <NavItem
+                href='/settings/appearance'
+                active={Boolean(pathname?.startsWith('/settings/appearance'))}
+                label='Appearance'
+                icon={<AppearanceIcon />}
+              />
+              <NavItem
                 href='/settings/connect'
                 active={Boolean(pathname?.startsWith('/settings/connect'))}
                 label='Integrations'
@@ -222,6 +220,12 @@ export default function SettingsLayout({
             }}
           >
             <CollapsedNavItem
+              href='/settings/appearance'
+              active={Boolean(pathname?.startsWith('/settings/appearance'))}
+              title='Appearance'
+              icon={<AppearanceIcon />}
+            />
+            <CollapsedNavItem
               href='/settings/connect'
               active={Boolean(pathname?.startsWith('/settings/connect'))}
               title='Integrations'
@@ -243,11 +247,11 @@ export default function SettingsLayout({
               height: '100%',
               cursor: 'col-resize',
               zIndex: 10,
-              background: isResizing ? 'rgba(255,255,255,0.10)' : 'transparent',
+              background: isResizing ? 'var(--po-active)' : 'transparent',
               transition: 'background 0.15s',
             }}
             onMouseEnter={e => {
-              if (!isResizing) e.currentTarget.style.background = 'rgba(255,255,255,0.10)';
+              if (!isResizing) e.currentTarget.style.background = 'var(--po-active)';
             }}
             onMouseLeave={e => {
               if (!isResizing) e.currentTarget.style.background = 'transparent';
@@ -282,23 +286,23 @@ const collapseToggleStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 28,
-  height: 28,
+  width: 30,
+  height: 30,
   background: 'transparent',
   border: 'none',
   borderRadius: 5,
   cursor: 'pointer',
-  color: '#6b7280',
+  color: 'var(--po-text-subtle)',
   transition: 'background 0.15s, color 0.15s',
 };
 
 function onCollapseEnter(e: React.MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-  e.currentTarget.style.color = '#fafafa';
+  e.currentTarget.style.background = 'var(--po-hover)';
+  e.currentTarget.style.color = 'var(--po-text)';
 }
 function onCollapseLeave(e: React.MouseEvent<HTMLButtonElement>) {
   e.currentTarget.style.background = 'transparent';
-  e.currentTarget.style.color = '#6b7280';
+  e.currentTarget.style.color = 'var(--po-text-subtle)';
 }
 
 function PanelIcon() {
@@ -315,6 +319,31 @@ function PanelIcon() {
     >
       <rect x='3' y='3' width='18' height='18' rx='2' />
       <line x1='9' y1='3' x2='9' y2='21' />
+    </svg>
+  );
+}
+
+function AppearanceIcon() {
+  return (
+    <svg
+      width='15'
+      height='15'
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='2'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+    >
+      <circle cx='12' cy='12' r='4' />
+      <path d='M12 2v2' />
+      <path d='M12 20v2' />
+      <path d='m4.93 4.93 1.41 1.41' />
+      <path d='m17.66 17.66 1.41 1.41' />
+      <path d='M2 12h2' />
+      <path d='M20 12h2' />
+      <path d='m6.34 17.66-1.41 1.41' />
+      <path d='m19.07 4.93-1.41 1.41' />
     </svg>
   );
 }
@@ -372,9 +401,9 @@ function NavItem({
         borderRadius: 6,
         cursor: 'pointer',
         background: active
-          ? 'rgba(255,255,255,0.06)'
+          ? 'var(--po-selected)'
           : hovered
-          ? 'rgba(255,255,255,0.03)'
+          ? 'var(--po-hover)'
           : 'transparent',
         border: 'none',
         width: '100%',
@@ -398,8 +427,8 @@ function NavItem({
             bottom: 5,
             width: 2,
             borderRadius: 1,
-            background: '#22d3ee',
-            boxShadow: '0 0 6px rgba(34,211,238,0.4)',
+            background: 'var(--po-accent)',
+            boxShadow: '0 0 6px color-mix(in srgb, var(--po-accent) 40%, transparent)',
             pointerEvents: 'none',
           }}
         />
@@ -466,9 +495,9 @@ function CollapsedNavItem({
         alignItems: 'center',
         justifyContent: 'center',
         background: active
-          ? 'rgba(255,255,255,0.06)'
+          ? 'var(--po-selected)'
           : hovered
-          ? 'rgba(255,255,255,0.06)'
+          ? 'var(--po-hover)'
           : 'transparent',
         borderRadius: 6,
         cursor: 'pointer',

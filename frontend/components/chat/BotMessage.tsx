@@ -45,10 +45,10 @@ const S_TOOL_BTN_BASE: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
-  height: 26,
+  height: 30,
   padding: '0 8px',
   fontSize: 11,
-  backgroundColor: 'rgba(255,255,255,0.04)',
+  backgroundColor: 'var(--po-hover)',
   borderRadius: 4,
   maxWidth: '100%',
   transition: 'background 0.15s',
@@ -56,8 +56,8 @@ const S_TOOL_BTN_BASE: CSSProperties = {
 
 const S_SPINNER: CSSProperties = {
   width: 10, height: 10,
-  border: '1.5px solid rgba(255,255,255,0.2)',
-  borderTopColor: 'rgba(255,255,255,0.6)',
+  border: '1.5px solid color-mix(in srgb, var(--po-text) 22%, transparent)',
+  borderTopColor: 'var(--po-text-muted)',
   borderRadius: '50%',
   animation: 'spin 1s linear infinite',
   flexShrink: 0,
@@ -70,21 +70,21 @@ const S_DOT_BASE: CSSProperties = {
 
 const S_CMD_SPAN: CSSProperties = {
   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  fontFamily: 'ui-monospace, monospace', fontSize: 10, opacity: 0.7,
+  fontFamily: 'var(--po-font-sans)', fontSize: 10, opacity: 0.7,
 };
 
 const S_DETAIL_BOX: CSSProperties = {
   marginTop: 4, marginLeft: 20, padding: '8px 10px',
-  backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 4,
-  fontSize: 10, fontFamily: 'ui-monospace, monospace',
+  backgroundColor: 'var(--po-inset)', borderRadius: 4,
+  fontSize: 10, fontFamily: 'var(--po-font-sans)',
   lineHeight: '1.5', maxHeight: 200, overflowY: 'auto',
 };
 
 const S_INPUT_TEXT: CSSProperties = {
-  color: 'rgba(255,255,255,0.5)', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+  color: 'color-mix(in srgb, var(--po-text) 45%, transparent)', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
 };
 
-const S_ICON_STYLE: CSSProperties = { color: '#666', flexShrink: 0 };
+const S_ICON_STYLE: CSSProperties = { color: 'var(--po-text-subtle)', flexShrink: 0 };
 
 const S_MSG_OUTER: CSSProperties = {
   display: 'flex', flexDirection: 'column', width: '100%', gap: 8,
@@ -92,7 +92,7 @@ const S_MSG_OUTER: CSSProperties = {
 
 const S_COPY_BTN_BASE: CSSProperties = {
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: 26, height: 26, borderRadius: 4, border: 'none',
+  width: 30, height: 30, borderRadius: 4, border: 'none',
   cursor: 'pointer', transition: 'all 0.15s',
 };
 
@@ -107,13 +107,13 @@ const ToolItem = memo(function ToolItem({
 
   const btnStyle: CSSProperties = {
     ...S_TOOL_BTN_BASE,
-    color: isError ? '#ff8a8a' : 'rgba(255,255,255,0.6)',
+    color: isError ? 'var(--po-danger)' : 'var(--po-text-muted)',
     cursor: part.toolInput ? 'pointer' : 'default',
   };
 
   const dotStyle: CSSProperties = {
     ...S_DOT_BASE,
-    border: `1.5px solid ${isError ? '#ff6b6b' : '#444'}`,
+    border: `1.5px solid ${isError ? 'var(--po-danger)' : 'var(--po-border-strong)'}`,
   };
 
   return (
@@ -121,14 +121,14 @@ const ToolItem = memo(function ToolItem({
       <div
         onClick={onToggle}
         style={btnStyle}
-        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'var(--po-border)'; }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'var(--po-hover)'; }}
       >
         {isRunning ? (
           <div style={S_SPINNER} />
         ) : (
           <div style={dotStyle}>
-            {isCompleted && <Check size={6} strokeWidth={3} style={{ color: '#555' }} />}
+            {isCompleted && <Check size={6} strokeWidth={3} style={{ color: 'var(--po-text-subtle)' }} />}
           </div>
         )}
         <Terminal size={11} style={S_ICON_STYLE} />
@@ -144,17 +144,17 @@ const ToolItem = memo(function ToolItem({
         <div style={S_DETAIL_BOX}>
           {part.toolInput && (
             <div style={S_INPUT_TEXT}>
-              <span style={{ color: '#6b7280', marginRight: 6 }}>$</span>
+              <span style={{ color: 'var(--po-text-subtle)', marginRight: 6 }}>$</span>
               {part.toolInput}
             </div>
           )}
           {part.toolOutput && (
             <div style={{
-              color: 'rgba(255,255,255,0.7)',
+              color: 'color-mix(in srgb, var(--po-text) 70%, transparent)',
               whiteSpace: 'pre-wrap', wordBreak: 'break-all',
               marginTop: part.toolInput ? 8 : 0,
               paddingTop: part.toolInput ? 8 : 0,
-              borderTop: part.toolInput ? '1px solid rgba(255,255,255,0.1)' : 'none',
+              borderTop: part.toolInput ? '1px solid var(--po-active)' : 'none',
             }}>
               {part.toolOutput}
             </div>
@@ -235,11 +235,11 @@ export default memo(function BotMessage({
             onClick={handleCopy}
             style={{
               ...S_COPY_BTN_BASE,
-              background: copied ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)',
-              color: copied ? '#4ade80' : 'rgba(255,255,255,0.4)',
+              background: copied ? 'color-mix(in srgb, var(--po-success) 10%, transparent)' : 'var(--po-hover)',
+              color: copied ? 'var(--po-success)' : 'color-mix(in srgb, var(--po-text) 40%, transparent)',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--po-border)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'var(--po-hover)'; }}
           >
             {copied ? <Check size={13} /> : <Copy size={13} />}
           </button>

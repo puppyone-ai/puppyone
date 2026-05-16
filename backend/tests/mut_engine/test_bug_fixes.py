@@ -89,14 +89,13 @@ def _push_file(
     base_commit_id: str = "",
 ) -> dict:
     """Push files through the MUT protocol handler and return the raw result."""
-    from mut.foundation.hash import hash_bytes
     import base64
+    from mut.core import tree as tree_mod
+    from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
-    objects: dict[str, bytes] = {}
     nested: dict = {}
     for path, content in files.items():
-        blob_hash = hash_bytes(content)
-        objects[blob_hash] = content
+        blob_hash = repo.store.put_blob(content)
         parts = path.split("/")
         d = nested
         for p in parts[:-1]:
@@ -104,19 +103,20 @@ def _push_file(
         d[parts[-1]] = ("B", blob_hash)
 
     def _build(node: dict) -> str:
-        entries = {}
+        entries: list[TreeEntry] = []
         for name, val in sorted(node.items()):
             if isinstance(val, tuple):
-                entries[name] = list(val)
+                entries.append(TreeEntry(name=name, mode=MODE_FILE, sha1_hex=val[1]))
             else:
-                entries[name] = ["T", _build(val)]
-        data = json.dumps(entries, sort_keys=True).encode()
-        h = hash_bytes(data)
-        objects[h] = data
-        return h
+                entries.append(TreeEntry(name=name, mode=MODE_DIR, sha1_hex=_build(val)))
+        return repo.store.put_tree(encode_tree(entries))
 
     root = _build(nested)
-    objects_b64 = {h: base64.b64encode(d).decode() for h, d in objects.items()}
+    reachable = tree_mod.collect_reachable_hashes(repo.store, root)
+    objects_b64 = {
+        h: base64.b64encode(repo.store.get_loose(h)).decode()
+        for h in reachable
+    }
     body = {
         "protocol_version": PROTOCOL_VERSION,
         "base_commit_id": base_commit_id,
@@ -302,16 +302,15 @@ class TestP0_4_EphemeralClientMergeConsume:
 
         client.pull = tracking_pull
 
-        repo = server_repo
-        original_handle_push = handle_push
+        from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
 
-        def mock_merge_push(r, a, body):
-            result = original_handle_push(r, a, body)
+        async def mock_merge_push(repo_manager_arg, project_id_arg, auth_arg, body):
+            result = await submit_mut_push(repo_manager_arg, project_id_arg, auth_arg, body)
             result["merged"] = True
             return result
 
         with patch(
-            "src.mut_engine.services.ephemeral_client.handle_push",
+            "src.mut_engine.services.ephemeral_client.submit_mut_push",
             side_effect=mock_merge_push,
         ):
             client.push(modified={"b.txt": b"new"}, message="test merge")
@@ -634,12 +633,15 @@ class TestP2_5_ReadFileNavigates:
     def test_read_uses_navigation(self, memory_store):
         from src.mut_engine.services.tree_reader import MutTreeReader
         from src.mut_engine.server.repo_manager import MutRepoManager
+        from mut.foundation.git_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
-        blob_hash = memory_store.put(b"hello")
-        inner_tree = json.dumps({"file.md": ["B", blob_hash]}, sort_keys=True).encode()
-        inner_hash = memory_store.put(inner_tree)
-        root_tree = json.dumps({"docs": ["T", inner_hash]}, sort_keys=True).encode()
-        root_hash = memory_store.put(root_tree)
+        blob_hash = memory_store.put_blob(b"hello")
+        inner_hash = memory_store.put_tree(encode_tree([
+            TreeEntry(name="file.md", mode=MODE_FILE, sha1_hex=blob_hash),
+        ]))
+        root_hash = memory_store.put_tree(encode_tree([
+            TreeEntry(name="docs", mode=MODE_DIR, sha1_hex=inner_hash),
+        ]))
 
         mock_history = FakeHistoryManager()
         mock_history.set_root_hash(root_hash)
@@ -658,9 +660,9 @@ class TestP2_5_ReadFileNavigates:
     def test_read_nonexistent_returns_none(self, memory_store):
         from src.mut_engine.services.tree_reader import MutTreeReader
         from src.mut_engine.server.repo_manager import MutRepoManager
+        from mut.foundation.git_format import encode_tree
 
-        root_tree = json.dumps({}, sort_keys=True).encode()
-        root_hash = memory_store.put(root_tree)
+        root_hash = memory_store.put_tree(encode_tree([]))
 
         mock_history = FakeHistoryManager()
         mock_history.set_root_hash(root_hash)
@@ -800,7 +802,10 @@ class TestRollbackHookIntegration:
             "root": "new_scope_hash",
         }
 
-        with patch("mut.server.graft.graft_or_merge_subtree", return_value="new_global_root"):
+        with patch(
+            "src.mut_engine.services.hooks._build_root_from_scope_state",
+            return_value="new_global_root",
+        ):
             run_post_push_hook("proj-1", mock_rm, rollback_result)
 
         mock_repo.cas_update_root_hash.assert_called_once()
@@ -825,7 +830,10 @@ class TestRollbackHookIntegration:
             "root": "abc",
         }
 
-        with patch("mut.server.graft.graft_or_merge_subtree", return_value="new"):
+        with patch(
+            "src.mut_engine.services.hooks._build_root_from_scope_state",
+            return_value="new",
+        ):
             run_post_push_hook("proj-1", mock_rm, rollback_result)
 
         mock_repo.history.get_entry.assert_called_with("cafe000000000005")
@@ -949,8 +957,8 @@ class TestMutaiCompat:
         assert d.get("commit_id") == "cafe000000000001"
 
     def test_graft_or_merge_subtree_exists(self):
-        from mut.server.graft import graft_or_merge_subtree
-        assert callable(graft_or_merge_subtree)
+        from src.mut_engine.services.hooks import _graft_subtree
+        assert callable(_graft_subtree)
 
     def test_push_handler_module_has_cas(self):
         """The handlers module must reference cas_update_scope."""
@@ -975,8 +983,8 @@ class TestMutaiCompat:
         assert d.get("target_commit_id") == "cafe000000000001"
 
     def test_flatten_tree_exposed(self):
-        from mut.server.graft import _flatten_tree
-        assert callable(_flatten_tree)
+        from src.mut_engine.application.tree_objects import flatten_tree_to_bytes
+        assert callable(flatten_tree_to_bytes)
 
     def test_rollback_uses_cas_not_direct_set(self):
         """handle_rollback should use CAS via _rollback_cas_attempt."""

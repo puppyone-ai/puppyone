@@ -33,11 +33,11 @@ export const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  active: '#4ade80',
-  syncing: '#60a5fa',
-  error: '#ef4444',
-  paused: '#f59e0b',
-  pending: '#71717a',
+  active: 'var(--po-success)',
+  syncing: 'var(--po-accent)',
+  error: 'var(--po-danger)',
+  paused: 'var(--po-warning)',
+  pending: 'var(--po-text-subtle)',
 };
 
 export const STATUS_LABEL: Record<string, string> = {

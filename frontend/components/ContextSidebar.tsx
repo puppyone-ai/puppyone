@@ -25,7 +25,7 @@ export function ContextSidebar({
   onTableSelect,
   onBackToProjects,
   className,
-  sidebarWidth = 240,
+  sidebarWidth = MIN_SIDEBAR_WIDTH,
   onSidebarWidthChange,
 }: ContextSidebarProps) {
   const [isResizing, setIsResizing] = useState(false);
@@ -72,15 +72,15 @@ export function ContextSidebar({
   return (
     <aside
       className={clsx(
-        'relative flex h-full flex-col bg-[#111] border-r border-[#222] font-sans text-sm',
+        'relative flex h-full flex-col bg-[var(--po-sidebar)] border-r border-[var(--po-divider)] font-sans text-sm',
         className
       )}
       style={{ width: sidebarWidth }}
     >
       {/* Header / Breadcrumb-ish */}
-      <div className='flex h-[45px] items-center px-4 border-b border-[#222] bg-[#111] shrink-0'>
+      <div className='flex h-[45px] items-center px-4 border-b border-[var(--po-divider)] bg-[var(--po-sidebar)] shrink-0'>
         {isRoot ? (
-          <div className='flex items-center gap-2 font-medium text-[#eee]'>
+          <div className='flex items-center gap-2 font-medium text-[var(--po-text)]'>
             <svg
               width='16'
               height='16'
@@ -101,10 +101,10 @@ export function ContextSidebar({
         ) : (
           <button
             onClick={onBackToProjects}
-            className='flex items-center gap-2 font-medium text-[#eee] hover:text-white transition-colors truncate'
+            className='flex h-[30px] min-w-0 items-center gap-2 font-medium text-[var(--po-text)] hover:text-[var(--po-text)] transition-colors truncate'
             title='Back to Projects'
           >
-            <div className='p-1 rounded hover:bg-[#222] transition-colors'>
+            <div className='p-1 rounded hover:bg-[var(--po-hover)] transition-colors'>
               <svg
                 width='14'
                 height='14'
@@ -133,7 +133,7 @@ export function ContextSidebar({
                 key={p.id}
                 className={clsx(
                   'group flex h-8 w-full items-center gap-2.5 rounded-[6px] px-2 text-left transition-colors duration-150',
-                  'text-[#9b9b9b] hover:bg-[#222] hover:text-[#f0efed]'
+                  'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
                 )}
                 onClick={() => onBackToProjects?.()} // In real usage this would navigate to project
               >
@@ -155,7 +155,7 @@ export function ContextSidebar({
         ) : (
           // Project Context: List of Tables/Folders
           <div className='flex flex-col gap-[1px] px-2'>
-            <div className='px-2 py-1.5 text-[11px] font-semibold text-[#555] uppercase tracking-wider'>
+            <div className='px-2 py-1.5 text-[11px] font-semibold text-[var(--po-text-subtle)] uppercase tracking-wider'>
               Contexts
             </div>
             {project.nodes && project.nodes.length > 0 ? (
@@ -167,8 +167,8 @@ export function ContextSidebar({
                     className={clsx(
                       'group flex h-8 w-full items-center gap-2.5 rounded-[6px] px-2 text-left transition-colors duration-150',
                       isActive
-                        ? 'bg-[#222] text-[#34d399]'
-                        : 'text-[#9b9b9b] hover:bg-[#1a1a1a] hover:text-[#e0e0e0]'
+                        ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
+                        : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
                     )}
                     onClick={() => onTableSelect(String(table.id))}
                   >
@@ -193,14 +193,14 @@ export function ContextSidebar({
                 );
               })
             ) : (
-              <div className='px-2 py-2 text-[12px] text-[#444] italic'>
+              <div className='px-2 py-2 text-[12px] text-[var(--po-text-disabled)] italic'>
                 No contexts yet.
               </div>
             )}
 
             {/* Add Button */}
             <button
-              className='mt-2 flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left text-[#555] hover:text-[#888] hover:bg-[#1a1a1a] transition-colors'
+              className='mt-2 flex h-8 w-full items-center gap-2 rounded-[6px] px-2 text-left text-[var(--po-text-subtle)] hover:text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] transition-colors'
               onClick={() => {}} // Hook this up if needed
             >
               <svg
@@ -223,7 +223,7 @@ export function ContextSidebar({
       <div
         className={clsx(
           'absolute top-0 right-[-2px] z-10 h-full w-1 cursor-col-resize',
-          isResizing ? 'bg-white/10' : 'hover:bg-white/10'
+          isResizing ? 'bg-[var(--po-control-hover)]' : 'hover:bg-[var(--po-control-hover)]'
         )}
         onMouseDown={handleMouseDown}
       />

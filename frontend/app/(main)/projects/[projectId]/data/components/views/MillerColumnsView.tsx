@@ -2,10 +2,10 @@
 
 /**
  * Miller Columns View (分栏视图)
- * 
+ *
  * 当前状态：已隐藏，保留备用
  * 原因：与 ExplorerSidebar 功能重叠，暂时从 UI 中移除
- * 
+ *
  * 如需启用：
  * 1. 在 ProjectsHeader.tsx 的 ViewType 中添加 'column'
  * 2. 在 page.tsx 中添加 column 视图的渲染逻辑和切换按钮
@@ -151,7 +151,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
-      borderRight: '1px solid rgba(255,255,255,0.08)',
+      borderRight: '1px solid var(--po-divider)',
     }}>
       {/* Items */}
       <div style={{ flex: 1, overflow: 'auto', padding: '6px 0' }}>
@@ -213,28 +213,28 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                     cursor: 'pointer',
                     // 橙色系
                     background: hasAgentAccess
-                      ? isSelected 
-                        ? 'rgba(249, 115, 22, 0.15)' 
-                        : isHovered 
-                          ? 'rgba(249, 115, 22, 0.1)' 
-                          : 'rgba(249, 115, 22, 0.05)'
-                      : isSelected 
-                        ? 'rgba(255,255,255,0.08)' 
-                        : isHovered 
-                          ? 'rgba(255,255,255,0.04)' 
+                      ? isSelected
+                        ? 'color-mix(in srgb, var(--po-warning) 15%, transparent)'
+                        : isHovered
+                          ? 'color-mix(in srgb, var(--po-warning) 10%, transparent)'
+                          : 'color-mix(in srgb, var(--po-warning) 5%, transparent)'
+                      : isSelected
+                        ? 'var(--po-border)'
+                        : isHovered
+                          ? 'var(--po-hover)'
                           : 'transparent',
                     // 左边橙色边条
-                    borderLeft: hasAgentAccess 
-                      ? '2px solid rgba(249, 115, 22, 0.6)' 
+                    borderLeft: hasAgentAccess
+                      ? '2px solid color-mix(in srgb, var(--po-warning) 60%, transparent)'
                       : '2px solid transparent',
                     transition: 'background 0.1s',
                   }}
                 >
                   {/* Icon with Sync Badge */}
-                  <div style={{ 
-                    color: getIconColor(item.type), 
-                    flexShrink: 0, 
-                    display: 'flex', 
+                  <div style={{
+                    color: getIconColor(item.type),
+                    flexShrink: 0,
+                    display: 'flex',
                     alignItems: 'center',
                     position: 'relative',
                   }}>
@@ -245,7 +245,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                         position: 'absolute',
                         bottom: -3,
                         right: -5,
-                        background: '#18181b',
+                        background: 'var(--po-panel-raised)',
                         borderRadius: 4,
                         padding: 2,
                         display: 'flex',
@@ -261,7 +261,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                   <div style={{
                     flex: 1,
                     fontSize: 14,
-                    color: isSelected ? '#fff' : '#a1a1aa',
+                    color: isSelected ? 'var(--po-text)' : 'var(--po-text-muted)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -288,9 +288,9 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
 
                   {/* Read-only Lock Icon for synced items */}
                   {typeConfig.isReadOnly && (
-                    <div style={{ 
+                    <div style={{
                       flexShrink: 0,
-                      color: '#525252',
+                      color: 'var(--po-text-disabled)',
                       display: 'flex',
                       alignItems: 'center',
                     }}>
@@ -300,14 +300,14 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
 
                   {/* Agent Access Tag */}
                   {hasAgentAccess && (
-                    <div style={{ 
+                    <div style={{
                       flexShrink: 0,
                       padding: '1px 5px',
                       borderRadius: 3,
-                      background: agentResource?.readonly ? 'rgba(100, 100, 100, 0.25)' : 'rgba(249, 115, 22, 0.2)',
+                      background: agentResource?.readonly ? 'var(--po-control)' : 'color-mix(in srgb, var(--po-warning) 20%, transparent)',
                       fontSize: 10,
                       fontWeight: 500,
-                      color: agentResource?.readonly ? '#a1a1aa' : '#fb923c',
+                      color: agentResource?.readonly ? 'var(--po-text-muted)' : 'var(--po-warning)',
                     }}>
                       {agentResource?.readonly ? 'View' : 'Edit'}
                     </div>
@@ -315,7 +315,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
 
                   {/* Chevron for folders */}
                   {isFolder && (
-                    <div style={{ color: '#525252', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                    <div style={{ color: 'var(--po-text-disabled)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                       <ChevronRightIcon />
                     </div>
                   )}
@@ -341,19 +341,19 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
                   margin: '4px 4px 0 4px',
                   borderRadius: 4,
                   cursor: 'pointer',
-                  background: createHovered ? 'rgba(255,255,255,0.04)' : 'transparent',
-                  borderTop: items.length > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                  background: createHovered ? 'var(--po-hover)' : 'transparent',
+                  borderTop: items.length > 0 ? '1px solid var(--po-border-subtle)' : 'none',
                   paddingTop: items.length > 0 ? 4 : 0,
                   marginTop: items.length > 0 ? 4 : 0,
                   transition: 'background 0.1s',
                 }}
               >
-                <div style={{ color: '#525252', display: 'flex', alignItems: 'center' }}>
+                <div style={{ color: 'var(--po-text-disabled)', display: 'flex', alignItems: 'center' }}>
                   <PlusIcon />
                 </div>
                 <div style={{
                   fontSize: 14,
-                  color: createHovered ? '#a1a1aa' : '#525252',
+                  color: createHovered ? 'var(--po-text-muted)' : 'var(--po-text-disabled)',
                   transition: 'color 0.1s',
                 }}>
                   New...
@@ -365,7 +365,7 @@ function Column({ items, selectedId, onItemClick, onCreateClick, onRename, onDel
             {items.length === 0 && !onCreateClick && (
               <div style={{
                 padding: '6px 12px',
-                color: '#666',
+                color: 'var(--po-text-subtle)',
                 fontSize: 14,
               }}>
                 Empty
@@ -410,7 +410,7 @@ export function MillerColumnsView({
   const loadColumn = useCallback(async (parentId: string | null) => {
     const cacheKey = parentId ?? '__root__';
     if (columnCache[cacheKey] || loadingColumns.has(cacheKey)) return;
-    
+
     setLoadingColumns(prev => new Set(prev).add(cacheKey));
     try {
       const items = await onLoadChildren(parentId);
@@ -449,27 +449,27 @@ export function MillerColumnsView({
   // 构建列数据（从缓存 + currentItems）
   const columns = (() => {
     const result: { parentId: string | null; items: MillerColumnItem[]; selectedId?: string }[] = [];
-    
+
     // Root column
     result.push({
       parentId: null,
       items: columnCache['__root__'] || [],
       selectedId: currentPath[0]?.id,
     });
-    
+
     // 路径上的每个文件夹都产生一个子列
     for (let i = 0; i < currentPath.length; i++) {
       const folder = currentPath[i];
       const isLast = i === currentPath.length - 1;
       const nextFolder = currentPath[i + 1];
-      
+
       result.push({
         parentId: folder.id,
         items: isLast ? currentItems : (columnCache[folder.id] || []),
         selectedId: nextFolder?.id,
       });
     }
-    
+
     return result;
   })();
 
@@ -484,7 +484,7 @@ export function MillerColumnsView({
     return (
       <div style={{
         height: '100%',
-        border: '1px solid rgba(255,255,255,0.08)',
+        border: '1px solid var(--po-border)',
         borderRadius: 6,
         margin: 8,
         marginTop: 0,
@@ -501,7 +501,7 @@ export function MillerColumnsView({
         display: 'flex',
         height: '100%',
         overflow: 'auto',
-        border: '1px solid rgba(255,255,255,0.08)',
+        border: '1px solid var(--po-border)',
         borderRadius: 6,
         margin: 8,
         marginTop: 0,
@@ -528,12 +528,10 @@ export function MillerColumnsView({
       ))}
 
       {columns.length === 1 && columns[0].items.length === 0 && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: 13 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--po-text-subtle)', fontSize: 13 }}>
           No items yet
         </div>
       )}
     </div>
   );
 }
-
-

@@ -1,45 +1,41 @@
 'use client';
 
-import { use, useState, useEffect, useCallback } from 'react';
+import { use, useState, useEffect, useMemo } from 'react';
 import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { useProjects, refreshProjects } from '@/lib/hooks/useData';
+import useSWR from 'swr';
+import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
+import { useProject, useProjects, refreshProjects } from '@/lib/hooks/useData';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { ProjectManageDialog } from '@/components/ProjectManageDialog';
+import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   getProjectMembers,
   addProjectMember,
   updateProjectMemberRole,
   removeProjectMember,
+  updateProject,
   updateProjectVisibility,
   type ProjectMember,
 } from '@/lib/projectsApi';
-import { PageLoading } from '@/components/loading';
+import { useTranslations } from 'next-intl';
+import { ProjectPageLoadingShell, SkeletonBlock } from '@/components/loading';
 
-interface SettingsPageProps {
-  params: Promise<{ projectId: string }>;
-}
-
-// Local design tokens. Mirrors the `T` object in the Access page
-// (`projects/[id]/access/lib/tokens.ts`) so this surface reads as the
-// same family — same border alpha, same text scale, same Geist Sans
-// font stack. The earlier copy used `Plus Jakarta Sans` + hardcoded
-// neutrals (#0a0a0a / #27272a / #1f1f23), which is why the page
-// felt visually out of step with the rest of /(main).
 const T = {
-  bg: '#0e0e0e',
-  border: 'rgba(255,255,255,0.08)',
-  cardBg: 'rgba(255,255,255,0.02)',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  text1: '#fafafa',
-  text2: '#a1a1aa',
-  text3: '#52525b',
-  text4: '#27272a',
+  bg: 'var(--po-canvas)',
+  border: 'var(--po-border)',
+  cardBg: 'var(--po-panel)',
+  cardBorder: 'var(--po-border-subtle)',
+  text1: 'var(--po-text)',
+  text2: 'var(--po-text-muted)',
+  text3: 'var(--po-text-disabled)',
+  text4: 'var(--po-filetree-rail)',
   fontSans:
-    'var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif',
+    'var(--po-font-sans)',
   fontMono:
-    'var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace',
+    'var(--po-font-mono)',
   ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
 } as const;
 
@@ -47,9 +43,9 @@ const T = {
 // permission signals, not chrome, so they need to register at a glance
 // against the neutral page background.
 const ROLE_COLORS: Record<string, string> = {
-  admin: '#f59e0b',
-  editor: '#3b82f6',
-  viewer: '#6b7280',
+  admin: 'var(--po-warning)',
+  editor: 'var(--po-accent)',
+  viewer: 'var(--po-text-subtle)',
 };
 
 // SVG Icons for better UI
@@ -83,56 +79,143 @@ const EditIcon = () => (
   </svg>
 );
 
-// Close glyph for the feedback toast. The previous version reused
-// `TrashIcon` as the dismiss control — semantically wrong (trash =
-// "delete the underlying record", not "close this banner") and read
-// as if dismissing the toast would also undo the action it was
-// reporting on.
-const CloseIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18" />
-    <line x1="6" y1="6" x2="18" y2="18" />
-  </svg>
-);
+function memberDisplayName(member: { display_name?: string | null; email?: string | null }) {
+  return member.display_name || member.email || 'Unknown member';
+}
+
+interface SettingsPageProps {
+  params: Promise<{ projectId: string }>;
+}
+
+function ProjectMembersSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 2 }).map((_, index) => (
+        <div
+          key={index}
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '10px 12px',
+            borderRadius: 7,
+            background: 'var(--po-control)',
+            border: `1px solid ${T.cardBorder}`,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <SkeletonBlock width={28} height={28} radius={999} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+              <SkeletonBlock width={132} height={10} radius={3} />
+              <SkeletonBlock width={176} height={9} radius={3} />
+            </div>
+          </div>
+          <SkeletonBlock width={70} height={10} radius={3} />
+        </div>
+      ))}
+    </>
+  );
+}
 
 export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   const { projectId } = use(params);
   const router = useRouter();
-  const { currentOrg, members: orgMembers, myRole: orgRole } = useOrganization();
+  const { session, isAuthReady } = useAuth();
+  const {
+    currentOrg,
+    members: orgMembers,
+    myRole: orgRole,
+    isMembersLoading: orgMembersLoading,
+  } = useOrganization();
 
-  const { projects, isLoading } = useProjects(currentOrg?.id);
-  const currentProject = projects.find(p => p.id === projectId);
+  const { project: routeProject, isLoading: routeProjectLoading } = useProject(session ? projectId : null);
+  const { projects, isLoading } = useProjects(currentOrg?.id ?? null);
+  const currentProject = projects.find(p => p.id === projectId) ?? routeProject;
+  const scopedProjects = useMemo(() => {
+    const projectsForCurrentRoute =
+      routeProject?.org_id && currentOrg?.id !== routeProject.org_id ? [] : projects;
+    if (!routeProject || projectsForCurrentRoute.some(p => p.id === routeProject.id)) {
+      return projectsForCurrentRoute;
+    }
+    return [routeProject, ...projectsForCurrentRoute];
+  }, [currentOrg?.id, projects, routeProject]);
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const {
+    data: projectMembers = [],
+    isLoading: projectMembersLoading,
+    mutate: mutateProjectMembers,
+  } =
+    useSWR<ProjectMember[]>(
+      session ? ['project-members', projectId] : null,
+      async () => {
+        try {
+          return await getProjectMembers(projectId);
+        } catch {
+          // project_members table might not exist yet
+          return [];
+        }
+      },
+      { revalidateOnFocus: false },
+    );
   const [visibility, setVisibility] = useState<'org' | 'private'>('org');
+
+  // Inline editor state for ``bound_git_branch``. Mirrors what the
+  // backend has when no edit is in flight; the input only commits on
+  // explicit save so a stray keystroke can't mutate the project.
+  const tProjSettings = useTranslations('projectSettings');
+  const [boundBranchInput, setBoundBranchInput] = useState('');
+  const [boundBranchEditing, setBoundBranchEditing] = useState(false);
+  const [boundBranchSaving, setBoundBranchSaving] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [addRole, setAddRole] = useState<'editor' | 'viewer'>('editor');
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
+  const [memberRemoval, setMemberRemoval] = useState<{ userId: string; name: string } | null>(null);
+  const [memberRemovalLoading, setMemberRemovalLoading] = useState(false);
 
   const isOrgOwner = orgRole === 'owner';
-
-  const loadMembers = useCallback(async () => {
-    try {
-      const data = await getProjectMembers(projectId);
-      setProjectMembers(data);
-    } catch {
-      // project_members table might not exist yet
-    }
-  }, [projectId]);
-
-  useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
 
   useEffect(() => {
     if (currentProject?.visibility) {
       setVisibility(currentProject.visibility as 'org' | 'private');
     }
   }, [currentProject?.visibility]);
+
+  useEffect(() => {
+    // Don't trample an in-flight edit if the projects list refetches
+    // while the user is mid-keystroke.
+    if (!boundBranchEditing) {
+      setBoundBranchInput(currentProject?.bound_git_branch || 'main');
+    }
+  }, [currentProject?.bound_git_branch, boundBranchEditing]);
+
+  const handleBoundBranchSave = async () => {
+    const next = boundBranchInput.trim();
+    if (!next) {
+      setFeedback({ type: 'error', msg: 'Branch cannot be empty' });
+      return;
+    }
+    if (next === (currentProject?.bound_git_branch || 'main')) {
+      setBoundBranchEditing(false);
+      return;
+    }
+    setBoundBranchSaving(true);
+    try {
+      await updateProject(projectId, { bound_git_branch: next });
+      await refreshProjects();
+      setBoundBranchEditing(false);
+      setFeedback({ type: 'success', msg: 'Default branch updated.' });
+      setTimeout(() => setFeedback(null), 2500);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update branch';
+      setFeedback({ type: 'error', msg });
+    } finally {
+      setBoundBranchSaving(false);
+    }
+  };
 
   const handleVisibilityChange = async (newVis: 'org' | 'private') => {
     try {
@@ -151,7 +234,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
       await addProjectMember(projectId, selectedUserId, addRole);
       setShowAddMember(false);
       setSelectedUserId('');
-      await loadMembers();
+      await mutateProjectMembers();
       setFeedback({ type: 'success', msg: 'Member added successfully.' });
       setTimeout(() => setFeedback(null), 3000);
     } catch (err: any) {
@@ -162,19 +245,23 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
       await updateProjectMemberRole(projectId, userId, newRole);
-      await loadMembers();
+      await mutateProjectMembers();
     } catch (err: any) {
       setFeedback({ type: 'error', msg: err.message || 'Failed to update role' });
     }
   };
 
-  const handleRemove = async (userId: string, name: string) => {
-    if (!confirm(`Remove ${name} from this project?`)) return;
+  const handleConfirmRemoveMember = async () => {
+    if (!memberRemoval) return;
+    setMemberRemovalLoading(true);
     try {
-      await removeProjectMember(projectId, userId);
-      await loadMembers();
+      await removeProjectMember(projectId, memberRemoval.userId);
+      await mutateProjectMembers();
     } catch (err: any) {
       setFeedback({ type: 'error', msg: err.message || 'Failed to remove member' });
+    } finally {
+      setMemberRemovalLoading(false);
+      setMemberRemoval(null);
     }
   };
 
@@ -191,15 +278,10 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   //
   // Old code returned `null` in case (2), which produced the "blank
   // screen for a beat, then content snaps in" feel users described as
-  // "settings just freezes". Showing the same PageLoading for both
-  // cases keeps the perceived loading state continuous from the
-  // moment the user clicks the route until real content paints.
-  if (isLoading || !currentProject) {
-    return (
-      <div style={{ flex: 1, height: '100%' }}>
-        <PageLoading variant="fill" />
-      </div>
-    );
+  // "settings just freezes". Keep the final 46px header band mounted
+  // during loading so the loader doesn't jump when content paints.
+  if (!isAuthReady || isLoading || routeProjectLoading || !currentProject) {
+    return <ProjectPageLoadingShell title="Settings" />;
   }
 
   return (
@@ -233,7 +315,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
           flexShrink: 0,
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>
+        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>
           Settings
         </span>
       </div>
@@ -261,34 +343,20 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                 fontFamily: T.fontSans,
                 background:
                   feedback.type === 'error'
-                    ? 'rgba(239,68,68,0.07)'
-                    : 'rgba(34,197,94,0.07)',
-                border: `1px solid ${feedback.type === 'error' ? 'rgba(239,68,68,0.22)' : 'rgba(34,197,94,0.22)'}`,
-                color: feedback.type === 'error' ? '#fca5a5' : '#86efac',
+                    ? 'color-mix(in srgb, var(--po-danger) 8%, transparent)'
+                    : 'color-mix(in srgb, var(--po-success) 8%, transparent)',
+                border: `1px solid ${feedback.type === 'error' ? 'color-mix(in srgb, var(--po-danger) 24%, transparent)' : 'color-mix(in srgb, var(--po-success) 24%, transparent)'}`,
+                color: feedback.type === 'error' ? 'var(--po-danger)' : 'var(--po-success)',
                 animation: 'dialog-fade-in 0.2s ease-out',
               }}
             >
               {feedback.msg}
-              <button
+              <ActivityIconButton
+                kind="close"
+                title="Dismiss"
+                size="sm"
                 onClick={() => setFeedback(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'inherit',
-                  cursor: 'pointer',
-                  opacity: 0.75,
-                  display: 'flex',
-                  padding: 4,
-                  marginRight: -4,
-                  borderRadius: 4,
-                  transition: `opacity 0.12s ${T.ease}`,
-                }}
-                onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-                onMouseLeave={e => (e.currentTarget.style.opacity = '0.75')}
-                aria-label="Dismiss"
-              >
-                <CloseIcon />
-              </button>
+              />
             </div>
           )}
 
@@ -313,6 +381,88 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                   </button>
                 </div>
               </div>
+              <div style={{ ...row, borderBottom: `1px solid ${T.cardBorder}` }}>
+                <div>
+                  <label style={labelStyle}>{tProjSettings('boundGitBranch')}</label>
+                  <div style={descStyle}>{tProjSettings('boundGitBranchHint')}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {boundBranchEditing ? (
+                    <>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={boundBranchInput}
+                        onChange={(e) => setBoundBranchInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') void handleBoundBranchSave();
+                          if (e.key === 'Escape') {
+                            setBoundBranchEditing(false);
+                            setBoundBranchInput(currentProject.bound_git_branch || 'main');
+                          }
+                        }}
+                        disabled={boundBranchSaving}
+                        style={{
+                          background: 'var(--po-control)',
+                          border: `1px solid ${T.cardBorder}`,
+                          borderRadius: 5,
+                          color: T.text1,
+                          fontFamily: T.fontMono,
+                          fontSize: 12,
+                          padding: '5px 9px',
+                          width: 180,
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        onClick={() => void handleBoundBranchSave()}
+                        disabled={boundBranchSaving}
+                        onMouseEnter={onGhostEnter}
+                        onMouseLeave={onGhostLeave}
+                        style={btnGhost}
+                      >
+                        {boundBranchSaving ? '…' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setBoundBranchEditing(false);
+                          setBoundBranchInput(currentProject.bound_git_branch || 'main');
+                        }}
+                        disabled={boundBranchSaving}
+                        onMouseEnter={onGhostEnter}
+                        onMouseLeave={onGhostLeave}
+                        style={btnGhost}
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <code
+                        style={{
+                          fontSize: 12,
+                          color: T.text1,
+                          background: 'var(--po-control)',
+                          padding: '5px 9px',
+                          borderRadius: 5,
+                          border: `1px solid ${T.cardBorder}`,
+                          fontFamily: T.fontMono,
+                        }}
+                      >
+                        {currentProject.bound_git_branch || 'main'}
+                      </code>
+                      <button
+                        onClick={() => setBoundBranchEditing(true)}
+                        onMouseEnter={onGhostEnter}
+                        onMouseLeave={onGhostLeave}
+                        style={btnGhost}
+                      >
+                        <EditIcon /> Edit
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
               <div style={row}>
                 <div>
                   <label style={labelStyle}>Project ID</label>
@@ -323,7 +473,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     style={{
                       fontSize: 11,
                       color: T.text2,
-                      background: 'rgba(0,0,0,0.28)',
+                      background: 'var(--po-control)',
                       padding: '5px 9px',
                       borderRadius: 5,
                       border: `1px solid ${T.cardBorder}`,
@@ -356,7 +506,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
               <div style={cardBox}>
 
                 {/* Visibility — segmented control. The earlier pill
-                    (background `#121214` over `#27272a`) read as a
+                    (a dark literal over `var(--po-filetree-rail)`) read as a
                     second card embedded inside the section card,
                     competing with the surface itself. The flatter
                     treatment below — translucent track + translucent
@@ -373,7 +523,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                   <div
                     style={{
                       display: 'flex',
-                      background: 'rgba(255,255,255,0.03)',
+                      background: 'var(--po-hover)',
                       border: `1px solid ${T.cardBorder}`,
                       borderRadius: 7,
                       padding: 3,
@@ -382,10 +532,11 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     <button
                       onClick={() => handleVisibilityChange('org')}
                       style={{
-                        padding: '4px 14px',
+                        height: 30,
+                        padding: '0 14px',
                         background:
                           visibility === 'org'
-                            ? 'rgba(255,255,255,0.08)'
+                            ? 'var(--po-border)'
                             : 'transparent',
                         color: visibility === 'org' ? T.text1 : T.text2,
                         border: 'none',
@@ -402,10 +553,11 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     <button
                       onClick={() => handleVisibilityChange('private')}
                       style={{
-                        padding: '4px 14px',
+                        height: 30,
+                        padding: '0 14px',
                         background:
                           visibility === 'private'
-                            ? 'rgba(255,255,255,0.08)'
+                            ? 'var(--po-border)'
                             : 'transparent',
                         color: visibility === 'private' ? T.text1 : T.text2,
                         border: 'none',
@@ -433,7 +585,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                         </div>
                       )}
                     </div>
-                    {!showAddMember && availableOrgMembers.length > 0 && (
+                    {!showAddMember && !orgMembersLoading && availableOrgMembers.length > 0 && (
                       <button
                         onClick={() => setShowAddMember(true)}
                         onMouseEnter={onPrimaryEnter}
@@ -456,7 +608,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                         gap: 8,
                         marginBottom: 16,
                         padding: 12,
-                        background: 'rgba(0,0,0,0.2)',
+                        background: 'var(--po-control)',
                         borderRadius: 7,
                         border: `1px solid ${T.cardBorder}`,
                         animation: 'dialog-fade-in 0.15s ease-out',
@@ -467,10 +619,12 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                         onChange={e => setSelectedUserId(e.target.value)}
                         style={selectStyle}
                       >
-                        <option value="" disabled>Select an organization member...</option>
+                        <option value="" disabled>
+                          {orgMembersLoading ? 'Loading members...' : 'Select an organization member...'}
+                        </option>
                         {availableOrgMembers.map(m => (
                           <option key={m.user_id} value={m.user_id}>
-                            {m.display_name || m.email || m.user_id.slice(0, 8)}
+                            {memberDisplayName(m)}
                           </option>
                         ))}
                       </select>
@@ -507,7 +661,9 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 
                   {/* Members list */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {projectMembers.length === 0 && !showAddMember && (
+                    {projectMembersLoading && projectMembers.length === 0 ? (
+                      <ProjectMembersSkeleton />
+                    ) : projectMembers.length === 0 && !showAddMember && (
                       <div
                         style={{
                           fontSize: 12,
@@ -522,7 +678,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                       </div>
                     )}
                     {projectMembers.map(m => {
-                      const name = m.display_name || m.email || m.user_id.slice(0, 8);
+                      const name = memberDisplayName(m);
                       const initial = (name[0] || '?').toUpperCase();
                       return (
                         <div
@@ -533,7 +689,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                             alignItems: 'center',
                             padding: '10px 12px',
                             borderRadius: 7,
-                            background: 'rgba(255,255,255,0.015)',
+                            background: 'var(--po-control)',
                             border: `1px solid ${T.cardBorder}`,
                           }}
                         >
@@ -546,7 +702,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                                   width: 28,
                                   height: 28,
                                   borderRadius: '50%',
-                                  background: 'rgba(255,255,255,0.06)',
+                                  background: 'var(--po-border-subtle)',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -559,7 +715,7 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                               </div>
                             )}
                             <div>
-                              <div style={{ fontSize: 13, fontWeight: 500, color: '#e4e4e7' }}>{name}</div>
+                              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>{name}</div>
                               {m.email && m.display_name && (
                                 <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>{m.email}</div>
                               )}
@@ -573,10 +729,10 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                                 style={{
                                   ...selectStyle,
                                   padding: '4px 22px 4px 8px',
-                                  height: 26,
+                                  height: 30,
                                   fontSize: 11.5,
                                   fontWeight: 500,
-                                  color: ROLE_COLORS[m.role] || '#e4e4e7',
+                                  color: ROLE_COLORS[m.role] || 'var(--po-text)',
                                   background: 'transparent',
                                   borderColor: 'transparent',
                                   cursor: 'pointer',
@@ -594,10 +750,10 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                             </div>
                             <div style={{ width: 1, height: 14, background: T.cardBorder }}></div>
                             <button
-                              onClick={() => handleRemove(m.user_id, name)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.text3, padding: 4, display: 'flex', alignItems: 'center', transition: `color 0.15s ${T.ease}` }}
+                              onClick={() => setMemberRemoval({ userId: m.user_id, name })}
+                              style={{ width: 30, height: 30, background: 'none', border: 'none', cursor: 'pointer', color: T.text3, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: `color 0.15s ${T.ease}` }}
                               title="Remove member"
-                              onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
+                              onMouseEnter={e => (e.currentTarget.style.color = 'var(--po-danger)')}
                               onMouseLeave={e => (e.currentTarget.style.color = T.text3)}
                             >
                               <TrashIcon />
@@ -618,18 +774,18 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
               the "do not enter" zone. The button itself is the
               loudest element in the section, not the card chrome. */}
           <div>
-            <h2 style={{ ...sectionTitle, color: '#fca5a5' }}>Danger Zone</h2>
+            <h2 style={{ ...sectionTitle, color: 'var(--po-danger)' }}>Danger Zone</h2>
             <div
               style={{
-                border: '1px solid rgba(239, 68, 68, 0.18)',
+                border: '1px solid color-mix(in srgb, var(--po-danger) 20%, transparent)',
                 borderRadius: 8,
                 overflow: 'hidden',
-                background: 'rgba(239, 68, 68, 0.025)',
+                background: 'color-mix(in srgb, var(--po-danger) 5%, transparent)',
               }}
             >
               <div style={row}>
                 <div>
-                  <label style={{ ...labelStyle, color: '#fca5a5' }}>Delete Project</label>
+                  <label style={{ ...labelStyle, color: 'var(--po-danger)' }}>Delete Project</label>
                   <div style={descStyle}>Permanently remove this project and all its data.</div>
                 </div>
                 <button
@@ -639,12 +795,12 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 6,
-                    height: 26,
+                    height: 30,
                     padding: '0 12px',
-                    background: 'rgba(239,68,68,0.12)',
-                    border: '1px solid rgba(239,68,68,0.32)',
+                    background: 'color-mix(in srgb, var(--po-danger) 14%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--po-danger) 34%, transparent)',
                     borderRadius: 6,
-                    color: '#fca5a5',
+                    color: 'var(--po-danger)',
                     fontSize: 12,
                     fontWeight: 500,
                     fontFamily: T.fontSans,
@@ -652,14 +808,14 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     transition: `background 0.15s ${T.ease}, color 0.15s ${T.ease}, border-color 0.15s ${T.ease}`,
                   }}
                   onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(239,68,68,0.2)';
-                    e.currentTarget.style.borderColor = 'rgba(239,68,68,0.45)';
-                    e.currentTarget.style.color = '#fff';
+                    e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 20%, transparent)';
+                    e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-danger) 45%, transparent)';
+                    e.currentTarget.style.color = 'var(--po-danger)';
                   }}
                   onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(239,68,68,0.12)';
-                    e.currentTarget.style.borderColor = 'rgba(239,68,68,0.32)';
-                    e.currentTarget.style.color = '#fca5a5';
+                    e.currentTarget.style.background = 'color-mix(in srgb, var(--po-danger) 12%, transparent)';
+                    e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--po-danger) 32%, transparent)';
+                    e.currentTarget.style.color = 'var(--po-danger)';
                   }}
                 >
                   Delete Project
@@ -672,11 +828,28 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
       </div>
 
       {editDialogOpen && (
-        <ProjectManageDialog mode="edit" projectId={currentProject.id} projects={projects} onClose={() => { setEditDialogOpen(false); refreshProjects(currentOrg?.id); }} />
+        <ProjectManageDialog mode="edit" projectId={currentProject.id} projects={scopedProjects} onClose={() => { setEditDialogOpen(false); refreshProjects(currentOrg?.id ?? null); }} />
       )}
       {deleteDialogOpen && (
-        <ProjectManageDialog mode="delete" projectId={currentProject.id} projects={projects} onClose={() => { setDeleteDialogOpen(false); router.push('/home'); }} />
+        <ProjectManageDialog
+          mode="delete"
+          projectId={currentProject.id}
+          projects={scopedProjects}
+          onClose={() => setDeleteDialogOpen(false)}
+          onDeleted={() => router.push('/home')}
+        />
       )}
+      <ConfirmDialog
+        open={memberRemoval !== null}
+        title={memberRemoval ? `Remove ${memberRemoval.name}?` : 'Remove member?'}
+        description="This removes the member from this project. They may still have access through the organization if the project is organization-visible."
+        confirmLabel="Remove"
+        loading={memberRemovalLoading}
+        onCancel={() => {
+          if (!memberRemovalLoading) setMemberRemoval(null);
+        }}
+        onConfirm={() => void handleConfirmRemoveMember()}
+      />
       <style jsx>{`
         @keyframes dialog-fade-in {
           from { opacity: 0; transform: translateY(-4px); }
@@ -691,10 +864,10 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 //
 // All of these derive from `T` so the page reads as the same family
 // as Access / Monitor / History. The earlier set hardcoded neutrals
-// at low alpha (`#0a0a0a`, `#1f1f23`, `#27272a`) and a 4px box-shadow
+// at low alpha (`var(--po-inset)`, `var(--po-overlay)`, `var(--po-filetree-rail)`) and a 4px box-shadow
 // on every card, which gave the page a "settings-form 2018" feel
 // against the rest of the chrome. The replacements use translucent
-// borders + a subtle `rgba(255,255,255,0.02)` lift instead.
+// borders + a subtle `var(--po-panel)` lift instead.
 //
 // Section title is 10.5px / 600 / `T.text3` / uppercase 0.08em — the
 // exact spec used by `SectionLabel` on the Access page, so the two
@@ -730,7 +903,7 @@ const labelStyle: CSSProperties = {
   display: 'block',
   fontSize: 13,
   fontWeight: 500,
-  color: '#e4e4e7',
+  color: 'var(--po-text)',
   marginBottom: 4,
   fontFamily: T.fontSans,
 };
@@ -743,14 +916,14 @@ const descStyle: CSSProperties = {
 };
 
 // Ghost button — pulled directly from the Access page's `GhostButton`
-// shape (26px tall, 12px text, transparent → 0.05-alpha hover). One
+// shape (30px tall, 12px text, transparent → 0.05-alpha hover). One
 // neutral button across the whole project surface.
 const btnGhost: CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
   gap: 6,
-  height: 26,
+  height: 30,
   padding: '0 10px',
   background: 'transparent',
   border: `1px solid ${T.border}`,
@@ -770,18 +943,18 @@ const btnGhost: CSSProperties = {
 // which felt out of step with the muted surface.
 const btnPrimary: CSSProperties = {
   ...btnGhost,
-  background: 'rgba(255,255,255,0.06)',
-  borderColor: 'rgba(255,255,255,0.10)',
+  background: 'var(--po-border-subtle)',
+  borderColor: 'var(--po-border-strong)',
   color: T.text1,
 };
 
 const selectStyle: CSSProperties = {
   flex: 1,
-  background: 'rgba(255,255,255,0.02)',
+  background: 'var(--po-panel)',
   border: `1px solid ${T.cardBorder}`,
   borderRadius: 6,
   padding: '6px 10px',
-  color: '#e4e4e7',
+  color: 'var(--po-text)',
   fontSize: 12,
   fontFamily: T.fontSans,
   outline: 'none',
@@ -793,8 +966,8 @@ const selectStyle: CSSProperties = {
 // handlers on the consuming JSX. Defined once here so each call site
 // picks the same hover ramp.
 function onGhostEnter(e: React.MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)';
+  e.currentTarget.style.background = 'var(--po-hover)';
+  e.currentTarget.style.borderColor = 'var(--po-border-strong)';
   e.currentTarget.style.color = T.text1;
 }
 function onGhostLeave(e: React.MouseEvent<HTMLButtonElement>) {
@@ -804,11 +977,10 @@ function onGhostLeave(e: React.MouseEvent<HTMLButtonElement>) {
 }
 
 function onPrimaryEnter(e: React.MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.background = 'rgba(255,255,255,0.10)';
-  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)';
+  e.currentTarget.style.background = 'var(--po-border-strong)';
+  e.currentTarget.style.borderColor = 'var(--po-border-strong)';
 }
 function onPrimaryLeave(e: React.MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.10)';
+  e.currentTarget.style.background = 'var(--po-border-subtle)';
+  e.currentTarget.style.borderColor = 'var(--po-border-strong)';
 }
-

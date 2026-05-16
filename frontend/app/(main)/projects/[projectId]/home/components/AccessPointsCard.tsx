@@ -115,7 +115,7 @@ export function AccessPointsCard({
               height: 18,
               padding: '0 6px',
               borderRadius: 9,
-              background: 'rgba(255,255,255,0.08)',
+              background: 'var(--po-border)',
               fontSize: 11,
               fontWeight: 600,
               // Dimmed from text1 → text2 (chip number was glaring
@@ -135,6 +135,7 @@ export function AccessPointsCard({
             background: 'none',
             border: 'none',
             cursor: 'pointer',
+            height: 30,
             padding: 0,
             fontSize: 12,
             color: T.text2,
@@ -241,7 +242,7 @@ export function AccessPointsCard({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    background: 'rgba(255,255,255,0.04)',
+                    background: 'var(--po-hover)',
                     flexShrink: 0,
                   }}
                 >

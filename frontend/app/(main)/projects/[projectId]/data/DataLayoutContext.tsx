@@ -36,6 +36,7 @@ export interface DataLayoutContextValue {
   connectorsByScope: Map<string, Connector[]>;
   /** Repo identity (URL + prompt_template + per-scope keys) — fetched once per project. */
   repoIdentity: RepoIdentity | undefined;
+  repoIdentityLoading: boolean;
   mutateRepo: () => Promise<unknown>;
 }
 

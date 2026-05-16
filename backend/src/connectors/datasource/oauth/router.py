@@ -196,12 +196,14 @@ def _register_oauth_provider(
                         connected=connection is not None,
                         workspace_name=connection.workspace_name if connection else None,
                         connected_at=connection.created_at if connection else None,
+                        connection_id=connection.id if connection else None,
                     ),
                     message=f"{name} access status retrieved",
                 )
             return ApiResponse.success(
                 data=OAuthStatusResponse(
                     connected=False, workspace_name=None, connected_at=None,
+                    connection_id=None,
                 ),
                 message=f"{name} access status retrieved",
             )

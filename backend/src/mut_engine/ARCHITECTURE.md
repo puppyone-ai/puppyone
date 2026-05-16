@@ -1,8 +1,15 @@
 # MUT Engine — 实现参考
 
+> Status: legacy implementation reference. The authoritative Git-native
+> version architecture is now
+> [`docs/architecture/01-version-engine.md`](../../../docs/architecture/01-version-engine.md).
+> Any references below to `handle_push` / `handle_rollback` as write authority
+> describe the pre-migration shape; current push/rollback writes must enter
+> `GitNativeTransactionEngine` through Git/MUT/Product adapters.
+
 > 本文档面向日常维护 `mut_engine` 的开发者，描述代码结构、路由表和请求数据流。
 >
-> 设计决策和架构哲学见 [`docs/architecture/01-mut-engine.md`](../../../docs/architecture/01-mut-engine.md)
+> 设计决策和架构哲学见 [`docs/architecture/01-version-engine.md`](../../../docs/architecture/01-version-engine.md)
 
 ---
 

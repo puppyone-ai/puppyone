@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { getNodeTypeConfig, getSyncSource, getSyncSourceIcon, isSyncedType, isFolderType } from '@/lib/nodeTypeConfig';
 import { useContentNodes } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
@@ -15,11 +15,29 @@ import { ensureExpanded, toggleExpanded, useIsExpanded } from './explorerState';
 import { ExplorerRowActions } from './ExplorerRowActions';
 import type { ExplorerSidebarProps, MillerColumnItem } from './types';
 import { Dots } from '@/components/loading';
+import { FileGlyphIcon } from '@/lib/fileIcons';
+import { SIDEBAR_META_TYPOGRAPHY, SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 
-const FILE_DROP_TARGET_BG = 'rgba(255, 255, 255, 0.11)';
-const FILE_DROP_SCOPE_BG = 'rgba(255, 255, 255, 0.04)';
-const FILE_DROP_TARGET_BORDER = 'rgba(255, 255, 255, 0.24)';
-const FILE_DROP_SCOPE_BORDER = 'rgba(255, 255, 255, 0.12)';
+const FILE_DROP_TARGET_BG = 'var(--po-selected)';
+const FILE_DROP_SCOPE_BG = 'var(--po-hover)';
+const FILE_DROP_TARGET_BORDER = 'color-mix(in srgb, var(--po-text) 24%, transparent)';
+const FILE_DROP_SCOPE_BORDER = 'var(--po-border-strong)';
+
+// Row geometry is intentionally shared with the other secondary
+// sidebars. Lines are a visual overlay only; do not solve line gaps by
+// changing the row height, font size, or padding.
+export const EXPLORER_TREE_ROW_HEIGHT = 30;
+export const EXPLORER_TREE_ROW_GAP = 2;
+export const EXPLORER_TREE_INDENT = 16;
+export const EXPLORER_TREE_ROW_MARGIN_X = 6;
+export const EXPLORER_TREE_CONTENT_INSET = 8;
+const EXPLORER_TREE_ROW_MARGIN_Y = EXPLORER_TREE_ROW_GAP / 2;
+const EXPLORER_TREE_LINE_OVERDRAW = 2;
+const EXPLORER_TREE_LINE_HEIGHT =
+  EXPLORER_TREE_ROW_HEIGHT + EXPLORER_TREE_LINE_OVERDRAW * 2;
+const EXPLORER_TREE_HOOK_Y =
+  EXPLORER_TREE_LINE_OVERDRAW + EXPLORER_TREE_ROW_HEIGHT / 2;
+const EXPLORER_TREE_META_OFFSET = 14;
 
 function hasExternalFiles(event: ReactDragEvent): boolean {
   return Array.from(event.dataTransfer.types).includes('Files');
@@ -38,50 +56,264 @@ export const FolderIcon = ({ expanded }: { expanded?: boolean }) => {
   if (expanded) {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-        <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#60a5fa" fillOpacity="0.25" />
-        <path d="M 9.5 10 L 23 10 Q 24 10 23.5 11 L 19.5 19 Q 19 20 18 20 L 4.5 20 Q 3.5 20 4 19 L 8 11 Q 8.5 10 9.5 10 Z" fill="#60a5fa" fillOpacity="0.55" />
+        <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="var(--po-accent)" fillOpacity="0.25" />
+        <path d="M 9.5 10 L 23 10 Q 24 10 23.5 11 L 19.5 19 Q 19 20 18 20 L 4.5 20 Q 3.5 20 4 19 L 8 11 Q 8.5 10 9.5 10 Z" fill="var(--po-accent)" fillOpacity="0.55" />
       </svg>
     );
   }
 
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-      <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="#60a5fa" fillOpacity="0.45" />
+      <path d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z" fill="var(--po-accent)" fillOpacity="0.45" />
     </svg>
   );
 };
 
-const JsonIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M10 12l-2 2 2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 12l2 2-2 2" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+type SidebarFileKind =
+  | 'json'
+  | 'markdown'
+  | 'html'
+  | 'pdf'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'spreadsheet'
+  | 'archive'
+  | 'code'
+  | 'text'
+  | 'file';
 
-const MarkdownIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M8 16v-4l2.5 2.5L13 12v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 16v-4h2v4" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M16 14h2" stroke="#a1a1aa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+const FILE_KIND_TITLES: Record<SidebarFileKind, string> = {
+  json: 'JSON file',
+  markdown: 'Markdown file',
+  html: 'HTML file',
+  pdf: 'PDF file',
+  image: 'Image file',
+  audio: 'Audio file',
+  video: 'Video file',
+  spreadsheet: 'Spreadsheet file',
+  archive: 'Archive file',
+  code: 'Code file',
+  text: 'Text file',
+  file: 'File',
+};
 
-const PlainFileIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-    <path d="M4 4v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6a2 2 0 0 0-2 2z" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M14 2v6h6" stroke="#71717a" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
+const FILE_ICON_STROKE = 'var(--po-file-icon-stroke)';
+const FILE_ICON_SOFT = 'var(--po-text-subtle)';
+const FILE_ICON_FILL = 'color-mix(in srgb, var(--po-file-icon-body) 65%, transparent)';
+
+const SETI_FILE_COLORS: Record<SidebarFileKind, string> = {
+  json: 'var(--po-file-accent-json)',
+  markdown: 'var(--po-file-accent-markdown)',
+  html: 'var(--po-file-accent-html)',
+  pdf: 'var(--po-file-accent-pdf)',
+  image: 'var(--po-file-accent-image)',
+  audio: 'var(--po-file-accent-audio)',
+  video: 'var(--po-file-accent-video)',
+  spreadsheet: 'var(--po-file-accent-sheet)',
+  archive: 'var(--po-file-accent-pdf)',
+  code: 'var(--po-file-accent-code)',
+  text: 'var(--po-file-accent-default)',
+  file: 'var(--po-file-accent-default)',
+};
+
+const EXTENSION_KIND: Record<string, SidebarFileKind> = {
+  json: 'json',
+  jsonl: 'json',
+  md: 'markdown',
+  mdx: 'markdown',
+  markdown: 'markdown',
+  html: 'html',
+  htm: 'html',
+  xhtml: 'html',
+  pdf: 'pdf',
+  jpg: 'image',
+  jpeg: 'image',
+  png: 'image',
+  gif: 'image',
+  webp: 'image',
+  svg: 'image',
+  avif: 'image',
+  heic: 'image',
+  mp3: 'audio',
+  wav: 'audio',
+  m4a: 'audio',
+  aac: 'audio',
+  flac: 'audio',
+  ogg: 'audio',
+  opus: 'audio',
+  mp4: 'video',
+  mov: 'video',
+  webm: 'video',
+  avi: 'video',
+  mkv: 'video',
+  csv: 'spreadsheet',
+  tsv: 'spreadsheet',
+  xls: 'spreadsheet',
+  xlsx: 'spreadsheet',
+  zip: 'archive',
+  rar: 'archive',
+  '7z': 'archive',
+  tar: 'archive',
+  gz: 'archive',
+  tgz: 'archive',
+  js: 'code',
+  jsx: 'code',
+  ts: 'code',
+  tsx: 'code',
+  css: 'code',
+  scss: 'code',
+  py: 'code',
+  rb: 'code',
+  go: 'code',
+  rs: 'code',
+  java: 'code',
+  c: 'code',
+  cpp: 'code',
+  h: 'code',
+  sh: 'code',
+  yml: 'code',
+  yaml: 'code',
+  xml: 'code',
+  toml: 'code',
+  txt: 'text',
+  log: 'text',
+};
+
+function getFileExtension(name: string): string | null {
+  const match = /\.([^./]{1,12})$/.exec(name.trim());
+  return match ? match[1].toLowerCase() : null;
+}
+
+function getSidebarFileKind(name: string, type: string): SidebarFileKind {
+  const ext = getFileExtension(name);
+  if (ext && EXTENSION_KIND[ext]) return EXTENSION_KIND[ext];
+
+  const config = getNodeTypeConfig(type);
+  switch (config.iconCategory) {
+    case 'json':
+      return 'json';
+    case 'markdown':
+      return 'markdown';
+    default:
+      break;
+  }
+
+  if (type === 'image') return 'image';
+  if (type === 'pdf') return 'pdf';
+  if (type === 'video') return 'video';
+  return 'file';
+}
+
+function FileTypeIcon({
+  kind,
+  size = 16,
+}: {
+  kind: SidebarFileKind;
+  size?: number;
+}) {
+  const color = SETI_FILE_COLORS[kind];
+  const muted = FILE_ICON_SOFT;
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 18 18" fill="none" aria-hidden="true">
+      <title>{FILE_KIND_TITLES[kind]}</title>
+
+      {kind === 'audio' ? (
+        <>
+          <path d="M2.6 10.9V7.1h2.25L8.7 4.35v9.3L4.85 10.9H2.6Z" fill={color} />
+          <path d="M10.8 6.55c1.05 1.1 1.05 2.8 0 3.9" stroke={color} strokeWidth="1.45" strokeLinecap="butt" />
+          <path d="M12.95 5.05c1.8 1.95 1.8 5.9 0 7.9" stroke={color} strokeWidth="1.25" strokeLinecap="butt" opacity="0.78" />
+        </>
+      ) : kind === 'image' ? (
+        <>
+          <rect x="2.75" y="3.75" width="12.5" height="10.5" rx="1.25" stroke={color} strokeWidth="1.45" />
+          <path d="M3.8 12.5 6.35 9.65l2.05 2.1 2.35-3.05 3.35 3.8" stroke={color} strokeWidth="1.45" strokeLinecap="butt" strokeLinejoin="miter" />
+          <rect x="10.85" y="5.6" width="2" height="2" rx="0.35" fill={color} />
+        </>
+      ) : kind === 'video' ? (
+        <>
+          <rect x="2.9" y="5.1" width="12.2" height="7.8" rx="1.15" stroke={color} strokeWidth="1.45" />
+          <path d="M7.9 7.2v3.6L11.3 9 7.9 7.2Z" fill={color} />
+        </>
+      ) : kind === 'spreadsheet' ? (
+        <>
+          <rect x="3.1" y="3.1" width="11.8" height="11.8" rx="1.15" stroke={color} strokeWidth="1.35" />
+          <path d="M3.35 7.05h11.3M3.35 10.95h11.3M7.05 3.35v11.3M10.95 3.35v11.3" stroke={color} strokeWidth="1.05" opacity="0.82" />
+        </>
+      ) : kind === 'json' ? (
+        <text
+          x="9"
+          y="12.35"
+          textAnchor="middle"
+          fontSize="9.5"
+          fontWeight="800"
+          fontFamily="var(--po-font-sans)"
+          fill={color}
+        >
+          {'{}'}
+        </text>
+      ) : kind === 'html' ? (
+        <>
+          <path d="m7.05 5.15-3.5 3.75 3.5 3.75" stroke={color} strokeWidth="1.65" strokeLinecap="butt" strokeLinejoin="miter" />
+          <path d="m10.95 5.15 3.5 3.75-3.5 3.75" stroke={color} strokeWidth="1.65" strokeLinecap="butt" strokeLinejoin="miter" />
+          <path d="M9.95 4.95 8.05 12.9" stroke={color} strokeWidth="1.35" strokeLinecap="butt" opacity="0.86" />
+        </>
+      ) : kind === 'code' ? (
+        <>
+          <path d="m7.2 5.55-3 3.45 3 3.45" stroke={color} strokeWidth="1.55" strokeLinecap="butt" strokeLinejoin="miter" />
+          <path d="m10.8 5.55 3 3.45-3 3.45" stroke={color} strokeWidth="1.55" strokeLinecap="butt" strokeLinejoin="miter" />
+        </>
+      ) : kind === 'pdf' ? (
+        <>
+          <path d="M5.15 2.75h5.6l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.3c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.3" strokeLinejoin="round" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={color} strokeWidth="1.05" strokeLinejoin="round" />
+          <path d="M5.95 10.1h5.85M5.95 12.15h4.1" stroke={color} strokeWidth="1.15" strokeLinecap="round" />
+        </>
+      ) : kind === 'markdown' ? (
+        <>
+          <path d="M5.15 2.75h5.6l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.3c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.3" strokeLinejoin="miter" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={color} strokeWidth="1.05" strokeLinejoin="miter" />
+          <text
+            x="8.8"
+            y="12.3"
+            textAnchor="middle"
+            fontSize="7.6"
+            fontWeight="780"
+            fontFamily="var(--po-font-sans)"
+            fill={color}
+          >
+            M
+          </text>
+        </>
+      ) : kind === 'archive' ? (
+        <>
+          <path d="M4 6.2 6.1 4.2h5.8L14 6.2v6.6c0 .6-.5 1.1-1.1 1.1H5.1c-.6 0-1.1-.5-1.1-1.1V6.2Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.25" strokeLinejoin="round" />
+          <path d="M6.2 7.2h5.6M7.3 9.1h3.4M7.3 11h3.4" stroke={color} strokeWidth="1.05" strokeLinecap="round" opacity="0.82" />
+        </>
+      ) : kind === 'text' ? (
+        <>
+          <path d="M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={muted} strokeWidth="1" strokeLinejoin="round" />
+          <path d="M5.85 8.25h5.2M5.85 10.25h5.2M5.85 12.25h3.65" stroke={color} strokeWidth="1.05" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <path d="M5.1 2.75h5.65l2.6 2.65v8.5c0 .5-.4.9-.9.9h-7.35c-.5 0-.9-.4-.9-.9V3.65c0-.5.4-.9.9-.9Z" fill={FILE_ICON_FILL} stroke={color} strokeWidth="1.2" strokeLinejoin="round" />
+          <path d="M10.75 2.95v2.45h2.4" stroke={muted} strokeWidth="1" strokeLinejoin="round" />
+        </>
+      )}
+    </svg>
+  );
+}
 
 function FileIcon({
+  name,
   type,
   syncSource,
   iconSize,
 }: {
+  name: string;
   type: string;
   syncSource?: string | null;
   iconSize?: number;
@@ -89,18 +321,11 @@ function FileIcon({
   const config = getNodeTypeConfig(type);
   const actualSource = syncSource || getSyncSource(type);
   const BadgeIcon = getSyncSourceIcon(actualSource) || config.badgeIcon;
-  const size = iconSize ?? 16;
+  const size = iconSize ?? 18;
 
   if (BadgeIcon) return <BadgeIcon size={size} />;
 
-  switch (config.iconCategory) {
-    case 'markdown':
-      return <MarkdownIcon />;
-    case 'json':
-      return <JsonIcon />;
-    default:
-      return <PlainFileIcon />;
-  }
+  return <FileGlyphIcon name={name} type={type} size={size} />;
 }
 
 function getSyncDirectionArrow(
@@ -128,6 +353,81 @@ function getTypeExtension(type: string): string | null {
 
 function hasFileExtension(name: string): boolean {
   return /\.\w{1,10}$/.test(name);
+}
+
+function TreeElbow({
+  depth,
+  isLastSibling,
+}: {
+  depth: number;
+  isLastSibling: boolean;
+}) {
+  if (depth <= 0) return null;
+
+  const width = depth * EXPLORER_TREE_INDENT + 8;
+
+  return (
+    <svg
+      width={width}
+      height={EXPLORER_TREE_LINE_HEIGHT}
+      viewBox={`0 0 ${width} ${EXPLORER_TREE_LINE_HEIGHT}`}
+      shapeRendering="crispEdges"
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: -EXPLORER_TREE_LINE_OVERDRAW,
+        pointerEvents: 'none',
+        zIndex: 0,
+      }}
+    >
+      <rect
+        x={depth * EXPLORER_TREE_INDENT}
+        y={0}
+        width={1}
+        height={isLastSibling ? EXPLORER_TREE_HOOK_Y : EXPLORER_TREE_LINE_HEIGHT}
+        fill="var(--po-tree-guide)"
+      />
+      <rect
+        x={depth * EXPLORER_TREE_INDENT}
+        y={EXPLORER_TREE_HOOK_Y}
+        width={8}
+        height={1}
+        fill="var(--po-tree-guide)"
+      />
+    </svg>
+  );
+}
+
+export function ExplorerTreeMetaRow({
+  depth,
+  children,
+  isLastSibling = true,
+}: {
+  depth: number;
+  children: ReactNode;
+  isLastSibling?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        height: EXPLORER_TREE_ROW_HEIGHT,
+        margin: `${EXPLORER_TREE_ROW_MARGIN_Y}px ${EXPLORER_TREE_ROW_MARGIN_X}px`,
+        paddingLeft:
+          EXPLORER_TREE_CONTENT_INSET +
+          depth * EXPLORER_TREE_INDENT +
+          EXPLORER_TREE_META_OFFSET,
+        display: 'flex',
+        alignItems: 'center',
+        boxSizing: 'border-box',
+        position: 'relative',
+      }}
+    >
+      <TreeElbow depth={depth} isLastSibling={isLastSibling} />
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center' }}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 interface ExplorerTreeRowProps {
@@ -237,8 +537,6 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   const isActive = activeId === item.id;
   const isSyncActive = activeSyncNodeId === item.id;
   const isRowActive = isActive || isSyncActive;
-  const rowPaddingLeft = 8 + depth * 16;
-  const childTextPadding = rowPaddingLeft + 22;
   const isAccessPointHighlight = isHighlighted && highlightVariant === 'access-point';
   const isFileDropTarget = isFolder && activeFileDropTargetPath === item.id;
   const isInsideActiveFileDropScope =
@@ -250,30 +548,30 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       ? FILE_DROP_SCOPE_BG
     : isHighlighted
       ? isAccessPointHighlight
-        ? 'rgba(52, 211, 153, 0.14)'
-        : 'rgba(59, 130, 246, 0.15)'
+        ? 'color-mix(in srgb, var(--po-success) 14%, transparent)'
+        : 'var(--po-selected)'
       : isRowActive || isAnyCreateMenuOpen
-        // Translucent overlay rather than opaque #2a2a2a — the
+        // Translucent overlay rather than opaque var(--po-border) — the
         // earlier opaque colour was almost identical to the tree
-        // line (#27272a vs #2a2a2a, a 3-unit-per-channel delta) AND
+        // line (var(--po-tree-guide) vs var(--po-border), a 3-unit-per-channel delta) AND
         // it covered the parent's continuation line that runs
         // through the row, so a selected leaf looked visually
         // disconnected from its sibling chain. An rgba overlay keeps
         // the lines showing through naturally and stays consistent
         // with every other "special" state (hover, drop target,
         // search highlight) which all already use rgba.
-        ? 'rgba(255,255,255,0.085)'
+        ? 'var(--po-selected)'
         : 'transparent';
   const staticColor = isDropTarget || isFileDropTarget
-    ? '#f4f4f5'
+    ? 'var(--po-text)'
     : isAccessPointHighlight
-      ? '#d1fae5'
+      ? 'var(--po-success)'
     : isRowActive || isAnyCreateMenuOpen
-      ? '#fff'
-      : '#a1a1aa';
+      ? 'var(--po-text)'
+      : 'var(--po-text-muted)';
   const isSoftHovered = isHovered && !hasSpecialBg;
-  const rowBackground = isSoftHovered ? 'rgba(255,255,255,0.045)' : staticBg;
-  const rowColor = isSoftHovered ? '#d4d4d8' : staticColor;
+  const rowBackground = isSoftHovered ? 'var(--po-hover)' : staticBg;
+  const rowColor = isSoftHovered ? 'var(--po-text-muted)' : staticColor;
 
   const childItems: MillerColumnItem[] = useMemo(
     () =>
@@ -327,8 +625,17 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
         onClick={handleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        draggable
+        // Keep file rows as navigation-first targets. Native HTML drag on the
+        // whole row can swallow the click when the pointer moves a pixel or
+        // two, which makes Markdown/README selections feel randomly dead.
+        // Folders stay draggable as structural move sources; files can still
+        // be moved from the main grid/list views onto this sidebar.
+        draggable={isFolder && Boolean(onMoveNode)}
         onDragStart={(e) => {
+          if (!isFolder) {
+            e.preventDefault();
+            return;
+          }
           e.dataTransfer.setData(
             'application/x-puppyone-node',
             JSON.stringify({
@@ -355,13 +662,13 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
         style={{
           display: 'flex',
           alignItems: 'center',
-          margin: '1px 6px',
-          height: 30,
+          margin: `${EXPLORER_TREE_ROW_MARGIN_Y}px ${EXPLORER_TREE_ROW_MARGIN_X}px`,
+          height: EXPLORER_TREE_ROW_HEIGHT,
           boxSizing: 'border-box',
           borderRadius: 6,
           background: rowBackground,
           color: rowColor,
-          fontSize: 13,
+          ...SIDEBAR_ROW_TYPOGRAPHY,
           userSelect: 'none',
           transition: 'background 0.1s, color 0.1s',
           boxShadow: isDropTarget || isFileDropTarget
@@ -369,7 +676,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             : isInsideActiveFileDropScope
               ? `inset 1px 0 0 0 ${FILE_DROP_SCOPE_BORDER}`
             : isAccessPointHighlight
-              ? 'inset 2px 0 0 0 rgba(52, 211, 153, 0.9)'
+              ? 'inset 2px 0 0 0 color-mix(in srgb, var(--po-success) 90%, transparent)'
               : 'none',
           cursor: 'pointer',
           position: 'relative',
@@ -382,9 +689,9 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               ─ vertical stub at row-local x = depth*16 (one indent
                 step left of the icon).
               ─ horizontal hook 8px to the icon's left edge.
-              ─ vertical stops at y=15 (hook level) when this is the
+              ─ vertical stops at the row midpoint when this is the
                 last sibling — that's the closing ╰─ shape.  Otherwise
-                it spans the full row height so it visually merges
+                it spans the full row slot so it visually merges
                 with the next sibling's elbow below.
 
             `<rect>` not `<line>`: stroke-1 lines paint a center stroke
@@ -399,36 +706,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             subtree) instead of the old behavior where every per-depth
             line ran full row height regardless of whether the
             ancestor still had siblings below. */}
-        {depth > 0 && (
-          <svg
-            width={depth * 16 + 8}
-            height={30}
-            viewBox={`0 0 ${depth * 16 + 8} 30`}
-            shapeRendering="crispEdges"
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              pointerEvents: 'none',
-              zIndex: 0,
-            }}
-          >
-            <rect
-              x={depth * 16}
-              y={0}
-              width={1}
-              height={isLastSibling ? 15 : 30}
-              fill="#27272a"
-            />
-            <rect
-              x={depth * 16}
-              y={15}
-              width={8}
-              height={1}
-              fill="#27272a"
-            />
-          </svg>
-        )}
+        <TreeElbow depth={depth} isLastSibling={isLastSibling} />
 
         <div
           style={{
@@ -439,7 +717,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             gap: 6,
             height: '100%',
             boxSizing: 'border-box',
-            paddingLeft: rowPaddingLeft,
+            paddingLeft: EXPLORER_TREE_CONTENT_INSET + depth * EXPLORER_TREE_INDENT,
             paddingRight: 6,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -452,8 +730,8 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               display: 'flex',
               alignItems: 'center',
               flexShrink: 0,
-              width: 16,
-              height: 16,
+              width: 18,
+              height: 18,
               justifyContent: 'center',
               position: 'relative',
             }}
@@ -463,7 +741,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 <div className="flex items-center justify-center group-hover/row:hidden">
                   <FolderIcon expanded={expanded} />
                 </div>
-                <div className="hidden items-center justify-center group-hover/row:flex" style={{ width: 16, height: 16, borderRadius: 3 }}>
+                <div className="hidden items-center justify-center group-hover/row:flex" style={{ width: 18, height: 18, borderRadius: 3 }}>
                   <svg
                     width="16"
                     height="16"
@@ -484,13 +762,13 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               if (arrow) {
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-                    <FileIcon type={item.type} syncSource={item.sync_source} iconSize={10} />
-                    <span style={{ color: '#71717a', fontSize: 7, lineHeight: 1 }}>{arrow}</span>
+                    <FileIcon name={item.name} type={item.type} syncSource={item.sync_source} iconSize={10} />
+                    <span style={{ color: 'var(--po-text-subtle)', fontSize: 7, lineHeight: 1 }}>{arrow}</span>
                   </div>
                 );
               }
 
-              return <FileIcon type={item.type} syncSource={item.sync_source} />;
+              return <FileIcon name={item.name} type={item.type} syncSource={item.sync_source} />;
             })()}
           </div>
 
@@ -498,7 +776,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             {item.name}
             {!isFolder && !hasFileExtension(item.name) && (() => {
               const ext = getTypeExtension(item.type);
-              return ext ? <span style={{ color: '#525252', fontSize: 11 }}>{ext}</span> : null;
+              return ext ? <span style={{ color: 'var(--po-text-disabled)', fontSize: 11 }}>{ext}</span> : null;
             })()}
           </span>
 
@@ -552,20 +830,20 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               aria-hidden
               style={{
                 position: 'absolute',
-                left: 6 + depth * 16,
+                left: EXPLORER_TREE_ROW_MARGIN_X + depth * EXPLORER_TREE_INDENT,
                 top: 0,
                 bottom: 0,
                 width: 1,
-                background: '#27272a',
+                background: 'var(--po-tree-guide)',
                 pointerEvents: 'none',
                 zIndex: 0,
               }}
             />
           )}
           {loading && children.length === 0 ? (
-            <div style={{ paddingLeft: childTextPadding, paddingTop: 4, paddingBottom: 4 }}>
+            <ExplorerTreeMetaRow depth={depth + 1}>
               <Dots size="xs" />
-            </div>
+            </ExplorerTreeMetaRow>
           ) : childItems.length > 0 ? (
             childItems.map((child, idx) => (
               <ExplorerTreeRow
@@ -583,7 +861,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 onRename={onRename}
                 onDelete={onDelete}
                 onDownload={onDownload}
-              onFilesDrop={onFilesDrop}
+                onFilesDrop={onFilesDrop}
                 onMoveNode={onMoveNode}
                 activeSyncNodeId={activeSyncNodeId}
                 highlightNodeId={highlightNodeId}
@@ -595,18 +873,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               />
             ))
           ) : !loading ? (
-            <div
-              style={{
-                paddingLeft: childTextPadding,
-                paddingTop: 4,
-                paddingBottom: 4,
-                color: '#666',
-                fontSize: 12,
-                fontStyle: 'italic',
-              }}
-            >
-              Empty
-            </div>
+            <ExplorerTreeMetaRow depth={depth + 1}>
+              <span
+                style={{
+                  ...SIDEBAR_META_TYPOGRAPHY,
+                  color: 'var(--po-text-disabled)',
+                }}
+              >
+                Empty folder
+              </span>
+            </ExplorerTreeMetaRow>
           ) : null}
         </div>
       )}

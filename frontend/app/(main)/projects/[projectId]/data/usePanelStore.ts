@@ -34,6 +34,9 @@ export interface PanelState {
    *                    a stable "management home" to return to.
    *  - `'detail'`    — render scope detail (paired with selectedScopeId
    *                    when drilling in from a non-scope folder).
+   *  - `'settings'`  — render the selected scope's dedicated settings
+   *                    page. This is a sibling of detail, not an inline
+   *                    expansion inside it.
    *  - `'create'`    — render the dedicated "Create access point"
    *                    sub-page (Pp.2b in the 3-page hierarchy). The
    *                    target path is read from `nodeId` so callers
@@ -43,11 +46,11 @@ export interface PanelState {
    *  - `undefined`   — auto: detail when current folder is a scope,
    *                    overview otherwise.
    *
-   *  File-tree navigation only resets `'detail'` (so it can re-pick a
-   *  matching folder scope) — `'overview'` and `'create'` are explicit
-   *  user choices and stay sticky until the user explicitly navigates
-   *  away (back button / close). */
-  view?: 'overview' | 'detail' | 'create';
+   *  File-tree navigation only resets implicit/drilled `'detail'` (so
+   *  it can re-pick a matching folder scope) — `'overview'`, `'settings'`,
+   *  and `'create'` are explicit user choices and stay sticky until the
+   *  user explicitly navigates away (back button / close). */
+  view?: 'overview' | 'detail' | 'settings' | 'create';
 }
 
 interface PanelStore {

@@ -12,7 +12,7 @@ export default function ConnectPage() {
   const router = useRouter();
 
   const handleBackToProjects = () => {
-    router.push('/projects');
+    router.push('/home');
   };
 
   return (
@@ -21,7 +21,7 @@ export default function ConnectPage() {
         display: 'flex',
         height: '100vh',
         overflow: 'hidden',
-        backgroundColor: '#0a0a0a',
+        backgroundColor: 'var(--po-inset)',
       }}
     >
       <section
@@ -29,7 +29,7 @@ export default function ConnectPage() {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: '#0a0a0a',
+          backgroundColor: 'var(--po-inset)',
         }}
       >
         <ConnectContentView onBack={handleBackToProjects} />

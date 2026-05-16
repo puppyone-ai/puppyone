@@ -51,7 +51,7 @@ const SHARED: CSSProperties = {
   // Spinner + label sit on a horizontal row, gap matches the label's
   // own line-height so the two read as one optical unit.
   gap: 10,
-  color: '#71717a',
+  color: 'var(--po-text-subtle)',
   letterSpacing: '0.01em',
 };
 
@@ -91,7 +91,7 @@ export function PageLoading({
           width: '100%',
           height: '100%',
           minHeight: '100vh',
-          background: '#0e0e0e',
+          background: 'var(--po-canvas)',
           ...style,
         }
       : {

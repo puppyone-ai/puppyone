@@ -34,6 +34,8 @@ from typing import Iterable
 from mut.core import tree as tree_mod
 from mut.core.object_store import ObjectStore
 
+from src.mut_engine.services.object_compat import promote_tree_compat
+
 # Each change is ``(action, rel_path)``. Action is one of "add" / "update"
 # / "delete", matching MUT's history conventions.
 Change = tuple[str, str]
@@ -63,7 +65,8 @@ def _read_tree_or_empty(store: ObjectStore, h: str) -> dict:
     """
     if not h:
         return {}
-    return tree_mod.read_tree(store, h)
+    _tree_hash, entries = promote_tree_compat(store, h)
+    return entries
 
 
 def _walk_spine(

@@ -3,6 +3,6 @@ name = "Check-in & Invoices"
 description = "Pre-structured schema, expense policies, and inbox folder for an accounting agent."
 icon = "🧾"
 version = "1.0.0"
-author = "PuppyOne"
+author = "Puppyone"
 tags = ["accounting", "automation"]
 order = 10
