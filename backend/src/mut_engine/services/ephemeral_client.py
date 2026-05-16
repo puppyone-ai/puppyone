@@ -18,17 +18,12 @@ import base64
 import asyncio
 from datetime import UTC
 
-from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
+from src.mut_engine.application import tree as tree_mod
 from src.mut_engine.application.git_object_format import (
     MODE_DIR, MODE_FILE, TreeEntry, encode_object, encode_tree, hash_object,
 )
-from src.mut_engine.adapters.mut.legacy_handlers import (
-    handle_clone,
-    handle_negotiate,
-    handle_pull,
-)
-
-from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
+from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
+from src.mut_engine.domain.intents import VersionSubmissionIntent
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.server_repo import PuppyOneServerRepo
 
@@ -105,24 +100,37 @@ class MutEphemeralClient:
         for unchanged files and only ship the new blob bytes.
         """
         repo = self._get_server_repo()
-        result = handle_clone(
-            repo, self._auth, {"protocol_version": PROTOCOL_VERSION}
-        )
+        scope = self._auth["_scope"]
 
-        self._head_commit_id = result.get("head_commit_id", "")
+        files_raw = repo.list_scope_files(scope)
+        scope_tree_hash = repo.build_scope_tree(scope)
+        try:
+            scope_hashes = tree_mod.collect_reachable_hashes(
+                repo.store, scope_tree_hash,
+            ) if scope_tree_hash else set()
+        except Exception:
+            scope_hashes = set()
+
+        head_commit_id = repo.get_scope_head_commit_id(scope.get("path", ""))
+
+        self._head_commit_id = head_commit_id or ""
         self._scope = {
-            "path": result["scope"]["path"],
-            "exclude": result["scope"].get("exclude", []),
-            "mode": result["scope"].get("mode", "rw"),
+            "path": scope.get("path", ""),
+            "exclude": scope.get("exclude", []),
+            "mode": scope.get("mode", "rw"),
         }
-
-        self._files = {
-            path: base64.b64decode(b64)
-            for path, b64 in result.get("files", {}).items()
-        }
-
-        self._object_hashes = set(result.get("objects", {}).keys())
+        self._files = dict(files_raw)
+        self._object_hashes = set(scope_hashes)
         self._file_hashes = None  # full-content path; lite map is unused
+
+        try:
+            repo.record_audit("clone", self._auth["agent"], {
+                "scope": scope.get("path", ""),
+                "files": len(files_raw),
+                "commit_id": head_commit_id,
+            })
+        except Exception:
+            pass
 
         return dict(self._files)
 
@@ -253,24 +261,25 @@ class MutEphemeralClient:
         Returns updated files or empty dict if up-to-date.
         """
         repo = self._get_server_repo()
-        body = {
-            "protocol_version": PROTOCOL_VERSION,
-            "since_commit_id": self._head_commit_id,
-            "have_hashes": list(self._object_hashes),
-        }
-        result = handle_pull(repo, self._auth, body)
+        scope = self._auth.get("_scope") or {}
+        scope_path = scope.get("path", "") or ""
 
-        if result.get("status") == "up-to-date":
+        current_head = repo.get_scope_head_commit_id(scope_path) or ""
+        if current_head and current_head == self._head_commit_id:
             return dict(self._files)
 
-        self._head_commit_id = result.get("head_commit_id", self._head_commit_id)
+        files_raw = repo.list_scope_files(scope)
+        scope_tree_hash = repo.build_scope_tree(scope)
+        try:
+            scope_hashes = tree_mod.collect_reachable_hashes(
+                repo.store, scope_tree_hash,
+            ) if scope_tree_hash else set()
+        except Exception:
+            scope_hashes = set()
 
-        self._files = {
-            path: base64.b64decode(b64)
-            for path, b64 in result.get("files", {}).items()
-        }
-
-        for h in result.get("objects", {}):
+        self._head_commit_id = current_head or self._head_commit_id
+        self._files = dict(files_raw)
+        for h in scope_hashes:
             self._object_hashes.add(h)
 
         return dict(self._files)
@@ -332,9 +341,42 @@ class MutEphemeralClient:
         )
 
         t2 = _time.monotonic()
-        result = _run_async_from_sync(
-            submit_mut_push(self._repo_manager, self._project_id, self._auth, body)
+        # Store incoming loose objects under the project's object store before
+        # the engine evaluates the proposed tree. This used to live in
+        # adapters/mut/push_adapter.py; that module is gone now that the MUT
+        # wire protocol is removed, but the in-process ephemeral client still
+        # needs the same staging step.
+        objects_b64 = body.get("objects") or {}
+        for object_id, b64data in objects_b64.items():
+            repo.store.put_loose(object_id, base64.b64decode(b64data))
+
+        scope = self._auth.get("_scope", {}) or {}
+        snapshot = body["snapshots"][-1]
+        engine = GitNativeTransactionEngine(self._repo_manager)
+        intent = VersionSubmissionIntent(
+            project_id=self._project_id,
+            scope_path=scope.get("path", "") or "",
+            actor=self._auth.get("agent", "ephemeral"),
+            source_channel="papi",
+            base_commit_id=body.get("base_commit_id", "") or "",
+            proposed_tree_id=snapshot["root"],
+            client_commit_id=snapshot.get("commit_id", ""),
+            message=snapshot.get("message", message or ""),
+            scope_excludes=scope.get("exclude") or [],
+            audit_detail={"snapshots": len(body.get("snapshots", []))},
+            defer_projection=True,
         )
+        engine_result = _run_async_from_sync(engine.submit_version(intent))
+        result = {
+            "status": engine_result.status,
+            "commit_id": engine_result.commit_id,
+            "pushed": len(body.get("snapshots", [])),
+            "root": engine_result.new_scope_hash,
+            "merged": engine_result.merged,
+            "conflicts": engine_result.conflicts,
+            "merged_changes": engine_result.merged_changes,
+            "commit_object": engine_result.commit_object,
+        }
         log_info(
             f"{op_tag} engine push returned "
             f"status={result.get('status', '?')} "
@@ -408,11 +450,19 @@ class MutEphemeralClient:
         """Negotiate which new objects the server is missing, then build
         the push request body."""
         if new_objects:
-            neg_result = handle_negotiate(repo, self._auth, {
-                "protocol_version": PROTOCOL_VERSION,
-                "hashes": list(new_objects.keys()),
-            })
-            missing = set(neg_result.get("missing", []))
+            # Inline "which hashes are missing" check (formerly handle_negotiate):
+            # ship only objects the server does not already have.
+            store = repo.store
+            missing: set[str] = set()
+            try:
+                async_existing = getattr(store, "exists_many", None)
+                if callable(async_existing):
+                    existing = set(async_existing(list(new_objects.keys())))
+                else:
+                    existing = {h for h in new_objects if store.exists(h)}
+                missing = {h for h in new_objects if h not in existing}
+            except Exception:
+                missing = set(new_objects.keys())
         else:
             missing = set()
 
@@ -422,7 +472,6 @@ class MutEphemeralClient:
             if h in missing
         }
         return {
-            "protocol_version": PROTOCOL_VERSION,
             "base_commit_id": self._head_commit_id,
             "snapshots": [{
                 "id": 1,

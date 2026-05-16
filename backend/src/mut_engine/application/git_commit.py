@@ -51,8 +51,22 @@ def build_git_commit(
     who: str,
     message: str,
     created_at_iso: str,
+    trailers: dict | None = None,
 ) -> str:
-    """Store a real Git commit object and return its SHA-1 object id."""
+    """Store a real Git commit object and return its SHA-1 object id.
+
+    ``trailers`` lets callers (typically the transaction engine when it
+    synthesizes a server-side commit) append immutable provenance lines
+    to the commit message, e.g.::
+
+        PuppyOne-Transaction: <id>
+        PuppyOne-Source: git | mut | papi | web | agent | sync
+        PuppyOne-Scope: <scope_path>
+        PuppyOne-Original-Commit: <client_commit_id>
+
+    Only stable, audit-safe facts belong here — mutable request metadata
+    such as IP, user agent, or auth token stays in audit rows.
+    """
 
     assert_git_tree(repo, tree_sha)
     if parent_sha:
@@ -60,6 +74,7 @@ def build_git_commit(
 
     ts, tz = format_git_time(created_at_iso)
     identity = identity_for_git(who)
+    final_message = compose_commit_message(message, trailers)
     commit_body = encode_commit(
         tree_sha1=tree_sha,
         parent_sha1=parent_sha or None,
@@ -67,9 +82,35 @@ def build_git_commit(
         author_time=f"{ts} {tz}",
         committer=identity,
         committer_time=f"{ts} {tz}",
-        message=message or "(no message)",
+        message=final_message,
     )
     return repo.store.put_commit(commit_body)
+
+
+def compose_commit_message(message: str, trailers: dict | None) -> str:
+    """Append a Git-style trailer block to ``message``.
+
+    Trailers are written in a single block separated from the message
+    body by exactly one blank line. Empty / falsy trailer values are
+    skipped so the commit message stays clean.
+    """
+
+    body = (message or "(no message)").rstrip("\n")
+    if not trailers:
+        return body
+    safe_trailers = [
+        f"{key}: {value}"
+        for key, value in trailers.items()
+        if value not in (None, "")
+    ]
+    if not safe_trailers:
+        return body
+    # Avoid double-trailer when callers passed a message that already
+    # contains the same trailer line.
+    extra = [line for line in safe_trailers if line not in body]
+    if not extra:
+        return body
+    return body + "\n\n" + "\n".join(extra)
 
 
 def is_git_object_id(value: str) -> bool:

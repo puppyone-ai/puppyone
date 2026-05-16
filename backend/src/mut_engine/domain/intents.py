@@ -67,6 +67,37 @@ class RollbackIntent:
     defer_projection: bool = False
 
 
+ResolutionDecision = Literal["accept", "reject"]
+
+
+@dataclass(frozen=True)
+class ConflictResolutionIntent:
+    """A manual or hosted-agent resolution for a pending transaction.
+
+    Re-enters the publish pipeline rather than bypassing it: the engine
+    treats ``resolution_tree_id`` as a server-side proposed tree applied
+    on top of the current scope head, records the resolver's identity in
+    audit, and clears the pending conflict row.
+
+    ``decision``:
+      - ``"accept"``: publish ``resolution_tree_id`` as the new scope state.
+      - ``"reject"``: leave the scope head unchanged but close the pending
+        conflict with an audited rejection.
+    """
+
+    project_id: str
+    pending_conflict_id: str
+    scope_path: str
+    resolver_actor: str
+    source_channel: SourceChannel
+    resolution_tree_id: str = ""
+    resolution_files: dict[str, bytes] | None = None
+    resolution_message: str = ""
+    decision: ResolutionDecision = "accept"
+    audit_detail: dict = field(default_factory=dict)
+    defer_projection: bool = False
+
+
 @dataclass
 class TransactionResult:
     """Result of a committed, rejected, or no-op version transaction."""

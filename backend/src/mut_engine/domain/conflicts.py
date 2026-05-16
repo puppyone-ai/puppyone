@@ -1,8 +1,19 @@
 """Conflict policy domain objects.
 
-The first shipped policy is conservative: deterministic server-side auto
-merge is allowed, but unsafe conflicts become manual-review pending events.
-Future policy rules are control-plane configuration, not repository content.
+The V1 policy stack — per docs/architecture/07-version-engine-supplement.md
+§7 — is:
+
+  1. safe auto-merge (identical / one-side / JSON different keys / non-
+     overlapping line hunks). Handled in ``application/conflict_policy.py``.
+  2. parent-scope-wins for cross-scope same-path overlaps. Parent content
+     overrides child content; child writes are audited as
+     ``superseded_by_parent`` but not published.
+  3. last_write_wins for everything else (default).
+  4. manual_review can be opted into per project / scope / path-glob /
+     actor / source.
+
+Future policies (``agent_review`` / ``agent_auto_resolve``) are modelled
+here so the API surface stays stable when they are enabled.
 """
 
 from __future__ import annotations
@@ -12,8 +23,9 @@ from typing import Literal
 
 
 ConflictPolicyName = Literal[
-    "manual_review",
     "last_write_wins",
+    "manual_review",
+    "reject",
     "agent_review",
     "agent_auto_resolve",
 ]
@@ -21,13 +33,19 @@ ConflictPolicyName = Literal[
 
 @dataclass(frozen=True)
 class ConflictPolicyRule:
-    """A future admin-owned rule for selecting conflict policy."""
+    """An admin-owned rule for selecting conflict policy.
+
+    ``scope_path`` matches the scope or one of its ancestors (so a rule
+    pinned to ``configs/`` also catches ``configs/foo/``). ``path_glob``
+    is an ``fnmatch``-style pattern applied to the file's full path.
+    """
 
     policy: ConflictPolicyName
     scope_path: str = ""
     path_glob: str = ""
     actor_type: str = ""
     source_channel: str = ""
+    operation_type: str = ""
     resolver: dict = field(default_factory=dict)
 
 
@@ -35,11 +53,13 @@ class ConflictPolicyRule:
 class ConflictPolicyConfig:
     """Admin-owned conflict policy configuration.
 
-    V1 defaults to manual review. LWW and agent auto-resolve are represented in
-    the model so the API shape is stable, but they are not selected by default.
+    V1 default is ``last_write_wins``: safe auto-merge runs first, then
+    parent-scope-wins overrides cross-scope overlaps, then LWW takes the
+    incoming write and records the lost content. Admins opt into
+    ``manual_review`` (or future agent policies) via ``rules``.
     """
 
-    default_policy: ConflictPolicyName = "manual_review"
+    default_policy: ConflictPolicyName = "last_write_wins"
     rules: list[ConflictPolicyRule] = field(default_factory=list)
 
 

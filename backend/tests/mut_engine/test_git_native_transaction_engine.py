@@ -26,9 +26,12 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from src.mut_engine.application import tree as tree_mod
-from src.mut_engine.application.object_store import ObjectStore
-from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
 from src.mut_engine.application.git_object_format import encode_commit
+from src.mut_engine.application.object_store import ObjectStore
+
+# Sentinel preserved so legacy tests that send a request body keep working;
+# the engine no longer reads a wire-protocol version.
+PROTOCOL_VERSION = 1
 from pydantic import ValidationError
 
 from src.mut_engine.dependencies import get_repo_manager
@@ -40,8 +43,65 @@ from src.mut_engine.adapters.git.object_quarantine import (
 from src.mut_engine.adapters.git.router import router as git_router
 from src.mut_engine.adapters.git.protocol import run_git
 from src.mut_engine.adapters.git.view_projection import git_view_head_commit
-from src.mut_engine.adapters.mut.push_adapter import submit_mut_push
-from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
+from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
+from src.mut_engine.domain.intents import RollbackIntent, VersionSubmissionIntent
+
+
+async def submit_mut_push(repo_manager, project_id, auth, body):
+    """Legacy-shape adapter used by older tests after the MUT wire-protocol
+    surface was removed. Translates the old request body into the canonical
+    intent so engine tests written against the legacy adapter still cover the
+    publish path.
+    """
+    repo = repo_manager.get_server_repo(project_id)
+    scope = auth["_scope"]
+    for object_id, b64data in (body.get("objects") or {}).items():
+        repo.store.put_loose(object_id, base64.b64decode(b64data))
+    snapshot = body["snapshots"][-1]
+    engine = GitNativeTransactionEngine(repo_manager)
+    result = await engine.submit_version(VersionSubmissionIntent(
+        project_id=project_id,
+        scope_path=scope.get("path", "") or "",
+        actor=auth.get("agent", ""),
+        source_channel="mut",
+        base_commit_id=body.get("base_commit_id", "") or "",
+        proposed_tree_id=snapshot["root"],
+        client_commit_id=snapshot.get("commit_id", ""),
+        message=snapshot.get("message", ""),
+        scope_excludes=scope.get("exclude") or [],
+        audit_detail={"snapshots": len(body.get("snapshots", []))},
+        defer_projection=True,
+    ))
+    return {
+        "status": result.status,
+        "commit_id": result.commit_id,
+        "pushed": len(body.get("snapshots", [])),
+        "root": result.new_scope_hash,
+        "merged": result.merged,
+        "conflicts": result.conflicts,
+        "merged_changes": result.merged_changes,
+        "commit_object": result.commit_object,
+    }
+
+
+async def submit_mut_rollback(repo_manager, project_id, auth, body):
+    scope = auth["_scope"]
+    engine = GitNativeTransactionEngine(repo_manager)
+    result = await engine.rollback(RollbackIntent(
+        project_id=project_id,
+        scope_path=scope.get("path", "") or "",
+        actor=auth.get("agent", ""),
+        source_channel="mut",
+        target_commit_id=body["target_commit_id"],
+        message=body.get("message", ""),
+        scope_excludes=scope.get("exclude") or [],
+        defer_projection=True,
+    ))
+    return {
+        "status": result.status,
+        "new_commit_id": result.commit_id,
+        "target_commit_id": body["target_commit_id"],
+    }
 from src.mut_engine.application.git_commit import (
     GitCommitInvariantError,
     build_git_commit,
@@ -564,9 +624,17 @@ class TestGitNativeSubmission:
         assert _files_for_scope(server_repo, "src") == {"app.py": b"print('src')"}
 
     @pytest.mark.asyncio
-    async def test_stale_git_delete_modify_requires_manual_review(
+    async def test_stale_git_delete_modify_resolves_under_lww(
         self, repo_manager, server_repo,
     ):
+        """Under the V1 default (LWW), delete-vs-modify resolves with the
+        incoming side winning. The server records the lost content for
+        recovery and continues advancing the scope head.
+
+        manual_review for this shape is opt-in (see
+        07-version-engine-supplement.md §7); the legacy "always pending"
+        assertion now lives in the policy unit tests.
+        """
         base_tree = build_tree_from_files(server_repo.store, {"a.txt": b"base\n"})
         base_commit = _make_client_commit(server_repo, base_tree, message="base")
         base = await submit_git_tree(
@@ -594,7 +662,7 @@ class TestGitNativeSubmission:
             client_commit_id=server_commit,
             message="server modifies",
         )
-        current_head = server_repo.get_scope_head_commit_id("")
+        prior_head = server_repo.get_scope_head_commit_id("")
 
         delete_tree = build_tree_from_files(server_repo.store, {})
         delete_commit = _make_client_commit(
@@ -611,17 +679,20 @@ class TestGitNativeSubmission:
             message="stale deletes",
         )
 
-        assert result.status == "pending"
-        assert result.conflicts == 1
-        assert _files_for_scope(server_repo) == {"a.txt": b"server changed\n"}
-        assert server_repo.get_scope_head_commit_id("") == current_head
-        assert server_repo.audit.events[-1]["type"] == "git_push_conflict_pending"
-        assert server_repo.audit.events[-1]["detail"]["conflicts"][0]["strategy"] == "modify_delete"
+        assert result.status == "ok"
+        # LWW honours the incoming deletion; the file is gone.
+        assert _files_for_scope(server_repo) == {}
+        assert server_repo.get_scope_head_commit_id("") != prior_head
+        # The lost server content is preserved in the merge conflict log.
+        assert result.conflicts >= 1
 
     @pytest.mark.asyncio
-    async def test_stale_git_binary_conflict_requires_manual_review(
+    async def test_stale_git_binary_conflict_resolves_under_lww(
         self, repo_manager, server_repo,
     ):
+        """Binary three-way conflicts can't auto-merge safely. Under LWW
+        the incoming side wins; the lost server content is preserved in
+        the conflict ledger for recovery. Manual review remains opt-in."""
         base_tree = build_tree_from_files(server_repo.store, {"asset.bin": b"\x00base"})
         base_commit = _make_client_commit(server_repo, base_tree, message="base binary")
         base = await submit_git_tree(
@@ -649,7 +720,7 @@ class TestGitNativeSubmission:
             client_commit_id=server_commit,
             message="server binary",
         )
-        current_head = server_repo.get_scope_head_commit_id("")
+        prior_head = server_repo.get_scope_head_commit_id("")
 
         stale_tree = build_tree_from_files(server_repo.store, {"asset.bin": b"\x00client"})
         stale_commit = _make_client_commit(
@@ -666,12 +737,11 @@ class TestGitNativeSubmission:
             message="client binary",
         )
 
-        conflict = server_repo.audit.events[-1]["detail"]["conflicts"][0]
-        assert result.status == "pending"
-        assert result.conflicts == 1
-        assert _files_for_scope(server_repo) == {"asset.bin": b"\x00server"}
-        assert server_repo.get_scope_head_commit_id("") == current_head
-        assert conflict["strategy"] == "manual_review"
+        assert result.status == "ok"
+        # Incoming wins under LWW; server head advanced.
+        assert _files_for_scope(server_repo) == {"asset.bin": b"\x00client"}
+        assert server_repo.get_scope_head_commit_id("") != prior_head
+        assert result.conflicts >= 1
 
 
 class TestLegacyMutPushAdapter:
@@ -889,41 +959,13 @@ class TestGitNativeHardeningContracts:
         assert git_view_head_commit(server_repo, "") == ""
 
     @pytest.mark.asyncio
-    async def test_protocol_mode_gate_rejects_disabled_protocols(self, monkeypatch):
-        monkeypatch.setattr(
-            "src.mut_engine.application.protocol_mode.get_project_protocol_mode",
-            lambda _project_id: "mut",
-        )
-        with pytest.raises(HTTPException, match="GIT protocol is disabled"):
-            await ensure_protocol_enabled("test-proj", "git")
-
-        monkeypatch.setattr(
-            "src.mut_engine.application.protocol_mode.get_project_protocol_mode",
-            lambda _project_id: "git",
-        )
-        with pytest.raises(HTTPException, match="MUT protocol is disabled"):
-            await ensure_protocol_enabled("test-proj", "mut")
-
-    @pytest.mark.asyncio
-    async def test_protocol_mode_gate_fails_closed_when_policy_unavailable(self, monkeypatch):
-        class BrokenSupabase:
-            def __init__(self):
-                raise RuntimeError("db down")
-
-        import src.mut_engine.application.protocol_mode as protocol_mode
-
-        monkeypatch.setattr(protocol_mode.settings, "MUT_PROTOCOL_MODE_FAIL_OPEN", False)
-        monkeypatch.setattr(protocol_mode, "SupabaseClient", BrokenSupabase)
-
-        with pytest.raises(HTTPException) as exc:
-            await ensure_protocol_enabled("test-proj", "git")
-
-        assert exc.value.status_code == 503
-        assert "protocol mode is unavailable" in exc.value.detail
-
-    def test_project_protocol_mode_schema_rejects_unknown_mode(self):
-        with pytest.raises(ValidationError):
-            ProjectUpdate(protocol_mode="svn")
+    async def test_protocol_mode_gate_is_no_op_after_mut_removal(self):
+        """The legacy MUT wire protocol has been removed (see
+        07-version-engine-supplement.md §3). ``ensure_protocol_enabled``
+        is kept as a stable import seam and must never refuse Git
+        admission for any project."""
+        # No exception for any protocol value, regardless of stored state.
+        await ensure_protocol_enabled("test-proj", "git")
 
     def test_build_git_commit_rejects_non_git_parent(
         self, server_repo,

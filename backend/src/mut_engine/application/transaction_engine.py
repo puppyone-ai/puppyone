@@ -17,10 +17,11 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.application.path_utils import normalize_path
 
 from src.mut_engine.application.conflict_policy import (
     conflict_to_dict,
-    merge_file_sets_for_manual_review,
+    merge_file_sets_for_policy,
     select_conflict_policy,
 )
 from src.mut_engine.application.git_commit import (
@@ -39,6 +40,7 @@ from src.mut_engine.application.tree_objects import (
 )
 from src.mut_engine.adapters.git.view_projection import git_compatible_head_commit
 from src.mut_engine.domain.intents import (
+    ConflictResolutionIntent,
     OperationWriteIntent,
     RollbackIntent,
     TransactionResult,
@@ -150,6 +152,121 @@ class GitNativeTransactionEngine:
 
         return await self._rollback_optimistic(intent, started_ms)
 
+    async def resolve(
+        self,
+        intent: ConflictResolutionIntent,
+    ) -> TransactionResult:
+        """Apply a manual or hosted-agent resolution to a pending conflict.
+
+        Reads the ``mut_conflicts`` row, materializes the resolution tree,
+        re-enters the publish pipeline against the *current* scope head
+        (not the head observed when the conflict was recorded), and clears
+        the pending row.
+        """
+
+        started_ms = int(time.time() * 1000)
+        scope_norm = normalize_path(intent.scope_path)
+        log_info(
+            f"[version_engine][resolve] start "
+            f"project={intent.project_id} scope={scope_norm!r} "
+            f"pending={intent.pending_conflict_id[:12]} "
+            f"decision={intent.decision} actor={intent.resolver_actor}",
+        )
+
+        pending = await asyncio.to_thread(
+            _load_pending_conflict_row,
+            intent.project_id,
+            intent.pending_conflict_id,
+        )
+        if pending is None:
+            raise ValueError(
+                f"pending conflict {intent.pending_conflict_id!r} not found",
+            )
+        if pending.get("status") != "pending":
+            raise ValueError(
+                f"pending conflict {intent.pending_conflict_id!r} is "
+                f"{pending.get('status')!r}, not pending",
+            )
+
+        if intent.decision == "reject":
+            await asyncio.to_thread(
+                _close_pending_conflict_row,
+                project_id=intent.project_id,
+                pending_conflict_id=intent.pending_conflict_id,
+                status="rejected",
+                resolver_actor=intent.resolver_actor,
+                resolution_commit_id="",
+                resolution_detail={
+                    "reason": intent.resolution_message or "rejected by resolver",
+                    "decision": "reject",
+                },
+            )
+            return TransactionResult(
+                status="rejected",
+                merged=False,
+                reason="resolver_rejected",
+                pending_conflict_id=intent.pending_conflict_id,
+            )
+
+        await asyncio.to_thread(
+            _mark_pending_conflict_row,
+            project_id=intent.project_id,
+            pending_conflict_id=intent.pending_conflict_id,
+            status="resolving",
+            resolver_actor=intent.resolver_actor,
+        )
+
+        repo = self._repos.get_server_repo(intent.project_id)
+        if intent.resolution_files is not None:
+            files = dict(intent.resolution_files)
+            resolution_tree_id = await asyncio.to_thread(
+                build_tree_from_files, repo.store, files,
+            )
+        else:
+            if not intent.resolution_tree_id:
+                raise ValueError(
+                    "resolution requires resolution_tree_id or resolution_files",
+                )
+            resolution_tree_id = intent.resolution_tree_id
+
+        submission = VersionSubmissionIntent(
+            project_id=intent.project_id,
+            scope_path=scope_norm,
+            actor=intent.resolver_actor,
+            source_channel=intent.source_channel,
+            base_commit_id=pending.get("current_commit_id", "") or "",
+            proposed_tree_id=resolution_tree_id,
+            client_commit_id="",
+            message=intent.resolution_message or "conflict resolved",
+            audit_detail={
+                **(intent.audit_detail or {}),
+                "pending_conflict_id": intent.pending_conflict_id,
+                "resolution_decision": "accept",
+            },
+            defer_projection=intent.defer_projection,
+        )
+        result = await self._submit_version_optimistic(submission, started_ms)
+
+        try:
+            await asyncio.to_thread(
+                _close_pending_conflict_row,
+                project_id=intent.project_id,
+                pending_conflict_id=intent.pending_conflict_id,
+                status="resolved",
+                resolver_actor=intent.resolver_actor,
+                resolution_commit_id=result.commit_id,
+                resolution_detail={
+                    "decision": "accept",
+                    "message": intent.resolution_message,
+                },
+            )
+        except Exception as exc:
+            log_warning(
+                f"[version_engine][resolve] could not close pending row "
+                f"{intent.pending_conflict_id[:12]}: {exc}",
+            )
+        return result
+
     async def _apply_operation_optimistic(
         self,
         *,
@@ -230,6 +347,10 @@ class GitNativeTransactionEngine:
                 merged=False,
                 merged_changes=[],
                 defer_projection=intent.defer_projection,
+                source_channel=intent.source_channel,
+                base_commit_id=current_head_commit_id,
+                proposed_tree_id=new_scope_hash,
+                intent_type="operation",
             )
             if result is not None:
                 _log_done(intent.operation_type, intent.project_id, scope_norm, result, started_ms)
@@ -320,8 +441,14 @@ class GitNativeTransactionEngine:
                     actor=intent.actor,
                     paths=list(incoming_files.keys()),
                 )
-                merge_result = merge_file_sets_for_manual_review(
+                parent_scope_files = await asyncio.to_thread(
+                    _parent_scope_files,
+                    repo, scope_norm, list(incoming_files.keys()),
+                )
+                merge_result = merge_file_sets_for_policy(
                     base_files, current_files, incoming_files,
+                    policy=policy,
+                    parent_scope_files=parent_scope_files,
                 )
                 if merge_result.manual_conflicts and policy.policy == "manual_review":
                     result = await self._record_pending_conflict(
@@ -345,7 +472,11 @@ class GitNativeTransactionEngine:
                     )
                     return result
                 merged_files = merge_result.merged_files
-                conflicts = merge_result.auto_merge_records
+                conflicts = (
+                    list(merge_result.auto_merge_records)
+                    + list(merge_result.lww_records)
+                    + list(merge_result.superseded_by_parent)
+                )
                 new_scope_hash = await asyncio.to_thread(
                     build_tree_from_files, repo.store, merged_files,
                 )
@@ -408,6 +539,11 @@ class GitNativeTransactionEngine:
                 cas_attempt=attempt + 1,
                 merged=bool(conflicts) or new_scope_hash != intent.proposed_tree_id,
                 merged_changes=merged_changes,
+                source_channel=intent.source_channel,
+                base_commit_id=intent.base_commit_id,
+                client_commit_id=intent.client_commit_id,
+                proposed_tree_id=intent.proposed_tree_id,
+                intent_type="submission",
                 defer_projection=intent.defer_projection,
             )
             if result is not None:
@@ -509,6 +645,10 @@ class GitNativeTransactionEngine:
                 merged=False,
                 merged_changes=[],
                 defer_projection=intent.defer_projection,
+                source_channel=intent.source_channel,
+                base_commit_id=current_head_commit_id,
+                proposed_tree_id=new_scope_hash,
+                intent_type="rollback",
             )
             if result is not None:
                 result.status = "rolled-back"
@@ -592,6 +732,27 @@ class GitNativeTransactionEngine:
             intent.actor,
             audit,
         )
+        try:
+            await asyncio.to_thread(
+                _record_pending_conflict_row,
+                project_id=intent.project_id,
+                pending_conflict_id=pending_conflict_id,
+                scope_path=scope_path,
+                base_commit_id=intent.base_commit_id,
+                current_commit_id=current_head_commit_id,
+                client_commit_id=intent.client_commit_id,
+                proposed_tree_id=intent.proposed_tree_id,
+                changed_paths=paths,
+                conflicts=manual_conflicts,
+                policy="manual_review",
+                source_channel=intent.source_channel,
+                actor=intent.actor,
+            )
+        except Exception as exc:
+            log_warning(
+                f"[version_engine] failed to persist mut_conflicts row "
+                f"{pending_conflict_id[:12]}: {exc}",
+            )
         return TransactionResult(
             status="pending",
             merged=False,
@@ -628,6 +789,13 @@ class GitNativeTransactionEngine:
                     f"[version_engine] cannot preserve client commit "
                     f"{intent.client_commit_id[:12]}: {e}",
                 )
+        # Server-synthesized commit — stamp immutable provenance trailers.
+        trailers = {
+            "PuppyOne-Source": intent.source_channel,
+            "PuppyOne-Scope": normalize_path(intent.scope_path) or "/",
+            "PuppyOne-Original-Commit": intent.client_commit_id or "",
+            "PuppyOne-Base-Commit": intent.base_commit_id or "",
+        }
         return build_git_commit(
             repo,
             tree_sha=tree_id,
@@ -635,6 +803,7 @@ class GitNativeTransactionEngine:
             who=intent.actor,
             message=intent.message,
             created_at_iso=created_at_iso,
+            trailers=trailers,
         )
 
     async def _publish_scope_update(
@@ -657,6 +826,12 @@ class GitNativeTransactionEngine:
         merged: bool,
         merged_changes: list[dict],
         defer_projection: bool,
+        source_channel: str = "",
+        policy: str = "",
+        base_commit_id: str = "",
+        client_commit_id: str = "",
+        proposed_tree_id: str = "",
+        intent_type: str = "operation",
     ) -> TransactionResult | None:
         audit = {
             "scope": scope_path,
@@ -668,7 +843,7 @@ class GitNativeTransactionEngine:
             "conflict_count": len(conflicts or []),
             **(audit_detail or {}),
         }
-        published = await asyncio.to_thread(
+        publish_outcome = await asyncio.to_thread(
             repo.publish_scope_update,
             scope_path=scope_path,
             old_scope_hash=old_scope_hash,
@@ -682,7 +857,17 @@ class GitNativeTransactionEngine:
             audit_event_type=op_type,
             audit_agent_id=actor,
             audit_detail=audit,
+            source_channel=source_channel,
+            policy=policy,
+            base_commit_id=base_commit_id,
+            client_commit_id=client_commit_id,
+            proposed_tree_id=proposed_tree_id,
+            intent_type=intent_type,
         )
+        if isinstance(publish_outcome, tuple):
+            published, _txn_id = publish_outcome
+        else:
+            published, _txn_id = bool(publish_outcome), None
         if not published:
             return None
 
@@ -881,3 +1066,193 @@ def _log_done(
         f"project={project_id} scope={scope_path!r} "
         f"changes={len(result.paths)} elapsed={elapsed}ms",
     )
+
+
+def _record_pending_conflict_row(
+    *,
+    project_id: str,
+    pending_conflict_id: str,
+    scope_path: str,
+    base_commit_id: str,
+    current_commit_id: str,
+    client_commit_id: str,
+    proposed_tree_id: str,
+    changed_paths: list[str],
+    conflicts,
+    policy: str,
+    source_channel: str,
+    actor: str,
+) -> None:
+    """Insert (or refresh) the structured pending-conflict row.
+
+    Idempotent on ``pending_conflict_id`` so retried submissions that
+    produce the same conflict do not error out. Failures are logged by
+    the caller; this function does not retry.
+    """
+
+    from src.infra.supabase.client import SupabaseClient
+
+    client = SupabaseClient().client
+    payload = {
+        "pending_conflict_id": pending_conflict_id,
+        "project_id": project_id,
+        "scope_path": scope_path,
+        "base_commit_id": base_commit_id or "",
+        "current_commit_id": current_commit_id or "",
+        "client_commit_id": client_commit_id or "",
+        "proposed_tree_id": proposed_tree_id or "",
+        "changed_paths": changed_paths,
+        "conflict_records": [conflict_to_dict(c) for c in (conflicts or [])],
+        "policy": policy,
+        "status": "pending",
+        "resolver_actor": "",
+        "resolver_kind": _resolver_kind_for(source_channel),
+        "resolution_detail": {"actor": actor, "source_channel": source_channel},
+    }
+    client.table("mut_conflicts").upsert(
+        payload, on_conflict="pending_conflict_id",
+    ).execute()
+
+
+def _resolver_kind_for(source_channel: str) -> str:
+    if source_channel in {"agent", "sync"}:
+        return "agent"
+    return "human"
+
+
+def _parent_scope_files(
+    repo,
+    scope_path: str,
+    relative_paths: list[str],
+) -> dict[str, bytes]:
+    """Return files owned by the nearest ancestor scope for the given
+    relative paths.
+
+    Implements 07-version-engine-supplement.md §7.A "parent-scope-wins":
+    when a child scope and its parent scope both claim a file, the
+    parent content stays. The returned dict is keyed by the same
+    relative path the incoming/current sets use, so the merge helper
+    can do direct lookups.
+    """
+
+    scope_norm = normalize_path(scope_path)
+    if not scope_norm:
+        # The root scope has no parent.
+        return {}
+    parents = list(_ancestor_scope_paths(repo, scope_norm))
+    if not parents:
+        return {}
+    relevant: set[str] = set(relative_paths or [])
+    if not relevant:
+        return {}
+
+    parent_files: dict[str, bytes] = {}
+    for parent_scope in parents:
+        try:
+            parent_scope_hash, _ = _get_scope_state(repo, parent_scope)
+        except Exception:
+            parent_scope_hash = ""
+        if not parent_scope_hash:
+            continue
+        try:
+            files = flatten_tree_to_bytes(repo.store, parent_scope_hash)
+        except Exception:
+            continue
+        # The parent's tree is rooted at the parent's scope path. The
+        # child's relative paths must be prefixed by the path segment
+        # between parent and child to land on the same blob.
+        prefix = scope_norm[len(parent_scope):].lstrip("/") if parent_scope else scope_norm
+        for rel in relevant:
+            if rel in parent_files:
+                continue
+            lookup = f"{prefix}/{rel}" if prefix else rel
+            if lookup in files:
+                parent_files[rel] = files[lookup]
+        if len(parent_files) == len(relevant):
+            break
+    return parent_files
+
+
+def _ancestor_scope_paths(repo, scope_path: str) -> list[str]:
+    """Return ancestor scope paths (nearest first) that the repo declares.
+
+    Falls back to a structural walk if the repo cannot enumerate scopes,
+    which keeps the merge path resilient against missing optional repo
+    APIs (in-memory fakes, partial test fixtures, etc.).
+    """
+
+    scope_norm = normalize_path(scope_path)
+    if not scope_norm:
+        return []
+    declared: set[str] = set()
+    try:
+        all_scopes = repo.get_all_scope_hashes()
+        declared = {normalize_path(p) for p in all_scopes.keys()}
+    except Exception:
+        declared = set()
+    ancestors: list[str] = []
+    parts = scope_norm.split("/")
+    for i in range(len(parts) - 1, 0, -1):
+        ancestor = "/".join(parts[:i])
+        if not declared or ancestor in declared:
+            ancestors.append(ancestor)
+    # Always include the root scope last.
+    if not declared or "" in declared:
+        ancestors.append("")
+    return ancestors
+
+
+def _load_pending_conflict_row(project_id: str, pending_conflict_id: str) -> dict | None:
+    from src.infra.supabase.client import SupabaseClient
+
+    client = SupabaseClient().client
+    resp = (
+        client.table("mut_conflicts")
+        .select("*")
+        .eq("project_id", project_id)
+        .eq("pending_conflict_id", pending_conflict_id)
+        .maybe_single()
+        .execute()
+    )
+    return getattr(resp, "data", None)
+
+
+def _mark_pending_conflict_row(
+    *,
+    project_id: str,
+    pending_conflict_id: str,
+    status: str,
+    resolver_actor: str,
+) -> None:
+    from src.infra.supabase.client import SupabaseClient
+
+    client = SupabaseClient().client
+    client.table("mut_conflicts").update({
+        "status": status,
+        "resolver_actor": resolver_actor or "",
+    }).eq("project_id", project_id).eq(
+        "pending_conflict_id", pending_conflict_id,
+    ).execute()
+
+
+def _close_pending_conflict_row(
+    *,
+    project_id: str,
+    pending_conflict_id: str,
+    status: str,
+    resolver_actor: str,
+    resolution_commit_id: str,
+    resolution_detail: dict,
+) -> None:
+    from src.infra.supabase.client import SupabaseClient
+
+    client = SupabaseClient().client
+    client.table("mut_conflicts").update({
+        "status": status,
+        "resolver_actor": resolver_actor or "",
+        "resolution_commit_id": resolution_commit_id or "",
+        "resolution_detail": resolution_detail,
+        "resolved_at": _now_iso(),
+    }).eq("project_id", project_id).eq(
+        "pending_conflict_id", pending_conflict_id,
+    ).execute()

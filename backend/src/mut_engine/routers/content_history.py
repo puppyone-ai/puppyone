@@ -195,40 +195,30 @@ async def rollback(
 ):
     ensure_write_access(project_service, current_user, project_id)
 
-    from src.mut_engine.adapters.mut.rollback_adapter import submit_mut_rollback
-    from src.mut_engine.adapters.mut.protocol import PROTOCOL_VERSION
-    from src.mut_engine.application.errors import (
-        ClientTooOldError,
-        LockError,
-        ObjectNotFoundError,
-        PermissionDenied,
-    )
+    from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
+    from src.mut_engine.domain.intents import RollbackIntent
 
     who = f"user:{current_user.user_id}"
-    auth = {
-        "agent": who,
-        "_scope": {"id": who, "path": "", "exclude": [], "mode": "rw"},
-    }
-    mut_body = {
-        "protocol_version": PROTOCOL_VERSION,
-        "target_commit_id": body.target_commit_id,
-    }
+    engine = GitNativeTransactionEngine(repo_manager)
 
     try:
-        result = await submit_mut_rollback(repo_manager, project_id, auth, mut_body)
-    except ClientTooOldError as e:
-        raise HTTPException(status_code=426, detail=str(e))
-    except PermissionDenied as e:
+        result = await engine.rollback(RollbackIntent(
+            project_id=project_id,
+            scope_path="",
+            actor=who,
+            source_channel="papi",
+            target_commit_id=body.target_commit_id,
+            message=f"rollback to {body.target_commit_id}",
+        ))
+    except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
-    except (ValueError, ObjectNotFoundError) as e:
+    except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except LockError as e:
-        raise HTTPException(status_code=429, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rollback failed: {e}")
 
     return ApiResponse.success(data=RollbackResponse(
         project_id=project_id,
-        new_commit_id=result.get("new_commit_id", ""),
+        new_commit_id=result.commit_id,
         rolled_back_to=body.target_commit_id,
     ))
