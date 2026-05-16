@@ -48,6 +48,11 @@ async def submit_mut_push(
         ).to_dict()
 
     snapshot = req.snapshots[-1]
+    entry_point = (
+        "access_key_cli"
+        if str(auth.get("agent") or "").startswith("scope:")
+        else "project_cli"
+    )
     engine = GitNativeTransactionEngine(repo_manager)
     result = await engine.submit_version(
         VersionSubmissionIntent(
@@ -60,7 +65,14 @@ async def submit_mut_push(
             client_commit_id=snapshot.get("commit_id", ""),
             message=snapshot.get("message", ""),
             scope_excludes=scope.get("exclude") or [],
-            audit_detail={"snapshots": len(req.snapshots)},
+            audit_detail={
+                "source_channel": "mut",
+                "protocol": "mut",
+                "entry_point": entry_point,
+                "remote": "Puppyone CLI",
+                "scope_id": scope.get("id", ""),
+                "snapshots": len(req.snapshots),
+            },
             defer_projection=True,
         )
     )

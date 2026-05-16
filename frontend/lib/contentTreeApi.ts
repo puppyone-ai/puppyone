@@ -842,7 +842,7 @@ export async function getProjectHistory(
 export interface AuditLogItem {
   id: number;
   action: string;
-  path: string;
+  path: string | null;
   operator_type: string;
   operator_id: string | null;
   status: string | null;
@@ -854,6 +854,11 @@ export interface AuditLogItem {
 
 export interface AuditLogListResponse {
   path: string;
+  logs: AuditLogItem[];
+  total: number;
+}
+
+export interface ProjectAuditLogListResponse {
   logs: AuditLogItem[];
   total: number;
 }
@@ -872,6 +877,21 @@ export async function getNodeAuditLogs(
   });
   return treeRequest<AuditLogListResponse>(
     `/api/v1/content/${projectId}/audit-logs?${params}`
+  );
+}
+
+export async function getProjectAuditLogs(
+  projectId: string,
+  limit: number = 100,
+  offset: number = 0
+): Promise<ProjectAuditLogListResponse> {
+  const params = new URLSearchParams({
+    project_id: projectId,
+    limit: String(limit),
+    offset: String(offset),
+  });
+  return treeRequest<ProjectAuditLogListResponse>(
+    `/api/v1/nodes/project-audit-logs?${params}`
   );
 }
 

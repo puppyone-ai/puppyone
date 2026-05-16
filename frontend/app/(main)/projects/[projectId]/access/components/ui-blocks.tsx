@@ -14,8 +14,7 @@
  *  - Buttons / badges       : GhostButton, PermBadge
  *  - Section labels         : SectionLabel, SubSectionLabel
  *  - Notice                 : NoAccessKeyNotice
- *  - Copy-paste UX          : PromptBlock, CommandStepsDisclosure,
- *                             CommandBlock, KvBlock, KvRow
+ *  - Copy-paste UX          : PromptBlock, CommandBlock, KvBlock, KvRow
  *
  * NONE of these talk to the network or hold business state — they're
  * pure presentation. Anything stateful (SWR, mutations) belongs in
@@ -31,7 +30,7 @@ import {
 } from '../lib/tokens';
 import { CopyIcon } from './icons';
 
-const PROMPT_PREVIEW_BG = 'var(--po-panel)';
+const PROMPT_PREVIEW_BG = PROMPT_BG;
 
 // ─── Buttons & badges ────────────────────────────────────────────────
 //
@@ -233,23 +232,46 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
     <div
       style={{
         position: 'relative',
-        height: PROMPT_BLOCK_HEIGHT,
-        borderRadius: 6,
-        border: `1px solid ${T.cardBorder}`,
+        height: PROMPT_BLOCK_HEIGHT + 28,
+        borderRadius: 8,
+        border: '1px solid var(--po-border-strong)',
         background: PROMPT_PREVIEW_BG,
         overflow: 'hidden',
-        marginBottom: 12,
+        marginBottom: 0,
+        boxShadow: '0 1px 2px var(--po-shadow)',
       }}
     >
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+          padding: '0 14px',
+          borderBottom: `1px solid ${T.cardBorder}`,
+          background: 'color-mix(in srgb, var(--po-panel) 72%, var(--po-inset) 28%)',
+          color: T.text2,
+          fontFamily: T.fontSans,
+          fontSize: 11.5,
+          fontWeight: 600,
+          boxSizing: 'border-box',
+        }}
+      >
+        Setup prompt
+      </div>
       <pre
         aria-hidden
         style={{
           margin: 0,
-          padding: '12px 14px 58px 14px',
+          padding: '44px 14px 60px 14px',
           fontFamily: T.fontMono,
-          fontSize: 11,
+          fontSize: 11.5,
           lineHeight: 1.6,
-          color: T.text2,
+          color: T.text1,
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
         }}
@@ -305,92 +327,6 @@ export function PromptBlock({ prompt }: { readonly prompt: string }) {
         <CopyIcon size={12} />
         {copied ? 'Copied' : 'Copy setup prompt'}
       </button>
-    </div>
-  );
-}
-
-// ─── Command steps disclosure ────────────────────────────────────────
-
-export function CommandStepsDisclosure({
-  steps,
-}: {
-  readonly steps: ReadonlyArray<{ title: string; lines: readonly string[] }>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        aria-expanded={open}
-        style={{
-          all: 'unset',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 30,
-          padding: '0 6px',
-          marginLeft: -6,
-          fontSize: 12,
-          fontWeight: 500,
-          fontFamily: T.fontSans,
-          color: hovered || open ? T.text1 : T.text2,
-          cursor: 'pointer',
-          transition: `color 0.12s ${T.ease}`,
-        }}
-      >
-        <span
-          aria-hidden
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 10,
-            height: 10,
-            transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
-            transition: `transform 0.15s ${T.ease}`,
-          }}
-        >
-          <svg width={10} height={10} viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 2.5l3.5 3.5L4 9.5" />
-          </svg>
-        </span>
-        Show install steps
-      </button>
-      {open && (
-        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {steps.map((step, idx) => (
-            <div key={step.title} style={{ display: 'flex', gap: 10 }}>
-              <span
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 999,
-                  background: 'var(--po-border-subtle)',
-                  color: T.text2,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  fontFamily: T.fontSans,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  marginTop: 1,
-                }}
-              >
-                {idx + 1}
-              </span>
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: T.text1, fontFamily: T.fontSans }}>{step.title}</span>
-                <CommandBlock lines={step.lines} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

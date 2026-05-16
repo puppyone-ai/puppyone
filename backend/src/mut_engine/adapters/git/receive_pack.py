@@ -46,6 +46,7 @@ async def receive_pack_response(
     actor: str,
     body: bytes,
     read_only: bool,
+    audit_detail: dict | None = None,
 ) -> Response:
     try:
         command = parse_receive_pack_request(body)
@@ -120,6 +121,15 @@ async def receive_pack_response(
                 message=commit.get("message", "") or "git push",
                 scope_excludes=scope_excludes,
                 defer_projection=True,
+                audit_detail={
+                    "source_channel": "git",
+                    "protocol": "git",
+                    "service": "receive-pack",
+                    "ref": command.ref,
+                    "old_commit_id": command.old_id if command.old_id != ZERO_ID else "",
+                    "remote_commit_id": command.new_id,
+                    **(audit_detail or {}),
+                },
             )
         if result.status == "pending":
             return receive_pack_result(

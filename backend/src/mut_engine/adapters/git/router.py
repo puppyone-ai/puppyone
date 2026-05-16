@@ -60,6 +60,42 @@ async def resolve_git_access_point(access_key: str, request: Request) -> tuple[s
     return project_id, auth
 
 
+def _git_audit_detail(
+    *,
+    auth: dict,
+    entry_point: str,
+    actor: str,
+) -> dict:
+    scope = auth.get("_scope") or {}
+    return {
+        "source_channel": "git",
+        "protocol": "git",
+        "entry_point": entry_point,
+        "remote": (
+            "Access key Git remote"
+            if entry_point == "access_key_git_remote"
+            else "Project Git remote"
+        ),
+        "scope": normalize_path(scope.get("path", "")),
+        "scope_id": scope.get("id", ""),
+        "actor": actor,
+    }
+
+
+async def _record_git_fetch_audit(
+    *,
+    repo,
+    auth: dict,
+    actor: str,
+    entry_point: str,
+) -> None:
+    detail = {
+        **_git_audit_detail(auth=auth, entry_point=entry_point, actor=actor),
+        "service": "upload-pack",
+    }
+    await asyncio.to_thread(repo.record_audit, "git_fetch", actor, detail)
+
+
 @router.get("/{project_id}.git/info/refs")
 async def git_info_refs(
     project_id: str,
@@ -113,15 +149,21 @@ async def git_receive_pack(
     await ensure_protocol_enabled(project_id, "git")
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
+    actor = request_actor(request, auth)
     return await receive_pack_response(
         repo_manager=repo_manager,
         repo=repo,
         project_id=project_id,
         scope_path=scope_path_for_auth(auth),
         scope_excludes=scope_excludes_for_auth(auth),
-        actor=request_actor(request, auth),
+        actor=actor,
         body=body,
         read_only=(auth.get("_scope") or {}).get("mode", "rw") == "r",
+        audit_detail=_git_audit_detail(
+            auth=auth,
+            entry_point="project_git_remote",
+            actor=actor,
+        ),
     )
 
 
@@ -137,15 +179,21 @@ async def git_ap_receive_pack(
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
     scope = auth["_scope"]
+    actor = request_actor(request, auth)
     return await receive_pack_response(
         repo_manager=repo_manager,
         repo=repo,
         project_id=project_id,
         scope_path=normalize_path(scope.get("path", "")),
         scope_excludes=scope_excludes_for_auth(auth),
-        actor=request_actor(request, auth),
+        actor=actor,
         body=body,
         read_only=scope.get("mode", "r") == "r",
+        audit_detail=_git_audit_detail(
+            auth=auth,
+            entry_point="access_key_git_remote",
+            actor=actor,
+        ),
     )
 
 
@@ -162,6 +210,13 @@ async def git_upload_pack(
     await ensure_protocol_enabled(project_id, "git")
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
+    actor = request_actor(request, auth)
+    await _record_git_fetch_audit(
+        repo=repo,
+        auth=auth,
+        actor=actor,
+        entry_point="project_git_remote",
+    )
     return upload_pack_response(
         repo,
         scope_path_for_auth(auth),
@@ -181,6 +236,13 @@ async def git_ap_upload_pack(
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
+    actor = request_actor(request, auth)
+    await _record_git_fetch_audit(
+        repo=repo,
+        auth=auth,
+        actor=actor,
+        entry_point="access_key_git_remote",
+    )
     return upload_pack_response(
         repo,
         normalize_path(auth["_scope"].get("path", "")),

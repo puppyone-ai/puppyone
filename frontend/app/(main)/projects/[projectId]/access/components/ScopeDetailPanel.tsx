@@ -24,11 +24,11 @@
  *   │  ┌───────────┐ ┌───────────┐                              │
  *   │  │ [icon]    │ │ [icon]    │                              │
  *   │  │ CLI    ●  │ │ AGENT  ●  │                              │
- *   │  │ Local CLI │ │ Hello AI  │                              │
+ *   │  │ Puppyone… │ │ Hello AI  │                              │
  *   │  └───────────┘ └───────────┘                              │
  *   │   ↑ selected     unselected                                │
  *   │                                                            │
- *   │  Local CLI                          [Pause] [⋮]           │  ← AP NAME (page header)
+ *   │  Puppyone CLI                       [Pause] [⋮]           │  ← AP NAME (page header)
  *   │  CLI agent · Two-way · ● Active · Never                   │
  *   │  ─────────────────────────────────────                    │
  *   │  PROMPT FOR AI AGENT                                       │
@@ -41,20 +41,23 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import useSWR from 'swr';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
 import type { Connector, RepoScope } from '@/lib/repoApi';
+import { getProjectAuditLogs, type AuditLogItem } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { T } from '../lib/tokens';
 import {
-  CONNECTOR_GROUP_LABELS,
   PROVIDER_LABELS,
   STATUS_COLORS,
   STATUS_LABEL,
 } from '../lib/constants';
-import { getConnectorGroup } from '../lib/format';
-import { PauseIcon, PlayIcon, ProviderIcon, ScopeFolderGlyph } from './icons';
-import { GhostButton, PermBadge, SectionLabel } from './ui-blocks';
-import { ConnectorCard } from './ConnectorCard';
+import { getTypeLine, timeAgo } from '../lib/format';
+import { PauseIcon, PlayIcon, ProviderIcon, RetryIcon } from './icons';
+import { GhostButton, SectionLabel } from './ui-blocks';
+import { ConnectorDetailBody } from './ConnectorCard';
+import { ConnectorAccessPanel } from './quick-connect';
 // We deliberately reuse the existing ScopeSettingsBlock from /data —
 // it already implements every editable scope field (mode, exclude,
 // access-key rotate/copy, name, identity, danger zone) plus the
@@ -62,6 +65,8 @@ import { ConnectorCard } from './ConnectorCard';
 // would duplicate ~600 lines and inevitably drift visually.
 import { ScopeSettingsBlock } from '../../data/components/access-points/ScopeSettingsBlock';
 import type { ConnectorEditPatch } from '../hooks/useAccessData';
+
+const SHOW_ACCESS_ACTIVITY = false;
 
 // ─── Detail pane root ────────────────────────────────────────────────
 
@@ -91,12 +96,10 @@ export function ScopeDetailPanel({
    *  pick up an adjacent scope on the next render. */
   readonly onScopeDeleted: () => void;
 }) {
-  // Track the currently-selected AP card. Defaults to the first
-  // connector under this scope; re-anchors whenever the scope (and
-  // therefore the connectors list) changes underneath us.
-  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(
-    () => connectors[0]?.id ?? null,
-  );
+  // Track the currently-expanded connector row. Defaults to collapsed
+  // so first-time users see the compact connector list before drilling
+  // into setup/configuration details.
+  const [selectedConnectorId, setSelectedConnectorId] = useState<string | null>(null);
 
   // Inline scope-settings toggle. The `Edit` button on the strip flips
   // this; we mount `ScopeSettingsBlock` right under the strip so the
@@ -108,7 +111,17 @@ export function ScopeDetailPanel({
   useEffect(() => {
     setSettingsOpen(false);
     setSettingsDirty(false);
+    setSelectedConnectorId(null);
   }, [scope?.id]);
+
+  const handleSelectConnector = useCallback((connectorId: string) => {
+    setSelectedConnectorId((current) => {
+      if (current === connectorId) {
+        return null;
+      }
+      return connectorId;
+    });
+  }, []);
 
   const handleToggleSettings = useCallback(() => {
     if (settingsOpen && settingsDirty) {
@@ -132,17 +145,29 @@ export function ScopeDetailPanel({
       setSelectedConnectorId(null);
       return;
     }
-    const stillExists =
-      selectedConnectorId != null &&
-      connectors.some((c) => c.id === selectedConnectorId);
-    if (!stillExists) setSelectedConnectorId(connectors[0].id);
+    if (selectedConnectorId == null) return;
+    const stillExists = connectors.some((c) => c.id === selectedConnectorId);
+    if (!stillExists) setSelectedConnectorId(null);
   }, [connectors, selectedConnectorId]);
 
   const selectedConnector = useMemo(
     () =>
-      connectors.find((c) => c.id === selectedConnectorId) ?? connectors[0],
+      connectors.find((c) => c.id === selectedConnectorId) ?? null,
     [connectors, selectedConnectorId],
   );
+  const {
+    data: auditData,
+    error: auditError,
+  } = useSWR(
+    SHOW_ACCESS_ACTIVITY && projectId ? ['access-project-audit-logs', projectId] : null,
+    () => getProjectAuditLogs(projectId, 150),
+    { refreshInterval: 30000, revalidateOnFocus: false, dedupingInterval: 15000 },
+  );
+  const accessActivity = useMemo(
+    () => filterAccessActivityLogs(auditData?.logs ?? [], scope).slice(0, 7),
+    [auditData?.logs, scope],
+  );
+  const activityLoading = !auditError && auditData === undefined;
 
   return (
     <div
@@ -174,25 +199,16 @@ export function ScopeDetailPanel({
           connectors={connectors}
           onPauseResume={onPauseResume}
           pendingConnectorIds={pendingConnectorIds}
+          settingsOpen={settingsOpen}
+          settingsDirty={settingsDirty}
+          onToggleSettings={handleToggleSettings}
         />
 
-        {/* SCOPE attribute strip — folder glyph, path, mode, perm
-            badges. Compact by design: it's a context bar, not a
-            heading. The "Scope" eyebrow keeps it grouped as a sibling
-            to "Settings" and "Connectors" below. */}
-        <SectionLabel>Scope</SectionLabel>
-        <ScopeStrip scope={scope} />
-
-        {/* SETTINGS — sibling to Connectors. Header row is a single
-            button so the chevron + label respond as one click target;
-            dirty-edits get a small amber dot anchored after the
-            heading. */}
+        {/* SETTINGS — opened from the header gear. The collapsed
+            placeholder row is intentionally gone so the boundary row
+            can stay visually adjacent to the title. */}
         {scope ? (
-          <SettingsSection
-            open={settingsOpen}
-            dirty={settingsDirty}
-            onToggle={handleToggleSettings}
-          >
+          <SettingsSection open={settingsOpen}>
             <ScopeSettingsBlock
               scope={scope}
               projectId={projectId}
@@ -207,25 +223,40 @@ export function ScopeDetailPanel({
             points" but the underlying entity in the data model (and in
             every API path / SQL table) is `connector`. Naming the UI
             section the same name eliminates the translation step. */}
-        {connectors.length > 0 && selectedConnector ? (
+        {connectors.length > 0 ? (
           <>
-            <SectionLabel>Connectors</SectionLabel>
-            <AccessPointSwitcher
+            <SectionLabel
+              right={
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: T.text4,
+                    fontFamily: T.fontSans,
+                    fontWeight: 500,
+                  }}
+                >
+                  {connectors.length === 1 ? '1 way in' : `${connectors.length} ways in`}
+                </span>
+              }
+            >
+              Connectors
+            </SectionLabel>
+            <ConnectorList
+              scope={scope}
               connectors={connectors}
-              selectedId={selectedConnector.id}
-              onSelect={setSelectedConnectorId}
+              selectedId={selectedConnector?.id ?? null}
+              onSelect={handleSelectConnector}
               onPauseResume={onPauseResume}
+              onUpdate={onUpdate}
               pendingConnectorIds={pendingConnectorIds}
             />
-            <ConnectorCard
-              key={selectedConnector.id}
-              connector={selectedConnector}
-              scope={scope}
-              onPauseResume={() => onPauseResume(selectedConnector.id)}
-              onUpdate={(patch) => onUpdate(selectedConnector.id, patch)}
-              onDelete={() => onDelete(selectedConnector.id)}
-              pending={pendingConnectorIds.has(selectedConnector.id)}
-            />
+            {SHOW_ACCESS_ACTIVITY ? (
+              <AccessActivitySection
+                rows={accessActivity}
+                loading={activityLoading}
+                errored={!!auditError}
+              />
+            ) : null}
           </>
         ) : (
           <div
@@ -258,6 +289,529 @@ export function ScopeDetailPanel({
       `}</style>
     </div>
   );
+}
+
+// ─── Access activity ─────────────────────────────────────────────────
+
+type ActivityProvider = 'cli' | 'filesystem' | 'agent' | 'generic';
+type ActivityTone = 'success' | 'pending' | 'error' | 'neutral';
+
+interface AccessActivityRow {
+  readonly id: number;
+  readonly provider: ActivityProvider;
+  readonly methodLabel: string;
+  readonly sourceDetail: string;
+  readonly actionLabel: string;
+  readonly actionDetail: string;
+  readonly detail: string;
+  readonly statusLabel: string;
+  readonly statusTone: ActivityTone;
+  readonly timeLabel: string;
+  readonly timeTitle: string;
+}
+
+function AccessActivitySection({
+  rows,
+  loading,
+  errored,
+}: {
+  readonly rows: readonly AccessActivityRow[];
+  readonly loading: boolean;
+  readonly errored: boolean;
+}) {
+  return (
+    <div style={{ marginTop: 2 }}>
+      <SectionLabel
+        right={
+          rows.length > 0 ? (
+            <span style={{ fontSize: 11, color: T.text4, fontFamily: T.fontSans, fontWeight: 500 }}>
+              {rows.length === 1 ? '1 event' : `${rows.length} events`}
+            </span>
+          ) : null
+        }
+      >
+        Recent access activity
+      </SectionLabel>
+      <div
+        style={{
+          borderRadius: 8,
+          border: `1px solid ${T.cardBorder}`,
+          background: 'color-mix(in srgb, var(--po-control) 42%, var(--po-panel) 58%)',
+          overflow: 'hidden',
+          minWidth: 0,
+        }}
+      >
+        <ActivityHeaderRow />
+        {loading ? (
+          <ActivityEmptyRow>Loading activity...</ActivityEmptyRow>
+        ) : errored ? (
+          <ActivityEmptyRow>Could not load audit logs.</ActivityEmptyRow>
+        ) : rows.length === 0 ? (
+          <ActivityEmptyRow>No access activity for this scope yet.</ActivityEmptyRow>
+        ) : (
+          rows.map((row, index) => (
+            <ActivityRow key={row.id} row={row} isFirst={index === 0} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+const ACTIVITY_GRID = '64px minmax(118px, 0.85fr) minmax(92px, 0.7fr) minmax(140px, 1.35fr) 70px';
+
+function ActivityHeaderRow() {
+  const cellStyle = {
+    fontSize: 10.5,
+    lineHeight: '14px',
+    color: T.text4,
+    fontFamily: T.fontSans,
+    fontWeight: 500,
+  } as const;
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: ACTIVITY_GRID,
+        alignItems: 'center',
+        gap: 12,
+        minWidth: 0,
+        padding: '8px 12px',
+        borderBottom: `1px solid ${T.cardBorder}`,
+      }}
+    >
+      <span style={cellStyle}>Time</span>
+      <span style={cellStyle}>Source</span>
+      <span style={cellStyle}>Action</span>
+      <span style={cellStyle}>Details</span>
+      <span style={{ ...cellStyle, textAlign: 'right' }}>Result</span>
+    </div>
+  );
+}
+
+function ActivityRow({
+  row,
+  isFirst,
+}: {
+  readonly row: AccessActivityRow;
+  readonly isFirst: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: ACTIVITY_GRID,
+        alignItems: 'center',
+        gap: 12,
+        minWidth: 0,
+        padding: '8px 12px',
+        borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
+        fontFamily: T.fontSans,
+      }}
+    >
+      <span
+        title={row.timeTitle}
+        style={{
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 11.5,
+          lineHeight: '16px',
+          color: T.text3,
+        }}
+      >
+        {row.timeLabel}
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <span
+          aria-hidden
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: 5,
+            border: `1px solid ${T.cardBorder}`,
+            background: 'color-mix(in srgb, var(--po-control) 58%, transparent)',
+            color: T.text2,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <ProviderIcon provider={row.provider} variant='mono' size={14} />
+        </span>
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span
+            title={row.methodLabel}
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 12,
+              lineHeight: '16px',
+              color: T.text2,
+              fontWeight: 500,
+            }}
+          >
+            {row.methodLabel}
+          </span>
+          {row.sourceDetail ? (
+            <span
+              title={row.sourceDetail}
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                fontSize: 10.5,
+                lineHeight: '14px',
+                color: T.text4,
+              }}
+            >
+              {row.sourceDetail}
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <span
+          title={row.actionLabel}
+          style={{
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: 12,
+            lineHeight: '16px',
+            color: T.text2,
+            fontWeight: 500,
+          }}
+        >
+          {row.actionLabel}
+        </span>
+        {row.actionDetail ? (
+          <span
+            title={row.actionDetail}
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 10.5,
+              lineHeight: '14px',
+              color: T.text4,
+              fontFamily: T.fontMono,
+            }}
+          >
+            {row.actionDetail}
+          </span>
+        ) : null}
+      </div>
+      <span
+        title={row.detail}
+        style={{
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 11.5,
+          lineHeight: '16px',
+          color: T.text3,
+          fontFamily: T.fontMono,
+        }}
+      >
+        {row.detail}
+      </span>
+      <StatusPill tone={row.statusTone}>{row.statusLabel}</StatusPill>
+    </div>
+  );
+}
+
+function ActivityEmptyRow({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        padding: '12px',
+        color: T.text3,
+        fontFamily: T.fontSans,
+        fontSize: 12,
+        lineHeight: '18px',
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function StatusPill({
+  tone,
+  children,
+}: {
+  readonly tone: ActivityTone;
+  readonly children: React.ReactNode;
+}) {
+  const color =
+    tone === 'success' ? 'var(--po-success)'
+    : tone === 'error' ? 'var(--po-danger)'
+    : tone === 'pending' ? 'var(--po-warning)'
+    : T.text4;
+  return (
+    <span
+      style={{
+        justifySelf: 'end',
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        minWidth: 0,
+        color: tone === 'neutral' ? T.text3 : color,
+        fontFamily: T.fontSans,
+        fontSize: 11.5,
+        lineHeight: '16px',
+        fontWeight: 500,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: color,
+        }}
+      />
+      {children}
+    </span>
+  );
+}
+
+function filterAccessActivityLogs(
+  logs: readonly AuditLogItem[],
+  scope: RepoScope | undefined,
+): AccessActivityRow[] {
+  if (!scope) return [];
+  return logs
+    .filter((log) => isAuditLogForScope(log, scope))
+    .map((log) => toAccessActivityRow(log));
+}
+
+function isAuditLogForScope(log: AuditLogItem, scope: RepoScope): boolean {
+  const metadata = log.metadata ?? {};
+  const scopePath = normalizeScopePath(scope.path ?? '');
+  const metadataScope = normalizeScopePath(readString(metadata.scope) ?? readString(metadata.scope_path) ?? '');
+  const actorIsScopeKey =
+    log.operator_id === `scope:${scope.id}` ||
+    log.operator_id === scope.id ||
+    readString(metadata.scope_id) === scope.id;
+  const scopedByMetadata = metadataScope === scopePath;
+  const scopedByPath = auditPathMatchesScope(log, scopePath);
+  return actorIsScopeKey || scopedByMetadata || scopedByPath;
+}
+
+function toAccessActivityRow(log: AuditLogItem): AccessActivityRow {
+  const action = normalizeAuditAction(log.action);
+  const provider = getAuditProvider(action, log);
+  const createdAt = log.created_at;
+  const status = formatAuditStatus(log);
+  return {
+    id: log.id,
+    provider,
+    methodLabel: formatAuditSource(log, provider),
+    sourceDetail: formatAuditSourceDetail(log, provider),
+    actionLabel: formatAuditAction(action),
+    actionDetail: log.action,
+    detail: formatAuditDetail(log),
+    statusLabel: status.label,
+    statusTone: status.tone,
+    timeLabel: timeAgo(createdAt),
+    timeTitle: createdAt ? new Date(createdAt).toLocaleString() : 'No timestamp',
+  };
+}
+
+function normalizeAuditAction(action: string): string {
+  return action.trim().toLowerCase().replace(/[\s-]+/g, '_');
+}
+
+function normalizeScopePath(path: string): string {
+  const trimmed = path.trim();
+  if (!trimmed || trimmed === '/') return '';
+  return trimmed.replace(/^\/+|\/+$/g, '');
+}
+
+function isProtocolAuditAction(action: string): boolean {
+  return (
+    action.includes('clone') ||
+    action.includes('pull') ||
+    action.includes('push') ||
+    action.includes('rollback') ||
+    action.includes('receive_pack') ||
+    action.includes('upload_pack')
+  );
+}
+
+function auditPathMatchesScope(log: AuditLogItem, scopePath: string): boolean {
+  const candidates = [
+    log.path,
+    readString(log.metadata?.path),
+    readString(log.metadata?.old_path),
+    readString(log.metadata?.new_path),
+  ].filter((value): value is string => !!value);
+  const paths = readStringArray(log.metadata?.paths);
+  candidates.push(...paths);
+  if (candidates.length === 0) return scopePath === '';
+  return candidates.some((path) => {
+    const normalized = normalizeScopePath(path);
+    return !scopePath || normalized === scopePath || normalized.startsWith(`${scopePath}/`);
+  });
+}
+
+function getAuditProvider(action: string, log: AuditLogItem): ActivityProvider {
+  const metadata = log.metadata ?? {};
+  const source = readString(metadata.source_channel);
+  if (source === 'git' || action.startsWith('git_') || action.includes('receive_pack') || action.includes('upload_pack')) {
+    return 'filesystem';
+  }
+  if (log.operator_type === 'agent' || log.operator_id?.startsWith('agent:')) {
+    return 'agent';
+  }
+  if (source === 'mut' || isProtocolAuditAction(action) || log.operator_id?.startsWith('scope:')) {
+    return 'cli';
+  }
+  if (log.operator_type === 'sync') {
+    return 'generic';
+  }
+  return 'generic';
+}
+
+function formatAuditSource(log: AuditLogItem, provider: ActivityProvider): string {
+  if (provider === 'filesystem') return 'Git Remote';
+  if (provider === 'cli') return 'Puppyone CLI';
+  if (provider === 'agent') return 'AI Agent';
+  if (log.operator_type === 'user') return 'Puppyone';
+  if (log.operator_type === 'sync') return 'Sync';
+  if (log.operator_type === 'system') return 'System';
+  return 'Audit';
+}
+
+function formatAuditSourceDetail(log: AuditLogItem, provider: ActivityProvider): string {
+  const metadata = log.metadata ?? {};
+  const explicitRemote =
+    readString(metadata.remote_name) ||
+    readString(metadata.remote) ||
+    readString(metadata.repository) ||
+    readString(metadata.repo);
+  if (explicitRemote) return explicitRemote;
+
+  const entryPoint = readString(metadata.entry_point) || readString(metadata.remote_kind);
+  const entryLabel =
+    entryPoint === 'access_key_git_remote' ? 'access key remote'
+    : entryPoint === 'project_git_remote' ? 'project Git remote'
+    : entryPoint === 'access_key_cli' ? 'access key CLI'
+    : entryPoint === 'project_cli' ? 'project CLI'
+    : entryPoint === 'web_app' ? 'web app'
+    : entryPoint === 'agent_runtime' ? 'agent runtime'
+    : provider === 'filesystem' ? 'Git protocol'
+    : provider === 'cli' ? 'CLI protocol'
+    : '';
+  const actor = formatAuditActor(log);
+  return [entryLabel, actor].filter(Boolean).join(' · ');
+}
+
+function formatAuditAction(action: string): string {
+  const known: Record<string, string> = {
+    clone: 'Clone',
+    pull: 'Pull',
+    pull_commit: 'Read commit',
+    push: 'Push',
+    mut_push: 'CLI push',
+    git_push: 'Git push',
+    rollback: 'Rollback',
+    git_rollback: 'Git rollback',
+    write_file: 'Write file',
+    bulk_write: 'Bulk write',
+    mkdir: 'Create folder',
+    touch: 'Create file',
+    move: 'Move',
+    copy: 'Copy',
+    delete: 'Delete',
+    permanent_delete: 'Delete',
+  };
+  if (known[action]) return known[action];
+  return action
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatAuditDetail(log: AuditLogItem): string {
+  const metadata = log.metadata ?? {};
+  const paths = readStringArray(metadata.paths);
+  const path =
+    readString(metadata.path) ||
+    readString(metadata.new_path) ||
+    readString(metadata.old_path) ||
+    paths[0] ||
+    log.path ||
+    '';
+  const bits: string[] = [];
+  if (path) {
+    bits.push(paths.length > 1 ? `${path} +${paths.length - 1}` : path);
+  }
+  const changes = readNumber(metadata.changes);
+  if (changes != null) bits.push(`${changes} ${changes === 1 ? 'change' : 'changes'}`);
+  const files = readNumber(metadata.files);
+  if (files != null && changes == null) bits.push(`${files} ${files === 1 ? 'file' : 'files'}`);
+  const commit =
+    readString(metadata.commit_id) ||
+    readString(metadata.new_commit_id) ||
+    readString(metadata.target_commit_id);
+  if (commit) bits.push(commit.slice(0, 8));
+  return bits.length > 0 ? bits.slice(0, 3).join(' · ') : 'scope activity';
+}
+
+function formatAuditActor(log: AuditLogItem): string {
+  const actor = log.operator_id?.trim();
+  if (!actor) return '';
+  if (actor.startsWith('scope:')) return 'scope key';
+  if (actor.startsWith('user:')) return 'user';
+  if (actor.startsWith('agent:')) return 'agent';
+  if (actor.startsWith('sync:')) return 'sync';
+  return log.operator_type || actor.slice(0, 10);
+}
+
+function formatAuditStatus(log: AuditLogItem): { label: string; tone: ActivityTone } {
+  const action = normalizeAuditAction(log.action);
+  const raw =
+    log.status ||
+    readString(log.metadata?.status) ||
+    (action.includes('pending') ? 'pending' : action.includes('error') || action.includes('rejected') ? 'error' : '');
+  const normalized = raw.trim().toLowerCase();
+  if (normalized.includes('error') || normalized.includes('reject') || normalized.includes('fail')) {
+    return { label: 'Error', tone: 'error' };
+  }
+  if (normalized.includes('pending')) {
+    return { label: 'Pending', tone: 'pending' };
+  }
+  if (normalized && normalized !== 'ok' && normalized !== 'success') {
+    return { label: formatAuditAction(normalized), tone: 'neutral' };
+  }
+  return { label: 'Success', tone: 'success' };
+}
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function readNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
 }
 
 // ─── ScopePageHeader ─────────────────────────────────────────────────
@@ -339,16 +893,25 @@ function ScopePageHeader({
   connectors,
   onPauseResume,
   pendingConnectorIds,
+  settingsOpen,
+  settingsDirty,
+  onToggleSettings,
 }: {
   readonly scope: RepoScope | undefined;
   readonly connectors: readonly Connector[];
   readonly onPauseResume: (connectorId: string) => Promise<void> | void;
   readonly pendingConnectorIds: ReadonlySet<string>;
+  readonly settingsOpen: boolean;
+  readonly settingsDirty: boolean;
+  readonly onToggleSettings: () => void;
 }) {
   const titleText = scope?.name?.trim() || 'Untitled scope';
   const aggregate = computeAggregate(connectors);
   const bulkAction = getBulkAction(connectors);
   const anyPending = connectors.some((c) => pendingConnectorIds.has(c.id));
+  const isWorkspaceWide = scope?.is_root || scope?.path === '' || scope?.path == null;
+  const pathLabel = isWorkspaceWide ? '/' : `/${scope?.path ?? ''}`;
+  const modeLabel = scope?.mode === 'rw' ? 'Read & write' : 'Read only';
 
   const handleBulk = useCallback(() => {
     if (!bulkAction) return;
@@ -363,7 +926,7 @@ function ScopePageHeader({
         display: 'flex',
         alignItems: 'flex-start',
         gap: 12,
-        marginBottom: 18,
+        marginBottom: 28,
         minWidth: 0,
       }}
     >
@@ -425,9 +988,52 @@ function ScopePageHeader({
             </span>
           </div>
         ) : null}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: 8,
+            minWidth: 0,
+            fontFamily: T.fontSans,
+            fontSize: 12,
+            lineHeight: '16px',
+          }}
+        >
+          <span
+            style={{
+              flexShrink: 0,
+              color: T.text3,
+              fontWeight: 500,
+            }}
+          >
+            Scope
+          </span>
+          <span
+            style={{
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: T.text2,
+              fontFamily: T.fontMono,
+            }}
+            title={pathLabel}
+          >
+            {pathLabel}
+          </span>
+          <span aria-hidden style={{ color: T.text4, flexShrink: 0 }}>·</span>
+          <span style={{ color: T.text3, flexShrink: 0 }}>
+            {modeLabel}
+          </span>
+        </div>
       </div>
-      {bulkAction ? (
-        <div style={{ flexShrink: 0, marginTop: 2 }}>
+      <div style={{ flexShrink: 0, marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <SettingsHeaderButton
+          active={settingsOpen}
+          dirty={settingsDirty}
+          onClick={onToggleSettings}
+        />
+        {bulkAction ? (
           <GhostButton
             onClick={handleBulk}
             disabled={anyPending}
@@ -435,435 +1041,637 @@ function ScopePageHeader({
           >
             {bulkAction.label}
           </GhostButton>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-// ─── ScopeStrip ──────────────────────────────────────────────────────
-//
-// One-line scope context bar. Replaces the old MOUNT POINT card +
-// file-tree preview, which was burying the AP-centric content. The
-// path is now an *attribute*, not the page's lead surface — the file
-// tree lives in /data where it belongs (drilling files is what /data
-// is for; this page is for managing access points).
-
-// Scope context strip — compact "where am I rooted" attribute bar.
-//
-// Sits below the page-level title (which renders `scope.name` at h1
-// scale). The strip's job is to surface the *path* — i.e. the
-// filesystem location of this scope — plus its read/write mode and
-// permission badges. Strictly an attribute row: small folder glyph,
-// 12px mono path, no enlargement, no nested heading. Title duties
-// are handled by `ScopePageTitle` upstream so the two concepts stay
-// cleanly separated in the visual hierarchy.
-function ScopeStrip({
-  scope,
-}: {
-  readonly scope: RepoScope | undefined;
-}) {
-  const isReadWrite = scope?.mode === 'rw';
-  const isWorkspaceWide = scope?.is_root || scope?.path === '' || scope?.path == null;
-  const pathLabel = isWorkspaceWide ? '/' : `/${scope?.path ?? ''}`;
-  const modeLabel = isReadWrite ? 'Read & write' : 'Read-only';
-
-  return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: '6px 12px',
-        marginBottom: 22,
-        borderRadius: 8,
-        background: T.cardBg,
-        border: `1px solid ${T.cardBorder}`,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 14,
-          height: 14,
-          flexShrink: 0,
-          color: T.text3,
-        }}
-      >
-        <ScopeFolderGlyph size={14} />
+        ) : null}
       </div>
-      <span
-        style={{
-          fontSize: 12,
-          color: T.text2,
-          fontFamily: T.fontMono,
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-        title={pathLabel}
-      >
-        {pathLabel}
-      </span>
-      <span style={{ color: T.text4, flexShrink: 0, fontSize: 12 }}>·</span>
-      <span
-        style={{
-          fontSize: 12,
-          color: T.text3,
-          fontFamily: T.fontSans,
-          flex: 1,
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {modeLabel}
-      </span>
-      <PermBadge label='read' active={!!scope} />
-      <PermBadge label='write' active={!!isReadWrite} />
     </div>
   );
 }
 
-// ─── Settings section (sibling to ACCESS POINTS) ─────────────────────
-//
-// One collapsible section. Header is a real <button> so the chevron +
-// caps label + dirty dot all share a single click target with proper
-// keyboard semantics. Body is unmounted while collapsed so the inner
-// <ScopeSettingsBlock> doesn't run effects or hold state in the
-// background — saving renders and re-anchoring local form state when
-// it's reopened.
-function SettingsSection({
-  open,
+function SettingsHeaderButton({
+  active,
   dirty,
-  onToggle,
-  children,
+  onClick,
 }: {
-  readonly open: boolean;
+  readonly active: boolean;
   readonly dirty: boolean;
-  readonly onToggle: () => void;
-  readonly children: React.ReactNode;
+  readonly onClick: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <div style={{ marginBottom: 22 }}>
-      {/* Header row — same typography as <SectionLabel> ("Access points"
-          below) so the two siblings read as the same tier. The chevron
-          + dirty dot live to the left and right of the heading; the
-          right-hand hint stays in the muted L4 (11px sentence case). */}
-      <button
-        type='button'
-        onClick={onToggle}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        aria-expanded={open}
-        aria-controls='puppyone-access-scope-settings-body'
-        style={{
-          all: 'unset',
-          cursor: 'pointer',
-          width: '100%',
-          boxSizing: 'border-box',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          height: 30,
-          marginBottom: open ? 10 : 0,
-          padding: '0 4px 0 2px',
-          borderRadius: 4,
-          background: hovered ? 'var(--po-control)' : 'transparent',
-          transition: 'background 0.12s ease',
-        }}
-      >
+    <button
+      type='button'
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-pressed={active}
+      aria-label={active ? 'Close scope settings' : 'Open scope settings'}
+      title={active ? 'Close settings' : 'Open settings'}
+      style={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 30,
+        height: 30,
+        borderRadius: 6,
+        border: `1px solid ${active ? 'var(--po-border-strong)' : T.border}`,
+        background: active ? 'var(--po-hover)' : hovered ? 'var(--po-hover)' : 'transparent',
+        color: active || hovered ? T.text1 : T.text2,
+        cursor: 'pointer',
+        transition: `background 0.15s ${T.ease}, color 0.15s ${T.ease}, border-color 0.15s ${T.ease}`,
+      }}
+    >
+      <GearIcon size={13} />
+      {dirty ? (
         <span
           aria-hidden
           style={{
-            display: 'inline-flex',
-            transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
-            transition: 'transform 0.15s ease',
-            color: T.text3,
+            position: 'absolute',
+            top: 5,
+            right: 5,
+            width: 5,
+            height: 5,
+            borderRadius: '50%',
+            background: 'var(--po-warning)',
           }}
-        >
-          <ChevronGlyph size={11} />
-        </span>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: T.text2,
-            fontFamily: T.fontSans,
-            letterSpacing: '-0.005em',
-          }}
-        >
-          Settings
-        </span>
-        {dirty ? (
-          <>
-            <span
-              aria-hidden
-              title='Unsaved changes'
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: 'var(--po-warning)',
-                boxShadow: '0 0 5px color-mix(in srgb, var(--po-warning) 55%, transparent)',
-                marginLeft: 2,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 500,
-                color: 'var(--po-warning)',
-                fontFamily: T.fontSans,
-              }}
-            >
-              Unsaved
-            </span>
-          </>
-        ) : null}
-        <span
-          style={{
-            flex: 1,
-            minWidth: 0,
-            fontSize: 11,
-            color: T.text4,
-            fontFamily: T.fontSans,
-            textAlign: 'right',
-            paddingRight: 4,
-          }}
-        >
-          {open ? 'Click to collapse' : 'Permissions, exclude paths, access key…'}
-        </span>
-      </button>
-      {open ? (
-        <div
-          id='puppyone-access-scope-settings-body'
-          style={{
-            padding: '14px 14px 12px',
-            borderRadius: 10,
-            background: 'var(--po-control)',
-            border: `1px solid ${T.cardBorder}`,
-            animation: `puppyone-access-settings-slide 180ms ${T.ease}`,
-          }}
-        >
-          {children}
-        </div>
+        />
       ) : null}
+    </button>
+  );
+}
+
+function SettingsSection({
+  open,
+  children,
+}: {
+  readonly open: boolean;
+  readonly children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <SectionLabel>Settings</SectionLabel>
+      <div
+        id='puppyone-access-scope-settings-body'
+        style={{
+          padding: '14px 14px 12px',
+          borderRadius: 10,
+          background: 'var(--po-control)',
+          border: `1px solid ${T.cardBorder}`,
+          animation: `puppyone-access-settings-slide 180ms ${T.ease}`,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
-const ChevronGlyph = ({ size = 10 }: { readonly size?: number }) => (
-  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.4' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
-    <polyline points='9 18 15 12 9 6' />
+const GearIcon = ({ size = 13 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <circle cx='12' cy='12' r='3' />
+    <path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8.92 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.3.22.63.22 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z' />
   </svg>
 );
 
-// ─── AccessPointSwitcher ─────────────────────────────────────────────
+// ─── ConnectorList ──────────────────────────────────────────────────
 //
-// Replaces the old "CLI 1 / Agent 1" underline tab strip. Tabs framed
-// the page as "two sections of one config", which inverted reality:
-// each AP is a distinct entity (different name, status, owner). The
-// switcher renders one card per AP, each showing the AP's identity at
-// a glance (provider type, name, status), and clicking swaps the
-// detail view below. Selected card carries an accent fill + lift.
+// Compact table-style list inspired by the newer Access direction:
+// every connector is a row with identity, state, recency, and an
+// immediate on/off control. The selected row expands in-place for the
+// heavier setup/configuration material, so the page stays scannable
+// until the user asks for detail.
 
-function AccessPointSwitcher({
+function ConnectorList({
+  scope,
   connectors,
   selectedId,
   onSelect,
   onPauseResume,
+  onUpdate,
   pendingConnectorIds,
 }: {
+  readonly scope: RepoScope | undefined;
   readonly connectors: readonly Connector[];
-  readonly selectedId: string;
+  readonly selectedId: string | null;
   readonly onSelect: (id: string) => void;
   readonly onPauseResume: (id: string) => Promise<void> | void;
+  readonly onUpdate: (id: string, patch: ConnectorEditPatch) => Promise<void>;
   readonly pendingConnectorIds: ReadonlySet<string>;
 }) {
+  const [connectDialogConnector, setConnectDialogConnector] = useState<Connector | null>(null);
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 8,
-        overflowX: 'auto',
-        paddingBottom: 4,
-        marginBottom: 18,
-        scrollbarWidth: 'thin',
-      }}
-    >
-      {connectors.map((c) => (
-        <AccessPointChip
-          key={c.id}
-          connector={c}
-          selected={c.id === selectedId}
-          onClick={() => onSelect(c.id)}
-          onPauseResume={() => onPauseResume(c.id)}
-          pending={pendingConnectorIds.has(c.id)}
+    <>
+      <div
+        style={{
+          borderRadius: 8,
+          border: `1px solid ${T.cardBorder}`,
+          background: 'color-mix(in srgb, var(--po-control) 58%, var(--po-panel) 42%)',
+          overflowX: 'hidden',
+          overflowY: 'hidden',
+          marginBottom: 20,
+          minWidth: 0,
+        }}
+      >
+        <div
+          style={{
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {connectors.map((connector, index) => {
+            const selected = connector.id === selectedId;
+            const pending = pendingConnectorIds.has(connector.id);
+            return (
+              <div
+                key={connector.id}
+                style={{ background: selected ? 'var(--po-control)' : 'transparent' }}
+              >
+                <ConnectorListRow
+                  connector={connector}
+                  selected={selected}
+                  isFirst={index === 0}
+                  onSelect={() => onSelect(connector.id)}
+                  onConnect={() => setConnectDialogConnector(connector)}
+                  onPauseResume={() => onPauseResume(connector.id)}
+                  pending={pending}
+                />
+                {selected ? (
+                  <ConnectorExpandedDetail
+                    connector={connector}
+                    scope={scope}
+                    pending={pending}
+                    onPauseResume={() => onPauseResume(connector.id)}
+                    onUpdate={(patch) => onUpdate(connector.id, patch)}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {connectDialogConnector ? (
+        <ConnectorConnectDialog
+          connector={connectDialogConnector}
+          scope={scope}
+          onClose={() => setConnectDialogConnector(null)}
         />
-      ))}
-    </div>
+      ) : null}
+    </>
   );
 }
 
-// Connector chip — selectable card *and* live on/off control.
-//
-// Two interaction zones, deliberately separated by the toggle's hit
-// target + stopPropagation:
-//   - Click anywhere on the chip body  → swap detail view to this connector.
-//   - Click the toggle on the right    → pause / resume this connector.
-//
-// Visually:
-//   - Toggle thumb position encodes "enabled?"  (right = on, left = off).
-//   - Toggle track color encodes status:
-//       active/syncing → green tint
-//       paused/pending → muted gray-amber
-//       error          → red tint (and the toggle stays "on")
-//
-// "Paused" is the only state where the connector is actually frozen
-// at the data plane (auth.py / chat service reject paused channels);
-// every other status maps to "running, just maybe in a hiccup" which
-// is why the toggle shows ON for them.
-function AccessPointChip({
+const CONNECTOR_GRID = 'minmax(170px, 1.4fr) minmax(76px, 0.55fr) minmax(64px, max-content) minmax(82px, max-content) 14px';
+
+function ConnectorListRow({
   connector,
   selected,
-  onClick,
+  isFirst,
+  onSelect,
+  onConnect,
   onPauseResume,
   pending,
 }: {
   readonly connector: Connector;
   readonly selected: boolean;
-  readonly onClick: () => void;
+  readonly isFirst: boolean;
+  readonly onSelect: () => void;
+  readonly onConnect: () => void;
   readonly onPauseResume: () => Promise<void> | void;
   readonly pending: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
-  const name =
-    connector.name ||
-    PROVIDER_LABELS[connector.provider] ||
-    connector.provider;
-  const typeLabel =
-    CONNECTOR_GROUP_LABELS[getConnectorGroup(connector.provider)];
-  const isOn =
-    connector.status === 'active' ||
-    connector.status === 'syncing' ||
-    connector.status === 'error';
+  const name = getConnectorDisplayName(connector);
+  const dimmed = connector.status === 'paused';
+  const tile = getProviderTileStyle(connector.provider, selected);
+  const tileSize = getProviderTileSize(connector.provider);
+  const iconSize = getProviderIconSize(connector.provider);
 
   return (
     <div
-      onClick={onClick}
+      onClick={onSelect}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onClick();
+          onSelect();
         }
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       role='button'
       tabIndex={0}
+      aria-pressed={selected}
       style={{
-        cursor: 'pointer',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        gap: 10,
-        padding: '12px 14px',
-        minWidth: 168,
-        flexShrink: 0,
+        minHeight: 62,
+        minWidth: 0,
+        display: 'grid',
+        gridTemplateColumns: CONNECTOR_GRID,
+        alignItems: 'center',
+        gap: 12,
+        padding: '10px 12px',
         boxSizing: 'border-box',
-        borderRadius: 10,
-        border: `1px solid ${selected ? 'var(--po-border-strong)' : T.cardBorder}`,
+        cursor: 'pointer',
+        borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
         background: selected
-          ? 'var(--po-hover)'
+          ? 'color-mix(in srgb, var(--po-control) 76%, var(--po-panel) 24%)'
           : hovered
-            ? 'var(--po-control)'
-            : T.cardBg,
-        boxShadow: selected
-          ? '0 0 0 1px var(--po-hover), 0 6px 18px var(--po-shadow)'
-          : 'none',
-        opacity: connector.status === 'paused' ? 0.7 : 1,
-        transition:
-          'background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease',
+            ? 'color-mix(in srgb, var(--po-control) 74%, var(--po-panel) 26%)'
+            : 'transparent',
+        opacity: dimmed ? 0.76 : 1,
+        transition: `background 0.15s ${T.ease}, opacity 0.15s ${T.ease}`,
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          width: '100%',
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
         <div
           style={{
-            width: 30,
-            height: 30,
-            borderRadius: 6,
-            background: 'var(--po-hover)',
-            border: `1px solid ${T.border}`,
+            height: tileSize,
+            width: tileSize,
+            borderRadius: connector.provider === 'filesystem' ? 7 : 6,
+            background: tile.background,
+            border: `1px solid ${tile.border}`,
+            color: tile.color,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
+            boxShadow: tile.shadow,
+            overflow: connector.provider === 'filesystem' ? 'hidden' : undefined,
           }}
         >
-          <ProviderIcon provider={connector.provider} size={14} />
+          <ProviderIcon provider={connector.provider} size={iconSize} />
         </div>
-        <span
+        <div
           style={{
-            flex: 1,
             minWidth: 0,
-            fontSize: 11,
-            fontWeight: 500,
-            color: selected ? T.text3 : T.text4,
-            fontFamily: T.fontSans,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 3,
           }}
-          title={typeLabel}
         >
-          {typeLabel}
-        </span>
-        <ConnectorToggle
-          status={connector.status}
-          on={isOn}
-          pending={pending}
-          onToggle={onPauseResume}
-        />
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: 13,
+              fontWeight: selected ? 600 : 500,
+              color: selected ? T.text1 : T.text2,
+              fontFamily: T.fontSans,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            title={name}
+          >
+            <span
+              style={{
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {name}
+            </span>
+          </span>
+          <span
+            style={{
+              fontSize: 11.5,
+              color: T.text3,
+              fontFamily: T.fontSans,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+            title={getTypeLine(connector)}
+          >
+            {getTypeLine(connector)}
+          </span>
+        </div>
       </div>
+      <RowMetaCell
+        label='Last used'
+        value={timeAgo(connector.last_run_at)}
+      />
+      <ConnectorAccessControl
+        status={connector.status}
+        pending={pending}
+        onPauseResume={onPauseResume}
+      />
+      <RowActionButton
+        label='Setup guide'
+        tone='success'
+        disabled={false}
+        onClick={onConnect}
+      />
       <span
+        aria-hidden
         style={{
-          fontSize: 13,
-          fontWeight: 500,
-          color: selected ? T.text1 : T.text2,
-          fontFamily: T.fontSans,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          width: '100%',
+          justifySelf: 'end',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: selected ? T.text2 : T.text4,
+          transform: selected ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: `transform 0.15s ${T.ease}, color 0.15s ${T.ease}`,
         }}
-        title={name}
       >
-        {name}
+        <ChevronDownGlyph size={12} />
       </span>
     </div>
   );
 }
 
+function getConnectorDisplayName(connector: Connector): string {
+  if (connector.provider === 'cli') return 'Puppyone CLI';
+  if (connector.provider === 'filesystem') return 'Git Remote';
+  return connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
+}
+
+function getProviderTileStyle(provider: string, selected: boolean) {
+  if (provider === 'cli') {
+    return {
+      background: 'var(--po-accent)',
+      border: 'var(--po-accent)',
+      color: 'var(--po-text-inverse)',
+      shadow: '0 1px 2px var(--po-shadow)',
+    };
+  }
+  if (provider === 'filesystem') {
+    return {
+      background: 'var(--po-text-inverse)',
+      border: selected ? 'var(--po-border-strong)' : T.border,
+      color: T.text2,
+      shadow: selected ? '0 1px 2px var(--po-shadow)' : 'none',
+    };
+  }
+  return {
+    background: selected ? 'var(--po-panel)' : 'var(--po-hover)',
+    border: selected ? 'var(--po-border-strong)' : T.border,
+    color: T.text2,
+    shadow: selected ? '0 1px 2px var(--po-shadow)' : 'none',
+  };
+}
+
+function getProviderTileSize(provider: string): number {
+  return provider === 'filesystem' ? 34 : 30;
+}
+
+function getProviderIconSize(provider: string): number {
+  if (provider === 'filesystem') return 34;
+  if (provider === 'cli') return 17;
+  return 15;
+}
+
+function RowMetaCell({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}) {
+  return (
+    <div
+      style={{
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 3,
+        fontFamily: T.fontSans,
+      }}
+    >
+      <span style={{ fontSize: 10.5, lineHeight: '14px', color: T.text4 }}>{label}</span>
+      <span
+        style={{
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: 12,
+          lineHeight: '16px',
+          color: T.text2,
+          fontWeight: 500,
+        }}
+        title={value}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function ConnectorAccessControl({
+  status,
+  pending,
+  onPauseResume,
+}: {
+  readonly status: string;
+  readonly pending: boolean;
+  readonly onPauseResume: () => Promise<void> | void;
+}) {
+  if (status === 'error') {
+    return (
+      <RowActionButton
+        label='Retry'
+        icon={<RetryIcon size={10} />}
+        disabled={pending}
+        onClick={onPauseResume}
+      />
+    );
+  }
+
+  const isOn = status === 'active' || status === 'syncing';
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 8,
+        minWidth: 0,
+      }}
+    >
+      <span
+        style={{
+          fontSize: 11.5,
+          color: isOn ? T.text2 : T.text3,
+          fontFamily: T.fontSans,
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {isOn ? 'On' : 'Paused'}
+      </span>
+      <ConnectorToggle
+        status={status}
+        on={isOn}
+        pending={pending}
+        onToggle={onPauseResume}
+      />
+    </div>
+  );
+}
+
+function RowActionButton({
+  icon,
+  label,
+  tone = 'neutral',
+  disabled,
+  onClick,
+}: {
+  readonly icon?: React.ReactNode;
+  readonly label: string;
+  readonly tone?: 'neutral' | 'success';
+  readonly disabled: boolean;
+  readonly onClick: () => Promise<void> | void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const successTone = tone === 'success';
+  const border = successTone
+    ? 'color-mix(in srgb, var(--po-success) 38%, transparent)'
+    : hovered
+      ? 'var(--po-border-strong)'
+      : T.border;
+  const background = successTone
+    ? hovered
+      ? 'color-mix(in srgb, var(--po-success) 20%, var(--po-panel) 80%)'
+      : 'color-mix(in srgb, var(--po-success) 14%, var(--po-panel) 86%)'
+    : hovered
+      ? 'var(--po-hover)'
+      : 'transparent';
+  const color = successTone ? 'var(--po-success)' : T.text2;
+
+  return (
+    <button
+      type='button'
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        void onClick();
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        justifySelf: 'end',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        height: successTone ? 30 : 28,
+        padding: successTone ? '0 12px' : '0 10px',
+        borderRadius: 6,
+        border: `1px solid ${border}`,
+        background,
+        color,
+        fontSize: 11.5,
+        fontWeight: successTone ? 600 : 500,
+        fontFamily: T.fontSans,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: `background 0.15s ${T.ease}, border-color 0.15s ${T.ease}, color 0.15s ${T.ease}`,
+      }}
+    >
+      {icon ?? null}
+      {label}
+    </button>
+  );
+}
+
+function ConnectorConnectDialog({
+  connector,
+  scope,
+  onClose,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+  readonly onClose: () => void;
+}) {
+  const name = getConnectorDisplayName(connector);
+  const tile = getProviderTileStyle(connector.provider, false);
+  const tileSize = getProviderTileSize(connector.provider);
+  const iconSize = getProviderIconSize(connector.provider);
+
+  return (
+    <DialogRoot onClose={onClose}>
+      <DialogSurface width={680} maxHeight='min(760px, calc(100vh - 32px))'>
+        <DialogHeader
+          title={`Connect ${name}`}
+          onClose={onClose}
+          style={{ padding: '14px 20px 4px' }}
+          leading={
+            <div
+              style={{
+                width: tileSize,
+                height: tileSize,
+                borderRadius: connector.provider === 'filesystem' ? 7 : 6,
+                background: tile.background,
+                border: `1px solid ${tile.border}`,
+                color: tile.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: connector.provider === 'filesystem' ? 'hidden' : undefined,
+              }}
+            >
+              <ProviderIcon provider={connector.provider} size={iconSize} />
+            </div>
+          }
+        />
+        <DialogBody style={{ padding: '4px 20px 20px' }}>
+          <ConnectorAccessPanel
+            connector={connector}
+            scope={scope}
+          />
+        </DialogBody>
+      </DialogSurface>
+    </DialogRoot>
+  );
+}
+
+function ConnectorExpandedDetail({
+  connector,
+  scope,
+  pending,
+  onPauseResume,
+  onUpdate,
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+  readonly pending: boolean;
+  readonly onPauseResume: () => Promise<void> | void;
+  readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
+}) {
+  return (
+    <div
+      style={{
+        borderTop: `1px solid ${T.cardBorder}`,
+        background: 'color-mix(in srgb, var(--po-control) 76%, var(--po-panel) 24%)',
+      }}
+    >
+      <ConnectorDetailBody
+        connector={connector}
+        scope={scope}
+        onPauseResume={onPauseResume}
+        onUpdate={onUpdate}
+        pending={pending}
+        variant='inline'
+      />
+    </div>
+  );
+}
+
+const ChevronDownGlyph = ({ size = 10 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.4' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <polyline points='6 9 12 15 18 9' />
+  </svg>
+);
+
 // ─── ConnectorToggle ─────────────────────────────────────────────────
 //
 // Tiny iOS-style switch driving connector pause/resume directly from
-// the chip. Click the toggle → flip pause/resume (event stops there
-// so the parent chip doesn't also try to "select" itself); click any
-// other part of the chip → select it.
-//
+// the list row. Click the toggle → flip pause/resume (event stops
+// there so the parent row doesn't also try to select itself).
 function ConnectorToggle({
   status,
   on,
@@ -883,6 +1691,7 @@ function ConnectorToggle({
       pending={pending}
       ariaLabel={ariaLabel}
       title={ariaLabel}
+      size='xs'
       stopPropagation
       onCheckedChange={() => {
         void onToggle();

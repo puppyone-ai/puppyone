@@ -40,6 +40,21 @@ MAX_PULL_HISTORY = 200
 MAX_CAS_RETRIES = 3
 
 
+def _audit_detail(auth: dict, **extra) -> dict:
+    scope = auth.get("_scope") or {}
+    agent = str(auth.get("agent") or "")
+    entry_point = "access_key_cli" if agent.startswith("scope:") else "project_cli"
+    return {
+        "source_channel": "mut",
+        "protocol": "mut",
+        "entry_point": entry_point,
+        "remote": "Puppyone CLI",
+        "scope": scope.get("path", ""),
+        "scope_id": scope.get("id", ""),
+        **extra,
+    }
+
+
 def handle_clone(repo, auth: dict, body: dict) -> dict:
     require_supported_protocol(body)
     scope = auth["_scope"]
@@ -71,11 +86,11 @@ def handle_clone(repo, auth: dict, body: dict) -> dict:
     repo.record_audit(
         "clone",
         auth["agent"],
-        {
-            "scope": scope["path"],
-            "files": len(files_raw),
-            "commit_id": head_commit_id,
-        },
+        _audit_detail(
+            auth,
+            files=len(files_raw),
+            commit_id=head_commit_id,
+        ),
     )
 
     return CloneResponse(
@@ -115,7 +130,7 @@ def handle_push(repo, auth: dict, body: dict) -> dict:
         repo.record_audit(
             "push_rejected",
             auth["agent"],
-            {"scope": scope["path"], "rejected_paths": rejected},
+            _audit_detail(auth, rejected_paths=rejected),
         )
         raise PermissionDenied(f"paths outside scope: {rejected[:5]}")
 
@@ -135,7 +150,7 @@ def handle_push(repo, auth: dict, body: dict) -> dict:
     repo.record_audit(
         "push_error",
         auth["agent"],
-        {"scope": scope["path"], "error": "CAS failed after max retries"},
+        _audit_detail(auth, error="CAS failed after max retries"),
     )
     raise LockError(
         f"concurrent push conflict after {MAX_CAS_RETRIES} retries, try again"
@@ -237,11 +252,11 @@ def handle_pull(repo, auth: dict, body: dict) -> dict:
     repo.record_audit(
         "pull",
         auth["agent"],
-        {
-            "scope": scope["path"],
-            "since_commit_id": req.since_commit_id,
-            "commit_id": head_commit_id,
-        },
+        _audit_detail(
+            auth,
+            since_commit_id=req.since_commit_id,
+            commit_id=head_commit_id,
+        ),
     )
 
     return PullResponse(
@@ -285,7 +300,7 @@ def handle_pull_commit(repo, auth: dict, body: dict) -> dict:
     repo.record_audit(
         "pull_commit",
         auth["agent"],
-        {"scope": scope["path"], "commit_id": target_commit_id},
+        _audit_detail(auth, commit_id=target_commit_id),
     )
     return {
         "status": "ok",
@@ -343,11 +358,11 @@ def handle_rollback(repo, auth: dict, body: dict) -> dict:
     repo.record_audit(
         "rollback_error",
         auth["agent"],
-        {
-            "scope": scope["path"],
-            "target_commit_id": target_commit_id,
-            "error": "CAS failed after max retries",
-        },
+        _audit_detail(
+            auth,
+            target_commit_id=target_commit_id,
+            error="CAS failed after max retries",
+        ),
     )
     raise LockError(
         f"concurrent rollback conflict after {MAX_CAS_RETRIES} retries, try again"
@@ -380,12 +395,12 @@ def _push_cas_attempt(
         repo.record_audit(
             "merge_conflict",
             auth["agent"],
-            {
-                "scope": scope["path"],
-                "base_commit_id": req.base_commit_id,
-                "server_commit_id": current_head_commit,
-                "attempt": attempt,
-                "conflicts": [
+            _audit_detail(
+                auth,
+                base_commit_id=req.base_commit_id,
+                server_commit_id=current_head_commit,
+                attempt=attempt,
+                conflicts=[
                     {
                         "path": conflict.path,
                         "strategy": conflict.strategy,
@@ -396,7 +411,7 @@ def _push_cas_attempt(
                     }
                     for conflict in merge_conflicts
                 ],
-            },
+            ),
         )
 
     _apply_merged_files(repo, scope, our_files, merged_files)
@@ -440,15 +455,15 @@ def _push_cas_attempt(
     repo.record_audit(
         "push",
         auth["agent"],
-        {
-            "scope": scope["path"],
-            "snapshots": len(req.snapshots),
-            "commit_id": new_commit_id,
-            "scope_hash": new_scope_hash,
-            "merged": bool(merge_conflicts),
-            "conflict_count": len(merge_conflicts),
-            "cas_attempts": attempt + 1,
-        },
+        _audit_detail(
+            auth,
+            snapshots=len(req.snapshots),
+            commit_id=new_commit_id,
+            scope_hash=new_scope_hash,
+            merged=bool(merge_conflicts),
+            conflict_count=len(merge_conflicts),
+            cas_attempts=attempt + 1,
+        ),
     )
 
     try:
@@ -515,13 +530,13 @@ def _rollback_cas_attempt(
     repo.record_audit(
         "rollback",
         auth["agent"],
-        {
-            "scope": scope["path"],
-            "target_commit_id": target_commit_id,
-            "new_commit_id": new_commit_id,
-            "scope_hash": new_scope_hash,
-            "cas_attempts": attempt + 1,
-        },
+        _audit_detail(
+            auth,
+            target_commit_id=target_commit_id,
+            new_commit_id=new_commit_id,
+            scope_hash=new_scope_hash,
+            cas_attempts=attempt + 1,
+        ),
     )
 
     return RollbackResponse(

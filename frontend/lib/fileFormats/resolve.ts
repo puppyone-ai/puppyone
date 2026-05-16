@@ -100,7 +100,7 @@ export function resolveFormat(input: ResolveInput): FileFormat {
         id: 'text-unknown',
         label: 'Text',
         category: 'text',
-        defaultViewer: 'monaco-code',
+        defaultViewer: 'plain-text',
         monacoLanguage: 'plaintext',
       };
     }

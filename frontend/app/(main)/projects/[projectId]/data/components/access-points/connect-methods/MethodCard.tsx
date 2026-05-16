@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
+import { ProviderIcon } from '../../../../access/components/icons';
 import {
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
@@ -9,17 +10,16 @@ import {
   COLOR_FG_DIM,
   COLOR_FG_MUTED,
 } from '../tokens';
-import { AgentIcon, SyncIcon, TerminalIcon } from './icons';
 import type { MethodMeta } from './meta';
 
 const ACTIVE_METHOD_BG =
-  'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)';
+  'color-mix(in srgb, var(--po-control) 54%, transparent)';
 const ACTIVE_METHOD_BG_HOVER =
-  'color-mix(in srgb, var(--po-text) 12%, var(--po-panel) 88%)';
+  'color-mix(in srgb, var(--po-control) 68%, transparent)';
 const PAUSED_METHOD_BG =
-  'color-mix(in srgb, var(--po-text) 3%, var(--po-panel) 97%)';
+  'color-mix(in srgb, var(--po-control) 26%, transparent)';
 const PAUSED_METHOD_BG_HOVER =
-  'color-mix(in srgb, var(--po-text) 5%, var(--po-panel) 95%)';
+  'color-mix(in srgb, var(--po-control) 42%, transparent)';
 
 /**
  * MethodCard — wrapper for one connection method.
@@ -184,29 +184,73 @@ function MethodIcon({
   readonly meta: MethodMeta;
   readonly active: boolean;
 }) {
+  const provider = methodProvider(meta.id);
+  const tile = getMethodProviderTile(provider, active);
+  const tileSize = provider === 'filesystem' ? 28 : 26;
+  const iconSize = provider === 'filesystem' ? 28 : provider === 'cli' ? 15 : 14;
+
   return (
     <div
       style={{
-        width: 24,
-        height: 24,
-        borderRadius: 7,
-        background: active ? meta.accentBg : 'var(--po-control)',
-        border: `1px solid ${active ? meta.accentBorder : COLOR_BORDER}`,
-        color: active ? meta.accent : COLOR_FG_DIM,
+        width: tileSize,
+        height: tileSize,
+        borderRadius: provider === 'filesystem' ? 6 : 6,
+        background: tile.background,
+        border: `1px solid ${tile.border}`,
+        color: tile.color,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        opacity: active ? 1 : 0.65,
+        opacity: active ? 1 : 0.62,
+        overflow: provider === 'filesystem' ? 'hidden' : undefined,
+        boxShadow: active ? tile.shadow : 'none',
         transition: 'background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s',
       }}
       aria-hidden
     >
-      {meta.id === 'terminal' && <TerminalIcon />}
-      {meta.id === 'sync' && <SyncIcon />}
-      {meta.id === 'agent' && <AgentIcon />}
+      <ProviderIcon provider={provider} size={iconSize} />
     </div>
   );
+}
+
+function methodProvider(id: MethodMeta['id']): string {
+  if (id === 'terminal') return 'cli';
+  if (id === 'sync') return 'filesystem';
+  return 'agent';
+}
+
+function getMethodProviderTile(provider: string, active: boolean) {
+  if (!active) {
+    return {
+      background: 'var(--po-control)',
+      border: COLOR_BORDER,
+      color: COLOR_FG_DIM,
+      shadow: 'none',
+    };
+  }
+  if (provider === 'cli') {
+    return {
+      background: 'var(--po-accent)',
+      border: 'var(--po-accent)',
+      color: 'var(--po-text-inverse)',
+      shadow: '0 1px 2px var(--po-shadow)',
+    };
+  }
+  if (provider === 'filesystem') {
+    return {
+      background: 'var(--po-text-inverse)',
+      border: COLOR_BORDER_HOVER,
+      color: COLOR_FG_MUTED,
+      shadow: '0 1px 2px color-mix(in srgb, var(--po-shadow) 70%, transparent)',
+    };
+  }
+  return {
+    background: 'color-mix(in srgb, var(--po-control) 58%, transparent)',
+    border: COLOR_BORDER_HOVER,
+    color: COLOR_FG_MUTED,
+    shadow: 'none',
+  };
 }
 
 /**

@@ -15,6 +15,7 @@ import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
+import { BUTTON_HEIGHT, BUTTON_RADIUS } from '@/components/ui/buttonTokens';
 
 // ─── Line diff utility ───────────────────────────────────────────────
 //
@@ -32,6 +33,15 @@ interface DiffLine {
 }
 
 const DIFF_MAX_LINES = 4000;
+const HISTORY_FILTER_CONTROL_STYLE = {
+  height: BUTTON_HEIGHT,
+  borderRadius: BUTTON_RADIUS,
+  lineHeight: 1,
+  boxSizing: 'border-box' as const,
+};
+const HISTORY_SCOPE_FILTER_WIDTH = 128;
+const HISTORY_ACTOR_FILTER_WIDTH = 100;
+const HISTORY_DIFF_HEADER_BG = 'color-mix(in srgb, var(--po-canvas) 84%, var(--po-text) 4%)';
 
 function lineDiff(a: string[], b: string[]): DiffLine[] {
   if (a.length + b.length > DIFF_MAX_LINES) {
@@ -274,7 +284,8 @@ function VerticalCommitNode({
   const GRAPH_WIDTH = 20;
   const LINE_X = GRAPH_WIDTH / 2;
   const trackColor = 'var(--po-filetree-rail)';
-  const dotStroke = isSelected ? currentInfo.color : hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)';
+  const dotStroke = hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)';
+  const dotRadius = isSelected ? 4 : 3;
 
   const shortId = commit.commit_id ? commit.commit_id.slice(0, 8) : '';
 
@@ -361,24 +372,13 @@ function VerticalCommitNode({
                 strokeWidth={1.5}
               />
             )}
-            {isSelected && (
-              <circle
-                cx={LINE_X}
-                cy={ROW_HEIGHT / 2}
-                r={5.5}
-                fill="transparent"
-                stroke={currentInfo.color}
-                strokeWidth={1.5}
-                opacity={0.35}
-              />
-            )}
             <circle
               cx={LINE_X}
               cy={ROW_HEIGHT / 2}
-              r={3}
+              r={dotRadius}
               fill={isSelected ? currentInfo.color : hovered ? 'var(--po-panel)' : 'var(--po-canvas)'}
-              stroke={dotStroke}
-              strokeWidth={1.5}
+              stroke={isSelected ? 'none' : dotStroke}
+              strokeWidth={isSelected ? 0 : 1.5}
               style={{ transition: 'fill 0.12s, stroke 0.12s' }}
             />
           </svg>
@@ -455,7 +455,7 @@ function DiffRow({ line }: { line: DiffLine }) {
           alignItems: 'center',
           height: 24,
           paddingLeft: 14,
-          background: 'var(--po-control)',
+          background: HISTORY_DIFF_HEADER_BG,
           color: 'var(--po-text-disabled)',
           fontFamily: 'var(--po-font-sans)',
           fontSize: 11,
@@ -601,7 +601,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          background: 'var(--po-control)',
+          background: HISTORY_DIFF_HEADER_BG,
           borderBottom: '1px solid var(--po-border-subtle)',
         }}
       >
@@ -622,7 +622,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
         <span
           style={{
             fontSize: 11.5,
-            color: 'var(--po-text)',
+            color: 'var(--po-text-muted)',
             fontFamily: 'var(--po-font-sans)',
             flex: 1,
             overflow: 'hidden',
@@ -639,7 +639,7 @@ function FileDiffBlock({ change, projectId, commitId, parentCommitId }: FileDiff
             fontWeight: 600,
             borderRadius: 3,
             fontFamily: 'var(--po-font-sans)',
-            letterSpacing: '0.04em',
+            letterSpacing: 0,
             textTransform: 'uppercase',
             background: tone.bg,
             color: tone.fg,
@@ -880,14 +880,35 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   // Reverse commits so newest is on top
   const sortedCommits = useMemo(() => [...commits].reverse(), [commits]);
 
-  const [activeScopeFilter, setActiveScopeFilter] = useState<string | null>(null);
+  const [activeScopeFilter, setActiveScopeFilter] = useState<string>('');
   const [activeActorFilter, setActiveActorFilter] = useState<string | null>(null);
   const [filterMenuOpen, setFilterMenuOpen] = useState<'scope' | 'actor' | null>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
-  const actorOptions = useMemo(() => {
+  const scopeOptions = useMemo(() => {
     const counts = new Map<string, number>();
     commits.forEach(c => {
+      const scope = c.scope_path || '';
+      counts.set(scope, (counts.get(scope) || 0) + 1);
+    });
+    if (!counts.has('')) counts.set('', 0);
+    return Array.from(counts.entries())
+      .map(([scope, count]) => ({ scope, count }))
+      .sort((a, b) => {
+        if (a.scope === '') return -1;
+        if (b.scope === '') return 1;
+        return b.count - a.count;
+      });
+  }, [commits]);
+
+  const scopeFilteredCommits = useMemo(
+    () => sortedCommits.filter(c => (c.scope_path || '') === activeScopeFilter),
+    [sortedCommits, activeScopeFilter],
+  );
+
+  const actorOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    scopeFilteredCommits.forEach(c => {
       const { type } = parseOperator(c.who);
       counts.set(type, (counts.get(type) || 0) + 1);
     });
@@ -900,22 +921,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         if (ai !== bi) return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
         return b.count - a.count;
       });
-  }, [commits]);
-
-  const scopeOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    commits.forEach(c => {
-      const scope = c.scope_path || '';
-      counts.set(scope, (counts.get(scope) || 0) + 1);
-    });
-    return Array.from(counts.entries())
-      .map(([scope, count]) => ({ scope, count }))
-      .sort((a, b) => {
-        if (a.scope === '') return -1;
-        if (b.scope === '') return 1;
-        return b.count - a.count;
-      });
-  }, [commits]);
+  }, [scopeFilteredCommits]);
 
   const activeActor = useMemo(
     () => actorOptions.find(option => option.type === activeActorFilter) ?? null,
@@ -926,6 +932,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     () => scopeOptions.find(option => option.scope === activeScopeFilter) ?? null,
     [scopeOptions, activeScopeFilter],
   );
+
+  useEffect(() => {
+    if (!activeActorFilter) return;
+    if (!actorOptions.some(option => option.type === activeActorFilter)) {
+      setActiveActorFilter(null);
+    }
+  }, [activeActorFilter, actorOptions]);
 
   useEffect(() => {
     if (!filterMenuOpen) return;
@@ -951,15 +964,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   }, [filterMenuOpen]);
 
   const filteredCommits = useMemo(() => {
-    let filtered = sortedCommits;
-    if (activeScopeFilter !== null) {
-      filtered = filtered.filter(c => (c.scope_path || '') === activeScopeFilter);
-    }
+    let filtered = scopeFilteredCommits;
     if (activeActorFilter) {
       filtered = filtered.filter(c => parseOperator(c.who).type === activeActorFilter);
     }
     return filtered;
-  }, [sortedCommits, activeScopeFilter, activeActorFilter]);
+  }, [scopeFilteredCommits, activeActorFilter]);
 
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
 
@@ -977,8 +987,11 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   }, [commits, selectedCommitId, headCommitId]);
 
   useEffect(() => {
-    if (filteredCommits.length === 0 || !selectedCommitId) return;
-    if (!filteredCommits.some(commit => commit.commit_id === selectedCommitId)) {
+    if (filteredCommits.length === 0) {
+      if (selectedCommitId) setSelectedCommitId(null);
+      return;
+    }
+    if (!selectedCommitId || !filteredCommits.some(commit => commit.commit_id === selectedCommitId)) {
       setSelectedCommitId(filteredCommits[0].commit_id);
     }
   }, [filteredCommits, selectedCommitId]);
@@ -1080,32 +1093,20 @@ export default function HistoryPage({ params }: HistoryPageProps) {
           >
 
             {/* Filter Header */}
-            {(scopeOptions.length > 1 || actorOptions.length > 1) && (
-              <div ref={filterMenuRef} className="flex flex-col border-b border-[var(--po-divider)] bg-[var(--po-canvas)]">
-                <div className="px-3 h-[44px] min-h-[44px] flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setActiveScopeFilter(null);
-                      setActiveActorFilter(null);
-                      setFilterMenuOpen(null);
-                    }}
-                    className={`h-[30px] flex-shrink-0 px-2.5 rounded-md text-[11px] font-medium transition-colors ${
-                      activeScopeFilter === null && activeActorFilter === null
-                        ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
-                        : 'bg-transparent text-[var(--po-text-muted)] hover:bg-[var(--po-hover)]'
-                    }`}
+            <div ref={filterMenuRef} className="flex flex-col border-b border-[var(--po-divider)] bg-[var(--po-canvas)]">
+              <div className="px-3 h-[42px] min-h-[42px] flex items-center gap-2">
+                  <div
+                    className="relative min-w-0 flex-shrink-0"
+                    style={{ width: HISTORY_SCOPE_FILTER_WIDTH }}
                   >
-                    All
-                  </button>
-
-                  <div className="relative min-w-0 flex-1">
                     <button
                       onClick={() => setFilterMenuOpen(open => open === 'scope' ? null : 'scope')}
-                      className={`h-[30px] w-full min-w-0 flex items-center gap-1.5 px-2.5 rounded-md text-[11px] font-medium transition-colors border ${
-                        activeScopeFilter !== null
+                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 text-[12px] font-medium transition-colors border ${
+                        activeScopeFilter !== ''
                           ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
                           : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
                       }`}
+                      style={HISTORY_FILTER_CONTROL_STYLE}
                       title={activeScope ? formatScopeLabel(activeScope.scope) : 'Filter by scope'}
                       aria-haspopup="menu"
                       aria-expanded={filterMenuOpen === 'scope'}
@@ -1114,8 +1115,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                         <span className="truncate">{formatScopeLabel(activeScope.scope)}</span>
                       ) : (
                         <span className="truncate text-[var(--po-text-muted)]">
-                          Scope
-                          <span className="ml-1 font-sans opacity-60">{scopeOptions.length}</span>
+                          Root scope
                         </span>
                       )}
                       <svg
@@ -1150,11 +1150,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                                   setActiveScopeFilter(option.scope);
                                   setFilterMenuOpen(null);
                                 }}
-                                className={`h-[30px] w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[11px] font-medium transition-colors ${
+                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[12px] font-medium transition-colors ${
                                   isSelected
                                     ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
                                     : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
                                 }`}
+                                style={{ height: BUTTON_HEIGHT, lineHeight: 1 }}
                               >
                                 <span className="min-w-0 flex-1 truncate font-sans">{formatScopeLabel(option.scope)}</span>
                                 <span className="flex-shrink-0 font-sans text-[10px] opacity-50">
@@ -1168,15 +1169,19 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                     )}
                   </div>
 
-                  <div className="relative min-w-0 flex-1">
+                  <div
+                    className="relative min-w-0 flex-shrink-0"
+                    style={{ width: HISTORY_ACTOR_FILTER_WIDTH }}
+                  >
                     <button
                       onClick={() => setFilterMenuOpen(open => open === 'actor' ? null : 'actor')}
-                      className={`h-[30px] w-full min-w-0 flex items-center gap-1.5 px-2.5 rounded-md text-[11px] font-medium transition-colors border ${
+                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 text-[12px] font-medium transition-colors border ${
                         activeActorFilter
                           ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
                           : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
                       }`}
-                      title={activeActor ? formatOperatorLabel(activeActor.type) : 'Filter by actor type'}
+                      style={HISTORY_FILTER_CONTROL_STYLE}
+                      title={activeActor ? formatOperatorLabel(activeActor.type) : 'All users'}
                       aria-haspopup="menu"
                       aria-expanded={filterMenuOpen === 'actor'}
                     >
@@ -1187,8 +1192,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                         </>
                       ) : (
                         <span className="truncate text-[var(--po-text-muted)]">
-                          Who
-                          <span className="ml-1 font-sans opacity-60">{actorOptions.length}</span>
+                          All users
                         </span>
                       )}
                       <svg
@@ -1212,6 +1216,25 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                         className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-[var(--po-border)] bg-[var(--po-overlay)] shadow-xl"
                       >
                         <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
+                          <button
+                            role="menuitemradio"
+                            aria-checked={activeActorFilter === null}
+                            onClick={() => {
+                              setActiveActorFilter(null);
+                              setFilterMenuOpen(null);
+                            }}
+                            className={`w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[12px] font-medium transition-colors ${
+                              activeActorFilter === null
+                                ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
+                                : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
+                            }`}
+                            style={{ height: BUTTON_HEIGHT, lineHeight: 1 }}
+                          >
+                            <span className="min-w-0 flex-1 truncate">All users</span>
+                            <span className="flex-shrink-0 font-sans text-[10px] opacity-50">
+                              {scopeFilteredCommits.length}
+                            </span>
+                          </button>
                           {actorOptions.map(option => {
                             const color = getTrackInfo(option.type).color;
                             const isSelected = activeActorFilter === option.type;
@@ -1224,11 +1247,12 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                                   setActiveActorFilter(option.type);
                                   setFilterMenuOpen(null);
                                 }}
-                                className={`h-[30px] w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[11px] font-medium transition-colors ${
+                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[12px] font-medium transition-colors ${
                                   isSelected
                                     ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
                                     : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
                                 }`}
+                                style={{ height: BUTTON_HEIGHT, lineHeight: 1 }}
                               >
                                 <span style={{ color, fontSize: 8 }}>●</span>
                                 <span className="min-w-0 flex-1 truncate">{formatOperatorLabel(option.type)}</span>
@@ -1244,7 +1268,6 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   </div>
                 </div>
               </div>
-            )}
 
             <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar">
               {filteredCommits.map((commit, i) => (

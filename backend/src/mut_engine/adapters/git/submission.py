@@ -29,6 +29,7 @@ async def submit_git_tree(
     proposed_files: dict[str, bytes] | None = None,
     promote_objects: Callable[[], None] | None = None,
     defer_projection: bool = False,
+    audit_detail: dict | None = None,
 ) -> TransactionResult:
     """Submit a Git commit/tree to the Git-native transaction engine."""
 
@@ -47,5 +48,6 @@ async def submit_git_tree(
             proposed_files=proposed_files,
             promote_objects=promote_objects,
             defer_projection=defer_projection,
+            audit_detail=audit_detail or {},
         )
     )

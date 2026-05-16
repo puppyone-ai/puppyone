@@ -7,8 +7,8 @@
  * The data view's `ConnectMethods` already encoded this for us; we
  * mirror its split here:
  *
- *   • CLI / filesystem  → copy-prompt block (terminal-CLI or local-sync
- *     prompt for an external AI agent), plus a Show-install disclosure.
+ *   • CLI / filesystem  → primary AI-agent setup prompt, with manual
+ *     terminal commands tucked behind a secondary disclosure.
  *   • agent             → ActivationCard (Activate / Open chat) — agents
  *     are Puppyone's in-app chat, never an externally-pasted prompt.
  *   • mcp / sandbox / 3p → just the connect URL / endpoint with copy
@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
+import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import { activateAgentConnector, type Connector, type RepoScope } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import { T } from '../lib/tokens';
@@ -35,7 +35,7 @@ import {
   scopePathToDataUrl,
 } from '../lib/format';
 import {
-  CommandStepsDisclosure,
+  CommandBlock,
   KvBlock,
   NoAccessKeyNotice,
   PromptBlock,
@@ -98,25 +98,28 @@ function TerminalCliBody({
     profileName,
     scopeName,
   });
+  const steps = [
+    { title: 'Install once', lines: [installLine] },
+    { title: 'Sign in to this scope', lines: [loginLine] },
+    { title: 'Explore safely', lines: exploreLines },
+    { title: 'Read & write files', lines: fileLines },
+  ];
 
   return (
     <>
       {!accessKey && <NoAccessKeyNotice />}
-      <SubSectionLabel>Prompt for AI agent</SubSectionLabel>
-      <PromptBlock prompt={prompt} />
-      <CommandStepsDisclosure
-        steps={[
-          { title: 'Install once', lines: [installLine] },
-          { title: 'Sign in to this scope', lines: [loginLine] },
-          { title: 'Explore safely', lines: exploreLines },
-          { title: 'Read & write files', lines: fileLines },
-        ]}
+      <ConnectPathChooser
+        prompt={prompt}
+        steps={steps}
+        agentDescription='Paste this setup prompt into Codex, Cursor, or Claude. The agent can install, sign in, and use this scope for you.'
+        manualTitle='Set up in terminal'
+        manualDescription='Run these commands yourself when you want direct CLI access without handing setup to an agent.'
       />
     </>
   );
 }
 
-// ─── Body: Local Sync (mut) ──────────────────────────────────────────
+// ─── Body: Git Remote ────────────────────────────────────────────────
 
 function LocalSyncBody({
   scope,
@@ -127,59 +130,174 @@ function LocalSyncBody({
 }) {
   const accessKey = scope.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
-
-  const installLine = 'pip install mutai';
-  const cloneLine = `mut clone ${cloneUrl} --credential ${accessKey || '<access-key>'}`;
-  const connectLine = `mut connect ${cloneUrl} --credential ${accessKey || '<access-key>'}`;
-  const workflowLines = [
-    'mut pull                          # get latest from cloud',
-    '# ... edit files ...',
-    'mut commit -m "describe changes"  # snapshot locally',
-    'mut push                          # send to cloud',
+  const gitUrl = `${apiBase}/git/ap/${accessKey || '<access-key>'}.git`;
+  const {
+    cloneLines,
+    existingFolderLines,
+    workflowLines,
+    serverMergeLine,
+    prompt,
+  } = buildGitSyncPrompt({ gitUrl, scopeName, directoryName: scopeName });
+  const steps = [
+    { title: 'Clone to a new folder', lines: cloneLines },
+    { title: 'Publish an existing folder', lines: existingFolderLines },
+    { title: 'Day-to-day workflow', lines: workflowLines },
+    { title: 'Server-side merge proposal', lines: [serverMergeLine] },
   ];
-
-  const prompt = [
-    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
-    ``,
-    `## Install (one-time)`,
-    `\`\`\`bash`,
-    installLine,
-    `\`\`\``,
-    ``,
-    `## Setup — choose one path`,
-    ``,
-    `**A. Clone to a new folder** (no local files yet):`,
-    `\`\`\`bash`,
-    cloneLine,
-    `cd ${scopeName}`,
-    `\`\`\``,
-    ``,
-    `**B. Connect an existing folder** (already have files locally):`,
-    `\`\`\`bash`,
-    `cd /path/to/your/existing/folder`,
-    connectLine,
-    `\`\`\``,
-    ``,
-    `## Sync workflow`,
-    `\`\`\`bash`,
-    ...workflowLines,
-    `\`\`\``,
-  ].join('\n');
 
   return (
     <>
       {!accessKey && <NoAccessKeyNotice />}
-      <SubSectionLabel>Prompt for AI agent</SubSectionLabel>
-      <PromptBlock prompt={prompt} />
-      <CommandStepsDisclosure
-        steps={[
-          { title: 'Install once', lines: [installLine] },
-          { title: 'Clone or connect', lines: [cloneLine, connectLine] },
-          { title: 'Day-to-day workflow', lines: workflowLines },
-        ]}
+      <ConnectPathChooser
+        prompt={prompt}
+        steps={steps}
+        agentDescription='Paste this Git setup prompt into your coding agent. It can clone this scope or publish an existing folder.'
+        manualTitle='Show Git commands'
+        manualDescription='Run these commands yourself when you want direct Git access.'
       />
     </>
+  );
+}
+
+function ConnectPathChooser({
+  prompt,
+  steps,
+  agentDescription,
+  manualTitle,
+  manualDescription,
+}: {
+  readonly prompt: string;
+  readonly steps: ReadonlyArray<{ title: string; lines: readonly string[] }>;
+  readonly agentDescription: string;
+  readonly manualTitle: string;
+  readonly manualDescription: string;
+}) {
+  const [manualOpen, setManualOpen] = useState(false);
+  const lineStyle = {
+    fontSize: 12,
+    lineHeight: '18px',
+    color: T.text2,
+    fontFamily: T.fontSans,
+  } as const;
+  const strongInlineStyle = {
+    fontWeight: 600,
+  } as const;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <p
+        style={{
+          margin: 0,
+          ...lineStyle,
+        }}
+      >
+        <span style={strongInlineStyle}>Use an AI agent</span>
+        <span> · {agentDescription}</span>
+      </p>
+      <PromptBlock prompt={prompt} />
+      <div style={{ borderTop: `1px solid ${T.cardBorder}`, paddingTop: 2 }}>
+        <button
+          type='button'
+          onClick={() => setManualOpen((v) => !v)}
+          aria-expanded={manualOpen}
+          style={{
+            all: 'unset',
+            cursor: 'pointer',
+            minHeight: 32,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            width: '100%',
+            fontFamily: T.fontSans,
+            color: T.text2,
+          }}
+        >
+          <span
+            aria-hidden
+            style={{
+              width: 10,
+              height: 10,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: T.text3,
+              transform: manualOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: `transform 0.15s ${T.ease}`,
+              flexShrink: 0,
+            }}
+          >
+            <svg width={10} height={10} viewBox='0 0 12 12' fill='none' stroke='currentColor' strokeWidth={1.6} strokeLinecap='round' strokeLinejoin='round'>
+              <path d='M4 2.5l3.5 3.5L4 9.5' />
+            </svg>
+          </span>
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              ...lineStyle,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <span style={strongInlineStyle}>Or use it manually</span>
+            <span> · {manualTitle} · {manualDescription}</span>
+          </span>
+        </button>
+        {manualOpen ? (
+          <div style={{ padding: '8px 0 2px 18px' }}>
+            <ConnectionStepsList steps={steps} />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function ConnectionStepsList({
+  steps,
+}: {
+  readonly steps: ReadonlyArray<{ title: string; lines: readonly string[] }>;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        marginBottom: 12,
+      }}
+    >
+      {steps.map((step, idx) => (
+        <div key={step.title} style={{ display: 'flex', gap: 10 }}>
+          <span
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 999,
+              background: 'var(--po-border-subtle)',
+              color: T.text2,
+              fontSize: 11,
+              fontWeight: 600,
+              fontFamily: T.fontSans,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginTop: 1,
+            }}
+          >
+            {idx + 1}
+          </span>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: T.text1, fontFamily: T.fontSans }}>
+              {step.title}
+            </span>
+            <CommandBlock lines={step.lines} />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

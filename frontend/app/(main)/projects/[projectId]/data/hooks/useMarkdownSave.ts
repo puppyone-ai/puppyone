@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
-import { writeFile } from '@/lib/contentTreeApi';
+import { writeFile, type NodeType } from '@/lib/contentTreeApi';
 import {
   useManualSave,
   type SaveStatus,
@@ -51,6 +51,7 @@ export interface UseMarkdownSaveOptions {
    *  path resolver after the file loads; used as the dirty-check
    *  baseline. */
   readonly serverContent: string;
+  readonly nodeType?: Extract<NodeType, 'markdown' | 'file'>;
 }
 
 export interface UseMarkdownSaveResult {
@@ -81,6 +82,7 @@ export function useMarkdownSave({
   projectId,
   activeNodePath,
   serverContent,
+  nodeType = 'markdown',
 }: UseMarkdownSaveOptions): UseMarkdownSaveResult {
   // The fileKey scopes every per-file artefact (the localStorage
   // draft slot, the dirty flag, the file-change effect). We
@@ -89,8 +91,8 @@ export function useMarkdownSave({
   // distinct "no-file" key so the hook is harmless when no file is
   // open.
   const fileKey = useMemo(
-    () => `markdown:${projectId}:${activeNodePath || '(none)'}`,
-    [projectId, activeNodePath],
+    () => `${nodeType}:${projectId}:${activeNodePath || '(none)'}`,
+    [nodeType, projectId, activeNodePath],
   );
 
   // Markdown content is a plain string — string-identity is the
@@ -107,11 +109,11 @@ export function useMarkdownSave({
   const save = useCallback(
     async (snapshot: string) => {
       if (!activeNodePath) {
-        throw new Error('Cannot save: no active markdown file');
+        throw new Error('Cannot save: no active text file');
       }
-      await writeFile(projectId, activeNodePath, snapshot, 'markdown');
+      await writeFile(projectId, activeNodePath, snapshot, nodeType);
     },
-    [projectId, activeNodePath],
+    [projectId, activeNodePath, nodeType],
   );
 
   const inner = useManualSave<string>({
