@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query, status
 from src.common_schemas import ApiResponse
 from src.exceptions import ErrorCode, PermissionException
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
@@ -61,7 +61,6 @@ def _convert_to_project_out(
         org_id=project.org_id,
         visibility=project.visibility,
         bound_git_branch=getattr(project, 'bound_git_branch', 'main'),
-        protocol_mode=getattr(project, 'protocol_mode', 'git'),
         nodes=node_infos,
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
         access_point_count=access_point_count,
@@ -255,7 +254,6 @@ def update_project(
         name=payload.name,
         description=payload.description,
         bound_git_branch=payload.bound_git_branch,
-        protocol_mode=payload.protocol_mode,
     )
 
     entries = ops.list_dir(str(project.id), "")

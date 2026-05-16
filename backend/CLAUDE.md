@@ -39,17 +39,15 @@ backend/
 │   ├── main.py                # 应用入口 & 生命周期
 │   ├── config.py              # 全局配置 (Pydantic Settings)
 │   │
-│   ├── mut_engine/            # MUT 版本引擎 (核心写入通道)
-│   │   ├── write_service.py   # 唯一写入入口
-│   │   ├── compat_service.py  # MutCompatService (旧 Mutation 接口兼容)
-│   │   ├── repo_manager.py    # per-project Mut 仓库管理
-│   │   ├── server_repo.py     # PuppyOneServerRepo (S3/PG 适配)
-│   │   ├── ops.py             # MutOps (统一读写入口)
-│   │   ├── ephemeral_client.py # MutEphemeralClient (clone→push)
-│   │   ├── tree_reader.py     # MutTreeReader (Merkle tree 读取)
-│   │   ├── audit_router.py    # 审计日志 API
-│   │   ├── protocol_router.py # MUT 线路协议 (clone/push/pull/negotiate)
-│   │   └── backends/          # S3 + Supabase 后端适配
+│   ├── mut_engine/            # 版本引擎 (Git 原生核心写入通道)
+│   │   ├── application/       # 领域逻辑 (transaction_engine, conflict_policy, …)
+│   │   ├── adapters/          # 协议适配器
+│   │   │   ├── git/           # Git smart-HTTP 路由 (/git/{project_id}.git, /git/ap/...)
+│   │   │   └── operations/    # MutOps (产品操作 → OperationWriteIntent)
+│   │   ├── server/            # repo_manager, server_repo (S3/PG 适配), admin
+│   │   ├── services/          # ephemeral_client, fs_path_index, hooks, version_outbox
+│   │   ├── routers/           # content_*, audit, conflict, shadow_snapshot, ws
+│   │   └── domain/            # intents, schemas
 │   │
 │   ├── content/               # 内容节点树 (read index)
 │   │   └── table/             # 结构化数据表 (JSON Pointer)
@@ -186,7 +184,8 @@ uv run arq src.upload.file.jobs.worker.WorkerSettings
 | `/api/v1/access` | connectors/manager | 统一 Access 管理 |
 | `/api/v1/sync` | connectors/datasource | SaaS 数据源同步 |
 | `/api/v1/collab` | mut_engine | 协作 (checkout/commit/versions/rollback/diff) |
-| `/api/v1/mut/{project_id}` | mut_engine | MUT 协议 (clone/push/pull/negotiate) |
+| `/git/{project_id}.git`, `/git/ap/{access_key}.git` | mut_engine/adapters/git | Git smart-HTTP (info/refs, git-receive-pack, git-upload-pack) |
+| `/api/v1/mut/{project_id}/ws` | mut_engine | 提交通知 WebSocket (历史名称，未改) |
 | `/api/v1/ingest` | ingest | 文件/URL 数据摄取 ETL |
 | `/api/v1/db-connector` | connectors/database | 数据库连接器 |
 | `/api/v1/workspace` | platform/workspace | 工作区管理 |

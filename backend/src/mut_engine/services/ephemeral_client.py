@@ -1,10 +1,12 @@
 """
-MutEphemeralClient — in-process MUT protocol client.
+MutEphemeralClient — in-process version transaction adapter.
 
-Used by Agent, Sandbox, MCP, and Web UI to access the MUT tree.
-Calls MUT handlers directly (no HTTP), ensuring all access goes
-through the protocol with scope enforcement, conflict detection,
-and audit logging.
+Simulates the read/modify/publish loop of a Git push for callers that
+run *inside* the API server (Agent, Sandbox, MCP, Web UI), so they
+share the same scope enforcement, conflict policy, and audit logging
+as external ``git push``-driven traffic without paying the cost of an
+HTTP round trip. The name ``Mut`` is historical — the implementation
+now routes through :class:`GitNativeTransactionEngine`.
 
 Usage:
     client = MutEphemeralClient(repo_manager, project_id, auth_context)

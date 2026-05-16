@@ -10,7 +10,7 @@ from src.infra.s3.dependencies import get_s3_service
 from src.connectors.agent.config.dependencies import get_agent_config_service
 from src.infra.search.dependencies import get_search_service
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from fastapi.responses import StreamingResponse
 
 

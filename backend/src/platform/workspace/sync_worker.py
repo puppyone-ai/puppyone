@@ -16,7 +16,7 @@ import os
 import time
 
 from src.infra.s3.service import get_s3_service_instance
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.platform.workspace.cache import CacheManager
 from src.utils.logger import log_error, log_info
 

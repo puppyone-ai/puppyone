@@ -109,7 +109,6 @@ from src.mut_engine.application.git_commit import (
     identity_for_git,
     is_git_compatible_commit,
 )
-from src.mut_engine.application.protocol_mode import ensure_protocol_enabled
 from src.mut_engine.application.transaction_engine import (
     CrossScopeSubmissionError,
     GitNativeTransactionEngine,
@@ -119,7 +118,6 @@ from src.mut_engine.domain.intents import OperationWriteIntent
 from src.mut_engine.services.version_outbox import process_version_outbox_batch
 from src.mut_engine.services.tree_splice import splice_put_blob
 from src.mut_engine.server.repo_manager import MutRepoManager
-from src.platform.project.schemas import ProjectUpdate
 
 from tests.mut_engine.test_server_repo import FakeAuditManager, FakeHistoryManager
 
@@ -957,15 +955,6 @@ class TestGitNativeHardeningContracts:
         assert server_repo.get_root_hash() == empty_tree
         assert server_repo.get_head_commit_id() == ""
         assert git_view_head_commit(server_repo, "") == ""
-
-    @pytest.mark.asyncio
-    async def test_protocol_mode_gate_is_no_op_after_mut_removal(self):
-        """The legacy MUT wire protocol has been removed (see
-        07-version-engine-supplement.md §3). ``ensure_protocol_enabled``
-        is kept as a stable import seam and must never refuse Git
-        admission for any project."""
-        # No exception for any protocol value, regardless of stored state.
-        await ensure_protocol_enabled("test-proj", "git")
 
     def test_build_git_commit_rejects_non_git_parent(
         self, server_repo,

@@ -61,7 +61,7 @@ export function useAccessPointEntries({
   const providerIcons = useMemo<ProviderIconLookup>(() => {
     const icons: ProviderIconLookup = {};
     for (const spec of connectorSpecs) {
-      icons[spec.provider] = { icon: spec.icon, iconUrl: spec.icon_url };
+      icons[spec.provider] = { icon: spec.icon, iconUrl: spec.icon_url ?? null };
     }
     return icons;
   }, [connectorSpecs]);

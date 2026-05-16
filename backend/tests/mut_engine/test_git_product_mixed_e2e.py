@@ -14,7 +14,7 @@ from src.mut_engine.adapters.git.router import router as git_router
 from src.mut_engine.application.object_store import ObjectStore
 from src.mut_engine.dependencies import get_mut_ops, get_repo_manager
 from src.mut_engine.routers.content_write import write_router
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser

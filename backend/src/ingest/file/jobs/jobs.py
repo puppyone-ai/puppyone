@@ -26,7 +26,7 @@ from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
 from src.mut_engine.application.git_object_format import encode_object
-from src.mut_engine.services.ops import BlobRef
+from src.mut_engine.adapters.operations.ops_adapter import BlobRef
 
 logger = logging.getLogger(__name__)
 

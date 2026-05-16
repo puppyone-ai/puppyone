@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.platform.project.dependencies import (
     get_project_service, get_verified_project,
 )

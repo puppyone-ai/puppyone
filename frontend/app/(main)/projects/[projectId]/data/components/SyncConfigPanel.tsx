@@ -204,9 +204,9 @@ function CreateView({
     oauthType: spec.oauth_ui_type ? spec.oauth_ui_type as SaasType : undefined,
     requiresAuth: spec.auth !== 'none',
     creationMode: spec.creation_mode,
-    direction: (spec.supported_directions[0] || 'inbound') as 'inbound' | 'outbound' | 'bidirectional',
-    accept: spec.accept_types as AcceptedNodeType[],
-    configFields: spec.config_fields.map(f => ({
+    direction: (spec.supported_directions?.[0] || 'inbound') as 'inbound' | 'outbound' | 'bidirectional',
+    accept: (spec.accept_types ?? []) as AcceptedNodeType[],
+    configFields: (spec.config_fields ?? []).map(f => ({
       key: f.key,
       label: f.label,
       type: (f.type === 'url' ? 'text' : f.type) as 'select' | 'text' | 'number',

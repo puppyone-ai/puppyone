@@ -9,7 +9,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 
 from src.connectors.agent.config.service import AgentConfigService
 from src.infra.scheduler.service import get_scheduler_service

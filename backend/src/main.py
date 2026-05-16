@@ -347,7 +347,7 @@ async def app_lifespan(app: FastAPI):
     _init_connector_registry()
     await _init_mut_trees()
 
-    log_info("📁 Filesystem sync: client-side via MUT protocol (no server init needed)")
+    log_info("📁 Filesystem sync: client-side via Git smart-HTTP (no server init needed)")
 
     total_startup_time = time.time() - APP_START_TIME
     log_info("")

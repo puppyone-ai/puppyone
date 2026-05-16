@@ -53,8 +53,9 @@ export interface TreeCatResponse {
 
 export interface TreeWriteResponse {
   path: string;
-  content_hash: string;
   commit_id: string;
+  merged: boolean;
+  conflicts: string[];
 }
 
 export interface TreeMvResponse {
@@ -745,8 +746,13 @@ export async function getVersionContent(
   );
 }
 
+/**
+ * Rollback is scope-wide on the V1 engine — the entire project scope is
+ * restored to ``commitId`` by writing a new forward commit. There is no
+ * per-file rollback surface; callers that want to revert one file should
+ * read that file's content at ``commitId`` and re-write it.
+ */
 export async function rollbackToVersion(
-  filePath: string,
   commitId: string,
   projectId: string
 ): Promise<RollbackResponse> {
@@ -754,7 +760,7 @@ export async function rollbackToVersion(
     `/api/v1/content/${projectId}/rollback`,
     {
       method: 'POST',
-      body: JSON.stringify({ path: filePath, target_commit_id: commitId }),
+      body: JSON.stringify({ target_commit_id: commitId }),
     }
   );
 }

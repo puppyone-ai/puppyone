@@ -266,7 +266,7 @@ export function VersionHistoryPanel({
   const handleRollback = useCallback(async (commitId: string) => {
     setIsRollingBack(true);
     try {
-      await rollbackToVersion(nodeId, commitId, projectId);
+      await rollbackToVersion(commitId, projectId);
       setRollbackConfirm(null);
       await refreshHistory();
       onRollbackComplete?.();

@@ -35,8 +35,8 @@ from src.mut_engine.server.validation import (
     validate_limit,
     validate_path,
 )
-from src.mut_engine.services.direct_writer import ConcurrentMutationError
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.application.transaction_engine import ConcurrentMutationError
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 
 
 router = APIRouter(prefix="/ap-fs", tags=["access-point-fs"])
