@@ -41,7 +41,7 @@ dependencies = [
     "apscheduler>=3.10.4",
     "watchdog>=6.0.0",
     "pymupdf>=1.25.0",
-    "mutai>=0.1.6",
+    "mutai @ git+https://github.com/puppyone-ai/mut.git@3b818873912cdfd7ad2b85ee770baafb06014813",
     "zipstream-ng>=1.9.0",
 ]
 

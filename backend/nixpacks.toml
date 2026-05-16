@@ -69,6 +69,4 @@ cmds = [
     # NOT spin up its own short-lived env that re-downloads them.
     ". /opt/venv/bin/activate && pip install --retries 5 'setuptools>=61.0' wheel || pip install --retries 5 'setuptools>=61.0' wheel",
     ". /opt/venv/bin/activate && pip install -e . --no-deps --no-build-isolation",
-    # Override mut with latest branch build (remove after mutai 0.1.8 is on PyPI)
-    ". /opt/venv/bin/activate && pip install --no-deps git+https://github.com/puppyone-ai/mut.git@fix/mut-scope-design-bug",
 ]
