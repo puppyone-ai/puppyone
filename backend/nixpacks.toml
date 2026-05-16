@@ -69,6 +69,16 @@ cmds = [
     # NOT spin up its own short-lived env that re-downloads them.
     ". /opt/venv/bin/activate && pip install --retries 5 'setuptools>=61.0' wheel || pip install --retries 5 'setuptools>=61.0' wheel",
     ". /opt/venv/bin/activate && pip install -e . --no-deps --no-build-isolation",
-    # Override mut with latest branch build (remove after mutai 0.1.8 is on PyPI)
-    ". /opt/venv/bin/activate && pip install --no-deps git+https://github.com/puppyone-ai/mut.git@fix/mut-scope-design-bug",
+    # Override mut with the git-format-storage branch — the published
+    # ``mutai 0.1.6`` on PyPI is missing ``mut.foundation.git_format``,
+    # ``branch``, ``messages`` and ``ws_client`` (verified by inspecting
+    # the wheel). 11 backend files have module-level imports of
+    # ``mut.foundation.git_format`` (server_repo, object_gc, tree_objects,
+    # git_commit, …), so without this override FastAPI fails at startup
+    # with ``ImportError: No module named 'mut.foundation.git_format'``.
+    # The previously pinned ``fix/mut-scope-design-bug`` branch ALSO
+    # lacked git_format — it predates the git-format-storage work.
+    # Remove this override once a mutai release with git_format is on PyPI
+    # and ``[project.dependencies]`` is bumped to that version.
+    ". /opt/venv/bin/activate && pip install --no-deps git+https://github.com/puppyone-ai/mut.git@feat/git-format-storage",
 ]
