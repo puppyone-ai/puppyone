@@ -1176,11 +1176,17 @@ def _record_pending_conflict_row(
     the FK back to the ``version_transactions`` row recorded for this
     pending state (B6) — passing ``None`` is allowed only for legacy
     callers that haven't been wired up yet.
+
+    Also emits a ``pending_conflict_created`` outbox event (B13) so the
+    hosted resolver agent worker can pick it up and propose a fix. The
+    outbox row uses an empty ``commit_id`` because no commit has landed
+    yet; the worker dispatches by ``event_type``, not by commit id.
     """
 
     from src.infra.supabase.client import SupabaseClient
 
     client = SupabaseClient().client
+    resolver_kind = _resolver_kind_for(source_channel)
     payload = {
         "pending_conflict_id": pending_conflict_id,
         "project_id": project_id,
@@ -1194,7 +1200,7 @@ def _record_pending_conflict_row(
         "policy": policy,
         "status": "pending",
         "resolver_actor": "",
-        "resolver_kind": _resolver_kind_for(source_channel),
+        "resolver_kind": resolver_kind,
         "resolution_detail": {"actor": actor, "source_channel": source_channel},
     }
     if transaction_id is not None:
@@ -1202,6 +1208,32 @@ def _record_pending_conflict_row(
     client.table("mut_conflicts").upsert(
         payload, on_conflict="pending_conflict_id",
     ).execute()
+
+    # B13: enqueue a resolver-agent dispatch event. We do NOT block the
+    # request on this — a failure to write the outbox row is downgraded
+    # to a warning. The conflict is still resolvable via the HTTP API;
+    # the outbox row is only the agent-loop optimisation.
+    try:
+        client.table("mut_version_outbox").insert({
+            "project_id": project_id,
+            "commit_id": "",  # no commit; non-null column needs empty string
+            "event_type": "pending_conflict_created",
+            "payload": {
+                "pending_conflict_id": pending_conflict_id,
+                "scope_path": scope_path,
+                "policy": policy,
+                "transaction_id": transaction_id,
+                "source_channel": source_channel,
+                "resolver_kind": resolver_kind,
+                "changed_paths": changed_paths[:50],
+            },
+        }).execute()
+    except Exception as exc:
+        from src.utils.logger import log_warning
+        log_warning(
+            f"[version_engine] failed to enqueue pending_conflict_created "
+            f"outbox for {pending_conflict_id[:12]}: {exc}",
+        )
 
 
 def _insert_version_transaction_row(
