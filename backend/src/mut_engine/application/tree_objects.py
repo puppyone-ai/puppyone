@@ -136,6 +136,15 @@ def validate_scope_bound_files(
 
 
 def is_path_excluded(full_path: str, excludes: list[str]) -> bool:
+    """Check whether ``full_path`` lies under any ``excludes`` pattern.
+
+    ``excludes`` are full repository-relative paths (the access-point
+    config stores them with leading ``/``, e.g. ``"/docs/secret/"``;
+    :func:`normalize_path` strips the slashes for comparison). Patterns
+    are NOT scope-relative — to exclude ``docs/secret``, the access
+    point stores ``"/docs/secret/"``, never just ``"secret"``.
+    """
+
     clean = normalize_path(full_path)
     for excluded in excludes:
         exc = normalize_path(excluded)

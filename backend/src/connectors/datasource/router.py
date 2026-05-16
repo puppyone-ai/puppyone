@@ -265,7 +265,13 @@ def list_connectors(
     Frontend uses this to dynamically render connector options
     instead of hardcoding SYNC_OPTIONS / SYNC_PROVIDER_SPECS.
     """
-    return ApiResponse.success(data=registry.specs_to_dicts())
+    specs = registry.specs_to_dicts()
+    # ``/access/types`` stamps the same category on each datasource spec
+    # so the frontend ``ConnectorSpec.category`` is always defined; mirror
+    # that here so both endpoints return identically shaped objects.
+    for spec in specs:
+        spec["category"] = "datasource"
+    return ApiResponse.success(data=specs)
 
 
 # ============================================================

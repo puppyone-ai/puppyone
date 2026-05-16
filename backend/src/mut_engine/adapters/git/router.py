@@ -24,7 +24,6 @@ from src.mut_engine.adapters.git.upload_pack import (
     info_refs_response,
     upload_pack_response,
 )
-from src.mut_engine.application.protocol_mode import ensure_protocol_enabled
 from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.dependencies import get_repo_manager
 from src.mut_engine.routers.access_point import resolve_access_point
@@ -43,7 +42,6 @@ async def resolve_git_access_point(access_key: str, request: Request) -> tuple[s
     """
 
     project_id, auth = await asyncio.to_thread(resolve_access_point, access_key)
-    await ensure_protocol_enabled(project_id, "git")
     bound_identity = auth.get("_user_identity", "")
     request_identity = request_actor(request, auth)
     if bound_identity and request_identity != bound_identity:
@@ -71,7 +69,6 @@ async def git_info_refs(
     """Advertise the Git service endpoint for a PuppyOne project."""
 
     auth = await resolve_git_project_auth(project_id, request, scope)
-    await ensure_protocol_enabled(project_id, "git")
     repo = repo_manager.get_server_repo(project_id)
     return info_refs_response(
         repo,
@@ -110,7 +107,6 @@ async def git_receive_pack(
     """Receive a Git push and publish it through the version engine."""
 
     auth = await resolve_git_project_auth(project_id, request, scope)
-    await ensure_protocol_enabled(project_id, "git")
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
     return await receive_pack_response(
@@ -159,7 +155,6 @@ async def git_upload_pack(
     """Serve a Git fetch/clone pack."""
 
     auth = await resolve_git_project_auth(project_id, request, scope)
-    await ensure_protocol_enabled(project_id, "git")
     repo = repo_manager.get_server_repo(project_id)
     body = await request.body()
     return upload_pack_response(

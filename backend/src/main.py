@@ -347,7 +347,7 @@ async def app_lifespan(app: FastAPI):
     _init_connector_registry()
     await _init_mut_trees()
 
-    log_info("📁 Filesystem sync: client-side via MUT protocol (no server init needed)")
+    log_info("📁 Filesystem sync: client-side via Git smart-HTTP (no server init needed)")
 
     total_startup_time = time.time() - APP_START_TIME
     log_info("")
@@ -419,6 +419,10 @@ def create_app() -> FastAPI:
     app.include_router(content_router, prefix="/api/v1", tags=["content"])
     from src.mut_engine.routers.audit_router import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
+    from src.mut_engine.routers.conflict_router import router as conflict_router
+    app.include_router(conflict_router, prefix="/api/v1/content", tags=["conflicts"])
+    from src.mut_engine.routers.shadow_snapshot_router import router as shadow_router
+    app.include_router(shadow_router, prefix="/api/v1", tags=["shadow-snapshots"])
     from src.mut_engine.adapters.git.router import router as git_protocol_router
     app.include_router(git_protocol_router, tags=["git-protocol"])
     # WebSocket /ws — server→client commit_update notifications. Required

@@ -30,7 +30,7 @@ from src.config import settings
 from src.connectors.agent.chat.service import ChatService
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.sandbox_session import SandboxFile, SandboxData, prepare_sandbox_data
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.platform.analytics.service import log_context_access, log_bash_execution
 from src.connectors.agent.request_builder import (
     _get_bash_tool,

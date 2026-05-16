@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from src.common_schemas import ApiResponse
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_verified_project

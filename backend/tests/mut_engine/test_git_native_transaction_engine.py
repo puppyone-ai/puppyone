@@ -109,7 +109,6 @@ from src.mut_engine.application.git_commit import (
     identity_for_git,
     is_git_compatible_commit,
 )
-from src.mut_engine.application.protocol_mode import ensure_protocol_enabled
 from src.mut_engine.application.transaction_engine import (
     CrossScopeSubmissionError,
     GitNativeTransactionEngine,
@@ -119,7 +118,6 @@ from src.mut_engine.domain.intents import OperationWriteIntent
 from src.mut_engine.services.version_outbox import process_version_outbox_batch
 from src.mut_engine.services.tree_splice import splice_put_blob
 from src.mut_engine.server.repo_manager import MutRepoManager
-from src.platform.project.schemas import ProjectUpdate
 
 from tests.mut_engine.test_server_repo import FakeAuditManager, FakeHistoryManager
 
@@ -958,15 +956,6 @@ class TestGitNativeHardeningContracts:
         assert server_repo.get_head_commit_id() == ""
         assert git_view_head_commit(server_repo, "") == ""
 
-    @pytest.mark.asyncio
-    async def test_protocol_mode_gate_is_no_op_after_mut_removal(self):
-        """The legacy MUT wire protocol has been removed (see
-        07-version-engine-supplement.md §3). ``ensure_protocol_enabled``
-        is kept as a stable import seam and must never refuse Git
-        admission for any project."""
-        # No exception for any protocol value, regardless of stored state.
-        await ensure_protocol_enabled("test-proj", "git")
-
     def test_build_git_commit_rejects_non_git_parent(
         self, server_repo,
     ):
@@ -1328,7 +1317,9 @@ def test_git_access_point_readonly_push_is_rejected(
         )
 
     assert response.status_code == 200
-    assert b"ng refs/heads/main access point is read-only" in response.content
+    # E4/E6: ng line now carries the structured "puppyone-rejected:" tag
+    # so tooling can disambiguate the rejection class.
+    assert b"ng refs/heads/main puppyone-rejected: access point is read-only" in response.content
     assert server_repo.get_scope_head_commit_id("docs") == ""
     assert server_repo.audit.events == []
 
@@ -1889,7 +1880,13 @@ def test_real_git_cli_stale_same_file_conflict_requires_manual_review(
         _run_git(["clone", remote, str(verify)], tmp_path)
 
     assert proc.returncode != 0
-    assert b"conflict requires manual review" in proc.stderr
+    # V1 outcome format: ng line tagged "puppyone-pending:" plus side-band
+    # stderr "PuppyOne: ..." lines giving the resolver UI hint.
+    assert (
+        b"puppyone-pending" in proc.stderr
+        or b"PuppyOne: this push touched files that need manual review" in proc.stderr
+    )
+    assert b"pending_conflict_id=" in proc.stderr
     assert (verify / "shared.txt").read_text(encoding="utf-8") == "alice\n"
     assert server_repo.audit.events[-1]["type"] == "git_push_conflict_pending"
     assert server_repo.audit.events[-1]["detail"]["status"] == "pending_manual_review"
@@ -2010,8 +2007,13 @@ def test_git_receive_pack_rejects_non_main_delete_multiple_and_malformed_request
             headers={"content-type": "application/x-git-receive-pack-request"},
         )
 
-    assert b"only refs/heads/main is writable" in non_main_resp.content
-    assert b"delete is not supported" in delete_resp.content
+    # E4: the allowlist now accepts conventional feature-branch prefixes
+    # (feat/, fix/, feature/, etc.). ``refs/heads/side`` is not on the
+    # list and gets the new structured rejection.
+    assert b"puppyone-rejected" in non_main_resp.content
+    assert b"not in the writable allowlist" in non_main_resp.content
+    # E4: delete is still refused; new wording cites the rollback API.
+    assert b"puppyone-rejected: delete is not supported" in delete_resp.content
     assert multiple_resp.status_code == 400
     assert "one scope-bound ref update" in multiple_resp.json()["detail"]
     assert malformed_resp.status_code == 400

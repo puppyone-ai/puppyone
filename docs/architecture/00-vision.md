@@ -1,5 +1,12 @@
 # PuppyOne 产品愿景与架构原理
 
+> **Historical — current model is in
+> [07-version-engine-supplement.md](07-version-engine-supplement.md).**
+> The MUT wire protocol described below has been removed; PuppyOne is
+> now a Git server that takes over MUT server's role. Read this doc
+> for the original problem framing, but consult the supplement for
+> any current architecture decision.
+
 > MUT = Git for AI Agents. PuppyOne = GitHub for MUT.
 
 ---

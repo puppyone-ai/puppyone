@@ -1,10 +1,12 @@
 """
-MutEphemeralClient — in-process MUT protocol client.
+MutEphemeralClient — in-process version transaction adapter.
 
-Used by Agent, Sandbox, MCP, and Web UI to access the MUT tree.
-Calls MUT handlers directly (no HTTP), ensuring all access goes
-through the protocol with scope enforcement, conflict detection,
-and audit logging.
+Simulates the read/modify/publish loop of a Git push for callers that
+run *inside* the API server (Agent, Sandbox, MCP, Web UI), so they
+share the same scope enforcement, conflict policy, and audit logging
+as external ``git push``-driven traffic without paying the cost of an
+HTTP round trip. The name ``Mut`` is historical — the implementation
+now routes through :class:`GitNativeTransactionEngine`.
 
 Usage:
     client = MutEphemeralClient(repo_manager, project_id, auth_context)
@@ -41,10 +43,22 @@ class MutEphemeralClient:
         repo_manager: MutRepoManager,
         project_id: str,
         auth_context: dict,
+        source_channel: str = "agent",
     ):
+        """In-process client used by agent / sandbox / connector flows.
+
+        ``source_channel`` tags every push this client makes so audit
+        rows and conflict-policy rules can distinguish ``agent`` writes
+        from ``sync`` connector imports or hosted ``web`` UI calls. The
+        default is ``agent`` because every current caller is an agent
+        or sandbox flow; legacy product API entry points pass
+        ``source_channel="papi"`` explicitly.
+        """
+
         self._repo_manager = repo_manager
         self._project_id = project_id
         self._auth = auth_context
+        self._source_channel = source_channel or "agent"
 
         self._head_commit_id: str = ""
         self._scope: dict = {}
@@ -357,7 +371,7 @@ class MutEphemeralClient:
             project_id=self._project_id,
             scope_path=scope.get("path", "") or "",
             actor=self._auth.get("agent", "ephemeral"),
-            source_channel="papi",
+            source_channel=self._source_channel,
             base_commit_id=body.get("base_commit_id", "") or "",
             proposed_tree_id=snapshot["root"],
             client_commit_id=snapshot.get("commit_id", ""),

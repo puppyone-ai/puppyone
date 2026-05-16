@@ -27,7 +27,7 @@ from src.mut_engine.schemas import (
     TreeResponse,
 )
 from src.mut_engine.server.validation import validate_path
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service

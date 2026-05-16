@@ -127,24 +127,41 @@ function LocalSyncBody({
 }) {
   const accessKey = scope.access_key || '';
   const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path);
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  // V1 (post-MUT removal): the access key now authorises a stock Git
+  // smart-HTTP remote at /git/ap/<key>.git. The legacy MUT wire URL
+  // (/api/v1/mut/ap/<key>) was deleted with the protocol.
+  const cloneUrl = `${apiBase}/git/ap/${accessKey}.git`;
 
-  const installLine = 'pip install mutai';
-  const cloneLine = `mut clone ${cloneUrl} --credential ${accessKey || '<access-key>'}`;
-  const connectLine = `mut connect ${cloneUrl} --credential ${accessKey || '<access-key>'}`;
+  const host = (() => {
+    try { return new URL(cloneUrl).host; }
+    catch { return 'qubits-api.puppyone.ai'; }
+  })();
+
+  const authLines = [
+    'git config --global credential.helper store',
+    String.raw`printf "https://x-access-token:%s@%s\n" "` + (accessKey || '<access-key>') + `" "${host}" >> ~/.git-credentials`,
+  ];
+  const cloneLine = `git clone ${cloneUrl}`;
+  const connectLines = [
+    'cd /path/to/your/folder',
+    'git init -b main',
+    `git remote add origin ${cloneUrl}`,
+    'git pull --rebase origin main',
+    'git push -u origin main',
+  ];
   const workflowLines = [
-    'mut pull                          # get latest from cloud',
+    'git pull --ff-only               # get latest from cloud',
     '# ... edit files ...',
-    'mut commit -m "describe changes"  # snapshot locally',
-    'mut push                          # send to cloud',
+    'git add -A && git commit -m "describe changes"',
+    'git push origin main             # send to cloud',
   ];
 
   const prompt = [
-    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
+    `Sync my local folder with PuppyOne cloud using stock \`git\`.`,
     ``,
-    `## Install (one-time)`,
+    `## Authenticate (one-time)`,
     `\`\`\`bash`,
-    installLine,
+    ...authLines,
     `\`\`\``,
     ``,
     `## Setup — choose one path`,
@@ -157,14 +174,16 @@ function LocalSyncBody({
     ``,
     `**B. Connect an existing folder** (already have files locally):`,
     `\`\`\`bash`,
-    `cd /path/to/your/existing/folder`,
-    connectLine,
+    ...connectLines,
     `\`\`\``,
     ``,
     `## Sync workflow`,
     `\`\`\`bash`,
     ...workflowLines,
     `\`\`\``,
+    ``,
+    `If a push is rejected with \`puppyone-pending: review required\`,`,
+    `open the PuppyOne UI; the conflict is queued for manual review.`,
   ].join('\n');
 
   return (
@@ -174,8 +193,8 @@ function LocalSyncBody({
       <PromptBlock prompt={prompt} />
       <CommandStepsDisclosure
         steps={[
-          { title: 'Install once', lines: [installLine] },
-          { title: 'Clone or connect', lines: [cloneLine, connectLine] },
+          { title: 'Authenticate once', lines: authLines },
+          { title: 'Clone or connect', lines: [cloneLine, ...connectLines] },
           { title: 'Day-to-day workflow', lines: workflowLines },
         ]}
       />

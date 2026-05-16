@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from src.common_schemas import ApiResponse
 from src.config import settings
 from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 from src.platform.project.dependencies import (
     get_project_service, get_verified_project,
 )
@@ -33,17 +33,20 @@ router = APIRouter(
 
 
 def _build_repo_url(project_id: str, request: Request) -> str:
-    """Compute the project's mut URL.
+    """Compute the project's Git remote URL.
 
-    Prefer settings.PUBLIC_API_URL when set (production); fall back to the
-    request's own host header so dev / staging show the right thing without
-    extra config.
+    V1 post-MUT-removal: the project-level Git smart-HTTP surface
+    lives at ``/git/{project_id}.git``; the legacy ``/api/v1/mut/{project_id}``
+    endpoint was deleted with the wire protocol. Prefer
+    ``settings.PUBLIC_API_URL`` when set (production); fall back to the
+    request's own host header so dev / staging show the right thing
+    without extra config.
     """
     base = getattr(settings, "PUBLIC_API_URL", None) or ""
     if not base:
         # Best-effort fallback — request.url.scheme/netloc.
         base = f"{request.url.scheme}://{request.url.netloc}"
-    return f"{base.rstrip('/')}/api/v1/mut/{project_id}"
+    return f"{base.rstrip('/')}/git/{project_id}.git"
 
 
 @router.get(

@@ -35,8 +35,8 @@ from src.mut_engine.server.validation import (
     validate_limit,
     validate_path,
 )
-from src.mut_engine.services.direct_writer import ConcurrentMutationError
-from src.mut_engine.services.ops import MutOps
+from src.mut_engine.application.transaction_engine import ConcurrentMutationError
+from src.mut_engine.adapters.operations.ops_adapter import MutOps
 
 
 router = APIRouter(prefix="/ap-fs", tags=["access-point-fs"])
@@ -1679,3 +1679,143 @@ async def remove(
         data["path"] = existing_paths[0]
         data["mut_path"] = _join_scope(scope["path"], existing_paths[0])
     return ApiResponse.success(data=data)
+
+
+# ── H2/H4/H5: fs_path_index-backed find + admin rebuild ──────────────
+
+
+@router.get("/find", response_model=ApiResponse)
+async def find_index(
+    name: str = Query("", description="fnmatch-style glob over the basename"),
+    path: str = Query("", description="Subpath under the scope to narrow the search"),
+    mime: str = Query("", description="Optional mime-type prefix filter (e.g. 'text/')"),
+    type_: str = Query(
+        "any",
+        alias="type",
+        description="'file' or 'any'; folders aren't indexed, only blobs",
+    ),
+    limit: int = Query(1000, ge=1, le=20000),
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_mut_user: str | None = Header(None, alias="X-Mut-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+):
+    """Server-side accelerated ``puppyone fs find`` (H2).
+
+    Queries the materialised ``fs_path_index`` instead of walking the
+    Merkle tree, so large projects answer in milliseconds. Scope and
+    exclude rules from the caller's access point are applied as
+    SQL filters (H4) so a scoped credential never sees out-of-scope
+    rows even if the index has them.
+
+    The index is refreshed asynchronously by the outbox worker. A
+    just-pushed file may take one worker tick (~30s) to appear; for
+    correctness-critical callers use ``/stat`` or ``/ls`` which walk
+    the live tree.
+    """
+
+    project_id, _auth, scope = await _resolve_auth(x_access_key, x_mut_user, x_puppy_client)
+    scope_full = _join_scope(scope["path"], _clean_relative(path)) if path else (scope["path"] or "")
+    scope_full = scope_full.strip("/")
+
+    from src.infra.supabase.client import SupabaseClient
+
+    client = SupabaseClient().client
+    builder = client.table("fs_path_index").select(
+        "full_path, size_bytes, mime_type, last_who, last_commit_id, last_updated_at",
+    ).eq("project_id", project_id)
+
+    # H4 — permission filter at query time.
+    if scope_full:
+        # We use a LIKE-style match so paths under the scope prefix are
+        # returned. The pg_trgm index lets this run cheaply.
+        builder = builder.like("full_path", f"{scope_full}/%")
+        # Also accept the scope path itself if it is a single file (rare).
+        # The OR is expressed by the next query, merged client-side; for
+        # V1 we stick with the strict prefix because file-scopes are not
+        # in production yet.
+    # Reject hits inside any exclude pattern. The patterns are absolute
+    # paths (per the resolved convention) so we can filter on full_path
+    # directly.
+    for excl in scope.get("exclude") or []:
+        clean = (excl or "").strip("/")
+        if not clean:
+            continue
+        builder = builder.not_.like("full_path", f"{clean}%")
+
+    if mime:
+        builder = builder.like("mime_type", f"{mime}%")
+    if type_ == "file":
+        # Folder entries are not indexed; this is a no-op but lets the
+        # caller request strict file semantics for symmetry with POSIX find.
+        pass
+
+    rows = (builder.limit(limit).execute()).data or []
+
+    # Apply name-glob filter in Python (pg_trgm doesn't do fnmatch).
+    if name:
+        import fnmatch
+        rows = [
+            r for r in rows
+            if fnmatch.fnmatch(_basename(r["full_path"]), name)
+        ]
+
+    # Re-shape paths to scope-relative for the caller.
+    scope_prefix = (scope["path"] or "").strip("/")
+    out = []
+    for r in rows[:limit]:
+        full = r["full_path"]
+        if scope_prefix:
+            if full == scope_prefix:
+                rel = ""
+            elif full.startswith(scope_prefix + "/"):
+                rel = full[len(scope_prefix) + 1:]
+            else:
+                continue  # belt-and-braces: scope mismatch
+        else:
+            rel = full
+        out.append({
+            "path": rel,
+            "mut_path": full,
+            "size_bytes": r.get("size_bytes", 0),
+            "mime_type": r.get("mime_type", ""),
+            "last_who": r.get("last_who", ""),
+            "last_commit_id": r.get("last_commit_id", ""),
+            "last_updated_at": r.get("last_updated_at", ""),
+        })
+    return ApiResponse.success(data={
+        "scope": _scope_payload(scope),
+        "entries": out,
+        "returned_count": len(out),
+        "truncated": len(rows) >= limit,
+        "source": "fs_path_index",
+    })
+
+
+@router.post("/admin/fs-index/rebuild", response_model=ApiResponse)
+async def rebuild_fs_index(
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_mut_user: str | None = Header(None, alias="X-Mut-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: MutOps = Depends(get_mut_ops),
+):
+    """H5: drop and rebuild ``fs_path_index`` rows for this project.
+
+    Used after manual DB surgery, missed outbox events, or after a
+    schema migration that widened the index. Requires the access point
+    to be in ``rw`` mode — same gate as any write operation, so any
+    misuse is captured in the standard audit flow.
+    """
+
+    project_id, _auth, scope = await _resolve_auth(x_access_key, x_mut_user, x_puppy_client)
+    if str(scope.get("mode", "r")).lower() not in _WRITE_MODES:
+        raise HTTPException(status_code=403, detail="rebuild requires a writable access point")
+
+    repo = ops._repos.get_server_repo(project_id)  # noqa: SLF001 — admin path
+    from src.mut_engine.services.fs_path_index import (
+        rebuild_fs_path_index_for_project,
+    )
+    touched = await asyncio.to_thread(rebuild_fs_path_index_for_project, repo, project_id)
+    return ApiResponse.success(data={
+        "project_id": project_id,
+        "rows_written": touched,
+    })

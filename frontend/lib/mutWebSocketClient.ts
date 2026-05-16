@@ -1,11 +1,18 @@
 /**
- * MUT WebSocket client — server-push commit_update consumer.
+ * Version-engine WebSocket client — server-push commit_update consumer.
  *
  * One persistent WebSocket per (project_id, browser tab). The connection
  * stays open as long as any subscriber is registered; it auto-reconnects
  * with exponential backoff if the server drops it.
  *
- * Auth contract (see backend ``mut_engine/routers/ws_router.py``):
+ * **Note on the URL**: the path is ``/api/v1/mut/{project_id}/ws`` for
+ * historical reasons — it's the *only* surface that still carries the
+ * "mut" prefix after the MUT wire protocol was removed (the WS router
+ * predates the rename). It still works and the backend keeps the
+ * route mounted; renaming would require a backend + frontend lockstep
+ * deploy and gain nothing. See ``backend/src/mut_engine/routers/ws_router.py``.
+ *
+ * Auth contract (see ``ws_router.py``):
  *   The browser ``WebSocket`` constructor cannot set arbitrary headers,
  *   so we ship the JWT inside the ``Sec-WebSocket-Protocol`` field as
  *   ``mut.bearer.<token>``. The server pulls the token off, then accepts

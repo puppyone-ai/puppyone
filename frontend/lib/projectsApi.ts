@@ -17,11 +17,10 @@ export type ProjectInfo = {
   description?: string;
   org_id?: string;
   visibility?: 'org' | 'private';
-  /** Default git branch for new GitHub bindings & MUT clones. The
+  /** Default git branch new clients clone & GitHub bindings use. The
    *  backend defaults to ``'main'``; legacy projects may not have the
    *  field yet, hence optional on the wire. */
   bound_git_branch?: string;
-  protocol_mode?: 'git' | 'mut' | 'both';
   nodes: NodeInfo[];
   updated_at?: string;
   access_point_count?: number;

@@ -37,6 +37,18 @@ class AuditLogItem(BaseModel):
     conflict_details: str | None = None
     metadata: dict | None = None
     created_at: datetime | None = None
+    # V1 typed columns (migration 20260516010000): the new RPC populates
+    # these directly so the activity feed can filter / join without
+    # re-parsing ``metadata`` JSONB. Historical rows have nulls except
+    # where the Round 5 J1 backfill could derive a value.
+    transaction_id: int | None = None
+    canonical_commit_id: str | None = None
+    original_commit_id: str | None = None
+    project_view_commit_id: str | None = None
+    scope_view_commit_id: str | None = None
+    scope_path: str | None = None
+    source_channel: str | None = None
+    policy: str | None = None
 
 
 class AuditLogListResponse(BaseModel):

@@ -24,6 +24,16 @@ interface AuditLogEntry {
   conflict_details?: string | null;
   metadata: any;
   created_at: string | null;
+  // V1 typed columns (migration 20260516010000). May be null on
+  // pre-V1 rows that the J1 backfill couldn't derive a value for.
+  transaction_id?: number | null;
+  canonical_commit_id?: string | null;
+  original_commit_id?: string | null;
+  project_view_commit_id?: string | null;
+  scope_view_commit_id?: string | null;
+  scope_path?: string | null;
+  source_channel?: string | null;
+  policy?: string | null;
 }
 
 const T = {
@@ -124,10 +134,13 @@ function shortToken(value: unknown, head = 8, tail = 0): string {
 function auditStatus(entry: AuditLogEntry): LogStatus {
   const explicit = String(entry.status || '').toLowerCase();
   if (explicit.includes('error') || explicit.includes('failed') || explicit.includes('rejected')) return 'error';
-  if (explicit.includes('warn') || explicit.includes('conflict')) return 'warn';
+  // V1 receive-pack emits status="pending_resolution" when a push lands
+  // in mut_conflicts awaiting manual review — surface it as 'warn' so it
+  // stands out from green "committed" rows.
+  if (explicit.includes('warn') || explicit.includes('conflict') || explicit.includes('pending')) return 'warn';
   if (entry.action.includes('error') || entry.action.includes('rejected')) return 'error';
   if (entry.action.includes('conflict') || entry.conflict_details) return 'warn';
-  if (explicit.includes('ok') || explicit.includes('success')) return 'ok';
+  if (explicit.includes('ok') || explicit.includes('success') || explicit.includes('committed')) return 'ok';
   return 'recorded';
 }
 
@@ -135,19 +148,39 @@ function statusLabel(entry: AuditLogEntry, status: LogStatus): string {
   return entry.status || STATUS_STYLES[status].label;
 }
 
-function metadataSummary(metadata: any): string {
-  if (!metadata || typeof metadata !== 'object') return '—';
-  const entries = Object.entries(metadata);
-  if (entries.length === 0) return '{}';
-  return entries
-    .slice(0, 4)
-    .map(([key, value]) => {
-      if (value == null) return `${key}=null`;
-      if (Array.isArray(value)) return `${key}[${value.length}]`;
-      if (typeof value === 'object') return `${key}{…}`;
-      return `${key}=${shortToken(value, 16)}`;
-    })
-    .join(' · ');
+function metadataSummary(entry: AuditLogEntry): string {
+  // Prefer the V1 typed columns when present — they're populated by
+  // the new publish RPC and the J1 backfill, so historical and recent
+  // events all read the same way in the activity feed.
+  const v1Bits: string[] = [];
+  if (entry.source_channel) v1Bits.push(`channel=${entry.source_channel}`);
+  if (entry.scope_path) v1Bits.push(`scope=${entry.scope_path || '/'}`);
+  if (entry.policy) v1Bits.push(`policy=${entry.policy}`);
+  if (entry.transaction_id != null) v1Bits.push(`txn=${entry.transaction_id}`);
+  if (entry.canonical_commit_id) {
+    v1Bits.push(`commit=${shortToken(entry.canonical_commit_id, 8)}`);
+  }
+
+  const metadata = entry.metadata;
+  let metaBits: string[] = [];
+  if (metadata && typeof metadata === 'object') {
+    metaBits = Object.entries(metadata)
+      // Drop the keys we already lifted into the typed columns so the
+      // summary doesn't double-render them.
+      .filter(([key]) => !['source_channel', 'scope', 'scope_path', 'policy',
+                            'transaction_id', 'commit_id'].includes(key))
+      .slice(0, Math.max(0, 4 - v1Bits.length))
+      .map(([key, value]) => {
+        if (value == null) return `${key}=null`;
+        if (Array.isArray(value)) return `${key}[${value.length}]`;
+        if (typeof value === 'object') return `${key}{…}`;
+        return `${key}=${shortToken(value, 16)}`;
+      });
+  }
+
+  const all = [...v1Bits, ...metaBits];
+  if (all.length === 0) return '{}';
+  return all.join(' · ');
 }
 
 function prettyJson(value: unknown): string {
@@ -181,7 +214,7 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
         operatorType: a.operator_type || 'system',
         operatorId: a.operator_id || '',
         path: a.path || '',
-        metadataSummary: metadataSummary(a.metadata),
+        metadataSummary: metadataSummary(a),
         statusLabel: statusLabel(a, status),
         status,
         raw: a,

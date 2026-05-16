@@ -38,7 +38,6 @@ class ProjectRepositoryBase(ABC):
         description: str | None,
         visibility: str | None = None,
         bound_git_branch: str | None = None,
-        protocol_mode: str | None = None,
     ) -> Project | None:
         """Update a project"""
 
@@ -135,7 +134,6 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         description: str | None,
         visibility: str | None = None,
         bound_git_branch: str | None = None,
-        protocol_mode: str | None = None,
     ) -> Project | None:
         """
         Update a project
@@ -160,8 +158,6 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             update_data.visibility = visibility
         if bound_git_branch is not None:
             update_data.bound_git_branch = bound_git_branch
-        if protocol_mode is not None:
-            update_data.protocol_mode = protocol_mode
         project_response = self._supabase_repo.update_project(project_id, update_data)
         if project_response:
             return self._project_response_to_project(project_response)
@@ -253,7 +249,6 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             org_id=project_response.org_id,
             visibility=getattr(project_response, 'visibility', 'org'),
             bound_git_branch=getattr(project_response, 'bound_git_branch', 'main'),
-            protocol_mode=getattr(project_response, 'protocol_mode', 'git'),
             created_by=project_response.created_by,
             created_at=project_response.created_at,
             updated_at=getattr(project_response, 'updated_at', None),

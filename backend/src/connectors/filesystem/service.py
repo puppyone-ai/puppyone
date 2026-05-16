@@ -2,7 +2,13 @@
 Filesystem connection lifecycle service.
 
 Manages CLI daemon connect / status / disconnect lifecycle.
-Data sync is handled entirely by MUT protocol via access_point.py.
+
+Data sync is **not** in this module's scope: the daemon uses stock
+``git`` against the access-point-bound URL (``/git/ap/<access_key>.git``)
+or the FS HTTP API (``/api/v1/ap-fs/*``). This service just provisions
+the ``access_key`` that authenticates both surfaces. See
+``docs/architecture/07-version-engine-supplement.md`` §3 for the
+post-MUT model.
 """
 
 import re
@@ -54,9 +60,12 @@ def _generate_cli_key() -> str:
 class FilesystemService:
     """Filesystem connection lifecycle — bootstrap, connect, heartbeat, status, disconnect.
 
-    Data sync is handled entirely by MUT protocol via access_point.py
-    (POST /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate).
-    This service only manages the access_points table row.
+    Data sync is handled by stock ``git`` against the access-point Git
+    URL (``/git/ap/<access_key>.git``) or by the FS HTTP API
+    (``/api/v1/ap-fs/*``); shadow snapshots
+    (``POST /api/v1/local-snapshots``) cover the local-↔-cloud bridge
+    for tracked-but-unpushed files. This service only manages the
+    ``access_points`` row that authorises all three surfaces.
     """
 
     def __init__(
@@ -93,9 +102,11 @@ class FilesystemService:
     ) -> Sync:
         """Create a filesystem connection bound to a folder path.
 
-        Returns the sync with a fresh access_key for CLI auth.
-        The CLI uses this key to access the MUT protocol at
-        /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate.
+        Returns the sync with a fresh access_key. The local daemon
+        uses this key to:
+          * ``git clone https://<host>/git/ap/<key>.git``
+          * call ``/api/v1/ap-fs/*`` for FS CLI operations
+          * publish shadow snapshots via ``/api/v1/local-snapshots``
         """
         existing = self._sync_repo.get_by_path(path, project_id=project_id)
         if existing and existing.provider == "filesystem":

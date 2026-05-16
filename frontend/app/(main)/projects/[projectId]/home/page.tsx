@@ -703,16 +703,16 @@ export default function HomePage({
               do NOT include `connections.length === 0` in the test.
               Reason: the CLI flow creates an access point BEFORE any
               files arrive (sometimes minutes-to-hours before, while the
-              user installs `mutai`, runs `mut clone`, edits files, and
-              eventually `mut push`es).  The previous condition collapsed
+              user configures `git`, runs `git clone`, edits files, and
+              eventually `git push`es).  The previous condition collapsed
               the panel the instant the AP was minted, ripping the very
-              `mut clone …` command out from under the user — onboarding
+              `git clone …` command out from under the user — onboarding
               failing at the moment of perceived success.
 
               "Project is empty in any user-meaningful sense" = nodes
               total is 0.  An AP without data behind it is setup-in-
               progress, not completion.  The panel sticks around until
-              actual content lands (drop → upload, or `mut push` → sync),
+              actual content lands (drop → upload, or `git push` → sync),
               then retires automatically via SWR revalidation.
 
               Connections are passed in so the CLI card inside the panel

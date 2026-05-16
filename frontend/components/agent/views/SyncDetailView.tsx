@@ -808,9 +808,18 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
   const [mode, setMode] = React.useState<'clone' | 'connect'>('clone');
   const masked = accessKey.slice(0, 8) + '...' + accessKey.slice(-4);
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  const endpointUrl = `${apiBase}/api/v1/mut/ap/${accessKey}`;
-  const cloneCmd = `mut clone ${endpointUrl} --credential ${accessKey}`;
-  const connectCmd = `mut connect ${endpointUrl} --credential ${accessKey}`;
+  // V1 (post-MUT removal): access key authorises stock Git at the
+  // /git/ap/<key>.git remote. The previous /api/v1/mut/ap/<key>
+  // endpoint was deleted with the MUT wire protocol.
+  const endpointUrl = `${apiBase}/git/ap/${accessKey}.git`;
+  const cloneCmd = `git clone ${endpointUrl}`;
+  const connectCmd = [
+    'cd /path/to/your/folder',
+    'git init -b main',
+    `git remote add origin ${endpointUrl}`,
+    'git pull --rebase origin main',
+    'git push -u origin main',
+  ].join('\n');
   const activeCmd = mode === 'clone' ? cloneCmd : connectCmd;
 
   const handleCopy = (text: string, label: string) => {
@@ -891,8 +900,8 @@ function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: s
         </div>
         <div style={{ fontSize: 10, color: 'var(--po-text-disabled)', lineHeight: 1.5 }}>
           {mode === 'clone'
-            ? <>Then: <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>mut commit -m &quot;message&quot; &amp;&amp; mut push</code></>
-            : <>One-shot: init + link + commit + push. Server runs three-way merge — nothing overwritten.</>}
+            ? <>Then: <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>git add -A &amp;&amp; git commit -m &quot;…&quot; &amp;&amp; git push origin main</code></>
+            : <>One-shot: init + remote + pull --rebase + push. Server applies the V1 conflict policy (safe auto-merge → parent-scope-wins → LWW) — unsafe conflicts queue for review.</>}
         </div>
       </div>
     </div>

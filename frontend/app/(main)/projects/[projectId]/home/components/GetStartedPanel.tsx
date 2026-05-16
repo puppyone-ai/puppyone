@@ -39,17 +39,17 @@ import type { DashboardConnection } from '../lib/types';
 //
 //     Or sync from your terminal
 //   ┌─────────────────────────────────────────┐
-//   │  $ pip install mutai            [Copy]  │   ← secondary, quiet
-//   │  $ mut clone <url> --cred <key> [Copy]  │     copy-only card
+//   │  $ git clone <url>              [Copy]  │   ← secondary, quiet
+//   │  $ git push origin main         [Copy]  │     copy-only card
 //   └─────────────────────────────────────────┘
 //
 //        Need a different source? → /access
 //
 // We do NOT make the user "choose" between drop and CLI — both paths
 // are visible and ready at all times.  The dropzone is the dominant
-// affordance (fits 95% of users); the CLI block is a quiet, always-
+// affordance (fits 95% of users); the git block is a quiet, always-
 // copyable hint for the power-user minority.  Either path completing
-// (drop succeeds, or `mut push` lands data) flips `nodes.total > 0` and
+// (drop succeeds, or `git push` lands data) flips `nodes.total > 0` and
 // the panel auto-retires.
 //
 // CLI bootstrap policy — EAGER on first panel mount.  The bootstrap
@@ -464,8 +464,9 @@ function DropFilesCard({
 // MutSyncBlock — secondary, subordinate surface.  Always-on, always-
 // copyable terminal block.  No CTA, no Enable button — the AP is
 // silently bootstrapped on mount (server-side idempotent) so the
-// commands populate with the real `--credential` value as soon as the
-// network round-trip resolves.
+// commands populate with the real access key as soon as the network
+// round-trip resolves (the key is wired into the git-credentials helper
+// line of the connect script).
 //
 // State derives from server truth (`connections` prop).  If the
 // dashboard already lists a root filesystem AP with an access_key, we
@@ -569,38 +570,43 @@ function MutSyncBlock({
     };
   }, [accessKey, projectId, onReady]);
 
-  // The mut CLI talks to the backend API directly — `/api/v1/mut/ap/...`
-  // is a backend route, NOT a Next.js page or rewrite. Using
-  // `window.location.origin` (the frontend origin) here was a bug: in
-  // local dev it produced `http://localhost:3000/api/v1/mut/ap/...`,
-  // which Next.js doesn't serve and returns 404; in production it
-  // produced `https://app.puppyone.com/api/v1/mut/ap/...`, same 404.
-  // Match the pattern used by FilesystemDetailView / SyncDetailView:
-  // prefer the explicit `NEXT_PUBLIC_API_URL` (set at build time to the
-  // backend host) and only fall back to `window.location.origin` for
-  // single-host deployments where backend and frontend share an origin
-  // via a reverse proxy.
+  // The Git remote endpoint that backs this access point. Stock
+  // `git clone`, `git push`, and `git pull --ff-only` all talk to it
+  // directly. The URL must point at the *backend* host (not the
+  // Next.js origin) — local dev set `NEXT_PUBLIC_API_URL` to the
+  // backend, single-host deployments fall back to `window.location.origin`.
+  // The pre-V1 path `/api/v1/mut/ap/<key>` was deleted with the MUT
+  // wire protocol; this is the canonical replacement.
   const apiBase = typeof window !== 'undefined'
     ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
     : '';
-  const apUrl = accessKey ? `${apiBase}/api/v1/mut/ap/${accessKey}` : '';
+  const apUrl = accessKey ? `${apiBase}/git/ap/${accessKey}.git` : '';
 
-  // The onboarding command for an EMPTY project is `mut connect`, NOT
-  // `mut clone`.  `clone` pulls server → local; meaningless when the
-  // server side is empty.  `connect` does the opposite: cd into an
-  // existing local folder, three-way-merge with cloud state (empty
-  // here), push the result up.  Net effect: local files become the
-  // project's contents.  Direction matches the drop-zone above
-  // (local → server) instead of contradicting it.
+  // The onboarding command for an EMPTY project bootstraps a fresh
+  // git repo and pushes the user's local folder up. `clone` pulls
+  // server → local; meaningless when the server side is empty. This
+  // sequence does the opposite: init + remote + push so the local
+  // files become the project's contents. Direction matches the
+  // drop-zone above (local → server) instead of contradicting it.
   //
-  // CRITICAL: this command is the ONE thing in the box that has a `$`
-  // prefix and a Copy button — meaning it MUST be runnable as-is when
-  // pasted into a terminal.  No `cd /path/to/your/folder` placeholder
-  // line — users will not substitute `/path/to/your/folder` with a
-  // real path before pasting; they'll paste the literal string and get
-  // `cd: no such file or directory`.  The "cd into your folder" step
-  // is conveyed in PROSE above the box (see the prose label below).
-  const connectCmd = accessKey ? `mut connect ${apUrl} --credential ${accessKey}` : '';
+  // CRITICAL: this command must be runnable as-is when pasted into a
+  // terminal inside the user's project folder. We DO include
+  // git-credential auth as the first line so the push doesn't prompt
+  // for a password — the access key plays the password role over
+  // Basic auth.
+  const apiHost = (() => {
+    try { return apUrl ? new URL(apUrl).host : ''; }
+    catch { return ''; }
+  })();
+  const connectCmd = accessKey
+    ? [
+        'git config --global credential.helper store',
+        String.raw`printf "https://x-access-token:%s@%s\n" "` + accessKey + `" "${apiHost}" >> ~/.git-credentials`,
+        'git init -b main',
+        `git remote add origin ${apUrl}`,
+        'git add -A && git commit -m "initial import" && git push -u origin main',
+      ].join('\n')
+    : '';
 
   const copy = useCallback((text: string, key: string) => {
     void navigator.clipboard.writeText(text);
@@ -627,14 +633,15 @@ function MutSyncBlock({
         Or sync from a local folder
       </div>
 
-      {/* Step 1 — install.  Always runnable, no credentials needed,
-          so it can render eagerly at first paint. */}
+      {/* Step 1 — prereq check. Stock `git` is the data plane now
+          (V1 post-MUT removal); we only need to verify it's installed
+          rather than offer a CLI to install. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <ProseLabel>Install the CLI (one-time):</ProseLabel>
+        <ProseLabel>Confirm Git is installed (one-time):</ProseLabel>
         <CmdLine
-          cmd="pip install mutai"
+          cmd="git --version"
           copied={copied === 'install'}
-          onCopy={() => copy('pip install mutai', 'install')}
+          onCopy={() => copy('git --version', 'install')}
         />
       </div>
 
@@ -665,9 +672,10 @@ function MutSyncBlock({
         )}
       </div>
 
-      {/* Reassurance footer — `mut connect` looks like it might mutate
-          local files; spelling out the merge semantics removes the
-          "wait, will this delete my stuff?" hesitation. */}
+      {/* Reassurance footer — the init-and-push sequence looks like it
+          might overwrite the user's local files; spelling out the
+          server-side merge semantics removes the "wait, will this
+          delete my stuff?" hesitation. */}
       <div
         style={{
           fontSize: 13,
@@ -675,8 +683,11 @@ function MutSyncBlock({
           lineHeight: 1.5,
         }}
       >
-        Three-way merges your local folder with this project. Files are
-        uploaded — nothing on disk is overwritten or deleted.
+        First pulls cloud state with rebase, then pushes the result. The
+        server applies the V1 conflict policy (safe auto-merge → parent-
+        scope-wins → LWW); unsafe conflicts queue for manual review and
+        the push is rejected with a clear message — nothing silently
+        overwrites your work.
       </div>
     </div>
   );

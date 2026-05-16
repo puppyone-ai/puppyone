@@ -1,6 +1,13 @@
 # Access Point Architecture
 
-MUT Access Point 是 PuppyOne 对外暴露的统一入口。MUT client 只需要知道 URL + credential，背后的 connector 类型和权限配置对 client 透明。
+> **Mostly current, with one update**: the access key now authorises
+> **stock Git** at `/git/ap/<key>.git` and the FS HTTP API at
+> `/api/v1/ap-fs/*`. The legacy `/api/v1/mut/ap/<key>/*` URL is gone
+> (see [07-version-engine-supplement.md](07-version-engine-supplement.md)
+> §3). The auth model, scope binding, identity-bound mode, and channel
+> pause semantics described below are otherwise unchanged.
+
+Access Point 是 PuppyOne 对外暴露的统一入口。一个 access key 解析到一个项目 + 一个 scope（path/exclude/mode），后端的 Git 适配器和 FS HTTP API 都用同一份解析结果。Client 只需要知道 URL + credential，背后的 connector 类型和权限配置对 client 透明。
 
 ---
 

@@ -1,9 +1,34 @@
-"""Durable repair loop for Git-native version post-commit side effects."""
+"""Durable repair loop for Git-native version post-commit side effects.
+
+Two event types travel through ``mut_version_outbox`` today:
+
+  ``version_committed``        the SQL ``publish_mut_scope_update`` RPC
+                               always enqueues one per accepted write;
+                               the worker replays projection / graft /
+                               notification work as a durable fallback
+                               when the synchronous post-commit hook
+                               failed or never ran.
+
+  ``pending_conflict_created`` enqueued by
+                               ``_record_pending_conflict_row`` when an
+                               unsafe conflict needs human / hosted-agent
+                               review. The worker hands these to a
+                               resolver-dispatch callback (B13). The
+                               default callback is a no-op + structured
+                               log line; production wires in a real
+                               agent worker.
+
+Unknown event types are logged and marked complete so the queue does
+not get jammed by a single bad row. Each row's failure increments
+``attempts`` and re-claims after the configured back-off; rows that
+exceed ``attempts >= 25`` stop being claimed (see the
+``claim_mut_version_outbox_batch`` RPC).
+"""
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
@@ -12,18 +37,34 @@ from src.mut_engine.services.hooks import run_post_push_hook
 from src.utils.logger import log_error, log_info, log_warning
 
 
+PendingConflictHook = Callable[[dict[str, Any]], None]
+_pending_conflict_hook: PendingConflictHook | None = None
+
+
+def register_pending_conflict_hook(hook: PendingConflictHook | None) -> None:
+    """Set (or clear) the dispatch callback for ``pending_conflict_created``.
+
+    The hook receives the full outbox row (``project_id``, ``payload``,
+    ``attempts``, ``event_type``, ``commit_id``, ``id``). It runs inside
+    the outbox claim loop, so a slow hook delays other rows — agent
+    work that needs more than a couple of seconds should hand the
+    payload off to a task queue and return immediately.
+
+    Passing ``None`` reverts to the built-in no-op log handler.
+    """
+
+    global _pending_conflict_hook
+    _pending_conflict_hook = hook
+
+
 def process_version_outbox_batch(
     *,
     repo_manager=None,
     client=None,
     limit: int | None = None,
 ) -> int:
-    """Claim and replay pending version outbox rows.
-
-    The synchronous post-commit hook gives Git clients read-your-write
-    behavior. This worker is the durable repair path when projection,
-    notification, or version-index work failed after the DB publish.
-    """
+    """Claim a batch of outbox rows, dispatch by event_type, mark each
+    row complete or failed."""
 
     if not settings.MUT_VERSION_OUTBOX_ENABLED:
         return 0
@@ -35,31 +76,74 @@ def process_version_outbox_batch(
 
     for row in rows:
         row_id = row.get("id")
+        event_type = row.get("event_type", "version_committed")
         try:
-            payload = row.get("payload") or {}
-            project_id = row["project_id"]
-            commit_id = row["commit_id"]
-            run_post_push_hook(
-                project_id,
-                repos,
-                {
-                    "status": "ok",
-                    "commit_id": commit_id,
-                    "root": payload.get("scope_hash", ""),
-                    "merged": bool(payload.get("merged", False)),
-                    "conflicts": int(payload.get("conflicts") or 0),
-                },
-                raise_errors=True,
-            )
+            _dispatch_row(event_type, row, repos)
             _complete_row(db, row_id)
             processed += 1
         except Exception as exc:
             _fail_row(db, row_id, str(exc))
-            log_warning(f"[version-outbox] failed row {row_id}: {exc}")
+            log_warning(
+                f"[version-outbox] failed row {row_id} "
+                f"event={event_type!r}: {exc}",
+            )
 
     if processed:
         log_info(f"[version-outbox] processed {processed} rows")
     return processed
+
+
+def _dispatch_row(event_type: str, row: dict[str, Any], repos) -> None:
+    """Run the per-event handler. Unknown events are logged and skipped."""
+
+    if event_type == "version_committed":
+        payload = row.get("payload") or {}
+        run_post_push_hook(
+            row["project_id"],
+            repos,
+            {
+                "status": "ok",
+                "commit_id": row.get("commit_id", ""),
+                "root": payload.get("scope_hash", ""),
+                "merged": bool(payload.get("merged", False)),
+                "conflicts": int(payload.get("conflicts") or 0),
+            },
+            raise_errors=True,
+        )
+        return
+
+    if event_type == "pending_conflict_created":
+        _handle_pending_conflict(row)
+        return
+
+    log_warning(
+        f"[version-outbox] unknown event_type {event_type!r} "
+        f"(row id={row.get('id')}); marking complete to avoid queue jam"
+    )
+
+
+def _handle_pending_conflict(row: dict[str, Any]) -> None:
+    """Dispatch a pending-conflict event to the registered hook.
+
+    The built-in default just logs the pending id so an operator can
+    spot the event in production telemetry; real agent integrations
+    register a hook via :func:`register_pending_conflict_hook` at
+    startup.
+    """
+
+    payload = row.get("payload") or {}
+    pending_id = payload.get("pending_conflict_id", "")
+    if _pending_conflict_hook is None:
+        log_info(
+            f"[version-outbox] pending_conflict_created "
+            f"project={row.get('project_id')} "
+            f"pending_id={pending_id} "
+            f"scope={payload.get('scope_path')!r} "
+            f"policy={payload.get('policy')!r} "
+            f"(no resolver hook registered)"
+        )
+        return
+    _pending_conflict_hook(row)
 
 
 def complete_version_outbox_for_commit(

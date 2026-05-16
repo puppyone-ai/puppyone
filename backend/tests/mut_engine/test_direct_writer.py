@@ -28,8 +28,8 @@ import pytest
 from src.mut_engine.application import tree as tree_mod
 from src.mut_engine.application.object_store import ObjectStore
 
-from src.mut_engine.services.direct_writer import ConcurrentMutationError
-from src.mut_engine.services.ops import BlobRef, MissingBlobError, MutOps
+from src.mut_engine.application.transaction_engine import ConcurrentMutationError
+from src.mut_engine.adapters.operations.ops_adapter import BlobRef, MissingBlobError, MutOps
 from src.mut_engine.server.repo_manager import MutRepoManager
 
 from tests.mut_engine.test_server_repo import (

@@ -191,6 +191,13 @@ def filtered_commit_tree(
     scope_path: str,
     excludes: list[str],
 ) -> str:
+    """Build a tree object that strips paths matching any ``excludes``.
+
+    ``excludes`` are full repository-relative paths (the
+    access-point config stores them with leading ``/``).
+    :func:`is_path_excluded` normalises both sides before comparing.
+    """
+
     tree_id = commit_tree_id(repo, commit_id)
     files = flatten_tree_to_bytes(repo.store, tree_id)
     filtered = {

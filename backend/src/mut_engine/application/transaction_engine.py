@@ -87,6 +87,41 @@ class CrossScopeSubmissionError(PermissionError):
         )
 
 
+_SCOPE_LOCK_REGISTRY: dict[tuple[str, str], asyncio.Lock] = {}
+_SCOPE_LOCK_REGISTRY_LOCK = asyncio.Lock()
+
+
+async def _acquire_scope_local_lock(project_id: str, scope_path: str):
+    """B14: cheap per-scope coalescing valve.
+
+    Returns a context manager. When ``MUT_PER_SCOPE_LOCAL_LOCK`` is on,
+    publishes targeting the same ``(project_id, scope_path)`` queue up
+    in-process so concurrent writers don't all simultaneously download
+    the same scope tree, build the same merge candidate, and race the
+    SQL CAS. This is OPTIONAL load-shedding — the SQL CAS remains the
+    correctness boundary. When off, the helper returns a no-op context
+    manager and behavior is identical to today.
+    """
+
+    from src.config import settings
+    if not settings.MUT_PER_SCOPE_LOCAL_LOCK:
+        class _NoLock:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+        return _NoLock()
+
+    key = (project_id, scope_path)
+    async with _SCOPE_LOCK_REGISTRY_LOCK:
+        lock = _SCOPE_LOCK_REGISTRY.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _SCOPE_LOCK_REGISTRY[key] = lock
+    return lock
+
+
 class GitNativeTransactionEngine:
     """Single publish authority for operation and version submissions."""
 
@@ -114,11 +149,13 @@ class GitNativeTransactionEngine:
             f"actor={intent.actor}",
         )
 
-        return await self._apply_operation_optimistic(
-            intent=intent,
-            splice=splice,
-            started_ms=started_ms,
-        )
+        lock_ctx = await _acquire_scope_local_lock(intent.project_id, scope_norm)
+        async with lock_ctx:
+            return await self._apply_operation_optimistic(
+                intent=intent,
+                splice=splice,
+                started_ms=started_ms,
+            )
 
     async def submit_version(
         self,
@@ -134,7 +171,9 @@ class GitNativeTransactionEngine:
             f"actor={intent.actor}",
         )
 
-        return await self._submit_version_optimistic(intent, started_ms)
+        lock_ctx = await _acquire_scope_local_lock(intent.project_id, scope_norm)
+        async with lock_ctx:
+            return await self._submit_version_optimistic(intent, started_ms)
 
     async def rollback(
         self,
@@ -150,7 +189,9 @@ class GitNativeTransactionEngine:
             f"actor={intent.actor} target={intent.target_commit_id[:12]}",
         )
 
-        return await self._rollback_optimistic(intent, started_ms)
+        lock_ctx = await _acquire_scope_local_lock(intent.project_id, scope_norm)
+        async with lock_ctx:
+            return await self._rollback_optimistic(intent, started_ms)
 
     async def resolve(
         self,
@@ -247,18 +288,42 @@ class GitNativeTransactionEngine:
         )
         result = await self._submit_version_optimistic(submission, started_ms)
 
+        # The resolution may itself land as ``pending`` if the merge against
+        # the *current* scope head produced fresh unsafe conflicts (rare; a
+        # concurrent write between conflict-record-time and resolve-time that
+        # the resolver did not account for). In that case we have a NEW
+        # pending row, and the original row should stay in ``resolving`` so
+        # a follow-up resolution can re-close it — marking it ``resolved``
+        # with an empty commit_id would lie to the audit ledger.
+        if result.status == "ok" and result.commit_id:
+            new_status = "resolved"
+            commit_id_for_row = result.commit_id
+            detail = {"decision": "accept", "message": intent.resolution_message}
+        elif result.status == "pending":
+            new_status = "resolving"
+            commit_id_for_row = ""
+            detail = {
+                "decision": "accept",
+                "message": intent.resolution_message,
+                "follow_up_pending_conflict_id": result.pending_conflict_id,
+            }
+        else:
+            new_status = "rejected"
+            commit_id_for_row = ""
+            detail = {
+                "decision": "accept",
+                "message": intent.resolution_message,
+                "reason": result.reason or f"submission_status:{result.status}",
+            }
         try:
             await asyncio.to_thread(
                 _close_pending_conflict_row,
                 project_id=intent.project_id,
                 pending_conflict_id=intent.pending_conflict_id,
-                status="resolved",
+                status=new_status,
                 resolver_actor=intent.resolver_actor,
-                resolution_commit_id=result.commit_id,
-                resolution_detail={
-                    "decision": "accept",
-                    "message": intent.resolution_message,
-                },
+                resolution_commit_id=commit_id_for_row,
+                resolution_detail=detail,
             )
         except Exception as exc:
             log_warning(
@@ -409,6 +474,34 @@ class GitNativeTransactionEngine:
                         **intent.audit_detail,
                     },
                 )
+                # B6: record a rejected version_transactions row so the
+                # ledger captures cross-scope guard hits, not just
+                # successful commits.
+                try:
+                    await asyncio.to_thread(
+                        _insert_version_transaction_row,
+                        project_id=intent.project_id,
+                        scope_path=scope_norm,
+                        source_channel=intent.source_channel,
+                        actor=intent.actor,
+                        intent_type="submission",
+                        status="rejected",
+                        base_commit_id=intent.base_commit_id,
+                        client_commit_id=intent.client_commit_id,
+                        proposed_tree_id=intent.proposed_tree_id,
+                        current_head_at_start=current_head_commit_id,
+                        message=intent.message,
+                        audit_detail={
+                            "rejected_paths": rejected[:50],
+                            **(intent.audit_detail or {}),
+                        },
+                        reason="cross_scope_paths_outside_scope",
+                    )
+                except Exception as exc:
+                    log_warning(
+                        f"[version_engine] failed to record rejected "
+                        f"version_transactions row: {exc}",
+                    )
                 raise CrossScopeSubmissionError(
                     scope_path=scope_norm,
                     rejected_paths=rejected,
@@ -732,6 +825,38 @@ class GitNativeTransactionEngine:
             intent.actor,
             audit,
         )
+        # Record a non-committed version_transactions row so the ledger
+        # captures the full lifecycle (received → pending_manual_review),
+        # not just successful commits. The row's id is used as the FK in
+        # mut_conflicts so the conflict resolver UI can join cleanly.
+        txn_id: int | None = None
+        try:
+            txn_id = await asyncio.to_thread(
+                _insert_version_transaction_row,
+                project_id=intent.project_id,
+                scope_path=scope_path,
+                source_channel=intent.source_channel,
+                actor=intent.actor,
+                intent_type="submission",
+                status="pending_manual_review",
+                policy="manual_review",
+                base_commit_id=intent.base_commit_id,
+                client_commit_id=intent.client_commit_id,
+                proposed_tree_id=intent.proposed_tree_id,
+                current_head_at_start=current_head_commit_id,
+                message=intent.message,
+                audit_detail={
+                    "pending_conflict_id": pending_conflict_id,
+                    **(intent.audit_detail or {}),
+                },
+                reason=policy_reason,
+            )
+        except Exception as exc:
+            log_warning(
+                f"[version_engine] failed to record pending version_transactions "
+                f"row for {pending_conflict_id[:12]}: {exc}",
+            )
+
         try:
             await asyncio.to_thread(
                 _record_pending_conflict_row,
@@ -747,6 +872,7 @@ class GitNativeTransactionEngine:
                 policy="manual_review",
                 source_channel=intent.source_channel,
                 actor=intent.actor,
+                transaction_id=txn_id,
             )
         except Exception as exc:
             log_warning(
@@ -1082,17 +1208,26 @@ def _record_pending_conflict_row(
     policy: str,
     source_channel: str,
     actor: str,
+    transaction_id: int | None = None,
 ) -> None:
     """Insert (or refresh) the structured pending-conflict row.
 
     Idempotent on ``pending_conflict_id`` so retried submissions that
-    produce the same conflict do not error out. Failures are logged by
-    the caller; this function does not retry.
+    produce the same conflict do not error out. ``transaction_id`` is
+    the FK back to the ``version_transactions`` row recorded for this
+    pending state (B6) — passing ``None`` is allowed only for legacy
+    callers that haven't been wired up yet.
+
+    Also emits a ``pending_conflict_created`` outbox event (B13) so the
+    hosted resolver agent worker can pick it up and propose a fix. The
+    outbox row uses an empty ``commit_id`` because no commit has landed
+    yet; the worker dispatches by ``event_type``, not by commit id.
     """
 
     from src.infra.supabase.client import SupabaseClient
 
     client = SupabaseClient().client
+    resolver_kind = _resolver_kind_for(source_channel)
     payload = {
         "pending_conflict_id": pending_conflict_id,
         "project_id": project_id,
@@ -1106,12 +1241,103 @@ def _record_pending_conflict_row(
         "policy": policy,
         "status": "pending",
         "resolver_actor": "",
-        "resolver_kind": _resolver_kind_for(source_channel),
+        "resolver_kind": resolver_kind,
         "resolution_detail": {"actor": actor, "source_channel": source_channel},
     }
+    if transaction_id is not None:
+        payload["transaction_id"] = transaction_id
     client.table("mut_conflicts").upsert(
         payload, on_conflict="pending_conflict_id",
     ).execute()
+
+    # B13: enqueue a resolver-agent dispatch event. We do NOT block the
+    # request on this — a failure to write the outbox row is downgraded
+    # to a warning. The conflict is still resolvable via the HTTP API;
+    # the outbox row is only the agent-loop optimisation.
+    try:
+        client.table("mut_version_outbox").insert({
+            "project_id": project_id,
+            "commit_id": "",  # no commit; non-null column needs empty string
+            "event_type": "pending_conflict_created",
+            "payload": {
+                "pending_conflict_id": pending_conflict_id,
+                "scope_path": scope_path,
+                "policy": policy,
+                "transaction_id": transaction_id,
+                "source_channel": source_channel,
+                "resolver_kind": resolver_kind,
+                "changed_paths": changed_paths[:50],
+            },
+        }).execute()
+    except Exception as exc:
+        from src.utils.logger import log_warning
+        log_warning(
+            f"[version_engine] failed to enqueue pending_conflict_created "
+            f"outbox for {pending_conflict_id[:12]}: {exc}",
+        )
+
+
+def _insert_version_transaction_row(
+    *,
+    project_id: str,
+    scope_path: str,
+    source_channel: str,
+    actor: str,
+    intent_type: str,
+    status: str,
+    policy: str = "",
+    base_commit_id: str = "",
+    client_commit_id: str = "",
+    proposed_tree_id: str = "",
+    current_head_at_start: str = "",
+    committed_commit_id: str = "",
+    message: str = "",
+    audit_detail: dict | None = None,
+    reason: str = "",
+) -> int | None:
+    """Insert a non-``committed`` version_transactions row from Python.
+
+    The ``committed`` status is owned by the SQL ``publish_mut_scope_update``
+    RPC (atomic with the rest of the ledger). This helper covers the
+    other terminal/transient states:
+
+    * ``pending_manual_review`` / ``pending_agent_resolution`` — waiting
+      for a resolver before any commit lands.
+    * ``rejected`` — cross-scope guard fires, payload validation fails,
+      conflict policy rejects, etc.
+    * ``resolving`` — manual/agent resolver picked up a pending row.
+
+    Returns the new row id, or ``None`` if the insert failed. Failures
+    are logged by the caller; this helper does not retry. The audit
+    ledger is still complete via ``audit_logs``, so a single missed
+    version_transactions row degrades to V0 behavior, not data loss.
+    """
+
+    from src.infra.supabase.client import SupabaseClient
+
+    client = SupabaseClient().client
+    payload = {
+        "project_id": project_id,
+        "scope_path": scope_path or "",
+        "source_channel": source_channel or "papi",
+        "actor": actor or "",
+        "intent_type": intent_type,
+        "status": status,
+        "policy": policy or "",
+        "base_commit_id": base_commit_id or "",
+        "client_commit_id": client_commit_id or "",
+        "proposed_tree_id": proposed_tree_id or "",
+        "current_head_at_start": current_head_at_start or "",
+        "committed_commit_id": committed_commit_id or "",
+        "message": message or "",
+        "audit_detail": audit_detail or {},
+        "reason": reason or "",
+    }
+    resp = client.table("version_transactions").insert(payload).execute()
+    data = getattr(resp, "data", None) or []
+    if data and isinstance(data[0], dict):
+        return data[0].get("id")
+    return None
 
 
 def _resolver_kind_for(source_channel: str) -> str:
