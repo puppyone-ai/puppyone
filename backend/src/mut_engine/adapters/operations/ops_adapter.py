@@ -191,6 +191,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Delete one or more files.
 
@@ -198,12 +200,16 @@ class MutOps:
         Mixing paths from different scopes results in one commit per
         scope. Returns the FIRST commit; in practice all paths usually
         share one scope and there's only one push.
+
+        ``policy`` / ``source_channel`` flow through to the engine's
+        conflict-policy selection (e.g. ``manual_review`` queues
+        ambiguous deletes rather than silently winning LWW).
         """
         clean = [validate_path(p) for p in paths]
         if scope:
             return await self._delete_in_scope(
                 project_id, scope, clean, who, message, base_commit_id,
-                defer_projection,
+                defer_projection, policy=policy, source_channel=source_channel,
             )
 
         groups = self._group_paths_by_scope(project_id, clean)
@@ -215,7 +221,7 @@ class MutOps:
         for target_scope, rel_paths in groups.items():
             r = await self._delete_in_scope(
                 project_id, target_scope, rel_paths, who, message, base_commit_id,
-                defer_projection,
+                defer_projection, policy=policy, source_channel=source_channel,
             )
             first_result = first_result or r
         return first_result or WriteResult(paths=clean)
@@ -229,6 +235,9 @@ class MutOps:
         message: str,
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        *,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         def splice_fn(store, root_hash):
             return splice_remove(store, root_hash, rel_paths)
@@ -241,6 +250,8 @@ class MutOps:
             audit_detail={"paths": rel_paths},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         full_paths = [
             self._join_scope_path(scope, p) for p in rel_paths
@@ -256,6 +267,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Create a directory (writes a ``.keep`` placeholder).
 
@@ -285,6 +298,8 @@ class MutOps:
             audit_detail={"path": path},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         return _to_result(result, [path])
 
@@ -298,6 +313,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Move / rename a file or folder.
 
@@ -362,6 +379,8 @@ class MutOps:
             audit_detail={"old_path": old_path, "new_path": new_path},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
 
         # Best-effort secondary index update — keeps access_points and
@@ -391,6 +410,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Copy a file or folder without downloading blob contents."""
         old_path = validate_path(old_path)
@@ -421,6 +442,8 @@ class MutOps:
             audit_detail={"old_path": old_path, "new_path": new_path},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         return _to_result(result, [old_path, new_path])
 
@@ -433,6 +456,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Update mtime for existing files without changing blob content."""
         clean = [validate_path(p) for p in paths]
@@ -460,6 +485,8 @@ class MutOps:
             expected_head_commit_id=base_commit_id,
             allow_same_tree_commit=True,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         full_paths = [self._join_scope_path(target_scope, p) for p in rel_paths]
         return _to_result(result, full_paths)

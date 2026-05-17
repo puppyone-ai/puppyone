@@ -135,20 +135,37 @@ def merge_file_sets_for_policy(
         # content-merge strategies; route them to the policy directly.
         if ours is None:
             if base_present and theirs != base:
+                # Real delete/modify conflict: ours deleted, theirs
+                # actually changed the content. Policy decides.
                 _resolve_delete_modify(
                     path, theirs, policy, manual_conflicts,
                     lww_records, merged,
                 )
+            elif base_present and theirs == base:
+                # ours deleted, theirs untouched (==base). Honor the
+                # delete — without this branch we'd resurrect the
+                # file just because theirs reported the base value
+                # (which is just "I didn't touch this", not a real
+                # intent to keep it).
+                pass
             elif theirs is not None:
+                # No base entry → both sides "added" — but ours' add
+                # is actually a delete (None). Use theirs.
                 merged[path] = theirs
             continue
 
         if theirs is None:
             if base_present and ours != base:
+                # Real modify/delete: theirs deleted, ours changed
+                # the content. Policy decides.
                 _resolve_modify_delete(
                     path, ours, policy, manual_conflicts,
                     lww_records, merged,
                 )
+            elif base_present and ours == base:
+                # theirs deleted, ours untouched (==base). Honor the
+                # delete from theirs.
+                pass
             elif ours is not None:
                 merged[path] = ours
             continue

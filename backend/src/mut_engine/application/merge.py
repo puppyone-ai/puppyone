@@ -469,10 +469,28 @@ def _hunks_overlap(hunks_a: list, hunks_b: list) -> bool:
 
 
 def _apply_hunks(base: list, hunks_a: list, hunks_b: list) -> list:
+    # When ours and theirs both insert at the same ``(start, end)``
+    # position, the iteration order under ``reverse=True`` decides
+    # which side's lines end up appearing first in the merged output.
+    # Without a tie-breaker the order depended on insertion order in
+    # ``hunks_a + hunks_b`` plus Python's stable-sort behavior, which
+    # is consistent within a single Python run but can be confusing
+    # to readers. Pin it explicitly: ours (hunks_a) end up BEFORE
+    # theirs (hunks_b) at the same position. We mark each hunk with
+    # an origin tag (0=ours, 1=theirs) BEFORE sorting and use that
+    # as a secondary sort key. We sort by (start, end) descending
+    # so positions are applied right-to-left (avoids index shift),
+    # then by origin DESCENDING so that — when we walk through the
+    # iterator and apply each hunk's ``result[start:end] = new`` —
+    # the LAST one to splice at a tied position is the lowest-origin
+    # one (i.e. ours). The lowest-origin splice happens last, which
+    # under list.__setitem__ semantics means its lines land BEFORE
+    # any previously-inserted lines at the same index.
+    tagged = [(*h, 0) for h in hunks_a] + [(*h, 1) for h in hunks_b]
     result = list(base)
-    for old_start, old_end, new_lines in sorted(
-        hunks_a + hunks_b,
-        key=lambda h: (h[0], h[1]),
+    for old_start, old_end, new_lines, _origin in sorted(
+        tagged,
+        key=lambda h: (h[0], h[1], h[3]),
         reverse=True,
     ):
         result[old_start:old_end] = new_lines

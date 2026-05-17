@@ -1755,12 +1755,17 @@ E_CASES = [
         category="E",
         title="rapid sequential writes by one actor",
         description=(
-            "No concurrency, just 10 fast sequential writes. Every write "
-            "should succeed on attempt 1/5 (no CAS contention)."
+            "No concurrency, just 10 sequential writes by the same "
+            "actor. ``delay_ms`` is bumped to ``i * 1500`` so each "
+            "write reliably completes before the next starts under "
+            "staging's ~1s commit latency — without that, the writes "
+            "race in the asyncio event loop, trigger CAS retries, and "
+            "the engine correctly emits a marker block (but the test's "
+            "''last writer wins'' expectation no longer matches)."
         ),
         setup={"": {"f.txt": b"v0\n"}},
         writers=tuple(
-            _w("user:A", f"step-{i}\n".encode(), delay_ms=i * 10)
+            _w("user:A", f"step-{i}\n".encode(), delay_ms=i * 1500)
             for i in range(10)
         ),
         expected=Expected(

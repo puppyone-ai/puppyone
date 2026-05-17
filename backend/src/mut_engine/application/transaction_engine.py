@@ -544,10 +544,27 @@ class GitNativeTransactionEngine:
     ) -> "tuple[str | None, dict | None, list, str, dict, dict, dict]":
         """Run the V1 policy three-way merge during a CAS retry.
 
-        Returns ``(merged_tree_hash, audit_dict)``. On any failure the
-        helper logs and returns ``(None, None)`` so the caller falls back
-        to the splice-only path — i.e. the worst case is the legacy
-        LWW-by-overwrite behavior, never a hard failure.
+        Returns the seven-tuple
+
+            (merged_tree_hash, audit_dict, manual_conflicts,
+             policy_name, base_files, current_files, incoming_files)
+
+        so the caller (``_apply_operation_optimistic``) can:
+
+          * use ``merged_tree_hash`` as the publish tree on a clean
+            merge (everything safe / LWW resolved)
+          * route through ``_record_pending_conflict_generic`` when
+            ``manual_conflicts`` is non-empty AND ``policy_name`` is
+            ``manual_review`` — the trailing dicts are the inputs that
+            helper expects so it can persist them as audit context.
+
+        On any failure the helper logs and returns
+
+            (None, None, [], "", {}, {}, {})
+
+        so the caller falls back to the splice-only path — i.e. the
+        worst case is the legacy LWW-by-overwrite behavior, never a
+        hard failure.
 
         ``base``   = scope tree the operation was originally splice'd against
                      (the actor's perceived starting point, captured on

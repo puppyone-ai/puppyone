@@ -169,11 +169,6 @@ def _render_bytes(b: Optional[bytes], limit: int = 200) -> Optional[str]:
 class CaseRunner:
     """One-shot runner for a single ConflictCase."""
 
-    # Operations we can't drive in-process yet. (Empty after the
-    # resolver flow landed — ``resolve`` writers now hit
-    # ``engine.resolve()`` directly via ``_invoke_resolve``.)
-    _UNSUPPORTED_OPS: set[str] = set()
-
     def __init__(self, project_id: str, ops: MutOps, run_ts: str):
         self.project_id = project_id
         self.ops = ops
@@ -311,10 +306,6 @@ class CaseRunner:
         await self._pre_fire_ancient_stuffers(case, scope_paths)
 
         async def one(idx: int, w: Writer) -> None:
-            if w.operation in self._UNSUPPORTED_OPS:
-                actuals[idx].outcome = "skipped"
-                actuals[idx].error = f"op '{w.operation}' not driven by runner"
-                return
             if w.delay_ms:
                 await asyncio.sleep(w.delay_ms / 1000.0)
             try:
@@ -783,9 +774,6 @@ class CaseRunner:
                 "case requires read-only scope mode enforcement (HTTP layer, "
                 "not MutOps in-process)"
             )
-        for w in case.writers:
-            if w.operation in CaseRunner._UNSUPPORTED_OPS:
-                return f"writer uses unsupported op: {w.operation}"
         return ""
 
 
