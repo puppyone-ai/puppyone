@@ -16,6 +16,7 @@ any layer.
 from __future__ import annotations
 
 import asyncio
+import json
 
 from src.mut_engine.application.diff import diff_trees
 from src.mut_engine.application.object_store import ObjectStore
@@ -24,6 +25,11 @@ from src.mut_engine.application.git_object_format import encode_object, encode_t
 
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.utils.logger import log_info, log_warning
+
+
+_SCOPE_PROMOTE_TRAILER = "PuppyOne-Source: scope-promote"
+_HISTORY_VISIBLE_FETCH_MULTIPLIER = 20
+_HISTORY_VISIBLE_FETCH_FLOOR = 1000
 
 
 class MutAdminService:
@@ -101,17 +107,23 @@ class MutAdminService:
         the head (latest).
         """
         repo = self._repos.get_repo(project_id)
-        fetch_limit = limit * 10 if path else limit
+        fetch_limit = _history_fetch_limit(limit)
         entries = repo.history.get_since(since_commit_id, limit=fetch_limit)
+        entries = [
+            e for e in entries
+            if _is_user_visible_history_entry(e)
+        ]
 
         if path:
             entries = [
                 e for e in entries
                 if any(c.get("path") == path for c in e.get("changes", []))
             ]
+
+        if limit > 0:
             # entries is ASC (oldest first) — keep the *tail* so callers
-            # asking for "latest 50 touching this file" see the most
-            # recent changes, not the oldest.
+            # asking for "latest 50" see the most recent visible changes,
+            # not technical projections or the oldest rows.
             entries = entries[-limit:]
 
         return entries
@@ -170,6 +182,41 @@ def _resolve_entry_root(entry: dict) -> str:
     if root:
         return root
     return entry.get("scope_hash", "")
+
+
+def _history_fetch_limit(limit: int) -> int:
+    """Fetch enough raw rows to keep technical projections out of UI history.
+
+    ``mut_commits`` intentionally contains internal projection commits such as
+    ``scope-promote`` because scoped Git refs need them. Product history does
+    not. If we fetched exactly ``limit`` raw rows and the newest rows were all
+    projections, the UI would look empty even though older user commits exist.
+    """
+    if limit <= 0:
+        return 0
+    return max(limit * _HISTORY_VISIBLE_FETCH_MULTIPLIER, _HISTORY_VISIBLE_FETCH_FLOOR)
+
+
+def _is_user_visible_history_entry(entry: dict) -> bool:
+    """Return False for projection rows that should not appear in History UI."""
+    message = entry.get("message", "") or ""
+    if _SCOPE_PROMOTE_TRAILER in message:
+        return False
+
+    changes = entry.get("changes") or []
+    if isinstance(changes, str):
+        try:
+            changes = json.loads(changes)
+        except Exception:
+            changes = []
+    if isinstance(changes, list):
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            action = str(change.get("action") or change.get("op") or "").lower()
+            if action == "scope-promote":
+                return False
+    return True
 
 
 def _resolve_path_hash(store: ObjectStore, root_hash: str, path: str) -> str:

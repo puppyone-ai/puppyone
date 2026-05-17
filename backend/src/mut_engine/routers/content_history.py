@@ -72,7 +72,6 @@ async def get_commits(
         limit=limit,
         since_commit_id=since_commit_id,
     )
-    head_commit_id = ops.get_head_commit_id(project_id)
 
     commits = [
         FileVersionInfo(
@@ -87,6 +86,7 @@ async def get_commits(
         )
         for e in entries
     ]
+    head_commit_id = commits[-1].commit_id if commits else ""
 
     root_hash = ops.get_root_hash(project_id) or ""
 
