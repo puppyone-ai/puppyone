@@ -92,6 +92,11 @@ def promote_to_parents(
     if not child_norm or not child_new_tree_hash:
         return promotions
 
+    # Resolve child's previous tree once for all ancestors so the
+    # graft can three-way-merge against it instead of treating
+    # previously-projected content as "parent_scope_wins".
+    child_prev_tree_hash = _resolve_child_prev_tree(repo, child_commit_id)
+
     for ancestor in ancestor_scope_paths(repo, child_norm):
         try:
             old_hash, current_head = _scope_head(repo, ancestor)
@@ -103,8 +108,15 @@ def promote_to_parents(
             )
             if not relative:
                 continue
-            new_tree = graft_subtree(
-                repo.store, old_hash, relative, child_new_tree_hash,
+            # V1 spec §7: parent_scope_wins resolves cross-scope same-path
+            # overlaps. When parent's authoritative tree has a different
+            # value at a path that the child also writes, the parent's
+            # content stays. We can't enforce this at child commit time
+            # alone (separate CAS streams) — the graft is where parent +
+            # child trees meet, so we apply the override here.
+            new_tree = _graft_with_parent_wins(
+                repo, old_hash, relative, child_new_tree_hash,
+                child_prev_tree_hash=child_prev_tree_hash,
             ) if old_hash else _build_parent_skeleton(
                 repo, relative, child_new_tree_hash,
             )
@@ -289,6 +301,282 @@ def _build_promote_commit(
             ),
             True,
         )
+
+
+def promote_to_one_parent(
+    repo,
+    *,
+    project_id: str,
+    parent_scope_path: str,
+    child_scope_path: str,
+    child_new_tree_hash: str,
+    child_commit_actor: str,
+    child_commit_id: str,
+    created_at_iso: str,
+    trailer_extra: str = "",
+) -> dict[str, Any] | None:
+    """Promote ``child`` into a SPECIFIC ``parent`` (single hop).
+
+    Used by the "re-graft after parent commit" path so we can refresh
+    the parent's view of one child without re-firing the full ancestor
+    walk (which would also touch the global root and any intermediate
+    scopes, wasting work).
+
+    Same parent_scope_wins semantics as :func:`promote_to_parents`:
+    where the parent has a different value at the same path, the
+    parent's content stays.
+
+    Returns the new promote entry (``{scope_path, new_commit_id,
+    new_scope_hash}``) on success, ``None`` if there was nothing to do
+    or the publish failed.
+    """
+
+    _ = project_id  # kept for symmetry with promote_to_parents
+    parent_norm = normalize_path(parent_scope_path)
+    child_norm = normalize_path(child_scope_path)
+    if not child_norm or not child_new_tree_hash:
+        return None
+    if parent_norm and not child_norm.startswith(parent_norm + "/"):
+        return None
+    relative = (
+        child_norm[len(parent_norm):].lstrip("/")
+        if parent_norm
+        else child_norm
+    )
+    if not relative:
+        return None
+
+    try:
+        old_hash, current_head = _scope_head(repo, parent_norm)
+        child_prev_tree_hash = _resolve_child_prev_tree(repo, child_commit_id)
+        new_tree = _graft_with_parent_wins(
+            repo, old_hash, relative, child_new_tree_hash,
+            child_prev_tree_hash=child_prev_tree_hash,
+        ) if old_hash else _build_parent_skeleton(
+            repo, relative, child_new_tree_hash,
+        )
+        if new_tree == old_hash:
+            return None
+
+        promote_message = (
+            f"scope-promote {child_norm} -> {parent_norm or '/'}\n\n"
+            f"PuppyOne-Source: {_PROMOTE_TRAILER_SOURCE}\n"
+            f"PuppyOne-Child-Commit: {child_commit_id}\n"
+            f"PuppyOne-Child-Scope: {child_norm}\n"
+            + trailer_extra
+        )
+        new_commit, cordon_used = _build_promote_commit(
+            repo,
+            ancestor=parent_norm,
+            tree_sha=new_tree,
+            parent_sha=current_head or "",
+            who=child_commit_actor or "scope-promote",
+            message=promote_message,
+            created_at_iso=created_at_iso,
+        )
+        publish = getattr(repo, "publish_scope_update", None)
+        if publish is None:
+            log_warning(
+                f"[scope-promote] repo lacks publish_scope_update; "
+                f"skipping one-hop promote to {parent_norm!r}",
+            )
+            return None
+        result = publish(
+            scope_path=parent_norm,
+            old_scope_hash=old_hash,
+            new_scope_hash=new_tree,
+            commit_id=new_commit,
+            who=child_commit_actor or "scope-promote",
+            message=promote_message,
+            changes=[{"path": child_norm, "action": "scope-promote"}],
+            conflicts=None,
+            created_at_iso=created_at_iso,
+            audit_event_type="scope_promote",
+            audit_agent_id=child_commit_actor or "system",
+            audit_detail={
+                "child_scope": child_norm,
+                "child_commit_id": child_commit_id,
+                "source": _PROMOTE_TRAILER_SOURCE,
+                "regraft": bool(trailer_extra),
+            },
+            source_channel="agent",
+            policy="scope_promote",
+            base_commit_id=current_head,
+            client_commit_id="",
+            proposed_tree_id=new_tree,
+            intent_type="operation",
+        )
+        published = result[0] if isinstance(result, tuple) else bool(result)
+        if not published:
+            return None
+        cordon_note = "  [cordon: legacy ancestry dropped]" if cordon_used else ""
+        regraft_note = "  [re-graft]" if trailer_extra else ""
+        log_info(
+            f"[scope-promote] {child_norm} -> {parent_norm or '/'} "
+            f"new_commit={new_commit[:12]}{cordon_note}{regraft_note}",
+        )
+        return {
+            "scope_path": parent_norm,
+            "new_commit_id": new_commit,
+            "new_scope_hash": new_tree,
+        }
+    except Exception as exc:
+        log_warning(
+            f"[scope-promote] one-hop promote {child_norm!r} -> "
+            f"{parent_norm or '/'!r} failed: {exc}",
+        )
+        return None
+
+
+def _resolve_child_prev_tree(repo, child_commit_id: str) -> str:
+    """Return the tree hash of ``child_commit_id``'s first Git parent.
+
+    Used as the base for the parent_scope_wins three-way merge: it tells
+    us what the child scope's content was BEFORE this commit, so we can
+    distinguish "parent has authoritative content" (parent != base
+    AND parent != child_new) from "parent's tree is just the previously-
+    grafted projection of child's old content" (parent == base).
+
+    Returns ``""`` when the commit has no Git-format parent (first
+    commit on the scope, or legacy/cordoned commit) — callers fall back
+    to two-way semantics where every parent-vs-child difference is
+    treated as a parent override.
+    """
+
+    if not child_commit_id:
+        return ""
+    try:
+        obj_type, content = repo.store.get_object(child_commit_id)
+        if obj_type != "commit":
+            return ""
+        from src.mut_engine.application.git_object_format import decode_commit
+        info = decode_commit(content)
+        parents = info.get("parents") or []
+        if not parents:
+            return ""
+        parent_id = parents[0]
+        if not parent_id:
+            return ""
+        parent_obj_type, parent_body = repo.store.get_object(parent_id)
+        if parent_obj_type != "commit":
+            return ""
+        parent_info = decode_commit(parent_body)
+        return parent_info.get("tree", "") or ""
+    except Exception:
+        return ""
+
+
+def _graft_with_parent_wins(
+    repo,
+    parent_root_hash: str,
+    mount_path: str,
+    child_tree_hash: str,
+    *,
+    child_prev_tree_hash: str = "",
+) -> str:
+    """Graft ``child_tree`` into ``parent_root`` at ``mount_path`` with
+    parent_scope_wins enforcement (V1 spec §7).
+
+    Uses a three-way merge against ``child_prev_tree_hash`` to tell the
+    difference between:
+      * parent's authoritative content (a direct parent-scope write
+        that touched a child-territory path) → parent wins
+      * parent's projected content (left over from a previous graft of
+        the same child scope, ``parent_at_mount[path] == child_prev``)
+        → child's update propagates normally
+
+    Without the previous-tree base, every child update would be
+    rejected by parent_scope_wins because the parent's subtree always
+    looks "different" from the child's new tree (it's still showing
+    the OLD child content from the last graft). The base lets us split
+    those two situations.
+
+    Per-path semantics, where
+      ``base`` = ``child_prev_tree`` at ``rel``,
+      ``ours`` = ``parent_root`` at ``mount_path/rel``,
+      ``theirs`` = ``child_tree`` at ``rel``:
+      * ours == theirs                 → no change
+      * ours == base                   → take theirs (child update flows)
+      * theirs == base                 → keep ours (parent edit stays;
+                                          shouldn't happen — child's
+                                          incoming side never matches a
+                                          stale projection — but harmless)
+      * else                           → **parent wins** (drop child's
+                                          value, leave parent unchanged)
+      * parent has NO content (None)   → write child's value
+      * parent has content child lacks → keep (never delete parent's
+                                          authoritative entries)
+    """
+
+    from src.mut_engine.application.tree_objects import flatten_tree_to_bytes
+    from src.mut_engine.services.tree_splice import splice_batch
+
+    parent_at_mount = _read_subtree_files(
+        repo.store, parent_root_hash, mount_path,
+    )
+    child_files = flatten_tree_to_bytes(repo.store, child_tree_hash)
+    child_prev: dict[str, bytes] = (
+        flatten_tree_to_bytes(repo.store, child_prev_tree_hash)
+        if child_prev_tree_hash
+        else {}
+    )
+
+    paths_to_put: dict[str, bytes] = {}
+    for rel, child_content in child_files.items():
+        parent_content = parent_at_mount.get(rel)
+        if parent_content is None:
+            # Parent has nothing here (deleted or never had it) — child
+            # re-grafts unconditionally so child-owned paths survive
+            # parent's delete/rename of the mount range.
+            paths_to_put[rel] = child_content
+            continue
+        if parent_content == child_content:
+            # Already in sync.
+            continue
+        base_content = child_prev.get(rel)
+        if base_content is not None and parent_content == base_content:
+            # Parent's content is just the previous projection of child —
+            # not an authoritative parent edit. Child's new value wins.
+            paths_to_put[rel] = child_content
+            continue
+        # Otherwise parent has authoritative content at this path
+        # (different from both base and incoming). parent_scope_wins.
+        continue
+
+    if not paths_to_put:
+        return parent_root_hash
+
+    ops = [
+        ("put", (f"{mount_path}/{rel}" if mount_path else rel), content)
+        for rel, content in paths_to_put.items()
+    ]
+    new_root, _ = splice_batch(repo.store, parent_root_hash, ops)
+    return new_root
+
+
+def _read_subtree_files(store, root_hash: str, mount_path: str) -> dict[str, bytes]:
+    """Return ``{rel_path: bytes}`` for every file under ``mount_path``
+    in ``root_hash``. Empty dict if the subtree doesn't exist.
+    """
+
+    from src.mut_engine.application import tree as tree_mod
+    from src.mut_engine.application.tree_objects import flatten_tree_to_bytes
+
+    parts = [p for p in mount_path.strip("/").split("/") if p]
+    current = root_hash
+    for part in parts:
+        try:
+            entries = tree_mod.read_tree(store, current)
+        except Exception:
+            return {}
+        typ, child = entries.get(part, (None, None))
+        if typ != "T":
+            return {}
+        current = child
+    try:
+        return flatten_tree_to_bytes(store, current)
+    except Exception:
+        return {}
 
 
 def _build_parent_skeleton(repo, relative: str, child_tree_hash: str) -> str:

@@ -124,6 +124,18 @@ def run_post_push_hook(
         # cannot block the just-landed child commit.
         _promote_to_ancestor_scopes(repo, project_id, entry, scope_path)
 
+        # Parent-commit triggers child re-graft: when a non-promote
+        # commit lands on a scope that has declared children, re-apply
+        # each child's current tree on top of the parent's new tree.
+        # Without this, a parent edit (delete / rename / overwrite) at
+        # a child-territory path would persist in the parent's view
+        # until the child happens to commit again. V1 spec §7 says
+        # child-owned paths re-surface via graft; this is what makes
+        # that actually happen.
+        _regraft_children_into_committed_scope(
+            repo, project_id, entry, scope_path,
+        )
+
         # Refresh the materialised fs_path_index so the next
         # `puppyone fs find` / `stat` query sees the new files (H1).
         # Best-effort: a Supabase blip degrades fs queries to live S3
@@ -179,6 +191,96 @@ def _refresh_fs_path_index(
         )
     except Exception as exc:
         log_warning(f"[PostCommit] fs_path_index refresh failed: {exc}")
+
+
+def _regraft_children_into_committed_scope(
+    repo, project_id: str, entry: dict, scope_path: str,
+) -> None:
+    """After a non-promote commit on ``scope_path``, re-graft each
+    declared child scope (immediate descendants only) back into the
+    committed scope's view. Bounded so it never triggers itself:
+
+      * scope-promote commits skip via the message-trailer check
+      * each child re-graft is a one-hop call into ``promote_to_parents``
+        for THIS scope only — the descendant's own ancestors above us
+        are skipped via ``ancestor_filter``.
+    """
+
+    message = entry.get("message", "") or ""
+    if "PuppyOne-Source: scope-promote" in message:
+        return
+
+    try:
+        from src.mut_engine.application.parent_scope_promote import (
+            promote_to_one_parent,
+        )
+        from src.mut_engine.application.path_utils import normalize_path
+    except Exception as exc:
+        log_warning(f"[PostCommit] re-graft import failed: {exc}")
+        return
+
+    parent_norm = normalize_path(scope_path)
+    try:
+        declared = repo.get_declared_scope_paths()
+    except Exception:
+        return
+
+    # Immediate children: declared scopes whose first ancestor under
+    # ``declared`` is ``parent_norm``. We compare against the declared
+    # set so an intermediate non-declared path doesn't accidentally
+    # block recognition (e.g. ``foo/bar/leaf`` with only ``foo`` and
+    # ``foo/bar/leaf`` declared is still an "immediate" child of foo).
+    children: list[str] = []
+    for d in declared:
+        d_norm = normalize_path(d)
+        if not d_norm:
+            continue
+        if parent_norm and not d_norm.startswith(parent_norm + "/"):
+            continue
+        if parent_norm == d_norm:
+            continue
+        # Walk up from d to see if parent_norm is the nearest declared
+        # ancestor.
+        nearest = ""
+        parts = d_norm.split("/")
+        for i in range(len(parts) - 1, 0, -1):
+            anc = "/".join(parts[:i])
+            if anc in declared and anc != d_norm:
+                nearest = anc
+                break
+        if nearest == parent_norm:
+            children.append(d_norm)
+
+    if not children:
+        return
+
+    actor = f"system:regraft-after-{entry.get('who') or 'commit'}"
+    created_at_iso = entry.get("created_at", "") or ""
+
+    for child in children:
+        try:
+            scope_hash, head_commit = repo.get_scope_state(child)
+        except Exception:
+            continue
+        if not scope_hash or not head_commit:
+            continue
+        try:
+            promote_to_one_parent(
+                repo,
+                project_id=project_id,
+                parent_scope_path=parent_norm,
+                child_scope_path=child,
+                child_new_tree_hash=scope_hash,
+                child_commit_actor=actor,
+                child_commit_id=head_commit,
+                created_at_iso=created_at_iso,
+                trailer_extra="PuppyOne-Regraft: post-parent-commit\n",
+            )
+        except Exception as exc:
+            log_warning(
+                f"[PostCommit] re-graft of child {child!r} into "
+                f"{parent_norm or '/'} failed: {exc}",
+            )
 
 
 def _promote_to_ancestor_scopes(repo, project_id: str, entry: dict, scope_path: str) -> None:
