@@ -102,6 +102,122 @@ class JsonMergeStrategy(MergeStrategy):
         return None
 
 
+class ImportMergeStrategy(MergeStrategy):
+    """Sort-and-dedupe merge for language import blocks at the top of a file.
+
+    Recognises Python (``^import …`` / ``^from … import …``) and Go
+    (``import (`` … ``)``). When both writers added imports in the
+    leading import block and the rest of the file is unchanged from
+    the base, produce a sorted-and-deduped union of the import block.
+    """
+
+    name = "import_merge"
+
+    _PY_GO_EXT = (".py", ".go")
+
+    def try_merge(
+        self,
+        base: bytes,
+        ours: bytes,
+        theirs: bytes,
+        path: str,
+    ) -> MergeResult | None:
+        if not path.endswith(self._PY_GO_EXT):
+            return None
+        try:
+            base_lines = base.decode().splitlines()
+            ours_lines = ours.decode().splitlines()
+            theirs_lines = theirs.decode().splitlines()
+        except UnicodeDecodeError:
+            return None
+        recognise = _python_import_block if path.endswith(".py") else _go_import_block
+        _base_imports, base_tail = recognise(base_lines)
+        ours_imports, ours_tail = recognise(ours_lines)
+        theirs_imports, theirs_tail = recognise(theirs_lines)
+        # Only fire when the non-import body is unchanged on both sides.
+        if ours_tail != base_tail or theirs_tail != base_tail:
+            return None
+        merged_imports = sorted({*ours_imports, *theirs_imports})
+        if path.endswith(".py"):
+            content_lines = merged_imports + base_tail
+        else:
+            # Go: re-emit the canonical ``import ( ... )`` block.
+            content_lines = (
+                ["import ("]
+                + [f"\t{imp}" for imp in merged_imports]
+                + [")"]
+                + base_tail
+            )
+        content = ("\n".join(content_lines) + "\n").encode("utf-8")
+        return MergeResult(
+            content=content,
+            strategy="import_merge",
+            conflicts=[
+                ConflictRecord(
+                    path=path,
+                    strategy="import_merge",
+                    detail=(
+                        f"sort+dedupe-merged {len(merged_imports)} imports "
+                        f"({len(ours_imports)} from ours, "
+                        f"{len(theirs_imports)} from theirs)"
+                    ),
+                    kept="merged",
+                )
+            ] if merged_imports else [],
+        )
+
+
+class AppendOnlyMergeStrategy(MergeStrategy):
+    """Union of trailing-line appends when both sides extend the file.
+
+    Catches the common shape "two writers each added a different line at
+    the end" — SQL migrations adding sequential ALTERs, CSV rows, shell
+    script exports, Dockerfile directives, YAML config keys. Both sides
+    must share the base as a strict prefix; only the new tail differs.
+    """
+
+    name = "append_only_merge"
+
+    def try_merge(
+        self,
+        base: bytes,
+        ours: bytes,
+        theirs: bytes,
+        path: str,
+    ) -> MergeResult | None:
+        if not ours.startswith(base) or not theirs.startswith(base):
+            return None
+        # Both sides are pure append. Concatenate the two tails after
+        # the shared prefix, preserving order (ours first, theirs second).
+        ours_tail = ours[len(base):]
+        theirs_tail = theirs[len(base):]
+        if not ours_tail and not theirs_tail:
+            return None
+        # Avoid double-counting identical tail content.
+        if ours_tail == theirs_tail:
+            content = ours
+        else:
+            content = base + ours_tail
+            if not content.endswith(b"\n"):
+                content += b"\n"
+            content += theirs_tail
+        return MergeResult(
+            content=content,
+            strategy="append_only_merge",
+            conflicts=[
+                ConflictRecord(
+                    path=path,
+                    strategy="append_only_merge",
+                    detail=(
+                        f"both sides appended; {len(ours_tail)}B from ours "
+                        f"+ {len(theirs_tail)}B from theirs unioned"
+                    ),
+                    kept="merged",
+                )
+            ],
+        )
+
+
 class LWWStrategy(MergeStrategy):
     """Legacy fallback: incoming content wins and the loss is audit-visible."""
 
@@ -135,9 +251,88 @@ DEFAULT_STRATEGIES: list[MergeStrategy] = [
     IdenticalStrategy(),
     OneSideOnlyStrategy(),
     JsonMergeStrategy(),
+    ImportMergeStrategy(),
+    AppendOnlyMergeStrategy(),
     LineMergeStrategy(),
     LWWStrategy(),
 ]
+
+
+def _python_import_block(lines: list[str]) -> tuple[list[str], list[str]]:
+    """Split ``lines`` into ``(imports, tail)`` for a Python module.
+
+    Imports are the leading run of ``import …`` / ``from … import …``
+    statements (allowing blank lines between them). Everything from the
+    first non-import, non-blank line onward is the tail.
+    """
+
+    imports: list[str] = []
+    body_start = 0
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            body_start = i + 1
+            continue
+        if stripped.startswith("import ") or stripped.startswith("from "):
+            imports.append(stripped)
+            body_start = i + 1
+            continue
+        body_start = i
+        break
+    tail = lines[body_start:]
+    # Normalise: drop any leading blank lines in the tail so unrelated
+    # whitespace changes don't suppress merge.
+    while tail and not tail[0].strip():
+        tail.pop(0)
+    return imports, tail
+
+
+def _go_import_block(lines: list[str]) -> tuple[list[str], list[str]]:
+    """Split ``lines`` into ``(imports, tail)`` for a Go file.
+
+    Recognises a ``import (`` block at the start of the file (after an
+    optional ``package`` line + blanks). Returns the inner import strings
+    (each stripped of leading tab + quotes intact) and the body that
+    follows the closing ``)``.
+    """
+
+    imports: list[str] = []
+    i = 0
+    # Skip the package declaration + blanks
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped.startswith("package "):
+            i += 1
+            continue
+        if not stripped:
+            i += 1
+            continue
+        break
+    if i >= len(lines) or lines[i].strip() != "import (":
+        return imports, lines
+    i += 1
+    while i < len(lines) and lines[i].strip() != ")":
+        s = lines[i].strip()
+        if s:
+            imports.append(s)
+        i += 1
+    if i >= len(lines):
+        # malformed: no closing paren
+        return imports, lines
+    tail = lines[i + 1:]
+    while tail and not tail[0].strip():
+        tail.pop(0)
+    # Preserve the package + leading whitespace block as part of "the
+    # canonical file shell"; we strip it from tail so we can re-emit a
+    # fresh import block. Find the package line again to prepend it.
+    pkg_lines: list[str] = []
+    for line in lines:
+        if line.strip().startswith("package "):
+            pkg_lines.append(line.strip())
+            break
+    if pkg_lines:
+        tail = pkg_lines + [""] + tail
+    return imports, tail
 
 
 class ConflictResolver:

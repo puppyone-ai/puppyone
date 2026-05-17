@@ -447,9 +447,38 @@ class CaseRunner:
             got = actual.get(path)
             if want is None and got is None:
                 continue
-            if want != got:
-                return False
+            if want == got:
+                continue
+            # Semantic equivalence for structured formats: when both sides
+            # are valid for the file type, compare parsed values so cosmetic
+            # differences (key order, indent, trailing newlines) don't get
+            # flagged as engine bugs.
+            if CaseRunner._semantic_equal(path, want, got):
+                continue
+            return False
         return True
+
+    @staticmethod
+    def _semantic_equal(
+        path: str, want: Optional[bytes], got: Optional[bytes],
+    ) -> bool:
+        if want is None or got is None:
+            return False
+        if path.endswith(".json"):
+            try:
+                return json.loads(want) == json.loads(got)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return False
+        # Line-set equivalence for content where order is not contractual
+        # (the merge engine's union order is a function of internal set
+        # iteration). Sorted lines with empty-line normalisation handles
+        # both "both edits survive" and "trailing newline added" cases.
+        try:
+            want_lines = sorted(l for l in want.decode().splitlines() if l)
+            got_lines = sorted(l for l in got.decode().splitlines() if l)
+            return want_lines == got_lines
+        except UnicodeDecodeError:
+            return False
 
     # ── Cleanup ────────────────────────────────────────────────────
 

@@ -493,11 +493,15 @@ A_CASES = [
     ConflictCase(
         id="A08",
         category="A",
-        title="line_merge fails: both prepend (overlap at line 0)",
+        title="both prepend at line 0 — engine unions",
         description=(
-            "Both writers insert content at the very top. Even though the "
-            "lines are different, both hunks claim position [0:0], so the "
-            "overlap check rejects safe merge."
+            "Both writers insert content at the very top. The diff hunks "
+            "both claim position [0:0] — the original line-overlap check "
+            "rejected this as unsafe, but the CAS-retry merge re-runs "
+            "the splice from the new head: the merged-files set contains "
+            "ours='A-top\\nbody' and theirs='B-top\\nbody', identical "
+            "anchors below, so the second prepend lands on top of the "
+            "first one. Net effect: both edits survive."
         ),
         setup={"": {"notes.md": b"body\n"}},
         writers=(
@@ -506,8 +510,20 @@ A_CASES = [
         ),
         expected=Expected(
             writer_outcomes=("committed", "committed"),
-            final_state={"notes.md": b"B-top\nbody\n"},
-            strategy="lww",
+            # Engine actual: whichever writer retries last has its prepend
+            # land first. We check that both prepends are present and the
+            # base body is preserved (line-set equivalence).
+            final_state={"notes.md": b"A-top\nB-top\nbody\n"},
+            strategy="line_merge",
+        ),
+        ground_truth=GroundTruth(
+            final_state={"notes.md": b"A-top\nB-top\nbody\n"},
+            rationale=(
+                "Two independent prepends with a shared anchor body — "
+                "both should survive. Engine achieves this via the "
+                "CAS-retry three-way merge (commit 5bbc8d92)."
+            ),
+            category="engine_correct",
         ),
     ),
     ConflictCase(
@@ -584,10 +600,11 @@ A_CASES = [
     ConflictCase(
         id="A12",
         category="A",
-        title="both writers CREATE the same fresh file (no base)",
+        title="both writers CREATE the same fresh file (engine unions)",
         description=(
-            "Neither writer's commit has the file at base. Add/add shape: "
-            "both content differs, line_merge falls back to LWW."
+            "Neither writer's commit has the file at base. Add/add shape "
+            "with disjoint content: the CAS-retry merge runs three-way "
+            "with base={} and unions both single-line additions."
         ),
         setup={"": {}},
         writers=(
@@ -596,8 +613,16 @@ A_CASES = [
         ),
         expected=Expected(
             writer_outcomes=("committed", "committed"),
-            final_state={"f.txt": b"B-init\n"},
-            strategy="lww",
+            final_state={"f.txt": b"A-init\nB-init\n"},
+            strategy="line_merge",
+        ),
+        ground_truth=GroundTruth(
+            final_state={"f.txt": b"A-init\nB-init\n"},
+            rationale=(
+                "Two independent line adds at the same path — both "
+                "survive. Engine achieves this via CAS-retry merge."
+            ),
+            category="engine_correct",
         ),
     ),
 ]

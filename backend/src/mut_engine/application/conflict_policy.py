@@ -19,8 +19,10 @@ from dataclasses import asdict, dataclass
 
 from src.mut_engine.application.hash_utils import hash_bytes
 from src.mut_engine.application.merge import (
+    AppendOnlyMergeStrategy,
     ConflictRecord,
     IdenticalStrategy,
+    ImportMergeStrategy,
     JsonMergeStrategy,
     LineMergeStrategy,
     OneSideOnlyStrategy,
@@ -46,6 +48,8 @@ _SAFE_CONTENT_STRATEGIES = [
     IdenticalStrategy(),
     OneSideOnlyStrategy(),
     JsonMergeStrategy(),
+    ImportMergeStrategy(),
+    AppendOnlyMergeStrategy(),
     LineMergeStrategy(),
 ]
 
@@ -239,9 +243,16 @@ def _try_safe_content_merge(
         result = strategy.try_merge(base, ours, theirs, path)
         if result is None:
             continue
+        # Records emitted by these strategies are audit-only — the merge
+        # actually combined both sides successfully, so they should not
+        # trigger the unsafe-fallback path.
         unsafe = [
             record for record in result.conflicts
-            if record.strategy not in {"line_merge"}
+            if record.strategy not in {
+                "line_merge",
+                "import_merge",
+                "append_only_merge",
+            }
         ]
         return result.content, result.conflicts, unsafe
     return None
@@ -295,18 +306,71 @@ def _apply_policy_to_unsafe_conflict(
         merged[path] = ours
         return
 
+    # Default last_write_wins. Before falling back to a silent overwrite,
+    # try Git-style conflict markers for text files so the loser's content
+    # survives in-tree (visible in the next pull / diff) rather than only
+    # in the audit row's truncated ``lost_content`` field.
+    marker_content = _try_conflict_markers(ours, theirs)
+    if marker_content is not None:
+        lww_records.append(ConflictRecord(
+            path=path,
+            strategy="conflict_markers",
+            detail=(
+                f"both sides modified; {policy.policy} → conflict markers "
+                f"written so neither side is silently lost"
+            ),
+            kept="markers",
+            lost_content="",
+            lost_hash="",
+        ))
+        merged[path] = marker_content
+        return
+
     lww_records.append(ConflictRecord(
         path=path,
         strategy="lww",
         detail=(
             f"both sides modified; {policy.policy} → incoming wins, "
-            f"server copy preserved in audit"
+            f"server copy preserved in audit (binary or oversize text)"
         ),
         kept="theirs",
         lost_content=ours.decode(errors="replace")[:500],
         lost_hash=hash_bytes(ours),
     ))
     merged[path] = theirs
+
+
+# Threshold beyond which conflict markers stop being useful — a user
+# can't review a 1MB diff inline. For those paths we keep the legacy
+# LWW so the tree doesn't balloon by 2x.
+_MARKER_MAX_BYTES = 200_000
+
+
+def _try_conflict_markers(ours: bytes, theirs: bytes) -> bytes | None:
+    """Produce Git-style conflict markers for text files.
+
+    Returns ``None`` for binary content (not UTF-8 decodable) or content
+    over ``_MARKER_MAX_BYTES`` — those still go through legacy LWW.
+    """
+
+    if len(ours) > _MARKER_MAX_BYTES or len(theirs) > _MARKER_MAX_BYTES:
+        return None
+    try:
+        ours.decode("utf-8")
+        theirs.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    parts: list[bytes] = []
+    parts.append(b"<<<<<<< current (server)\n")
+    parts.append(ours)
+    if not ours.endswith(b"\n"):
+        parts.append(b"\n")
+    parts.append(b"=======\n")
+    parts.append(theirs)
+    if not theirs.endswith(b"\n"):
+        parts.append(b"\n")
+    parts.append(b">>>>>>> incoming\n")
+    return b"".join(parts)
 
 
 def _resolve_delete_modify(
