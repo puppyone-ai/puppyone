@@ -364,6 +364,13 @@ export default function DataPage({ params }: DataPageProps) {
 
   const { nodes: contentNodes, isLoading: contentNodesLoading, refresh: refreshCurrentNodes } = useContentNodes(projectId, currentFolderId);
 
+  const activeFormat = useMemo(() => {
+    if (!activeNodeId || activeNodeType === 'github') return null;
+    return resolveFormat({ name: activeNodeId, mimeType: activeMimeType });
+  }, [activeNodeId, activeNodeType, activeMimeType]);
+
+  const activeTextSaveNodeType = activeFormat?.defaultViewer === 'plain-text' ? 'file' : 'markdown';
+
   // Manual-save hook: editor edits stay local until the user hits
   // Cmd+S / clicks Save. Replaces the older 1.5s-debounced
   // auto-save which generated 100+ commits per editing session.
@@ -379,6 +386,7 @@ export default function DataPage({ params }: DataPageProps) {
     projectId,
     activeNodePath: activeNodeId,
     serverContent: serverTextContent,
+    nodeType: activeTextSaveNodeType,
   });
 
   // ── Cmd+S / Ctrl+S → save the active markdown editor ──────────
@@ -434,9 +442,10 @@ export default function DataPage({ params }: DataPageProps) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [editorDirty]);
 
-  const fileImport = useFileImport(projectId, session?.access_token);
-
   const nodeActions = useNodeActions(projectId, currentFolderId);
+  const fileImport = useFileImport(projectId, session?.access_token, {
+    showToast: nodeActions.showToast,
+  });
 
   // Page-wide safety net for external file drops. Without this, a
   // file dropped on the content area / right-panel / gap between
@@ -684,6 +693,8 @@ export default function DataPage({ params }: DataPageProps) {
     navigateTo,
     openSyncCreatePanel,
     openSyncSetting,
+    openFileImportDialogForTarget: fileImport.openFileImportDialogForTarget,
+    showToast: nodeActions.showToast,
   });
 
   const agentResources: AgentResource[] = useMemo(() => {
@@ -986,11 +997,6 @@ export default function DataPage({ params }: DataPageProps) {
     return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }));
   }, [accessPoints]);
 
-  const activeFormat = useMemo(() => {
-    if (!activeNodeId || activeNodeType === 'github') return null;
-    return resolveFormat({ name: activeNodeId, mimeType: activeMimeType });
-  }, [activeNodeId, activeNodeType, activeMimeType]);
-
   const headerActionSlot = activeFormat ? (
     <FileViewerHeaderActions
       projectId={activeProject?.id ?? projectId}
@@ -999,7 +1005,7 @@ export default function DataPage({ params }: DataPageProps) {
       editable={activeFormat.editable}
       markdownViewMode={markdownViewMode}
       onMarkdownViewModeChange={setMarkdownViewMode}
-      saveStatus={activeFormat.defaultViewer === 'markdown-editor' && activeFormat.editable ? editorSaveStatus : 'clean'}
+      saveStatus={activeFormat.editable && (activeFormat.defaultViewer === 'markdown-editor' || activeFormat.defaultViewer === 'plain-text') ? editorSaveStatus : 'clean'}
       onSave={saveEditor}
       editorType={editorType}
       onEditorTypeChange={setEditorType}
@@ -1054,6 +1060,9 @@ export default function DataPage({ params }: DataPageProps) {
           await nodeActions.handleMoveNode(nodeId, targetFolderId);
         }}
         onCloseMove={() => nodeActions.setMoveDialogTarget(null)}
+        deleteDialogTarget={nodeActions.deleteDialogTarget}
+        onDeleteConfirm={nodeActions.handleDeleteConfirm}
+        onCloseDelete={nodeActions.closeDeleteDialog}
         createTableOpen={createTableOpen}
         onCloseCreateTable={closeCreateTable}
         defaultStartOption={defaultStartOption}

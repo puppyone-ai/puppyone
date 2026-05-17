@@ -8,9 +8,9 @@
  */
 
 export const PROVIDER_LABELS: Record<string, string> = {
-  cli: 'mut CLI',
+  cli: 'Puppyone CLI',
   agent: 'AI Agent',
-  filesystem: 'Local Folder',
+  filesystem: 'Git Remote',
   gmail: 'Gmail',
   google_sheets: 'Google Sheets',
   google_calendar: 'Google Calendar',
@@ -67,9 +67,9 @@ export const STATUS_LABEL: Record<string, string> = {
 // MCP / Sandbox / Third-party are user-created.
 
 export const CONNECTOR_GROUP_LABELS: Record<ConnectorGroupKey, string> = {
-  cli: 'CLI',
+  cli: 'Puppyone CLI',
   agent: 'Agent',
-  filesystem: 'Folder sync',
+  filesystem: 'Git Remote',
   mcp: 'MCP server',
   sandbox: 'Sandbox',
   integration: 'Third-party',

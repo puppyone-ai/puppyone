@@ -29,7 +29,7 @@ from src.mut_engine.server.scope_manager import ScopeManager
 
 from src.mut_engine.server.backends.supabase_audit import SupabaseAuditManager
 from src.mut_engine.server.backends.supabase_history import SupabaseHistoryManager
-from src.utils.logger import log_error
+from src.utils.logger import log_error, log_warning
 
 
 class PuppyOneServerRepo:
@@ -262,6 +262,74 @@ class PuppyOneServerRepo:
         self.set_head_commit_id(commit_id)
         self.record_audit(audit_event_type, audit_agent_id, audit_detail)
         return True, None
+
+    def publish_project_update(
+        self,
+        *,
+        old_root_hash: str,
+        new_root_hash: str,
+        commit_id: str,
+        who: str,
+        message: str,
+        changes: list,
+        conflicts: list | None,
+        created_at_iso: str,
+        audit_event_type: str,
+        audit_agent_id: str,
+        audit_detail: dict,
+    ) -> bool:
+        """Publish a product-level root transaction.
+
+        Frontend/product API writes use this path: one project-root CAS,
+        one history row, one audit row. Scope heads are derived afterwards
+        by the projection hook; they are not the user-visible commit
+        boundary for product operations.
+        """
+
+        publish = getattr(self.history, "publish_project_update", None)
+        if callable(publish):
+            try:
+                return publish(
+                    old_root_hash=old_root_hash,
+                    new_root_hash=new_root_hash,
+                    commit_id=commit_id,
+                    who=who,
+                    message=message,
+                    changes=changes,
+                    conflicts=conflicts,
+                    created_at_iso=created_at_iso,
+                    audit_event_type=audit_event_type,
+                    audit_agent_id=audit_agent_id,
+                    audit_detail=audit_detail,
+                )
+            except RuntimeError as exc:
+                if "publish_mut_project_update" not in str(exc):
+                    raise
+                log_warning(
+                    "[Publish] publish_mut_project_update is unavailable; "
+                    "falling back to compatibility project publish path. "
+                    "Apply the project-root publish migration for the "
+                    "single-RPC fast path."
+                )
+
+        if not self.cas_update_root_hash(old_root_hash, new_root_hash):
+            return False
+        self.history.set_scope_hash("", new_root_hash)
+        self.history.set_scope_head_commit_id("", commit_id)
+        self.record_history(
+            commit_id,
+            who,
+            message,
+            "",
+            changes,
+            conflicts,
+            root_hash=new_root_hash,
+            scope_hash=new_root_hash,
+            created_at_iso=created_at_iso,
+        )
+        self.set_head_commit_id(commit_id)
+        self.record_audit(audit_event_type, audit_agent_id, audit_detail)
+        return True
 
     def record_version_index(
         self,

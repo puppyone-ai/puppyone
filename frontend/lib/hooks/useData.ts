@@ -230,8 +230,8 @@ export function refreshContentNodes(projectId: string, dirPath: string | null) {
  * Refresh all directory caches for a project.
  *
  * Use ONLY when the set of changed folders is genuinely unknown
- * (external sync/MCP/bot pushes, supabase saves, file imports that
- * may span many folders). User-initiated mutations whose target
+ * (external sync/MCP/bot pushes, supabase saves, connector writes).
+ * User-initiated mutations whose target
  * folders are known should call ``refreshFolderNodes`` instead —
  * a single rename re-fetching every cached folder in the project
  * is what made saves feel slow.
@@ -279,6 +279,19 @@ export function refreshFolderNodes(
       mutate(['tree', projectId, folderPath], undefined, { revalidate: true }),
     ),
   ]);
+}
+
+/**
+ * Refresh project history wherever it is mounted. Mutating content
+ * should make the History page feel live even if the websocket event
+ * is delayed or the user navigates there immediately after the action.
+ */
+export function refreshProjectHistory(projectId: string) {
+  return mutate(
+    key => Array.isArray(key) && key[0] === 'project-history' && key[1] === projectId,
+    undefined,
+    { revalidate: true },
+  );
 }
 
 /**

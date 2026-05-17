@@ -11,6 +11,7 @@
 import React, { use, useState, useMemo } from 'react';
 import { get } from '@/lib/apiClient';
 import { PageLoading } from '@/components/loading';
+import { CHROME_LABEL_TYPOGRAPHY } from '@/lib/uiTypography';
 import useSWR from 'swr';
 
 interface AuditLogEntry {
@@ -232,35 +233,34 @@ export default function MonitorPage({ params }: { params: Promise<{ projectId: s
 
       {/* ── Page header ── */}
       <div style={{
-        height: 44, minHeight: 44, flexShrink: 0,
+        height: 46, minHeight: 46, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 20px',
-        borderBottom: '1px solid var(--po-border-subtle)',
+        padding: '0 16px',
+        borderBottom: '1px solid var(--po-divider)',
         background: 'var(--po-canvas)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{
-            fontSize: 16,
-            fontWeight: 600,
+            ...CHROME_LABEL_TYPOGRAPHY,
             color: 'var(--po-text)',
-            fontFamily: T.fontSans,
-            letterSpacing: 0,
           }}>
-            System Monitor
+            Monitor
           </span>
         </div>
 
         <div style={{
           display: 'flex', alignItems: 'center', gap: 6,
-          fontSize: 12, color: T.text2,
-          fontFamily: T.fontMono, letterSpacing: '0.03em',
+          fontSize: 12,
+          color: 'var(--po-text-disabled)',
+          fontFamily: T.fontSans,
+          letterSpacing: 0,
         }}>
           <span style={{
             width: 6, height: 6, borderRadius: '50%',
             background: 'var(--po-success)',
             animation: `puppyone-monitor-pulse 1.6s ${T.ease} infinite`,
           }} />
-          <span style={{ color: T.text2 }}>Live</span>
+          <span>Live</span>
           <span style={{ color: T.text4 }}>·</span>
           <span>{allLogs.length} event{allLogs.length === 1 ? '' : 's'}</span>
         </div>
