@@ -35,8 +35,15 @@ _PROMOTE_TRAILER_SOURCE = "scope-promote"
 def ancestor_scope_paths(repo, scope_path: str) -> list[str]:
     """Return ancestor scope paths (nearest first), including the root scope.
 
-    Falls back to a structural walk if the repo cannot enumerate scopes;
-    that keeps tests with partial fakes working.
+    Scope membership comes from ``repo_scopes`` (declarations), NOT from
+    ``mut_scope_state`` (runtime state). A scope that exists in the
+    project's geometry but has never received a commit must still
+    participate in ancestor walks — otherwise a child's first commit
+    silently promotes past the intended parent scope into ``""``,
+    leaving the parent's tree empty forever.
+
+    Falls back to a structural walk (no filtering) if the repo cannot
+    enumerate scopes — keeps tests with partial fakes working.
     """
 
     scope_norm = normalize_path(scope_path)
@@ -44,8 +51,12 @@ def ancestor_scope_paths(repo, scope_path: str) -> list[str]:
         return []
     declared: set[str] = set()
     try:
-        all_scopes = repo.get_all_scope_hashes()
-        declared = {normalize_path(p) for p in all_scopes.keys()}
+        get_paths = getattr(repo, "get_declared_scope_paths", None)
+        if callable(get_paths):
+            declared = {normalize_path(p) for p in get_paths()}
+        else:
+            # Legacy fallback: only scopes with state rows.
+            declared = {normalize_path(p) for p in repo.get_all_scope_hashes().keys()}
     except Exception:
         declared = set()
     ancestors: list[str] = []
