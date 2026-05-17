@@ -1,13 +1,14 @@
 """
-Post-commit hooks — maintain PuppyOne access_points table consistency after MUT writes.
+Post-commit hooks — keep ``repo_scopes`` consistent with tree mutations.
 
-These hooks update the access_points table when files are deleted or moved
-in the MUT tree, ensuring access point paths and scope paths stay consistent.
+When files/folders are deleted or moved in a PuppyOne project, scopes
+that referenced those paths need to follow the change (rename) or get
+surfaced as orphaned (delete). Both hooks are best-effort: failures
+log and don't propagate.
 
-Best-effort: failures are logged, not propagated to the caller.
-
-Also provides `push_and_finalize` — the canonical async helper that ensures
-every push (regardless of call site) triggers the post-push hook.
+Also provides ``push_and_finalize`` — the canonical async helper that
+ensures every push (regardless of call site) triggers the post-push
+hook.
 """
 
 from __future__ import annotations
@@ -128,6 +129,18 @@ def run_post_push_hook(
         # cannot block the just-landed child commit.
         _promote_to_ancestor_scopes(repo, project_id, entry, scope_path)
 
+        # Parent-commit triggers child re-graft: when a non-promote
+        # commit lands on a scope that has declared children, re-apply
+        # each child's current tree on top of the parent's new tree.
+        # Without this, a parent edit (delete / rename / overwrite) at
+        # a child-territory path would persist in the parent's view
+        # until the child happens to commit again. V1 spec §7 says
+        # child-owned paths re-surface via graft; this is what makes
+        # that actually happen.
+        _regraft_children_into_committed_scope(
+            repo, project_id, entry, scope_path,
+        )
+
         # Refresh the materialised fs_path_index so the next
         # `puppyone fs find` / `stat` query sees the new files (H1).
         # Best-effort: a Supabase blip degrades fs queries to live S3
@@ -183,6 +196,96 @@ def _refresh_fs_path_index(
         )
     except Exception as exc:
         log_warning(f"[PostCommit] fs_path_index refresh failed: {exc}")
+
+
+def _regraft_children_into_committed_scope(
+    repo, project_id: str, entry: dict, scope_path: str,
+) -> None:
+    """After a non-promote commit on ``scope_path``, re-graft each
+    declared child scope (immediate descendants only) back into the
+    committed scope's view. Bounded so it never triggers itself:
+
+      * scope-promote commits skip via the message-trailer check
+      * each child re-graft is a one-hop call into ``promote_to_parents``
+        for THIS scope only — the descendant's own ancestors above us
+        are skipped via ``ancestor_filter``.
+    """
+
+    message = entry.get("message", "") or ""
+    if "PuppyOne-Source: scope-promote" in message:
+        return
+
+    try:
+        from src.mut_engine.application.parent_scope_promote import (
+            promote_to_one_parent,
+        )
+        from src.mut_engine.application.path_utils import normalize_path
+    except Exception as exc:
+        log_warning(f"[PostCommit] re-graft import failed: {exc}")
+        return
+
+    parent_norm = normalize_path(scope_path)
+    try:
+        declared = repo.get_declared_scope_paths()
+    except Exception:
+        return
+
+    # Immediate children: declared scopes whose first ancestor under
+    # ``declared`` is ``parent_norm``. We compare against the declared
+    # set so an intermediate non-declared path doesn't accidentally
+    # block recognition (e.g. ``foo/bar/leaf`` with only ``foo`` and
+    # ``foo/bar/leaf`` declared is still an "immediate" child of foo).
+    children: list[str] = []
+    for d in declared:
+        d_norm = normalize_path(d)
+        if not d_norm:
+            continue
+        if parent_norm and not d_norm.startswith(parent_norm + "/"):
+            continue
+        if parent_norm == d_norm:
+            continue
+        # Walk up from d to see if parent_norm is the nearest declared
+        # ancestor.
+        nearest = ""
+        parts = d_norm.split("/")
+        for i in range(len(parts) - 1, 0, -1):
+            anc = "/".join(parts[:i])
+            if anc in declared and anc != d_norm:
+                nearest = anc
+                break
+        if nearest == parent_norm:
+            children.append(d_norm)
+
+    if not children:
+        return
+
+    actor = f"system:regraft-after-{entry.get('who') or 'commit'}"
+    created_at_iso = entry.get("created_at", "") or ""
+
+    for child in children:
+        try:
+            scope_hash, head_commit = repo.get_scope_state(child)
+        except Exception:
+            continue
+        if not scope_hash or not head_commit:
+            continue
+        try:
+            promote_to_one_parent(
+                repo,
+                project_id=project_id,
+                parent_scope_path=parent_norm,
+                child_scope_path=child,
+                child_new_tree_hash=scope_hash,
+                child_commit_actor=actor,
+                child_commit_id=head_commit,
+                created_at_iso=created_at_iso,
+                trailer_extra="PuppyOne-Regraft: post-parent-commit\n",
+            )
+        except Exception as exc:
+            log_warning(
+                f"[PostCommit] re-graft of child {child!r} into "
+                f"{parent_norm or '/'} failed: {exc}",
+            )
 
 
 def _promote_to_ancestor_scopes(repo, project_id: str, entry: dict, scope_path: str) -> None:
@@ -544,56 +647,13 @@ def _scope_intersects_paths(scope_path: str, changed_paths: list[str]) -> bool:
 
 
 def post_commit_delete(project_id: str, deleted_paths: list[str]) -> None:
-    """After deleting paths from MUT tree, clean up dangling access points
-    AND repo_scopes (the new home for scope geometry).
-
-    Both legacy access_points rows and new repo_scopes rows are visited;
-    each table's cleanup is independently best-effort so a failure on
-    one doesn't skip the other. Once access_points is dropped post-data-
-    migration, the legacy block runs and finds nothing — no-op.
+    """After deleting paths from the tree, surface any ``repo_scopes`` rows
+    whose path is now orphaned. Best-effort: failures log and don't
+    propagate.
     """
     if not deleted_paths:
         return
-    _post_commit_delete_legacy_access_points(project_id, deleted_paths)
     _post_commit_delete_repo_scopes(project_id, deleted_paths)
-
-
-def _post_commit_delete_legacy_access_points(
-    project_id: str, deleted_paths: list[str],
-) -> None:
-    """Legacy: nullify path / orphan scope on access_points rows."""
-    try:
-        from src.infra.supabase.client import SupabaseClient
-        client = SupabaseClient().client
-        resp = (
-            client.table("access_points")
-            .select("id, path, config")
-            .eq("project_id", project_id)
-            .execute()
-        )
-        for row in resp.data or []:
-            node_path = row.get("path") or ""
-            conn_id = row["id"]
-
-            if node_path and _path_matches_any(node_path, deleted_paths):
-                client.table("access_points").update(
-                    {"path": None}
-                ).eq("id", conn_id).execute()
-                log_info(f"[PostCommit] Cleared dangling path on access point {conn_id}")
-
-            config = row.get("config") or {}
-            scope = config.get("scope") or {}
-            scope_path = scope.get("path", "")
-            if scope_path and _path_matches_any(scope_path, deleted_paths):
-                config = dict(config)
-                config["scope"] = {**scope, "path": "", "_orphaned_from": scope_path}
-                client.table("access_points").update(
-                    {"config": config}
-                ).eq("id", conn_id).execute()
-                log_warning(f"[PostCommit] Orphaned scope path on access point {conn_id}")
-
-    except Exception as e:
-        log_error(f"[PostCommit] delete hook (access_points) failed: {e}")
 
 
 def _post_commit_delete_repo_scopes(
@@ -632,35 +692,10 @@ def _post_commit_delete_repo_scopes(
 
 
 def post_commit_move(project_id: str, old_prefix: str, new_prefix: str) -> None:
-    """After moving/renaming paths in MUT tree, update access point AND
-    repo_scopes references.
-
-    Both updates are best-effort + independent."""
-    _post_commit_move_legacy_access_points(project_id, old_prefix, new_prefix)
+    """After moving/renaming paths in the tree, rewrite ``repo_scopes.path``
+    so scopes that lived under ``old_prefix`` follow the move.
+    """
     _post_commit_move_repo_scopes(project_id, old_prefix, new_prefix)
-
-
-def _post_commit_move_legacy_access_points(
-    project_id: str, old_prefix: str, new_prefix: str,
-) -> None:
-    """Legacy: rewrite access_points.path / config.scope.path on rename."""
-    try:
-        from src.infra.supabase.client import SupabaseClient
-        client = SupabaseClient().client
-        resp = (
-            client.table("access_points")
-            .select("id, path, config")
-            .eq("project_id", project_id)
-            .execute()
-        )
-        for row in resp.data or []:
-            updates = _build_move_updates(row, old_prefix, new_prefix)
-            if updates:
-                client.table("access_points").update(updates).eq("id", row["id"]).execute()
-                log_info(f"[PostCommit] Updated access point {row['id']} after move")
-
-    except Exception as e:
-        log_error(f"[PostCommit] move hook (access_points) failed: {e}")
 
 
 def _post_commit_move_repo_scopes(
@@ -705,27 +740,6 @@ def _post_commit_move_repo_scopes(
                 )
     except Exception as e:
         log_error(f"[PostCommit] move hook (repo_scopes) failed: {e}")
-
-
-def _build_move_updates(row: dict, old_prefix: str, new_prefix: str) -> dict:
-    """Build update dict for a single access point row after a path move."""
-    updates: dict = {}
-
-    node_path = row.get("path") or ""
-    if node_path:
-        new_node_path = _rewrite_path(node_path, old_prefix, new_prefix)
-        if new_node_path != node_path:
-            updates["path"] = new_node_path
-
-    config = row.get("config") or {}
-    scope = config.get("scope") or {}
-    scope_path = scope.get("path", "")
-    if scope_path:
-        new_scope_path = _rewrite_path(scope_path, old_prefix, new_prefix)
-        if new_scope_path != scope_path:
-            updates["config"] = {**config, "scope": {**scope, "path": new_scope_path}}
-
-    return updates
 
 
 def _path_matches_any(path: str, deleted_paths: list[str]) -> bool:

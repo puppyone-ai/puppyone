@@ -40,6 +40,7 @@ from src.mut_engine.services.tree_splice import (
     splice_mkdir,
     splice_move,
     splice_put_blob,
+    splice_put_blob_ref,
     splice_remove,
     splice_touch,
 )
@@ -112,18 +113,21 @@ class MutOps:
         expected_head_commit_id: str | None = None,
         allow_same_tree_commit: bool = False,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ):
         intent = OperationWriteIntent(
             project_id=project_id,
             scope_path=scope,
             actor=who,
-            source_channel="papi",
+            source_channel=source_channel,
             operation_type=op_type,
             message=message,
             audit_detail=audit_detail or {},
             expected_head_commit_id=expected_head_commit_id,
             allow_same_tree_commit=allow_same_tree_commit,
             defer_projection=defer_projection,
+            policy_override=policy,
         )
         if scope:
             return await self._engine.apply_operation(intent, splice_fn)
@@ -143,12 +147,24 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Write a single file (create or update).
 
-        Product/API writes default to the project root. Scoped access
-        point callers pass ``scope`` explicitly, preserving their
-        per-scope CAS boundary without leaking it into frontend history.
+        Product/API writes default to the project root, but are then
+        routed to the narrowest existing MUT scope that contains
+        ``path`` so graft can preserve them (a write into the root
+        scope at a path that belongs to a sub-scope is wholesale
+        replaced by the sub-scope's tree during graft — the commit
+        lands but the read path never sees it). Scoped access point
+        callers pass ``scope`` explicitly, preserving their per-scope
+        CAS boundary without leaking it into frontend history.
+
+        ``policy`` lets the caller opt into a stricter conflict policy
+        (e.g. ``"manual_review"``) than the configured rule set would
+        select on its own — the engine queues conflicts in
+        ``mut_conflicts`` instead of silently merging via LWW.
         """
         path = validate_path(path)
         target_scope, rel_path = self._resolve_write_target(
@@ -166,6 +182,8 @@ class MutOps:
             audit_detail={"path": path, "size": len(content)},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         return _to_result(result, [path])
 
@@ -178,19 +196,29 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Delete one or more files.
 
-        Product/API deletes default to one project-root transaction.
-        Scoped access point callers pass ``scope`` explicitly, in which
-        case all paths are relative to that scope and produce one scoped
-        commit.
+        Product/API deletes default to one project-root transaction,
+        but each path is then routed to the narrowest scope that
+        contains it. Mixing paths from different scopes results in one
+        commit per scope. Returns the FIRST commit; in practice all
+        paths usually share one scope and there's only one push.
+        Scoped access point callers pass ``scope`` explicitly, in
+        which case all paths are relative to that scope and produce
+        one scoped commit.
+
+        ``policy`` / ``source_channel`` flow through to the engine's
+        conflict-policy selection (e.g. ``manual_review`` queues
+        ambiguous deletes rather than silently winning LWW).
         """
         clean = [validate_path(p) for p in paths]
         if scope:
             return await self._delete_in_scope(
                 project_id, scope, clean, who, message, base_commit_id,
-                defer_projection,
+                defer_projection, policy=policy, source_channel=source_channel,
             )
 
         groups = self._group_paths_by_scope(project_id, clean)
@@ -202,7 +230,7 @@ class MutOps:
         for target_scope, rel_paths in groups.items():
             r = await self._delete_in_scope(
                 project_id, target_scope, rel_paths, who, message, base_commit_id,
-                defer_projection,
+                defer_projection, policy=policy, source_channel=source_channel,
             )
             first_result = first_result or r
         return first_result or WriteResult(paths=clean)
@@ -216,6 +244,9 @@ class MutOps:
         message: str,
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        *,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         def splice_fn(store, root_hash):
             return splice_remove(store, root_hash, rel_paths)
@@ -228,6 +259,8 @@ class MutOps:
             audit_detail={"paths": rel_paths},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         full_paths = [
             self._join_scope_path(scope, p) for p in rel_paths
@@ -243,6 +276,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Create a directory (writes a ``.keep`` placeholder).
 
@@ -273,6 +308,8 @@ class MutOps:
             audit_detail={"path": path},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         return _to_result(result, [path])
 
@@ -286,6 +323,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Move / rename a file or folder.
 
@@ -310,8 +349,37 @@ class MutOps:
                 f"{new_path!r} (scope={new_scope!r})",
             )
 
+        # Capture the source blob hash from the CURRENT scope tree
+        # BEFORE we hand off to the engine. If a concurrent writer
+        # renames or deletes ``old_rel`` between now and our CAS retry's
+        # splice, the salvage path below uses this hash to recreate the
+        # rename's add-side at ``new_rel``. This preserves the user's
+        # intent ("the file I started from should end up at new_rel")
+        # even when their src token is no longer in the tree.
+        salvage_blob_hash = self._lookup_blob_hash(
+            project_id, old_scope, old_rel,
+        )
+
         def splice_fn(store, root_hash):
-            return splice_move(store, root_hash, old_rel, new_rel)
+            try:
+                return splice_move(store, root_hash, old_rel, new_rel)
+            except FileNotFoundError:
+                if not salvage_blob_hash:
+                    raise
+                # ``old_rel`` vanished underneath us (concurrent rename
+                # or delete by another writer). Recreate the rename's
+                # add-side using the blob we captured at submit time so
+                # the new file lands as intended. The delete-side is
+                # already realized by the concurrent op — no further work.
+                from src.utils.logger import log_info
+                log_info(
+                    f"[move] source {old_rel!r} missing in scope tree "
+                    f"during retry; salvaging via base blob "
+                    f"{salvage_blob_hash[:12]} → {new_rel!r}",
+                )
+                return splice_put_blob_ref(
+                    store, root_hash, new_rel, salvage_blob_hash,
+                )
 
         result = await self._apply_operation(
             project_id, old_scope, splice_fn,
@@ -321,6 +389,8 @@ class MutOps:
             audit_detail={"old_path": old_path, "new_path": new_path},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
 
         # Best-effort secondary index update — keeps access_points and
@@ -350,6 +420,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Copy a file or folder without downloading blob contents."""
         old_path = validate_path(old_path)
@@ -380,6 +452,8 @@ class MutOps:
             audit_detail={"old_path": old_path, "new_path": new_path},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         return _to_result(result, [old_path, new_path])
 
@@ -392,6 +466,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Update mtime for existing files without changing blob content."""
         clean = [validate_path(p) for p in paths]
@@ -419,6 +495,8 @@ class MutOps:
             expected_head_commit_id=base_commit_id,
             allow_same_tree_commit=True,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         full_paths = [self._join_scope_path(target_scope, p) for p in rel_paths]
         return _to_result(result, full_paths)
@@ -432,6 +510,8 @@ class MutOps:
         deleted: list[str] | None = None,
         message: str = "",
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Batch write + optional batch delete.
 
@@ -447,6 +527,7 @@ class MutOps:
                 {k: clean[k] for k in clean},
                 clean_del,
                 who, message, defer_projection,
+                policy=policy, source_channel=source_channel,
             )
 
         write_groups = self._group_paths_by_scope(
@@ -466,6 +547,7 @@ class MutOps:
                 project_id, target_scope,
                 rel_files, rel_dels, who, message,
                 defer_projection,
+                policy=policy, source_channel=source_channel,
             )
             first_result = first_result or r
         return first_result or WriteResult(
@@ -481,6 +563,9 @@ class MutOps:
         who: str,
         message: str,
         defer_projection: bool = False,
+        *,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         ops: list[tuple] = []
         ops.extend(("put", path, content) for path, content in rel_files.items())
@@ -496,6 +581,8 @@ class MutOps:
             who=who,
             message=message or f"bulk write {len(rel_files)} files",
             op_type="bulk_write",
+            policy=policy,
+            source_channel=source_channel,
             audit_detail={
                 "writes": len(rel_files),
                 "deletes": len(rel_dels),
@@ -1056,6 +1143,40 @@ class MutOps:
         if not rel:
             return scope
         return f"{scope}/{rel}"
+
+    def _lookup_blob_hash(
+        self, project_id: str, scope: str, rel_path: str,
+    ) -> str:
+        """Resolve the blob hash for ``scope/rel_path`` in the CURRENT
+        scope state. Returns an empty string when the path doesn't exist
+        or refers to a directory. Best-effort: any tree-walk failure
+        produces ``""`` so callers can use it as an "optional fallback".
+        """
+
+        try:
+            from src.mut_engine.application import tree as tree_mod
+
+            repo = self._repos.get_server_repo(project_id)
+            scope_hash = repo.get_scope_hash(scope) or ""
+            if not scope_hash:
+                return ""
+            parts = [p for p in rel_path.strip("/").split("/") if p]
+            if not parts:
+                return ""
+            current = scope_hash
+            for part in parts[:-1]:
+                entries = tree_mod.read_tree(repo.store, current)
+                typ, child = entries.get(part, (None, None))
+                if typ != "T":
+                    return ""
+                current = child
+            entries = tree_mod.read_tree(repo.store, current)
+            typ, hash_val = entries.get(parts[-1], (None, None))
+            if typ != "B":
+                return ""
+            return hash_val or ""
+        except Exception:
+            return ""
 
 
 # ══════════════════════════════════════════════════
