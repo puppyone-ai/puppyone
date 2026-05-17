@@ -445,16 +445,22 @@ def _resolve_modify_delete(
         ))
         merged[path] = ours
         return
-    # LWW: incoming wins → the file ends up deleted.
+    # V1 contract: modify wins over delete in BOTH directions (this is
+    # what ``merge.py:three_way_merge`` already does for the same
+    # shape). Keeping the modify side is the safer default — silently
+    # deleting work product would lose data — and it mirrors the
+    # delete/modify branch above which keeps ``theirs`` (the modify).
+    # Without putting ours into ``merged`` here, ``_merge_on_cas_retry``'s
+    # "drop unknown path" splice would actually delete the file.
+    merged[path] = ours
     lww_records.append(ConflictRecord(
         path=path,
-        strategy="lww",
-        detail="incoming deleted, server modified; LWW honors deletion",
-        kept="theirs",
-        lost_content=ours.decode(errors="replace")[:500],
-        lost_hash=hash_bytes(ours),
+        strategy="modify_delete",
+        detail="incoming deleted, server modified; modify wins (keep ours)",
+        kept="ours",
+        lost_content="",
+        lost_hash="",
     ))
-    # explicit no-op: leave path out of ``merged``.
 
 
 def _rule_scope_matches(rule: ConflictPolicyRule, scope_norm: str) -> bool:
