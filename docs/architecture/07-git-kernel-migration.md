@@ -81,7 +81,28 @@ git receive-pack
 The Git client is allowed to submit Git-native commits. It is not allowed
 to bypass PuppyOne scope policy or conflict policy.
 
-### 2.3 Conflict Semantics
+### 2.3 Product Operations At Root Scope
+
+Frontend/Data-page operations are project-level product actions, not
+implicit scoped Git pushes. Save, delete, move, copy, folder upload, and
+batch upload publish through a project-root CAS transaction by default:
+
+```text
+Product API / Web / CLI file action
+  -> OperationWriteIntent(scope="")
+  -> GitNativeTransactionEngine.apply_project_operation
+  -> CAS projects.mut_root_hash
+  -> one root commit + one history row + one audit row
+  -> derive child scope refs from the accepted root
+```
+
+This is the boundary that prevents internal access-point scopes from
+leaking into user-visible frontend history. A browser folder delete should
+not become several commits because the folder contains child scopes.
+Child scope heads remain current for Git/AP reads and merges, but those
+scope-view commits are derived refs, not product commits.
+
+### 2.4 Conflict Semantics
 
 - Non-overlapping path edits should merge automatically.
 - True same-file conflicts can produce a pending conflict instead of
@@ -91,7 +112,7 @@ to bypass PuppyOne scope policy or conflict policy.
 - Client-submitted merge commits should remain rejected or explicitly
   policy-gated until the product supports them intentionally.
 
-### 2.4 Storage Safety
+### 2.5 Storage Safety
 
 - Object writes are fail-loud. A commit must not publish if required
   objects were not durably stored.
@@ -101,7 +122,7 @@ to bypass PuppyOne scope policy or conflict policy.
 - Object GC must preserve all roots reachable from active refs, pending
   conflicts, version index entries, and outbox work.
 
-### 2.5 Latency
+### 2.6 Latency
 
 The migration must protect the current 5 to 6 second class target for
 normal scoped Git writes.

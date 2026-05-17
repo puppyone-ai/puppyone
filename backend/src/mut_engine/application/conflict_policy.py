@@ -7,9 +7,12 @@ V1 policy stack (per docs/architecture/07-version-engine-supplement.md §7):
   2. Parent-scope-wins resolves cross-scope same-path overlaps. The parent
      scope's content stays; the child scope's write is audited but dropped
      from the merged file set.
-  3. The configured default policy applies to the remaining unsafe
-     conflicts. The shipped default is ``last_write_wins``;
-     ``manual_review`` and the future agent policies are opt-in.
+  3. Access-point Git pushes from scope-bound credentials default to
+     ``manual_review`` for remaining unsafe conflicts, because those are
+     user-facing collaboration writes.
+  4. The configured default policy applies to the rest. The shipped
+     baseline is ``last_write_wins``; explicit admin rules can choose
+     ``manual_review`` or the future agent policies for any dimension.
 """
 
 from __future__ import annotations
@@ -84,6 +87,12 @@ def select_conflict_policy(
             policy=rule.policy,
             reason=f"rule_match:{rule.policy}",
             resolver=dict(rule.resolver),
+        )
+
+    if source_channel == "git" and actor_kind == "scope":
+        return ConflictPolicyDecision(
+            policy="manual_review",
+            reason="default:scope_git_manual_review",
         )
 
     return ConflictPolicyDecision(

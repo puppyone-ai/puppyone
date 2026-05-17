@@ -6,6 +6,7 @@ import { SupabaseConnectDialog } from '@/components/SupabaseConnectDialog';
 import { SupabaseSQLEditorDialog } from '@/components/SupabaseSQLEditorDialog';
 import { NodeRenameDialog } from '@/components/NodeRenameDialog';
 import { MoveToDialog } from '@/components/MoveToDialog';
+import { BulkDeleteDialog } from './BulkDeleteDialog';
 
 export interface DataPageDialogsProps {
   projectId: string;
@@ -24,6 +25,11 @@ export interface DataPageDialogsProps {
   moveDialogTarget: { id: string; name: string; mut_path?: string } | null;
   onMoveConfirm: (nodeId: string, targetFolderId: string | null) => Promise<void>;
   onCloseMove: () => void;
+
+  // Delete
+  deleteDialogTarget: { id: string; name: string } | null;
+  onDeleteConfirm: () => Promise<void>;
+  onCloseDelete: () => void;
 
   // Table manage dialog
   createTableOpen: boolean;
@@ -57,6 +63,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
     projectId, currentFolderId, projects, activeProject,
     renameDialogOpen, renameTargetName, renameError, onCloseRename, onRenameConfirm,
     moveDialogTarget, onMoveConfirm, onCloseMove,
+    deleteDialogTarget, onDeleteConfirm, onCloseDelete,
     createTableOpen, onCloseCreateTable, defaultStartOption,
     createFolderOpen, onCloseFolderDialog, onFolderSuccess,
     supabaseConnectOpen, onCloseSupabaseConnect, onSupabaseConnected,
@@ -87,6 +94,19 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
             await onMoveConfirm(moveDialogTarget.id, targetFolderId);
           }}
           onClose={onCloseMove}
+        />
+      )}
+
+      {deleteDialogTarget && (
+        <BulkDeleteDialog
+          open={true}
+          paths={[deleteDialogTarget.id]}
+          title={`Delete "${deleteDialogTarget.name}"`}
+          noticeTitle={`Delete "${deleteDialogTarget.name}"?`}
+          description="This removes the item from the current tree. Previous versions stay recoverable from Puppyone history."
+          confirmLabel="Delete"
+          onClose={onCloseDelete}
+          onConfirm={onDeleteConfirm}
         />
       )}
 

@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import re
+import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
 
 from src.mut_engine.application.git_object_format import decode_commit, encode_commit
 
 HEX_40 = re.compile(r"^[0-9a-f]{40}$")
+_COMPAT_CACHE_MAX = 4096
+_compat_cache: OrderedDict[tuple[str, str], str] = OrderedDict()
+_compat_cache_lock = threading.Lock()
 
 
 class GitCommitInvariantError(ValueError):
@@ -52,6 +57,7 @@ def build_git_commit(
     message: str,
     created_at_iso: str,
     trailers: dict | None = None,
+    validate_parent_graph: bool = True,
 ) -> str:
     """Store a real Git commit object and return its SHA-1 object id.
 
@@ -69,7 +75,7 @@ def build_git_commit(
     """
 
     assert_git_tree(repo, tree_sha)
-    if parent_sha:
+    if parent_sha and validate_parent_graph:
         assert_git_compatible_commit(repo, parent_sha)
 
     ts, tz = format_git_time(created_at_iso)
@@ -84,7 +90,9 @@ def build_git_commit(
         committer_time=f"{ts} {tz}",
         message=final_message,
     )
-    return repo.store.put_commit(commit_body)
+    commit_id = repo.store.put_commit(commit_body)
+    _remember_git_compatibility(repo, commit_id, "")
+    return commit_id
 
 
 def compose_commit_message(message: str, trailers: dict | None) -> str:
@@ -145,6 +153,15 @@ def git_compatibility_error(repo, commit_id: str) -> str:
 
     if not commit_id:
         return ""
+    cached = _cached_git_compatibility(repo, commit_id)
+    if cached is not None:
+        return cached
+    error = _compute_git_compatibility_error(repo, commit_id)
+    _remember_git_compatibility(repo, commit_id, error)
+    return error
+
+
+def _compute_git_compatibility_error(repo, commit_id: str) -> str:
     if not is_git_object_id(commit_id):
         return f"commit id is not a Git object id: {commit_id!r}"
 
@@ -181,6 +198,32 @@ def git_compatibility_error(repo, commit_id: str) -> str:
                 return f"commit {current} has invalid parent id: {parent!r}"
             stack.append(parent)
     return ""
+
+
+def _repo_cache_key(repo, commit_id: str) -> tuple[str, str]:
+    project_id = getattr(repo, "_project_id", None)
+    if not project_id:
+        project_id = str(id(getattr(repo, "store", repo)))
+    return str(project_id), commit_id
+
+
+def _cached_git_compatibility(repo, commit_id: str) -> str | None:
+    key = _repo_cache_key(repo, commit_id)
+    with _compat_cache_lock:
+        cached = _compat_cache.get(key)
+        if cached is None:
+            return None
+        _compat_cache.move_to_end(key)
+        return cached
+
+
+def _remember_git_compatibility(repo, commit_id: str, error: str) -> None:
+    key = _repo_cache_key(repo, commit_id)
+    with _compat_cache_lock:
+        _compat_cache[key] = error
+        _compat_cache.move_to_end(key)
+        while len(_compat_cache) > _COMPAT_CACHE_MAX:
+            _compat_cache.popitem(last=False)
 
 
 def commit_tree_id(repo, commit_id: str) -> str:

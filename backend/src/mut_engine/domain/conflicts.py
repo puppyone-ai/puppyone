@@ -8,8 +8,10 @@ The V1 policy stack — per docs/architecture/07-version-engine-supplement.md
   2. parent-scope-wins for cross-scope same-path overlaps. Parent content
      overrides child content; child writes are audited as
      ``superseded_by_parent`` but not published.
-  3. last_write_wins for everything else (default).
-  4. manual_review can be opted into per project / scope / path-glob /
+  3. manual_review for scope-bound Access Point Git writes, unless an
+     admin-owned rule says otherwise.
+  4. last_write_wins for the remaining default path.
+  5. manual_review can also be opted into per project / scope / path-glob /
      actor / source.
 
 Future policies (``agent_review`` / ``agent_auto_resolve``) are modelled

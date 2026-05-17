@@ -33,7 +33,10 @@ from typing import Any, Callable
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.dependencies import get_repo_manager_standalone
-from src.mut_engine.services.hooks import run_post_push_hook
+from src.mut_engine.services.hooks import (
+    run_post_project_update_hook,
+    run_post_push_hook,
+)
 from src.utils.logger import log_error, log_info, log_warning
 
 
@@ -76,7 +79,8 @@ def process_version_outbox_batch(
 
     for row in rows:
         row_id = row.get("id")
-        event_type = row.get("event_type", "version_committed")
+        payload = row.get("payload") or {}
+        event_type = row.get("event_type") or payload.get("event_type") or "version_committed"
         try:
             _dispatch_row(event_type, row, repos)
             _complete_row(db, row_id)
@@ -105,6 +109,27 @@ def _dispatch_row(event_type: str, row: dict[str, Any], repos) -> None:
                 "status": "ok",
                 "commit_id": row.get("commit_id", ""),
                 "root": payload.get("scope_hash", ""),
+                "merged": bool(payload.get("merged", False)),
+                "conflicts": int(payload.get("conflicts") or 0),
+            },
+            raise_errors=True,
+        )
+        return
+
+    if event_type == "project_version_committed":
+        payload = row.get("payload") or {}
+        hook_root = (
+            payload.get("project_root_hash")
+            or payload.get("root_hash")
+            or payload.get("scope_hash", "")
+        )
+        run_post_project_update_hook(
+            row["project_id"],
+            repos,
+            {
+                "status": "ok",
+                "commit_id": row.get("commit_id", ""),
+                "root": hook_root,
                 "merged": bool(payload.get("merged", False)),
                 "conflicts": int(payload.get("conflicts") or 0),
             },
