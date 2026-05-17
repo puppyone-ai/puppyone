@@ -2403,24 +2403,28 @@ H_CASES = [
         ),
         expected=Expected(
             writer_outcomes=("committed", "committed"),
+            # ImportMergeStrategy produces a sorted union of every
+            # import that appears in any of base/ours/theirs. Body lines
+            # after the import block come straight from the base tail.
             final_state={
                 "mod.py":
-                    b"import os\nimport sys\n\n\ndef main():\n    pass\n",
+                    b"import json\nimport os\nimport sys\n"
+                    b"def main():\n    pass\n",
             },
-            strategy="lww",
+            strategy="import_merge",
         ),
         ground_truth=GroundTruth(
             final_state={
                 "mod.py":
-                    b"import json\nimport os\nimport sys\n\n\n"
+                    b"import json\nimport os\nimport sys\n"
                     b"def main():\n    pass\n",
             },
             rationale=(
                 "Import additions are commutative — the canonical Python "
-                "convention is sorted top-level imports. An ideal "
-                "resolver applies a domain rule: union and re-sort."
+                "convention is sorted top-level imports. ImportMergeStrategy "
+                "applies the domain rule: union and re-sort."
             ),
-            category="domain_rule",
+            category="engine_correct",
         ),
     ),
     ConflictCase(
