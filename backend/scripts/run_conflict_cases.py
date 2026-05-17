@@ -578,13 +578,14 @@ class CaseRunner:
 
     @staticmethod
     def _skip_reason(case: ConflictCase) -> str:
-        # Multi-scope cases reference scopes by relative path; some shapes
-        # (cross-scope move, root-scope auto-routing) interact with the
-        # global scope tree which our test namespace can't easily mirror.
-        if len(case.scopes) > 1:
+        # Multi-scope cases work as long as none of their writers expect
+        # the scope-mode HTTP enforcement (the engine doesn't enforce
+        # read-only at the in-process API). Cross-scope move is a
+        # separate engine restriction we can't bypass in the runner.
+        if any(mode == "r" for _, mode in case.scopes):
             return (
-                "multi-scope case — runner only drives root scope reliably; "
-                "scope-routing semantics depend on global tree geometry"
+                "case requires read-only scope mode enforcement (HTTP layer, "
+                "not MutOps in-process)"
             )
         for w in case.writers:
             if w.operation in CaseRunner._UNSUPPORTED_OPS:
