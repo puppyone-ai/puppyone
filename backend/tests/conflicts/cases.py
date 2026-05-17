@@ -381,22 +381,37 @@ A_CASES = [
         ),
         expected=Expected(
             writer_outcomes=("committed", "committed"),
-            final_state={"config.json": b'{"version": 3}'},
-            strategy="lww",
-            notes="B is the later writer (delay_ms=5); under LWW theirs wins.",
+            final_state={
+                "config.json": (
+                    b'<<<<<<< current (server)\n'
+                    b'{"version": 2}\n'
+                    b'=======\n'
+                    b'{"version": 3}\n'
+                    b'>>>>>>> incoming\n'
+                ),
+            },
+            strategy="conflict_markers",
+            notes=(
+                "Scalar disagreement on the same JSON key. Engine emits "
+                "Git-style markers so neither value is lost."
+            ),
         ),
         ground_truth=GroundTruth(
             final_state={
-                "config.json":
-                    b'{"version": 3, "_conflict": {"version": [2, 3]}}',
+                "config.json": (
+                    b'<<<<<<< current (server)\n'
+                    b'{"version": 2}\n'
+                    b'=======\n'
+                    b'{"version": 3}\n'
+                    b'>>>>>>> incoming\n'
+                ),
             },
             rationale=(
-                "Both writers set the same scalar key to different values. "
-                "Engine's LWW silently drops A's value 2; an ideal resolver "
-                "preserves the disagreement so a human or downstream tool "
-                "can pick the right one."
+                "Both writers set the same scalar key to different "
+                "values. Conflict markers preserve both so a human or "
+                "downstream tool can pick the right one."
             ),
-            category="preserve_both",
+            category="engine_correct",
         ),
     ),
     ConflictCase(

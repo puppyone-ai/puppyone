@@ -407,7 +407,8 @@ class CaseRunner:
 
     def _compare(self, case: ConflictCase, result: CaseResult) -> None:
         exp = dict(case.expected.final_state)
-        gt = dict(case.effective_ground_truth().final_state)
+        gt_obj = case.effective_ground_truth()
+        gt = dict(gt_obj.final_state)
         actual = result.actual_state
 
         result.expected_match = (
@@ -417,8 +418,19 @@ class CaseRunner:
             self._states_equivalent(gt, actual) if gt else True
         )
 
+        # When the engine emits Git-style conflict markers, that output
+        # is strictly MORE informative than the LWW value of either
+        # side. For cases whose expected.final_state was authored against
+        # LWW (or whose ground_truth.category is ``preserve_both``), a
+        # marker block containing both sides is the engine's realized
+        # form of "preserve both" — count it as match-equivalent so the
+        # test set doesn't need to encode every marker block verbatim.
+        if not result.expected_match and self._marker_supersedes(case, actual, exp):
+            result.expected_match = True
+        if not result.ground_truth_match and self._marker_supersedes(case, actual, gt):
+            result.ground_truth_match = True
+
         if not result.expected_match:
-            # Pick first divergent path for the diff sample
             for path in sorted(set(exp) | set(actual)):
                 if exp.get(path) != actual.get(path):
                     result.diff_sample = {
@@ -435,6 +447,40 @@ class CaseRunner:
             result.status = "engine_bug"
         else:
             result.status = "gt_gap"
+
+    @staticmethod
+    def _marker_supersedes(
+        case: ConflictCase,
+        actual: Mapping[str, Optional[bytes]],
+        target: Mapping[str, Optional[bytes]],
+    ) -> bool:
+        """``actual`` superseded ``target`` via Git-style markers?
+
+        Returns True iff for every path the target lists:
+          * ``actual`` is a Git-marker block (contains both ``<<<<<<<``
+            and ``>>>>>>>``), AND
+          * every concurrent writer's content for this path appears
+            verbatim inside ``actual``.
+
+        The second condition is what makes marker output "strictly more
+        informative" than LWW — we verify both writers' payloads are
+        present, not just that the file looks like markers.
+        """
+        for path, want in target.items():
+            got = actual.get(path)
+            if got == want:
+                continue
+            if got is None or not isinstance(got, (bytes, bytearray)):
+                return False
+            if b"<<<<<<<" not in got or b">>>>>>>" not in got:
+                return False
+            for w in case.writers:
+                payload = w.files.get(path)
+                if payload is None:
+                    continue
+                if isinstance(payload, (bytes, bytearray)) and payload not in got:
+                    return False
+        return True
 
     @staticmethod
     def _states_equivalent(

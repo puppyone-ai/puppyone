@@ -346,11 +346,22 @@ def _apply_policy_to_unsafe_conflict(
 _MARKER_MAX_BYTES = 200_000
 
 
+_MARKER_OPEN = b"<<<<<<< "
+_MARKER_CLOSE = b">>>>>>> "
+
+
 def _try_conflict_markers(ours: bytes, theirs: bytes) -> bytes | None:
     """Produce Git-style conflict markers for text files.
 
-    Returns ``None`` for binary content (not UTF-8 decodable) or content
-    over ``_MARKER_MAX_BYTES`` — those still go through legacy LWW.
+    Returns ``None`` for:
+      * binary content (not UTF-8 decodable)
+      * content over ``_MARKER_MAX_BYTES``
+      * content that already contains conflict markers — stacking
+        markers on top of markers (e.g. 3-way / serialized retries)
+        produces unreadable output. When that happens we fall back
+        to legacy LWW so the marker depth never exceeds 1.
+
+    Those edge cases still go through legacy LWW.
     """
 
     if len(ours) > _MARKER_MAX_BYTES or len(theirs) > _MARKER_MAX_BYTES:
@@ -359,6 +370,8 @@ def _try_conflict_markers(ours: bytes, theirs: bytes) -> bytes | None:
         ours.decode("utf-8")
         theirs.decode("utf-8")
     except UnicodeDecodeError:
+        return None
+    if _MARKER_OPEN in ours or _MARKER_OPEN in theirs:
         return None
     parts: list[bytes] = []
     parts.append(b"<<<<<<< current (server)\n")
