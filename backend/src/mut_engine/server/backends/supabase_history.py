@@ -42,7 +42,7 @@ import json
 
 from src.infra.supabase.client import SupabaseClient
 from src.mut_engine.server.backends import safe_data as _safe_data
-from src.utils.logger import log_error, log_info
+from src.utils.logger import log_error, log_info, log_warning
 
 
 class SupabaseHistoryManager:
@@ -352,6 +352,61 @@ class SupabaseHistoryManager:
             raise RuntimeError(
                 "atomic publish RPC not available — version writes require "
                 "publish_mut_scope_update. Original error: "
+                f"{e}"
+            ) from e
+
+    def publish_project_update(
+        self,
+        *,
+        old_root_hash: str,
+        new_root_hash: str,
+        commit_id: str,
+        who: str,
+        message: str,
+        changes: list,
+        conflicts: list | None,
+        created_at_iso: str,
+        audit_event_type: str,
+        audit_agent_id: str,
+        audit_detail: dict,
+    ) -> bool:
+        """Atomically publish a project-root product transaction."""
+
+        try:
+            resp = self._client.rpc("publish_mut_project_update", {
+                "p_project_id": self._project_id,
+                "p_old_root_hash": old_root_hash or "",
+                "p_new_root_hash": new_root_hash,
+                "p_head_commit_id": commit_id,
+                "p_who": who,
+                "p_message": message or "",
+                "p_event_type": audit_event_type,
+                "p_changes": changes or [],
+                "p_conflicts": _serialize_conflicts(conflicts) if conflicts else None,
+                "p_created_at": created_at_iso or "",
+                "p_audit_agent_id": audit_agent_id,
+                "p_audit_detail": audit_detail or {},
+            }).execute()
+            data = resp.data
+            if isinstance(data, bool):
+                ok = data
+            elif isinstance(data, list) and data:
+                ok = bool(data[0])
+            else:
+                ok = False
+            if ok:
+                for attr in ("_head_cid_cache", "_root_hash_cache"):
+                    if hasattr(self, attr):
+                        delattr(self, attr)
+            return ok
+        except Exception as e:
+            log_warning(
+                f"[Publish] publish_mut_project_update RPC failed: {e}. "
+                "Deploy the SQL migration first."
+            )
+            raise RuntimeError(
+                "atomic publish RPC not available — product-root writes "
+                "require publish_mut_project_update. Original error: "
                 f"{e}"
             ) from e
 

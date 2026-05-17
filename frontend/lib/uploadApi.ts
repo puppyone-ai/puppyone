@@ -590,7 +590,7 @@ export async function completeMultipartUpload(
 /**
  * Batch finalize: ship N completed multipart uploads to the backend
  * in a single round-trip. The backend collapses them into ONE
- * version-control commit per scope (instead of N), which:
+ * project-root version-control commit (instead of N), which:
  *   * cuts wall-clock for an N-file folder upload from ``N × ~2s``
  *     to ``~2s + a few ms per file``
  *   * collapses N near-identical "Upload foo.pdf" entries in the

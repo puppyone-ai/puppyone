@@ -670,11 +670,13 @@ the same transaction engine as Git and MUT submissions.
 
 In the current codebase, `MutOps` is the concrete implementation of this
 adapter role for Web/PAPI-1/AP-FS style operations. It should remain thin:
-it may route paths to the narrowest scope, validate operation shape, build
-tree splice functions, and attach operation metadata. It must not decide
-final commit identity, publish refs, write accepted-write audit rows, or
-own conflict policy. Those decisions belong to
-`GitNativeTransactionEngine`.
+it validates operation shape, builds tree splice functions, attaches
+operation metadata, and chooses a scope only when the caller supplied an
+explicit scoped surface. Product/Web/Data-page operations are repository
+root operations by default. `MutOps` must not infer a child scope from a
+frontend path, decide final commit identity, publish refs, write
+accepted-write audit rows, or own conflict policy. Those decisions belong
+to `GitNativeTransactionEngine`.
 
 The practical distinction is:
 
@@ -854,26 +856,29 @@ modify paths owned by another scope, the server rejects it and the caller
 must split the work into separate commits/pushes against the correct
 scope remotes.
 
-Product operations may still accept a multi-path payload. In that case,
-the product operation adapter decomposes it into ordered per-scope
-transactions:
+Product operations may still accept a multi-path payload. In the
+Product/Web/Data-page surface, that payload is a single repository-root
+user action:
 
 ```
-incoming multi-scope intent
-  -> scope A transaction -> commit/head/audit for scope A
-  -> scope B transaction -> commit/head/audit for scope B
-  -> optional project-view projection refresh
+incoming product multi-path intent
+  -> project-root CAS transaction
+  -> one root commit/head/history/audit entry
+  -> derived child scope refs for Git/AP clients
 ```
 
-There is no implicit all-or-nothing transaction across unrelated scopes.
-Each scope has its own policy decision, commit, audit event, and publish
-boundary. A future cross-scope atomic operation must be an explicit new
-intent type, not a hidden side effect of bulk write or Git push.
+This keeps browser actions legible: deleting a folder, uploading a
+folder, or saving from the editor produces one visible product history
+entry even when the affected paths live under child access-point scopes.
+Child scope refs are updated as derived views of the accepted project
+root so Git/AP clients can read and merge against the product state, but
+those derived scope-view commits are not extra product history rows.
 
-This also preserves existing PuppyOne behavior: current product bulk
-write logic groups paths by the narrowest matching scope and writes each
-scope through the same mutation path. The final architecture should keep
-that semantic shape while making the transaction records explicit.
+There is still no implicit all-or-nothing transaction across unrelated
+scoped Git submissions. A Git/MUT submission is bound to one scope remote;
+if a caller wants to modify two independent scoped remotes, it must make
+two pushes. The Product Operation Adapter is the deliberate exception:
+it models a user-facing project action at root scope.
 
 For a Git push, scope ownership is checked before publish:
 
@@ -1752,7 +1757,7 @@ Non-goals:
    |----------------|------------|
    | `direct_writer` per-scope lock + CAS retry | Transaction engine concurrency core |
    | `mut_scope_state` CAS on `scope_hash` + `head_commit_id` | Ref/head publish primitive |
-   | narrowest-scope routing in `MutOps` | Operation adapter scope routing |
+   | explicit scope routing in `MutOps` | Product-root operations plus scoped AP routing |
    | DB-authoritative subtree graft | Git-compatible root projection |
    | Git-format blob/tree/commit object storage | Version object store |
    | `mut_commits` history records | Version index backing table, until renamed or abstracted |
@@ -1910,9 +1915,11 @@ The names may change, but the behavioral contracts must not.
 3. Move Product Operations onto intents.
 
    Keep the public `MutOps`/content API stable, but make it produce
-   `OperationWriteIntent` and call the engine. This should preserve the
-   current narrowest-scope routing behavior while moving publish
-   authority out of `services/ops.py` and `services/direct_writer.py`.
+   `OperationWriteIntent` and call the engine. Product/Web/Data-page
+   calls should publish at project root; scoped AP/Git callers must pass
+   their scope explicitly. This moves publish authority out of
+   `services/ops.py` and `services/direct_writer.py` without letting
+   internal scopes leak into frontend history.
 
 4. Move native MUT push behind the adapter boundary.
 

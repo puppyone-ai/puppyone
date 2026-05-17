@@ -968,7 +968,7 @@ async def complete_upload_batch(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Finalize multiple multipart uploads as a SINGLE MUT commit per scope.
+    Finalize multiple multipart uploads as one project-root product commit.
 
     Why this exists:
       The single-file ``/upload/complete`` endpoint pays a fixed
@@ -976,7 +976,7 @@ async def complete_upload_batch(
       cache). For a folder of 100 files that adds up to 150–200s of
       sequential commits — and 100 nearly-identical entries in the
       audit log. This endpoint collapses that into one ``bulk_write``
-      call → one commit per scope (typical = one commit total).
+      call -> one visible project-root commit.
 
     Failure model — partial success with HTTP 200:
       The response always carries one ``UploadCompleteItemResult``
@@ -1000,7 +1000,7 @@ async def complete_upload_batch(
          FAILED and are excluded from the bulk push.
       3. Single call to ``finalize_uploads_to_mut_batch`` for all
          items that made it past steps 1–2. That helper does the
-         CopyObject pre-stage + one ``bulk_write`` per scope.
+         CopyObject pre-stage + one project-root ``bulk_write``.
       4. Merge per-item results from each phase into a single
          ordered response, preserving the input ordering.
     """

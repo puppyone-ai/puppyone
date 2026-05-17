@@ -5,8 +5,7 @@ import type { Connector, RepoScope } from '@/lib/repoApi';
 import { AI_AGENT_ENABLED } from '@/lib/featureFlags';
 import { connectorAsEndpointShape, providerLabel } from './labels';
 import { AccessPointProviderIcon } from './AccessPointProviderIcon';
-import { AgentIcon, SyncIcon, TerminalIcon } from './connect-methods/icons';
-import { METHOD_META, type MethodId } from './connect-methods/meta';
+import { ProviderIcon } from '../../../access/components/icons';
 import {
   COLOR_BORDER,
   COLOR_BORDER_HOVER,
@@ -23,27 +22,25 @@ import type { ProviderIconLookup } from './types';
  *  shows the full list. */
 const INTEGRATION_VISIBLE_CAP = 5;
 
-/** Icon-chip size. Chips are now glyph-only, so they want a square
- *  shape (`borderRadius: 7`) instead of the pill shape used in the
- *  earlier label-bearing rounds. 24px gives enough padding for a
- *  14-15px icon and aligns vertically with the 13px name + 6px
- *  vertical padding of the row. */
-const CHIP_SIZE = 24;
+/** Inline provider signal size. These sit on the second line beside
+ *  the path, so they should read as small status marks rather than
+ *  primary actions. */
+const CHIP_SIZE = 18;
 
 const ROW_BG =
-  'color-mix(in srgb, var(--po-text) 6%, var(--po-panel) 94%)';
+  'color-mix(in srgb, var(--po-control) 46%, transparent)';
 const ROW_BG_HOVER =
-  'color-mix(in srgb, var(--po-text) 8%, var(--po-panel) 92%)';
+  'color-mix(in srgb, var(--po-control) 64%, transparent)';
 const ROW_BG_CURRENT =
-  'color-mix(in srgb, var(--po-text) 10%, var(--po-panel) 90%)';
+  'var(--po-selected)';
 const ROW_BORDER_CURRENT =
   'color-mix(in srgb, var(--po-text) 24%, var(--po-border) 76%)';
 
 /**
  * AccessPointRow — one access-point row in the overview list.
  *
- * The path label lives above this element in the parent list. This
- * row only describes the access point attached to that scope.
+ * The row is the element: status, display name, path, permission, and
+ * provider logos all live inside one clickable access-point object.
  */
 export function AccessPointRow({
   scope,
@@ -102,14 +99,15 @@ export function AccessPointRow({
   const visibleIntegrations = integrations.slice(0, INTEGRATION_VISIBLE_CAP);
   const hiddenIntegrations = integrations.length - visibleIntegrations.length;
 
-  // Title attribute holds the full path so users can hover to
-  // recover it even though the path no longer renders inline.
   const pathDisplay = scope.is_root || scope.path === '' ? '/' : `/${scope.path}`;
+  const displayName = scope.is_root || scope.path === ''
+    ? 'Root'
+    : scope.name || scope.path.split('/').filter(Boolean).pop() || scope.path;
 
   const background = isCurrent ? ROW_BG_CURRENT : hovered ? ROW_BG_HOVER : ROW_BG;
   const borderColor = isCurrent ? ROW_BORDER_CURRENT : hovered ? COLOR_BORDER_HOVER : COLOR_BORDER;
-  const typeLabel = scope.is_root ? 'Root access point' : 'Access point';
   const permissionLabel = scope.mode === 'rw' ? 'Read & Write' : 'Read-only';
+  const active = connectors.some((c) => c.status === 'active' || c.status === 'syncing');
 
   return (
     <button
@@ -117,140 +115,206 @@ export function AccessPointRow({
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      title={`${pathDisplay} · ${typeLabel}`}
+      title={`${displayName} · ${pathDisplay}`}
       style={{
         width: '100%',
         textAlign: 'left',
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
         minWidth: 0,
-        minHeight: 52,
-        padding: '9px 12px',
+        minHeight: 58,
+        padding: '8px 10px',
         borderRadius: 8,
         border: `1px solid ${borderColor}`,
         background,
         color: COLOR_FG,
+        fontFamily: 'var(--po-font-sans)',
         cursor: 'pointer',
         transition: 'border-color 0.15s, background 0.15s',
         boxShadow: 'none',
+        appearance: 'none',
       }}
     >
       <div
         style={{
           display: 'flex',
-          alignItems: 'baseline',
-          gap: 7,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          width: 16,
+          height: 16,
+        }}
+      >
+        <span
+          aria-hidden
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: active ? 'var(--po-success)' : COLOR_FG_DIM,
+            boxShadow: active ? '0 0 6px color-mix(in srgb, var(--po-success) 40%, transparent)' : 'none',
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
           flex: '1 1 auto',
           minWidth: 0,
         }}
       >
-        <span
+        <div
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
             minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            fontSize: 13,
-            fontWeight: 600,
-            lineHeight: 1.25,
-            color: COLOR_FG,
           }}
         >
-          {typeLabel}
-        </span>
-        <span
-          style={{
-            flexShrink: 0,
-            fontSize: 13,
-            fontWeight: 500,
-            color: COLOR_FG_DIM,
-            lineHeight: 1.25,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          · {permissionLabel}
-        </span>
-      </div>
-
-      {/* Chip strip — built-ins first in fixed order, then any
-          active third-party integrations, then a `+N` overflow chip. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          flexShrink: 0,
-        }}
-      >
-        {cliActive && (
-          <MethodChip method="terminal" title="Puppyone CLI · active" />
-        )}
-        {filesystemActive && (
-          <MethodChip method="sync" title="Local Folder Sync · active" />
-        )}
-        {/* AI Agent chip — gated on the AI_AGENT_ENABLED flag. The
-            agent connector still exists per-scope (auto-INSERTed by
-            the DB trigger) and `agentActive` still reads its status,
-            but we don't surface a chip while the feature is hidden. */}
-        {AI_AGENT_ENABLED && agentActive && (
-          <MethodChip method="agent" title="AI Agent · active" />
-        )}
-        {visibleIntegrations.map((c) => (
-          <IntegrationChip
-            key={c.id}
-            connector={c}
-            providerIcons={providerIcons}
-          />
-        ))}
-        {hiddenIntegrations > 0 && (
           <span
-            title={`+${hiddenIntegrations} more`}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: CHIP_SIZE,
-              height: CHIP_SIZE,
-              padding: '0 6px',
-              fontSize: 11,
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 13,
+              fontWeight: isCurrent ? 600 : 500,
+              lineHeight: 1.2,
+              color: COLOR_FG,
+            }}
+          >
+            {displayName}
+          </span>
+          <span
+            style={{
+              flexShrink: 0,
+              fontSize: 12,
               fontWeight: 500,
-              borderRadius: 6,
-              color: COLOR_FG_MUTED,
-              background: 'transparent',
-              border: `1px dashed ${COLOR_BORDER_HOVER}`,
-              fontVariantNumeric: 'tabular-nums',
+              color: COLOR_FG_DIM,
+              lineHeight: 1.2,
               whiteSpace: 'nowrap',
             }}
           >
-            +{hiddenIntegrations}
+            · {permissionLabel}
           </span>
-        )}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              flex: '1 1 auto',
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              fontSize: 11.5,
+              lineHeight: 1.25,
+              color: isCurrent ? COLOR_FG_MUTED : COLOR_FG_DIM,
+              fontFamily: 'var(--po-font-mono)',
+            }}
+          >
+            {pathDisplay}
+          </span>
+
+          {/* Provider signals — built-ins first in fixed order, then
+              active third-party integrations, then a `+N` overflow.
+              They intentionally live on the path line so the row reads
+              as one access-point element instead of a row plus actions. */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              flexShrink: 0,
+            }}
+          >
+            {cliActive && (
+              <ProviderSignal
+                provider="cli"
+                selected={isCurrent}
+                title="Puppyone CLI · active"
+              />
+            )}
+            {filesystemActive && (
+              <ProviderSignal
+                provider="filesystem"
+                selected={isCurrent}
+                title="Git Remote · active"
+              />
+            )}
+            {/* AI Agent chip — gated on the AI_AGENT_ENABLED flag. The
+                agent connector still exists per-scope (auto-INSERTed by
+                the DB trigger) and `agentActive` still reads its status,
+                but we don't surface a chip while the feature is hidden. */}
+            {AI_AGENT_ENABLED && agentActive && (
+              <ProviderSignal
+                provider="agent"
+                selected={isCurrent}
+                title="AI Agent · active"
+              />
+            )}
+            {visibleIntegrations.map((c) => (
+              <IntegrationChip
+                key={c.id}
+                connector={c}
+                providerIcons={providerIcons}
+              />
+            ))}
+            {hiddenIntegrations > 0 && (
+              <span
+                title={`+${hiddenIntegrations} more`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: CHIP_SIZE,
+                  height: CHIP_SIZE,
+                  padding: '0 4px',
+                  fontSize: 9.5,
+                  fontWeight: 600,
+                  borderRadius: 5,
+                  color: COLOR_FG_MUTED,
+                  background: 'transparent',
+                  border: `1px dashed ${COLOR_BORDER_HOVER}`,
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                +{hiddenIntegrations}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </button>
   );
 }
 
 /**
- * MethodChip — icon-only chip for a built-in connect method.
- *
- * Picks colour from `METHOD_META` so per-method identity matches the
- * detail view's MethodCard exactly: blue=Terminal, green=Sync,
- * purple=Agent. The colour-coded background + border + glyph trio
- * carries the meaning that the previous round's inline label used
- * to carry; the tooltip handles disambiguation for users who
- * haven't internalised the colour-coding yet.
+ * ProviderSignal — tiny built-in connector logo for the overview row.
+ * Mirrors the dedicated Access sidebar's second-line connector signal:
+ * mono/custom provider glyph, 18px square, quiet neutral chrome.
  */
-function MethodChip({
-  method,
+function ProviderSignal({
+  provider,
+  selected,
   title,
 }: {
-  readonly method: MethodId;
+  readonly provider: string;
+  readonly selected: boolean;
   readonly title: string;
 }) {
-  const meta = METHOD_META[method];
-  const icon =
-    method === 'terminal' ? <TerminalIcon /> : method === 'sync' ? <SyncIcon /> : <AgentIcon />;
+  const isGit = provider === 'filesystem';
 
   return (
     <span
@@ -262,25 +326,22 @@ function MethodChip({
         justifyContent: 'center',
         width: CHIP_SIZE,
         height: CHIP_SIZE,
-        borderRadius: 6,
-        background: meta.accentBg,
-        border: `1px solid ${meta.accentBorder}`,
-        color: meta.accent,
+        borderRadius: 5,
+        background: selected
+          ? 'var(--po-hover)'
+          : 'color-mix(in srgb, var(--po-hover) 55%, transparent)',
+        border: `1px solid ${selected ? 'var(--po-border-strong)' : COLOR_BORDER}`,
+        color: selected ? COLOR_FG_MUTED : COLOR_FG_DIM,
         flexShrink: 0,
+        opacity: selected ? 1 : 0.9,
+        boxShadow: 'none',
       }}
     >
-      <span
-        aria-hidden
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 14,
-          height: 14,
-        }}
-      >
-        {icon}
-      </span>
+      <ProviderIcon
+        provider={provider}
+        size={isGit ? 13 : 10}
+        variant="mono"
+      />
     </span>
   );
 }
@@ -312,9 +373,9 @@ function IntegrationChip({
         justifyContent: 'center',
         width: CHIP_SIZE,
         height: CHIP_SIZE,
-        borderRadius: 6,
-        background: 'var(--po-hover)',
-        border: `1px solid ${COLOR_BORDER_HOVER}`,
+        borderRadius: 5,
+        background: 'color-mix(in srgb, var(--po-control) 44%, transparent)',
+        border: `1px solid ${COLOR_BORDER}`,
         color: COLOR_FG,
         flexShrink: 0,
       }}
@@ -325,8 +386,9 @@ function IntegrationChip({
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          width: 14,
-          height: 14,
+          width: 16,
+          height: 16,
+          transform: 'scale(0.75)',
         }}
       >
         <AccessPointProviderIcon ep={ep} providerIcons={providerIcons} />

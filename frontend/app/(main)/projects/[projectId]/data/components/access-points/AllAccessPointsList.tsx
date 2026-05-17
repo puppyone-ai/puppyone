@@ -2,7 +2,6 @@
 
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { AccessPointRow } from './AccessPointRow';
-import { COLOR_FG_DIM } from './tokens';
 import type { ProviderIconLookup } from './types';
 
 const EMPTY_CONNECTORS: readonly Connector[] = Object.freeze([]);
@@ -10,8 +9,9 @@ const EMPTY_CONNECTORS: readonly Connector[] = Object.freeze([]);
 /**
  * AllAccessPointsList — project-wide list of access points.
  *
- * Each scope is shown as a path label followed by the access point
- * element attached to that path.
+ * Each scope is rendered as one access-point element. The path is part
+ * of the row, not a separate heading, so the user reads a scope as one
+ * object instead of "label + card" fragments.
  */
 export function AllAccessPointsList({
   scopes,
@@ -31,45 +31,17 @@ export function AllAccessPointsList({
   if (scopes.length === 0) return null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {scopes.map((s) => {
-        const path = s.is_root || s.path === '' ? '/' : `/${s.path}`;
-        return (
-          <section
-            key={s.id}
-            style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
-          >
-            <PathLabel path={path} />
-            <AccessPointRow
-              scope={s}
-              connectors={connectorsByScope.get(s.id) ?? EMPTY_CONNECTORS}
-              providerIcons={providerIcons}
-              isCurrent={s.path === currentScopePath}
-              onClick={() => onSelectScope(s.id)}
-            />
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function PathLabel({ path }: { readonly path: string }) {
-  return (
-    <div
-      title={path}
-      style={{
-        padding: '0 4px',
-        fontSize: 13,
-        fontWeight: 500,
-        lineHeight: 1.35,
-        color: COLOR_FG_DIM,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {path}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {scopes.map((s) => (
+        <AccessPointRow
+          key={s.id}
+          scope={s}
+          connectors={connectorsByScope.get(s.id) ?? EMPTY_CONNECTORS}
+          providerIcons={providerIcons}
+          isCurrent={s.path === currentScopePath}
+          onClick={() => onSelectScope(s.id)}
+        />
+      ))}
     </div>
   );
 }

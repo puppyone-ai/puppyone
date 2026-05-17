@@ -16,6 +16,7 @@
 import dynamic from 'next/dynamic';
 import { ComponentType } from 'react';
 import { EditorLoadingSurface } from '@/components/loading';
+import { PlainTextEditor } from '@/components/editors/text';
 import type { GenericViewerId } from '@/lib/fileFormats/types';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
@@ -90,6 +91,22 @@ const MarkdownEditorAdapter = dynamic<ViewerProps>(
     }),
   { ssr: false, loading: PageLoadingFallback },
 );
+
+function PlainTextAdapter({
+  textContent,
+  nodeName,
+  editable,
+  onTextChange,
+}: ViewerProps) {
+  return (
+    <PlainTextEditor
+      content={textContent ?? ''}
+      nodeName={nodeName}
+      readOnly={!editable}
+      onChange={editable ? onTextChange : undefined}
+    />
+  );
+}
 
 const MonacoCodeAdapter = dynamic<ViewerProps>(
   () =>
@@ -210,6 +227,11 @@ export const VIEWERS: Record<GenericViewerId, ViewerDefinition> = {
   'markdown-editor': {
     id: 'markdown-editor',
     component: MarkdownEditorAdapter,
+    requiresText: true,
+  },
+  'plain-text': {
+    id: 'plain-text',
+    component: PlainTextAdapter,
     requiresText: true,
   },
   'monaco-code': {

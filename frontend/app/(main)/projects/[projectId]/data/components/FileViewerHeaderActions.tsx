@@ -77,6 +77,15 @@ export function FileViewerHeaderActions({
     );
   }
 
+  if (viewerId === 'plain-text') {
+    return (
+      <HeaderActionGroup>
+        {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        <FileActionsMenu projectId={projectId} filePath={filePath} />
+      </HeaderActionGroup>
+    );
+  }
+
   if (viewerId === 'json-table') {
     return (
       <HeaderActionGroup>

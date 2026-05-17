@@ -129,7 +129,9 @@ class MutOps:
             defer_projection=defer_projection,
             policy_override=policy,
         )
-        return await self._engine.apply_operation(intent, splice_fn)
+        if scope:
+            return await self._engine.apply_operation(intent, splice_fn)
+        return await self._engine.apply_project_operation(intent, splice_fn)
 
     # ══════════════════════════════════════════════
     # Write operations — typed splice → Git-native transaction engine
@@ -150,11 +152,14 @@ class MutOps:
     ) -> WriteResult:
         """Write a single file (create or update).
 
-        Routes the write to the narrowest existing MUT scope that
-        contains ``path`` so graft can preserve it (a write into the
-        root scope at a path that belongs to a sub-scope is wholesale
+        Product/API writes default to the project root, but are then
+        routed to the narrowest existing MUT scope that contains
+        ``path`` so graft can preserve them (a write into the root
+        scope at a path that belongs to a sub-scope is wholesale
         replaced by the sub-scope's tree during graft — the commit
-        lands but the read path never sees it).
+        lands but the read path never sees it). Scoped access point
+        callers pass ``scope`` explicitly, preserving their per-scope
+        CAS boundary without leaking it into frontend history.
 
         ``policy`` lets the caller opt into a stricter conflict policy
         (e.g. ``"manual_review"``) than the configured rule set would
@@ -196,10 +201,14 @@ class MutOps:
     ) -> WriteResult:
         """Delete one or more files.
 
-        Each path is routed to the narrowest scope that contains it.
-        Mixing paths from different scopes results in one commit per
-        scope. Returns the FIRST commit; in practice all paths usually
-        share one scope and there's only one push.
+        Product/API deletes default to one project-root transaction,
+        but each path is then routed to the narrowest scope that
+        contains it. Mixing paths from different scopes results in one
+        commit per scope. Returns the FIRST commit; in practice all
+        paths usually share one scope and there's only one push.
+        Scoped access point callers pass ``scope`` explicitly, in
+        which case all paths are relative to that scope and produce
+        one scoped commit.
 
         ``policy`` / ``source_channel`` flow through to the engine's
         conflict-policy selection (e.g. ``manual_review`` queues
@@ -272,9 +281,10 @@ class MutOps:
     ) -> WriteResult:
         """Create a directory (writes a ``.keep`` placeholder).
 
-        Routed to the narrowest scope that contains ``path``, same as
-        ``write_file``. Existing directories are no-ops (no commit
-        created). Errors out if a file already occupies the path.
+        Product/API calls create the directory in a project-root
+        transaction, same as ``write_file``. Explicit scoped callers keep
+        their scoped CAS boundary. Existing directories are no-ops (no
+        commit created). Errors out if a file already occupies the path.
         """
         path = validate_path(path)
         keep_full = f"{path}/.keep"
@@ -503,12 +513,11 @@ class MutOps:
         policy: str = "",
         source_channel: str = "papi",
     ) -> WriteResult:
-        """Batch write + optional batch delete in one commit per scope.
+        """Batch write + optional batch delete.
 
-        When ``scope`` is empty, paths are bucketed by the narrowest
-        scope that contains each one and pushed per scope. See
-        ``write_file`` for the why — root-scope writes at sub-scope
-        paths are silently shadowed during graft.
+        When ``scope`` is empty, paths are committed as one project-root
+        product transaction. Scoped access-point callers pass ``scope``
+        explicitly to keep their local CAS boundary.
         """
         clean = {validate_path(k): v for k, v in files.items()}
         clean_del = [validate_path(p) for p in (deleted or [])]
@@ -664,9 +673,9 @@ class MutOps:
     ) -> WriteResult:
         """Commit a tree update referencing already-staged blobs by hash.
 
-        Same scope-routing semantics as ``bulk_write``: paths are
-        bucketed by their narrowest containing MUT scope and one
-        commit is emitted per scope.
+        Same scope-routing semantics as ``bulk_write``: product/API
+        callers commit once at project root; scoped access-point callers
+        pass an explicit scope.
 
         **Caller contract**: every ``BlobRef.hash`` MUST already be
         present in the project's ObjectStore. The default
@@ -1083,52 +1092,26 @@ class MutOps:
     def _select_write_scope(
         self, project_id: str, path: str,
     ) -> tuple[str, str]:
-        """Pick the narrowest existing MUT scope that contains ``path``.
+        """Return the product-root write target for a project path.
 
-        Web UI operations pass project-root paths.  If a folder belongs
-        to a narrower access point scope, writing against that scope
-        avoids cloning and rebuilding the whole project root for every
-        write/delete, AND — critically — keeps the write visible after
-        graft.
-
-        ``graft_subtree`` builds ``mut_root_hash`` by overlaying every
-        sub-scope's tree at its declared path on top of the root
-        scope's tree. A write into the root scope at a path that
-        belongs to a sub-scope is wholesale REPLACED by the sub-scope's
-        tree during that overlay — the commit lands but the read path
-        never sees it. Writing into the narrowest scope that contains
-        the path makes that scope the canonical source for the
-        subtree, so graft preserves the write.
+        Frontend/Data-page operations are repository-level user actions:
+        they must produce one project-root transaction and one visible
+        history item. Access-point/Git flows already know their scope and
+        pass it explicitly through ``_resolve_write_target``; this helper
+        intentionally does not infer child scopes from project paths.
         """
         clean = validate_path(path)
-        try:
-            repo = self._repos.get_server_repo(project_id)
-            scopes = [
-                (scope_path or "").strip("/")
-                for scope_path in repo.get_all_scope_hashes().keys()
-            ]
-        except Exception:
-            scopes = []
-
-        candidates = [
-            scope_path
-            for scope_path in scopes
-            if scope_path and clean.startswith(scope_path + "/")
-        ]
-        scope_path = max(candidates, key=len) if candidates else ""
-        if not scope_path:
-            return "", clean
-        return scope_path, clean[len(scope_path) + 1:]
+        return "", clean
 
     def _resolve_write_target(
         self, project_id: str, path: str, explicit_scope: str,
     ) -> tuple[str, str]:
         """Decide ``(scope, rel_path)`` for a single write/mkdir.
 
-        If the caller supplied an explicit scope (rare — only the
-        legacy access-point flows do), trust it: assume ``path`` is
-        already relative to that scope. Otherwise auto-route to the
-        narrowest scope.
+        If the caller supplied an explicit scope, trust it: assume
+        ``path`` is already relative to that scope. Otherwise route to
+        the project root; frontend/product operations must not infer a
+        child scope from the path.
         """
         if explicit_scope:
             return explicit_scope, path
@@ -1137,12 +1120,11 @@ class MutOps:
     def _group_paths_by_scope(
         self, project_id: str, paths: list[str],
     ) -> dict[str, list[str]]:
-        """Bucket project-root paths into ``{scope_path: [rel_path, ...]}``.
+        """Bucket paths into publish groups.
 
-        Used by batch ops (``delete``, ``bulk_write``) so each scope's
-        write only carries the paths that belong to it. Empty
-        ``scope_path`` means root scope — paths that no narrower scope
-        claims end up there.
+        For product/API callers this intentionally returns one root
+        group. Explicit scoped callers do not use this helper; they pass
+        their scope to the in-scope write path directly.
         """
         if not paths:
             return {}

@@ -1,11 +1,13 @@
 'use client';
 
 import type { RefObject } from 'react';
+import { Check, Loader2, X } from 'lucide-react';
 import { CreateMenu } from './menus/CreateMenu';
 import type { CreateMenuPosition, DataCreateMenuActions } from '../hooks/useDataCreateFlow';
+import type { DataPageToast } from '../hooks/useNodeActions';
 
 interface DataPageOverlaysProps {
-  toast: { message: string; type: 'success' | 'error' } | null;
+  toast: DataPageToast | null;
   createMenuOpen: boolean;
   createMenuPosition: CreateMenuPosition | null;
   // When the menu was opened by a per-folder plug button rather
@@ -26,6 +28,9 @@ export function DataPageOverlays({
   createMenuRef,
   createMenuActions,
 }: DataPageOverlaysProps) {
+  const isError = toast?.type === 'error';
+  const isLoading = toast?.type === 'loading';
+
   return (
     <>
       {toast && (
@@ -35,8 +40,13 @@ export function DataPageOverlays({
             bottom: 20,
             left: '50%',
             transform: 'translateX(-50%)',
-            background: toast.type === 'error' ? 'var(--po-danger)' : 'var(--po-success)',
-            color: 'var(--po-text-inverse)',
+            background: isError
+              ? 'var(--po-danger)'
+              : isLoading
+                ? 'var(--po-panel-raised)'
+                : 'var(--po-success)',
+            color: isLoading ? 'var(--po-text)' : 'var(--po-text-inverse)',
+            border: isLoading ? '1px solid var(--po-border)' : '1px solid transparent',
             padding: '8px 16px',
             borderRadius: 8,
             fontSize: 13,
@@ -48,16 +58,12 @@ export function DataPageOverlays({
             gap: 6,
           }}
         >
-          {toast.type === 'success' ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
+          {isLoading ? (
+            <Loader2 size={14} strokeWidth={2.4} className="animate-spin" />
+          ) : isError ? (
+            <X size={14} strokeWidth={2.6} />
           ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-              <line x1="9" y1="9" x2="15" y2="15" />
-            </svg>
+            <Check size={14} strokeWidth={2.6} />
           )}
           {toast.message}
         </div>

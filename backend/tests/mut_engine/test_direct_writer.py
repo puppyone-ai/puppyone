@@ -102,6 +102,13 @@ def _files_in_root(server_repo) -> dict[str, bytes]:
     return {p: server_repo.store.get(h) for p, h in flat.items()}
 
 
+def _files_for_hash(server_repo, root_hash: str) -> dict[str, bytes]:
+    if not root_hash:
+        return {}
+    flat = tree_mod.tree_to_flat(server_repo.store, root_hash)
+    return {p: server_repo.store.get(h) for p, h in flat.items()}
+
+
 def _commit_count(server_repo) -> int:
     return len(server_repo.history._entries)
 
@@ -153,6 +160,30 @@ class TestWriteFile:
         assert entry["changes"] == [
             {"path": "docs/readme.md", "action": "add"},
         ]
+
+    @pytest.mark.asyncio
+    async def test_product_write_under_child_scope_stays_one_root_commit(
+        self, ops, server_repo,
+    ):
+        server_repo.add_scope("docs-scope", "/docs/")
+
+        result = await ops.write_file(
+            "test-proj", "docs/a.md", b"a", who="user:web",
+        )
+
+        assert _commit_count(server_repo) == 1
+        entry = server_repo.history._entries[-1]
+        assert entry["commit_id"] == result.commit_id
+        assert entry["scope_path"] == ""
+        assert entry["root_hash"] == server_repo.get_root_hash()
+        assert _files_in_root(server_repo) == {"docs/a.md": b"a"}
+
+        docs_hash = server_repo.get_scope_hash("docs")
+        docs_head = server_repo.get_scope_head_commit_id("docs")
+        assert docs_hash
+        assert docs_head
+        assert docs_head != result.commit_id
+        assert _files_for_hash(server_repo, docs_hash) == {"a.md": b"a"}
 
     @pytest.mark.asyncio
     async def test_idempotent_repeat_creates_no_commit(self, ops, server_repo):
@@ -243,6 +274,21 @@ class TestDelete:
             "should be ~1 (root rebuild)"
         )
         assert _files_in_root(server_repo) == {}
+
+    @pytest.mark.asyncio
+    async def test_product_folder_delete_clears_child_scope_projection(
+        self, ops, server_repo,
+    ):
+        server_repo.add_scope("docs-scope", "/docs/")
+        await ops.write_file("test-proj", "docs/a.md", b"a", who="user:web")
+
+        await ops.permanent_delete("test-proj", "docs", who="user:web")
+
+        assert _commit_count(server_repo) == 2
+        assert _files_in_root(server_repo) == {}
+        assert server_repo.get_scope_hash("docs") == ""
+        assert server_repo.get_scope_head_commit_id("docs") == ""
+        assert server_repo.history._entries[-1]["scope_path"] == ""
 
 
 # ══════════════════════════════════════════════════

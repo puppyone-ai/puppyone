@@ -194,6 +194,13 @@ def _files_for_scope(repo, scope: str = "") -> dict[str, bytes]:
     return flatten_tree_to_bytes(repo.store, tree_id)
 
 
+def _last_audit_event(repo, event_type: str) -> dict:
+    for event in reversed(repo.audit.events):
+        if event.get("type") == event_type:
+            return event
+    raise AssertionError(f"missing audit event {event_type!r}")
+
+
 def _init_empty_project_shell(repo) -> str:
     empty_tree = build_tree_from_files(repo.store, {})
     repo.history.set_root_hash(empty_tree)
@@ -1166,6 +1173,66 @@ def test_version_outbox_worker_replays_hook_and_marks_complete(monkeypatch):
     ]
 
 
+def test_version_outbox_worker_routes_project_rows_to_project_hook(monkeypatch):
+    project_calls = []
+    scope_calls = []
+
+    def fake_project_hook(project_id, repo_manager, push_result, *, raise_errors=False):
+        project_calls.append((project_id, repo_manager, push_result, raise_errors))
+
+    def fake_scope_hook(project_id, repo_manager, push_result, *, raise_errors=False):
+        scope_calls.append((project_id, repo_manager, push_result, raise_errors))
+
+    monkeypatch.setattr(
+        "src.mut_engine.services.version_outbox.run_post_project_update_hook",
+        fake_project_hook,
+    )
+    monkeypatch.setattr(
+        "src.mut_engine.services.version_outbox.run_post_push_hook",
+        fake_scope_hook,
+    )
+    client = _FakeOutboxClient([
+        {
+            "id": 12,
+            "project_id": "test-proj",
+            "commit_id": "e" * 40,
+            "event_type": "project_version_committed",
+            "payload": {
+                "root_hash": "f" * 40,
+                "scope_hash": "0" * 40,
+                "conflicts": 0,
+            },
+            "attempts": 1,
+        }
+    ])
+    repo_manager = object()
+
+    processed = process_version_outbox_batch(
+        repo_manager=repo_manager,
+        client=client,
+        limit=10,
+    )
+
+    assert processed == 1
+    assert client.completed == [12]
+    assert client.failed == []
+    assert scope_calls == []
+    assert project_calls == [
+        (
+            "test-proj",
+            repo_manager,
+            {
+                "status": "ok",
+                "commit_id": "e" * 40,
+                "root": "f" * 40,
+                "merged": False,
+                "conflicts": 0,
+            },
+            True,
+        )
+    ]
+
+
 def test_version_outbox_worker_marks_failure_for_retry(monkeypatch):
     def fake_hook(*_args, **_kwargs):
         raise RuntimeError("projection unavailable")
@@ -1269,8 +1336,7 @@ def test_git_access_point_receive_pack_uses_bound_scope_and_identity(
     assert server_repo.get_scope_head_commit_id("docs") == client_commit_id
     assert server_repo.get_scope_head_commit_id("") == ""
     assert _files_for_scope(server_repo, "docs") == {"README.md": b"hello from git\n"}
-    assert server_repo.audit.events[-1]["type"] == "git_push"
-    assert server_repo.audit.events[-1]["agent"] == "alice@example.com"
+    assert _last_audit_event(server_repo, "git_push")["agent"] == "alice@example.com"
 
 
 def test_git_access_point_rejects_bound_identity_mismatch(
@@ -1356,7 +1422,7 @@ def test_real_git_cli_can_clone_commit_push_and_clone_again(
         "README.md": b"hello through real git\n",
     }
     assert (second / "README.md").read_text(encoding="utf-8") == "hello through real git\n"
-    assert server_repo.audit.events[-1]["type"] == "git_push"
+    assert _last_audit_event(server_repo, "git_push")["type"] == "git_push"
 
 
 def test_real_git_cli_first_push_to_empty_project_shell(
@@ -1438,7 +1504,7 @@ def test_real_git_cli_stale_force_push_is_server_side_merged(
     }
     assert (verify / "a.txt").read_text(encoding="utf-8") == "from first\n"
     assert (verify / "b.txt").read_text(encoding="utf-8") == "from stale second\n"
-    assert server_repo.audit.events[-1]["detail"]["merged"] is True
+    assert _last_audit_event(server_repo, "git_push")["detail"]["merged"] is True
 
 
 def test_real_git_cli_scoped_remotes_do_not_leak_sibling_worktrees(
@@ -1888,8 +1954,8 @@ def test_real_git_cli_stale_same_file_conflict_requires_manual_review(
     )
     assert b"pending_conflict_id=" in proc.stderr
     assert (verify / "shared.txt").read_text(encoding="utf-8") == "alice\n"
-    assert server_repo.audit.events[-1]["type"] == "git_push_conflict_pending"
-    assert server_repo.audit.events[-1]["detail"]["status"] == "pending_manual_review"
+    pending_event = _last_audit_event(server_repo, "git_push_conflict_pending")
+    assert pending_event["detail"]["status"] == "pending_manual_review"
 
 
 def test_real_git_cli_peer_fetch_and_pull_after_push(
