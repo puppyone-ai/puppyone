@@ -627,13 +627,33 @@ class GitNativeTransactionEngine:
         )
 
         # Apply the merged file set on top of current head as a batch
-        # splice. Files unchanged by either side stay as they are.
+        # splice. We must emit explicit ``rm`` ops for any path that
+        # the merge considered (was in base / current / incoming) but
+        # DIDN'T end up in ``merged_files`` — that signals "the merge
+        # decided to honor a delete". Without this, ``splice_batch``
+        # leaves those paths at their current-tree value, which
+        # silently resurrects files that one side deleted while the
+        # other left untouched (the C12 / C07 shape).
         ops: list = []
-        for path, content in merge_result.merged_files.items():
-            if content is None:
-                ops.append(("rm", path))
+        considered_paths = (
+            set(base_files) | set(current_files) | set(incoming_files)
+        )
+        for path in considered_paths:
+            if path in merge_result.merged_files:
+                content = merge_result.merged_files[path]
+                if content is None:
+                    ops.append(("rm", path))
+                else:
+                    # Only re-put when the merge picked something
+                    # different from current (avoid no-op splice ops).
+                    if current_files.get(path) != content:
+                        ops.append(("put", path, content))
             else:
-                ops.append(("put", path, content))
+                # Merge decided "this path should not exist". If current
+                # has it, emit an explicit rm. If current also lacks
+                # it, no op needed.
+                if path in current_files:
+                    ops.append(("rm", path))
         # Paths present in current but absent from merged_files were
         # untouched — splice_batch leaves them alone.
         try:
