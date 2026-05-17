@@ -147,6 +147,38 @@ class PuppyOneServerRepo:
         """
         return self.history.get_all_scope_hashes()
 
+    def get_declared_scope_paths(self) -> set[str]:
+        """Set of every scope path DECLARED in the project (``repo_scopes``).
+
+        Unlike :meth:`get_all_scope_hashes`, which only returns scopes that
+        already have a commit / state row, this method returns the full
+        declared geometry — including scopes that exist as configuration
+        but have never received a write yet.
+
+        Used by ancestor-scope walks (scope-promote) so a newly-declared
+        empty parent still participates in promote routing for its
+        children. Without this, scope-promote skips empty declared
+        ancestors and propagates straight to ``""`` (global root),
+        leaving the intended intermediate ancestor's tree empty.
+        """
+
+        try:
+            from src.infra.supabase.client import SupabaseClient
+            from src.mut_engine.application.path_utils import normalize_path
+
+            sb = SupabaseClient().client
+            resp = (
+                sb.table("repo_scopes")
+                .select("path")
+                .eq("project_id", self._project_id)
+                .execute()
+            )
+            return {normalize_path(r.get("path") or "") for r in (resp.data or [])}
+        except Exception:
+            # Best-effort: fall back to runtime-state set so the caller
+            # at least gets the scopes that have commits.
+            return set(self.get_all_scope_hashes().keys())
+
     def cas_update_scope(
         self,
         scope_path: str,

@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from src.mut_engine.application.object_store import ObjectStore
+from src.mut_engine.application.path_utils import normalize_path
 
 from src.mut_engine.application.conflict_policy import (
     conflict_to_dict,
@@ -30,7 +31,6 @@ from src.mut_engine.application.git_commit import (
     is_git_compatible_commit,
 )
 from src.mut_engine.application.git_object_format import encode_tree
-from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.application.tree_objects import (
     build_full_changes,
     build_tree_from_files,
@@ -48,6 +48,7 @@ from src.mut_engine.domain.intents import (
 )
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.backends.s3_storage import stage_object_writes
+from src.mut_engine.services.tree_splice import splice_batch
 from src.utils.logger import log_error, log_info, log_warning
 
 
@@ -368,6 +369,15 @@ class GitNativeTransactionEngine:
         scope_norm = normalize_path(intent.scope_path)
 
         last_error: Exception | None = None
+        # Captured on the FIRST attempt; used as the merge base on every
+        # subsequent retry where the scope head moved underneath us. The
+        # invariant we want: the actor's perceived "starting point" never
+        # changes — only the merge target does. So when a concurrent writer
+        # (A) commits between our attempt 0 splice and our publish, attempt
+        # 1+ produces a server-side merged commit that combines A's edit
+        # with the caller's intent (B), rather than blindly overwriting A.
+        base_scope_hash: str | None = None
+        merge_audit: dict | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
             old_scope_hash, current_head_commit_id = _get_scope_state(repo, scope_norm)
             if (
@@ -380,10 +390,92 @@ class GitNativeTransactionEngine:
                     current_head_commit_id=current_head_commit_id,
                 )
 
+            if attempt == 0:
+                base_scope_hash = old_scope_hash
+
             with stage_object_writes(repo.store) as object_batch:
                 new_scope_hash, changes = await asyncio.to_thread(
                     splice, repo.store, old_scope_hash,
                 )
+
+                # CAS-retry merge: if the scope advanced between our base
+                # capture and this attempt, what the splice produced is
+                # "caller's intent applied on top of someone else's commit".
+                # That's a blind overwrite of whatever the other commit
+                # changed at the same path. Run the V1 conflict-policy
+                # three-way merge against the captured base to recover the
+                # other side's content where it can be safely combined.
+                pending_result: TransactionResult | None = None
+                if (
+                    attempt > 0
+                    and base_scope_hash is not None
+                    and base_scope_hash != old_scope_hash
+                    and new_scope_hash != old_scope_hash
+                ):
+                    (
+                        merged_tree,
+                        merge_audit,
+                        manual_conflicts,
+                        merge_policy,
+                        base_files,
+                        current_files_at_head,
+                        incoming_files_for_audit,
+                    ) = self._merge_on_cas_retry(
+                        repo=repo,
+                        intent=intent,
+                        scope_norm=scope_norm,
+                        base_scope_hash=base_scope_hash,
+                        current_scope_hash=old_scope_hash,
+                        incoming_scope_hash=new_scope_hash,
+                    )
+                    # If the merge classified anything as manual_review,
+                    # don't commit — queue the conflict and return.
+                    if manual_conflicts and merge_policy == "manual_review":
+                        pending_result = await self._record_pending_conflict_generic(
+                            repo=repo,
+                            project_id=intent.project_id,
+                            scope_path=scope_norm,
+                            current_head_commit_id=current_head_commit_id,
+                            current_scope_hash=old_scope_hash,
+                            client_commit_id="",
+                            base_commit_id=base_scope_hash,
+                            proposed_tree_id=new_scope_hash,
+                            source_channel=intent.source_channel,
+                            actor=intent.actor,
+                            message=intent.message,
+                            audit_detail=dict(intent.audit_detail or {}),
+                            base_files=base_files,
+                            current_files=current_files_at_head,
+                            incoming_files=incoming_files_for_audit,
+                            manual_conflicts=manual_conflicts,
+                            policy_reason=(merge_audit or {}).get(
+                                "policy_reason", "manual_review",
+                            ),
+                        )
+                    elif merged_tree is not None and merged_tree != new_scope_hash:
+                        # Rebuild ``changes`` so the audit row reflects the
+                        # merged tree, not the pre-merge splice.
+                        changes = await asyncio.to_thread(
+                            compute_changeset,
+                            scope_norm,
+                            await asyncio.to_thread(
+                                flatten_tree_to_bytes, repo.store, old_scope_hash,
+                            ),
+                            await asyncio.to_thread(
+                                flatten_tree_to_bytes, repo.store, merged_tree,
+                            ),
+                        )
+                        new_scope_hash = merged_tree
+
+                if pending_result is not None:
+                    _log_done(
+                        f"{intent.operation_type}_pending",
+                        intent.project_id,
+                        scope_norm,
+                        pending_result,
+                        started_ms,
+                    )
+                    return pending_result
 
                 if (
                     not changes
@@ -420,6 +512,12 @@ class GitNativeTransactionEngine:
                     await asyncio.to_thread(object_batch.flush)
 
             full_changes = build_full_changes(scope_norm, changes)
+            # If the CAS-retry merge fired, stamp the audit detail so the
+            # ledger row records what was combined and which strategy
+            # produced the merged content.
+            audit_detail = dict(intent.audit_detail or {})
+            if merge_audit:
+                audit_detail.setdefault("cas_retry_merge", merge_audit)
             result = await self._publish_scope_update(
                 repo=repo,
                 project_id=intent.project_id,
@@ -430,12 +528,12 @@ class GitNativeTransactionEngine:
                 actor=intent.actor,
                 message=intent.message,
                 op_type=intent.operation_type,
-                audit_detail=intent.audit_detail,
+                audit_detail=audit_detail,
                 changes=full_changes,
                 conflicts=None,
                 created_at_iso=created_at_iso,
                 cas_attempt=attempt + 1,
-                merged=False,
+                merged=bool(merge_audit),
                 merged_changes=[],
                 defer_projection=intent.defer_projection,
                 source_channel=intent.source_channel,
@@ -459,6 +557,167 @@ class GitNativeTransactionEngine:
             f"after {_MAX_CAS_ATTEMPTS} attempts "
             f"(project={intent.project_id}, scope={scope_norm!r}); "
             f"last error: {last_error}",
+        )
+
+    def _merge_on_cas_retry(
+        self,
+        *,
+        repo,
+        intent: OperationWriteIntent,
+        scope_norm: str,
+        base_scope_hash: str,
+        current_scope_hash: str,
+        incoming_scope_hash: str,
+    ) -> "tuple[str | None, dict | None, list, str, dict, dict, dict]":
+        """Run the V1 policy three-way merge during a CAS retry.
+
+        Returns the seven-tuple
+
+            (merged_tree_hash, audit_dict, manual_conflicts,
+             policy_name, base_files, current_files, incoming_files)
+
+        so the caller (``_apply_operation_optimistic``) can:
+
+          * use ``merged_tree_hash`` as the publish tree on a clean
+            merge (everything safe / LWW resolved)
+          * route through ``_record_pending_conflict_generic`` when
+            ``manual_conflicts`` is non-empty AND ``policy_name`` is
+            ``manual_review`` — the trailing dicts are the inputs that
+            helper expects so it can persist them as audit context.
+
+        On any failure the helper logs and returns
+
+            (None, None, [], "", {}, {}, {})
+
+        so the caller falls back to the splice-only path — i.e. the
+        worst case is the legacy LWW-by-overwrite behavior, never a
+        hard failure.
+
+        ``base``   = scope tree the operation was originally splice'd against
+                     (the actor's perceived starting point, captured on
+                     attempt 0).
+        ``current`` = scope tree as it now stands after a concurrent
+                       writer (A) committed.
+        ``incoming`` = tree the splice produced this attempt — caller's
+                        intent applied on top of ``current``. It carries
+                        B's content at the touched paths but lost A's
+                        edits at those same paths.
+
+        Three-way merge against ``base`` recovers A's content where the
+        safe-merge strategies (identical / one_side_only / json / line)
+        can combine the two sides; otherwise the configured policy
+        (LWW or manual_review) fires.
+        """
+
+        try:
+            base_files = flatten_tree_to_bytes(repo.store, base_scope_hash)
+            current_files = flatten_tree_to_bytes(repo.store, current_scope_hash)
+            incoming_files = flatten_tree_to_bytes(repo.store, incoming_scope_hash)
+        except Exception as exc:
+            log_warning(
+                f"[cas-retry-merge] failed to load tree files "
+                f"(base={base_scope_hash[:8]}, current={current_scope_hash[:8]}, "
+                f"incoming={incoming_scope_hash[:8]}): {exc}",
+            )
+            return (None, None, [], "", {}, {}, {})
+
+        # Touched paths drive policy selection (e.g. *.lock → manual_review).
+        touched = sorted(
+            (set(current_files) | set(incoming_files))
+            - {
+                p for p in (set(current_files) & set(incoming_files))
+                if current_files.get(p) == incoming_files.get(p)
+            }
+        )
+        if not touched:
+            return (None, None, [], "", {}, {}, {})
+
+        # Caller's policy_override (set on OperationWriteIntent) wins over
+        # configured rules when non-empty — the runner / API caller
+        # opted into a stricter policy and the engine must honor it.
+        if getattr(intent, "policy_override", "") == "manual_review":
+            from src.mut_engine.domain.conflicts import ConflictPolicyDecision
+            policy = ConflictPolicyDecision(
+                policy="manual_review",
+                reason="op_intent_override:manual_review",
+            )
+        else:
+            policy = select_conflict_policy(
+                scope_path=scope_norm,
+                source_channel=intent.source_channel,
+                actor=intent.actor,
+                paths=touched,
+            )
+        merge_result = merge_file_sets_for_policy(
+            base_files, current_files, incoming_files,
+            policy=policy,
+        )
+
+        # Apply the merged file set on top of current head as a batch
+        # splice. We must emit explicit ``rm`` ops for any path that
+        # the merge considered (was in base / current / incoming) but
+        # DIDN'T end up in ``merged_files`` — that signals "the merge
+        # decided to honor a delete". Without this, ``splice_batch``
+        # leaves those paths at their current-tree value, which
+        # silently resurrects files that one side deleted while the
+        # other left untouched (the C12 / C07 shape).
+        ops: list = []
+        considered_paths = (
+            set(base_files) | set(current_files) | set(incoming_files)
+        )
+        for path in considered_paths:
+            if path in merge_result.merged_files:
+                content = merge_result.merged_files[path]
+                if content is None:
+                    ops.append(("rm", path))
+                else:
+                    # Only re-put when the merge picked something
+                    # different from current (avoid no-op splice ops).
+                    if current_files.get(path) != content:
+                        ops.append(("put", path, content))
+            else:
+                # Merge decided "this path should not exist". If current
+                # has it, emit an explicit rm. If current also lacks
+                # it, no op needed.
+                if path in current_files:
+                    ops.append(("rm", path))
+        # Paths present in current but absent from merged_files were
+        # untouched — splice_batch leaves them alone.
+        try:
+            merged_tree, _splice_changes = splice_batch(
+                repo.store, current_scope_hash, ops,
+            )
+        except Exception as exc:
+            log_warning(
+                f"[cas-retry-merge] splice_batch failed for "
+                f"{len(ops)} ops: {exc}",
+            )
+            return (None, None, [], "", {}, {}, {})
+
+        audit = {
+            "policy": policy.policy,
+            "policy_reason": policy.reason,
+            "base_scope_hash": base_scope_hash,
+            "current_scope_hash": current_scope_hash,
+            "auto_merged_paths": [r.path for r in merge_result.auto_merge_records],
+            "lww_paths": [r.path for r in merge_result.lww_records],
+            "superseded_paths": [
+                r.path for r in merge_result.superseded_by_parent
+            ],
+            "pending_paths": [r.path for r in merge_result.manual_conflicts],
+        }
+        log_info(
+            f"[cas-retry-merge] scope={scope_norm!r} "
+            f"auto={len(merge_result.auto_merge_records)} "
+            f"lww={len(merge_result.lww_records)} "
+            f"pending={len(merge_result.manual_conflicts)} "
+            f"superseded={len(merge_result.superseded_by_parent)}",
+        )
+        return (
+            merged_tree, audit,
+            list(merge_result.manual_conflicts),
+            policy.policy,
+            base_files, current_files, incoming_files,
         )
 
     async def _apply_project_operation_optimistic(
@@ -919,16 +1178,68 @@ class GitNativeTransactionEngine:
         manual_conflicts: list,
         policy_reason: str,
     ) -> TransactionResult:
+        """Submission-intent shaped wrapper. Adapter calls the generic
+        impl below. Kept for backwards compatibility with the
+        ``_submit_version_optimistic`` call site (Git push path)."""
+
+        return await self._record_pending_conflict_generic(
+            repo=repo,
+            project_id=intent.project_id,
+            scope_path=scope_path,
+            current_head_commit_id=current_head_commit_id,
+            current_scope_hash=current_scope_hash,
+            client_commit_id=intent.client_commit_id,
+            base_commit_id=intent.base_commit_id,
+            proposed_tree_id=intent.proposed_tree_id,
+            source_channel=intent.source_channel,
+            actor=intent.actor,
+            message=intent.message,
+            audit_detail=intent.audit_detail,
+            base_files=base_files,
+            current_files=current_files,
+            incoming_files=incoming_files,
+            manual_conflicts=manual_conflicts,
+            policy_reason=policy_reason,
+        )
+
+    async def _record_pending_conflict_generic(
+        self,
+        *,
+        repo,
+        project_id: str,
+        scope_path: str,
+        current_head_commit_id: str,
+        current_scope_hash: str,
+        client_commit_id: str,
+        base_commit_id: str,
+        proposed_tree_id: str,
+        source_channel: str,
+        actor: str,
+        message: str,
+        audit_detail: dict,
+        base_files: dict[str, bytes],
+        current_files: dict[str, bytes],
+        incoming_files: dict[str, bytes],
+        manual_conflicts: list,
+        policy_reason: str,
+    ) -> TransactionResult:
+        """Persist a pending conflict for manual review.
+
+        Generic shape (no intent-specific dependency) so both Git push
+        (``VersionSubmissionIntent``) and MutOps op writes
+        (``OperationWriteIntent``) can queue conflicts via the same path.
+        """
+
         paths = sorted({
             getattr(conflict, "path", "")
             for conflict in manual_conflicts
             if getattr(conflict, "path", "")
         })
         pending_conflict_id = _pending_conflict_id(
-            intent.project_id,
+            project_id,
             scope_path,
             current_head_commit_id,
-            intent.client_commit_id,
+            client_commit_id,
             paths,
         )
         audit = {
@@ -937,22 +1248,22 @@ class GitNativeTransactionEngine:
             "policy": "manual_review",
             "policy_reason": policy_reason,
             "scope": scope_path,
-            "base_commit_id": intent.base_commit_id,
+            "base_commit_id": base_commit_id,
             "current_head_commit_id": current_head_commit_id,
-            "client_commit_id": intent.client_commit_id,
-            "proposed_tree_id": intent.proposed_tree_id,
+            "client_commit_id": client_commit_id,
+            "proposed_tree_id": proposed_tree_id,
             "current_scope_hash": current_scope_hash,
             "conflict_count": len(manual_conflicts),
             "conflicts": [conflict_to_dict(conflict) for conflict in manual_conflicts],
             "base_paths": sorted(base_files),
             "current_paths": sorted(current_files),
             "incoming_paths": sorted(incoming_files),
-            **(intent.audit_detail or {}),
+            **(audit_detail or {}),
         }
         await asyncio.to_thread(
             repo.record_audit,
-            f"{intent.source_channel}_push_conflict_pending",
-            intent.actor,
+            f"{source_channel}_push_conflict_pending",
+            actor,
             audit,
         )
         # Record a non-committed version_transactions row so the ledger
@@ -963,21 +1274,21 @@ class GitNativeTransactionEngine:
         try:
             txn_id = await asyncio.to_thread(
                 _insert_version_transaction_row,
-                project_id=intent.project_id,
+                project_id=project_id,
                 scope_path=scope_path,
-                source_channel=intent.source_channel,
-                actor=intent.actor,
+                source_channel=source_channel,
+                actor=actor,
                 intent_type="submission",
                 status="pending_manual_review",
                 policy="manual_review",
-                base_commit_id=intent.base_commit_id,
-                client_commit_id=intent.client_commit_id,
-                proposed_tree_id=intent.proposed_tree_id,
+                base_commit_id=base_commit_id,
+                client_commit_id=client_commit_id,
+                proposed_tree_id=proposed_tree_id,
                 current_head_at_start=current_head_commit_id,
-                message=intent.message,
+                message=message,
                 audit_detail={
                     "pending_conflict_id": pending_conflict_id,
-                    **(intent.audit_detail or {}),
+                    **(audit_detail or {}),
                 },
                 reason=policy_reason,
             )
@@ -990,18 +1301,18 @@ class GitNativeTransactionEngine:
         try:
             await asyncio.to_thread(
                 _record_pending_conflict_row,
-                project_id=intent.project_id,
+                project_id=project_id,
                 pending_conflict_id=pending_conflict_id,
                 scope_path=scope_path,
-                base_commit_id=intent.base_commit_id,
+                base_commit_id=base_commit_id,
                 current_commit_id=current_head_commit_id,
-                client_commit_id=intent.client_commit_id,
-                proposed_tree_id=intent.proposed_tree_id,
+                client_commit_id=client_commit_id,
+                proposed_tree_id=proposed_tree_id,
                 changed_paths=paths,
                 conflicts=manual_conflicts,
                 policy="manual_review",
-                source_channel=intent.source_channel,
-                actor=intent.actor,
+                source_channel=source_channel,
+                actor=actor,
                 transaction_id=txn_id,
             )
         except Exception as exc:

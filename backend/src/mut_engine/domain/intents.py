@@ -31,6 +31,12 @@ class OperationWriteIntent:
     expected_head_commit_id: str | None = None
     allow_same_tree_commit: bool = False
     defer_projection: bool = False
+    # Caller-requested conflict policy override (e.g. ``"manual_review"``)
+    # — honored by ``_apply_operation_optimistic``'s CAS-retry merge so
+    # MutOps callers that opt into ``manual_review`` queue conflicts in
+    # ``mut_conflicts`` instead of silently merging via LWW. Empty string
+    # falls back to the configured rule set in ``select_conflict_policy``.
+    policy_override: str = ""
 
 
 @dataclass(frozen=True)

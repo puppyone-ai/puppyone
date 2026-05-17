@@ -22,8 +22,10 @@ from dataclasses import asdict, dataclass
 
 from src.mut_engine.application.hash_utils import hash_bytes
 from src.mut_engine.application.merge import (
+    AppendOnlyMergeStrategy,
     ConflictRecord,
     IdenticalStrategy,
+    ImportMergeStrategy,
     JsonMergeStrategy,
     LineMergeStrategy,
     OneSideOnlyStrategy,
@@ -49,6 +51,8 @@ _SAFE_CONTENT_STRATEGIES = [
     IdenticalStrategy(),
     OneSideOnlyStrategy(),
     JsonMergeStrategy(),
+    ImportMergeStrategy(),
+    AppendOnlyMergeStrategy(),
     LineMergeStrategy(),
 ]
 
@@ -140,20 +144,37 @@ def merge_file_sets_for_policy(
         # content-merge strategies; route them to the policy directly.
         if ours is None:
             if base_present and theirs != base:
+                # Real delete/modify conflict: ours deleted, theirs
+                # actually changed the content. Policy decides.
                 _resolve_delete_modify(
                     path, theirs, policy, manual_conflicts,
                     lww_records, merged,
                 )
+            elif base_present and theirs == base:
+                # ours deleted, theirs untouched (==base). Honor the
+                # delete — without this branch we'd resurrect the
+                # file just because theirs reported the base value
+                # (which is just "I didn't touch this", not a real
+                # intent to keep it).
+                pass
             elif theirs is not None:
+                # No base entry → both sides "added" — but ours' add
+                # is actually a delete (None). Use theirs.
                 merged[path] = theirs
             continue
 
         if theirs is None:
             if base_present and ours != base:
+                # Real modify/delete: theirs deleted, ours changed
+                # the content. Policy decides.
                 _resolve_modify_delete(
                     path, ours, policy, manual_conflicts,
                     lww_records, merged,
                 )
+            elif base_present and ours == base:
+                # theirs deleted, ours untouched (==base). Honor the
+                # delete from theirs.
+                pass
             elif ours is not None:
                 merged[path] = ours
             continue
@@ -248,9 +269,16 @@ def _try_safe_content_merge(
         result = strategy.try_merge(base, ours, theirs, path)
         if result is None:
             continue
+        # Records emitted by these strategies are audit-only — the merge
+        # actually combined both sides successfully, so they should not
+        # trigger the unsafe-fallback path.
         unsafe = [
             record for record in result.conflicts
-            if record.strategy not in {"line_merge"}
+            if record.strategy not in {
+                "line_merge",
+                "import_merge",
+                "append_only_merge",
+            }
         ]
         return result.content, result.conflicts, unsafe
     return None
@@ -304,18 +332,84 @@ def _apply_policy_to_unsafe_conflict(
         merged[path] = ours
         return
 
+    # Default last_write_wins. Before falling back to a silent overwrite,
+    # try Git-style conflict markers for text files so the loser's content
+    # survives in-tree (visible in the next pull / diff) rather than only
+    # in the audit row's truncated ``lost_content`` field.
+    marker_content = _try_conflict_markers(ours, theirs)
+    if marker_content is not None:
+        lww_records.append(ConflictRecord(
+            path=path,
+            strategy="conflict_markers",
+            detail=(
+                f"both sides modified; {policy.policy} → conflict markers "
+                f"written so neither side is silently lost"
+            ),
+            kept="markers",
+            lost_content="",
+            lost_hash="",
+        ))
+        merged[path] = marker_content
+        return
+
     lww_records.append(ConflictRecord(
         path=path,
         strategy="lww",
         detail=(
             f"both sides modified; {policy.policy} → incoming wins, "
-            f"server copy preserved in audit"
+            f"server copy preserved in audit (binary or oversize text)"
         ),
         kept="theirs",
         lost_content=ours.decode(errors="replace")[:500],
         lost_hash=hash_bytes(ours),
     ))
     merged[path] = theirs
+
+
+# Threshold beyond which conflict markers stop being useful — a user
+# can't review a 1MB diff inline. For those paths we keep the legacy
+# LWW so the tree doesn't balloon by 2x.
+_MARKER_MAX_BYTES = 200_000
+
+
+_MARKER_OPEN = b"<<<<<<< current"
+_MARKER_CLOSE = b">>>>>>> incoming"
+
+
+def _try_conflict_markers(ours: bytes, theirs: bytes) -> bytes | None:
+    """Produce Git-style conflict markers for text files.
+
+    Returns ``None`` for:
+      * binary content (not UTF-8 decodable)
+      * content over ``_MARKER_MAX_BYTES``
+      * content that already contains conflict markers — stacking
+        markers on top of markers (e.g. 3-way / serialized retries)
+        produces unreadable output. When that happens we fall back
+        to legacy LWW so the marker depth never exceeds 1.
+
+    Those edge cases still go through legacy LWW.
+    """
+
+    if len(ours) > _MARKER_MAX_BYTES or len(theirs) > _MARKER_MAX_BYTES:
+        return None
+    try:
+        ours.decode("utf-8")
+        theirs.decode("utf-8")
+    except UnicodeDecodeError:
+        return None
+    if _MARKER_OPEN in ours or _MARKER_OPEN in theirs:
+        return None
+    parts: list[bytes] = []
+    parts.append(b"<<<<<<< current (server)\n")
+    parts.append(ours)
+    if not ours.endswith(b"\n"):
+        parts.append(b"\n")
+    parts.append(b"=======\n")
+    parts.append(theirs)
+    if not theirs.endswith(b"\n"):
+        parts.append(b"\n")
+    parts.append(b">>>>>>> incoming\n")
+    return b"".join(parts)
 
 
 def _resolve_delete_modify(
@@ -360,16 +454,22 @@ def _resolve_modify_delete(
         ))
         merged[path] = ours
         return
-    # LWW: incoming wins → the file ends up deleted.
+    # V1 contract: modify wins over delete in BOTH directions (this is
+    # what ``merge.py:three_way_merge`` already does for the same
+    # shape). Keeping the modify side is the safer default — silently
+    # deleting work product would lose data — and it mirrors the
+    # delete/modify branch above which keeps ``theirs`` (the modify).
+    # Without putting ours into ``merged`` here, ``_merge_on_cas_retry``'s
+    # "drop unknown path" splice would actually delete the file.
+    merged[path] = ours
     lww_records.append(ConflictRecord(
         path=path,
-        strategy="lww",
-        detail="incoming deleted, server modified; LWW honors deletion",
-        kept="theirs",
-        lost_content=ours.decode(errors="replace")[:500],
-        lost_hash=hash_bytes(ours),
+        strategy="modify_delete",
+        detail="incoming deleted, server modified; modify wins (keep ours)",
+        kept="ours",
+        lost_content="",
+        lost_hash="",
     ))
-    # explicit no-op: leave path out of ``merged``.
 
 
 def _rule_scope_matches(rule: ConflictPolicyRule, scope_norm: str) -> bool:
