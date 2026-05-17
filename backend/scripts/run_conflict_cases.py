@@ -169,9 +169,10 @@ def _render_bytes(b: Optional[bytes], limit: int = 200) -> Optional[str]:
 class CaseRunner:
     """One-shot runner for a single ConflictCase."""
 
-    # Operations we can't drive in-process yet (no public MutOps method
-    # OR requires the HTTP conflict-router round-trip).
-    _UNSUPPORTED_OPS = {"resolve"}
+    # Operations we can't drive in-process yet. (Empty after the
+    # resolver flow landed — ``resolve`` writers now hit
+    # ``engine.resolve()`` directly via ``_invoke_resolve``.)
+    _UNSUPPORTED_OPS: set[str] = set()
 
     def __init__(self, project_id: str, ops: MutOps, run_ts: str):
         self.project_id = project_id
@@ -180,6 +181,10 @@ class CaseRunner:
 
     async def run(self, case: ConflictCase) -> CaseResult:
         started = datetime.now()
+        # Stash for the resolver invocation: ``_invoke_resolve`` needs
+        # to look at the case's writers to derive the "theirs" payload
+        # for accept-style resolutions.
+        self._current_case = case
         # Scope-path namespace per (run, case) so re-runs don't collide
         ns = f".conflict-tests/{self.run_ts}/{case.id}"
         scope_paths = self._materialize_scope_paths(case, ns)
@@ -299,6 +304,12 @@ class CaseRunner:
         ]
         result.writers = actuals
 
+        # Phase B: pre-fire stuffer commits for any writer that uses
+        # ``base="ancient"`` so its CAS sees an aged scope head when it
+        # actually runs. We do this BEFORE launching the parallel
+        # writers so timing is deterministic on staging.
+        await self._pre_fire_ancient_stuffers(case, scope_paths)
+
         async def one(idx: int, w: Writer) -> None:
             if w.operation in self._UNSUPPORTED_OPS:
                 actuals[idx].outcome = "skipped"
@@ -321,13 +332,52 @@ class CaseRunner:
             *(one(i, w) for i, w in enumerate(case.writers))
         )
 
+    async def _pre_fire_ancient_stuffers(
+        self,
+        case: ConflictCase,
+        scope_paths: dict[str, str],
+    ) -> None:
+        """For each writer with ``base="ancient"``, write a handful of
+        no-op-shaped extra commits to its scope BEFORE the parallel
+        gather kicks off. The writer's actual submission then runs
+        against a scope head that's several commits ahead of where it
+        started, exercising the engine's retry-rebase path."""
+        for w in case.writers:
+            if w.base != "ancient":
+                continue
+            real_scope = scope_paths[w.scope]
+            for i in range(5):
+                await self.ops.write_file(
+                    self.project_id,
+                    f".aged-stuffer-{w.actor}-{i}.txt",
+                    f"stuffer {i}\n".encode(),
+                    who=f"system:age-{w.actor}",
+                    scope=real_scope,
+                    message=f"ancient base stuffer {i}",
+                )
+
     async def _invoke(self, w: Writer, real_scope: str):
         """Translate a Writer to a MutOps call."""
+        # Source channel is propagated so policy rules keyed on
+        # ``source_channel`` (e.g. ``agent``) fire correctly.
+        chan = w.source_channel or "papi"
+        # ``base="frozen"`` means "submit with a stale precondition so
+        # the engine 409s before doing any work". We pass an obviously-
+        # stale base_commit_id (a non-empty placeholder) — the engine
+        # raises ``ConcurrentMutationError`` and the runner reports
+        # ``rejected``. ``base="ancient"`` already had its scope stuffed
+        # in ``_pre_fire_ancient_stuffers``; the writer itself doesn't
+        # need a special base for that path.
+        base_arg: str | None = None
+        if w.base == "frozen":
+            base_arg = "0000000000000000000000000000000000000000"
         if w.operation == "write_file":
             ((path, content),) = list(w.files.items())
             return await self.ops.write_file(
                 self.project_id, path, content,
                 who=w.actor, scope=real_scope, message=f"{w.actor}: {path}",
+                policy=w.policy, source_channel=chan,
+                base_commit_id=base_arg,
             )
         if w.operation == "bulk_write":
             files = {p: c for p, c in w.files.items() if c is not None}
@@ -337,6 +387,7 @@ class CaseRunner:
                 who=w.actor, scope=real_scope,
                 deleted=deletes,
                 message=f"{w.actor}: bulk",
+                policy=w.policy, source_channel=chan,
             )
         if w.operation == "delete":
             return await self.ops.delete(
@@ -359,7 +410,142 @@ class CaseRunner:
                 who=w.actor, scope=real_scope,
                 message=f"{w.actor}: mkdir",
             )
+        if w.operation == "resolve":
+            return await self._invoke_resolve(w, real_scope)
         raise ValueError(f"unhandled operation: {w.operation}")
+
+    async def _invoke_resolve(self, w: Writer, real_scope: str):
+        """Apply a conflict resolution decision.
+
+        Reads the oldest pending row in ``mut_conflicts`` for this
+        scope (FIFO so chained resolutions in cat F land in order) and
+        calls the engine's ``resolve`` with the requested decision.
+
+        ``files['choice']``:
+          * ``reject``  — close the pending row, scope head unchanged
+          * ``ours``    — keep what currently sits at scope head (use
+                          ``reject`` semantic since ours is already
+                          the committed content)
+          * ``theirs``  — apply the queued writer's payload as the
+                          resolution. We look up the matching writer
+                          from the case manifest (the one with
+                          ``policy="manual_review"`` whose payload
+                          covers the pending row's ``changed_paths``).
+          * ``merged``  — use ``files['content']`` as the new content
+                          for every conflicted path.
+        """
+
+        from src.mut_engine.domain.intents import ConflictResolutionIntent
+
+        decision_raw = w.files.get("choice", b"") or b""
+        if isinstance(decision_raw, (bytes, bytearray)):
+            decision_str = decision_raw.decode()
+        else:
+            decision_str = str(decision_raw)
+        custom_content = w.files.get("content", None)
+
+        # Wait briefly for the pending row to materialize — if the
+        # queued writer is still completing the registration, the
+        # row may lag the resolver by a few hundred ms on staging.
+        pending = None
+        for _ in range(20):
+            rows = (
+                sb.table("mut_conflicts")
+                .select("pending_conflict_id, scope_path, "
+                        "changed_paths, proposed_tree_id, created_at")
+                .eq("project_id", self.project_id)
+                .eq("scope_path", real_scope)
+                .eq("status", "pending")
+                .order("created_at")
+                .limit(1)
+                .execute()
+                .data or []
+            )
+            if rows:
+                pending = rows[0]
+                break
+            await asyncio.sleep(0.25)
+        if pending is None:
+            raise RuntimeError(
+                f"no pending conflict to resolve in scope {real_scope!r}"
+            )
+        pending_id = pending["pending_conflict_id"]
+        paths = pending.get("changed_paths") or []
+
+        # Translate runner-side choice to engine ConflictResolutionIntent.
+        if decision_str in ("reject", "ours"):
+            note = "reject" if decision_str == "reject" else "pick ours (close via reject)"
+            return await self.ops._engine.resolve(
+                ConflictResolutionIntent(
+                    project_id=self.project_id,
+                    pending_conflict_id=pending_id,
+                    scope_path=real_scope,
+                    resolver_actor=w.actor,
+                    source_channel="papi",
+                    decision="reject",
+                    resolution_message=f"{w.actor}: {note}",
+                )
+            )
+
+        # For accept-style decisions ("theirs" or "merged") we need to
+        # materialize the resolution file set.
+        if decision_str == "merged":
+            if not isinstance(custom_content, (bytes, bytearray)):
+                raise ValueError(
+                    "resolve op with choice='merged' requires "
+                    "files['content'] bytes"
+                )
+            files = {p: bytes(custom_content) for p in paths}
+        elif decision_str == "theirs":
+            files = self._theirs_resolution_files(paths)
+            if not files:
+                raise RuntimeError(
+                    "could not derive 'theirs' resolution files — "
+                    "no preceding writer with policy='manual_review' "
+                    "matches the pending paths"
+                )
+        else:
+            raise ValueError(f"unknown resolve choice: {decision_str!r}")
+
+        return await self.ops._engine.resolve(
+            ConflictResolutionIntent(
+                project_id=self.project_id,
+                pending_conflict_id=pending_id,
+                scope_path=real_scope,
+                resolver_actor=w.actor,
+                source_channel="papi",
+                decision="accept",
+                resolution_files=files,
+                resolution_message=f"{w.actor}: {decision_str}",
+            )
+        )
+
+    def _theirs_resolution_files(self, paths: list[str]) -> dict[str, bytes]:
+        """Find the writer payload that hit the pending row.
+
+        Scans the case's writers in declaration order for the most
+        recent ``policy="manual_review"`` write whose ``files`` covers
+        the pending row's ``changed_paths``. Returns a dict suitable
+        for ``ConflictResolutionIntent.resolution_files``.
+        """
+
+        if not hasattr(self, "_current_case"):
+            return {}
+        case = self._current_case  # type: ignore[attr-defined]
+        path_set = set(paths)
+        for w in reversed(case.writers):
+            if w.policy != "manual_review":
+                continue
+            if w.operation not in ("write_file", "bulk_write"):
+                continue
+            files: dict[str, bytes] = {}
+            for p, c in w.files.items():
+                if not isinstance(c, (bytes, bytearray)):
+                    continue
+                files[p] = bytes(c)
+            if path_set.issubset(files.keys()):
+                return {p: files[p] for p in path_set}
+        return {}
 
     # ── Read final state ──────────────────────────────────────────
 
@@ -600,13 +786,6 @@ class CaseRunner:
         for w in case.writers:
             if w.operation in CaseRunner._UNSUPPORTED_OPS:
                 return f"writer uses unsupported op: {w.operation}"
-            if w.base in ("frozen", "ancient"):
-                return f"writer uses base={w.base!r} (timing harness TBD)"
-            if w.policy == "manual_review":
-                return (
-                    "manual_review policy requires conflict_router HTTP path "
-                    "+ outbox dispatch; not in MutOps in-process flow"
-                )
         return ""
 
 

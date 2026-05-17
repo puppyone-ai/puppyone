@@ -113,18 +113,21 @@ class MutOps:
         expected_head_commit_id: str | None = None,
         allow_same_tree_commit: bool = False,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ):
         intent = OperationWriteIntent(
             project_id=project_id,
             scope_path=scope,
             actor=who,
-            source_channel="papi",
+            source_channel=source_channel,
             operation_type=op_type,
             message=message,
             audit_detail=audit_detail or {},
             expected_head_commit_id=expected_head_commit_id,
             allow_same_tree_commit=allow_same_tree_commit,
             defer_projection=defer_projection,
+            policy_override=policy,
         )
         return await self._engine.apply_operation(intent, splice_fn)
 
@@ -142,6 +145,8 @@ class MutOps:
         message: str = "",
         base_commit_id: str | None = None,
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Write a single file (create or update).
 
@@ -150,6 +155,11 @@ class MutOps:
         root scope at a path that belongs to a sub-scope is wholesale
         replaced by the sub-scope's tree during graft — the commit
         lands but the read path never sees it).
+
+        ``policy`` lets the caller opt into a stricter conflict policy
+        (e.g. ``"manual_review"``) than the configured rule set would
+        select on its own — the engine queues conflicts in
+        ``mut_conflicts`` instead of silently merging via LWW.
         """
         path = validate_path(path)
         target_scope, rel_path = self._resolve_write_target(
@@ -167,6 +177,8 @@ class MutOps:
             audit_detail={"path": path, "size": len(content)},
             expected_head_commit_id=base_commit_id,
             defer_projection=defer_projection,
+            policy=policy,
+            source_channel=source_channel,
         )
         return _to_result(result, [path])
 
@@ -461,6 +473,8 @@ class MutOps:
         deleted: list[str] | None = None,
         message: str = "",
         defer_projection: bool = False,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         """Batch write + optional batch delete in one commit per scope.
 
@@ -477,6 +491,7 @@ class MutOps:
                 {k: clean[k] for k in clean},
                 clean_del,
                 who, message, defer_projection,
+                policy=policy, source_channel=source_channel,
             )
 
         write_groups = self._group_paths_by_scope(
@@ -496,6 +511,7 @@ class MutOps:
                 project_id, target_scope,
                 rel_files, rel_dels, who, message,
                 defer_projection,
+                policy=policy, source_channel=source_channel,
             )
             first_result = first_result or r
         return first_result or WriteResult(
@@ -511,6 +527,9 @@ class MutOps:
         who: str,
         message: str,
         defer_projection: bool = False,
+        *,
+        policy: str = "",
+        source_channel: str = "papi",
     ) -> WriteResult:
         ops: list[tuple] = []
         ops.extend(("put", path, content) for path, content in rel_files.items())
@@ -526,6 +545,8 @@ class MutOps:
             who=who,
             message=message or f"bulk write {len(rel_files)} files",
             op_type="bulk_write",
+            policy=policy,
+            source_channel=source_channel,
             audit_detail={
                 "writes": len(rel_files),
                 "deletes": len(rel_dels),
