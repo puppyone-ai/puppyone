@@ -478,8 +478,18 @@ class CaseRunner:
                 payload = w.files.get(path)
                 if payload is None:
                     continue
-                if isinstance(payload, (bytes, bytearray)) and payload not in got:
-                    return False
+                if not isinstance(payload, (bytes, bytearray)):
+                    continue
+                # Engine's marker block adds a trailing newline before
+                # the ``=======`` / ``>>>>>>>`` delimiter when the
+                # writer's payload didn't end with one. Compare both
+                # the raw and trailing-newline forms so the runner
+                # doesn't falsely flag the marker output as a bug.
+                if payload in got:
+                    continue
+                if not payload.endswith(b"\n") and (payload + b"\n") in got:
+                    continue
+                return False
         return True
 
     @staticmethod

@@ -30,7 +30,6 @@ from src.mut_engine.application.git_commit import (
     git_compatibility_error,
     is_git_compatible_commit,
 )
-from src.mut_engine.application.path_utils import normalize_path
 from src.mut_engine.application.tree_objects import (
     build_full_changes,
     build_tree_from_files,

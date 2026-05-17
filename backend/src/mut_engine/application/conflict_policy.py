@@ -346,8 +346,8 @@ def _apply_policy_to_unsafe_conflict(
 _MARKER_MAX_BYTES = 200_000
 
 
-_MARKER_OPEN = b"<<<<<<< "
-_MARKER_CLOSE = b">>>>>>> "
+_MARKER_OPEN = b"<<<<<<< current"
+_MARKER_CLOSE = b">>>>>>> incoming"
 
 
 def _try_conflict_markers(ours: bytes, theirs: bytes) -> bytes | None:
