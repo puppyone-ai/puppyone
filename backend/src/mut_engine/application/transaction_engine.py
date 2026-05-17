@@ -48,6 +48,7 @@ from src.mut_engine.domain.intents import (
 )
 from src.mut_engine.server.repo_manager import MutRepoManager
 from src.mut_engine.server.backends.s3_storage import stage_object_writes
+from src.mut_engine.services.tree_splice import splice_batch
 from src.utils.logger import log_error, log_info, log_warning
 
 
@@ -343,6 +344,15 @@ class GitNativeTransactionEngine:
         scope_norm = normalize_path(intent.scope_path)
 
         last_error: Exception | None = None
+        # Captured on the FIRST attempt; used as the merge base on every
+        # subsequent retry where the scope head moved underneath us. The
+        # invariant we want: the actor's perceived "starting point" never
+        # changes — only the merge target does. So when a concurrent writer
+        # (A) commits between our attempt 0 splice and our publish, attempt
+        # 1+ produces a server-side merged commit that combines A's edit
+        # with the caller's intent (B), rather than blindly overwriting A.
+        base_scope_hash: str | None = None
+        merge_audit: dict | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
             old_scope_hash, current_head_commit_id = _get_scope_state(repo, scope_norm)
             if (
@@ -355,10 +365,49 @@ class GitNativeTransactionEngine:
                     current_head_commit_id=current_head_commit_id,
                 )
 
+            if attempt == 0:
+                base_scope_hash = old_scope_hash
+
             with stage_object_writes(repo.store) as object_batch:
                 new_scope_hash, changes = await asyncio.to_thread(
                     splice, repo.store, old_scope_hash,
                 )
+
+                # CAS-retry merge: if the scope advanced between our base
+                # capture and this attempt, what the splice produced is
+                # "caller's intent applied on top of someone else's commit".
+                # That's a blind overwrite of whatever the other commit
+                # changed at the same path. Run the V1 conflict-policy
+                # three-way merge against the captured base to recover the
+                # other side's content where it can be safely combined.
+                if (
+                    attempt > 0
+                    and base_scope_hash is not None
+                    and base_scope_hash != old_scope_hash
+                    and new_scope_hash != old_scope_hash
+                ):
+                    merged_tree, merge_audit = self._merge_on_cas_retry(
+                        repo=repo,
+                        intent=intent,
+                        scope_norm=scope_norm,
+                        base_scope_hash=base_scope_hash,
+                        current_scope_hash=old_scope_hash,
+                        incoming_scope_hash=new_scope_hash,
+                    )
+                    if merged_tree is not None and merged_tree != new_scope_hash:
+                        # Rebuild ``changes`` so the audit row reflects the
+                        # merged tree, not the pre-merge splice.
+                        changes = await asyncio.to_thread(
+                            compute_changeset,
+                            scope_norm,
+                            await asyncio.to_thread(
+                                flatten_tree_to_bytes, repo.store, old_scope_hash,
+                            ),
+                            await asyncio.to_thread(
+                                flatten_tree_to_bytes, repo.store, merged_tree,
+                            ),
+                        )
+                        new_scope_hash = merged_tree
 
                 if (
                     not changes
@@ -394,6 +443,12 @@ class GitNativeTransactionEngine:
                     await asyncio.to_thread(object_batch.flush)
 
             full_changes = build_full_changes(scope_norm, changes)
+            # If the CAS-retry merge fired, stamp the audit detail so the
+            # ledger row records what was combined and which strategy
+            # produced the merged content.
+            audit_detail = dict(intent.audit_detail or {})
+            if merge_audit:
+                audit_detail.setdefault("cas_retry_merge", merge_audit)
             result = await self._publish_scope_update(
                 repo=repo,
                 project_id=intent.project_id,
@@ -404,12 +459,12 @@ class GitNativeTransactionEngine:
                 actor=intent.actor,
                 message=intent.message,
                 op_type=intent.operation_type,
-                audit_detail=intent.audit_detail,
+                audit_detail=audit_detail,
                 changes=full_changes,
                 conflicts=None,
                 created_at_iso=created_at_iso,
                 cas_attempt=attempt + 1,
-                merged=False,
+                merged=bool(merge_audit),
                 merged_changes=[],
                 defer_projection=intent.defer_projection,
                 source_channel=intent.source_channel,
@@ -434,6 +489,115 @@ class GitNativeTransactionEngine:
             f"(project={intent.project_id}, scope={scope_norm!r}); "
             f"last error: {last_error}",
         )
+
+    def _merge_on_cas_retry(
+        self,
+        *,
+        repo,
+        intent: OperationWriteIntent,
+        scope_norm: str,
+        base_scope_hash: str,
+        current_scope_hash: str,
+        incoming_scope_hash: str,
+    ) -> "tuple[str | None, dict | None]":
+        """Run the V1 policy three-way merge during a CAS retry.
+
+        Returns ``(merged_tree_hash, audit_dict)``. On any failure the
+        helper logs and returns ``(None, None)`` so the caller falls back
+        to the splice-only path — i.e. the worst case is the legacy
+        LWW-by-overwrite behavior, never a hard failure.
+
+        ``base``   = scope tree the operation was originally splice'd against
+                     (the actor's perceived starting point, captured on
+                     attempt 0).
+        ``current`` = scope tree as it now stands after a concurrent
+                       writer (A) committed.
+        ``incoming`` = tree the splice produced this attempt — caller's
+                        intent applied on top of ``current``. It carries
+                        B's content at the touched paths but lost A's
+                        edits at those same paths.
+
+        Three-way merge against ``base`` recovers A's content where the
+        safe-merge strategies (identical / one_side_only / json / line)
+        can combine the two sides; otherwise the configured policy
+        (LWW or manual_review) fires.
+        """
+
+        try:
+            base_files = flatten_tree_to_bytes(repo.store, base_scope_hash)
+            current_files = flatten_tree_to_bytes(repo.store, current_scope_hash)
+            incoming_files = flatten_tree_to_bytes(repo.store, incoming_scope_hash)
+        except Exception as exc:
+            log_warning(
+                f"[cas-retry-merge] failed to load tree files "
+                f"(base={base_scope_hash[:8]}, current={current_scope_hash[:8]}, "
+                f"incoming={incoming_scope_hash[:8]}): {exc}",
+            )
+            return (None, None)
+
+        # Touched paths drive policy selection (e.g. *.lock → manual_review).
+        touched = sorted(
+            (set(current_files) | set(incoming_files))
+            - {
+                p for p in (set(current_files) & set(incoming_files))
+                if current_files.get(p) == incoming_files.get(p)
+            }
+        )
+        if not touched:
+            return (None, None)
+
+        policy = select_conflict_policy(
+            scope_path=scope_norm,
+            source_channel=intent.source_channel,
+            actor=intent.actor,
+            paths=touched,
+        )
+        merge_result = merge_file_sets_for_policy(
+            base_files, current_files, incoming_files,
+            policy=policy,
+        )
+
+        # Apply the merged file set on top of current head as a batch
+        # splice. Files unchanged by either side stay as they are.
+        ops: list = []
+        for path, content in merge_result.merged_files.items():
+            if content is None:
+                ops.append(("rm", path))
+            else:
+                ops.append(("put", path, content))
+        # Paths present in current but absent from merged_files were
+        # untouched — splice_batch leaves them alone.
+        try:
+            merged_tree, _splice_changes = splice_batch(
+                repo.store, current_scope_hash, ops,
+            )
+        except Exception as exc:
+            log_warning(
+                f"[cas-retry-merge] splice_batch failed for "
+                f"{len(ops)} ops: {exc}",
+            )
+            return (None, None)
+
+        audit = {
+            "policy": policy.policy,
+            "policy_reason": policy.reason,
+            "base_scope_hash": base_scope_hash,
+            "current_scope_hash": current_scope_hash,
+            "auto_merged_paths": [r.path for r in merge_result.auto_merge_records],
+            "lww_paths": [r.path for r in merge_result.lww_records],
+            "superseded_paths": [
+                r.path for r in merge_result.superseded_by_parent
+            ],
+            "pending_paths": [r.path for r in merge_result.manual_conflicts],
+        }
+        log_info(
+            f"[cas-retry-merge] scope={scope_norm!r} "
+            f"auto={len(merge_result.auto_merge_records)} "
+            f"lww={len(merge_result.lww_records)} "
+            f"pending={len(merge_result.manual_conflicts)} "
+            f"superseded={len(merge_result.superseded_by_parent)}",
+        )
+        return (merged_tree, audit)
 
     async def _submit_version_optimistic(
         self,
