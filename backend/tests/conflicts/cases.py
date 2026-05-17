@@ -41,7 +41,30 @@ CATEGORY OVERVIEW
   E  (10)  Concurrency + CAS storms (2..20 writers, ancient bases, exact-retry-budget)
   F  (12)  Policy-driven outcomes (manual_review queueing, policy rules, resolver decisions)
   G  (10)  Edge / adversarial (binary, unicode, CRLF, deep nesting, path traversal)
-                                                              Total: 82
+  H  (15)  Code files (Python / TS / Go / Java / SQL / YAML / TOML / HTML / CSV / XML / shell / Dockerfile)
+  I  (10)  Size variations (medium .py / large JSON / 500KB markdown / 100-file batches / 10MB single file / 1000-file bulk)
+  J  (10)  Multilingual content & paths (CJK / Arabic / Cyrillic / Hebrew / Greek + emoji / mixed scripts)
+                                                              Total: 117
+
+GROUND TRUTH
+============
+Each :class:`ConflictCase` has an optional ``ground_truth`` field of
+type :class:`GroundTruth`. When set, it represents the IDEAL resolution
+outcome (what an LLM-assisted or perfect human resolver SHOULD produce),
+which often differs from ``expected.final_state`` (what the current V1
+engine actually produces under LWW).
+
+Use ``case.effective_ground_truth()`` to get the ground truth — falls
+back to ``expected.final_state`` with ``category="engine_correct"``
+when no override is set. Ground-truth categories:
+
+  * engine_correct  — engine's behavior matches the ideal
+  * preserve_both   — engine drops one side via LWW; ideal preserves
+                       both via union or conflict markers
+  * semantic_merge  — requires AST / domain understanding to combine
+  * domain_rule     — deterministic but file-type-specific (e.g. sort
+                       imports, regenerate lockfile, append ALTERs)
+  * needs_human     — no programmatic answer; queue for review
 """
 
 from __future__ import annotations
@@ -97,7 +120,7 @@ class Writer:
 
 @dataclass(frozen=True)
 class Expected:
-    """Predicted post-conditions for a case.
+    """Predicted post-conditions for a case — what the CURRENT V1 engine does.
 
     ``writer_outcomes`` is keyed by writer index. Each value is one of:
       * ``committed``           — the writer's commit lands as scope head
@@ -122,9 +145,45 @@ class Expected:
 
 
 @dataclass(frozen=True)
+class GroundTruth:
+    """The intended resolution outcome — what an *ideal* resolver should
+    produce, independent of what the current V1 engine does.
+
+    Used as the comparison target when evaluating:
+      * LLM-assisted merge proposals
+      * future smart resolvers
+      * audit of how often LWW silently loses information
+
+    ``category`` tags the relationship between current engine behavior
+    and the ideal:
+      * ``engine_correct``  — ``Expected.final_state`` already matches.
+      * ``preserve_both``   — engine drops one side via LWW; ideal merge
+                              preserves both via union, comments, or
+                              conflict markers (so no data is lost).
+      * ``semantic_merge``  — combining the two sides requires domain
+                              understanding (e.g. "both renamed the same
+                              function but to compatible new names — pick
+                              one and rewrite callers").
+      * ``needs_human``     — no programmatic answer is correct without
+                              additional input; the ideal flow is to
+                              queue for manual review.
+      * ``domain_rule``     — deterministic but the rule depends on file
+                              type (e.g. SQL ALTER ordering, lockfile
+                              regeneration).
+    """
+
+    final_state: Mapping[str, Optional[bytes]] = field(default_factory=dict)
+    rationale: str = ""
+    category: str = "engine_correct"
+    # When category=="needs_human", this short prompt frames the
+    # decision for a reviewer / LLM.
+    review_prompt: str = ""
+
+
+@dataclass(frozen=True)
 class ConflictCase:
     id: str
-    category: str                                              # "A" .. "G"
+    category: str                                              # "A" .. "J"
     title: str
     description: str
     setup: Mapping[str, Mapping[str, bytes]] = field(default_factory=dict)
@@ -133,6 +192,22 @@ class ConflictCase:
     """``((path, mode), ...)``. Scopes the case needs. ``""`` = root scope."""
     writers: Tuple[Writer, ...] = ()
     expected: Expected = field(default_factory=Expected)
+    # When ``ground_truth`` is None, the default is "engine behavior IS the
+    # ideal" (final_state copied from expected, category=engine_correct).
+    # Override explicitly for cases where the engine's LWW (or other
+    # strategy) is known to drop information that a smarter resolver
+    # would keep.
+    ground_truth: Optional[GroundTruth] = None
+
+    def effective_ground_truth(self) -> GroundTruth:
+        if self.ground_truth is not None:
+            return self.ground_truth
+        return GroundTruth(
+            final_state=self.expected.final_state,
+            rationale="Engine's behavior already matches the ideal "
+                      "resolution for this shape.",
+            category="engine_correct",
+        )
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -157,6 +232,65 @@ def _del(actor: str, *paths: str, **kw) -> Writer:
 def _ren(actor: str, src: str, dst: str, **kw) -> Writer:
     return Writer(actor=actor, operation="rename",
                   files={"from": src.encode(), "to": dst.encode()}, **kw)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Content generators — keep large test fixtures out of declared bytes
+# ──────────────────────────────────────────────────────────────────────
+
+def _py_module(funcs: list[str]) -> bytes:
+    """Generate a Python module with ``len(funcs)`` empty functions."""
+    body = "\n\n".join(f"def {name}():\n    pass" for name in funcs)
+    return (body + "\n").encode("utf-8")
+
+
+def _ts_component(props: list[str]) -> bytes:
+    """Generate a React/TS component with the given prop names."""
+    props_iface = "\n  ".join(f"{p}: string;" for p in props)
+    return (
+        f"interface Props {{\n  {props_iface}\n}}\n\n"
+        "export function Widget(props: Props) {\n"
+        "  return <div>{JSON.stringify(props)}</div>;\n"
+        "}\n"
+    ).encode("utf-8")
+
+
+def _go_imports(pkgs: list[str]) -> bytes:
+    """Generate a Go file with the given imports."""
+    body = "\n".join(f'\t"{p}"' for p in pkgs)
+    return f"package main\n\nimport (\n{body}\n)\n".encode("utf-8")
+
+
+def _sql_migration(stmts: list[str]) -> bytes:
+    body = "\n".join(s.rstrip(";") + ";" for s in stmts)
+    return (body + "\n").encode("utf-8")
+
+
+def _yaml_doc(keys: dict) -> bytes:
+    """Trivial YAML serializer (assumes scalar string values)."""
+    body = "\n".join(f"{k}: {v}" for k, v in keys.items())
+    return (body + "\n").encode("utf-8")
+
+
+def _lorem(n_lines: int, prefix: str = "") -> bytes:
+    """Generate N lines of pseudo-lorem text (deterministic)."""
+    words = (
+        "lorem ipsum dolor sit amet consectetur adipiscing elit sed do "
+        "eiusmod tempor incididunt ut labore et dolore magna aliqua enim "
+        "veniam quis nostrud exercitation ullamco laboris nisi"
+    ).split()
+    out = []
+    for i in range(n_lines):
+        slot = (i * 3) % (len(words) - 8)
+        out.append(f"{prefix}{i:05d}: " + " ".join(words[slot : slot + 8]))
+    return ("\n".join(out) + "\n").encode("utf-8")
+
+
+def _json_doc(n_keys: int, prefix: str = "k") -> bytes:
+    """Generate a large flat JSON object with ``n_keys`` keys."""
+    import json as _json
+    body = {f"{prefix}_{i:04d}": i for i in range(n_keys)}
+    return _json.dumps(body, indent=2).encode("utf-8")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -251,6 +385,19 @@ A_CASES = [
             strategy="lww",
             notes="B is the later writer (delay_ms=5); under LWW theirs wins.",
         ),
+        ground_truth=GroundTruth(
+            final_state={
+                "config.json":
+                    b'{"version": 3, "_conflict": {"version": [2, 3]}}',
+            },
+            rationale=(
+                "Both writers set the same scalar key to different values. "
+                "Engine's LWW silently drops A's value 2; an ideal resolver "
+                "preserves the disagreement so a human or downstream tool "
+                "can pick the right one."
+            ),
+            category="preserve_both",
+        ),
     ),
     ConflictCase(
         id="A05",
@@ -322,6 +469,25 @@ A_CASES = [
             writer_outcomes=("committed", "committed"),
             final_state={"app.py": b"x = 1\ny = 200\nz = 3\n"},
             strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "app.py": (
+                    b"x = 1\n"
+                    b"<<<<<<< A (user:A)\n"
+                    b"y = 20\n"
+                    b"=======\n"
+                    b"y = 200\n"
+                    b">>>>>>> B (user:B)\n"
+                    b"z = 3\n"
+                ),
+            },
+            rationale=(
+                "Both writers rewrote the same line to different scalars. "
+                "Engine's LWW drops A's edit silently. Git-style conflict "
+                "markers preserve both values for human pick."
+            ),
+            category="preserve_both",
         ),
     ),
     ConflictCase(
@@ -2086,6 +2252,1312 @@ G_CASES = [
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Category H — Code files (Python / TS / Go / Java / SQL / YAML / etc.)
+# ──────────────────────────────────────────────────────────────────────
+
+_PY_BASE = _py_module(["alpha", "beta", "gamma"])
+_PY_A_ADDS = _py_module(["alpha", "beta", "gamma", "delta_A"])
+_PY_B_ADDS = _py_module(["alpha", "beta", "gamma", "epsilon_B"])
+_PY_A_MOD_BETA = (
+    b"def alpha():\n    pass\n\n\n"
+    b"def beta():\n    return 'A'\n\n\n"
+    b"def gamma():\n    pass\n"
+)
+_PY_B_MOD_BETA = (
+    b"def alpha():\n    pass\n\n\n"
+    b"def beta():\n    return 'B'\n\n\n"
+    b"def gamma():\n    pass\n"
+)
+
+H_CASES = [
+    ConflictCase(
+        id="H01",
+        category="H",
+        title="Python: both append a new function (non-overlap)",
+        description=(
+            "Two writers each add a new top-level function at the end of "
+            "the same module. Hunks are disjoint (different new lines "
+            "at the tail) → line_merge unions both adds."
+        ),
+        setup={"": {"mod.py": _PY_BASE}},
+        writers=(
+            _w("user:A", _PY_A_ADDS, path="mod.py"),
+            _w("user:B", _PY_B_ADDS, path="mod.py", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+            notes="Two trailing hunks should merge cleanly.",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "mod.py": _py_module(
+                    ["alpha", "beta", "gamma", "delta_A", "epsilon_B"]
+                ),
+            },
+            rationale=(
+                "Both functions are independent additions. The merged "
+                "module should expose both new functions in declaration "
+                "order (A first since it commits earlier)."
+            ),
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="H02",
+        category="H",
+        title="Python: both modify the same function body",
+        description=(
+            "Both writers rewrite the body of ``beta()`` to return "
+            "different strings. Overlapping hunks → line_merge bails, "
+            "engine falls to LWW. Real fix needs a human or LLM."
+        ),
+        setup={"": {"mod.py": _PY_BASE}},
+        writers=(
+            _w("user:A", _PY_A_MOD_BETA, path="mod.py"),
+            _w("user:B", _PY_B_MOD_BETA, path="mod.py", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            final_state={"mod.py": _PY_B_MOD_BETA},
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "mod.py": (
+                    b"def alpha():\n    pass\n\n\n"
+                    b"def beta():\n"
+                    b"<<<<<<< A (user:A)\n"
+                    b"    return 'A'\n"
+                    b"=======\n"
+                    b"    return 'B'\n"
+                    b">>>>>>> B (user:B)\n\n\n"
+                    b"def gamma():\n    pass\n"
+                ),
+            },
+            rationale=(
+                "Both writers changed the same function body. Engine LWW "
+                "drops A's logic; an ideal resolver surfaces both via "
+                "conflict markers so a developer can pick or merge."
+            ),
+            category="preserve_both",
+        ),
+    ),
+    ConflictCase(
+        id="H03",
+        category="H",
+        title="Python: both add different imports at the top",
+        description=(
+            "A inserts ``import json`` after the existing imports; B "
+            "inserts ``import os``. Both touch line 1, so the diff "
+            "hunks overlap → falls to LWW."
+        ),
+        setup={"": {"mod.py": b"import sys\n\n\ndef main():\n    pass\n"}},
+        writers=(
+            _w("user:A",
+               b"import json\nimport sys\n\n\ndef main():\n    pass\n",
+               path="mod.py"),
+            _w("user:B",
+               b"import os\nimport sys\n\n\ndef main():\n    pass\n",
+               path="mod.py", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            final_state={
+                "mod.py":
+                    b"import os\nimport sys\n\n\ndef main():\n    pass\n",
+            },
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "mod.py":
+                    b"import json\nimport os\nimport sys\n\n\n"
+                    b"def main():\n    pass\n",
+            },
+            rationale=(
+                "Import additions are commutative — the canonical Python "
+                "convention is sorted top-level imports. An ideal "
+                "resolver applies a domain rule: union and re-sort."
+            ),
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="H04",
+        category="H",
+        title="TypeScript: both add a new prop to the same interface",
+        description=(
+            "A adds ``onClick: () => void`` to the Props interface; B "
+            "adds ``disabled?: boolean``. Both insert lines inside the "
+            "same {...} block, hunks likely overlap → LWW."
+        ),
+        setup={"": {
+            "Widget.tsx": _ts_component(["label"]),
+        }},
+        writers=(
+            _w("user:A",
+               _ts_component(["label", "onClick"]),
+               path="Widget.tsx"),
+            _w("user:B",
+               _ts_component(["label", "disabled"]),
+               path="Widget.tsx", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "Widget.tsx": _ts_component(["label", "onClick", "disabled"]),
+            },
+            rationale=(
+                "Both prop additions are independent and TypeScript-safe "
+                "to union. An AST-aware resolver would deduplicate the "
+                "interface block and keep both new fields."
+            ),
+            category="semantic_merge",
+        ),
+    ),
+    ConflictCase(
+        id="H05",
+        category="H",
+        title="TypeScript: both rewrite the same JSX attribute",
+        description=(
+            "A changes ``<button className=\"primary\">`` → "
+            "``className=\"primary-large\"``. B changes the same attribute "
+            "to ``\"primary-dark\"``. Pure scalar disagreement on the "
+            "same DOM attribute."
+        ),
+        setup={"": {"Btn.tsx":
+                    b"export const Btn = () => "
+                    b"<button className=\"primary\">x</button>;\n"}},
+        writers=(
+            _w("user:A",
+               b"export const Btn = () => "
+               b"<button className=\"primary-large\">x</button>;\n",
+               path="Btn.tsx"),
+            _w("user:B",
+               b"export const Btn = () => "
+               b"<button className=\"primary-dark\">x</button>;\n",
+               path="Btn.tsx", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Both rewrites target the same string attribute with "
+                "incompatible values. No automatic rule picks one — "
+                "needs human/design intent."
+            ),
+            category="needs_human",
+            review_prompt=(
+                "User A wants className='primary-large', user B wants "
+                "'primary-dark'. Which design wins, or is a combined "
+                "class string needed?"
+            ),
+        ),
+    ),
+    ConflictCase(
+        id="H06",
+        category="H",
+        title="Go: both add an import path",
+        description=(
+            "Two writers each add a different package to the import "
+            "block. Hunks are adjacent but distinct lines."
+        ),
+        setup={"": {"main.go": _go_imports(["fmt"])}},
+        writers=(
+            _w("user:A", _go_imports(["fmt", "os"]), path="main.go"),
+            _w("user:B", _go_imports(["encoding/json", "fmt"]),
+               path="main.go", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "main.go": _go_imports(["encoding/json", "fmt", "os"]),
+            },
+            rationale=(
+                "Go import blocks are sorted (gofmt). An ideal resolver "
+                "unions and re-sorts — same shape as H03 for Python."
+            ),
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="H07",
+        category="H",
+        title="Java: both add a method to the same class",
+        description=(
+            "A adds ``public void foo()``; B adds ``public void bar()`` "
+            "inside the same class body. Adjacent insertions at the "
+            "closing brace — line_merge SHOULD union; in practice the "
+            "diff hunks often overlap on the `}` line."
+        ),
+        setup={"": {"App.java":
+                    b"public class App {\n"
+                    b"    public static void main(String[] a) {}\n"
+                    b"}\n"}},
+        writers=(
+            _w("user:A",
+               b"public class App {\n"
+               b"    public static void main(String[] a) {}\n"
+               b"    public void foo() {}\n"
+               b"}\n",
+               path="App.java"),
+            _w("user:B",
+               b"public class App {\n"
+               b"    public static void main(String[] a) {}\n"
+               b"    public void bar() {}\n"
+               b"}\n",
+               path="App.java", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "App.java":
+                    b"public class App {\n"
+                    b"    public static void main(String[] a) {}\n"
+                    b"    public void foo() {}\n"
+                    b"    public void bar() {}\n"
+                    b"}\n",
+            },
+            rationale=(
+                "Both methods are independent additions to the class. "
+                "An AST-aware merger keeps both."
+            ),
+            category="semantic_merge",
+        ),
+    ),
+    ConflictCase(
+        id="H08",
+        category="H",
+        title="SQL migration: both add ALTER TABLE statements",
+        description=(
+            "A appends ``ALTER TABLE users ADD COLUMN created_at TIMESTAMPTZ``. "
+            "B appends ``ALTER TABLE users ADD COLUMN email TEXT``. Both "
+            "edit the migration tail — hunks overlap, LWW fires."
+        ),
+        setup={"": {
+            "migrations/001.sql": _sql_migration([
+                "CREATE TABLE users (id UUID PRIMARY KEY)"
+            ]),
+        }},
+        writers=(
+            _w("user:A",
+               _sql_migration([
+                   "CREATE TABLE users (id UUID PRIMARY KEY)",
+                   "ALTER TABLE users ADD COLUMN created_at TIMESTAMPTZ",
+               ]),
+               path="migrations/001.sql"),
+            _w("user:B",
+               _sql_migration([
+                   "CREATE TABLE users (id UUID PRIMARY KEY)",
+                   "ALTER TABLE users ADD COLUMN email TEXT",
+               ]),
+               path="migrations/001.sql", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "migrations/001.sql": _sql_migration([
+                    "CREATE TABLE users (id UUID PRIMARY KEY)",
+                    "ALTER TABLE users ADD COLUMN created_at TIMESTAMPTZ",
+                    "ALTER TABLE users ADD COLUMN email TEXT",
+                ]),
+            },
+            rationale=(
+                "ALTER TABLE additions on different columns are "
+                "commutative; both statements should land in order."
+            ),
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="H09",
+        category="H",
+        title="YAML config: both add a new top-level key",
+        description=(
+            "Both writers add a new key. YAML files don't get JSON-merge "
+            "(extension check fails), so we depend on line_merge. Hunks "
+            "are at the tail — may or may not overlap."
+        ),
+        setup={"": {"config.yaml": _yaml_doc({"version": "1.0"})}},
+        writers=(
+            _w("user:A",
+               _yaml_doc({"version": "1.0", "feature_a": "enabled"}),
+               path="config.yaml"),
+            _w("user:B",
+               _yaml_doc({"version": "1.0", "feature_b": "enabled"}),
+               path="config.yaml", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+            notes="Append-only edits at end of file should merge.",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "config.yaml": _yaml_doc({
+                    "version": "1.0",
+                    "feature_a": "enabled",
+                    "feature_b": "enabled",
+                }),
+            },
+            rationale=(
+                "YAML key additions at the top level are independent; "
+                "both should survive. Same rationale as JSON merge."
+            ),
+            category="domain_rule",
+            review_prompt=(
+                "Engine doesn't yet do YAML-aware merge. Confirm: when "
+                "appending different keys, do the line hunks actually "
+                "stay disjoint after the parser preserves the trailing "
+                "newline?"
+            ),
+        ),
+    ),
+    ConflictCase(
+        id="H10",
+        category="H",
+        title="TOML: both modify the same [section] body",
+        description=(
+            "Both writers change a value inside the same ``[server]`` "
+            "section. Overlapping line hunks → LWW."
+        ),
+        setup={"": {"pyproject.toml":
+                    b"[server]\nhost = \"localhost\"\nport = 8080\n"}},
+        writers=(
+            _w("user:A",
+               b"[server]\nhost = \"localhost\"\nport = 9090\n",
+               path="pyproject.toml"),
+            _w("user:B",
+               b"[server]\nhost = \"0.0.0.0\"\nport = 8080\n",
+               path="pyproject.toml", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+            notes="Non-overlapping line hunks (different lines edited) "
+                  "should actually succeed at line_merge.",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "pyproject.toml":
+                    b"[server]\nhost = \"0.0.0.0\"\nport = 9090\n",
+            },
+            rationale=(
+                "A changed port, B changed host — disjoint lines, both "
+                "edits should survive."
+            ),
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="H11",
+        category="H",
+        title="HTML: both add an element to <body>",
+        description=(
+            "Two writers each insert a different `<p>` element inside "
+            "the same `<body>` block. Same-position inserts → overlap."
+        ),
+        setup={"": {"index.html":
+                    b"<html><body>\n<h1>Title</h1>\n</body></html>\n"}},
+        writers=(
+            _w("user:A",
+               b"<html><body>\n<h1>Title</h1>\n<p>A's paragraph</p>\n"
+               b"</body></html>\n",
+               path="index.html"),
+            _w("user:B",
+               b"<html><body>\n<h1>Title</h1>\n<p>B's paragraph</p>\n"
+               b"</body></html>\n",
+               path="index.html", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "index.html":
+                    b"<html><body>\n<h1>Title</h1>\n"
+                    b"<p>A's paragraph</p>\n<p>B's paragraph</p>\n"
+                    b"</body></html>\n",
+            },
+            rationale=(
+                "Both elements are independent additions. DOM merge "
+                "should keep both, in declaration order."
+            ),
+            category="semantic_merge",
+        ),
+    ),
+    ConflictCase(
+        id="H12",
+        category="H",
+        title="CSV: both append rows at the end",
+        description=(
+            "A and B each append a new row to the same CSV file. "
+            "Trailing-line inserts → line_merge can union if the "
+            "hunks land at slightly different positions."
+        ),
+        setup={"": {"data.csv": b"id,name\n1,alice\n2,bob\n"}},
+        writers=(
+            _w("user:A",
+               b"id,name\n1,alice\n2,bob\n3,carol\n",
+               path="data.csv"),
+            _w("user:B",
+               b"id,name\n1,alice\n2,bob\n4,dave\n",
+               path="data.csv", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+            notes="Both append at line 3 — hunks overlap → LWW in practice.",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "data.csv": b"id,name\n1,alice\n2,bob\n3,carol\n4,dave\n",
+            },
+            rationale=(
+                "CSV row appends are independent; merge should preserve "
+                "both new rows."
+            ),
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="H13",
+        category="H",
+        title="XML: both edit different attributes on different elements",
+        description=(
+            "A changes the ``name`` attribute on `<user id=\"1\">`; "
+            "B changes ``role`` on `<user id=\"2\">`. Disjoint lines."
+        ),
+        setup={"": {"users.xml":
+                    b"<users>\n  <user id=\"1\" name=\"alice\"/>\n"
+                    b"  <user id=\"2\" role=\"admin\"/>\n</users>\n"}},
+        writers=(
+            _w("user:A",
+               b"<users>\n  <user id=\"1\" name=\"alicia\"/>\n"
+               b"  <user id=\"2\" role=\"admin\"/>\n</users>\n",
+               path="users.xml"),
+            _w("user:B",
+               b"<users>\n  <user id=\"1\" name=\"alice\"/>\n"
+               b"  <user id=\"2\" role=\"editor\"/>\n</users>\n",
+               path="users.xml", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "users.xml":
+                    b"<users>\n  <user id=\"1\" name=\"alicia\"/>\n"
+                    b"  <user id=\"2\" role=\"editor\"/>\n</users>\n",
+            },
+            rationale="Different element attributes → disjoint, both survive.",
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="H14",
+        category="H",
+        title="Shell script: both add a different export",
+        description=(
+            "Both writers append an ``export VAR=value`` at the end of "
+            "the env-sourcing script. Same shape as H12 (trailing inserts)."
+        ),
+        setup={"": {"env.sh":
+                    b"#!/bin/sh\nexport PATH=/usr/bin\n"}},
+        writers=(
+            _w("user:A",
+               b"#!/bin/sh\nexport PATH=/usr/bin\nexport DEBUG=1\n",
+               path="env.sh"),
+            _w("user:B",
+               b"#!/bin/sh\nexport PATH=/usr/bin\nexport LANG=en_US.UTF-8\n",
+               path="env.sh", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "env.sh":
+                    b"#!/bin/sh\nexport PATH=/usr/bin\nexport DEBUG=1\n"
+                    b"export LANG=en_US.UTF-8\n",
+            },
+            rationale="Independent exports; both should survive.",
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="H15",
+        category="H",
+        title="Dockerfile: both add a different COPY",
+        description=(
+            "A inserts ``COPY src /app/src``; B inserts ``COPY tests "
+            "/app/tests``. Both target the same logical layer (after "
+            "WORKDIR) so hunks may overlap."
+        ),
+        setup={"": {"Dockerfile":
+                    b"FROM python:3.12\nWORKDIR /app\n"
+                    b"RUN pip install poetry\n"}},
+        writers=(
+            _w("user:A",
+               b"FROM python:3.12\nWORKDIR /app\nCOPY src /app/src\n"
+               b"RUN pip install poetry\n",
+               path="Dockerfile"),
+            _w("user:B",
+               b"FROM python:3.12\nWORKDIR /app\nCOPY tests /app/tests\n"
+               b"RUN pip install poetry\n",
+               path="Dockerfile", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "Dockerfile":
+                    b"FROM python:3.12\nWORKDIR /app\nCOPY src /app/src\n"
+                    b"COPY tests /app/tests\nRUN pip install poetry\n",
+            },
+            rationale=(
+                "Two independent COPY directives; canonical Dockerfile "
+                "shape preserves both before the RUN."
+            ),
+            category="semantic_merge",
+        ),
+    ),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Category I — Size variations (small / medium / large)
+# ──────────────────────────────────────────────────────────────────────
+
+I_CASES = [
+    ConflictCase(
+        id="I01",
+        category="I",
+        title="Medium Python file (~5,000 lines), non-overlapping edits",
+        description=(
+            "Realistic-size source file. A edits line 100; B edits line "
+            "4900. Far-apart hunks → line_merge unions cleanly. Exercises "
+            "engine's per-line diff at scale."
+        ),
+        setup={"": {"big_mod.py": _lorem(5000, prefix="# ")}},
+        writers=(
+            _w("user:A",
+               _lorem(5000, prefix="# ").replace(
+                   b"# 00100:", b"# 00100: [A]", 1),
+               path="big_mod.py"),
+            _w("user:B",
+               _lorem(5000, prefix="# ").replace(
+                   b"# 04900:", b"# 04900: [B]", 1),
+               path="big_mod.py", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+            notes="Final has both [A] tag at line 100 and [B] at line 4900.",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Disjoint single-line edits — engine line_merge produces "
+                "the correct union. No information lost."
+            ),
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="I02",
+        category="I",
+        title="Medium Python file, overlapping edits at the same hunk",
+        description=(
+            "Same 5,000-line file. Both writers rewrite line 2500 to "
+            "different content. line_merge bails on overlap → LWW."
+        ),
+        setup={"": {"big_mod.py": _lorem(5000, prefix="# ")}},
+        writers=(
+            _w("user:A",
+               _lorem(5000, prefix="# ").replace(
+                   b"# 02500:", b"# A-CLAIM 02500:", 1),
+               path="big_mod.py"),
+            _w("user:B",
+               _lorem(5000, prefix="# ").replace(
+                   b"# 02500:", b"# B-CLAIM 02500:", 1),
+               path="big_mod.py", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Both writers claim the same line. A smart resolver "
+                "would surface both via conflict markers (same pattern "
+                "as A07/H02)."
+            ),
+            category="preserve_both",
+        ),
+    ),
+    ConflictCase(
+        id="I03",
+        category="I",
+        title="Large JSON (1MB flat), disjoint key adds",
+        description=(
+            "Base JSON has 10,000 keys. A adds key ``A_new``; B adds "
+            "``B_new``. JsonMergeStrategy should handle even at this size."
+        ),
+        setup={"": {"big.json": _json_doc(10000)}},
+        writers=(
+            _w("user:A",
+               _json_doc(10000)[:-2] + b',\n  "A_new": "alpha"\n}',
+               path="big.json"),
+            _w("user:B",
+               _json_doc(10000)[:-2] + b',\n  "B_new": "bravo"\n}',
+               path="big.json", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="json_merge",
+            notes="Engine must not OOM or time out on 1MB JSON parse.",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Disjoint top-level key adds — JSON merge produces "
+                "exactly the right union. No information lost."
+            ),
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="I04",
+        category="I",
+        title="Large markdown (500KB docs), edits in different sections",
+        description=(
+            "Generated 10,000-line markdown. A inserts content under "
+            "section 100; B inserts under section 9000. Far-apart edits."
+        ),
+        setup={"": {"docs.md": _lorem(10000, prefix="## section ")}},
+        writers=(
+            _w("user:A",
+               _lorem(10000, prefix="## section ").replace(
+                   b"## section 00100:",
+                   b"## section 00100 [A-added]:", 1),
+               path="docs.md"),
+            _w("user:B",
+               _lorem(10000, prefix="## section ").replace(
+                   b"## section 09000:",
+                   b"## section 09000 [B-added]:", 1),
+               path="docs.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+        ),
+        ground_truth=GroundTruth(
+            rationale="Both edits survive — engine is correct here.",
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="I05",
+        category="I",
+        title="100 medium files (50KB each), one overlaps",
+        description=(
+            "Real-codebase scale: both writers bulk_write 100 files of "
+            "~50KB. Exactly one path is shared. 99 files are "
+            "one_side_only; the shared path falls to LWW."
+        ),
+        setup={"": {
+            f"src/mod_{i:03d}.py": _lorem(1000, prefix=f"# m{i:03d} ")
+            for i in range(100)
+        }},
+        writers=(
+            _bw("user:A", {
+                f"src/mod_{i:03d}.py": _lorem(1000, prefix=f"# m{i:03d}-A ")
+                for i in range(100)
+            }),
+            _bw("user:B",
+                {f"src/mod_{i:03d}.py": _lorem(1000, prefix=f"# m{i:03d}-B ")
+                 for i in (50,)} |
+                {f"src/other_{i:03d}.py": _lorem(500, prefix=f"# o{i:03d} ")
+                 for i in range(99)},
+                delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="mixed",
+            notes=(
+                "99 files A-only (no overlap from B), 99 other files "
+                "B-only, and src/mod_050.py overlaps → LWW (B wins)."
+            ),
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "All 199 non-overlapping files are correctly preserved. "
+                "The single overlap at mod_050.py should be flagged for "
+                "review rather than silently LWW'd since neither side "
+                "is obviously right."
+            ),
+            category="needs_human",
+            review_prompt=(
+                "src/mod_050.py has both A and B versions. They each "
+                "rewrote 1000 lines of comments. Should A's edit "
+                "survive, B's edit survive, or are they intended to "
+                "be sequential commits?"
+            ),
+        ),
+    ),
+    ConflictCase(
+        id="I06",
+        category="I",
+        title="Realistic refactor: 30 files modified both sides",
+        description=(
+            "Simulates a 'rename one function across the codebase' "
+            "refactor. A renames calls in 30 files. B does an unrelated "
+            "change in 30 files; 5 of those overlap with A's files."
+        ),
+        setup={"": {
+            f"src/feat_{i:02d}.py": (
+                f"from helpers import old_name\n\n"
+                f"def task_{i:02d}():\n    return old_name(x)\n"
+            ).encode("utf-8")
+            for i in range(30)
+        }},
+        writers=(
+            _bw("user:A", {
+                f"src/feat_{i:02d}.py": (
+                    f"from helpers import new_name\n\n"
+                    f"def task_{i:02d}():\n    return new_name(x)\n"
+                ).encode("utf-8")
+                for i in range(30)
+            }),
+            _bw("user:B", {
+                f"src/feat_{i:02d}.py": (
+                    f"from helpers import old_name\n\n"
+                    f"# TODO: optimize\n"
+                    f"def task_{i:02d}():\n    return old_name(x)\n"
+                ).encode("utf-8")
+                for i in range(5)
+            }, delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="mixed",
+            notes=(
+                "25 files A-only (rename only). 5 files conflict (rename "
+                "vs comment add) — line_merge may succeed if hunks are "
+                "disjoint (line 1 vs line 3), else LWW."
+            ),
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                **{
+                    f"src/feat_{i:02d}.py": (
+                        f"from helpers import new_name\n\n"
+                        f"def task_{i:02d}():\n    return new_name(x)\n"
+                    ).encode("utf-8")
+                    for i in range(5, 30)
+                },
+                **{
+                    f"src/feat_{i:02d}.py": (
+                        f"from helpers import new_name\n\n"
+                        f"# TODO: optimize\n"
+                        f"def task_{i:02d}():\n    return new_name(x)\n"
+                    ).encode("utf-8")
+                    for i in range(5)
+                },
+            },
+            rationale=(
+                "Ideal merge: A's import rename + B's TODO comment "
+                "coexist (different lines). Engine line_merge should "
+                "actually achieve this if hunks are disjoint."
+            ),
+            category="semantic_merge",
+        ),
+    ),
+    ConflictCase(
+        id="I07",
+        category="I",
+        title="10MB single-file edit with disjoint hunks",
+        description=(
+            "Real-world large-file edit: 10MB markdown. A edits near the "
+            "top; B edits near the bottom. Disjoint hunks should still "
+            "line-merge but the diff algorithm may be slow."
+        ),
+        setup={"": {"book.md": _lorem(100_000, prefix="## chap ")}},
+        writers=(
+            _w("user:A",
+               _lorem(100_000, prefix="## chap ").replace(
+                   b"## chap 00050:", b"## chap 00050 [A]:", 1),
+               path="book.md"),
+            _w("user:B",
+               _lorem(100_000, prefix="## chap ").replace(
+                   b"## chap 99950:", b"## chap 99950 [B]:", 1),
+               path="book.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+            notes=(
+                "Engine must complete in reasonable time. If timeout, "
+                "fall back to LWW and surface a 'too large' warning."
+            ),
+        ),
+        ground_truth=GroundTruth(
+            rationale="Both edits survive — engine is correct.",
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="I08",
+        category="I",
+        title="10MB single file, overlap → LWW with large lost content",
+        description=(
+            "Same 10MB file. Both writers replace the same 1000-line "
+            "block (~50KB). LWW fires; the lost-content audit field "
+            "would balloon."
+        ),
+        setup={"": {"book.md": _lorem(100_000, prefix="## chap ")}},
+        writers=(
+            _w("user:A",
+               _lorem(100_000, prefix="## chap ").replace(
+                   _lorem(1000, prefix="## chap "),
+                   _lorem(1000, prefix="## A "), 1),
+               path="book.md"),
+            _w("user:B",
+               _lorem(100_000, prefix="## chap ").replace(
+                   _lorem(1000, prefix="## chap "),
+                   _lorem(1000, prefix="## B "), 1),
+               path="book.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+            notes=(
+                "Verify ConflictRecord.lost_content truncates at 500 "
+                "chars (merge.py:128) so audit row stays bounded."
+            ),
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "50KB of A's edit gets dropped silently. An ideal "
+                "resolver flags the size of the lost-content and "
+                "queues for review."
+            ),
+            category="needs_human",
+        ),
+    ),
+    ConflictCase(
+        id="I09",
+        category="I",
+        title="Mixed sizes in one bulk_write: 1KB + 100KB + 5MB",
+        description=(
+            "Single bulk commit with three files of very different "
+            "sizes. Stresses tree splice across orders of magnitude."
+        ),
+        setup={"": {
+            "tiny.txt": b"v0\n",
+            "medium.txt": _lorem(2000),
+            "large.txt": _lorem(50_000),
+        }},
+        writers=(
+            _bw("user:A", {
+                "tiny.txt": b"A-tiny\n",
+                "medium.txt": _lorem(2000, prefix="# A "),
+                "large.txt": _lorem(50_000, prefix="# A "),
+            }),
+            _bw("user:B", {
+                "tiny.txt": b"B-tiny\n",
+                "medium.txt": _lorem(2000, prefix="# B "),
+                "large.txt": _lorem(50_000, prefix="# B "),
+            }, delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+            notes="All three are full rewrites — overlapping everywhere.",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Wholesale rewrites on different files all collide. "
+                "Each one needs an independent review decision."
+            ),
+            category="needs_human",
+        ),
+    ),
+    ConflictCase(
+        id="I10",
+        category="I",
+        title="1000 small files in one bulk_write",
+        description=(
+            "Performance edge: bulk_write of 1000 paths in one commit. "
+            "No conflicts (different scopes / fresh paths). Verifies "
+            "tree splice + commit object handle the fanout."
+        ),
+        setup={"": {}},
+        writers=(
+            _bw("user:A", {f"a/{i:04d}.txt": bytes([i % 256, (i >> 8) % 256])
+                          for i in range(1000)}),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed",),
+            strategy="one_side_only",
+            notes="Single commit; verify mut_scope_state updates once.",
+        ),
+        ground_truth=GroundTruth(
+            rationale="No conflict; engine commits exactly the intended files.",
+            category="engine_correct",
+        ),
+    ),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Category J — Multilingual content & paths
+# ──────────────────────────────────────────────────────────────────────
+
+J_CASES = [
+    ConflictCase(
+        id="J01",
+        category="J",
+        title="Japanese markdown: both append at different sections",
+        description=(
+            "Markdown with hiragana/kanji content. A and B each append "
+            "a different new section. Disjoint trailing hunks."
+        ),
+        setup={"": {"notes.md": "# タイトル\n\n本文です。\n".encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               "# タイトル\n\n本文です。\n\n## A の追加\n内容A。\n"
+               .encode("utf-8"),
+               path="notes.md"),
+            _w("user:B",
+               "# タイトル\n\n本文です。\n\n## B の追加\n内容B。\n"
+               .encode("utf-8"),
+               path="notes.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+            notes="Both append at line 3 — overlap → LWW.",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "notes.md": (
+                    "# タイトル\n\n本文です。\n\n"
+                    "## A の追加\n内容A。\n\n"
+                    "## B の追加\n内容B。\n"
+                ).encode("utf-8"),
+            },
+            rationale=(
+                "Independent section additions in CJK content. Same "
+                "shape as English markdown append — should preserve both."
+            ),
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="J02",
+        category="J",
+        title="Korean: both edit the same paragraph",
+        description=(
+            "Hangul content. Both writers rewrite the same line. LWW."
+        ),
+        setup={"": {"doc.md": "안녕하세요. 본문입니다.\n".encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               "안녕하세요. A가 수정한 본문.\n".encode("utf-8"),
+               path="doc.md"),
+            _w("user:B",
+               "안녕하세요. B가 수정한 본문.\n".encode("utf-8"),
+               path="doc.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Two CJK rewrites of the same line — same shape as A07 "
+                "(English). Preserve both via markers."
+            ),
+            category="preserve_both",
+        ),
+    ),
+    ConflictCase(
+        id="J03",
+        category="J",
+        title="Arabic (RTL script): both add lines",
+        description=(
+            "Arabic content with right-to-left script. Both append a "
+            "different line. UTF-8 bytes should round-trip cleanly."
+        ),
+        setup={"": {"ar.md": "مرحبا بالعالم\n".encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               "مرحبا بالعالم\nسطر من A\n".encode("utf-8"),
+               path="ar.md"),
+            _w("user:B",
+               "مرحبا بالعالم\nسطر من B\n".encode("utf-8"),
+               path="ar.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+            notes="Both append at line 1 (right after the original line).",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "ar.md": "مرحبا بالعالم\nسطر من A\nسطر من B\n".encode("utf-8"),
+            },
+            rationale="Independent line appends — should union.",
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="J04",
+        category="J",
+        title="Cyrillic content: both modify different fields",
+        description=(
+            "JSON config with Cyrillic-keyed entries. Both writers add "
+            "different keys → json_merge should union."
+        ),
+        setup={"": {"конфиг.json":
+                    '{"имя": "Иван"}'.encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               '{"имя": "Иван", "город": "Москва"}'.encode("utf-8"),
+               path="конфиг.json"),
+            _w("user:B",
+               '{"имя": "Иван", "возраст": 30}'.encode("utf-8"),
+               path="конфиг.json", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="json_merge",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "конфиг.json":
+                    '{"возраст": 30, "город": "Москва", "имя": "Иван"}'
+                    .encode("utf-8"),
+            },
+            rationale="JSON dict union works the same on Cyrillic keys.",
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="J05",
+        category="J",
+        title="Mixed CJK + Latin + emoji in one file",
+        description=(
+            "File mixing scripts: English, 中文, 日本語, 한국어, emoji. "
+            "Both writers append at different lines."
+        ),
+        setup={"": {"mixed.md":
+                    "# Mixed\nEnglish line\n中文行\n日本語の行\n한국어 줄\n"
+                    .encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               "# Mixed\nEnglish line\n中文行 [A]\n日本語の行\n한국어 줄\n"
+               .encode("utf-8"),
+               path="mixed.md"),
+            _w("user:B",
+               "# Mixed\nEnglish line\n中文行\n日本語の行\n한국어 줄 [B]\n"
+               .encode("utf-8"),
+               path="mixed.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="line_merge",
+            notes="Disjoint hunks at lines 2 and 4.",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "mixed.md":
+                    "# Mixed\nEnglish line\n中文行 [A]\n日本語の行\n"
+                    "한국어 줄 [B]\n".encode("utf-8"),
+            },
+            rationale="Both single-line edits survive.",
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="J06",
+        category="J",
+        title="Emoji content: both modify the same paragraph",
+        description=(
+            "File contains emoji surrogates. Both writers rewrite the "
+            "same line. UTF-8 multi-byte sequences must not break "
+            "line splitting."
+        ),
+        setup={"": {"emojis.md":
+                    "Status: 🚧 work in progress 🚧\n".encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               "Status: ✅ done by A ✅\n".encode("utf-8"),
+               path="emojis.md"),
+            _w("user:B",
+               "Status: 🎉 done by B 🎉\n".encode("utf-8"),
+               path="emojis.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Same line, different content — preserve both via "
+                "markers. UTF-8 boundaries must stay intact."
+            ),
+            category="preserve_both",
+        ),
+    ),
+    ConflictCase(
+        id="J07",
+        category="J",
+        title="Filename with emoji: 📝.md",
+        description=(
+            "File path contains emoji. UTF-8 path encoding must round-"
+            "trip through S3 + DB without mojibake."
+        ),
+        setup={"": {"📝.md": b"task list\n"}},
+        writers=(
+            _w("user:A", b"task list\n- A's task\n", path="📝.md"),
+            _w("user:B", b"task list\n- B's task\n", path="📝.md",
+               delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+            notes="Both append at line 1 → overlap → LWW.",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "📝.md": b"task list\n- A's task\n- B's task\n",
+            },
+            rationale="Independent list-item appends should both survive.",
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="J08",
+        category="J",
+        title="Filename with Japanese characters: 設定.json",
+        description=(
+            "JSON file with hiragana/kanji filename. JsonMergeStrategy "
+            "matches by ``.json`` extension regardless of filename."
+        ),
+        setup={"": {"設定.json": b'{"version": 1}'}},
+        writers=(
+            _w("user:A",
+               b'{"version": 1, "\xe3\x83\x86\xe3\x83\xbc\xe3\x83\x9e": "dark"}',
+               # キー "テーマ" = theme
+               path="設定.json"),
+            _w("user:B",
+               b'{"version": 1, "\xe8\xa8\x80\xe8\xaa\x9e": "ja"}',
+               # キー "言語" = language
+               path="設定.json", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="json_merge",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "JSON key union works regardless of script. Both new "
+                "Japanese-keyed entries land alongside ``version``."
+            ),
+            category="engine_correct",
+        ),
+    ),
+    ConflictCase(
+        id="J09",
+        category="J",
+        title="Hebrew RTL filename",
+        description=(
+            "Filename in Hebrew (RTL script): ``תיק.md``. Verify path "
+            "validator + storage handles directional characters."
+        ),
+        setup={"": {"תיק.md": "כותרת\nתוכן\n".encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               "כותרת\nתוכן\nשורה של A\n".encode("utf-8"),
+               path="תיק.md"),
+            _w("user:B",
+               "כותרת\nתוכן\nשורה של B\n".encode("utf-8"),
+               path="תיק.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            final_state={
+                "תיק.md": "כותרת\nתוכן\nשורה של A\nשורה של B\n".encode("utf-8"),
+            },
+            rationale="Independent line appends in Hebrew → union.",
+            category="domain_rule",
+        ),
+    ),
+    ConflictCase(
+        id="J10",
+        category="J",
+        title="Greek math symbols + content",
+        description=(
+            "Markdown with Greek letters and math symbols. Both writers "
+            "edit a formula on the same line → LWW."
+        ),
+        setup={"": {"formula.md":
+                    "Σ from i=1 to n of i² = n(n+1)(2n+1)/6\n"
+                    .encode("utf-8")}},
+        writers=(
+            _w("user:A",
+               "∑ from i=1 to n of i² = n(n+1)(2n+1)/6  (A's notation)\n"
+               .encode("utf-8"),
+               path="formula.md"),
+            _w("user:B",
+               "Σᵢ₌₁ⁿ i² = n(n+1)(2n+1)/6  (B's notation)\n"
+               .encode("utf-8"),
+               path="formula.md", delay_ms=5),
+        ),
+        expected=Expected(
+            writer_outcomes=("committed", "committed"),
+            strategy="lww",
+        ),
+        ground_truth=GroundTruth(
+            rationale=(
+                "Two valid mathematical notations for the same formula. "
+                "Needs human / domain judgment to pick a style."
+            ),
+            category="needs_human",
+            review_prompt=(
+                "Both A's and B's formulas are correct but use "
+                "different notation styles. Which house style?"
+            ),
+        ),
+    ),
+]
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Aggregated registry
 # ──────────────────────────────────────────────────────────────────────
 
@@ -2097,6 +3569,9 @@ CASES: list[ConflictCase] = [
     *E_CASES,
     *F_CASES,
     *G_CASES,
+    *H_CASES,
+    *I_CASES,
+    *J_CASES,
 ]
 
 
@@ -2109,11 +3584,12 @@ def by_category() -> dict[str, list[ConflictCase]]:
 
 def print_index() -> None:
     """Pretty-print a one-line-per-case index to stdout."""
-    print(f"{'ID':5}  {'cat':3}  {'strategy':18}  title")
-    print("-" * 100)
+    print(f"{'ID':5}  {'cat':3}  {'strategy':18}  {'gt category':16}  title")
+    print("-" * 120)
     for c in CASES:
         strat = c.expected.strategy or "-"
-        print(f"{c.id:5}  {c.category:3}  {strat:18}  {c.title}")
+        gt = c.effective_ground_truth().category
+        print(f"{c.id:5}  {c.category:3}  {strat:18}  {gt:16}  {c.title}")
 
 
 if __name__ == "__main__":
