@@ -17,8 +17,9 @@ from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryRespon
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
-from src.mut_engine.dependencies import create_mut_ops, get_mut_ops
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.dependencies import create_product_operation_adapter, get_product_operation_adapter
+from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.services.write_command import VersionWriteCommandService
 from src.platform.project.repository import ProjectRepositorySupabase
 from src.utils.logger import log_warning
 
@@ -43,7 +44,7 @@ def _enforce_acting_user_project_access(request: Request, project_id: str) -> st
     X-Acting-User-Id header), and that user must have access to project_id.
 
     Without this check, anyone holding the internal secret (e.g. the mcp
-    service, or an attacker who exfiltrated it) could read/write the MUT
+    service, or an attacker who exfiltrated it) could read/write the hash
     tree of ANY project by varying project_id.
 
     Returns:
@@ -89,6 +90,10 @@ def _enforce_acting_user_project_access(request: Request, project_id: str) -> st
             detail="Acting user is not a member of this project",
         )
     return acting_user
+
+
+def _create_write_commands() -> VersionWriteCommandService:
+    return VersionWriteCommandService(create_product_operation_adapter())
 
 
 # ============================================================
@@ -326,7 +331,7 @@ async def search_tool(
 
 # ============================================================
 # ContentNode POSIX endpoints (called by mcp_service POSIX tools)
-# All path-based, using MutOps (MUT clone/push under the hood)
+# All path-based, using ProductOperationAdapter (hash clone/push under the hood)
 # ============================================================
 
 
@@ -339,7 +344,7 @@ async def search_tool(
 async def resolve_node_path(
     payload: Dict[str, Any],
     request: Request,
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     try:
         project_id = payload.get("project_id", "")
@@ -379,7 +384,7 @@ async def list_node_children(
     request: Request,
     project_id: str = Query(..., description="Project ID"),
     path: str = Query("", description="Directory path"),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     try:
         _enforce_acting_user_project_access(request, project_id)
@@ -416,7 +421,7 @@ async def read_node_content(
     request: Request,
     project_id: str = Query(..., description="Project ID"),
     path: str = Query(..., description="File path"),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     try:
         _enforce_acting_user_project_access(request, project_id)
@@ -473,7 +478,7 @@ async def read_node_content(
 
 @router.put(
     "/nodes/write",
-    summary="Write file content (via MutOps)",
+    summary="Write file content (via ProductOperationAdapter)",
     description="Create or update file content",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -482,7 +487,7 @@ async def write_node_content(
     request: Request,
 ):
     """
-    Write file content via MutOps.
+    Write file content via ProductOperationAdapter.
 
     payload:
         project_id: str
@@ -500,25 +505,22 @@ async def write_node_content(
         if not path:
             raise HTTPException(status_code=400, detail="path is required")
 
-        if isinstance(content, str):
-            content_bytes = content.encode("utf-8")
-        elif isinstance(content, (dict, list)):
-            import json
-            content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
-        else:
+        if not isinstance(content, (str, dict, list, bytes)):
             raise HTTPException(status_code=400, detail=f"Unsupported content type: {type(content).__name__}")
 
-        ops = create_mut_ops()
-        result = await ops.write_file(
+        commands = _create_write_commands()
+        outcome = await commands.write_file(
             project_id,
             path,
-            content_bytes,
-            who=operator_id,
+            content,
+            node_type="file",
+            actor=operator_id,
             message=f"Write {path}",
         )
+        result = outcome.result
 
         return {
-            "path": path,
+            "path": outcome.path,
             "commit_id": result.commit_id,
             "op": "modified",
             "updated": True,
@@ -533,7 +535,7 @@ async def write_node_content(
 
 @router.post(
     "/nodes/create",
-    summary="Create file or directory (via MutOps)",
+    summary="Create file or directory (via ProductOperationAdapter)",
     description="Create a new file (JSON / Markdown) or empty directory at the specified path",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -542,7 +544,7 @@ async def create_node(
     request: Request,
 ):
     """
-    Create file/directory via MutOps.
+    Create file/directory via ProductOperationAdapter.
 
     payload:
         project_id: str
@@ -565,35 +567,32 @@ async def create_node(
         if node_type not in ("json", "markdown", "folder"):
             raise HTTPException(status_code=400, detail=f"Unsupported node type for creation: {node_type}")
 
-        ops = create_mut_ops()
+        commands = _create_write_commands()
 
         if node_type == "folder":
-            result = await ops.mkdir(
+            outcome = await commands.mkdir(
                 project_id,
                 path,
-                who=created_by,
+                actor=created_by,
                 message=f"mkdir {path}",
             )
+            result = outcome.result
         else:
             if content is None:
                 content = {} if node_type == "json" else ""
 
-            if isinstance(content, str):
-                content_bytes = content.encode("utf-8")
-            else:
-                import json
-                content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
-
-            result = await ops.write_file(
+            outcome = await commands.write_file(
                 project_id,
                 path,
-                content_bytes,
-                who=created_by,
+                content,
+                node_type=node_type,
+                actor=created_by,
                 message=f"Create {path}",
             )
+            result = outcome.result
 
         return {
-            "path": path,
+            "path": outcome.path,
             "created": True,
             "commit_id": result.commit_id,
         }
@@ -608,7 +607,7 @@ async def create_node(
 @router.post(
     "/nodes/rm",
     summary="Delete file or directory",
-    description="Remove file or directory from the MUT tree",
+    description="Remove file or directory from the version tree",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def remove_node(
@@ -629,16 +628,17 @@ async def remove_node(
 
         if not path:
             raise HTTPException(status_code=400, detail="path is required")
-        ops = create_mut_ops()
-        if ops.stat(project_id, path) is None:
+        commands = _create_write_commands()
+        if commands.ops.stat(project_id, path) is None:
             raise HTTPException(status_code=404, detail=f"Path not found: {path}")
 
-        result = await ops.delete(
+        outcome = await commands.delete(
             project_id,
             [path],
-            who=user_id,
+            actor=user_id,
             message=f"delete {path}",
         )
+        result = outcome.result
 
         return {"path": path, "removed": True, "commit_id": result.commit_id}
     except HTTPException:
@@ -655,7 +655,7 @@ async def remove_node(
 
 @router.post(
     "/nodes/rename",
-    summary="Rename file or directory (via MutOps)",
+    summary="Rename file or directory (via ProductOperationAdapter)",
     description="Rename by moving paths",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -676,12 +676,12 @@ async def rename_node(
         parent = "/".join(path.split("/")[:-1])
         new_path = f"{parent}/{new_name}" if parent else new_name
 
-        ops = create_mut_ops()
-        await ops.move(
+        commands = _create_write_commands()
+        await commands.move(
             project_id,
             path,
             new_path,
-            who="system",
+            actor="system",
             message=f"rename {path} → {new_path}",
         )
 
@@ -698,7 +698,7 @@ async def rename_node(
 
 @router.post(
     "/nodes/move",
-    summary="Move file or directory to new path (via MutOps)",
+    summary="Move file or directory to new path (via ProductOperationAdapter)",
     description="Move file/directory to a new parent directory",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -718,12 +718,12 @@ async def move_node_internal(
         name = path.split("/")[-1]
         new_path = f"{new_parent_path}/{name}" if new_parent_path else name
 
-        ops = create_mut_ops()
-        await ops.move(
+        commands = _create_write_commands()
+        await commands.move(
             project_id,
             path,
             new_path,
-            who="system",
+            actor="system",
             message=f"move {path} → {new_path}",
         )
 

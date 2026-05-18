@@ -1,4 +1,4 @@
-"""mcp_service.tool.fs_tool POSIX path-based tests (Mut-Native)."""
+"""mcp_service.tool.fs_tool POSIX path-based tests."""
 
 from __future__ import annotations
 

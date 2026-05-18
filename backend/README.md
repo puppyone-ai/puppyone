@@ -379,6 +379,15 @@ uv run pytest tests/test_table_api.py -v
 | `LOG_RETENTION` | `14 days` | 日志保留时间 |
 | `LOG_JSON_CONSOLE` | 自动 | 控制台是否 JSON (终端自动检测) |
 | `LOG_JSON_FILE` | `1` | 文件是否 JSON |
+| `MUT_VERSION_TRACE_ENABLED` | dev/test 自动开启 | Version Engine Save/Push 阶段耗时 trace |
+| `MUT_VERSION_TRACE_SLOW_PHASE_MS` | `250` | 单阶段超过该耗时会记录慢阶段 |
+| `MUT_VERSION_TRACE_SLOW_REQUEST_MS` | `2000` | 单次版本写入超过该耗时会记录摘要 |
+
+排查前端 Save 慢时，可以临时打开：
+
+```bash
+MUT_VERSION_TRACE_ENABLED=true LOG_LEVEL=INFO uv run uvicorn src.main:app --host 0.0.0.0 --port 9090 --reload --log-level info --no-access-log
+```
 
 ## License
 

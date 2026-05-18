@@ -6,7 +6,7 @@ verify side-effects.
 
 Prereqs
 -------
-* Local Supabase + backend running per ``docs/local-mut-git-testing.md``.
+* Local Supabase + backend running with ``backend/.env`` and ``frontend/.env``.
 * ``backend/.env`` points at local Supabase (``http://127.0.0.1:54321``).
 * GitHub OAuth completed once (an ``oauth_connections`` row exists for
   the test user).
@@ -344,13 +344,15 @@ def phase_connect(branch: str) -> str:
 
 
 def phase_import(integration_id: str) -> tuple[str, str]:
-    """Returns (git_sha, mut_commit_id) for downstream phases."""
+    """Returns (git_sha, version_commit_id) for downstream phases."""
     print("\n=== PHASE 5: manual import ===")
     pre_count = db_count("github_sync_log", {"integration_id": integration_id})
-    pre_mut_count = len(db_query("mut_commits", {"project_id": TEST_PROJECT_ID}, select="commit_id"))
+    pre_commit_count = len(
+        db_query("mut_commits", {"project_id": TEST_PROJECT_ID}, select="commit_id")
+    )
 
     with http() as c:
-        # The repo already has prior commits but the project's MUT scope
+        # The repo already has prior commits but the project's version scope
         # is empty (no exports yet), so force=True isn't strictly needed
         # — but pass it to exercise that code path.
         r = c.post(
@@ -366,13 +368,13 @@ def phase_import(integration_id: str) -> tuple[str, str]:
         f"status={status_}, msg={body.get('error_message')}",
     )
     git_sha = body.get("git_sha") or ""
-    mut_commit_id = body.get("mut_commit_id")
-    # mut_commit_id is None when the importer detected a no-op (the
-    # current MUT tree already matches the GitHub tree, e.g. running
+    version_commit_id = body.get("mut_commit_id")
+    # version_commit_id is None when the importer detected a no-op (the
+    # current project tree already matches the GitHub tree, e.g. running
     # the harness twice on the same project). Both shapes are valid:
     #   - first-time import → 40-hex SHA-1
     #   - repeat / no-op    → None
-    is_first_import = mut_commit_id is not None
+    is_first_import = version_commit_id is not None
     step(
         "import returned 40-hex git_sha",
         len(git_sha) == 40,
@@ -380,15 +382,15 @@ def phase_import(integration_id: str) -> tuple[str, str]:
     )
     if is_first_import:
         step(
-            "import returned 40-hex mut_commit_id",
-            len(mut_commit_id) == 40,
-            f"mut_commit_id={mut_commit_id[:12]}",
+            "import returned 40-hex version commit id",
+            len(version_commit_id) == 40,
+            f"version_commit_id={version_commit_id[:12]}",
         )
     else:
         step(
-            "no-op import — mut_commit_id is None (project already up-to-date)",
+            "no-op import — version commit id is None (project already up-to-date)",
             True,
-            "tree was already in sync; no new mut commit produced",
+            "tree was already in sync; no new version commit produced",
         )
 
     # github_sync_log: one new ``import`` row, status=success.
@@ -410,22 +412,22 @@ def phase_import(integration_id: str) -> tuple[str, str]:
         f"row={rows[0] if rows else '∅'}",
     )
 
-    # mut_commits gains a commit only on first-time imports; no-op
+    # The version history table gains a commit only on first-time imports; no-op
     # imports skip apply_mutation's commit step entirely.
-    post_mut_count = len(
+    post_commit_count = len(
         db_query("mut_commits", {"project_id": TEST_PROJECT_ID}, select="commit_id")
     )
     if is_first_import:
         step(
-            "first-import: mut_commits gained ≥1 commit",
-            post_mut_count > pre_mut_count,
-            f"{pre_mut_count} → {post_mut_count}",
+            "first-import: version history gained ≥1 commit",
+            post_commit_count > pre_commit_count,
+            f"{pre_commit_count} → {post_commit_count}",
         )
     else:
         step(
-            "no-op import: mut_commits unchanged",
-            post_mut_count == pre_mut_count,
-            f"{pre_mut_count} → {post_mut_count}",
+            "no-op import: version history unchanged",
+            post_commit_count == pre_commit_count,
+            f"{pre_commit_count} → {post_commit_count}",
         )
 
     # Watermark on integration row.
@@ -440,7 +442,7 @@ def phase_import(integration_id: str) -> tuple[str, str]:
         bool(integ.get("last_imported_at")),
         f"at={integ.get('last_imported_at')}",
     )
-    return git_sha, mut_commit_id or ""
+    return git_sha, version_commit_id or ""
 
 
 def phase_idempotency(integration_id: str, git_sha: str) -> None:
@@ -644,7 +646,7 @@ def main() -> int:
         phase_list_branches(branch)
         integ_id = phase_connect(branch)
         if integ_id:
-            git_sha, mut_commit_id = phase_import(integ_id)
+            git_sha, version_commit_id = phase_import(integ_id)
             phase_idempotency(integ_id, git_sha)
             phase_sync_log(integ_id)
             phase_webhook_hmac(integ_id)

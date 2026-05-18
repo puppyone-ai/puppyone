@@ -4,7 +4,7 @@ BaseConnector — Unified base class for all sync connectors.
 Three-layer architecture:
   Trigger Layer  (when)  →  manual / scheduler / webhook / realtime (client-side)
   Connector Layer (what) →  connector.fetch(config, credentials) → FetchResult
-  Write Layer    (how)   →  MutOps.write_file() / MutOps.bulk_write()
+  Write Layer    (how)   →  ProductOperationAdapter.write_file() / ProductOperationAdapter.bulk_write()
 
 Connector only has ONE core method: fetch().
 It does NOT know who triggered it or how data is stored.
@@ -65,7 +65,7 @@ class FetchResult:
 
     SyncEngine uses content_hash to decide whether to write (compare with
     sync.remote_hash). If `files` is provided, the engine writes the
-    returned path->bytes map through MutOps.bulk_write at the sync mount
+    returned path->bytes map through ProductOperationAdapter.bulk_write at the sync mount
     point. Otherwise it writes `content` as the connector's single output
     file. Connectors stay storage-agnostic in both cases.
     """

@@ -112,7 +112,7 @@ upsert_env "$BACKEND_ENV" "PUBLIC_URL" "http://localhost:9090"
 
 # GitHub Integration — point at LOCAL frontend so the OAuth callback lands on
 # our running Next.js dev server. The OAuth app you registered for local
-# dev (see docs/local-mut-git-testing.md §2) must have this exact URL on
+# dev must have this exact URL on
 # the GitHub side.
 upsert_env "$BACKEND_ENV" "GITHUB_REDIRECT_URI" "http://localhost:3000/oauth/github/callback"
 
@@ -146,5 +146,5 @@ echo "  Don't forget to set in backend/.env:"
 echo "    GITHUB_CLIENT_ID=<your local OAuth app's client id>"
 echo "    GITHUB_CLIENT_SECRET=<the secret you generated>"
 echo ""
-echo "  See docs/local-mut-git-testing.md §2 for how to register a local"
-echo "  GitHub OAuth app."
+echo "  Register a local GitHub OAuth app with callback:"
+echo "    http://localhost:3000/oauth/github/callback"

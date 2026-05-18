@@ -156,7 +156,7 @@ async def preview_table(
 @router.post(
     "/access/{connection_id}/save",
     response_model=ApiResponse[SaveResultResponse],
-    summary="Save entire table as JSON file in MUT tree",
+    summary="Save entire table as JSON file in version tree",
 )
 async def save_table(
     req: SaveTableRequest,

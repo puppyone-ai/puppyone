@@ -1,14 +1,12 @@
 # PuppyOne (ContextBase)
 
-> **AI assistants working on this codebase**: the current version-engine
+> **AI assistants working on this codebase**: the canonical Version Engine
 > architecture is in
-> [`docs/architecture/07-version-engine-supplement.md`](docs/architecture/07-version-engine-supplement.md).
-> The MUT wire-protocol references elsewhere in this file are
-> historical — PuppyOne is now a Git server, and the data plane is
-> stock `git` against `https://<host>/git/ap/<access_key>.git` plus
-> the `puppyone fs` HTTP API. See
-> [`docs/architecture/07-version-engine-todo.md`](docs/architecture/07-version-engine-todo.md)
-> for the migration status.
+> [`docs/architecture/01-version-engine.md`](docs/architecture/01-version-engine.md).
+> PuppyOne is Git-native at the version layer: stock `git` talks to
+> `https://<host>/git/ap/<access_key>.git`, while Web/API/`puppyone fs`
+> writes converge through the Product Operation Adapter. Do not introduce the
+> removed legacy wire protocol, external version package, or old source naming.
 
 ## Overview
 
@@ -19,7 +17,7 @@ It aggregates information scattered across various sources into a unified Contex
 ### Connect
 
 - **Multi-source data connectors** — OAuth connectors for 15+ platforms including Notion, GitHub, Gmail, Google Drive, Linear, Airtable, and more; also supports URL scraping, database connections, and custom scripts
-- **Bidirectional local folder sync** — Real-time sync between local directories and the cloud Context Space via MUT protocol, powered by a background daemon
+- **Bidirectional local folder sync** — Real-time sync between local directories and the cloud Context Space via Git Remote and Puppyone CLI entry points
 - **MCP protocol exposure** — Generates standard MCP interfaces for each agent or endpoint; any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect directly
 - **Code sandbox** — Securely execute code in isolated Docker/E2B containers; agents can invoke sandbox endpoints remotely
 
@@ -69,24 +67,15 @@ backend/
 │   ├── main.py                # App entrypoint & lifespan
 │   ├── config.py              # Global config (Pydantic Settings)
 │   │
-│   ├── mut_engine/            # Mut version engine (core write funnel)
-│   │   ├── write_service.py   #   Single entry point for all content writes
-│   │   ├── compat_service.py  #   Legacy CollaborationService compatibility layer
-│   │   ├── repo_manager.py    #   Server-side repo lifecycle
-│   │   ├── server_repo.py     #   PuppyOneServerRepo (S3 + Supabase adapter)
-│   │   ├── ops.py             #   MutOps — unified tree operations entry point
-│   │   ├── ephemeral_client.py #  MutEphemeralClient — in-process clone→push
-│   │   ├── protocol_router.py #   MUT wire protocol (/clone /push /pull /negotiate)
-│   │   ├── collab_router.py   #   Collab API (checkout/commit/versions/rollback/diff)
-│   │   ├── audit_router.py    #   Audit log API
-│   │   ├── audit_repository.py#   Audit log data access
-│   │   ├── schemas.py         #   All Mut data types (Mutation, CommitResult, etc.)
-│   │   ├── dependencies.py    #   FastAPI DI factories
-│   │   ├── auth.py            #   MUT protocol auth (Access Key)
-│   │   └── backends/          #   Storage backend adapters
-│   │       ├── s3_storage.py  #     S3 object store
-│   │       ├── supabase_history.py # mut_commits table
-│   │       └── supabase_audit.py   # audit_logs table
+│   ├── version_engine/        # Git-native Version Engine (core write funnel)
+│   │   ├── adapters/
+│   │   │   ├── git/           #   Git smart-HTTP protocol boundary
+│   │   │   └── operations/    #   ProductOperationAdapter for Web/API/CLI
+│   │   ├── application/       #   transaction engine, merge policy, Git objects
+│   │   ├── domain/            #   write/conflict intents
+│   │   ├── routers/           #   content, history, conflict, AP-FS, websocket
+│   │   ├── server/            #   repo manager, Supabase/S3 adapters, auth
+│   │   └── services/          #   tree reader/splice, hooks, outbox, GC
 │   │
 │   ├── content/               # Content node tree (folder/JSON/MD/file)
 │   │   └── table/             #     Structured data tables (JSON Pointer)
@@ -104,7 +93,7 @@ backend/
 │   │   │   ├── google_search_console/ # GSC connector
 │   │   │   ├── url/           #     URL/web page connector
 │   │   │   └── _base.py       #     BaseConnector & ConnectorSpec
-│   │   ├── filesystem/        #   Bidirectional local folder sync via MUT protocol
+│   │   ├── filesystem/        #   Bidirectional local folder sync via Git Remote / CLI
 │   │   ├── database/          #   External database connector
 │   │   ├── agent/             #   AI agents (config, chat, MCP tool binding)
 │   │   │   ├── config/        #     Agent CRUD & access permissions
@@ -149,7 +138,7 @@ backend/
 - **Fully async**: All I/O operations use `async/await`
 - **Pydantic models**: All request/response defined with Pydantic schemas
 - **Naming conventions**: Files `snake_case.py`, classes `PascalCase`, functions/variables `snake_case`
-- **DB table naming**: All table names use **plural snake_case** (e.g. `projects`, `access_points`, `mut_commits`)
+- **DB table naming**: New tables use **plural snake_case** (e.g. `projects`, `access_points`, `version_transactions`). Deferred physical legacy names may appear only through `backend/src/version_engine/server/db_names.py`.
 - **Route prefix**: Business APIs under `/api/v1`, internal APIs under `/internal`
 - **Module structure**: Each module typically contains `router.py`, `service.py`, `repository.py`, `schemas.py`
 
@@ -170,7 +159,7 @@ All tables use plural snake_case names. The "unified access" architecture stores
 | `agent_profiles` | _(satellite table)_ | Agent-specific config (model, system_prompt, etc.) |
 | `access_permissions` | `connectors/agent/config/repository.py` | Access point ↔ content node permissions |
 | `access_tools` | `connectors/agent/config/repository.py`, `tool/service.py` | Access point ↔ tool bindings |
-| `content_nodes` | _(dropped — replaced by MUT tree in S3)_ | Legacy content tree |
+| `content_nodes` | _(dropped — replaced by Version Engine Git trees in object storage)_ | Legacy content tree |
 | `tools` | `supabase/tools/repository.py` | Registered tools |
 | `mcps` | `supabase/mcps/repository.py`, `supabase/mcp_v2/repository.py` | MCP server instances |
 | `mcp_bindings` | `supabase/mcp_binding/repository.py` | MCP ↔ tool bindings |
@@ -184,8 +173,8 @@ All tables use plural snake_case names. The "unified access" architecture stores
 | `agent_execution_logs` | `agent/config/repository.py`, `scheduler/jobs/agent_job.py` | Scheduled agent execution logs |
 | `file_versions` | _(deprecated — no longer used in code)_ | Legacy file version history |
 | `folder_snapshots` | _(deprecated — no longer used in code)_ | Legacy folder snapshots |
-| `mut_commits` | `mut_core/backends/supabase_history.py` | Mut version history (per-project commits) |
-| `audit_logs` | `collaboration/audit_repository.py`, `mut_core/backends/supabase_audit.py` | Audit trail |
+| deferred version tables | `version_engine/server/db_names.py` | Physical compatibility names for commit/scope/outbox/object-location storage |
+| `audit_logs` | `version_engine/server/audit_repository.py` | Audit trail |
 | `search_index_tasks` | `project/dashboard_router.py` | Search indexing tasks |
 | `ingest_tasks` | `project/dashboard_router.py` | Ingestion tasks |
 | `agent_logs` | `analytics/service.py` | Agent usage analytics |
@@ -197,7 +186,7 @@ All tables use plural snake_case names. The "unified access" architecture stores
 |-------------|--------|-------------|
 | `/api/v1/organizations` | organization | Org CRUD & members & invitations |
 | `/api/v1/projects` | project | Project CRUD & members & dashboard |
-| `/api/v1/nodes` | content_node | Content nodes (folder/JSON/MD/file) & versions |
+| `/api/v1/content/{project_id}` | version_engine/routers/content_router | Versioned content tree, write, history, diff, rollback |
 | `/api/v1/tables` | table | Data tables & JSON Pointer operations |
 | `/api/v1/tools` | tool | Tool registration & search index |
 | `/api/v1/agents` | connectors/agent | Agent SSE streaming chat |
@@ -209,8 +198,8 @@ All tables use plural snake_case names. The "unified access" architecture stores
 | `/api/v1/sync` | connectors/datasource | Data source sync |
 | `/api/v1/filesystem` | connectors/filesystem | Filesystem access lifecycle |
 | `/api/v1/ingest` | upload | File/URL ingestion ETL |
-| `/api/v1/collab` | collaboration | Collaborative editing & versions & audit |
-| `/api/v1/mut/{project_id}` | mut_core | MUT protocol (clone/push/pull/negotiate) |
+| `/api/v1/ap-fs` | version_engine/routers/access_point_fs | Puppyone CLI scoped filesystem API |
+| `/git/{project_id}.git`, `/git/ap/{access_key}.git` | version_engine/adapters/git/router | Git smart-HTTP clone/fetch/push |
 | `/api/v1/workspace` | workspace | Workspace management |
 | `/api/v1/db-connector` | db_connector | External database access |
 | `/api/v1/publishes` | context_publish | Public JSON short links |
@@ -392,7 +381,7 @@ puppyone access ls                     # List all access points
 puppyone status                        # Project dashboard
 puppyone chat                          # Chat with an agent
 puppyone fs semantics                  # Unix compatibility notes + resource limits for agents
-puppyone fs rmdir empty-dir            # Remove an empty scoped directory through MUT/MAT
+puppyone fs rmdir empty-dir            # Remove an empty scoped directory through AP-FS
 ```
 
 See `docs/architecture/03-cli.md` for full reference.

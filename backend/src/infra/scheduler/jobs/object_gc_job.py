@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.mut_engine.services.object_gc_worker import process_object_gc_projects
+from src.version_engine.services.object_gc_worker import process_object_gc_projects
 from src.utils.logger import log_error
 
 

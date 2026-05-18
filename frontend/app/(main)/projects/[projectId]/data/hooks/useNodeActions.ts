@@ -92,7 +92,7 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
 
-  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string; mut_path?: string } | null>(null);
+  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string; version_path?: string } | null>(null);
   const [deleteDialogTarget, setDeleteDialogTarget] = useState<{ id: string; name: string } | null>(null);
 
   const [toast, setToast] = useState<DataPageToast | null>(null);
@@ -290,8 +290,8 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     }
   }, [projectId, currentFolderPath, showToast]);
 
-  const handleMoveRequest = useCallback((path: string, name: string, mut_path?: string) => {
-    setMoveDialogTarget({ id: path, name, mut_path });
+  const handleMoveRequest = useCallback((path: string, name: string, version_path?: string) => {
+    setMoveDialogTarget({ id: path, name, version_path });
   }, []);
 
   const handleCreateTool = useCallback((path: string, name: string, type: string, jsonPath?: string) => {

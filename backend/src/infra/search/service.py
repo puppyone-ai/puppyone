@@ -11,8 +11,8 @@ from src.infra.chunking.config import ChunkingConfig
 from src.infra.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.infra.chunking.schemas import Chunk
 from src.infra.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
-from src.mut_engine.services.tree_reader import MutEntry
+from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.services.tree_reader import VersionEntry
 from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.s3.service import S3Service
 from src.infra.turbopuffer.schemas import TurbopufferRow
@@ -135,7 +135,7 @@ class SearchService:
     def __init__(
         self,
         *,
-        ops: MutOps,
+        ops: ProductOperationAdapter,
         chunk_repo: ChunkRepository,
         project_service: ProjectService,
         chunking_service: ChunkingService | None = None,
@@ -209,7 +209,7 @@ class SearchService:
             f"[index_scope] start: project_id={project_id} path={path} json_path='{json_path}'"
         )
 
-        # 1) Read scope data (from MUT ObjectStore)
+        # 1) Read scope data (from version ObjectStore)
         t1 = time.perf_counter()
         content_bytes = await asyncio.to_thread(
             self._ops.read_file, project_id, path
@@ -570,7 +570,7 @@ class SearchService:
     async def _index_file_node(
         self,
         *,
-        file_node: MutEntry,
+        file_node: VersionEntry,
         namespace: str,
         s3_service: S3Service,
         project_id: str,
@@ -701,7 +701,7 @@ class SearchService:
                     "content_hash": c.content_hash,
                     "chunk_id": int(c.id),
                     "file_path": file_id,
-                    "file_mut_path": file_node.path,
+                    "file_version_path": file_node.path,
                     "file_name": file_node.name,
                     "file_type": file_node.type,
                 }
@@ -803,7 +803,7 @@ class SearchService:
 
             # Extract file information
             file_path_val = str(attrs.get("file_path") or "")
-            file_mut_path = str(attrs.get("file_mut_path") or attrs.get("file_id_path") or "")
+            file_version_path = str(attrs.get("file_version_path") or attrs.get("file_id_path") or "")
             file_name = str(attrs.get("file_name") or "")
             file_type = str(attrs.get("file_type") or "")
 
@@ -835,7 +835,7 @@ class SearchService:
                     "score": float(score),
                     "file": {
                         "path": file_path_val,
-                        "mut_path": file_mut_path,
+                        "version_path": file_version_path,
                         "name": file_name,
                         "type": file_type,
                     },

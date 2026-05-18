@@ -1,5 +1,5 @@
 /**
- * Frontend client for the access-point-redesign-2026-05-02 endpoints.
+ * Frontend client for repository scopes, connectors, identity, and permissions.
  *
  * Mounted at:
  *   /api/v1/projects/{pid}/scopes      — repo_scopes CRUD
@@ -7,8 +7,7 @@
  *   /api/v1/projects/{pid}/access-point — repo identity (URL + prompt + scope keys)
  *   /api/v1/projects/{pid}/permissions — team-plan per-user permissions
  *
- * Replaces the legacy `/api/v1/access` and `/api/v1/sync/*` paths for the
- * redesign UI. Cli + agent are auto-created per scope by a DB trigger and
+ * Cli + agent are auto-created per scope by a DB trigger and
  * cannot be created via the API (the backend returns 400 if attempted).
  */
 
@@ -219,7 +218,7 @@ export async function getRepoIdentity(projectId: string): Promise<RepoIdentity> 
  * inheritance. If no scope matches the path, returns null and the caller
  * should render an empty state, NOT fall back to the root scope.
  *
- * `urlPath` is the canonical path used by mut_scope_state and repo_scopes:
+ * `urlPath` is the canonical path used by the version scope registry:
  * empty string for root; otherwise no leading/trailing slashes, no `//`.
  */
 export function matchScopeForPath(

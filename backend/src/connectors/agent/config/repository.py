@@ -1,21 +1,8 @@
-"""
-Agent Config Repository
+"""Agent connector repository.
 
-Post-redesign-2026-05-02: Agent data has been migrated from the legacy
-``access_points`` table to ``connectors`` (provider='agent'). Read methods
-(get_by_id*, get_by_project_id*, get_by_mcp_api_key*) target the new
-table. Write methods still write to the legacy table and will fail —
-they are slated for a follow-up that wires scope_id provisioning. The
-DB trigger on ``repo_scopes`` already auto-creates one ``agent``
-connector per scope, so the read path picks them up without user
-intervention; the user "activates" the agent later by filling in
-config.mcp_api_key, name, icon, etc. via the new write path.
-
-mcp_api_key migration: the legacy ``access_points.access_key`` column
-moved into ``connectors.config.mcp_api_key`` (jsonb). _row_to_agent
-falls back to the legacy column for any pre-migration rows that
-slipped through (defensive — production data should have all of these
-re-keyed already).
+Agent configuration is stored in ``connectors`` with ``provider='agent'``.
+Scope bindings and MCP credentials live in ``connectors.config`` so the agent
+entry point follows the same product connector model as CLI and Git Remote.
 """
 
 from typing import List, Optional
@@ -32,7 +19,7 @@ _NOW = "now()"
 
 
 def _scope_to_bash(agent_id: str, config: dict) -> list[AgentBash]:
-    """Derive AgentBash list from access_points.config.scope (Mut-Native)."""
+    """Derive AgentBash list from connector ``config.scope``."""
     scope = config.get("scope")
     if not scope:
         return []
@@ -73,11 +60,8 @@ def generate_mcp_api_key() -> str:
 def _row_to_agent(row: dict) -> Agent:
     """Convert a connectors row (provider='agent') to an Agent model.
 
-    Defensive lookups: ``name`` is now a top-level column on connectors
-    (auto-populated to 'AI Agent' by the DB trigger) but was historically
-    in config; we fall back to whichever exists. ``mcp_api_key`` moved
-    from ``access_key`` column to ``config.mcp_api_key`` jsonb field
-    after the redesign — same fallback dance.
+    The connector row carries ``name`` as a top-level display field and keeps
+    agent-specific settings in ``config``.
     """
     config = row.get("config") or {}
     trigger = row.get("trigger") or {}
@@ -89,7 +73,7 @@ def _row_to_agent(row: dict) -> Agent:
         type=config.get("type", "chat"),
         description=config.get("description"),
         is_default=config.get("is_default", False),
-        mcp_api_key=config.get("mcp_api_key") or row.get("access_key") or None,
+        mcp_api_key=config.get("mcp_api_key") or None,
         trigger_type=trigger.get("type", "manual"),
         trigger_config=trigger.get("config"),
         task_content=config.get("task_content"),
@@ -133,13 +117,9 @@ def _merge_agent_updates(
 
 class AgentRepository:
     """Agent repository — reads from ``connectors`` (provider='agent')
-    after the redesign-2026-05-02 migration. Writes still target the
-    legacy ``access_points`` table and will raise APIError on call (TODO:
-    rewire to connectors with scope_id provisioning)."""
+    and writes back to the same connector model."""
 
-    # Legacy field kept for code that introspects TABLE; actual queries
-    # go through CONNECTORS_TABLE (module constant).
-    TABLE = "access_points"
+    TABLE = CONNECTORS_TABLE
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
@@ -154,6 +134,22 @@ class AgentRepository:
             .select("*")
             .eq("provider", AGENT_PROVIDER)
         )
+
+    def _root_scope_id(self, project_id: str) -> str:
+        resp = (
+            self._client.table("repo_scopes")
+            .select("id")
+            .eq("project_id", project_id)
+            .eq("path", "")
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        if not rows:
+            raise RuntimeError(
+                "root repo scope is required before creating an agent connector"
+            )
+        return rows[0]["id"]
 
     # ============================================
     # Agent CRUD
@@ -199,7 +195,7 @@ class AgentRepository:
 
         Visibility filter (security: M-1):
         Agents whose config.visibility == 'private' are only returned if
-        viewer_user_id matches the agent's owner (access_points.user_id).
+        viewer_user_id matches the agent connector's owner.
         Pass viewer_user_id=None for internal callers that already gated
         access; pass the JWT user id from request handlers.
         """
@@ -212,14 +208,10 @@ class AgentRepository:
         rows = response.data or []
 
         if viewer_user_id is not None:
-            # The redesigned `connectors` table uses `created_by` as the
-            # owner column; the legacy `access_points` table called the
-            # same field `user_id`. Check both so this code keeps working
-            # against either schema during the transition window.
             rows = [
                 r for r in rows
                 if (r.get("config") or {}).get("visibility", "org").lower() != "private"
-                or (r.get("created_by") or r.get("user_id")) == viewer_user_id
+                or r.get("created_by") == viewer_user_id
             ]
 
         agents = [_row_to_agent(row) for row in rows]
@@ -306,9 +298,11 @@ class AgentRepository:
         external_config: Optional[dict] = None,
         llm_model: Optional[str] = None,
         system_prompt: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> Agent:
         agent_id = generate_uuid_v7()
-        access_key = generate_access_key(type)
+        mcp_api_key = generate_access_key(type)
+        scope_id = self._root_scope_id(project_id)
 
         config = {
             "name": name,
@@ -316,6 +310,7 @@ class AgentRepository:
             "type": type,
             "description": description,
             "is_default": is_default,
+            "mcp_api_key": mcp_api_key,
             "task_content": task_content,
             "task_path": task_path,
             "external_config": external_config,
@@ -330,13 +325,14 @@ class AgentRepository:
         data = {
             "id": agent_id,
             "project_id": project_id,
-            "path": task_path,  # nullable
+            "scope_id": scope_id,
+            "name": name,
             "direction": "bidirectional",
             "provider": AGENT_PROVIDER,
             "config": config,
-            "access_key": access_key,
             "trigger": trigger,
             "status": "active",
+            "created_by": created_by,
         }
         response = self._client.table(self.TABLE).insert(data).execute()
         return _row_to_agent(response.data[0])
@@ -367,6 +363,7 @@ class AgentRepository:
             self._client.table(self.TABLE)
             .select("config, trigger")
             .eq("id", agent_id)
+            .eq("provider", AGENT_PROVIDER)
             .execute()
         )
         if not response.data:
@@ -387,15 +384,16 @@ class AgentRepository:
         update_data: dict = {
             "config": config, "trigger": trigger, "updated_at": _NOW,
         }
+        if name is not None:
+            update_data["name"] = name
         if mcp_api_key is not None:
-            update_data["access_key"] = mcp_api_key
-        if task_path is not None:
-            update_data["path"] = task_path
+            config["mcp_api_key"] = mcp_api_key
 
         resp = (
             self._client.table(self.TABLE)
             .update(update_data)
             .eq("id", agent_id)
+            .eq("provider", AGENT_PROVIDER)
             .execute()
         )
         if resp.data:
@@ -418,15 +416,14 @@ class AgentRepository:
         Two layers of checks (security: M-1):
         1. Project membership — user must belong to the agent's project's org.
         2. Visibility — if agent is marked private (config.visibility == 'private'),
-           only the agent's owner (access_points.user_id) may read it.
+           only the agent connector's owner may read it.
 
-        Defaults to org-visibility when the field is missing (backward compatible
-        with rows that pre-date the visibility flag).
+        Defaults to org-visibility when the field is missing.
         """
         # Pull both the row and the agent in one go to avoid N queries.
         row_resp = (
             self._client.table(self.TABLE)
-            .select("id, project_id, config, user_id")
+            .select("id, project_id, config, created_by")
             .eq("id", agent_id)
             .eq("provider", AGENT_PROVIDER)
             .limit(1)
@@ -459,13 +456,13 @@ class AgentRepository:
         # Layer 2: visibility
         visibility = (config.get("visibility") or "org").lower()
         if visibility == "private":
-            owner = row.get("user_id")
+            owner = row.get("created_by")
             if owner and owner != user_id:
                 return False
         return True
 
     # ============================================
-    # AgentBash CRUD — operates on access_points.config.scope (JSONB)
+    # AgentBash CRUD — operates on connectors.config.scope (JSONB)
     # ============================================
 
     def _get_agent_config(self, agent_id: str) -> Optional[dict]:
@@ -474,6 +471,7 @@ class AgentRepository:
             self._client.table(self.TABLE)
             .select("config")
             .eq("id", agent_id)
+            .eq("provider", AGENT_PROVIDER)
             .execute()
         )
         if resp.data:
@@ -481,14 +479,14 @@ class AgentRepository:
         return None
 
     def _update_scope(self, agent_id: str, scope: dict) -> None:
-        """Write scope back into access_points.config.scope."""
+        """Write scope back into connector ``config.scope``."""
         config = self._get_agent_config(agent_id)
         if config is None:
             return
         config["scope"] = scope
         self._client.table(self.TABLE).update(
             {"config": config, "updated_at": _NOW}
-        ).eq("id", agent_id).execute()
+        ).eq("id", agent_id).eq("provider", AGENT_PROVIDER).execute()
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
         config = self._get_agent_config(agent_id)

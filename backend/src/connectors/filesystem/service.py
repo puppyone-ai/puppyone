@@ -8,7 +8,7 @@ Data sync is **not** in this module's scope: the daemon uses stock
 or the FS HTTP API (``/api/v1/ap-fs/*``). This service just provisions
 the ``access_key`` that authenticates both surfaces. See
 ``docs/architecture/07-version-engine-supplement.md`` §3 for the
-post-MUT model.
+post-hash model.
 """
 
 import re
@@ -28,7 +28,7 @@ _FORBIDDEN_NAMES = frozenset([".", "..", "CON", "PRN", "AUX", "NUL"] +
 
 
 def _validate_filename(filename: str) -> str | None:
-    """Return error message if filename is invalid for the MUT tree, else None."""
+    """Return error message if filename is invalid for the version tree, else None."""
     if not filename or not filename.strip():
         return "Filename must not be empty"
     if filename.startswith("/"):

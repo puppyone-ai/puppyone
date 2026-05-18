@@ -67,6 +67,7 @@ class AgentConfigService:
         task_content: Optional[str] = None,
         task_path: Optional[str] = None,
         external_config: Optional[dict] = None,
+        owner_user_id: Optional[str] = None,
     ) -> Agent:
         if is_default:
             self._clear_default_agent(project_id)
@@ -83,6 +84,7 @@ class AgentConfigService:
             task_content=task_content,
             task_path=task_path,
             external_config=external_config,
+            created_by=owner_user_id,
         )
 
         if bash_accesses:

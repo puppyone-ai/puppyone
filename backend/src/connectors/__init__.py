@@ -7,7 +7,7 @@ Seven peer-level areas, all backed by the unified `access_points` table:
   ├── manager/            Unified connection CRUD (single entry-point)
   ├── datasource/         SaaS data sources (Gmail, Notion, GitHub, ...)
   │   └── oauth/          OAuth authorization flows & token storage
-  ├── filesystem/         Bidirectional local folder sync via MUT protocol
+  ├── filesystem/         Bidirectional local folder sync via Git Remote / AP-FS
   ├── database/           External database connectors
   ├── agent/              AI agents (config, chat, MCP tool binding)
   ├── mcp_endpoint/       MCP protocol endpoint CRUD & API key

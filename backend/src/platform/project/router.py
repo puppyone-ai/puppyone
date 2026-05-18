@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends, Query, status
 
 from src.common_schemas import ApiResponse
 from src.exceptions import ErrorCode, PermissionException
-from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
@@ -41,7 +41,7 @@ router = APIRouter(
 def _convert_to_project_out(
     project: Project, entries=None, access_point_count: int = 0
 ) -> ProjectOut:
-    """Convert Project to ProjectOut (using MutOps entries)"""
+    """Convert Project to ProjectOut (using ProductOperationAdapter entries)"""
     node_infos = []
     if entries:
         for entry in entries:
@@ -71,18 +71,15 @@ def _convert_to_project_out(
     "/",
     response_model=ApiResponse[list[ProjectOut]],
     summary="List projects",
-    description="Get all projects under the specified organization, including root directory entries for each project.",
+    description="Get project metadata under the specified organization.",
     response_description="Returns all projects of the organization",
     status_code=status.HTTP_200_OK,
 )
 async def list_projects(
     org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
-    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    import asyncio
-
     oids = resolve_org_ids(org_id, current_user.user_id)
 
     all_projects = []
@@ -108,18 +105,9 @@ async def list_projects(
             pid = row["project_id"]
             conn_counts[pid] = conn_counts.get(pid, 0) + 1
 
-    # Fetch root directory entries for all projects in parallel
-    async def _get_entries(pid: str):
-        try:
-            return await asyncio.to_thread(ops.list_dir, pid, "")
-        except Exception:
-            return []
-
-    entries_list = await asyncio.gather(*[_get_entries(str(p.id)) for p in all_projects])
-
     result = [
-        _convert_to_project_out(p, entries, access_point_count=conn_counts.get(str(p.id), 0))
-        for p, entries in zip(all_projects, entries_list)
+        _convert_to_project_out(p, access_point_count=conn_counts.get(str(p.id), 0))
+        for p in all_projects
     ]
     return ApiResponse.success(data=result, message="Project list retrieved successfully")
 
@@ -146,7 +134,7 @@ def list_project_templates():
 )
 def get_project(
     project: Project = Depends(get_verified_project),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     entries = ops.list_dir(str(project.id), "")
@@ -180,7 +168,7 @@ def get_project(
 async def create_project(
     payload: ProjectCreate,
     project_service: ProjectService = Depends(get_project_service),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
@@ -192,12 +180,12 @@ async def create_project(
         created_by=current_user.user_id,
     )
 
-    from src.mut_engine.dependencies import create_mut_admin_service
-    writer = create_mut_admin_service()
+    from src.version_engine.dependencies import create_version_admin_service
+    writer = create_version_admin_service()
     await writer.init_tree(str(project.id))
 
     # Ensure the project has a root scope (path='', is_root=true). Without
-    # this every redesign-aware endpoint (mut auth, /scopes list, the
+    # this every redesign-aware endpoint (access-key auth, /scopes list, the
     # repo-identity endpoint) fails for newly-created projects — the
     # 20260502000500_backfill migration only covered projects that existed
     # at migration time. The DB trigger on repo_scopes auto-creates the
@@ -246,7 +234,7 @@ def update_project(
     project: Project = Depends(get_verified_project),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     updated_project = project_service.update(

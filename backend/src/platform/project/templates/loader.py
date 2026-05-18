@@ -14,7 +14,7 @@ conventions.
 
 Why bytes (not str) for file contents? It keeps the loader uniform across
 Markdown / JSON / future binary attachments (images, PDFs), and matches what
-``MutOps.bulk_write`` expects on the write path.
+``ProductOperationAdapter.bulk_write`` expects on the write path.
 """
 
 from __future__ import annotations
@@ -170,18 +170,18 @@ async def seed_template_content(
     template_id: str,
     created_by: str,
 ) -> dict:
-    """Write a template's files into a project via MutOps."""
-    from src.mut_engine.dependencies import create_mut_ops
+    """Write a template's files into a project through the L3 command service."""
+    from src.version_engine.dependencies import create_version_write_command_service
 
     tmpl = get_template(template_id)
     if tmpl is None:
         return {"error": f"Unknown template: {template_id}"}
 
-    ops = create_mut_ops()
-    await ops.bulk_write(
+    commands = create_version_write_command_service()
+    await commands.bulk_write(
         project_id,
         tmpl.files,
-        who=created_by,
+        actor=created_by,
         message=f"template: {tmpl.name}",
     )
 

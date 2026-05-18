@@ -256,12 +256,12 @@ export default function HomePage({
       // backend can produce into a single key — '' — so downstream
       // consumers only have to look in one place:
       //
-      //   path === '/'   — what `mut connect` bootstrap stores today
+      //   path === '/'   — filesystem bootstrap stores this for root
       //                    (filesystem service.bootstrap is called
       //                    with path='/' from the home onboarding
       //                    panel and the access page's "root scope"
       //                    button)
-      //   path === null  — legacy rows from before path-NOT-NULL was
+      //   path === null  — incomplete rows from before path-NOT-NULL was
       //                    enforced; still in some long-lived projects
       //   path === ''    — early hand-bootstrapped rows
       //
@@ -949,7 +949,7 @@ export default function HomePage({
                   // for project-root APs in ConnectionsCanvas).
                   // Two reasons:
                   //   1.  AP visibility — root-attached access points
-                  //       (the default `mut connect` filesystem AP at
+                  //       (the default filesystem access point at
                   //       `/`) had no anchor row in the Data card, so
                   //       their presence was visible only in the
                   //       Connections canvas below.  Now the chip

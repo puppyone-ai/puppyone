@@ -40,7 +40,7 @@ function buildOptimisticNode(
     mime_type: null,
     children_count: type === 'folder' ? 0 : null,
     id: path,
-    mut_path: `/${path}`,
+    version_path: `/${path}`,
     parent_id: parentPath || null,
     project_id: projectId,
     is_synced: false,
@@ -421,7 +421,7 @@ export function useDataCreateFlow({
     // (basename + extension) — without the extension, an existing
     // `Untitled Note.md` would never be detected against the bare
     // baseName `Untitled Note`, so every click would re-write the
-    // same path with empty content and mut would correctly recognise
+    // same path with empty content and the version engine would correctly recognise
     // it as a no-op (same blob hash → same scope hash → no commit
     // delta). That looks identical to a broken save: the file
     // already exists on the server but nothing visible has changed,

@@ -434,7 +434,7 @@ class UnifiedConnectionCreate(BaseModel):
     project_id: str = Field(..., description="Project ID")
     provider: str = Field(..., description="Access type: gmail, github, agent, mcp, sandbox, ...")
     name: str | None = Field(None, description="Display name")
-    path: str | None = Field(None, description="Target MUT path")
+    path: str | None = Field(None, description="Target version path")
     config: dict = Field(default_factory=dict, description="Provider-specific configuration")
     gateway_id: str | None = Field(None, description="Gateway ID (required for datasource providers)")
     direction: str | None = Field(None, description="Sync direction (datasource only)")
@@ -658,7 +658,7 @@ async def _create_filesystem(
         name=payload.name or "Filesystem Sync",
         status=sync.status or "active",
         access_key=sync.access_key,
-        # Post-MUT: the access_key now authorises Git smart-HTTP at
+        # Post-hash: the access_key now authorises Git smart-HTTP at
         # /git/ap/<key>.git and the FS HTTP API at /api/v1/ap-fs/*.
         ap_base=f"/git/ap/{sync.access_key}.git" if sync.access_key else None,
     )

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from src.mut_engine.services.version_outbox import process_version_outbox_batch
+from src.version_engine.services.version_outbox import process_version_outbox_batch
 from src.utils.logger import log_error
 
 

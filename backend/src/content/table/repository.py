@@ -200,7 +200,7 @@ class TableRepositorySupabase(TableRepositoryBase):
             description: Table description
             data: Table data (JSON object)
             project_id: Project ID (required)
-            table_id: Optional pre-generated ID (e.g. from MUT write)
+            table_id: Optional pre-generated ID (e.g. from hash write)
 
         Returns:
             Created Table object

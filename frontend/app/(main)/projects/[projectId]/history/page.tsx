@@ -6,15 +6,15 @@ import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
   getProjectHistory,
   getVersionContent,
-  type MutCommitInfo,
-  type MutCommitChange,
+  type VersionCommitInfo,
+  type VersionCommitChange,
   type FileVersionDetail,
 } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
-import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
+import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { BUTTON_HEIGHT, BUTTON_RADIUS } from '@/components/ui/buttonTokens';
 
 // ─── Line diff utility ───────────────────────────────────────────────
@@ -262,7 +262,7 @@ function VerticalCommitNode({
   isHead,
   onClick,
 }: {
-  commit: MutCommitInfo;
+  commit: VersionCommitInfo;
   hasPrevious: boolean;
   hasNext: boolean;
   isSelected: boolean;
@@ -529,7 +529,7 @@ function DiffRow({ line }: { line: DiffLine }) {
 }
 
 interface FileDiffBlockProps {
-  change: MutCommitChange;
+  change: VersionCommitChange;
   projectId: string;
   commitId: string;
   parentCommitId: string | null;
@@ -701,7 +701,7 @@ function CommitDetail({
   projectId,
   parentCommitId,
 }: {
-  commit: MutCommitInfo;
+  commit: VersionCommitInfo;
   projectId: string;
   parentCommitId: string | null;
 }) {

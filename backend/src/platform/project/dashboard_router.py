@@ -16,8 +16,8 @@ from pydantic import BaseModel
 
 from src.common_schemas import ApiResponse
 from src.infra.supabase.client import SupabaseClient
-from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_verified_project
@@ -96,7 +96,7 @@ class ProjectDashboard(BaseModel):
 )
 async def get_project_dashboard(
     project: Project = Depends(get_verified_project),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """Build dashboard by issuing the 4 independent backing queries in
@@ -160,7 +160,7 @@ _NODE_COUNT_CACHE: dict[tuple[str, str], DashboardNodeCounts] = {}
 _NODE_COUNT_CACHE_MAX = 1024
 
 
-def _compute_node_counts(ops: MutOps, project_id: str) -> DashboardNodeCounts:
+def _compute_node_counts(ops: ProductOperationAdapter, project_id: str) -> DashboardNodeCounts:
     """Compute folder/file counts for the project tree.
 
     PERFORMANCE (P-3): list_tree is O(N) over every node in the project's
@@ -399,12 +399,12 @@ def _mask_key(key: str | None, provider: str | None = None) -> str | None:
     if not key or len(key) < 8:
         return key
     # Filesystem access keys are paste-and-run credentials the project
-    # owner uses with their local `mut` CLI: the home-page onboarding
-    # block renders `mut connect <ap-url> --credential <key>`, the
+    # owner uses with their local Puppyone CLI: the home-page onboarding
+    # block renders a connect command with the access URL and key, the
     # access page exposes a Copy button next to the key, and SyncDetail
     # in the data canvas does the same. Masking those broke every one
     # of those flows (the rendered command included literal `cli_...XXX`
-    # which the backend can't resolve, so `mut connect` returned 401 /
+    # which the backend can't resolve, so the connect command returned 401 /
     # not found). Dashboard is JWT-gated to project members already, so
     # an owner seeing their own filesystem key is the right exposure
     # level — the mask only made sense for keys we hand out to

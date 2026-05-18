@@ -132,7 +132,7 @@ async def submit_file_ingest(
     rule_id: int | None = Form(None, description="ETL rule ID (for ocr_parse mode)"),
     parent_path: str | None = Form(None, description="Parent directory path for new files"),
     # Legacy alias kept so older frontend callers that still send
-    # `parent_id` continue to land files in the intended MUT path.
+    # `parent_id` continue to land files in the intended ObjectStore path.
     # The content tree is path-based, so new callers should use
     # `parent_path`.
     parent_id: str | None = Form(None, description="Deprecated alias for parent_path"),
@@ -146,7 +146,7 @@ async def submit_file_ingest(
     """
     Submit file ingest tasks.
 
-    All text/JSON files are written directly to the Mut tree via MUT protocol.
+    All text/JSON files are written directly to the version tree via version transaction engine.
     Binary/OCR files go to S3 + ETL Worker (when OCR is enabled).
     When `settings.ENABLE_OCR` is False any incoming `mode="ocr_parse"`
     is downgraded to "raw" so binary/OCR-needing files end up on S3
@@ -171,9 +171,9 @@ async def submit_file_ingest(
         )
         mode = "raw"
 
-    from src.mut_engine.dependencies import create_mut_ops
+    from src.version_engine.dependencies import create_version_write_command_service
 
-    ops = create_mut_ops()
+    commands = create_version_write_command_service()
 
     target_parent_path = (parent_path or parent_id or "").strip("/")
 
@@ -264,7 +264,7 @@ async def submit_file_ingest(
                 #       (PDF / image / docx after the OCR pause
                 #       downgrade above; previously they went through
                 #       the ETL worker, which would eventually write
-                #       to MUT itself).
+                #       to ObjectStore itself).
                 #
                 # Without writing into `modified_files` here, the file
                 # gets stashed in S3 + a "completed" task row but never
@@ -308,14 +308,14 @@ async def submit_file_ingest(
 
     if modified_files:
         try:
-            await ops.bulk_write(
+            await commands.bulk_write(
                 project_id,
                 modified_files,
-                who=f"ingest:{current_user.user_id}",
+                actor=f"ingest:{current_user.user_id}",
                 message=f"Upload {len(modified_files)} file(s)",
             )
         except Exception as e:
-            logger.error(f"MUT push failed during file ingest: {e}", exc_info=True)
+            logger.error(f"version push failed during file ingest: {e}", exc_info=True)
 
     return IngestSubmitResponse(items=items, total=len(items))
 
@@ -423,7 +423,7 @@ def _make_failed_item(
 #                              hand bytes to S3 and returns the
 #                              ``ETag`` to the client.
 #   3. POST /upload/complete — finalize the multipart upload + write
-#                              the assembled bytes into MUT (see
+#                              the assembled bytes into ObjectStore (see
 #                              batch variant for folder uploads).
 #   4. POST /upload/abort    — (cancel path) drop in-flight upload.
 #
@@ -830,7 +830,7 @@ async def complete_upload(
 ):
     """
     Finalize a direct-to-S3 multipart upload and write the assembled
-    bytes into MUT *inline*.
+    bytes into ObjectStore *inline*.
 
     By the time the client calls this, every part is already in S3.
     We:
@@ -841,8 +841,8 @@ async def complete_upload(
       2. Run S3 ``CompleteMultipartUpload`` to assemble the parts.
       3. HEAD the resulting object as a sanity check (size matches
          what the client claimed; non-fatal mismatch is logged).
-      4. Pull bytes S3 -> backend RAM, write them into MUT via
-         ``finalize_upload_to_mut``, mark the task COMPLETED. We do
+      4. Pull bytes S3 -> backend RAM, write them into ObjectStore via
+         ``finalize_upload_to_version``, mark the task COMPLETED. We do
          this inline (instead of dispatching to the ARQ worker) so
          that:
            - the user sees "Completed" the instant /upload/complete
@@ -924,13 +924,13 @@ async def complete_upload(
             f"Task {request.task_id}: head_object after complete failed: {e}"
         )
 
-    # Run finalize INLINE: download from S3, write into MUT, mark
+    # Run finalize INLINE: download from S3, write into ObjectStore, mark
     # task COMPLETED. The helper is also the body of the ARQ worker
     # job, so behaviour and runtime-state transitions are identical.
-    from src.ingest.file.jobs.jobs import finalize_upload_to_mut
+    from src.ingest.file.jobs.jobs import finalize_upload_to_version
 
     try:
-        result = await finalize_upload_to_mut(
+        result = await finalize_upload_to_version(
             task_id=task.task_id,
             repo=etl_service.task_repository,
             s3=s3_service,
@@ -940,7 +940,7 @@ async def complete_upload(
         # Finalize already wrote the FAILED state for us; surface
         # a 504 to the client so they can decide whether to retry.
         raise HTTPException(
-            status_code=504, detail="Finalize timed out writing to MUT"
+            status_code=504, detail="Finalize timed out writing to ObjectStore"
         )
 
     if not result.get("ok"):
@@ -998,7 +998,7 @@ async def complete_upload_batch(
       2. Per surviving item: run S3
          ``CompleteMultipartUpload``. Failures here mark the task
          FAILED and are excluded from the bulk push.
-      3. Single call to ``finalize_uploads_to_mut_batch`` for all
+      3. Single call to ``finalize_uploads_to_version_batch`` for all
          items that made it past steps 1–2. That helper does the
          CopyObject pre-stage + one project-root ``bulk_write``.
       4. Merge per-item results from each phase into a single
@@ -1143,10 +1143,10 @@ async def complete_upload_batch(
     # Phase 3: ONE bulk finalize for everything that made it this far.
     # ────────────────────────────────────────────────────────────────
     if completed_task_ids:
-        from src.ingest.file.jobs.jobs import finalize_uploads_to_mut_batch
+        from src.ingest.file.jobs.jobs import finalize_uploads_to_version_batch
 
         try:
-            batch_results = await finalize_uploads_to_mut_batch(
+            batch_results = await finalize_uploads_to_version_batch(
                 task_ids=completed_task_ids,
                 repo=etl_service.task_repository,
                 s3=s3_service,
@@ -1157,7 +1157,7 @@ async def complete_upload_batch(
             # endpoint, callers know to retry the whole batch.
             raise HTTPException(
                 status_code=504,
-                detail="Bulk finalize timed out writing to MUT",
+                detail="Bulk finalize timed out writing to ObjectStore",
             )
 
         for r in batch_results:
@@ -1316,7 +1316,7 @@ async def submit_saas_ingest(
     """
     Submit SaaS/URL ingest — routes through Bootstrap + SyncEngine.
 
-    All data writes go through MUT protocol.
+    All data writes go through version transaction engine.
     """
     from src.connectors.datasource.dependencies import get_connector_registry
     from src.connectors.datasource.engine import SyncEngine

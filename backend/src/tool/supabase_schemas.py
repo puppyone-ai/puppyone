@@ -20,7 +20,7 @@ class ToolBase(BaseModel):
     created_by: str | None = None
     org_id: str | None = None
     project_id: str | None = None  # Associated project ID
-    path: str | None = None  # MUT path
+    path: str | None = None  # version path
     json_path: str | None = None  # JSON internal path
 
     type: str | None = None
@@ -47,7 +47,7 @@ class ToolUpdate(BaseModel):
     """Update Tool model"""
 
     project_id: str | None = None  # Associated project ID
-    path: str | None = None  # MUT path
+    path: str | None = None  # version path
     json_path: str | None = None
 
     type: str | None = None

@@ -5,7 +5,7 @@ SyncRepository — CRUD for sync bindings in the `access_points` table.
 
 The `access_points` table is the unified store for all access points
 (syncs + agents). SyncRepository operates on rows where provider != 'agent'.
-Each sync row represents one sync binding between a MUT path and an
+Each sync row represents one sync binding between a version path and an
 external resource.
 """
 
@@ -254,7 +254,7 @@ class SyncRepository:
     ) -> None:
         """Record a successful sync checkpoint.
 
-        ``last_sync_commit_id`` is the MUT ``commit_id`` produced by
+        ``last_sync_commit_id`` is the hash ``commit_id`` produced by
         the most recent inbound write, or returned by the most recent
         outbound push.
         """

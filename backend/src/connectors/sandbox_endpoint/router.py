@@ -105,10 +105,10 @@ def _validate_command(command: str, mounts: List[Dict[str, Any]]) -> None:
                 raise HTTPException(status_code=403, detail=f"Write denied for readonly mount: {readonly_path}")
 
 
-def _clone_mut_files(project_id: str, scope_path: str) -> tuple:
-    """Clone MUT tree files for a scope path. Returns (client, files_dict)."""
-    from src.mut_engine.dependencies import get_repo_manager_standalone
-    from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+def _clone_version_files(project_id: str, scope_path: str) -> tuple:
+    """Clone version tree files for a scope path. Returns (client, files_dict)."""
+    from src.version_engine.dependencies import get_repo_manager_standalone
+    from src.version_engine.services.in_process_client import InProcessVersionClient
 
     repo_manager = get_repo_manager_standalone()
     auth = {
@@ -120,7 +120,7 @@ def _clone_mut_files(project_id: str, scope_path: str) -> tuple:
             "mode": "rw",
         },
     }
-    client = MutEphemeralClient(repo_manager, project_id, auth)
+    client = InProcessVersionClient(repo_manager, project_id, auth)
     files = client.clone()
     return client, files
 
@@ -130,7 +130,7 @@ def _build_sandbox_files_from_clone(
     mount_path: str,
     scope_path: str,
 ) -> List[SandboxFile]:
-    """Convert MUT clone result to SandboxFile list for container mounting."""
+    """Convert version clone result to SandboxFile list for container mounting."""
     sandbox_files: List[SandboxFile] = []
     for file_path, content in cloned_files.items():
         relative = file_path
@@ -159,7 +159,7 @@ def _build_sandbox_files_from_clone(
             path=target,
             content=text,
             content_type=content_type,
-            mut_path=file_path,
+            version_path=file_path,
             node_type="json" if ext == "json" else "markdown" if ext in ("md", "markdown") else "file",
         ))
     return sandbox_files
@@ -172,7 +172,7 @@ async def _read_modified_files(
     mount_path: str,
     scope_path: str,
 ) -> dict[str, bytes]:
-    """Read files from sandbox container, return only changed ones as {mut_path: bytes}."""
+    """Read files from sandbox container, return only changed ones as {version_path: bytes}."""
     from src.connectors.agent.sandbox_session import _read_modified_files as _read_mod
     return await _read_mod(sandbox_service, session_id, original_files, mount_path, scope_path)
 
@@ -326,9 +326,9 @@ async def exec_command(
     if not project_id:
         raise HTTPException(status_code=400, detail="Sandbox endpoint has no project_id")
 
-    # Clone MUT tree for each mount, collect files + clients
+    # Clone version tree for each mount, collect files + clients
     all_sandbox_files: List[SandboxFile] = []
-    mut_clients = []
+    version_clients = []
     for mount in mounts:
         mount_source = mount.get("path")
         if not mount_source:
@@ -338,14 +338,14 @@ async def exec_command(
         has_write = permissions.get("write", False)
 
         client, cloned_files = await asyncio.to_thread(
-            _clone_mut_files, project_id, mount_source,
+            _clone_version_files, project_id, mount_source,
         )
 
         sandbox_files = _build_sandbox_files_from_clone(cloned_files, mount_target, mount_source)
         all_sandbox_files.extend(sandbox_files)
 
         if has_write:
-            mut_clients.append((client, cloned_files, mount_target, mount_source))
+            version_clients.append((client, cloned_files, mount_target, mount_source))
 
     if not all_sandbox_files:
         raise HTTPException(status_code=400, detail="No mount files resolved for this sandbox endpoint")
@@ -354,7 +354,7 @@ async def exec_command(
     start_res = await sandbox_service.start_with_files(
         session_id=session_id,
         files=all_sandbox_files,
-        readonly=not mut_clients,
+        readonly=not version_clients,
         s3_service=None,
     )
     if not start_res.get("success"):
@@ -363,14 +363,14 @@ async def exec_command(
     try:
         exec_res = await sandbox_service.exec(session_id=session_id, command=command)
 
-        # Write back changed files for writable mounts via MUT protocol
+        # Write back changed files for writable mounts via version transaction engine
         writeback_results = []
-        for client, original_files, mount_target, scope_path in mut_clients:
+        for client, original_files, mount_target, scope_path in version_clients:
             modified = await _read_modified_files(
                 sandbox_service, session_id, original_files, mount_target, scope_path,
             )
             if modified:
-                from src.mut_engine.services.hooks import push_and_finalize
+                from src.version_engine.services.hooks import push_and_finalize
                 push_result = await push_and_finalize(
                     client,
                     project_id,

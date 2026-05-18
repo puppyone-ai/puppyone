@@ -91,7 +91,7 @@ def make_content_node(
     node.parent_id = parent_id
     node.name = name
     node.type = node_type
-    node.mut_path = f"{name}" if not parent_id else f"{parent_id}/{name}"
+    node.version_path = f"{name}" if not parent_id else f"{parent_id}/{name}"
     node.content = content
     node.s3_key = s3_key
     node.mime_type = None
@@ -316,7 +316,7 @@ class TestSearchResultFormat:
             "score": 0.95,
             "file": {
                 "path": "file1",
-                "mut_path": "folder1/data.json",
+                "version_path": "folder1/data.json",
                 "name": "data.json",
                 "type": "json",
             },
@@ -336,7 +336,7 @@ class TestSearchResultFormat:
 
         # Verify file info
         assert "path" in result["file"]
-        assert "mut_path" in result["file"]
+        assert "version_path" in result["file"]
         assert "name" in result["file"]
         assert "type" in result["file"]
 

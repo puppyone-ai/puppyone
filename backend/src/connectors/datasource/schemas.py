@@ -1,7 +1,7 @@
 """
 Unified Sync — Data Models
 
-Sync — A single sync binding between a MUT path and an external resource.
+Sync — A single sync binding between a version path and an external resource.
        Stored in the `access_points` table (provider != 'agent').
 """
 
@@ -19,7 +19,7 @@ class Sync:
     """
     Unified sync binding. Maps to the `access_points` table (provider != 'agent').
 
-    Each row represents one sync relationship between a MUT path
+    Each row represents one sync relationship between a version path
     and an external resource, carrying both connection config and
     sync state.
     """

@@ -1,0 +1,61 @@
+"""Version-engine error types owned by PuppyOne."""
+
+from __future__ import annotations
+
+
+class VersionEngineError(Exception):
+    """Base error for version-engine operations."""
+
+    http_status: int = 500
+
+
+class NotARepoError(VersionEngineError):
+    http_status = 400
+
+
+class SnapshotNotFoundError(VersionEngineError):
+    http_status = 404
+
+
+class ObjectNotFoundError(VersionEngineError):
+    http_status = 404
+
+
+class AuthenticationError(VersionEngineError):
+    http_status = 401
+
+
+class PermissionDenied(VersionEngineError):
+    http_status = 403
+
+
+class LockError(VersionEngineError):
+    http_status = 409
+
+
+class ConflictError(VersionEngineError):
+    http_status = 409
+
+
+class DirtyWorkdirError(VersionEngineError):
+    http_status = 400
+
+
+class NetworkError(VersionEngineError):
+    http_status = 502
+
+
+class StorageWriteError(VersionEngineError):
+    http_status = 502
+
+
+class PayloadTooLargeError(VersionEngineError):
+    http_status = 413
+
+
+class ValidationError(VersionEngineError):
+    http_status = 422
+
+
+class ClientTooOldError(VersionEngineError):
+    http_status = 426

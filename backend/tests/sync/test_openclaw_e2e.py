@@ -1,15 +1,15 @@
 """
-OpenClaw ↔ PuppyOne E2E Sync Tests (LEGACY — needs rewrite for MUT protocol)
+OpenClaw ↔ PuppyOne E2E Sync Tests (retired — needs Git Remote/AP-FS rewrite)
 
-These tests were written for the old per-file FolderSyncService API.
-The filesystem connector has been rewritten to use MUT protocol directly.
-New E2E tests should test via /api/v1/mut/ap/{access_key}/clone|push|pull.
+These tests were written for the removed per-file FolderSyncService API.
+The filesystem connector now exposes Git Remote and AP-FS entry points.
+New E2E tests should exercise /git/ap/{access_key}.git and /api/v1/ap-fs.
 """
 
 import pytest
 
 pytestmark = pytest.mark.skip(
-    reason="Legacy tests for removed FolderSyncService. Rewrite for MUT protocol."
+    reason="Retired tests for removed FolderSyncService. Rewrite for Git Remote/AP-FS."
 )
 
 from types import SimpleNamespace
@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.connectors.filesystem.router import router as folder_router
-from src.mut_engine.routers.audit_router import router as audit_router
+from src.version_engine.routers.audit_router import router as audit_router
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
@@ -41,19 +41,19 @@ class InMemoryNodes:
         path = kwargs.get("id", f"node-{self._counter}")
         self._counter += 1
         parent_id = kwargs.get("parent_id")
-        if "mut_path" in kwargs:
-            mut_path = kwargs["mut_path"]
+        if "version_path" in kwargs:
+            version_path = kwargs["version_path"]
         elif parent_id:
             parent = self._store.get(parent_id)
-            mut_path = f"{parent['mut_path']}/{kwargs.get('name', 'test')}" if parent else kwargs.get("name", "test")
+            version_path = f"{parent['version_path']}/{kwargs.get('name', 'test')}" if parent else kwargs.get("name", "test")
         else:
-            mut_path = kwargs.get("name", "test")
+            version_path = kwargs.get("name", "test")
         node = {
             "id": path,
             "project_id": kwargs.get("project_id", "proj-1"),
             "name": kwargs.get("name", "test"),
             "type": kwargs.get("type", "json"),
-            "mut_path": mut_path,
+            "version_path": version_path,
             "s3_key": kwargs.get("s3_key"),
             "current_version": kwargs.get("current_version", 0),
             "content_hash": kwargs.get("content_hash"),
@@ -77,7 +77,7 @@ class InMemoryNodes:
     def list_children(self, project_id: str, parent_id: str):
         if parent_id:
             parent = self._store.get(parent_id)
-            parent_path = parent["mut_path"] if parent else None
+            parent_path = parent["version_path"] if parent else None
         else:
             parent_path = None
         return [
@@ -85,9 +85,9 @@ class InMemoryNodes:
             for n in self._store.values()
             if n["project_id"] == project_id
             and (
-                (parent_path and n["mut_path"].startswith(parent_path + "/")
-                 and n["mut_path"].count("/") == parent_path.count("/") + 1)
-                or (not parent_path and "/" not in n["mut_path"])
+                (parent_path and n["version_path"].startswith(parent_path + "/")
+                 and n["version_path"].count("/") == parent_path.count("/") + 1)
+                or (not parent_path and "/" not in n["version_path"])
             )
         ]
 
@@ -592,7 +592,7 @@ class TestAuditLogApi:
 
     def test_audit_log_endpoint(self):
         """GET /nodes/{id}/audit-logs should return audit logs."""
-        from src.mut_engine.routers.audit_router import router, _get_audit_repo
+        from src.version_engine.routers.audit_router import router, _get_audit_repo
 
         app = FastAPI()
         app.include_router(router, prefix="/api/v1")

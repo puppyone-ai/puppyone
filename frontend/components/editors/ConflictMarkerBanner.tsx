@@ -83,7 +83,7 @@ export function ConflictMarkerBanner({
         <span
           style={{
             background: 'var(--po-warning)',
-            color: 'var(--po-on-warning, #fff)',
+            color: 'var(--po-text-inverse)',
             padding: '2px 8px',
             borderRadius: 4,
             fontSize: 11,
@@ -150,7 +150,7 @@ export function ConflictMarkerBanner({
                 border: '1px solid var(--po-border-subtle)',
                 borderRadius: 6,
                 overflow: 'hidden',
-                fontFamily: 'var(--po-font-mono, monospace)',
+                fontFamily: 'var(--po-font-mono)',
                 fontSize: 12,
               }}
             >

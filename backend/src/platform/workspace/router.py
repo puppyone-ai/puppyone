@@ -3,7 +3,7 @@ Workspace API — Folder interface for external Agents
 
 Endpoints:
   POST /workspace/create                Create workspace (returns path)
-  POST /workspace/{agent_id}/complete   Trigger merge after Agent completes (via Mut kernel)
+  POST /workspace/{agent_id}/complete   Trigger merge after Agent completes (via Version Engine)
   GET  /workspace/{agent_id}/status     View workspace status
 """
 
@@ -64,14 +64,14 @@ async def create_workspace(
     request: CreateWorkspaceRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.mut_engine.dependencies import create_mut_ops
+    from src.version_engine.dependencies import create_version_write_command_service
     from src.platform.workspace.provider import get_workspace_provider
     from src.platform.workspace.sync_worker import SyncWorker
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"
 
     provider = get_workspace_provider()
-    ops = create_mut_ops()
+    commands = create_version_write_command_service()
     sync_worker = SyncWorker(
         ops=ops,
         base_dir=provider._base_dir if hasattr(provider, '_base_dir') else "/tmp/contextbase",
@@ -97,7 +97,7 @@ async def create_workspace(
 
 
 # ============================================================
-# Trigger merge after Agent completes (via MutAdminService)
+# Trigger merge after Agent completes (via VersionAdminService)
 # ============================================================
 
 @router.post("/{agent_id}/complete", response_model=ApiResponse[CompleteWorkspaceResponse])
@@ -107,13 +107,13 @@ async def complete_workspace(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     """
-    Called by external Agent after completion - pushes changes via MUT protocol
+    Called by external Agent after completion - pushes changes via version transaction engine
 
     1. detect_changes: compare workspace vs lower
     2. Build modified/deleted lists
-    3. Perform atomic commit via MutOps.bulk_write
+    3. Perform atomic commit via ProductOperationAdapter.bulk_write
     """
-    from src.mut_engine.dependencies import create_mut_ops
+    from src.version_engine.dependencies import create_product_operation_adapter
     from src.platform.workspace.provider import get_workspace_provider
 
     provider = get_workspace_provider()
@@ -126,7 +126,7 @@ async def complete_workspace(
             agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
         ), message="No changes detected")
 
-    ops = create_mut_ops()
+    ops = create_product_operation_adapter()
 
     modified: dict[str, bytes] = {}
     for rel_path, content in changes.modified.items():
@@ -140,25 +140,26 @@ async def complete_workspace(
     deleted = list(changes.deleted)
 
     try:
-        result = await ops.bulk_write(
+        outcome = await commands.bulk_write(
             project_id,
             modified,
-            who=agent_id,
+            actor=agent_id,
             deleted=deleted,
             message=f"Agent workspace merge ({len(modified)} modified, {len(deleted)} deleted)",
         )
+        result = outcome.result
         committed = len(modified)
         conflict_count = result.conflicts
         strategies = ["merge"] if result.merged else []
         log_info(
-            f"[Workspace API] MUT push: commit={result.commit_id or '(none)'} "
+            f"[Workspace API] version push: commit={result.commit_id or '(none)'} "
             f"merged={result.merged} files={committed}"
         )
     except Exception as e:
         committed = 0
         conflict_count = len(modified)
         strategies = []
-        log_error(f"[Workspace API] MUT push failed: {e}")
+        log_error(f"[Workspace API] version push failed: {e}")
 
     await provider.cleanup(agent_id)
 

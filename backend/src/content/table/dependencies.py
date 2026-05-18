@@ -20,7 +20,7 @@ def get_table_repository() -> TableRepositorySupabase:
 def get_table_service() -> TableService:
     global _table_service
     if _table_service is None:
-        from src.mut_engine.dependencies import get_repo_manager_standalone
+        from src.version_engine.dependencies import get_repo_manager_standalone
 
         repo = get_table_repository()
         repo_manager = get_repo_manager_standalone()

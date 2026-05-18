@@ -177,10 +177,10 @@ def auto_suggest_scopes(
     project: Project = Depends(get_verified_project),
     service: ScopeService = Depends(get_scope_service),
 ):
-    """Reads the current MUT tree's top-level folders and returns those
+    """Reads the current version tree's top-level folders and returns those
     not already covered by an existing scope as proposed scope candidates."""
-    from src.mut_engine.dependencies import create_mut_ops
-    ops = create_mut_ops()
+    from src.version_engine.dependencies import create_product_operation_adapter
+    ops = create_product_operation_adapter()
     try:
         entries = ops.list_dir(str(project.id), "")
     except Exception:

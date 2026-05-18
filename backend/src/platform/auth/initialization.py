@@ -15,7 +15,7 @@ API split (intentional):
   Safe to call from sync FastAPI route dependencies (it is the safety
   net behind `resolve_org_id`).
 * `maybe_seed_demo_project` is **async** because writing the seed
-  template goes through MutOps. Auth routes call this *after* the sync
+  template goes through ProductOperationAdapter. Auth routes call this *after* the sync
   step to grab a demo project id for the post-login redirect.
 """
 
@@ -164,10 +164,10 @@ class UserInitializationService:
         user_id: str,
         org_id: str,
     ) -> str | None:
-        """Create the Get Started project, init its MUT tree, and seed
+        """Create the Get Started project, init its version tree, and seed
         template content. Returns the new project id, or None on failure
         (failures are logged but never block sign-in)."""
-        from src.mut_engine.dependencies import create_mut_admin_service
+        from src.version_engine.dependencies import create_version_admin_service
         from src.platform.project.templates import seed_template_content
 
         try:
@@ -186,21 +186,21 @@ class UserInitializationService:
 
         project_id = str(project.id)
 
-        # MUT tree init and seed are best-effort. If either fails the
+        # version tree init and seed are best-effort. If either fails the
         # user still ends up with an empty "Get Started" project they
         # can delete — strictly better than today's empty dashboard.
         try:
-            admin = create_mut_admin_service()
+            admin = create_version_admin_service()
             await admin.init_tree(project_id)
         except Exception as e:
             log_error(
-                f"Demo project {project_id}: MUT init_tree failed: {e}"
+                f"Demo project {project_id}: hash init_tree failed: {e}"
             )
             return project_id
 
         # Same root-scope auto-create as the regular create_project router
         # (cf. platform/project/router.py:create_project). Without this,
-        # the demo project has zero scopes — /scopes is empty, mut auth
+        # the demo project has zero scopes — /scopes is empty, access-key auth
         # can't resolve a key, and the post-redesign UI's data view sees
         # no entry point.
         try:

@@ -752,7 +752,7 @@ function buildGraph(
         width: 12,
         height: 12,
       },
-      // Bidirectional connections (filesystem MUT, etc.) get an
+      // Bidirectional connections (Git Remote, etc.) get an
       // arrow on BOTH ends so the data-flow shape is visible at
       // a glance — otherwise the line reads as one-way.
       ...(direction === 'bidirectional' && {

@@ -1,13 +1,13 @@
 """
-Agent sandbox session management — reuse MUT-backed sandboxes across chat messages.
+Agent sandbox session management — reuse version-backed sandboxes across chat messages.
 
-Each AgentSandboxSession holds a MutEphemeralClient that was cloned once at
+Each AgentSandboxSession holds a InProcessVersionClient that was cloned once at
 session start. When the session ends (explicit or idle timeout), the client
-pushes modified files back via MUT protocol.
+pushes modified files back through the version transaction engine.
 
 Lifecycle:
-  1. Agent chat starts → clone MUT scope → mount in sandbox → register session
-  2. Subsequent messages → reuse same sandbox + MUT client (touch heartbeat)
+  1. Agent chat starts → clone version scope → mount in sandbox → register session
+  2. Subsequent messages → reuse same sandbox + version client (touch heartbeat)
   3. Chat ends / idle timeout → read changed files → client.push() → destroy sandbox
 """
 
@@ -22,28 +22,28 @@ from typing import Optional, Any
 
 from loguru import logger
 
-from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+from src.version_engine.services.in_process_client import InProcessVersionClient
 
 
 @dataclass
 class SandboxFile:
     """A file to mount in a sandbox container.
 
-    ``base_commit_id`` snapshots the MUT commit this file was cloned at
+    ``base_commit_id`` snapshots the Git commit this file was cloned at
     so write-back can be traced to a specific point-in-time snapshot.
     """
     path: str
     content: str | None = None
     s3_key: str | None = None
     content_type: str = "application/octet-stream"
-    mut_path: str | None = None
+    version_path: str | None = None
     node_type: str | None = None
     base_commit_id: str = ""
 
 
 @dataclass
 class SandboxData:
-    """Prepared sandbox data from MUT clone."""
+    """Prepared sandbox data from a version scope clone."""
     files: list[SandboxFile] = field(default_factory=list)
     node_type: str = "json"
     root_path: str = ""
@@ -59,9 +59,9 @@ async def prepare_sandbox_data(
     project_id: str,
     path: str,
 ) -> SandboxData:
-    """Prepare files from MUT tree for sandbox mounting.
+    """Prepare files from version tree for sandbox mounting.
 
-    Reads the MUT tree at `path` and returns SandboxFile objects
+    Reads the version tree at `path` and returns SandboxFile objects
     suitable for sandbox_service.start_with_files().
     """
 
@@ -90,7 +90,7 @@ async def prepare_sandbox_data(
                 path=f"/workspace/{relative}",
                 content=text,
                 content_type="application/json" if child.type == "json" else "text/markdown" if child.type == "markdown" else "text/plain",
-                mut_path=child.path,
+                version_path=child.path,
                 node_type=child.type,
             ))
         return SandboxData(files=files, node_type="folder", root_path=path, root_node_name=node_name)
@@ -101,7 +101,7 @@ async def prepare_sandbox_data(
         path=f"/workspace/{node_name}" if node_type != "json" else "/workspace/data.json",
         content=text,
         content_type="application/json" if node_type == "json" else "text/markdown" if node_type == "markdown" else "text/plain",
-        mut_path=path,
+        version_path=path,
         node_type=node_type,
     )
     return SandboxData(files=[sf], node_type=node_type, root_path=path, root_node_name=node_name)
@@ -112,7 +112,7 @@ class AgentSandboxSession:
     sandbox_session_id: str
     chat_session_id: str
     agent_id: str
-    mut_client: MutEphemeralClient
+    version_client: InProcessVersionClient
     cloned_files: dict[str, bytes]
     scope_path: str
     created_at: float
@@ -140,7 +140,7 @@ class AgentSandboxRegistry:
         chat_session_id: str,
         sandbox_session_id: str,
         agent_id: str,
-        mut_client: MutEphemeralClient,
+        version_client: InProcessVersionClient,
         cloned_files: dict[str, bytes],
         scope_path: str = "",
         readonly: bool = False,
@@ -153,7 +153,7 @@ class AgentSandboxRegistry:
             sandbox_session_id=sandbox_session_id,
             chat_session_id=chat_session_id,
             agent_id=agent_id,
-            mut_client=mut_client,
+            version_client=version_client,
             cloned_files=cloned_files,
             scope_path=scope_path,
             created_at=now,
@@ -199,7 +199,7 @@ async def writeback_and_destroy(
     session: AgentSandboxSession,
     sandbox_service,
 ) -> list[dict]:
-    """Read changed files from sandbox, push to MUT, then destroy the container.
+    """Read changed files from sandbox, push to the version engine, then destroy the container.
 
     Returns list of updated node info dicts.
     """
@@ -215,9 +215,9 @@ async def writeback_and_destroy(
                 session.scope_path,
             )
             if modified or deleted:
-                from src.mut_engine.services.hooks import push_and_finalize
+                from src.version_engine.services.hooks import push_and_finalize
                 push_result = await push_and_finalize(
-                    session.mut_client,
+                    session.version_client,
                     session.project_id,
                     repo_manager=session.repo_manager,
                     modified=modified,
@@ -226,7 +226,7 @@ async def writeback_and_destroy(
                     who=f"agent:{session.agent_id}",
                 )
                 logger.info(
-                    f"[AgentSandbox] MUT push: commit={push_result.get('commit_id')} "
+                    f"[AgentSandbox] version push: commit={push_result.get('commit_id')} "
                     f"merged={push_result.get('merged', False)} modified={len(modified)} deleted={len(deleted)}"
                 )
                 for path in modified:
@@ -234,7 +234,7 @@ async def writeback_and_destroy(
                     updated_nodes.append({
                         "nodeId": path,
                         "nodeName": node_name,
-                        "mergeStrategy": "mut_push",
+                        "mergeStrategy": "version_push",
                     })
         except Exception as e:
             logger.error(f"[AgentSandbox] Write-back failed: {e}")
@@ -258,14 +258,14 @@ async def _read_modified_files(
 
     Args:
         mount_path: Container path to scan (e.g. "/workspace" or "/workspace/data").
-        scope_path: MUT tree prefix to prepend to relative paths.
+        scope_path: version tree prefix to prepend to relative paths.
 
     Returns:
-        (modified, deleted) — modified is {mut_path: content_bytes},
-        deleted is [mut_path, ...] for files removed from sandbox.
+        (modified, deleted) — modified is {version_path: content_bytes},
+        deleted is [version_path, ...] for files removed from sandbox.
     """
     scan_path = mount_path or "/workspace"
-    # Normalize scope_path: strip slashes to match MUT clone key format
+    # Normalize scope_path: strip slashes to match version clone key format.
     scope_path = scope_path.strip("/") if scope_path else ""
 
     hash_result = await sandbox_service.exec(
@@ -276,11 +276,11 @@ async def _read_modified_files(
         return {}, []
 
     original_hashes: dict[str, str] = {}
-    for mut_path, content in original_files.items():
-        original_hashes[mut_path] = hashlib.sha256(content).hexdigest()
+    for version_path, content in original_files.items():
+        original_hashes[version_path] = hashlib.sha256(content).hexdigest()
 
     modified: dict[str, bytes] = {}
-    seen_mut_paths: set[str] = set()
+    seen_version_paths: set[str] = set()
 
     for line in (hash_result.get("output") or "").strip().split("\n"):
         line = line.strip()
@@ -298,10 +298,10 @@ async def _read_modified_files(
         if any(part.startswith(".") for part in relative.split("/")):
             continue
 
-        mut_path = f"{scope_path}/{relative}" if scope_path else relative
-        seen_mut_paths.add(mut_path)
+        version_path = f"{scope_path}/{relative}" if scope_path else relative
+        seen_version_paths.add(version_path)
 
-        if mut_path in original_hashes and original_hashes[mut_path] == current_hash:
+        if version_path in original_hashes and original_hashes[version_path] == current_hash:
             continue
 
         read_result = await sandbox_service.read_file(sandbox_session_id, sandbox_path)
@@ -316,10 +316,10 @@ async def _read_modified_files(
         else:
             content_bytes = str(content).encode("utf-8")
 
-        modified[mut_path] = content_bytes
+        modified[version_path] = content_bytes
 
     # Detect deleted files: in original but no longer in sandbox
-    deleted = [p for p in original_files if p not in seen_mut_paths]
+    deleted = [p for p in original_files if p not in seen_version_paths]
 
     return modified, deleted
 

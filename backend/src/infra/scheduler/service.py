@@ -94,25 +94,25 @@ class SchedulerService:
             replace_existing=True,
         )
 
-        if settings.MUT_VERSION_OUTBOX_ENABLED:
+        if settings.VERSION_OUTBOX_ENABLED:
             self.scheduler.add_job(
                 process_version_outbox,
                 trigger=IntervalTrigger(
-                    seconds=settings.MUT_VERSION_OUTBOX_INTERVAL_SECONDS,
+                    seconds=settings.VERSION_OUTBOX_INTERVAL_SECONDS,
                 ),
-                id="mut-version-outbox",
-                name="MUT Version Outbox Repair",
+                id="version-outbox",
+                name="Version Outbox Repair",
                 replace_existing=True,
             )
 
-        if settings.MUT_OBJECT_GC_ENABLED:
+        if settings.VERSION_OBJECT_GC_ENABLED:
             self.scheduler.add_job(
                 process_git_object_gc,
                 trigger=IntervalTrigger(
-                    seconds=settings.MUT_OBJECT_GC_INTERVAL_SECONDS,
+                    seconds=settings.VERSION_OBJECT_GC_INTERVAL_SECONDS,
                 ),
-                id="mut-object-gc",
-                name="MUT Git Object GC",
+                id="version-object-gc",
+                name="Version Engine Git Object GC",
                 replace_existing=True,
             )
 

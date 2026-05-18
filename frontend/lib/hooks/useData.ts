@@ -211,10 +211,7 @@ export function useTreeDir(projectId: string, dirPath: string | null | undefined
   };
 }
 
-/**
- * Backward-compatible alias for useTreeDir.
- * parentId is now treated as a directory path.
- */
+/** Use the current directory-backed content listing. */
 export function useContentNodes(projectId: string, parentPath: string | null | undefined) {
   return useTreeDir(projectId, parentPath);
 }
@@ -358,7 +355,7 @@ export function useShallowTree(projectId: string, maxDepth: number = 1) {
 /**
  * 获取指定路径的 Tools（使用后端直接过滤）
  *
- * @param path MUT 路径 (可选，为空时不请求)
+ * @param path version path (可选，为空时不请求)
  *
  * - 按需加载：只有 path 存在时才请求
  * - 后端过滤：直接调用 /api/v1/tools/by-path/{path}

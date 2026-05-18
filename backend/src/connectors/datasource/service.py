@@ -3,11 +3,12 @@ L2.5 Sync — SyncService (bidirectional sync orchestrator)
 
 Responsibilities:
   - bootstrap:       First-connect scan → create Sync rows
-  - pull_sync:       External → PuppyOne (via MUT protocol)
+  - pull_sync:       External → PuppyOne through ProductOperationAdapter
   - pull_all:        Pull all active syncs
   - push_node:       PuppyOne → external (after write completes)
 
-All writes go through MutOps (clone → push under the hood).
+All typed writes go through ProductOperationAdapter and the Version Engine
+transaction boundary.
 """
 
 from typing import Optional, List, Any
@@ -208,7 +209,7 @@ class SyncService:
         self, project_id: str, resource: ResourceInfo, folder_path: Optional[str],
         user_id: Optional[str] = None,
     ) -> tuple[str, str]:
-        """Create a connection folder with an empty data file in the MUT tree.
+        """Create a connection folder with an empty data file in the version tree.
 
         Returns (folder_path, data_file) where:
           - folder_path is stored in connections.path (the mount point)
@@ -223,13 +224,13 @@ class SyncService:
         conn_folder = f"{base_folder}/{name}" if base_folder else name
         operator = f"sync:{user_id}" if user_id else "sync"
 
-        from src.mut_engine.dependencies import create_mut_ops
-        ops = create_mut_ops()
+        from src.version_engine.dependencies import create_version_write_command_service
+        commands = create_version_write_command_service()
 
         initial_content = b"{}" if node_type == "json" else b""
-        await ops.write_file(
+        await commands.write_bytes(
             project_id, f"{conn_folder}/{data_file}", initial_content,
-            who=operator, message=f"Create sync target: {name}",
+            actor=operator, message=f"Create sync target: {name}",
         )
         return conn_folder, data_file
 
@@ -275,7 +276,7 @@ class SyncService:
         """Pull changes for a single sync binding.
 
         Delegates to SyncEngine.execute() which handles the full cycle:
-        credential resolution → connector.fetch() → hash compare → MutOps.write()
+        credential resolution → connector.fetch() → hash compare → ProductOperationAdapter.write()
         """
         try:
             from src.connectors.datasource.dependencies import create_sync_engine

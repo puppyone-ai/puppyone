@@ -21,9 +21,9 @@ from src.repo.models import Connector
 
 PROVIDERS_BIDIRECTIONAL = frozenset({"cli", "agent", "filesystem"})
 # The three built-in connection methods that every scope ships with:
-#   - cli         — direct mut CLI commands against the remote tree
+#   - cli         — direct Puppyone CLI commands against the remote tree
 #   - agent       — in-app chat agent that can read/write the scope
-#   - filesystem  — local-folder bidirectional sync via the MUT protocol
+#   - filesystem  — local-folder bidirectional sync via the version transaction engine
 # All three are auto-created by the DB trigger on repo_scopes INSERT and are
 # undeletable via the API (pause/resume only). OAuth-backed third-party
 # providers must pick inbound OR outbound at create time.

@@ -8,6 +8,7 @@ import type { SaveStatus } from '@/lib/hooks/useManualSave';
 import type { GenericViewerId, SpecialViewerId } from '@/lib/fileFormats/types';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
+import type { CsvViewMode } from '@/components/editors/spreadsheet/CsvTableViewer';
 import type { EditorType } from '@/components/ProjectsHeader';
 import { downloadNode } from '@/lib/contentTreeApi';
 import { APP_Z_INDEX } from '@/lib/zIndex';
@@ -27,6 +28,8 @@ interface FileViewerHeaderActionsProps {
   onEditorTypeChange: (mode: EditorType) => void;
   htmlMode: HtmlArtifactMode;
   onHtmlModeChange: (mode: HtmlArtifactMode) => void;
+  csvViewMode: CsvViewMode;
+  onCsvViewModeChange: (mode: CsvViewMode) => void;
 }
 
 interface ModeOption<TMode extends string> {
@@ -51,6 +54,12 @@ const HTML_OPTIONS: ModeOption<HtmlArtifactMode>[] = [
   { value: 'source', label: 'Source', Icon: CodeIcon },
 ];
 
+const CSV_OPTIONS: ModeOption<CsvViewMode>[] = [
+  { value: 'edit', label: 'Edit table', Icon: PencilIcon },
+  { value: 'preview', label: 'Preview table', Icon: TableIcon },
+  { value: 'source', label: 'Source', Icon: CodeIcon },
+];
+
 export function FileViewerHeaderActions({
   projectId,
   filePath,
@@ -64,6 +73,8 @@ export function FileViewerHeaderActions({
   onEditorTypeChange,
   htmlMode,
   onHtmlModeChange,
+  csvViewMode,
+  onCsvViewModeChange,
 }: FileViewerHeaderActionsProps) {
   if (!viewerId) return null;
 
@@ -81,6 +92,16 @@ export function FileViewerHeaderActions({
     return (
       <HeaderActionGroup>
         {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        <FileActionsMenu projectId={projectId} filePath={filePath} />
+      </HeaderActionGroup>
+    );
+  }
+
+  if (viewerId === 'csv-table') {
+    return (
+      <HeaderActionGroup>
+        {editable && <EditorSaveButton status={saveStatus} onSave={onSave} />}
+        <ModePicker mode={csvViewMode} onChange={onCsvViewModeChange} options={CSV_OPTIONS} />
         <FileActionsMenu projectId={projectId} filePath={filePath} />
       </HeaderActionGroup>
     );

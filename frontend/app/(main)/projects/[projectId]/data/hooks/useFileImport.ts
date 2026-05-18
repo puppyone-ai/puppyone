@@ -94,7 +94,7 @@ export function useFileImport(
 
   // Sidebar drag/drop = backend-proxied multipart upload, same path
   // the explorer dialog uses. Bytes go browser → Next.js → FastAPI
-  // → S3, the backend writes them into MUT, and the
+  // → S3, the backend writes them into Version Engine, and the
   // BackgroundTaskNotifier polls the resulting task IDs to terminal
   // state.
   const uploadFilesToTarget = useCallback(async (
@@ -153,7 +153,7 @@ export function useFileImport(
             updateTaskProgress(taskId, percent);
           },
           onAllPartsUploaded: (taskId) => {
-            // Bytes are in S3, server is now writing into MUT.
+            // Bytes are in S3, server is now writing into Version Engine.
             // Show "Finalizing…" until /upload/complete returns,
             // otherwise the row sits at "Uploading 100%" looking
             // stuck for the multi-second finalize window.

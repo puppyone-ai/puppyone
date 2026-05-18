@@ -30,7 +30,7 @@ The cases below are designed so:
 Each :class:`ConflictCase` is self-contained: it declares the seed
 state, the writers, and the expected final state + per-writer outcome.
 A live runner (separate file) seeds the project, fires the writers
-through ``MutOps``, then asserts against ``expected``.
+through ``ProductOperationAdapter``, then asserts against ``expected``.
 
 CATEGORY OVERVIEW
 =================
@@ -127,7 +127,7 @@ class Expected:
       * ``merged``              — the writer's content survives as part of
                                    a merge commit (not necessarily as head)
       * ``superseded_by_parent`` — parent_scope_wins consumed this content
-      * ``pending_resolution``  — landed in mut_conflicts queue
+      * ``pending_resolution``  — landed in the conflict-review queue
       * ``rejected``            — engine refused (CAS exhausted / 409 / 422)
       * ``superseded_by_lww``   — LWW dropped this side's content
     """
@@ -135,7 +135,7 @@ class Expected:
     writer_outcomes: Tuple[str, ...] = ()
     # path → expected final bytes (None means file should be absent)
     final_state: Mapping[str, Optional[bytes]] = field(default_factory=dict)
-    # How many ``mut_conflicts`` rows the case should leave pending.
+    # How many conflict-review rows the case should leave pending.
     pending_conflicts: int = 0
     # Active strategy: identical | one_side_only | json_merge | line_merge |
     #                  lww | manual_review | parent_scope_wins | modify_delete |
@@ -1257,7 +1257,7 @@ D_CASES = [
             writer_outcomes=("committed", "superseded_by_parent"),
             final_state={"docs/important.md": b"root-edit\n"},
             strategy="parent_scope_wins",
-            notes="Child's commit may still appear in mut_commits for the "
+            notes="Child's commit may still appear in the scope history for the "
                   "child scope, but the projected root view shows parent.",
         ),
     ),
@@ -1325,7 +1325,7 @@ D_CASES = [
             "Root writes ``docs/foo.md``. Child scope ``docs`` does NOT "
             "have foo.md in its tree. With auto-routing on, the engine "
             "should route the write to ``docs`` scope (narrowest scope "
-            "owning the path) per the MUT-write rule in the project memo."
+            "owning the path) per the hash-write rule in the project memo."
         ),
         setup={
             "": {},
@@ -1539,7 +1539,7 @@ D_CASES = [
         title="read-only scope rejects write",
         description=(
             "Scope ``readonly`` has mode ``r``. A write into that scope "
-            "via the HTTP access-point auth path must 403/401. (MutOps "
+            "via the HTTP access-point auth path must 403/401. (ProductOperationAdapter "
             "in-process call doesn't enforce — this case exercises the "
             "router layer.)"
         ),
@@ -1553,7 +1553,7 @@ D_CASES = [
             final_state={"readonly/locked.md": b"don't touch\n"},
             strategy="rejected",
             notes="Requires HTTP/AP-FS runner with mode enforcement. "
-                  "MutOps in-process call lacks the check.",
+                  "ProductOperationAdapter in-process call lacks the check.",
         ),
     ),
     ConflictCase(
@@ -1687,7 +1687,7 @@ E_CASES = [
         expected=Expected(
             strategy="lww",
             notes="Acceptance: at least 1 committed, no scope-state corruption, "
-                  "no stale row in mut_scope_state after settle.",
+                  "no stale scope-state row after settle.",
         ),
     ),
     ConflictCase(
@@ -1828,11 +1828,11 @@ F_CASES = [
     ConflictCase(
         id="F02",
         category="F",
-        title="manual_review policy → row in mut_conflicts",
+        title="manual_review policy → row in conflict review queue",
         description=(
             "Writer B submits with ``policy=\"manual_review\"``. Conflict "
             "with A's commit cannot be auto-merged; engine queues it in "
-            "``mut_conflicts`` with status=pending instead of LWW."
+            "the conflict-review table with status=pending instead of LWW."
         ),
         setup={"": {"f.txt": b"v0\n"}},
         writers=(
@@ -1966,7 +1966,7 @@ F_CASES = [
         description=(
             "After F02 queues a pending conflict, the resolver chooses "
             "``ours`` (keep A's content). Engine writes a resolution "
-            "commit; mut_conflicts row goes to status=resolved."
+            "commit; conflict-review row goes to status=resolved."
         ),
         setup={"": {"f.txt": b"v0\n"}},
         writers=(
@@ -2048,7 +2048,7 @@ F_CASES = [
             final_state={"f.txt": b"A\n"},
             pending_conflicts=0,
             strategy="manual_review",
-            notes="Verify mut_conflicts.status='rejected' (not 'resolved').",
+            notes="Verify conflict row status='rejected' (not 'resolved').",
         ),
     ),
     ConflictCase(
@@ -3268,7 +3268,7 @@ I_CASES = [
         expected=Expected(
             writer_outcomes=("committed",),
             strategy="one_side_only",
-            notes="Single commit; verify mut_scope_state updates once.",
+            notes="Single commit; verify scope state updates once.",
         ),
         ground_truth=GroundTruth(
             rationale="No conflict; engine commits exactly the intended files.",

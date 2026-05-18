@@ -2,7 +2,7 @@
 SyncEngine — Unified execution engine for all sync operations.
 
 Sits at the center of the three-layer architecture:
-  Trigger Layer → SyncEngine → Connector Layer + MUT Protocol Layer
+  Trigger Layer → SyncEngine → Connector Layer + hash Protocol Layer
 
 All sync scenarios (bootstrap, manual refresh, scheduled, webhook)
 converge into a single execute() call. The engine:
@@ -12,10 +12,10 @@ converge into a single execute() call. The engine:
   3. Resolves OAuth credentials
   4. Calls connector.fetch(config, credentials) → FetchResult
   5. Compares content_hash with sync.remote_hash
-  6. If changed → MutOps.write_file() or MutOps.bulk_write() at the sync path
+  6. If changed → VersionWriteCommandService at the sync path
   7. Updates the sync record (remote_hash, last_sync_commit_id)
 
-All data writes go through MutOps.
+All data writes go through VersionWriteCommandService, then ProductOperationAdapter.
 """
 
 from __future__ import annotations
@@ -130,8 +130,8 @@ class SyncEngine:
 
             operator = f"sync:{sync.provider}:{external_resource_id}"
 
-            from src.mut_engine.dependencies import create_mut_ops
-            ops = create_mut_ops()
+            from src.version_engine.dependencies import create_version_write_command_service
+            commands = create_version_write_command_service()
 
             if result.files is not None:
                 files = {
@@ -144,21 +144,23 @@ class SyncEngine:
                     if placeholder_path not in files:
                         deleted.append(placeholder_path)
 
-                write_result = await ops.bulk_write(
+                outcome = await commands.bulk_write(
                     sync.project_id,
                     files,
-                    who=operator,
+                    actor=operator,
                     deleted=deleted,
                     message=result.summary or f"Import from {sync.provider}",
                 )
+                write_result = outcome.result
                 file_path = sync.path or result.node_name or ""
             else:
                 content_bytes = _to_bytes(result.content)
-                write_result = await ops.write_file(
+                outcome = await commands.write_bytes(
                     sync.project_id, file_path, content_bytes,
-                    who=operator,
+                    actor=operator,
                     message=result.summary or f"Sync from {sync.provider}",
                 )
+                write_result = outcome.result
 
             new_commit_id = write_result.commit_id
 
@@ -216,7 +218,7 @@ class SyncEngine:
         return results
 
     # ============================================================
-    # NEW MODEL (post access-point-redesign): Connector-driven execute
+        # Connector-driven execute
     # ============================================================
 
     async def execute_for_connector(self, connector) -> Optional[str]:
@@ -295,7 +297,7 @@ class SyncEngine:
         Push content from PuppyOne to the external system bound to this path.
         Called after a successful write for bidirectional/outbound syncs.
 
-        ``commit_id`` is the MUT commit just produced by the write; we
+        ``commit_id`` is the Git commit just produced by the write; we
         skip only if it matches what we already synced (avoids pushing
         the same commit twice). Unlike the old integer counter we can
         no longer order two unrelated commits, so we use equality as

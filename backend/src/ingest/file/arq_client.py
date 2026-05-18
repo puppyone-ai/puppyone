@@ -55,7 +55,7 @@ class ETLArqClient:
         Triggered from ``/upload/complete``: by the time we enqueue,
         the bytes are already assembled in S3 (the browser PUT them
         directly via presigned URLs). This worker job pulls those
-        bytes from S3 and writes them into MUT, decoupling MUT
+        bytes from S3 and writes them into Version Engine, decoupling hash
         latency from the user-visible upload progress.
         """
         redis = await self.get_pool()

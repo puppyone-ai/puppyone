@@ -22,13 +22,6 @@ function validateProfileName(profile) {
   }
 }
 
-function maskKey(key) {
-  if (!key || key.length < 8) return key || "-";
-  const idx = key.indexOf("_");
-  const pre = idx > 0 ? idx + 1 : 4;
-  return key.slice(0, pre) + "..." + key.slice(-4);
-}
-
 async function readAccessKey(opts) {
   if (opts.accessKey) return opts.accessKey;
   if (opts.accessKeyStdin) {
@@ -115,7 +108,6 @@ export function registerAccessPointManagement(ap) {
       saveConfig({
         access_points: { ...profiles, [profile]: metadata },
         current_access_point: profile,
-        active_access_point: null,
       });
 
       if (out.json) {
@@ -148,7 +140,7 @@ export function registerAccessPointManagement(ap) {
         out.error("MISSING_CREDENTIAL", `No local credential stored for profile: ${profile}`, `Run \`puppyone ap login ${profile}\` again.`);
         return;
       }
-      saveConfig({ current_access_point: profile, active_access_point: null });
+      saveConfig({ current_access_point: profile });
       if (out.json) {
         out.success({ current_access_point: profile, access_point: metadata });
         return;
@@ -199,27 +191,24 @@ export function registerAccessPointManagement(ap) {
       const config = loadConfig();
       const current = config.current_access_point || null;
       const active = current ? config.access_points?.[current] : null;
-      const legacy = config.active_access_point || null;
       if (out.json) {
         out.success({
           current_access_point: current,
           access_point: active,
-          legacy_access_point: legacy,
         });
         return;
       }
-      if (!active && !legacy) {
+      if (!active) {
         out.info("No active Access Point. Run `puppyone ap login <profile>`.");
         return;
       }
-      const display = active || legacy;
       out.kv([
-        ["Profile:", current || "(legacy)"],
-        ["Name:", display.name || "-"],
-        ["API URL:", display.api_url || "-"],
-        ["Scope:", display.scope?.path || "."],
-        ["Mode:", display.scope?.mode || "-"],
-        ["Key:", current ? (getAccessPointCredential(current) ? "stored" : "missing") : maskKey(legacy?.access_key)],
+        ["Profile:", current],
+        ["Name:", active.name || "-"],
+        ["API URL:", active.api_url || "-"],
+        ["Scope:", active.scope?.path || "."],
+        ["Mode:", active.scope?.mode || "-"],
+        ["Key:", getAccessPointCredential(current) ? "stored" : "missing"],
       ]);
     }));
 
@@ -247,7 +236,7 @@ export function registerAccessPointManagement(ap) {
     .description("Clear the active Access Point selection")
     .action(withErrors(async (opts, cmd) => {
       const out = createOutput(cmd);
-      saveConfig({ current_access_point: null, active_access_point: null });
+      saveConfig({ current_access_point: null });
       out.success?.({ current_access_point: null });
       out.info("Active Access Point selection cleared.");
     }));

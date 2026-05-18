@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { get } from '@/lib/apiClient';
 import { useProjectTools, refreshFolderNodes } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
-import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
+import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
 import { listScopes, listConnectors, getRepoIdentity, type Connector } from '@/lib/repoApi';
