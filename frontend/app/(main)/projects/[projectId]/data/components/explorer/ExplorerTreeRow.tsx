@@ -547,7 +547,12 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
     }
   }, [isHighlighted]);
 
-  const { nodes: children, isLoading: loading, error: loadError } = useExplorerTreeDir(
+  const {
+    nodes: children,
+    isLoading: loading,
+    isValidating,
+    error: loadError,
+  } = useExplorerTreeDir(
     expanded ? projectId : '',
     expanded ? item.id : undefined,
   );
@@ -621,6 +626,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
       })),
     [children, item.id],
   );
+  const isChildLoadInFlight = (loading || isValidating) && childItems.length === 0;
 
   const hasActions = !!(onCreate || onCreateSync || onRename || onDelete || onDownload);
 
@@ -661,14 +667,12 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
         onClick={handleClick}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        // Keep file rows as navigation-first targets. Native HTML drag on the
-        // whole row can swallow the click when the pointer moves a pixel or
-        // two, which makes Markdown/README selections feel randomly dead.
-        // Folders stay draggable as structural move sources; files can still
-        // be moved from the main grid/list views onto this sidebar.
-        draggable={isFolder && Boolean(onMoveNode)}
+        // Any product node can be a move source. Only folder rows become
+        // drop targets, so this enables file -> folder moves without allowing
+        // file -> file drops.
+        draggable={Boolean(onMoveNode)}
         onDragStart={(e) => {
-          if (!isFolder) {
+          if (!onMoveNode) {
             e.preventDefault();
             return;
           }
@@ -889,19 +893,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               }}
             />
           )}
-          {loadError ? (
-            <ExplorerTreeMetaRow depth={depth + 1}>
-              <span
-                title={getFolderLoadErrorTitle(loadError)}
-                style={{
-                  ...SIDEBAR_META_TYPOGRAPHY,
-                  color: 'var(--po-danger)',
-                }}
-              >
-                {getFolderLoadErrorLabel(loadError)}
-              </span>
-            </ExplorerTreeMetaRow>
-          ) : loading && children.length === 0 ? (
+          {isChildLoadInFlight ? (
             <ExplorerTreeMetaRow depth={depth + 1}>
               <Dots size="xs" />
             </ExplorerTreeMetaRow>
@@ -933,6 +925,18 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
                 onFileDragTarget={onFileDragTarget}
               />
             ))
+          ) : loadError ? (
+            <ExplorerTreeMetaRow depth={depth + 1}>
+              <span
+                title={getFolderLoadErrorTitle(loadError)}
+                style={{
+                  ...SIDEBAR_META_TYPOGRAPHY,
+                  color: 'var(--po-danger)',
+                }}
+              >
+                {getFolderLoadErrorLabel(loadError)}
+              </span>
+            </ExplorerTreeMetaRow>
           ) : !loading ? (
             <ExplorerTreeMetaRow depth={depth + 1}>
               <span

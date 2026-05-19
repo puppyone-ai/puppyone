@@ -268,6 +268,9 @@ class CachedStorageBackend(StorageBackend):
         end = len(data) if limit is None else min(len(data), start + limit)
         return data[start:end], len(data)
 
+    def get_many(self, hashes: list[str]) -> dict[str, bytes]:
+        return _run_async(self.async_get_many(hashes))
+
     def put(self, h: str, data: bytes) -> None:
         # Content-addressed: if the hash is already in the cache,
         # the inner backend has the same bytes (we put them there
@@ -324,6 +327,46 @@ class CachedStorageBackend(StorageBackend):
         if remaining:
             existing.update(self._inner.exists_many(remaining))
         return existing
+
+    async def async_get_many(self, hashes: list[str], concurrency: int = 20) -> dict[str, bytes]:
+        unique = list(dict.fromkeys(hashes))
+        results: dict[str, bytes] = {}
+        remaining: list[str] = []
+        active_batch = _ACTIVE_WRITE_BATCH.get()
+        with _cache_lock:
+            for h in unique:
+                if active_batch is not None and active_batch.backend is self:
+                    pending = active_batch.get(h)
+                    if pending is not None:
+                        results[h] = pending
+                        continue
+                cached = self._cache.get(h)
+                if cached is not None:
+                    results[h] = cached
+                else:
+                    remaining.append(h)
+
+        getter = getattr(self._inner, "async_get_many", None)
+        if callable(getter) and remaining:
+            fetched = await getter(remaining, concurrency=concurrency)
+        else:
+            import asyncio
+
+            sem = asyncio.Semaphore(concurrency)
+            fetched: dict[str, bytes] = {}
+
+            async def _fetch(h: str) -> None:
+                async with sem:
+                    fetched[h] = await asyncio.to_thread(self._inner.get, h)
+
+            await asyncio.gather(*[_fetch(h) for h in remaining])
+
+        with _cache_lock:
+            for h, data in fetched.items():
+                if len(data) < _CACHEABLE_THRESHOLD:
+                    self._cache[h] = data
+        results.update(fetched)
+        return results
 
     def all_hashes(self) -> list[str]:
         return self._inner.all_hashes()
@@ -512,6 +555,9 @@ class S3StorageBackend(StorageBackend):
         end = len(data) if limit is None else min(len(data), start + limit)
         return data[start:end], len(data)
 
+    def get_many(self, hashes: list[str]) -> dict[str, bytes]:
+        return _run_async(self.async_get_many(hashes))
+
     def put(self, h: str, data: bytes) -> None:
         try:
             with trace_phase("s3.put", object_id=h[:12], size_bytes=len(data)):
@@ -680,6 +726,15 @@ class S3StorageBackend(StorageBackend):
     async def async_get_many(self, hashes: list[str], concurrency: int = 20) -> dict[str, bytes]:
         """Fetch multiple objects in parallel. Returns {hash: bytes}."""
         import asyncio
+        unique = list(dict.fromkeys(hashes))
+        if self._supabase is not None:
+            remaining = [
+                h for h in unique
+                if self._cached_object_location(h) is None
+            ]
+            if remaining:
+                await asyncio.to_thread(self._lookup_many_object_locations, remaining)
+
         sem = asyncio.Semaphore(concurrency)
         results: dict[str, bytes] = {}
 
@@ -687,7 +742,7 @@ class S3StorageBackend(StorageBackend):
             async with sem:
                 results[h] = await self.async_get(h)
 
-        await asyncio.gather(*[_fetch(h) for h in hashes], return_exceptions=True)
+        await asyncio.gather(*[_fetch(h) for h in unique])
         return results
 
     async def async_put_many(self, objects: dict[str, bytes], concurrency: int = 20, skip_exists: bool = False) -> None:

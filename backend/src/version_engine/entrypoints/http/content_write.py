@@ -148,6 +148,8 @@ async def move(
         result = outcome.result
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except ConcurrentMutationError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
 

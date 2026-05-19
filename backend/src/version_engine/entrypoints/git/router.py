@@ -7,6 +7,9 @@ shape, then delegates protocol work to receive-pack/upload-pack modules.
 from __future__ import annotations
 
 import asyncio
+import os
+import tempfile
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 
@@ -15,8 +18,7 @@ from src.version_engine.entrypoints.git.auth import (
     resolve_git_project_auth,
 )
 from src.version_engine.adapters.git.receive_pack import (
-    parse_receive_pack_request as _parse_receive_pack_request,
-    receive_pack_response,
+    receive_pack_response_from_path,
 )
 from src.version_engine.adapters.git.upload_pack import (
     info_refs_response,
@@ -108,6 +110,41 @@ async def _record_git_fetch_audit(
     await asyncio.to_thread(repo.record_audit, "git_fetch", actor, detail)
 
 
+async def _spool_git_request_body(request: Request) -> Path:
+    """Spool a Git RPC request body to disk.
+
+    Large Git pushes may arrive as chunked transfer bodies. Keeping them off
+    the Python heap lets stock Git consume the exact decoded request bytes
+    without requiring users to tune client-side buffering.
+    """
+
+    tmp = tempfile.NamedTemporaryFile(
+        prefix="puppyone-git-rpc-",
+        delete=False,
+    )
+    try:
+        async for chunk in request.stream():
+            if chunk:
+                tmp.write(chunk)
+        tmp.close()
+        return Path(tmp.name)
+    except Exception:
+        name = tmp.name
+        tmp.close()
+        try:
+            os.unlink(name)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _unlink_temp(path: Path) -> None:
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
 @router.get("/{project_id}.git/info/refs")
 async def git_info_refs(
     project_id: str,
@@ -160,25 +197,28 @@ async def git_receive_pack(
 
     auth = await resolve_git_project_auth(project_id, request, scope)
     repo = repo_manager.get_server_repo(project_id)
-    body = await request.body()
+    request_path = await _spool_git_request_body(request)
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
-    return await receive_pack_response(
-        repo_manager=repo_manager,
-        repo=repo,
-        project_id=project_id,
-        scope_path=facade.scope_path,
-        scope_excludes=list(facade.excludes),
-        actor=actor,
-        body=body,
-        read_only=facade.read_only,
-        audit_detail=_git_audit_detail(
-            auth=auth,
-            entry_point="project_git_remote",
-            actor=actor,
+    try:
+        return await receive_pack_response_from_path(
+            repo_manager=repo_manager,
+            repo=repo,
             project_id=project_id,
-        ),
-    )
+            scope_path=facade.scope_path,
+            scope_excludes=list(facade.excludes),
+            actor=actor,
+            request_path=request_path,
+            read_only=facade.read_only,
+            audit_detail=_git_audit_detail(
+                auth=auth,
+                entry_point="project_git_remote",
+                actor=actor,
+                project_id=project_id,
+            ),
+        )
+    finally:
+        _unlink_temp(request_path)
 
 
 @router.post("/ap/{access_key}.git/git-receive-pack")
@@ -191,25 +231,28 @@ async def git_ap_receive_pack(
 
     project_id, auth = await resolve_git_access_point(access_key, request)
     repo = repo_manager.get_server_repo(project_id)
-    body = await request.body()
+    request_path = await _spool_git_request_body(request)
     actor = request_actor(request, auth)
     facade = repo_facade_from_auth(project_id, auth, kind="access_point")
-    return await receive_pack_response(
-        repo_manager=repo_manager,
-        repo=repo,
-        project_id=project_id,
-        scope_path=facade.scope_path,
-        scope_excludes=list(facade.excludes),
-        actor=actor,
-        body=body,
-        read_only=facade.read_only,
-        audit_detail=_git_audit_detail(
-            auth=auth,
-            entry_point="access_key_git_remote",
-            actor=actor,
+    try:
+        return await receive_pack_response_from_path(
+            repo_manager=repo_manager,
+            repo=repo,
             project_id=project_id,
-        ),
-    )
+            scope_path=facade.scope_path,
+            scope_excludes=list(facade.excludes),
+            actor=actor,
+            request_path=request_path,
+            read_only=facade.read_only,
+            audit_detail=_git_audit_detail(
+                auth=auth,
+                entry_point="access_key_git_remote",
+                actor=actor,
+                project_id=project_id,
+            ),
+        )
+    finally:
+        _unlink_temp(request_path)
 
 
 @router.post("/{project_id}.git/git-upload-pack")

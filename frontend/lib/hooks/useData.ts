@@ -210,6 +210,7 @@ export function useTreeDir(projectId: string, dirPath: string | null | undefined
     data,
     error,
     isLoading,
+    isValidating,
     mutate: revalidate,
   } = useSWR<NodeInfo[]>(
     key,
@@ -229,6 +230,7 @@ export function useTreeDir(projectId: string, dirPath: string | null | undefined
   return {
     nodes: data ?? [],
     isLoading,
+    isValidating,
     error,
     refresh: revalidate,
   };
@@ -254,6 +256,7 @@ export function useExplorerTreeDir(projectId: string, dirPath: string | null | u
     data,
     error,
     isLoading,
+    isValidating,
     mutate: revalidate,
   } = useSWR<NodeInfo[]>(
     key,
@@ -269,6 +272,7 @@ export function useExplorerTreeDir(projectId: string, dirPath: string | null | u
   return {
     nodes: data ?? [],
     isLoading,
+    isValidating,
     error,
     refresh: revalidate,
   };

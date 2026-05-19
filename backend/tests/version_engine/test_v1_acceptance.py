@@ -33,6 +33,7 @@ from src.version_engine.write_engine.tree_objects import build_tree_from_files
 from src.version_engine.domain.intents import (
     ConflictResolutionIntent,
     OperationWriteIntent,
+    VersionSubmissionIntent,
 )
 
 
@@ -203,7 +204,10 @@ async def test_k7_pending_resolve_produces_clean_audit_chain(
 
     import src.version_engine.write_engine.engine as engine_mod
 
-    # 1) Make the policy selector force manual_review so the next push lands pending.
+    # 1) Make the policy selector force manual_review so the next non-Git
+    # submission lands pending. Git remotes reject stale/non-fast-forward
+    # pushes like GitHub; explicit product/agent review paths still exercise
+    # the pending-resolution ledger.
     from src.version_engine.domain.conflicts import ConflictPolicyDecision
     monkeypatch.setattr(
         engine_mod, "select_conflict_policy",
@@ -214,7 +218,8 @@ async def test_k7_pending_resolve_produces_clean_audit_chain(
         server_repo, repo_manager, {"shared.txt": b"v0\n"},
     )
 
-    # 2) Two divergent pushes against the same base produce an unsafe conflict.
+    # 2) A Git push advances the remote, then a non-Git submission against
+    # the old base produces an unsafe conflict that enters manual review.
     server_tree = build_tree_from_files(server_repo.store, {"shared.txt": b"server\n"})
     server_commit = build_git_commit(
         server_repo, tree_sha=server_tree, parent_sha=base_commit,
@@ -233,11 +238,17 @@ async def test_k7_pending_resolve_produces_clean_audit_chain(
         who="git:client", message="client",
         created_at_iso="2026-05-16T00:00:00Z",
     )
-    pending_result = await submit_git_tree(
-        repo_manager, project_id="test-proj", scope_path="",
-        actor="git:client", base_commit_id=base_commit,
-        proposed_tree_id=stale_tree, client_commit_id=stale_commit,
-        message="client",
+    pending_result = await VersionWriteEngine(repo_manager).submit_version(
+        VersionSubmissionIntent(
+            project_id="test-proj",
+            scope_path="",
+            actor="agent:client",
+            source_channel="agent",
+            base_commit_id=base_commit,
+            proposed_tree_id=stale_tree,
+            client_commit_id=stale_commit,
+            message="client",
+        )
     )
     assert pending_result.status == "pending"
     pending_id = pending_result.pending_conflict_id

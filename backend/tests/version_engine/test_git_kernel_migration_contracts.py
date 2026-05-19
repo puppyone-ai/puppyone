@@ -155,7 +155,9 @@ def test_empty_git_tree_is_virtual_builtin_object(tmp_path) -> None:
     assert store.put_tree(b"") == EMPTY_TREE_SHA1
 
 
-def test_git_quarantine_promotion_batches_new_objects_only(tmp_path, monkeypatch) -> None:
+def test_git_quarantine_promotion_blind_writes_receive_pack_new_objects(
+    tmp_path, monkeypatch,
+) -> None:
     work = tmp_path / "work"
     work.mkdir()
     _run_git_cmd(["init"], work)
@@ -182,8 +184,7 @@ def test_git_quarantine_promotion_batches_new_objects_only(tmp_path, monkeypatch
             self.puts: dict[str, bytes] = {}
 
         def exists_many(self, hashes: list[str]) -> set[str]:
-            self.exists_many_calls.append(list(hashes))
-            return set()
+            raise AssertionError("receive-pack promotion should not probe existence")
 
         def put_loose(self, object_id: str, loose: bytes) -> None:
             self.puts[object_id] = loose
@@ -212,7 +213,7 @@ def test_git_quarantine_promotion_batches_new_objects_only(tmp_path, monkeypatch
 
     quarantine.promote_reachable()
 
-    assert repo.store.exists_many_calls == [sorted(expected_new)]
+    assert repo.store.exists_many_calls == []
     assert set(repo.store.puts) == expected_new
     assert flushes == [1]
 

@@ -350,6 +350,10 @@ class ProductOperationAdapter:
         """
         old_path = validate_path(old_path)
         new_path = validate_path(new_path)
+        if _is_descendant_path(old_path, new_path):
+            raise ValueError(
+                f"cannot move {old_path!r} into its own subtree: {new_path!r}",
+            )
 
         if scope:
             old_scope, old_rel = scope, old_path
@@ -1192,3 +1196,9 @@ def _to_result(
         conflicts=raw.conflicts,
         paths=paths if paths is not None else list(raw.paths),
     )
+
+
+def _is_descendant_path(parent: str, child: str) -> bool:
+    clean_parent = validate_path(parent)
+    clean_child = validate_path(child)
+    return bool(clean_parent and clean_child.startswith(f"{clean_parent}/"))

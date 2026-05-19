@@ -170,7 +170,10 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
                     if proc.returncode == 0:
                         break
                     stderr = proc.stderr.decode("utf-8", errors="replace")
-                    if "non-fast-forward" not in stderr:
+                    if (
+                        "non-fast-forward" not in stderr
+                        and "fetch first" not in stderr
+                    ):
                         raise AssertionError(stderr)
                     _run_git(["fetch", "origin"], repo_dir)
                     _run_git(["rebase", "origin/main"], repo_dir)

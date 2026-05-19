@@ -402,6 +402,12 @@ def splice_move(
         raise ValueError("move requires non-empty source and destination")
     if src_parts == dst_parts:
         return root_hash, []
+    src_clean = "/".join(src_parts)
+    dst_clean = "/".join(dst_parts)
+    if dst_clean.startswith(f"{src_clean}/"):
+        raise ValueError(
+            f"cannot move {old_rel!r} into its own subtree: {new_rel!r}",
+        )
 
     # Stage 1: locate + remove from source.
     src_spine_path = src_parts[:-1]

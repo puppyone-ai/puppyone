@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
+from pathlib import Path
+
 from fastapi import HTTPException
 from fastapi.responses import Response
 
-from src.version_engine.adapters.git.object_quarantine import quarantine_pack
+from src.version_engine.adapters.git.object_quarantine import (
+    official_receive_pack_quarantine,
+)
 from src.version_engine.adapters.git.protocol import (
     ZERO_ID,
     flush_pkt,
@@ -14,11 +20,20 @@ from src.version_engine.adapters.git.protocol import (
     read_pkt_lines,
 )
 from src.version_engine.adapters.git.submission import submit_git_tree
-from src.version_engine.write_engine.git_object_format import decode_commit
+from src.version_engine.write_engine import tree as tree_mod
+from src.version_engine.write_engine.git_object_format import (
+    MODE_DIR,
+    MODE_FILE,
+    TreeEntry,
+    decode_commit,
+    encode_tree,
+)
 from src.version_engine.write_engine.engine import (
     CrossScopeSubmissionError,
     NonFastForwardSubmissionError,
 )
+from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.write_engine.tree_objects import is_path_excluded
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 
@@ -51,10 +66,61 @@ async def receive_pack_response(
     read_only: bool,
     audit_detail: dict | None = None,
 ) -> Response:
+    tmp_name = ""
     try:
-        command = parse_receive_pack_request(body)
+        with tempfile.NamedTemporaryFile(
+            prefix="puppyone-git-receive-pack-",
+            delete=False,
+        ) as tmp:
+            tmp.write(body)
+            tmp_name = tmp.name
+        return await receive_pack_response_from_path(
+            repo_manager=repo_manager,
+            repo=repo,
+            project_id=project_id,
+            scope_path=scope_path,
+            scope_excludes=scope_excludes,
+            actor=actor,
+            request_path=Path(tmp_name),
+            read_only=read_only,
+            audit_detail=audit_detail,
+        )
+    finally:
+        if tmp_name:
+            try:
+                os.unlink(tmp_name)
+            except FileNotFoundError:
+                pass
+
+
+async def receive_pack_response_from_path(
+    *,
+    repo_manager: VersionRepoManager,
+    repo,
+    project_id: str,
+    scope_path: str,
+    scope_excludes: list[str],
+    actor: str,
+    request_path: Path,
+    read_only: bool,
+    audit_detail: dict | None = None,
+) -> Response:
+    try:
+        command = parse_receive_pack_request_file(request_path, allow_empty=True)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if command is None:
+        try:
+            with official_receive_pack_quarantine(
+                repo,
+                scope_path,
+                request_path,
+                scope_excludes=scope_excludes,
+            ) as official:
+                return _official_receive_pack_response(official.output)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if read_only:
         return receive_pack_result(
@@ -85,14 +151,29 @@ async def receive_pack_response(
         )
 
     try:
-        with quarantine_pack(
+        official_ref_updated = False
+        with official_receive_pack_quarantine(
             repo,
             scope_path,
-            command.pack,
+            request_path,
             roots=[command.new_id],
             exclude_roots=([command.old_id] if command.old_id != ZERO_ID else []),
             scope_excludes=scope_excludes,
-        ) as quarantine:
+        ) as official:
+            official_ref_updated = official.ref_points_to(command.ref, command.new_id)
+            if not official_ref_updated:
+                try:
+                    official.quarantine.get_object(command.new_id)
+                except Exception:
+                    if official.output:
+                        return _official_receive_pack_response(official.output)
+                    return receive_pack_result(
+                        command.ref,
+                        outcome="rejected",
+                        message="puppyone-rejected: git receive-pack rejected update",
+                        capabilities=command.capabilities,
+                    )
+            quarantine = official.quarantine
             obj_type, commit_body = quarantine.get_object(command.new_id)
             if obj_type != "commit":
                 return receive_pack_result(
@@ -120,12 +201,54 @@ async def receive_pack_response(
                     capabilities=command.capabilities,
                 )
 
-            current_head_commit_id = repo.get_scope_head_commit_id(scope_path) or ""
+            changed_paths = quarantine.changed_paths(command.old_id, command.new_id)
+            excluded_paths = _excluded_changed_paths(
+                changed_paths,
+                scope_path,
+                scope_excludes,
+            )
+            if excluded_paths:
+                return receive_pack_result(
+                    command.ref,
+                    outcome="rejected",
+                    message=(
+                        "puppyone-rejected: submission touches paths outside "
+                        f"its scope or excluded paths: {', '.join(excluded_paths[:3])}"
+                        f"{'…' if len(excluded_paths) > 3 else ''}"
+                    ),
+                    capabilities=command.capabilities,
+                    stderr_lines=[
+                        "PuppyOne: this push touches paths outside the scope "
+                        "advertised by this remote.",
+                    ],
+                )
+
+            current_scope_hash, current_head_commit_id = _get_scope_state(
+                repo,
+                scope_path,
+            )
+            expected_old_id = "" if command.old_id == ZERO_ID else command.old_id
             if (
-                current_head_commit_id
-                and not quarantine.commit_is_ancestor_or_same(
+                not scope_excludes
+                and expected_old_id != (current_head_commit_id or "")
+            ):
+                return receive_pack_result(
+                    command.ref,
+                    outcome="rejected",
+                    message=(
+                        "puppyone-rejected: non-fast-forward update rejected"
+                    ),
+                    capabilities=command.capabilities,
+                    stderr_lines=_NON_FAST_FORWARD_REMOTE_LINES,
+                )
+            if (
+                not scope_excludes
+                and current_head_commit_id
+                and not _is_fast_forward_commit(
+                    quarantine,
                     current_head_commit_id,
                     command.new_id,
+                    commit,
                 )
             ):
                 return receive_pack_result(
@@ -138,7 +261,20 @@ async def receive_pack_response(
                     stderr_lines=_NON_FAST_FORWARD_REMOTE_LINES,
                 )
 
-            changed_paths = quarantine.changed_paths(command.old_id, command.new_id)
+            promote_objects = quarantine.promote_reachable
+            proposed_tree_id = tree_id
+            engine_base_commit_id = expected_old_id
+            if scope_excludes:
+                proposed_tree_id = _canonical_tree_for_excluded_scope_push(
+                    repo,
+                    quarantine,
+                    current_scope_hash,
+                    tree_id,
+                    changed_paths,
+                )
+                promote_objects = None
+                engine_base_commit_id = current_head_commit_id
+
             # E5: refuse LFS pointer blobs with a clear message before the
             # publish pipeline rather than silently committing them and
             # leaving readers staring at a 200-byte pointer file. Check only
@@ -173,10 +309,10 @@ async def receive_pack_response(
                 project_id=project_id,
                 scope_path=scope_path,
                 actor=actor,
-                base_commit_id=current_head_commit_id,
-                proposed_tree_id=tree_id,
+                base_commit_id=engine_base_commit_id,
+                proposed_tree_id=proposed_tree_id,
                 changed_paths=changed_paths,
-                promote_objects=quarantine.promote_reachable,
+                promote_objects=promote_objects,
                 client_commit_id=command.new_id,
                 message=commit.get("message", "") or "git push",
                 scope_excludes=scope_excludes,
@@ -235,8 +371,12 @@ async def receive_pack_response(
         )
 
     _ = result
+    if official_ref_updated:
+        return _official_receive_pack_response(official.output)
     return receive_pack_result(
-        command.ref, outcome="committed", message="ok",
+        command.ref,
+        outcome="committed",
+        message="puppyone-committed",
         capabilities=command.capabilities,
     )
 
@@ -250,6 +390,22 @@ _NON_FAST_FORWARD_REMOTE_LINES = [
     "PuppyOne: Scope remotes do not use force push as a server-side merge "
     "proposal.",
 ]
+
+
+def _is_fast_forward_commit(
+    quarantine,
+    current_head_commit_id: str,
+    new_commit_id: str,
+    decoded_commit: dict,
+) -> bool:
+    if current_head_commit_id == new_commit_id:
+        return True
+    if current_head_commit_id in (decoded_commit.get("parents") or []):
+        return True
+    return quarantine.commit_is_ancestor_or_same(
+        current_head_commit_id,
+        new_commit_id,
+    )
 
 
 def detect_lfs_pointer_blobs(
@@ -285,6 +441,98 @@ def detect_lfs_pointer_blobs(
     return flagged
 
 
+def _excluded_changed_paths(
+    paths: list[str],
+    scope_path: str,
+    scope_excludes: list[str],
+) -> list[str]:
+    if not scope_excludes:
+        return []
+    scope_norm = normalize_path(scope_path)
+    excludes = [normalize_path(item) for item in scope_excludes]
+    rejected: list[str] = []
+    for path in paths:
+        rel = normalize_path(path)
+        full_path = f"{scope_norm}/{rel}" if scope_norm else rel
+        if is_path_excluded(full_path, excludes):
+            rejected.append(path)
+    return rejected
+
+
+def _canonical_tree_for_excluded_scope_push(
+    repo,
+    quarantine,
+    current_scope_hash: str,
+    pushed_tree_id: str,
+    changed_paths: list[str],
+) -> str:
+    """Merge a filtered Git view push back into the canonical scope tree.
+
+    Access Points with excludes advertise a filtered Git view. A client's new
+    commit tree therefore does not contain hidden files. Publishing that tree
+    directly would drop the hidden content; comparing it to the canonical head
+    as a normal Git ancestor would also reject valid visible-only changes.
+    Official Git already enforced fast-forward against the filtered view, so
+    here we apply only the visible changed paths onto the canonical scope tree.
+    """
+
+    quarantine.promote_reachable()
+    full_blob_ids: dict[str, str] = (
+        tree_mod.tree_to_flat(repo.store, current_scope_hash)
+        if current_scope_hash
+        else {}
+    )
+    for raw_path in changed_paths:
+        path = normalize_path(raw_path)
+        if not path:
+            continue
+        blob_id = quarantine.blob_id_for_path(pushed_tree_id, path)
+        if blob_id:
+            full_blob_ids[path] = blob_id
+        else:
+            full_blob_ids.pop(path, None)
+    return _build_tree_from_blob_ids(repo.store, full_blob_ids)
+
+
+def _build_tree_from_blob_ids(store, files: dict[str, str]) -> str:
+    nested: dict = {}
+    for path, blob_id in files.items():
+        clean = normalize_path(path)
+        if not clean or not blob_id:
+            continue
+        parts = [part for part in clean.split("/") if part]
+        node = nested
+        for part in parts[:-1]:
+            node = node.setdefault(part, {})
+        node[parts[-1]] = blob_id
+    return _write_blob_id_tree(store, nested)
+
+
+def _write_blob_id_tree(store, node: dict) -> str:
+    entries: list[TreeEntry] = []
+    for name, value in sorted(node.items()):
+        if isinstance(value, dict):
+            entries.append(TreeEntry(
+                name=name,
+                mode=MODE_DIR,
+                sha1_hex=_write_blob_id_tree(store, value),
+            ))
+        else:
+            entries.append(TreeEntry(name=name, mode=MODE_FILE, sha1_hex=value))
+    return store.put_tree(encode_tree(entries))
+
+
+def _get_scope_state(repo, scope_path: str) -> tuple[str, str]:
+    get_state = getattr(repo, "get_scope_state", None)
+    if callable(get_state):
+        scope_hash, head_commit_id = get_state(scope_path)
+        return scope_hash or "", head_commit_id or ""
+    return (
+        repo.get_scope_hash(scope_path) or "",
+        repo.get_scope_head_commit_id(scope_path) or "",
+    )
+
+
 def _ref_writability(ref: str) -> tuple[bool, str]:
     """Allow only the materialized scope ref.
 
@@ -305,7 +553,11 @@ def _ref_writability(ref: str) -> tuple[bool, str]:
     )
 
 
-def parse_receive_pack_request(body: bytes) -> ReceiveCommand:
+def parse_receive_pack_request(
+    body: bytes,
+    *,
+    allow_empty: bool = False,
+) -> ReceiveCommand | None:
     payloads, pack_offset = read_pkt_lines(body)
     commands: list[tuple[str, str, str]] = []
     capabilities: set[str] = set()
@@ -331,6 +583,8 @@ def parse_receive_pack_request(body: bytes) -> ReceiveCommand:
         commands.append((old_id, new_id, ref))
 
     if not commands:
+        if allow_empty:
+            return None
         raise ValueError("receive-pack request has no ref update")
     if len(commands) > 1:
         raise ValueError("Puppyone Git remotes accept one scope-bound ref update per push")
@@ -342,6 +596,47 @@ def parse_receive_pack_request(body: bytes) -> ReceiveCommand:
         ref=ref,
         pack=body[pack_offset:],
         capabilities=capabilities,
+    )
+
+
+def parse_receive_pack_request_file(
+    path: Path,
+    *,
+    allow_empty: bool = False,
+) -> ReceiveCommand | None:
+    return parse_receive_pack_request(
+        _read_receive_pack_header(path),
+        allow_empty=allow_empty,
+    )
+
+
+def _read_receive_pack_header(path: Path) -> bytes:
+    header = bytearray()
+    with path.open("rb") as handle:
+        while True:
+            raw_len = handle.read(4)
+            if len(raw_len) < 4:
+                raise ValueError("truncated pkt-line")
+            header.extend(raw_len)
+            try:
+                size = int(raw_len, 16)
+            except ValueError as exc:
+                raise ValueError("invalid pkt-line length") from exc
+            if size == 0:
+                return bytes(header)
+            if size < 4:
+                raise ValueError("invalid pkt-line size")
+            payload = handle.read(size - 4)
+            if len(payload) < size - 4:
+                raise ValueError("truncated pkt-line payload")
+            header.extend(payload)
+
+
+def _official_receive_pack_response(content: bytes) -> Response:
+    return Response(
+        content=content,
+        media_type="application/x-git-receive-pack-result",
+        headers={"Cache-Control": "no-cache"},
     )
 
 

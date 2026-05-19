@@ -16,6 +16,10 @@ interface MoveToDialogProps {
   onClose: () => void;
 }
 
+function isSameOrDescendantPath(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
+}
+
 function FolderTreeItem({
   id,
   name,
@@ -45,7 +49,7 @@ function FolderTreeItem({
 
   const childFolders = children.filter((n) => {
     if (n.type !== 'folder') return false;
-    if (n.id === excludeId) return false;
+    if (isSameOrDescendantPath(n.id, excludeId)) return false;
     if (excludeVersionPath && n.version_path?.startsWith(excludeVersionPath + '/')) return false;
     return true;
   });
@@ -209,7 +213,7 @@ export function MoveToDialog({
 
   const rootFolders = rootNodes.filter((n) => {
     if (n.type !== 'folder') return false;
-    if (n.id === nodeId) return false;
+    if (isSameOrDescendantPath(n.id, nodeId)) return false;
     if (nodeVersionPath && n.version_path?.startsWith(nodeVersionPath + '/')) return false;
     return true;
   });

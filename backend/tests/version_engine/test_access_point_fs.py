@@ -1292,6 +1292,29 @@ async def test_mv_no_target_directory_no_clobber_skips_existing_directory(monkey
 
 
 @pytest.mark.asyncio
+async def test_mv_rejects_folder_move_into_own_descendant(monkeypatch):
+    _patch_auth(monkeypatch)
+    ops = _FakeOps(stats={
+        "old": _entry("old", "folder"),
+        "old/sub": _entry("old/sub", "folder"),
+    })
+
+    with pytest.raises(HTTPException) as exc:
+        await apfs.move(
+            apfs.MoveRequest(old_path="old", new_path="old/sub"),
+            x_access_key="key",
+            x_puppyone_user=None,
+            x_puppy_client="cli",
+            commands=_commands(ops),
+        )
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail["error_code"] == "INVALID_MOVE_DESTINATION"
+    assert "own subtree" in exc.value.detail["message"]
+    assert ops.moves == []
+
+
+@pytest.mark.asyncio
 async def test_rmdir_removes_empty_directory_through_product_operation_adapter(monkeypatch):
     _patch_auth(monkeypatch)
     ops = _FakeOps(

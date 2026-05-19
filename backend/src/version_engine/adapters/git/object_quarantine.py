@@ -12,9 +12,11 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import subprocess
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Literal
 
 from src.version_engine.adapters.git.protocol import (
     ZERO_ID,
@@ -29,6 +31,8 @@ from src.version_engine.write_engine.git_object_format import (
     encode_object,
 )
 from src.version_engine.write_engine.object_store import stage_object_writes
+from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.write_engine.trace import trace_mark, trace_phase
 
 _TRANSPORT_CACHE_ROOT = Path(tempfile.gettempdir()) / "puppyone-git-transport-cache-v1"
 
@@ -38,6 +42,9 @@ def transport_bare_repo(
     repo,
     scope_path: str,
     scope_excludes: list[str] | None = None,
+    *,
+    follow_history: bool = True,
+    include_blobs: bool = True,
 ):
     """Yield an incrementally maintained bare repo for one Git view.
 
@@ -51,7 +58,12 @@ def transport_bare_repo(
     scope graph.
     """
 
-    cache_dir = _transport_cache_dir(repo, scope_path, scope_excludes)
+    cache_dir = _transport_cache_dir(
+        repo,
+        scope_path,
+        scope_excludes,
+        follow_history=follow_history,
+    )
     cache_dir.mkdir(parents=True, exist_ok=True)
     lock_path = cache_dir / "cache.lock"
     with lock_path.open("a+b") as lock:
@@ -59,12 +71,111 @@ def transport_bare_repo(
         try:
             bare_dir = cache_dir / "repo.git"
             _ensure_bare_repo(bare_dir)
-            head = git_view_head_commit(repo, scope_path, scope_excludes)
-            copy_reachable_objects_to_bare(repo, bare_dir, [head])
+            head = _transport_cache_head(
+                repo,
+                scope_path,
+                scope_excludes,
+                follow_history=follow_history,
+            )
+            copy_reachable_objects_to_bare(
+                repo,
+                bare_dir,
+                [head],
+                follow_history=follow_history,
+                include_blobs=include_blobs,
+            )
             _write_main_ref(bare_dir, head)
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
     yield bare_dir
+
+
+def warm_transport_bare_repo(
+    repo,
+    scope_path: str,
+    scope_excludes: list[str] | None = None,
+    *,
+    follow_history: bool = True,
+    include_blobs: bool = True,
+) -> str:
+    """Advance the protocol cache for one Git view and return its head."""
+
+    with transport_bare_repo(
+        repo,
+        scope_path,
+        scope_excludes,
+        follow_history=follow_history,
+        include_blobs=include_blobs,
+    ) as bare_dir:
+        ref_path = bare_dir / "refs" / "heads" / "main"
+        if not ref_path.exists():
+            return ""
+        return ref_path.read_text(encoding="ascii").strip()
+
+
+@contextmanager
+def receive_pack_advertisement_bare_repo(
+    repo,
+    scope_path: str,
+    scope_excludes: list[str] | None = None,
+):
+    """Yield a minimal bare repo for receive-pack ref advertisement.
+
+    ``git receive-pack --advertise-refs`` only needs refs; missing objects are
+    tolerated by Git and are hydrated later for the actual POST receive-pack
+    request. Keeping this path refs-only prevents a push preflight from pulling
+    large blobs just to tell the client what ``main`` points at.
+    """
+
+    with tempfile.TemporaryDirectory(prefix="puppyone-git-receive-advertise-") as tmp:
+        bare_dir = Path(tmp) / "repo.git"
+        _ensure_bare_repo(bare_dir)
+        head = _receive_pack_advertisement_head(repo, scope_path, scope_excludes)
+        _write_main_ref(bare_dir, head)
+        yield bare_dir
+
+
+def _receive_pack_advertisement_head(
+    repo,
+    scope_path: str,
+    scope_excludes: list[str] | None,
+) -> str:
+    excludes = scope_excludes or []
+    if excludes:
+        return git_view_head_commit(repo, scope_path, excludes)
+
+    scope_norm = normalize_path(scope_path)
+    if scope_norm:
+        head = repo.get_scope_head_commit_id(scope_norm) or ""
+        return head if is_object_id(head) else ""
+
+    indexed_getter = getattr(repo, "get_latest_project_view_commit_id", None)
+    if callable(indexed_getter):
+        indexed = indexed_getter() or ""
+        if is_object_id(indexed):
+            return indexed
+
+    root_head = repo.get_scope_head_commit_id("") or ""
+    if is_object_id(root_head):
+        return root_head
+    project_head_getter = getattr(repo, "get_head_commit_id", None)
+    if callable(project_head_getter):
+        project_head = project_head_getter() or ""
+        if is_object_id(project_head):
+            return project_head
+    return ""
+
+
+def _transport_cache_head(
+    repo,
+    scope_path: str,
+    scope_excludes: list[str] | None,
+    *,
+    follow_history: bool,
+) -> str:
+    if not follow_history and not (scope_excludes or []):
+        return _receive_pack_advertisement_head(repo, scope_path, scope_excludes)
+    return git_view_head_commit(repo, scope_path, scope_excludes)
 
 
 @contextmanager
@@ -75,7 +186,13 @@ def quarantine_bare_repo(
 ) -> Path:
     """Yield an isolated receive-pack object DB with cache alternates."""
 
-    with transport_bare_repo(repo, scope_path, scope_excludes) as cache_bare:
+    with transport_bare_repo(
+        repo,
+        scope_path,
+        scope_excludes,
+        follow_history=False,
+        include_blobs=False,
+    ) as cache_bare:
         with tempfile.TemporaryDirectory(prefix="puppyone-git-quarantine-") as tmp:
             bare_dir = Path(tmp) / "repo.git"
             _ensure_bare_repo(bare_dir)
@@ -213,7 +330,12 @@ class GitObjectQuarantine:
         return out
 
     def promote_reachable(self) -> None:
-        """Promote accepted reachable objects into PuppyOne's canonical store."""
+        """Promote accepted reachable objects into PuppyOne's canonical store.
+
+        The roots are accepted by stock Git and bounded by ``new --not old``.
+        Git object ids are content hashes, so writing the same id again is
+        idempotent; avoid remote existence probes on the receive-pack hot path.
+        """
 
         if self._promoted:
             return
@@ -229,29 +351,36 @@ class GitObjectQuarantine:
             self._promoted = True
             return
 
-        existing = self.repo.store.exists_many(object_ids)
-        missing = [object_id for object_id in object_ids if object_id not in existing]
-        if not missing:
-            self._promoted = True
-            return
-
         with stage_object_writes(self.repo.store) as object_batch:
-            for object_id in missing:
-                loose_bytes = None
-                loose = objects_dir / object_id[:2] / object_id[2:]
-                if loose.exists():
-                    loose_bytes = loose.read_bytes()
-                else:
-                    obj_type, body = self.get_object(object_id)
-                    encoded_id, loose_bytes = encode_object(obj_type, body)
-                    if encoded_id != object_id:
-                        raise ValueError(
-                            f"quarantine object hash mismatch: {object_id} != {encoded_id}"
-                        )
-                self.repo.store.put_loose(object_id, loose_bytes)
+            with trace_phase(
+                "git.quarantine.promote.materialize",
+                count=len(object_ids),
+            ):
+                for object_id in object_ids:
+                    self.repo.store.put_loose(
+                        object_id,
+                        self._loose_bytes_for_object(objects_dir, object_id),
+                    )
             if object_batch is not None:
-                object_batch.flush()
+                with trace_phase(
+                    "git.quarantine.promote.flush",
+                    count=len(object_ids),
+                ):
+                    object_batch.flush()
+        trace_mark("git.quarantine.promote.done", count=len(object_ids))
         self._promoted = True
+
+    def _loose_bytes_for_object(self, objects_dir: Path, object_id: str) -> bytes:
+        loose = objects_dir / object_id[:2] / object_id[2:]
+        if loose.exists():
+            return loose.read_bytes()
+        obj_type, body = self.get_object(object_id)
+        encoded_id, loose_bytes = encode_object(obj_type, body)
+        if encoded_id != object_id:
+            raise ValueError(
+                f"quarantine object hash mismatch: {object_id} != {encoded_id}"
+            )
+        return loose_bytes
 
     def _flatten_tree(self, tree_id: str, prefix: str, out: dict[str, bytes]) -> None:
         obj_type, body = self.get_object(tree_id)
@@ -266,6 +395,37 @@ class GitObjectQuarantine:
                 if blob_type != "blob":
                     raise ValueError(f"object {entry.sha1_hex} is not a blob")
                 out[path] = blob
+
+
+class OfficialReceivePackQuarantine:
+    """Official Git receive-pack result plus its temporary object DB."""
+
+    def __init__(
+        self,
+        *,
+        output: bytes,
+        quarantine: GitObjectQuarantine,
+        bare_dir: Path,
+    ):
+        self.output = output
+        self.quarantine = quarantine
+        self.bare_dir = bare_dir
+
+    def ref_value(self, ref: str) -> str:
+        try:
+            out = run_git([
+                "--git-dir",
+                str(self.bare_dir),
+                "rev-parse",
+                "--verify",
+                ref,
+            ])
+        except Exception:
+            return ""
+        return out.decode("ascii", errors="replace").strip()
+
+    def ref_points_to(self, ref: str, object_id: str) -> bool:
+        return bool(object_id and self.ref_value(ref) == object_id)
 
 
 @contextmanager
@@ -288,6 +448,55 @@ def quarantine_pack(
             roots=root_ids,
             exclude_roots=exclude_roots or [],
         )
+
+
+@contextmanager
+def official_receive_pack_quarantine(
+    repo,
+    scope_path: str,
+    request_path: Path,
+    *,
+    roots: list[str] | None = None,
+    exclude_roots: list[str] | None = None,
+    scope_excludes: list[str] | None = None,
+) -> OfficialReceivePackQuarantine:
+    """Run stock Git receive-pack against an isolated temporary repo.
+
+    The temporary repo has alternates pointing at the transport cache, so Git
+    can validate thin packs and existing ancestry exactly like a normal bare
+    repository would. The repo remains quarantine-only: accepted objects are
+    promoted to PuppyOne's canonical store only after Version Engine publish
+    succeeds.
+    """
+
+    root_ids = roots or []
+    with quarantine_bare_repo(repo, scope_path, scope_excludes) as bare_dir:
+        output = _run_official_receive_pack(bare_dir, request_path)
+        yield OfficialReceivePackQuarantine(
+            output=output,
+            quarantine=GitObjectQuarantine(
+                repo=repo,
+                bare_dir=bare_dir,
+                roots=root_ids,
+                exclude_roots=exclude_roots or [],
+            ),
+            bare_dir=bare_dir,
+        )
+
+
+def _run_official_receive_pack(bare_dir: Path, request_path: Path) -> bytes:
+    with request_path.open("rb") as stdin:
+        proc = subprocess.run(
+            ["git", "receive-pack", "--stateless-rpc", str(bare_dir)],
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+    if proc.returncode != 0:
+        stderr = proc.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(stderr or "git receive-pack failed")
+    return proc.stdout
 
 
 def _unpack_and_validate(bare_dir: Path, pack: bytes, roots: list[str]) -> None:
@@ -315,23 +524,111 @@ def _write_quarantine_refs(bare_dir: Path, roots: list[str]) -> None:
         (refs_dir / str(index)).write_text(f"{object_id}\n", encoding="ascii")
 
 
-def copy_reachable_objects_to_bare(repo, bare_dir: Path, roots: list[str]) -> None:
+def copy_reachable_objects_to_bare(
+    repo,
+    bare_dir: Path,
+    roots: list[str],
+    *,
+    follow_history: bool = True,
+    include_blobs: bool = True,
+) -> None:
     objects_dir = bare_dir / "objects"
-    for object_id in _missing_reachable_object_ids(repo, bare_dir, roots):
+    missing_blobs: set[str] = set()
+    seen: set[str] = set()
+    stack: list[tuple[str, Literal["commit", "tree", "blob"] | None]] = [
+        (root, "commit")
+        for root in roots
+        if is_object_id(root) and root != ZERO_ID
+    ]
+
+    with trace_phase("git.transport_cache.walk", roots=len(stack)):
+        while stack:
+            object_id, expected_type = stack.pop()
+            if object_id in seen:
+                continue
+            seen.add(object_id)
+            if _bare_has_object(bare_dir, object_id):
+                continue
+
+            if expected_type == "blob":
+                if include_blobs:
+                    missing_blobs.add(object_id)
+                continue
+
+            try:
+                obj_type, body = repo.store.get_object(object_id)
+            except Exception:
+                continue
+
+            encoded_id, loose = encode_object(obj_type, body)
+            if encoded_id != object_id:
+                continue
+            _write_loose_object(objects_dir, object_id, loose)
+
+            if obj_type == "commit":
+                commit = decode_commit(body)
+                tree = commit.get("tree", "")
+                if is_object_id(tree):
+                    stack.append((tree, "tree"))
+                if follow_history:
+                    for parent in commit.get("parents") or []:
+                        if is_object_id(parent):
+                            stack.append((parent, "commit"))
+            elif obj_type == "tree":
+                for entry in decode_tree(body):
+                    if not is_object_id(entry.sha1_hex):
+                        continue
+                    if entry.mode == MODE_DIR:
+                        stack.append((entry.sha1_hex, "tree"))
+                    else:
+                        stack.append((entry.sha1_hex, "blob"))
+
+    if missing_blobs:
+        with trace_phase(
+            "git.transport_cache.fetch_blobs",
+            count=len(missing_blobs),
+        ):
+            for object_id, loose in _get_loose_many(repo.store, sorted(missing_blobs)).items():
+                _write_loose_object(objects_dir, object_id, loose)
+
+
+def _write_loose_object(objects_dir: Path, object_id: str, loose: bytes) -> None:
+    target = objects_dir / object_id[:2] / object_id[2:]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        target.write_bytes(loose)
+
+
+def _get_loose_many(store, object_ids: list[str]) -> dict[str, bytes]:
+    getter = getattr(store, "get_loose_many", None)
+    if callable(getter):
         try:
-            loose = repo.store.get_loose(object_id)
+            found = getter(object_ids)
+            missing = [object_id for object_id in object_ids if object_id not in found]
+            for object_id in missing:
+                try:
+                    found[object_id] = store.get_loose(object_id)
+                except Exception:
+                    continue
+            return found
+        except Exception:
+            pass
+
+    found: dict[str, bytes] = {}
+    for object_id in object_ids:
+        try:
+            found[object_id] = store.get_loose(object_id)
         except Exception:
             continue
-        target = objects_dir / object_id[:2] / object_id[2:]
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if not target.exists():
-            target.write_bytes(loose)
+    return found
 
 
 def _transport_cache_dir(
     repo,
     scope_path: str,
     scope_excludes: list[str] | None,
+    *,
+    follow_history: bool,
 ) -> Path:
     project_id = str(getattr(repo, "_project_id", "") or "unknown-project")
     payload = {
@@ -339,6 +636,7 @@ def _transport_cache_dir(
         "object_store": _object_store_namespace(repo),
         "scope_path": scope_path or "",
         "scope_excludes": sorted(scope_excludes or []),
+        "history": "full" if follow_history else "receive-boundary",
     }
     digest = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")

@@ -512,6 +512,12 @@ def _dirname(path: str) -> str:
     return clean.rsplit("/", 1)[0]
 
 
+def _is_descendant_destination(old_rel: str, new_rel: str) -> bool:
+    old_clean = old_rel.strip("/")
+    new_clean = new_rel.strip("/")
+    return bool(old_clean and new_clean.startswith(f"{old_clean}/"))
+
+
 def _resolve_copy_move_destination(
     project_id: str,
     scope: dict,
@@ -1431,6 +1437,13 @@ async def move(
         target_directory=body.target_directory,
         no_target_directory=body.no_target_directory,
     )
+    if _is_descendant_destination(old_rel, new_rel):
+        raise _fs_error(
+            400,
+            "INVALID_MOVE_DESTINATION",
+            f"Cannot move {old_rel} into its own subtree: {new_rel}",
+            path=new_rel,
+        )
 
     if new_entry is not None:
         if body.no_clobber:

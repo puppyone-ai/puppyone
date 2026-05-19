@@ -190,6 +190,11 @@ def run_post_push_hook(
         # otherwise (sync-only context) we fire-and-forget via a
         # short-lived loop so producers never wait on listeners.
         _broadcast_commit_update(project_id, entry, changes)
+        _warm_git_transport_views(
+            repo,
+            project_id,
+            _scope_commit_git_view_paths(repo, scope_path, changes),
+        )
 
     except Exception as e:
         log_error(f"[PostCommit] post-push hook failed for project {project_id}: {e}")
@@ -408,6 +413,16 @@ def run_post_project_update_hook(
         if deleted_paths:
             post_commit_delete(project_id, deleted_paths)
 
+        changed_paths = [
+            normalize_path(c.get("path", ""))
+            for c in changes
+            if isinstance(c, dict) and c.get("path")
+        ]
+        _warm_git_transport_views(
+            repo,
+            project_id,
+            {"", *_project_root_affected_scope_paths(repo, changed_paths)},
+        )
         _broadcast_commit_update(project_id, entry, changes)
 
     except Exception as e:
@@ -534,6 +549,108 @@ def _project_root_affected_scopes(repo, changed_paths: list[str]) -> list[dict]:
             continue
         affected.append(scope)
     return affected
+
+
+def _scope_commit_git_view_paths(repo, scope_path: str, changes: list[dict]) -> set[str]:
+    """Git view caches affected by a landed scope commit.
+
+    Scope/root projection is L6 derived work. Once those projections finish,
+    warm only the likely affected protocol views so the next Git client does
+    not pay the object-copy cost on the request path.
+    """
+
+    scope_norm = normalize_path(scope_path)
+    full_changed_paths = _full_change_paths(scope_norm, changes)
+    paths = {"", scope_norm}
+    if scope_norm:
+        parts = scope_norm.split("/")
+        for index in range(1, len(parts)):
+            paths.add("/".join(parts[:index]))
+
+    try:
+        scopes = repo.scopes.list_all()
+    except Exception:
+        scopes = []
+    for scope in scopes:
+        candidate = normalize_path(scope.get("path", ""))
+        if candidate in paths:
+            continue
+        if full_changed_paths and _scope_intersects_paths(candidate, full_changed_paths):
+            paths.add(candidate)
+    return paths
+
+
+def _full_change_paths(scope_path: str, changes: list[dict]) -> list[str]:
+    full_paths: list[str] = []
+    for change in changes:
+        if not isinstance(change, dict):
+            continue
+        path = normalize_path(str(change.get("path") or ""))
+        if not path:
+            if scope_path:
+                full_paths.append(scope_path)
+            continue
+        full_paths.append(f"{scope_path}/{path}" if scope_path else path)
+    return full_paths
+
+
+def _warm_git_transport_views(
+    repo,
+    project_id: str,
+    scope_paths: set[str],
+) -> None:
+    """Advance derived Git protocol caches for the given logical scopes."""
+
+    normalized = {normalize_path(path) for path in scope_paths}
+    if not normalized:
+        normalized = {""}
+    rows: list[dict] = []
+    try:
+        rows = repo.scopes.list_all()
+    except Exception:
+        rows = []
+
+    views: dict[tuple[str, tuple[str, ...]], list[str]] = {}
+    if "" in normalized:
+        views[("", ())] = []
+    for scope in rows:
+        path = normalize_path(scope.get("path", ""))
+        if path not in normalized:
+            continue
+        excludes = tuple(sorted(normalize_path(item) for item in (scope.get("exclude") or [])))
+        views.setdefault((path, excludes), list(excludes))
+
+    # A project may have scope state before its root repo_scopes row exists in
+    # older fixtures. Keep the root/project Git remote warm in that case too.
+    if "" in normalized:
+        views.setdefault(("", ()), [])
+
+    if not views:
+        return
+
+    try:
+        from src.version_engine.derived.git_transport_cache import (
+            warm_git_transport_view,
+        )
+    except Exception as exc:
+        log_warning(f"[PostCommit] git transport cache warm import failed: {exc}")
+        return
+
+    warmed = 0
+    for (path, _exclude_key), excludes in sorted(views.items()):
+        try:
+            warm_git_transport_view(repo, path, excludes)
+            warmed += 1
+        except Exception as exc:
+            log_warning(
+                f"[PostCommit] git transport cache warm failed "
+                f"project={project_id} scope={path!r}: {exc}",
+            )
+    if warmed:
+        log_info(
+            f"[PostCommit] warmed {warmed} git transport view(s) "
+            f"project={project_id}",
+        )
 
 
 def schedule_post_push_hook(project_id: str, repo_manager, push_result: dict) -> None:

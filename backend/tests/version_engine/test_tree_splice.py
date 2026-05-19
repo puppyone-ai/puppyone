@@ -300,6 +300,14 @@ class TestMove:
         assert deleted == {"old/a.md", "old/b.md", "old/sub/c.md"}
         assert added == {"new/a.md", "new/b.md", "new/sub/c.md"}
 
+    def test_move_into_own_subtree_is_rejected(self, store, empty_root):
+        r1, _ = splice_put_blob(store, empty_root, "old/sub/c.md", b"C")
+
+        with pytest.raises(ValueError, match="own subtree"):
+            splice_move(store, r1, "old", "old/sub/old")
+
+        assert _files(store, r1) == {"old/sub/c.md": b"C"}
+
     def test_move_to_nested_directory(self, store, empty_root):
         r1, _ = splice_put_blob(store, empty_root, "report.md", b"data")
 

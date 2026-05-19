@@ -1089,11 +1089,14 @@ export default function DataPage({ params }: DataPageProps) {
         onCloseRename={nodeActions.closeRenameDialog}
         onRenameConfirm={nodeActions.handleRenameConfirm}
         moveDialogTarget={nodeActions.moveDialogTarget}
+        moveConfirmTarget={nodeActions.moveConfirmTarget}
         onMoveConfirm={async (nodeId, targetFolderId) => {
           nodeActions.setMoveDialogTarget(null);
           await nodeActions.handleMoveNode(nodeId, targetFolderId);
         }}
+        onMoveFinalConfirm={nodeActions.handleMoveConfirm}
         onCloseMove={() => nodeActions.setMoveDialogTarget(null)}
+        onCloseMoveConfirm={nodeActions.closeMoveConfirm}
         deleteDialogTarget={nodeActions.deleteDialogTarget}
         onDeleteConfirm={nodeActions.handleDeleteConfirm}
         onCloseDelete={nodeActions.closeDeleteDialog}

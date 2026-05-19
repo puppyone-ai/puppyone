@@ -157,6 +157,23 @@ class ObjectStore:
             return EMPTY_TREE_LOOSE_BYTES
         return self._backend.get(sha1)
 
+    def get_loose_many(self, sha1s: list[str]) -> dict[str, bytes]:
+        unique = list(dict.fromkeys(sha1s))
+        out: dict[str, bytes] = {}
+        rest: list[str] = []
+        for sha1 in unique:
+            if sha1 == EMPTY_TREE_SHA1:
+                out[sha1] = EMPTY_TREE_LOOSE_BYTES
+            else:
+                rest.append(sha1)
+        getter = getattr(self._backend, "get_many", None)
+        if callable(getter) and rest:
+            out.update(getter(rest))
+            rest = [sha1 for sha1 in rest if sha1 not in out]
+        for sha1 in rest:
+            out[sha1] = self._backend.get(sha1)
+        return out
+
     def put(self, data: bytes) -> str:
         return self.put_blob(data)
 

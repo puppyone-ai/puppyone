@@ -417,6 +417,17 @@ class TestMove:
         )
 
     @pytest.mark.asyncio
+    async def test_folder_move_into_own_descendant_is_rejected(
+        self, ops, server_repo,
+    ):
+        await ops.write_file("test-proj", "old/sub/file.md", b"x", who="u")
+
+        with pytest.raises(ValueError, match="own subtree"):
+            await ops.move("test-proj", "old", "old/sub/old", who="u")
+
+        assert _files_in_root(server_repo) == {"old/sub/file.md": b"x"}
+
+    @pytest.mark.asyncio
     async def test_audit_records_move_op(self, ops, server_repo):
         await ops.write_file("test-proj", "a.md", b"", who="u")
 

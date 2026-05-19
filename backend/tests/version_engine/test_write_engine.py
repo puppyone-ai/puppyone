@@ -43,12 +43,16 @@ from src.version_engine.infrastructure.supabase.db_names import (
 from src.version_engine.adapters.git.submission import submit_git_tree
 from src.version_engine.adapters.git.object_quarantine import (
     copy_reachable_objects_to_bare,
+    receive_pack_advertisement_bare_repo,
     transport_bare_repo,
 )
 from src.version_engine.entrypoints.git.router import router as git_router
 from src.version_engine.adapters.git.protocol import run_git
 from src.version_engine.adapters.git.view_projection import git_view_head_commit
-from src.version_engine.write_engine.engine import VersionWriteEngine
+from src.version_engine.write_engine.engine import (
+    NonFastForwardSubmissionError,
+    VersionWriteEngine,
+)
 from src.version_engine.domain.intents import RollbackIntent, VersionSubmissionIntent
 
 
@@ -303,7 +307,7 @@ async def test_git_fast_forward_push_uses_tree_diff_not_full_flatten(
 
 
 @pytest.mark.asyncio
-async def test_stale_git_push_uses_sparse_merge_not_full_flatten(
+async def test_stale_git_push_rejects_before_sparse_merge(
     repo_manager,
     server_repo,
     monkeypatch,
@@ -363,30 +367,29 @@ async def test_stale_git_push_uses_sparse_merge_not_full_flatten(
     )
 
     def fail_flatten(*args, **kwargs):
-        raise AssertionError("stale Git push must merge sparse paths, not flatten trees")
+        raise AssertionError("stale Git push must reject before flattening trees")
 
     monkeypatch.setattr(
         "src.version_engine.write_engine.engine.flatten_tree_to_bytes",
         fail_flatten,
     )
 
-    result = await submit_git_tree(
-        repo_manager,
-        project_id="test-proj",
-        scope_path="docs",
-        actor="git:user",
-        base_commit_id=base_commit,
-        proposed_tree_id=client_tree,
-        client_commit_id=client_commit,
-        message="client",
-        changed_paths=["a.md"],
-        defer_projection=True,
-    )
+    with pytest.raises(NonFastForwardSubmissionError):
+        await submit_git_tree(
+            repo_manager,
+            project_id="test-proj",
+            scope_path="docs",
+            actor="git:user",
+            base_commit_id=base_commit,
+            proposed_tree_id=client_tree,
+            client_commit_id=client_commit,
+            message="client",
+            changed_paths=["a.md"],
+            defer_projection=True,
+        )
 
-    assert result.status == "ok"
-    assert result.commit_id != client_commit
     assert _files_for_scope(server_repo, "docs") == {
-        "a.md": b"client\n",
+        "a.md": b"base\n",
         "keep.md": b"same\n",
         "server.md": b"server-only\n",
     }
@@ -551,7 +554,7 @@ class TestGitNativeSubmission:
         assert server_repo.audit.events[-1]["type"] == "git_push"
 
     @pytest.mark.asyncio
-    async def test_stale_git_push_uses_server_side_merge(
+    async def test_stale_git_push_is_rejected_like_git_hosts(
         self, repo_manager, server_repo,
     ):
         first_tree = build_tree_from_files(server_repo.store, {"a.txt": b"server"})
@@ -569,25 +572,21 @@ class TestGitNativeSubmission:
 
         stale_tree = build_tree_from_files(server_repo.store, {"b.txt": b"client"})
         stale_client_commit = _make_client_commit(server_repo, stale_tree)
-        merged = await submit_git_tree(
-            repo_manager,
-            project_id="test-proj",
-            scope_path="",
-            actor="git:user",
-            base_commit_id="",
-            proposed_tree_id=stale_tree,
-            client_commit_id=stale_client_commit,
-            message="stale add b",
-        )
+        with pytest.raises(NonFastForwardSubmissionError):
+            await submit_git_tree(
+                repo_manager,
+                project_id="test-proj",
+                scope_path="",
+                actor="git:user",
+                base_commit_id="",
+                proposed_tree_id=stale_tree,
+                client_commit_id=stale_client_commit,
+                message="stale add b",
+            )
 
         assert first.commit_id == first_commit
-        assert merged.commit_id != stale_client_commit
-        assert merged.merged is True
-        assert _files_for_scope(server_repo) == {
-            "a.txt": b"server",
-            "b.txt": b"client",
-        }
-        assert server_repo.get_scope_head_commit_id("") == merged.commit_id
+        assert _files_for_scope(server_repo) == {"a.txt": b"server"}
+        assert server_repo.get_scope_head_commit_id("") == first.commit_id
 
     @pytest.mark.asyncio
     async def test_git_push_touching_child_scope_is_rejected(
@@ -642,7 +641,7 @@ class TestGitNativeSubmission:
         assert server_repo.get_scope_head_commit_id("docs") == ""
 
     @pytest.mark.asyncio
-    async def test_stale_git_json_push_key_merges(self, repo_manager, server_repo):
+    async def test_stale_git_json_push_is_rejected(self, repo_manager, server_repo):
         base_tree = build_tree_from_files(
             server_repo.store,
             {"config.json": b'{"a": 1, "b": 1}\n'},
@@ -684,24 +683,24 @@ class TestGitNativeSubmission:
         stale_commit = _make_client_commit(
             server_repo, stale_tree, parent_id=base.commit_id, message="change b",
         )
-        merged = await submit_git_tree(
-            repo_manager,
-            project_id="test-proj",
-            scope_path="",
-            actor="git:b",
-            base_commit_id=base.commit_id,
-            proposed_tree_id=stale_tree,
-            client_commit_id=stale_commit,
-            message="change b",
-        )
+        with pytest.raises(NonFastForwardSubmissionError):
+            await submit_git_tree(
+                repo_manager,
+                project_id="test-proj",
+                scope_path="",
+                actor="git:b",
+                base_commit_id=base.commit_id,
+                proposed_tree_id=stale_tree,
+                client_commit_id=stale_commit,
+                message="change b",
+            )
 
-        merged_config = json.loads(_files_for_scope(server_repo)["config.json"])
-        assert merged.merged is True
-        assert merged_config == {"a": 2, "b": 3}
-        assert server_repo.audit.events[-1]["detail"]["merged"] is True
+        current_config = json.loads(_files_for_scope(server_repo)["config.json"])
+        assert current_config == {"a": 2, "b": 1}
+        assert server_repo.get_scope_head_commit_id("") == current_commit
 
     @pytest.mark.asyncio
-    async def test_concurrent_git_pushes_same_scope_preserve_different_files(
+    async def test_concurrent_git_pushes_same_scope_have_single_winner(
         self, repo_manager, server_repo,
     ):
         async def push(name: str):
@@ -718,14 +717,18 @@ class TestGitNativeSubmission:
                 message=f"add {name}",
             )
 
-        results = await asyncio.gather(push("a"), push("b"), push("c"))
+        results = await asyncio.gather(push("a"), push("b"), push("c"), return_exceptions=True)
+        winners = [result for result in results if not isinstance(result, Exception)]
+        rejected = [
+            result
+            for result in results
+            if isinstance(result, NonFastForwardSubmissionError)
+        ]
 
-        assert len({result.commit_id for result in results}) == 3
-        assert _files_for_scope(server_repo) == {
-            "a.txt": b"a",
-            "b.txt": b"b",
-            "c.txt": b"c",
-        }
+        assert len(winners) == 1
+        assert len(rejected) == 2
+        assert len(_files_for_scope(server_repo)) == 1
+        assert server_repo.get_scope_head_commit_id("") == winners[0].commit_id
 
     @pytest.mark.asyncio
     async def test_same_scope_operations_compute_in_parallel_and_cas_retry(
@@ -814,16 +817,13 @@ class TestGitNativeSubmission:
         assert _files_for_scope(server_repo, "src") == {"app.py": b"print('src')"}
 
     @pytest.mark.asyncio
-    async def test_stale_git_delete_modify_resolves_under_lww(
+    async def test_stale_git_delete_modify_is_rejected(
         self, repo_manager, server_repo,
     ):
-        """Under the V1 default (LWW), delete-vs-modify resolves with the
-        incoming side winning. The server records the lost content for
-        recovery and continues advancing the scope head.
+        """Git remotes reject stale delete-vs-modify pushes.
 
-        manual_review for this shape is opt-in (see
-        07-version-engine-supplement.md §7); the legacy "always pending"
-        assertion now lives in the policy unit tests.
+        LWW and manual review remain product/review semantics; the Git remote
+        contract is fetch/rebase before push, matching normal Git hosts.
         """
         base_tree = build_tree_from_files(server_repo.store, {"a.txt": b"base\n"})
         base_commit = _make_client_commit(server_repo, base_tree, message="base")
@@ -858,31 +858,26 @@ class TestGitNativeSubmission:
         delete_commit = _make_client_commit(
             server_repo, delete_tree, parent_id=base.commit_id, message="stale deletes",
         )
-        result = await submit_git_tree(
-            repo_manager,
-            project_id="test-proj",
-            scope_path="",
-            actor="git:stale",
-            base_commit_id=base.commit_id,
-            proposed_tree_id=delete_tree,
-            client_commit_id=delete_commit,
-            message="stale deletes",
-        )
+        with pytest.raises(NonFastForwardSubmissionError):
+            await submit_git_tree(
+                repo_manager,
+                project_id="test-proj",
+                scope_path="",
+                actor="git:stale",
+                base_commit_id=base.commit_id,
+                proposed_tree_id=delete_tree,
+                client_commit_id=delete_commit,
+                message="stale deletes",
+            )
 
-        assert result.status == "ok"
-        # LWW honours the incoming deletion; the file is gone.
-        assert _files_for_scope(server_repo) == {}
-        assert server_repo.get_scope_head_commit_id("") != prior_head
-        # The lost server content is preserved in the merge conflict log.
-        assert result.conflicts >= 1
+        assert _files_for_scope(server_repo) == {"a.txt": b"server changed\n"}
+        assert server_repo.get_scope_head_commit_id("") == prior_head
 
     @pytest.mark.asyncio
-    async def test_stale_git_binary_conflict_resolves_under_lww(
+    async def test_stale_git_binary_conflict_is_rejected(
         self, repo_manager, server_repo,
     ):
-        """Binary three-way conflicts can't auto-merge safely. Under LWW
-        the incoming side wins; the lost server content is preserved in
-        the conflict ledger for recovery. Manual review remains opt-in."""
+        """Git remotes reject stale binary conflicts before product policy."""
         base_tree = build_tree_from_files(server_repo.store, {"asset.bin": b"\x00base"})
         base_commit = _make_client_commit(server_repo, base_tree, message="base binary")
         base = await submit_git_tree(
@@ -916,22 +911,20 @@ class TestGitNativeSubmission:
         stale_commit = _make_client_commit(
             server_repo, stale_tree, parent_id=base.commit_id, message="client binary",
         )
-        result = await submit_git_tree(
-            repo_manager,
-            project_id="test-proj",
-            scope_path="",
-            actor="git:client",
-            base_commit_id=base.commit_id,
-            proposed_tree_id=stale_tree,
-            client_commit_id=stale_commit,
-            message="client binary",
-        )
+        with pytest.raises(NonFastForwardSubmissionError):
+            await submit_git_tree(
+                repo_manager,
+                project_id="test-proj",
+                scope_path="",
+                actor="git:client",
+                base_commit_id=base.commit_id,
+                proposed_tree_id=stale_tree,
+                client_commit_id=stale_commit,
+                message="client binary",
+            )
 
-        assert result.status == "ok"
-        # Incoming wins under LWW; server head advanced.
-        assert _files_for_scope(server_repo) == {"asset.bin": b"\x00client"}
-        assert server_repo.get_scope_head_commit_id("") != prior_head
-        assert result.conflicts >= 1
+        assert _files_for_scope(server_repo) == {"asset.bin": b"\x00server"}
+        assert server_repo.get_scope_head_commit_id("") == prior_head
 
 
 class TestVersionSubmissionAdapter:
@@ -1222,6 +1215,83 @@ class TestGitNativeHardeningContracts:
         assert (bare_dir / "objects" / reachable_commit[:2] / reachable_commit[2:]).exists()
         assert (bare_dir / "objects" / reachable_tree[:2] / reachable_tree[2:]).exists()
         assert not (bare_dir / "objects" / unreachable_blob[:2] / unreachable_blob[2:]).exists()
+
+    def test_transport_cache_does_not_decode_blob_bodies_while_walking(
+        self, tmp_path, server_repo, monkeypatch,
+    ):
+        reachable_tree = build_tree_from_files(
+            server_repo.store,
+            {"large.bin": b"x" * (2 * 1024 * 1024)},
+        )
+        blob_id = tree_mod.read_tree(server_repo.store, reachable_tree)["large.bin"][1]
+        reachable_commit = _make_client_commit(server_repo, reachable_tree, message="reachable")
+        bare_dir = tmp_path / "repo.git"
+        run_git(["init", "--bare", str(bare_dir)])
+
+        original_get_object = server_repo.store.get_object
+
+        def tracked_get_object(object_id):
+            if object_id == blob_id:
+                raise AssertionError("transport cache should fetch blob loose bytes directly")
+            return original_get_object(object_id)
+
+        monkeypatch.setattr(server_repo.store, "get_object", tracked_get_object)
+
+        copy_reachable_objects_to_bare(server_repo, bare_dir, [reachable_commit])
+
+        assert (bare_dir / "objects" / blob_id[:2] / blob_id[2:]).exists()
+
+    def test_receive_transport_cache_stops_at_current_head_boundary(
+        self, tmp_path, server_repo,
+    ):
+        base_tree = build_tree_from_files(server_repo.store, {"a.txt": b"base"})
+        base_commit = _make_client_commit(server_repo, base_tree, message="base")
+        head_tree = build_tree_from_files(server_repo.store, {"a.txt": b"head"})
+        head_commit = _make_client_commit(
+            server_repo,
+            head_tree,
+            parent_id=base_commit,
+            message="head",
+        )
+        bare_dir = tmp_path / "repo.git"
+        run_git(["init", "--bare", str(bare_dir)])
+
+        copy_reachable_objects_to_bare(
+            server_repo,
+            bare_dir,
+            [head_commit],
+            follow_history=False,
+        )
+
+        assert (bare_dir / "objects" / head_commit[:2] / head_commit[2:]).exists()
+        assert not (bare_dir / "objects" / base_commit[:2] / base_commit[2:]).exists()
+
+    def test_receive_pack_advertisement_is_refs_only(
+        self, server_repo, monkeypatch,
+    ):
+        server_repo.add_scope("docs-scope", "/docs/")
+        head_tree = build_tree_from_files(
+            server_repo.store,
+            {"large.bin": b"x" * (2 * 1024 * 1024)},
+        )
+        head_commit = _make_client_commit(server_repo, head_tree, message="head")
+        server_repo.set_scope_head_commit_id("docs", head_commit)
+
+        def fail_get_object(object_id):
+            raise AssertionError(f"receive advertisement hydrated {object_id}")
+
+        monkeypatch.setattr(server_repo.store, "get_object", fail_get_object)
+
+        with receive_pack_advertisement_bare_repo(server_repo, "docs") as bare_dir:
+            advertised = run_git([
+                "receive-pack",
+                "--stateless-rpc",
+                "--advertise-refs",
+                str(bare_dir),
+            ])
+
+        assert head_commit.encode("ascii") in advertised
+        assert b"refs/heads/main" in advertised
 
     def test_git_view_normalizes_invalid_parent_before_upload_pack(
         self, server_repo,
@@ -1572,6 +1642,73 @@ def test_git_access_point_receive_pack_uses_bound_scope_and_identity(
     assert _last_audit_event(server_repo, "git_push")["agent"] == "alice@example.com"
 
 
+def test_git_access_point_receive_pack_accepts_flush_only_noop(
+    monkeypatch, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    monkeypatch.setattr(
+        "src.version_engine.entrypoints.git.router.resolve_access_point",
+        lambda access_key: _git_access_auth(),
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/git/ap/test-key.git/git-receive-pack",
+            content=b"0000",
+            headers={"content-type": "application/x-git-receive-pack-request"},
+        )
+
+    assert response.status_code == 200
+    assert response.content == b""
+    assert server_repo.get_scope_head_commit_id("docs") == ""
+
+
+def test_post_push_hook_warms_affected_git_transport_views(
+    monkeypatch, repo_manager, server_repo,
+):
+    from src.version_engine.derived.hooks import run_post_push_hook
+
+    calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def fake_warm(_repo, scope_path: str, scope_excludes=None):
+        calls.append((scope_path, tuple(scope_excludes or [])))
+        return "warm-head"
+
+    monkeypatch.setattr(
+        "src.version_engine.derived.git_transport_cache.warm_git_transport_view",
+        fake_warm,
+    )
+
+    server_repo.add_scope("root-scope", "")
+    server_repo.add_scope("docs-scope", "/docs/", exclude=["/docs/private/"])
+    tree_id = build_tree_from_files(server_repo.store, {"README.md": b"docs\n"})
+    commit_id = _make_client_commit(server_repo, tree_id, message="docs update")
+    server_repo.history.set_scope_hash("docs", tree_id)
+    server_repo.set_scope_head_commit_id("docs", commit_id)
+    server_repo.record_history(
+        commit_id,
+        "git:user",
+        "docs update",
+        "docs",
+        [{"path": "README.md", "action": "modify"}],
+        scope_hash=tree_id,
+        created_at_iso="2026-01-01T00:00:00+00:00",
+    )
+
+    run_post_push_hook(
+        "test-proj",
+        repo_manager,
+        {"status": "ok", "commit_id": commit_id, "root": tree_id},
+        raise_errors=True,
+    )
+
+    assert ("", ()) in calls
+    assert ("docs", ("docs/private",)) in calls
+
+
 def test_git_access_point_rejects_bound_identity_mismatch(
     monkeypatch, repo_manager, server_repo,
 ):
@@ -1692,6 +1829,111 @@ def test_real_git_cli_first_push_to_empty_project_shell(
     assert server_repo.get_head_commit_id() == pushed_head
     assert _files_for_scope(server_repo) == {"README.md": b"first project content\n"}
     assert (verify / "README.md").read_text(encoding="utf-8") == "first project content\n"
+
+
+def test_real_git_cli_large_first_push_uses_chunked_http_transport(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("root-scope", "")
+    _init_empty_project_shell(server_repo)
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"root-key": ("root-scope", "", "rw")},
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/root-key.git"
+        work = tmp_path / "large-existing"
+        verify = tmp_path / "large-verify"
+        work.mkdir()
+        _run_git(["init"], work)
+        _configure_git_identity(work)
+        (work / "README.md").write_text("large import\n", encoding="utf-8")
+        large = (b"0123456789abcdef" * (3 * 1024 * 1024 // 16))
+        (work / "large.bin").write_bytes(large)
+        _run_git(["add", "README.md", "large.bin"], work)
+        _run_git(["commit", "-m", "large initial content"], work)
+        _run_git(["branch", "-M", "main"], work)
+        pushed_head = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        _run_git(["remote", "add", "origin", remote], work)
+        _run_git(["-c", "http.postBuffer=1024", "push", "-u", "origin", "main"], work)
+
+        _run_git(["clone", remote, str(verify)], tmp_path)
+        _run_git(["fsck", "--full"], verify)
+
+    assert server_repo.get_scope_head_commit_id("") == pushed_head
+    assert _files_for_scope(server_repo)["README.md"] == b"large import\n"
+    assert len(_files_for_scope(server_repo)["large.bin"]) == len(large)
+    assert (verify / "large.bin").stat().st_size == len(large)
+
+
+def test_real_git_cli_tag_push_is_rejected_without_advancing_scope(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"docs-key": ("docs-scope", "/docs/", "rw")},
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/docs-key.git"
+        work = tmp_path / "tag-client"
+
+        _run_git(["clone", remote, str(work)], tmp_path)
+        _configure_git_identity(work)
+        (work / "README.md").write_text("tag target\n", encoding="utf-8")
+        _run_git(["add", "README.md"], work)
+        _run_git(["commit", "-m", "tag target"], work)
+        _run_git(["tag", "v1"], work)
+        tagged_head = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        proc = _run_git_raw(["push", "origin", "v1"], work)
+
+    assert proc.returncode != 0
+    assert b"tag refs are immutable" in proc.stderr
+    assert server_repo.get_scope_head_commit_id("docs") == ""
+    assert not server_repo.store.exists(tagged_head)
+
+
+def test_real_git_cli_lfs_pointer_push_is_rejected_without_advancing_scope(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"docs-key": ("docs-scope", "/docs/", "rw")},
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/docs-key.git"
+        work = tmp_path / "lfs-client"
+
+        _run_git(["clone", remote, str(work)], tmp_path)
+        _configure_git_identity(work)
+        (work / "asset.bin").write_text(
+            "version https://git-lfs.github.com/spec/v1\n"
+            f"oid sha256:{'a' * 64}\n"
+            "size 12345\n",
+            encoding="utf-8",
+        )
+        _run_git(["add", "asset.bin"], work)
+        _run_git(["commit", "-m", "lfs pointer"], work)
+        pointer_commit = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        proc = _run_git_raw(["push", "origin", "main"], work)
+
+    assert proc.returncode != 0
+    assert b"Git LFS is not supported" in proc.stderr
+    assert server_repo.get_scope_head_commit_id("docs") == ""
+    assert not server_repo.store.exists(pointer_commit)
 
 
 def test_real_git_cli_stale_force_push_is_rejected_like_git_hosts(
@@ -2065,6 +2307,62 @@ def test_real_git_cli_root_scope_cannot_write_child_scope_path(
     assert server_repo.get_scope_head_commit_id("") == ""
     assert server_repo.get_scope_head_commit_id("docs") == ""
     assert not server_repo.store.exists(rejected_commit)
+
+
+def test_real_git_cli_scope_exclude_visible_push_preserves_hidden_files(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/", exclude=["/docs/secret/"])
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"docs-key": ("docs-scope", "/docs/", "rw", ["/docs/secret/"])},
+    )
+
+    seeded_tree = build_tree_from_files(
+        server_repo.store,
+        {
+            "README.md": b"visible\n",
+            "secret/old.md": b"hidden\n",
+        },
+    )
+    seeded_commit = _make_client_commit(
+        server_repo,
+        seeded_tree,
+        message="legacy seeded docs",
+    )
+    server_repo.history.set_scope_hash("docs", seeded_tree)
+    server_repo.set_scope_head_commit_id("docs", seeded_commit)
+
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/docs-key.git"
+        work = tmp_path / "docs-visible"
+        verify = tmp_path / "docs-visible-verify"
+
+        _run_git(["clone", remote, str(work)], tmp_path)
+        assert (work / "README.md").read_text(encoding="utf-8") == "visible\n"
+        assert not (work / "secret").exists()
+
+        _configure_git_identity(work)
+        (work / "README.md").write_text("visible changed\n", encoding="utf-8")
+        _run_git(["add", "README.md"], work)
+        _run_git(["commit", "-m", "update visible file"], work)
+        client_commit = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        _run_git(["push", "origin", "main"], work)
+
+        _run_git(["clone", remote, str(verify)], tmp_path)
+        assert (verify / "README.md").read_text(encoding="utf-8") == "visible changed\n"
+        assert not (verify / "secret").exists()
+
+    canonical_head = server_repo.get_scope_head_commit_id("docs")
+    assert canonical_head not in {seeded_commit, client_commit}
+    assert _files_for_scope(server_repo, "docs") == {
+        "README.md": b"visible changed\n",
+        "secret/old.md": b"hidden\n",
+    }
 
 
 def test_real_git_cli_scope_exclude_rejects_push_and_filters_clone(
