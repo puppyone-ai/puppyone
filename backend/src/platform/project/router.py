@@ -10,10 +10,8 @@ from fastapi import APIRouter, Depends, Query, status
 from src.common_schemas import ApiResponse
 from src.exceptions import ErrorCode, PermissionException
 from src.version_engine.bootstrap.dependencies import (
-    get_product_operation_adapter,
     get_version_admin_service,
 )
-from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.version_engine.read.admin import VersionAdminService
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
@@ -22,7 +20,6 @@ from src.platform.project.dependencies import get_project_service, get_verified_
 from src.platform.project.models import Project
 from src.platform.project.schemas import (
     AddProjectMember,
-    NodeInfo,
     ProjectCreate,
     ProjectMemberOut,
     ProjectOut,
@@ -43,20 +40,13 @@ router = APIRouter(
 
 
 def _convert_to_project_out(
-    project: Project, entries=None, access_point_count: int = 0
+    project: Project, access_point_count: int = 0
 ) -> ProjectOut:
-    """Convert Project to ProjectOut (using ProductOperationAdapter entries)"""
-    node_infos = []
-    if entries:
-        for entry in entries:
-            node_infos.append(
-                NodeInfo(
-                    id=entry.path,
-                    name=entry.name,
-                    type=entry.type,
-                    rows=None,
-                )
-            )
+    """Convert Project to project metadata.
+
+    This router is the project/container API. It must not read Version Engine
+    trees or S3 objects; content belongs to /api/v1/content.
+    """
 
     return ProjectOut(
         id=str(project.id),
@@ -65,7 +55,6 @@ def _convert_to_project_out(
         org_id=project.org_id,
         visibility=project.visibility,
         bound_git_branch=getattr(project, 'bound_git_branch', 'main'),
-        nodes=node_infos,
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
         access_point_count=access_point_count,
     )
@@ -102,7 +91,6 @@ def _count_user_connectors(project_ids: list[str]) -> dict[str, int]:
 async def list_projects(
     org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
-    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     oids = resolve_org_ids(org_id, current_user.user_id)
@@ -118,11 +106,9 @@ async def list_projects(
 
     result = []
     for p in all_projects:
-        entries = ops.list_dir(str(p.id), "")
         result.append(
             _convert_to_project_out(
                 p,
-                entries,
                 access_point_count=conn_counts.get(str(p.id), 0),
             )
         )
@@ -151,13 +137,11 @@ def list_project_templates():
 )
 def get_project(
     project: Project = Depends(get_verified_project),
-    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    entries = ops.list_dir(str(project.id), "")
     conn_count = _count_user_connectors([str(project.id)]).get(str(project.id), 0)
     return ApiResponse.success(
-        data=_convert_to_project_out(project, entries, access_point_count=conn_count),
+        data=_convert_to_project_out(project, access_point_count=conn_count),
         message="Project retrieved successfully",
     )
 
@@ -173,7 +157,6 @@ def get_project(
 async def create_project(
     payload: ProjectCreate,
     project_service: ProjectService = Depends(get_project_service),
-    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     version_admin: VersionAdminService = Depends(get_version_admin_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
@@ -193,7 +176,6 @@ async def create_project(
     from src.repo.scope_service import ScopeService
     ScopeService().ensure_root_scope(str(project.id))
 
-    entries = []
     if payload.template:
         from src.platform.project.templates import seed_template_content
         await seed_template_content(
@@ -201,19 +183,16 @@ async def create_project(
             template_id=payload.template,
             created_by=current_user.user_id,
         )
-        entries = ops.list_dir(str(project.id), "")
     elif payload.seed:
         from src.platform.project.seed_content import seed_default_content
         await seed_default_content(
             project_id=str(project.id),
             created_by=current_user.user_id,
         )
-        entries = ops.list_dir(str(project.id), "")
 
     return ApiResponse.success(
         data=_convert_to_project_out(
             project,
-            entries,
             access_point_count=_count_user_connectors([str(project.id)]).get(str(project.id), 0),
         ),
         message="Project created successfully",
@@ -232,7 +211,6 @@ def update_project(
     project: Project = Depends(get_verified_project),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
-    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     updated_project = project_service.update(
@@ -242,9 +220,8 @@ def update_project(
         bound_git_branch=payload.bound_git_branch,
     )
 
-    entries = ops.list_dir(str(project.id), "")
     return ApiResponse.success(
-        data=_convert_to_project_out(updated_project, entries), message="Project updated successfully"
+        data=_convert_to_project_out(updated_project), message="Project updated successfully"
     )
 
 

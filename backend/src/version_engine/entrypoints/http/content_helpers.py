@@ -54,4 +54,5 @@ def entry_to_response(entry: VersionEntry) -> VersionEntryResponse:
         size_bytes=entry.size_bytes,
         mime_type=entry.mime_type,
         children_count=entry.children_count,
+        integrity_status=entry.integrity_status,
     )

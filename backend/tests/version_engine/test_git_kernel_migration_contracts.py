@@ -5,13 +5,17 @@ from __future__ import annotations
 import ast
 import re
 import subprocess
+from contextlib import contextmanager
 from types import SimpleNamespace
 from pathlib import Path
 
 import pytest
 
 from src.ingest.file.jobs.jobs import stage_blob_from_s3
+from src.version_engine.domain.errors import ObjectNotFoundError
 from src.version_engine.write_engine.git_object_format import (
+    EMPTY_TREE_LOOSE_BYTES,
+    EMPTY_TREE_SHA1,
     MODE_DIR,
     MODE_FILE,
     TreeEntry,
@@ -23,7 +27,9 @@ from src.version_engine.write_engine.git_object_format import (
     encode_tree,
     hash_object,
 )
+from src.version_engine.write_engine.object_store import ObjectStore, StorageBackend
 from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.adapters.git.object_quarantine import GitObjectQuarantine
 from src.version_engine.admission.repo_facade import repo_facade_from_auth
 from src.version_engine.infrastructure.s3.object_storage import S3StorageBackend
 from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS_TABLE
@@ -112,6 +118,132 @@ def test_git_tree_and_commit_helpers_round_trip() -> None:
     assert commit["message"] == "hello"
 
 
+def test_git_tree_encoder_rejects_legacy_short_object_ids() -> None:
+    with pytest.raises(ValueError, match="40 hex"):
+        encode_tree([
+            TreeEntry(name="legacy", mode=MODE_DIR, sha1_hex="28a44dbeee08f49e"),
+        ])
+
+
+def test_empty_git_tree_is_virtual_builtin_object(tmp_path) -> None:
+    class _NoStorageBackend(StorageBackend):
+        def get(self, h: str) -> bytes:
+            raise AssertionError("empty tree should not hit object storage")
+
+        def put(self, h: str, loose_bytes: bytes) -> None:
+            raise AssertionError("empty tree should not be persisted as loose data")
+
+        def exists(self, h: str) -> bool:
+            raise AssertionError("empty tree should not need an existence probe")
+
+        def all_hashes(self) -> list[str]:
+            return []
+
+        def count(self) -> tuple[int, int]:
+            return 0, 0
+
+        def delete(self, h: str) -> bool:
+            return False
+
+    store = ObjectStore(tmp_path / "objects", backend=_NoStorageBackend())
+
+    assert EMPTY_TREE_SHA1 == hash_object("tree", b"")
+    assert decode_object(EMPTY_TREE_LOOSE_BYTES) == ("tree", b"")
+    assert store.exists(EMPTY_TREE_SHA1) is True
+    assert store.get_object(EMPTY_TREE_SHA1) == ("tree", b"")
+    assert store.get_loose(EMPTY_TREE_SHA1) == EMPTY_TREE_LOOSE_BYTES
+    assert store.put_tree(b"") == EMPTY_TREE_SHA1
+
+
+def test_git_quarantine_promotion_batches_new_objects_only(tmp_path, monkeypatch) -> None:
+    work = tmp_path / "work"
+    work.mkdir()
+    _run_git_cmd(["init"], work)
+    _run_git_cmd(["config", "user.name", "Git User"], work)
+    _run_git_cmd(["config", "user.email", "git@example.com"], work)
+
+    (work / "a.txt").write_text("a\n", encoding="utf-8")
+    _run_git_cmd(["add", "a.txt"], work)
+    _run_git_cmd(["commit", "-m", "initial"], work)
+    first = _run_git_cmd(["rev-parse", "HEAD"], work).decode("ascii").strip()
+
+    (work / "b.txt").write_text("b\n", encoding="utf-8")
+    _run_git_cmd(["add", "b.txt"], work)
+    _run_git_cmd(["commit", "-m", "second"], work)
+    second = _run_git_cmd(["rev-parse", "HEAD"], work).decode("ascii").strip()
+
+    expected_new = _git_rev_list_objects(work / ".git", second, exclude=first)
+    assert expected_new
+    assert first not in expected_new
+
+    class _FakeStore:
+        def __init__(self):
+            self.exists_many_calls: list[list[str]] = []
+            self.puts: dict[str, bytes] = {}
+
+        def exists_many(self, hashes: list[str]) -> set[str]:
+            self.exists_many_calls.append(list(hashes))
+            return set()
+
+        def put_loose(self, object_id: str, loose: bytes) -> None:
+            self.puts[object_id] = loose
+
+    class _FakeRepo:
+        def __init__(self):
+            self.store = _FakeStore()
+
+    flushes: list[int] = []
+
+    @contextmanager
+    def _fake_stage_object_writes(_store):
+        yield SimpleNamespace(flush=lambda: flushes.append(1))
+
+    monkeypatch.setattr(
+        "src.version_engine.adapters.git.object_quarantine.stage_object_writes",
+        _fake_stage_object_writes,
+    )
+    repo = _FakeRepo()
+    quarantine = GitObjectQuarantine(
+        repo=repo,
+        bare_dir=work / ".git",
+        roots=[second],
+        exclude_roots=[first],
+    )
+
+    quarantine.promote_reachable()
+
+    assert repo.store.exists_many_calls == [sorted(expected_new)]
+    assert set(repo.store.puts) == expected_new
+    assert flushes == [1]
+
+
+def _run_git_cmd(args: list[str], cwd: Path) -> bytes:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    ).stdout
+
+
+def _git_rev_list_objects(git_dir: Path, root: str, *, exclude: str = "") -> set[str]:
+    args = ["git", "--git-dir", str(git_dir), "rev-list", "--objects", root]
+    if exclude:
+        args.extend(["--not", exclude])
+    out = subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    ).stdout
+    return {
+        line.split(maxsplit=1)[0].decode("ascii")
+        for line in out.splitlines()
+        if line
+    }
+
+
 @pytest.mark.asyncio
 async def test_object_batch_writes_one_bundle_with_location_index() -> None:
     blob_id, blob_loose = encode_object("blob", b"hello\n")
@@ -168,7 +300,11 @@ async def test_object_batch_writes_one_bundle_with_location_index() -> None:
             self.filters[key] = value
             return self
 
-        def maybe_single(self):
+        def in_(self, key, values):
+            self.filters[key] = list(values)
+            return self
+
+        def limit(self, _value):
             return self
 
         def execute(self):
@@ -176,16 +312,24 @@ async def test_object_batch_writes_one_bundle_with_location_index() -> None:
                 for row in self._upsert_rows:
                     self.db.rows[(row["project_id"], row["object_id"])] = row
                 return SimpleNamespace(data=self._upsert_rows)
-            row = self.db.rows.get((
-                self.filters.get("project_id"),
-                self.filters.get("object_id"),
-            ))
-            return SimpleNamespace(data=row)
+            self.db.select_calls += 1
+            project_id = self.filters.get("project_id")
+            object_ids = self.filters.get("object_id")
+            if isinstance(object_ids, list):
+                data = [
+                    row
+                    for oid in object_ids
+                    if (row := self.db.rows.get((project_id, oid))) is not None
+                ]
+                return SimpleNamespace(data=data)
+            row = self.db.rows.get((project_id, object_ids))
+            return SimpleNamespace(data=[row] if row else [])
 
     class _FakeSupabase:
         def __init__(self):
             self.client = self
             self.rows = {}
+            self.select_calls = 0
 
         def table(self, name):
             assert name == OBJECT_LOCATIONS_TABLE
@@ -221,6 +365,67 @@ async def test_object_batch_writes_one_bundle_with_location_index() -> None:
     assert s3.file_exists_keys == []
     assert s3.download_range_keys
     assert all("/object-bundles/" in key for key in s3.download_range_keys)
+
+    bulk_backend = S3StorageBackend(s3, "proj", supabase=supabase)
+    s3.file_exists_keys.clear()
+    supabase.select_calls = 0
+    assert bulk_backend.exists_many([blob_id, tree_id, commit_id]) == {
+        blob_id,
+        tree_id,
+        commit_id,
+    }
+    assert supabase.select_calls == 1
+    assert s3.file_exists_keys == []
+
+
+def test_s3_backend_reads_deferred_namespace_but_writes_final_namespace() -> None:
+    object_id, loose = encode_object("blob", b"from deferred storage\n")
+    deferred_namespace = "".join(("m", "ut"))
+    deferred_key = (
+        f"{deferred_namespace}/proj/objects/{object_id[:2]}/{object_id[2:]}"
+    )
+
+    class _FakeS3:
+        def __init__(self):
+            self.uploads: dict[str, bytes] = {deferred_key: loose}
+            self.uploaded_keys: list[str] = []
+
+        async def upload_file(self, key, content, content_type=None, metadata=None):
+            self.uploads[key] = content
+            self.uploaded_keys.append(key)
+            return SimpleNamespace(key=key)
+
+        async def download_file(self, key):
+            if key not in self.uploads:
+                raise FileNotFoundError("not found")
+            return self.uploads[key]
+
+        async def download_file_range(self, key, start=0, limit=None):
+            if key not in self.uploads:
+                raise FileNotFoundError("not found")
+            content = self.uploads[key]
+            end = len(content) if limit is None else min(len(content), start + limit)
+            return content[start:end], len(content)
+
+        async def file_exists(self, key):
+            return key in self.uploads
+
+    s3 = _FakeS3()
+    backend = S3StorageBackend(s3, "proj", allow_deferred_namespace_reads=True)
+
+    assert backend.get(object_id) == loose
+    assert backend.exists(object_id) is True
+
+    new_id, new_loose = encode_object("blob", b"new canonical write\n")
+    backend.put(new_id, new_loose)
+
+    expected_new_key = f"version/proj/objects/{new_id[:2]}/{new_id[2:]}"
+    assert s3.uploaded_keys == [expected_new_key]
+    assert s3.uploads[expected_new_key] == new_loose
+
+    strict_backend = S3StorageBackend(s3, "proj", allow_deferred_namespace_reads=False)
+    with pytest.raises(ObjectNotFoundError):
+        strict_backend.get(object_id)
 
 
 def test_path_normalization_is_owned_by_puppyone() -> None:

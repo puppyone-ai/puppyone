@@ -16,7 +16,10 @@ import time
 from datetime import datetime, timezone
 from typing import Callable
 
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.write_engine.object_store import (
+    ObjectStore,
+    stage_object_writes,
+)
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.write_engine.ledger import (
     NoopVersionTransactionLedger,
@@ -52,7 +55,6 @@ from src.version_engine.domain.intents import (
     VersionSubmissionIntent,
 )
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
-from src.version_engine.infrastructure.s3.object_storage import stage_object_writes
 from src.version_engine.adapters.product.tree_patch import splice_batch
 from src.version_engine.write_engine.trace import (
     VersionTrace,
@@ -97,6 +99,22 @@ class CrossScopeSubmissionError(PermissionError):
         super().__init__(
             "submission touches paths outside its scope; split the work across "
             f"scope remotes: {rejected_paths[:5]}"
+        )
+
+
+class NonFastForwardSubmissionError(RuntimeError):
+    """Raised when a Git transport update loses the ref-update race."""
+
+    def __init__(
+        self,
+        *,
+        expected_head_commit_id: str,
+        current_head_commit_id: str,
+    ):
+        self.expected_head_commit_id = expected_head_commit_id
+        self.current_head_commit_id = current_head_commit_id
+        super().__init__(
+            "non-fast-forward update rejected; fetch and rebase before pushing again"
         )
 
 
@@ -905,6 +923,14 @@ class VersionWriteEngine:
         for attempt in range(_MAX_CAS_ATTEMPTS):
             promoted_objects = False
             old_scope_hash, current_head_commit_id = _get_scope_state(repo, scope_norm)
+            if (
+                intent.source_channel == "git"
+                and intent.base_commit_id != current_head_commit_id
+            ):
+                raise NonFastForwardSubmissionError(
+                    expected_head_commit_id=intent.base_commit_id,
+                    current_head_commit_id=current_head_commit_id,
+                )
             current_files: dict[str, bytes] | None = None
             if incoming_files is not None:
                 current_files = await asyncio.to_thread(

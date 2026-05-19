@@ -2,6 +2,7 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, JSON_METADATA_NOTE, MUTATION_AUDIT_NOTE, MUTATION_SILENT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
 import {
   buildCopyMoveIntents,
@@ -11,7 +12,7 @@ import {
 import { promptYesNo, statPath } from "../lib/remote.js";
 
 export function registerMvCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("mv")
     .description("Move or rename within the access point scope")
     .argument("<paths...>", "source path(s) followed by destination path")
@@ -20,7 +21,20 @@ export function registerMvCommand(fs) {
     .option("-n, --no-clobber", "do not overwrite an existing destination")
     .option("-T, --no-target-directory", "treat destination as a normal file")
     .option("-t, --target-directory <dir>", "move all sources into dir")
-    .option("-m, --message <msg>", "commit message")
+    .option("-m, --message <msg>", "commit message"), {
+      examples: [
+        "puppyone fs mv draft.md notes/draft.md",
+        "puppyone fs mv old-name.md new-name.md",
+        "puppyone fs mv a.md b.md folder/",
+        "puppyone --json fs mv old-name.md new-name.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        MUTATION_SILENT_NOTE,
+        MUTATION_AUDIT_NOTE,
+        JSON_METADATA_NOTE,
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const options = cmd?.opts?.() ?? opts ?? {};
       const out = createOutput(cmd);

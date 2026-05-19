@@ -28,6 +28,7 @@ from src.version_engine.write_engine.git_object_format import (
     decode_tree,
     encode_object,
 )
+from src.version_engine.write_engine.object_store import stage_object_writes
 
 _TRANSPORT_CACHE_ROOT = Path(tempfile.gettempdir()) / "puppyone-git-transport-cache-v1"
 
@@ -93,10 +94,18 @@ def quarantine_bare_repo(
 class GitObjectQuarantine:
     """Validated temporary Git object database for one receive-pack request."""
 
-    def __init__(self, *, repo, bare_dir: Path, roots: list[str]):
+    def __init__(
+        self,
+        *,
+        repo,
+        bare_dir: Path,
+        roots: list[str],
+        exclude_roots: list[str] | None = None,
+    ):
         self.repo = repo
         self.bare_dir = bare_dir
         self.roots = roots
+        self.exclude_roots = exclude_roots or []
         self._promoted = False
 
     def get_object(self, object_id: str) -> tuple[str, bytes]:
@@ -155,6 +164,29 @@ class GitObjectQuarantine:
             if item
         ]
 
+    def commit_is_ancestor_or_same(self, ancestor_id: str, descendant_id: str) -> bool:
+        if not (
+            is_object_id(ancestor_id)
+            and ancestor_id != ZERO_ID
+            and is_object_id(descendant_id)
+            and descendant_id != ZERO_ID
+        ):
+            return False
+        if ancestor_id == descendant_id:
+            return True
+        try:
+            run_git([
+                "--git-dir",
+                str(self.bare_dir),
+                "merge-base",
+                "--is-ancestor",
+                ancestor_id,
+                descendant_id,
+            ])
+            return True
+        except Exception:
+            return False
+
     def blob_id_for_path(self, tree_id: str, path: str) -> str:
         current = tree_id
         parts = [part for part in path.split("/") if part]
@@ -186,20 +218,39 @@ class GitObjectQuarantine:
         if self._promoted:
             return
         objects_dir = self.bare_dir / "objects"
-        for object_id in _reachable_object_ids_from_bare(self.bare_dir, self.roots):
-            if self.repo.store.exists(object_id):
-                continue
-            loose = objects_dir / object_id[:2] / object_id[2:]
-            if not loose.exists():
-                obj_type, body = self.get_object(object_id)
-                encoded_id, loose_bytes = encode_object(obj_type, body)
-                if encoded_id != object_id:
-                    raise ValueError(
-                        f"quarantine object hash mismatch: {object_id} != {encoded_id}"
-                    )
+        object_ids = sorted(
+            _reachable_object_ids_from_bare(
+                self.bare_dir,
+                self.roots,
+                exclude_roots=self.exclude_roots,
+            )
+        )
+        if not object_ids:
+            self._promoted = True
+            return
+
+        existing = self.repo.store.exists_many(object_ids)
+        missing = [object_id for object_id in object_ids if object_id not in existing]
+        if not missing:
+            self._promoted = True
+            return
+
+        with stage_object_writes(self.repo.store) as object_batch:
+            for object_id in missing:
+                loose_bytes = None
+                loose = objects_dir / object_id[:2] / object_id[2:]
+                if loose.exists():
+                    loose_bytes = loose.read_bytes()
+                else:
+                    obj_type, body = self.get_object(object_id)
+                    encoded_id, loose_bytes = encode_object(obj_type, body)
+                    if encoded_id != object_id:
+                        raise ValueError(
+                            f"quarantine object hash mismatch: {object_id} != {encoded_id}"
+                        )
                 self.repo.store.put_loose(object_id, loose_bytes)
-            else:
-                self.repo.store.put_loose(object_id, loose.read_bytes())
+            if object_batch is not None:
+                object_batch.flush()
         self._promoted = True
 
     def _flatten_tree(self, tree_id: str, prefix: str, out: dict[str, bytes]) -> None:
@@ -223,6 +274,7 @@ def quarantine_pack(
     scope_path: str,
     pack: bytes,
     roots: list[str] | None = None,
+    exclude_roots: list[str] | None = None,
     scope_excludes: list[str] | None = None,
 ) -> GitObjectQuarantine:
     if not pack:
@@ -230,7 +282,12 @@ def quarantine_pack(
     root_ids = roots or []
     with quarantine_bare_repo(repo, scope_path, scope_excludes) as bare_dir:
         _unpack_and_validate(bare_dir, pack, root_ids)
-        yield GitObjectQuarantine(repo=repo, bare_dir=bare_dir, roots=root_ids)
+        yield GitObjectQuarantine(
+            repo=repo,
+            bare_dir=bare_dir,
+            roots=root_ids,
+            exclude_roots=exclude_roots or [],
+        )
 
 
 def _unpack_and_validate(bare_dir: Path, pack: bytes, roots: list[str]) -> None:
@@ -406,12 +463,29 @@ def _reachable_object_ids(repo, roots: list[str]) -> set[str]:
     return reachable
 
 
-def _reachable_object_ids_from_bare(bare_dir: Path, roots: list[str]) -> set[str]:
+def _reachable_object_ids_from_bare(
+    bare_dir: Path,
+    roots: list[str],
+    *,
+    exclude_roots: list[str] | None = None,
+) -> set[str]:
+    fast = _rev_list_object_ids_from_bare(
+        bare_dir,
+        roots,
+        exclude_roots=exclude_roots or [],
+    )
+    if fast is not None:
+        return fast
+
     reachable: set[str] = set()
     stack = [root for root in roots if is_object_id(root) and root != ZERO_ID]
+    excluded = set(
+        _reachable_object_ids_from_bare(bare_dir, exclude_roots or [])
+        if exclude_roots else set()
+    )
     while stack:
         object_id = stack.pop()
-        if object_id in reachable:
+        if object_id in reachable or object_id in excluded:
             continue
         reachable.add(object_id)
         try:
@@ -444,6 +518,41 @@ def _reachable_object_ids_from_bare(bare_dir: Path, roots: list[str]) -> set[str
                 if is_object_id(entry.sha1_hex):
                     stack.append(entry.sha1_hex)
     return reachable
+
+
+def _rev_list_object_ids_from_bare(
+    bare_dir: Path,
+    roots: list[str],
+    *,
+    exclude_roots: list[str],
+) -> set[str] | None:
+    include = [root for root in roots if is_object_id(root) and root != ZERO_ID]
+    if not include:
+        return set()
+    exclude = [
+        root for root in exclude_roots
+        if is_object_id(root) and root != ZERO_ID
+    ]
+    args = [
+        "--git-dir",
+        str(bare_dir),
+        "rev-list",
+        "--objects",
+        *include,
+    ]
+    if exclude:
+        args.extend(["--not", *exclude])
+    try:
+        out = run_git(args)
+    except Exception:
+        return None
+
+    object_ids: set[str] = set()
+    for raw_line in out.splitlines():
+        token = raw_line.split(maxsplit=1)[0].decode("ascii", errors="ignore")
+        if is_object_id(token) and token != ZERO_ID:
+            object_ids.add(token)
+    return object_ids
 
 
 def copy_bare_objects_to_store(repo, bare_dir: Path) -> None:

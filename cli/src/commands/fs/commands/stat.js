@@ -1,15 +1,27 @@
 import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
+import { addFsHelp, READ_STDOUT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { get } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 import { unixBlocks, unixStatTimestamp, unixType } from "../lib/render.js";
 
 export function registerStatCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("stat")
     .description("Show file or directory information within the access point scope")
-    .argument("[path]", "path relative to the access point scope")
+    .argument("[path]", "path relative to the access point scope"), {
+      examples: [
+        "puppyone fs stat",
+        "puppyone fs stat docs/api-reference.md",
+        "puppyone --json fs stat docs/api-reference.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        "Unix mode, uid, gid, device, and inode are compatibility fields for a cloud-backed scope.",
+      ],
+    })
     .action(withErrors(async (path, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

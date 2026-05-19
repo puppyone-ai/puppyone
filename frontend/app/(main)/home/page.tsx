@@ -41,7 +41,6 @@ function DashboardPageContent() {
       description: 'Preparing workspace...',
       org_id: currentOrg?.id,
       visibility: 'org',
-      nodes: [],
       updated_at: new Date().toISOString(),
       access_point_count: 0,
     });

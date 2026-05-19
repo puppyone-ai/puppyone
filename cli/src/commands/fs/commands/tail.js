@@ -3,16 +3,29 @@ import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { readTailBuffer } from "../lib/content-read.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, READ_STDOUT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { parseIntegerOption } from "../lib/options.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerTailCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("tail")
     .description("Output the last part of file(s) within the access point scope")
     .argument("<paths...>", "file path(s) relative to the access point scope")
     .option("-n, --lines <n>", "print the last n lines", "10")
-    .option("-c, --bytes <n>", "print the last n bytes")
+    .option("-c, --bytes <n>", "print the last n bytes"), {
+      examples: [
+        "puppyone fs tail logs/app.log",
+        "puppyone fs tail -n 40 logs/app.log",
+        "puppyone fs tail -c 1024 data.bin",
+        "puppyone --json fs tail -n 5 logs/app.log",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        "Use -c for byte-accurate previews and -n for text previews.",
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

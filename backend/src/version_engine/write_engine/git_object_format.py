@@ -30,6 +30,10 @@ def encode_object(obj_type: str, content: bytes) -> tuple[str, bytes]:
     return hashlib.sha1(framed).hexdigest(), zlib.compress(framed)
 
 
+EMPTY_TREE_CONTENT = b""
+EMPTY_TREE_SHA1, EMPTY_TREE_LOOSE_BYTES = encode_object("tree", EMPTY_TREE_CONTENT)
+
+
 def decode_object(loose_bytes: bytes) -> tuple[str, bytes]:
     """Decode Git loose-object bytes into ``(type, content)``."""
 
@@ -60,6 +64,18 @@ class TreeEntry(NamedTuple):
         return self.mode == MODE_DIR
 
 
+def _validate_sha1_hex(sha1_hex: str) -> None:
+    if len(sha1_hex) != 40:
+        raise ValueError(
+            f"git tree entry object id must be 40 hex characters, "
+            f"got {len(sha1_hex)}",
+        )
+    try:
+        bytes.fromhex(sha1_hex)
+    except ValueError as exc:
+        raise ValueError("git tree entry object id must be hexadecimal") from exc
+
+
 def encode_tree(entries: Iterable[TreeEntry]) -> bytes:
     """Encode Git tree entries in Git's tree binary format."""
 
@@ -69,6 +85,9 @@ def encode_tree(entries: Iterable[TreeEntry]) -> bytes:
     )
     out = bytearray()
     for entry in sorted_entries:
+        if entry.mode not in {MODE_FILE, MODE_DIR}:
+            raise ValueError(f"unsupported git tree mode: {entry.mode!r}")
+        _validate_sha1_hex(entry.sha1_hex)
         out += (
             entry.mode
             + b" "
@@ -89,6 +108,8 @@ def decode_tree(content: bytes) -> list[TreeEntry]:
         mode = content[index:space]
         nul = content.index(b"\x00", space)
         name = content[space + 1 : nul].decode("utf-8")
+        if nul + 21 > len(content):
+            raise ValueError("truncated git tree entry object id")
         sha1_hex = content[nul + 1 : nul + 21].hex()
         entries.append(TreeEntry(name=name, mode=mode, sha1_hex=sha1_hex))
         index = nul + 21

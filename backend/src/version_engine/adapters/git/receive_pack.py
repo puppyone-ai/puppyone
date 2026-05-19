@@ -15,7 +15,10 @@ from src.version_engine.adapters.git.protocol import (
 )
 from src.version_engine.adapters.git.submission import submit_git_tree
 from src.version_engine.write_engine.git_object_format import decode_commit
-from src.version_engine.write_engine.engine import CrossScopeSubmissionError
+from src.version_engine.write_engine.engine import (
+    CrossScopeSubmissionError,
+    NonFastForwardSubmissionError,
+)
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 
@@ -87,6 +90,7 @@ async def receive_pack_response(
             scope_path,
             command.pack,
             roots=[command.new_id],
+            exclude_roots=([command.old_id] if command.old_id != ZERO_ID else []),
             scope_excludes=scope_excludes,
         ) as quarantine:
             obj_type, commit_body = quarantine.get_object(command.new_id)
@@ -112,8 +116,26 @@ async def receive_pack_response(
                     command.ref,
                     outcome="rejected",
                     message="puppyone-rejected: client merge commits are not supported; "
-                            "use server-side merge",
+                            "fetch and rebase, or resolve through PuppyOne review",
                     capabilities=command.capabilities,
+                )
+
+            current_head_commit_id = repo.get_scope_head_commit_id(scope_path) or ""
+            if (
+                current_head_commit_id
+                and not quarantine.commit_is_ancestor_or_same(
+                    current_head_commit_id,
+                    command.new_id,
+                )
+            ):
+                return receive_pack_result(
+                    command.ref,
+                    outcome="rejected",
+                    message=(
+                        "puppyone-rejected: non-fast-forward update rejected"
+                    ),
+                    capabilities=command.capabilities,
+                    stderr_lines=_NON_FAST_FORWARD_REMOTE_LINES,
                 )
 
             changed_paths = quarantine.changed_paths(command.old_id, command.new_id)
@@ -151,12 +173,7 @@ async def receive_pack_response(
                 project_id=project_id,
                 scope_path=scope_path,
                 actor=actor,
-                base_commit_id=select_git_base_commit(
-                    repo,
-                    client_commit_id=command.new_id,
-                    current_head_commit_id=repo.get_scope_head_commit_id(scope_path) or "",
-                    quarantine=quarantine,
-                ),
+                base_commit_id=current_head_commit_id,
                 proposed_tree_id=tree_id,
                 changed_paths=changed_paths,
                 promote_objects=quarantine.promote_reachable,
@@ -201,6 +218,14 @@ async def receive_pack_response(
                 "the corresponding scope remotes and retry.",
             ],
         )
+    except NonFastForwardSubmissionError:
+        return receive_pack_result(
+            command.ref,
+            outcome="rejected",
+            message="puppyone-rejected: non-fast-forward update rejected",
+            capabilities=command.capabilities,
+            stderr_lines=_NON_FAST_FORWARD_REMOTE_LINES,
+        )
     except Exception as exc:
         return receive_pack_result(
             command.ref,
@@ -217,6 +242,14 @@ async def receive_pack_response(
 
 
 _LFS_POINTER_PREAMBLE = b"version https://git-lfs.github.com/spec/v1"
+_NON_FAST_FORWARD_REMOTE_LINES = [
+    "PuppyOne: Updates were rejected because the remote contains work that "
+    "you do not have locally.",
+    "PuppyOne: Fetch first, then rebase your work onto origin/main before "
+    "pushing again.",
+    "PuppyOne: Scope remotes do not use force push as a server-side merge "
+    "proposal.",
+]
 
 
 def detect_lfs_pointer_blobs(
@@ -252,53 +285,23 @@ def detect_lfs_pointer_blobs(
     return flagged
 
 
-_PROTECTED_REF_PREFIXES = (
-    "refs/heads/main",
-    "refs/heads/master",
-)
-_FEATURE_REF_PATTERNS = (
-    "refs/heads/feat/",
-    "refs/heads/feature/",
-    "refs/heads/fix/",
-    "refs/heads/chore/",
-    "refs/heads/refactor/",
-    "refs/heads/release/",
-    "refs/heads/hotfix/",
-    "refs/heads/agent/",
-    "refs/heads/pr/",
-    "refs/heads/topic/",
-)
-
-
 def _ref_writability(ref: str) -> tuple[bool, str]:
-    """Allow ``refs/heads/main`` plus a fixed set of conventional feature
-    branch prefixes. Tags and arbitrary branch names stay rejected so a
-    typo doesn't silently create a forgotten ref on the remote.
+    """Allow only the materialized scope ref.
 
-    The list is curated rather than wide-open because PuppyOne owns
-    scope ownership at the *ref* boundary today — every accepted ref
-    name becomes a new line in the engine's per-scope CAS map. Until
-    we wire arbitrary refs through a separate ``branches`` policy
-    table, this whitelist is the safe default.
+    PuppyOne does not yet persist separate Git branch refs for an access
+    point. Accepting feature refs while publishing them to the scope head
+    would look GitHub-like at the CLI boundary but mutate ``main`` under the
+    hood, which is worse than a loud rejection. Keep the transport honest
+    until branch/MR storage is implemented explicitly.
     """
 
     if ref == "refs/heads/main":
         return True, ""
-    if ref.startswith(_PROTECTED_REF_PREFIXES):
-        # Other protected branch names (e.g. ``refs/heads/master``)
-        # are accepted as aliases when the project has migrated.
-        return True, ""
-    for prefix in _FEATURE_REF_PATTERNS:
-        if ref.startswith(prefix) and len(ref) > len(prefix):
-            return True, ""
     if ref.startswith("refs/tags/"):
         return False, "tag refs are immutable on this remote; tag through the project API"
     return False, (
-        f"ref {ref!r} is not in the writable allowlist; supported prefixes "
-        "are refs/heads/main, refs/heads/feat/, refs/heads/feature/, "
-        "refs/heads/fix/, refs/heads/chore/, refs/heads/refactor/, "
-        "refs/heads/release/, refs/heads/hotfix/, refs/heads/agent/, "
-        "refs/heads/pr/, refs/heads/topic/"
+        f"ref {ref!r} is not writable on this scope remote; "
+        "only refs/heads/main is currently backed by an access-point ref"
     )
 
 
@@ -406,75 +409,3 @@ def receive_pack_result(
         media_type="application/x-git-receive-pack-result",
         headers={"Cache-Control": "no-cache"},
     )
-
-
-def select_git_base_commit(
-    repo,
-    *,
-    client_commit_id: str,
-    current_head_commit_id: str,
-    quarantine=None,
-) -> str:
-    """Choose the base commit represented by a Git push proposal.
-
-    In receive-pack, the command's old_id is the server's advertised ref, not
-    necessarily the commit the client branch was based on. For a forced stale
-    push, using old_id as the merge base would incorrectly treat the stale tree
-    as current and could drop concurrent server-side files.
-    """
-
-    if not current_head_commit_id:
-        return ""
-    client_ancestors = commit_ancestor_distances(
-        repo,
-        client_commit_id,
-        quarantine=quarantine,
-    )
-    if current_head_commit_id in client_ancestors:
-        return current_head_commit_id
-
-    current_ancestors = commit_ancestor_distances(repo, current_head_commit_id)
-    common = set(client_ancestors) & set(current_ancestors)
-    if common:
-        return min(
-            common,
-            key=lambda cid: (
-                client_ancestors[cid] + current_ancestors[cid],
-                client_ancestors[cid],
-                current_ancestors[cid],
-            ),
-        )
-
-    parents = commit_parents(repo, client_commit_id, quarantine=quarantine)
-    return parents[0] if parents else ""
-
-
-def commit_ancestor_distances(repo, start_commit_id: str, *, quarantine=None) -> dict[str, int]:
-    if not start_commit_id:
-        return {}
-    distances: dict[str, int] = {}
-    stack = [(start_commit_id, 0)]
-    while stack:
-        commit_id, distance = stack.pop()
-        if not commit_id or commit_id in distances:
-            continue
-        distances[commit_id] = distance
-        for parent in commit_parents(repo, commit_id, quarantine=quarantine):
-            stack.append((parent, distance + 1))
-    return distances
-
-
-def commit_parents(repo, commit_id: str, *, quarantine=None) -> list[str]:
-    try:
-        if quarantine is not None:
-            try:
-                obj_type, body = quarantine.get_object(commit_id)
-            except Exception:
-                obj_type, body = repo.store.get_object(commit_id)
-        else:
-            obj_type, body = repo.store.get_object(commit_id)
-        if obj_type != "commit":
-            return []
-        return list(decode_commit(body).get("parents") or [])
-    except Exception:
-        return []

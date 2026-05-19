@@ -39,6 +39,7 @@ function buildOptimisticNode(
     size_bytes: 0,
     mime_type: null,
     children_count: type === 'folder' ? 0 : null,
+    integrity_status: 'ok',
     id: path,
     version_path: `/${path}`,
     parent_id: parentPath || null,

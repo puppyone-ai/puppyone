@@ -21,6 +21,10 @@ class ObjectNotFoundError(VersionEngineError):
     http_status = 404
 
 
+class PathNotFoundError(VersionEngineError):
+    http_status = 404
+
+
 class AuthenticationError(VersionEngineError):
     http_status = 401
 

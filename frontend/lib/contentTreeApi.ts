@@ -18,6 +18,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
 // === Types ===
 
 export type NodeType = 'folder' | 'json' | 'markdown' | 'file';
+export type IntegrityStatus = 'ok' | 'damaged' | 'unknown';
 
 export const NATIVE_TYPES = ['folder', 'json', 'markdown', 'file'] as const;
 export type NativeType = (typeof NATIVE_TYPES)[number];
@@ -30,6 +31,7 @@ export interface TreeEntry {
   size_bytes: number;
   mime_type: string | null;
   children_count: number | null;
+  integrity_status?: IntegrityStatus;
 }
 
 export interface TreeStatResponse {
@@ -40,6 +42,7 @@ export interface TreeStatResponse {
   size_bytes?: number;
   mime_type?: string | null;
   children_count?: number | null;
+  integrity_status?: IntegrityStatus;
   exists: boolean;
 }
 
@@ -86,6 +89,7 @@ export interface NodeInfo {
   size_bytes: number;
   mime_type: string | null;
   children_count: number | null;
+  integrity_status: IntegrityStatus;
 
   // Computed UI fields (derived from path)
   id: string;          // = path
@@ -125,18 +129,20 @@ export interface NodeListResponse {
 // apiRequest already unwraps { code, message, data } envelope.
 // treeRequest is a simple alias for consistency.
 
-async function treeRequest<T>(url: string, options?: RequestInit): Promise<T> {
+async function treeRequest<T>(
+  url: string,
+  options?: RequestInit & { timeoutMs?: number },
+): Promise<T> {
   return apiRequest<T>(url, options);
 }
 
 // === TreeEntry → NodeInfo adapter ===
 
 export function entryToNodeInfo(entry: TreeEntry, projectId: string): NodeInfo {
-  const parentPath = entry.path.includes('/')
-    ? entry.path.substring(0, entry.path.lastIndexOf('/'))
-    : null;
+  const parentPath = getParentPath(entry.path);
   return {
     ...entry,
+    integrity_status: entry.integrity_status ?? 'ok',
     id: entry.path,
     version_path: '/' + entry.path,
     parent_id: parentPath,
@@ -154,6 +160,40 @@ export function entryToNodeInfo(entry: TreeEntry, projectId: string): NodeInfo {
 }
 
 // === Helper Functions ===
+
+export function normalizeTreePath(path: string | null | undefined): string {
+  return (path ?? '').replace(/^\/+|\/+$/g, '');
+}
+
+export function getParentPath(path: string | null | undefined): string | null {
+  const normalized = normalizeTreePath(path);
+  if (!normalized || !normalized.includes('/')) return null;
+  return normalized.substring(0, normalized.lastIndexOf('/'));
+}
+
+/**
+ * Directory views must be path-boundary safe.
+ *
+ * SWR can intentionally keep previous data while a new key revalidates, and
+ * the sidebar can also receive shallow-tree cache prepopulation. The UI must
+ * still never render `docs/file.md` as a root child, or a sibling directory's
+ * children under the active folder. Treat this as the frontend equivalent of
+ * a filesystem invariant: a directory listing may only contain direct
+ * children of the requested directory.
+ */
+export function directChildrenOf<T extends { path: string; parent_id?: string | null }>(
+  nodes: T[],
+  dirPath: string | null | undefined,
+): T[] {
+  const normalizedDirPath = normalizeTreePath(dirPath);
+  const expectedParent = normalizedDirPath === '' ? null : normalizedDirPath;
+  return nodes.filter((node) => {
+    const parentPath = node.parent_id !== undefined
+      ? node.parent_id
+      : getParentPath(node.path);
+    return parentPath === expectedParent;
+  });
+}
 
 const nodeNameCollator = new Intl.Collator(undefined, {
   numeric: true,
@@ -176,7 +216,7 @@ const nodeNameTieBreakerCollator = new Intl.Collator(undefined, {
  * (zipstream download, search indexing, sandbox listing) shouldn't be forced
  * into the file-explorer's "folders first" convention. Normalizing here means:
  *   1. The sidebar shows the same order regardless of which endpoint
- *      (`useShallowTree` via `/tree` or `useContentNodes` via `/ls`)
+ *      (recursive `/tree` callers or `useContentNodes` via `/ls`)
  *      populated the SWR cache — no more visible reshuffling when the cache
  *      gets replaced as the user clicks around.
  *   2. The backend can keep returning whatever stable order it likes; we're
@@ -239,12 +279,14 @@ export function hasContent(node: { content_hash?: string | null }): boolean {
  */
 export async function listDir(
   projectId: string,
-  path: string = ''
+  path: string = '',
+  options?: RequestInit & { timeoutMs?: number },
 ): Promise<NodeListResponse> {
   const params = new URLSearchParams();
   if (path) params.set('path', path);
   const data = await treeRequest<{ entries: TreeEntry[] }>(
-    `/api/v1/content/${projectId}/ls?${params.toString()}`
+    `/api/v1/content/${projectId}/ls?${params.toString()}`,
+    options,
   );
   const nodes = (data.entries || []).map(e => entryToNodeInfo(e, projectId));
   return { nodes, total: nodes.length };
@@ -504,6 +546,7 @@ export async function getNode(
     size_bytes: 0,
     mime_type: null,
     children_count: null,
+    integrity_status: s.integrity_status ?? 'ok',
     id: s.path,
     version_path: '/' + s.path,
     parent_id: s.path.includes('/') ? s.path.substring(0, s.path.lastIndexOf('/')) : null,

@@ -130,6 +130,7 @@ class VersionEntryResponse(BaseModel):
     size_bytes: int | None = None
     mime_type: str | None = None
     children_count: int | None = None
+    integrity_status: Literal["ok", "damaged", "unknown"] = "ok"
 
 
 class ListDirResponse(BaseModel):
@@ -158,6 +159,7 @@ class StatResponse(BaseModel):
     size_bytes: int | None = None
     mime_type: str | None = None
     children_count: int | None = None
+    integrity_status: Literal["ok", "damaged", "unknown"] = "ok"
     exists: bool = True
     head_commit_id: str = ""
     scope_head_commit_id: str = ""

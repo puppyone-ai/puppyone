@@ -123,6 +123,10 @@ function buildFolderBreadcrumbs(segments: string[]): FolderBreadcrumb[] {
   }));
 }
 
+function basenameFromPath(path: string): string {
+  return path.split('/').filter(Boolean).pop() || path;
+}
+
 function ProjectUnavailableShell({ onBackHome }: { onBackHome: () => void }) {
   return (
     <div
@@ -671,7 +675,15 @@ export default function DataPage({ params }: DataPageProps) {
   // ───── Table & Tools ─────
 
   const { tools: tableTools, isLoading: toolsLoading } = useToolsByPath(activeNodeId);
-  const { tableData: currentTableData, refresh: refreshTable } = useTable(projectId, activeNodeId);
+  const shouldLoadStructuredTableData =
+    Boolean(activeNodeId) &&
+    (activeNodeType === 'github' || activeFormat?.defaultViewer === 'json-table');
+  const { tableData: loadedTableData, refresh: refreshTable } = useTable(
+    projectId,
+    shouldLoadStructuredTableData ? activeNodeId : undefined,
+  );
+  const currentTableData = shouldLoadStructuredTableData ? loadedTableData : undefined;
+  const activeNodeDisplayName = activeNodeId ? basenameFromPath(activeNodeId) : '';
 
   // Access points state
   const [accessPoints, setAccessPoints] = useState<AccessPoint[]>([]);
@@ -786,7 +798,9 @@ export default function DataPage({ params }: DataPageProps) {
   // Sync state to WorkspaceContext
   useEffect(() => { setProjectId(projectId); }, [projectId, setProjectId]);
   useEffect(() => { setTableId(activeNodeId); }, [activeNodeId, setTableId]);
-  useEffect(() => { setTableData(currentTableData?.data); }, [currentTableData?.data, setTableData]);
+  useEffect(() => {
+    setTableData(shouldLoadStructuredTableData ? currentTableData?.data : undefined);
+  }, [currentTableData?.data, setTableData, shouldLoadStructuredTableData]);
 
   const tableNameByIdRef = useRef<string>('');
   const tableNameById = useMemo(() => {
@@ -810,9 +824,13 @@ export default function DataPage({ params }: DataPageProps) {
 
   useEffect(() => { setAccessPointsToContext(accessPoints); }, [accessPoints, setAccessPointsToContext]);
   useEffect(() => {
+    if (!shouldLoadStructuredTableData) {
+      setOnDataUpdate(null);
+      return;
+    }
     setOnDataUpdate(async () => { await refreshTable(); });
     return () => setOnDataUpdate(null);
-  }, [refreshTable, setOnDataUpdate]);
+  }, [refreshTable, setOnDataUpdate, shouldLoadStructuredTableData]);
 
   // ───── Tool Sync Helpers ─────
 
@@ -996,14 +1014,12 @@ export default function DataPage({ params }: DataPageProps) {
           href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
         });
       });
-      if (activeNodeId && currentTableData) {
-        segments.push({ label: currentTableData.name });
-      } else if (activeNodeId) {
-        segments.push({ label: <SkeletonBlock width={88} height={10} radius={3} /> });
+      if (activeNodeId) {
+        segments.push({ label: currentTableData?.name ?? activeNodeDisplayName });
       }
     }
     return segments;
-  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, currentTableData, isResolvingPath, path]);
+  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeDisplayName, currentTableData?.name, isResolvingPath, path]);
 
   const configuredAccessPoints = useMemo(() => {
     return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }));
@@ -1485,7 +1501,7 @@ export default function DataPage({ params }: DataPageProps) {
                   }}
                   onCreateTool={(path: string) => {
                     if (!activeNodeId) return;
-                    nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || 'File'}`, 'json', path);
+                    nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || activeNodeDisplayName || 'File'}`, 'json', path);
                   }}
                 />
               </div>
@@ -1566,13 +1582,18 @@ export default function DataPage({ params }: DataPageProps) {
             setIsEditorFullScreen(false);
           }}
           onToggleEditorFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
-          onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
+          onRollbackComplete={() => {
+            if (shouldLoadStructuredTableData) refreshTable();
+            refreshCurrentNodes();
+          }}
           onSyncCreated={handleSyncCreated}
           onAccessPointHover={setHoverHighlightNodeId}
           onScopeMutated={refreshRepoAndAgents}
           onOpenPanel={openPanel}
           onOpenSyncSetting={openSyncSetting}
-          onDataUpdate={async () => { await refreshTable(); }}
+          onDataUpdate={async () => {
+            if (shouldLoadStructuredTableData) await refreshTable();
+          }}
           panelWidth={rightPanelWidth}
           onPanelWidthChange={setRightPanelWidth}
           onAccessPanelNavigationGuardChange={setAccessPanelNavigationGuard}

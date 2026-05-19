@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
-import { useShallowTree } from '@/lib/hooks/useData';
+import { useExplorerRootNodes } from '@/lib/hooks/useData';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import {
   resolveDataTransferSnapshot,
@@ -49,7 +49,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
   className,
   style,
 }: ExplorerSidebarProps) {
-  const { rootNodes, isLoading: loading } = useShallowTree(projectId);
+  const { rootNodes, isLoading: loading } = useExplorerRootNodes(projectId);
   const sidebarFileDragCounterRef = useRef(0);
   const [isExternalFileDraggingInSidebar, setIsExternalFileDraggingInSidebar] = useState(false);
   const [activeFileDropTarget, setActiveFileDropTarget] = useState<FileImportTarget | null>(null);
@@ -75,6 +75,7 @@ export const ExplorerSidebar = memo(function ExplorerSidebar({
     is_synced: node.is_synced,
     sync_source: node.sync_source,
     last_synced_at: node.last_synced_at,
+    integrity_status: node.integrity_status,
   }));
 
   const pendingId = usePendingActiveId();

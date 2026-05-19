@@ -3,7 +3,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { getNodeTypeConfig, getSyncSource, getSyncSourceIcon, isSyncedType, isFolderType } from '@/lib/nodeTypeConfig';
-import { useContentNodes } from '@/lib/hooks/useData';
+import { useExplorerTreeDir } from '@/lib/hooks/useData';
+import { directChildrenOf } from '@/lib/contentTreeApi';
 import { useNodeDrop } from '@/lib/hooks/useNodeDrop';
 import {
   resolveDataTransferSnapshot,
@@ -38,6 +39,39 @@ const EXPLORER_TREE_LINE_HEIGHT =
 const EXPLORER_TREE_HOOK_Y =
   EXPLORER_TREE_LINE_OVERDRAW + EXPLORER_TREE_ROW_HEIGHT / 2;
 const EXPLORER_TREE_META_OFFSET = 14;
+
+function getFolderLoadErrorLabel(error: unknown): string {
+  const detail =
+    typeof error === 'object' && error !== null && 'detail' in error
+      ? (error as { detail?: unknown }).detail
+      : undefined;
+  const detailCode =
+    typeof detail === 'object' && detail !== null && 'code' in detail
+      ? String((detail as { code?: unknown }).code)
+      : undefined;
+  const maybeStatus =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? Number((error as { status?: unknown }).status)
+      : undefined;
+  const message = error instanceof Error ? error.message : '';
+
+  if (detailCode === 'DIRECTORY_NOT_FOUND') return 'Folder not found';
+  if (detailCode === 'VERSION_STORAGE_INTEGRITY_ERROR') return 'Damaged folder';
+  if (maybeStatus === 401 || maybeStatus === 403) return 'No access';
+  if (maybeStatus === 404) return 'Folder not found';
+  if (
+    maybeStatus === 500 ||
+    message.toLowerCase().includes('storage integrity') ||
+    message.toLowerCase().includes('object not found')
+  ) {
+    return 'Damaged folder';
+  }
+  return 'Failed to load folder';
+}
+
+function getFolderLoadErrorTitle(error: unknown): string | undefined {
+  return error instanceof Error && error.message ? error.message : undefined;
+}
 
 function hasExternalFiles(event: ReactDragEvent): boolean {
   return Array.from(event.dataTransfer.types).includes('Files');
@@ -488,6 +522,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
   onFileDragTarget,
 }: ExplorerTreeRowProps) {
   const isFolder = isFolderType(item.type);
+  const isDamagedNode = item.integrity_status === 'damaged';
   const isSynced = item.is_synced;
   const expanded = useIsExpanded(item.id) && isFolder;
   const rowRef = useRef<HTMLDivElement>(null);
@@ -512,7 +547,7 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
     }
   }, [isHighlighted]);
 
-  const { nodes: children, isLoading: loading } = useContentNodes(
+  const { nodes: children, isLoading: loading, error: loadError } = useExplorerTreeDir(
     expanded ? projectId : '',
     expanded ? item.id : undefined,
   );
@@ -575,15 +610,16 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
 
   const childItems: MillerColumnItem[] = useMemo(
     () =>
-      children.map((node) => ({
+      directChildrenOf(children, item.id).map((node) => ({
         id: node.id,
         name: node.name,
         type: node.type as ContentType,
         is_synced: node.is_synced,
         sync_source: node.sync_source,
         last_synced_at: node.last_synced_at,
+        integrity_status: node.integrity_status,
       })),
-    [children],
+    [children, item.id],
   );
 
   const hasActions = !!(onCreate || onCreateSync || onRename || onDelete || onDownload);
@@ -780,6 +816,19 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
             })()}
           </span>
 
+          {isDamagedNode && (
+            <span
+              title="This historical entry points at a missing Git object. You can delete it to repair the tree."
+              style={{
+                ...SIDEBAR_META_TYPOGRAPHY,
+                color: 'var(--po-danger)',
+                flexShrink: 0,
+              }}
+            >
+              Damaged
+            </span>
+          )}
+
           {hasActions && (
             <ExplorerRowActions
               nodeId={item.id}
@@ -840,7 +889,19 @@ export const ExplorerTreeRow = memo(function ExplorerTreeRow({
               }}
             />
           )}
-          {loading && children.length === 0 ? (
+          {loadError ? (
+            <ExplorerTreeMetaRow depth={depth + 1}>
+              <span
+                title={getFolderLoadErrorTitle(loadError)}
+                style={{
+                  ...SIDEBAR_META_TYPOGRAPHY,
+                  color: 'var(--po-danger)',
+                }}
+              >
+                {getFolderLoadErrorLabel(loadError)}
+              </span>
+            </ExplorerTreeMetaRow>
+          ) : loading && children.length === 0 ? (
             <ExplorerTreeMetaRow depth={depth + 1}>
               <Dots size="xs" />
             </ExplorerTreeMetaRow>

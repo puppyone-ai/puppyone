@@ -1694,7 +1694,7 @@ def test_real_git_cli_first_push_to_empty_project_shell(
     assert (verify / "README.md").read_text(encoding="utf-8") == "first project content\n"
 
 
-def test_real_git_cli_stale_force_push_is_server_side_merged(
+def test_real_git_cli_stale_force_push_is_rejected_like_git_hosts(
     monkeypatch, tmp_path, repo_manager, server_repo,
 ):
     server_repo.add_scope("docs-scope", "/docs/")
@@ -1726,18 +1726,19 @@ def test_real_git_cli_stale_force_push_is_server_side_merged(
         _run_git(["add", "b.txt"], second)
         _run_git(["commit", "-m", "second adds b from stale base"], second)
         stale_head = _run_git(["rev-parse", "HEAD"], second).decode("ascii").strip()
-        _run_git(["push", "--force", "origin", "main"], second)
+        proc = _run_git_raw(["push", "--force", "origin", "main"], second)
 
         _run_git(["clone", remote, str(verify)], tmp_path)
 
+    assert proc.returncode != 0
+    assert b"non-fast-forward" in proc.stderr
     assert server_repo.get_scope_head_commit_id("docs") != stale_head
     assert _files_for_scope(server_repo, "docs") == {
         "a.txt": b"from first\n",
-        "b.txt": b"from stale second\n",
     }
     assert (verify / "a.txt").read_text(encoding="utf-8") == "from first\n"
-    assert (verify / "b.txt").read_text(encoding="utf-8") == "from stale second\n"
-    assert _last_audit_event(server_repo, "git_push")["detail"]["merged"] is True
+    assert not (verify / "b.txt").exists()
+    assert _last_audit_event(server_repo, "git_push")["detail"]["merged"] is False
 
 
 def test_real_git_cli_scoped_remotes_do_not_leak_sibling_worktrees(
@@ -1943,7 +1944,7 @@ def test_real_git_cli_root_view_grafts_child_scope_worktrees(
     assert (root / "src" / "app.py").read_text(encoding="utf-8") == "print('graft')\n"
 
 
-def test_real_git_cli_concurrent_same_scope_force_pushes_are_merged(
+def test_real_git_cli_concurrent_same_scope_force_pushes_are_rejected_or_single_winner(
     monkeypatch, tmp_path, repo_manager, server_repo,
 ):
     server_repo.add_scope("docs-scope", "/docs/")
@@ -1978,13 +1979,16 @@ def test_real_git_cli_concurrent_same_scope_force_pushes_are_merged(
         verify = tmp_path / "verify"
         _run_git(["clone", remote, str(verify)], tmp_path)
 
-    assert all(push.returncode == 0 for push in pushes)
+    successful = [index for index, push in enumerate(pushes) if push.returncode == 0]
+    rejected = [push for push in pushes if push.returncode != 0]
+    assert len(successful) == 1
+    assert len(rejected) == 3
+    assert all(b"non-fast-forward" in push.stderr for push in rejected)
+    winner = successful[0]
     assert _files_for_scope(server_repo, "docs") == {
-        f"file-{index}.txt": f"client {index}\n".encode()
-        for index in range(4)
+        f"file-{winner}.txt": f"client {winner}\n".encode()
     }
-    for index in range(4):
-        assert (verify / f"file-{index}.txt").read_text(encoding="utf-8") == f"client {index}\n"
+    assert (verify / f"file-{winner}.txt").read_text(encoding="utf-8") == f"client {winner}\n"
 
 
 def test_real_git_cli_client_merge_commit_is_rejected(
@@ -2135,7 +2139,7 @@ def test_real_git_cli_bound_identity_mismatch_is_rejected_before_clone(
     assert server_repo.get_scope_head_commit_id("docs") == ""
 
 
-def test_real_git_cli_stale_same_file_conflict_requires_manual_review(
+def test_real_git_cli_stale_same_file_force_push_is_non_fast_forward_rejected(
     monkeypatch, tmp_path, repo_manager, server_repo,
 ):
     server_repo.add_scope("docs-scope", "/docs/")
@@ -2179,16 +2183,11 @@ def test_real_git_cli_stale_same_file_conflict_requires_manual_review(
         _run_git(["clone", remote, str(verify)], tmp_path)
 
     assert proc.returncode != 0
-    # V1 outcome format: ng line tagged "puppyone-pending:" plus side-band
-    # stderr "PuppyOne: ..." lines giving the resolver UI hint.
-    assert (
-        b"puppyone-pending" in proc.stderr
-        or b"PuppyOne: this push touched files that need manual review" in proc.stderr
-    )
-    assert b"pending_conflict_id=" in proc.stderr
+    assert b"non-fast-forward" in proc.stderr
     assert (verify / "shared.txt").read_text(encoding="utf-8") == "alice\n"
-    pending_event = _last_audit_event(server_repo, "git_push_conflict_pending")
-    assert pending_event["detail"]["status"] == "pending_manual_review"
+    assert [event["type"] for event in server_repo.audit.events].count(
+        "git_push_conflict_pending"
+    ) == 0
 
 
 def test_real_git_cli_peer_fetch_and_pull_after_push(
@@ -2306,11 +2305,11 @@ def test_git_receive_pack_rejects_non_main_delete_multiple_and_malformed_request
             headers={"content-type": "application/x-git-receive-pack-request"},
         )
 
-    # E4: the allowlist now accepts conventional feature-branch prefixes
-    # (feat/, fix/, feature/, etc.). ``refs/heads/side`` is not on the
-    # list and gets the new structured rejection.
+    # E4: scope remotes only publish their materialized main ref. Feature
+    # branch refs must not pretend to work until they have separate ref
+    # storage and review semantics.
     assert b"puppyone-rejected" in non_main_resp.content
-    assert b"not in the writable allowlist" in non_main_resp.content
+    assert b"only refs/heads/main" in non_main_resp.content
     # E4: delete is still refused; new wording cites the rollback API.
     assert b"puppyone-rejected: delete is not supported" in delete_resp.content
     assert multiple_resp.status_code == 400

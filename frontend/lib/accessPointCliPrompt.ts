@@ -25,7 +25,6 @@ export interface GitSyncPrompt {
   readonly cloneLines: readonly string[];
   readonly existingFolderLines: readonly string[];
   readonly workflowLines: readonly string[];
-  readonly serverMergeLine: string;
   readonly prompt: string;
 }
 
@@ -72,7 +71,6 @@ export function buildGitSyncPrompt({
     'git commit -m "describe changes"',
     'git push origin main',
   ];
-  const serverMergeLine = 'git push --force-with-lease origin main';
   const prompt = [
     'Use this Puppyone Access Point as a Git remote.',
     '',
@@ -97,8 +95,9 @@ export function buildGitSyncPrompt({
     '',
     'Collaboration rules:',
     '- Puppyone is the source of truth for this scope.',
-    '- Do not create local merge commits to resolve conflicts; Puppyone handles merge decisions on the server.',
-    `- If a normal push says the remote has newer work, submit your commit as a server-side merge proposal with \`${serverMergeLine}\`.`,
+    '- Scope Git remotes follow normal Git fast-forward rules.',
+    '- If push says the remote has newer work, run `git fetch origin` and rebase your work onto `origin/main`, then push again.',
+    '- Do not use force push as a server-side merge proposal; Puppyone review/merge flows are explicit product actions.',
     '- If Puppyone says manual review is required, stop and resolve it from Puppyone.',
     '- This remote is scope-bound; commits that touch paths outside the scope are rejected.',
   ].filter((line): line is string => line != null).join('\n');
@@ -107,7 +106,6 @@ export function buildGitSyncPrompt({
     cloneLines,
     existingFolderLines,
     workflowLines,
-    serverMergeLine,
     prompt,
   };
 }

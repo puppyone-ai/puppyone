@@ -239,6 +239,7 @@ def _entry_to_scoped_response(entry, scope: dict) -> dict:
         "size_bytes": entry.size_bytes,
         "mime_type": entry.mime_type,
         "children_count": entry.children_count,
+        "integrity_status": getattr(entry, "integrity_status", "ok"),
         "created_at": getattr(entry, "created_at", None),
         "modified_at": getattr(entry, "modified_at", None),
     }
@@ -1154,6 +1155,7 @@ async def stat(
             "size_bytes": 0,
             "mime_type": "inode/directory",
             "children_count": None,
+            "integrity_status": "ok",
             "head_commit_id": scope_head_commit_id,
             "scope_head_commit_id": scope_head_commit_id,
             "metadata_source": "scope_state",

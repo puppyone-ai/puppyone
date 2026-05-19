@@ -3,6 +3,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from src.version_engine.domain.errors import ObjectNotFoundError
 from src.version_engine.write_engine.object_store import ObjectStore, StorageBackend
 from src.version_engine.write_engine.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
@@ -46,6 +47,36 @@ class _RangeBackend(StorageBackend):
 
     def exists(self, h: str) -> bool:
         return h in self.objects
+
+    def all_hashes(self) -> list[str]:
+        return list(self.objects)
+
+    def count(self) -> tuple[int, int]:
+        return len(self.objects), sum(len(v) for v in self.objects.values())
+
+    def delete(self, h: str) -> bool:
+        return self.objects.pop(h, None) is not None
+
+
+class _BulkExistsBackend(StorageBackend):
+    def __init__(self):
+        self.objects = {}
+        self.exists_calls = []
+        self.exists_many_calls = []
+
+    def get(self, h: str) -> bytes:
+        return self.objects[h]
+
+    def put(self, h: str, data: bytes) -> None:
+        self.objects[h] = data
+
+    def exists(self, h: str) -> bool:
+        self.exists_calls.append(h)
+        return h in self.objects
+
+    def exists_many(self, hashes: list[str]) -> set[str]:
+        self.exists_many_calls.append(list(hashes))
+        return {h for h in hashes if h in self.objects}
 
     def all_hashes(self) -> list[str]:
         return list(self.objects)
@@ -328,6 +359,122 @@ def test_tree_reader_prioritizes_root_readme_before_folders(tmp_path):
 
     entries = reader.list_dir("project-id")
     assert [entry.name for entry in entries] == ["README.md", "docs", "note.md"]
+
+
+def test_tree_reader_lists_parent_when_child_tree_object_is_missing(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    missing_child_hash = "1" * 40
+    file_hash = store.put_blob(b"ok")
+    root_hash = store.put_tree(encode_tree([
+        TreeEntry(name="broken", mode=MODE_DIR, sha1_hex=missing_child_hash),
+        TreeEntry(name="ok.md", mode=MODE_FILE, sha1_hex=file_hash),
+    ]))
+
+    class _History:
+        def get_root_hash(self):
+            return root_hash
+
+    class _Repo:
+        pass
+
+    repo = _Repo()
+    repo.history = _History()
+    repo.store = store
+
+    class _Repos:
+        def get_repo(self, project_id):
+            return repo
+
+    reader = VersionTreeReader(_Repos())
+
+    entries = reader.list_dir("project-id")
+
+    assert [entry.path for entry in entries] == ["broken", "ok.md"]
+    broken = entries[0]
+    assert broken.type == "folder"
+    assert broken.children_count is None
+    assert broken.integrity_status == "damaged"
+
+    with pytest.raises(ObjectNotFoundError):
+        reader.list_dir("project-id", "broken")
+
+
+def test_tree_reader_marks_file_entry_damaged_when_blob_object_is_missing(tmp_path):
+    store = ObjectStore(tmp_path / "objects")
+    missing_blob_hash = "2" * 40
+    root_hash = store.put_tree(encode_tree([
+        TreeEntry(name="missing.md", mode=MODE_FILE, sha1_hex=missing_blob_hash),
+    ]))
+
+    class _History:
+        def get_root_hash(self):
+            return root_hash
+
+    class _Repo:
+        pass
+
+    repo = _Repo()
+    repo.history = _History()
+    repo.store = store
+
+    class _Repos:
+        def get_repo(self, project_id):
+            return repo
+
+    reader = VersionTreeReader(_Repos())
+
+    entry = reader.list_dir("project-id")[0]
+
+    assert entry.path == "missing.md"
+    assert entry.type == "markdown"
+    assert entry.integrity_status == "damaged"
+
+    stat_entry = reader.stat("project-id", "missing.md")
+    assert stat_entry is not None
+    assert stat_entry.integrity_status == "damaged"
+
+    with pytest.raises(ObjectNotFoundError):
+        reader.read_file("project-id", "missing.md")
+
+
+def test_tree_reader_checks_file_integrity_in_bulk_for_directory_listing(tmp_path):
+    backend = _BulkExistsBackend()
+    store = ObjectStore(tmp_path / "objects", backend=backend)
+    first_hash = store.put_blob(b"first")
+    second_hash = store.put_blob(b"second")
+    root_hash = store.put_tree(encode_tree([
+        TreeEntry(name="first.md", mode=MODE_FILE, sha1_hex=first_hash),
+        TreeEntry(name="second.md", mode=MODE_FILE, sha1_hex=second_hash),
+        TreeEntry(name="missing.md", mode=MODE_FILE, sha1_hex="3" * 40),
+    ]))
+
+    class _History:
+        def get_root_hash(self):
+            return root_hash
+
+    class _Repo:
+        pass
+
+    repo = _Repo()
+    repo.history = _History()
+    repo.store = store
+
+    class _Repos:
+        def get_repo(self, project_id):
+            return repo
+
+    reader = VersionTreeReader(_Repos())
+
+    entries = reader.list_dir("project-id")
+
+    assert backend.exists_calls == []
+    assert backend.exists_many_calls == [[first_hash, "3" * 40, second_hash]]
+    status_by_path = {entry.path: entry.integrity_status for entry in entries}
+    assert status_by_path == {
+        "first.md": "ok",
+        "second.md": "ok",
+        "missing.md": "damaged",
+    }
 
 
 def test_tree_reader_ranges_decoded_git_blob_content(tmp_path):

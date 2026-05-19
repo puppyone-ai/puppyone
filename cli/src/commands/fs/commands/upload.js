@@ -3,6 +3,7 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, JSON_METADATA_NOTE, LIMIT_NOTE, MUTATION_AUDIT_NOTE, MUTATION_SILENT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { getCurrentScopeBaseCommit, rawPostBytes } from "../lib/http.js";
 import { isNoClobber } from "../lib/operation-intent.js";
 import { parseNonNegativeOption, parsePositiveOption } from "../lib/options.js";
@@ -17,7 +18,7 @@ function joinRemoteRelative(parent, relativePath) {
 }
 
 export function registerUploadCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("upload")
     .description("Upload local file(s) into the access point scope")
     .argument("<paths...>", "local source path(s) followed by remote destination")
@@ -26,7 +27,21 @@ export function registerUploadCommand(fs) {
     .option("-n, --no-clobber", "do not overwrite an existing remote destination")
     .option("--max-depth <n>", "max local directory depth for recursive uploads")
     .option("--limit <n>", "max files uploaded per recursive source", "5000")
-    .option("-m, --message <msg>", "commit message")
+    .option("-m, --message <msg>", "commit message"), {
+      examples: [
+        "puppyone fs upload ./README.md docs/README.md",
+        "puppyone fs upload -r ./images assets/",
+        "puppyone fs upload -r ./docs docs --max-depth 2 --limit 500",
+        "puppyone --json fs upload ./README.md docs/README.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        MUTATION_SILENT_NOTE,
+        MUTATION_AUDIT_NOTE,
+        JSON_METADATA_NOTE,
+        LIMIT_NOTE,
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const out = createOutput(cmd);
       if (!paths || paths.length < 2) {

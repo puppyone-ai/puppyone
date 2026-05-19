@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import struct
 import threading
 from contextlib import contextmanager
@@ -38,7 +39,7 @@ from src.infra.supabase.client import SupabaseClient
 from src.version_engine.infrastructure.supabase import safe_data
 from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS_TABLE
 from src.version_engine.write_engine.trace import trace_mark, trace_phase
-from src.utils.logger import log_error
+from src.utils.logger import log_error, log_warning
 
 # Single-blob S3 download budget. Used by the sync→async bridge below
 # to bound how long `store.get(blob_hash)` can block. The previous 30s
@@ -54,6 +55,8 @@ _HASH_PREFIX_LEN = 2
 _MAX_LIST_KEYS = 10000
 _BUNDLE_MAGIC = b"POB1"
 _BUNDLE_HEADER_LEN_BYTES = 8
+_CANONICAL_STORAGE_NAMESPACE = "version"
+_DEFERRED_STORAGE_NAMESPACE = "".join(("m", "ut"))
 
 _BRIDGE_LOOP: asyncio.AbstractEventLoop | None = None
 _BRIDGE_LOCK = threading.Lock()
@@ -111,6 +114,61 @@ class ObjectLocation:
     pack_key: str
     offset_bytes: int
     size_bytes: int
+
+
+@dataclass(frozen=True)
+class ObjectStorageLayout:
+    """Physical S3 layout for one project's version objects.
+
+    Runtime writes always use the canonical namespace. Deferred namespaces are
+    read-only cutover bridges for projects created before the final layout.
+    """
+
+    project_id: str
+    primary_namespace: str = _CANONICAL_STORAGE_NAMESPACE
+    deferred_read_namespaces: tuple[str, ...] = ()
+
+    @classmethod
+    def for_project(
+        cls,
+        project_id: str,
+        *,
+        allow_deferred_reads: bool,
+    ) -> "ObjectStorageLayout":
+        return cls(
+            project_id=project_id,
+            deferred_read_namespaces=(
+                (_DEFERRED_STORAGE_NAMESPACE,) if allow_deferred_reads else ()
+            ),
+        )
+
+    @property
+    def object_prefix(self) -> str:
+        return f"{self.primary_namespace}/{self.project_id}/objects"
+
+    @property
+    def bundle_prefix(self) -> str:
+        return f"{self.primary_namespace}/{self.project_id}/object-bundles"
+
+    @property
+    def deferred_object_prefixes(self) -> tuple[str, ...]:
+        return tuple(
+            f"{namespace}/{self.project_id}/objects"
+            for namespace in self.deferred_read_namespaces
+        )
+
+    @property
+    def deferred_bundle_prefixes(self) -> tuple[str, ...]:
+        return tuple(
+            f"{namespace}/{self.project_id}/object-bundles"
+            for namespace in self.deferred_read_namespaces
+        )
+
+    def is_deferred_pack_key(self, key: str) -> bool:
+        return any(
+            key.startswith(f"{prefix}/")
+            for prefix in self.deferred_bundle_prefixes
+        )
 
 
 def _encode_object_bundle(objects: dict[str, bytes]) -> tuple[bytes, list[dict]]:
@@ -247,6 +305,26 @@ class CachedStorageBackend(StorageBackend):
                 return True
         return self._inner.exists(h)
 
+    def exists_many(self, hashes: list[str]) -> set[str]:
+        active_batch = _ACTIVE_WRITE_BATCH.get()
+        existing: set[str] = set()
+        remaining: list[str] = []
+        with _cache_lock:
+            for h in hashes:
+                if (
+                    active_batch is not None
+                    and active_batch.backend is self
+                    and active_batch.has(h)
+                ):
+                    existing.add(h)
+                elif h in self._cache:
+                    existing.add(h)
+                else:
+                    remaining.append(h)
+        if remaining:
+            existing.update(self._inner.exists_many(remaining))
+        return existing
+
     def all_hashes(self) -> list[str]:
         return self._inner.all_hashes()
 
@@ -263,6 +341,15 @@ class CachedStorageBackend(StorageBackend):
         with _cache_lock:
             self._cache.pop(h, None)
         return self._inner.delete(h)
+
+    @contextmanager
+    def stage_object_writes(self):
+        batch = ObjectWriteBatch(self)
+        token = _ACTIVE_WRITE_BATCH.set(batch)
+        try:
+            yield batch
+        finally:
+            _ACTIVE_WRITE_BATCH.reset(token)
 
 
 class ObjectWriteBatch:
@@ -319,12 +406,8 @@ def stage_object_writes(store_or_backend):
         yield None
         return
 
-    batch = ObjectWriteBatch(backend)
-    token = _ACTIVE_WRITE_BATCH.set(batch)
-    try:
+    with backend.stage_object_writes() as batch:
         yield batch
-    finally:
-        _ACTIVE_WRITE_BATCH.reset(token)
 
 
 def _verify_loose_hash(expected_hash: str, data: bytes) -> None:
@@ -352,17 +435,38 @@ class S3StorageBackend(StorageBackend):
         project_id: str,
         *,
         supabase: SupabaseClient | None = None,
+        allow_deferred_namespace_reads: bool | None = None,
+        storage_layout: ObjectStorageLayout | None = None,
     ):
         self._s3 = s3
         self._project_id = project_id
         self._supabase = supabase
-        self._prefix = f"version/{project_id}/objects"
-        self._bundle_prefix = f"version/{project_id}/object-bundles"
+        if storage_layout is not None:
+            self._layout = storage_layout
+        else:
+            self._layout = ObjectStorageLayout.for_project(
+                project_id,
+                allow_deferred_reads=(
+                    _deferred_namespace_reads_enabled()
+                    if allow_deferred_namespace_reads is None
+                    else allow_deferred_namespace_reads
+                ),
+            )
+        self._prefix = self._layout.object_prefix
+        self._bundle_prefix = self._layout.bundle_prefix
         self._location_cache: dict[str, ObjectLocation] = {}
         self._location_lock = threading.Lock()
+        self._deferred_warning_kinds: set[str] = set()
+        self._deferred_warning_lock = threading.Lock()
 
     def _key_for(self, h: str) -> str:
         return f"{self._prefix}/{h[:_HASH_PREFIX_LEN]}/{h[_HASH_PREFIX_LEN:]}"
+
+    def _deferred_keys_for(self, h: str) -> tuple[str, ...]:
+        return tuple(
+            f"{prefix}/{h[:_HASH_PREFIX_LEN]}/{h[_HASH_PREFIX_LEN:]}"
+            for prefix in self._layout.deferred_object_prefixes
+        )
 
     def _bundle_key_for(self, bundle_bytes: bytes) -> str:
         digest = hashlib.sha256(bundle_bytes).hexdigest()
@@ -377,11 +481,11 @@ class S3StorageBackend(StorageBackend):
         try:
             with trace_phase("s3.get", object_id=h[:12]):
                 return _run_async(self._s3.download_file(self._key_for(h)))
-        except ObjectNotFoundError:
-            return self._get_packed_object(h)
+        except ObjectNotFoundError as exc:
+            return self._get_deferred_loose_or_packed(h, cause=exc)
         except Exception as e:
             if _is_not_found_error(e):
-                return self._get_packed_object(h, cause=e)
+                return self._get_deferred_loose_or_packed(h, cause=e)
             raise
 
     def get_range(self, h: str, start: int = 0, limit: int | None = None) -> tuple[bytes, int]:
@@ -398,11 +502,11 @@ class S3StorageBackend(StorageBackend):
                     limit=limit,
                 )
             )
-        except ObjectNotFoundError:
-            data = self._get_packed_object(h)
+        except ObjectNotFoundError as exc:
+            data = self._get_deferred_loose_or_packed(h, cause=exc)
         except Exception as e:
             if _is_not_found_error(e):
-                data = self._get_packed_object(h, cause=e)
+                data = self._get_deferred_loose_or_packed(h, cause=e)
             else:
                 raise
         end = len(data) if limit is None else min(len(data), start + limit)
@@ -422,11 +526,46 @@ class S3StorageBackend(StorageBackend):
         try:
             if _run_async(self._s3.file_exists(self._key_for(h))):
                 return True
+            if self._deferred_loose_exists(h):
+                return True
             return self._lookup_object_location(h) is not None
         except Exception as e:
             if _is_not_found_error(e):
-                return self._lookup_object_location(h) is not None
+                return (
+                    self._deferred_loose_exists(h)
+                    or self._lookup_object_location(h) is not None
+                )
             raise
+
+    def exists_many(self, hashes: list[str]) -> set[str]:
+        unique = list(dict.fromkeys(hashes))
+        existing: set[str] = set()
+        remaining: list[str] = []
+        for h in unique:
+            if self._cached_object_location(h) is not None:
+                existing.add(h)
+            else:
+                remaining.append(h)
+
+        location_lookup_completed = self._supabase is None
+        if self._supabase is not None and remaining:
+            try:
+                with trace_phase("db.object_location.lookup_many", count=len(remaining)):
+                    existing.update(self._lookup_many_object_locations(remaining).keys())
+                location_lookup_completed = True
+            except Exception:
+                pass
+
+        remaining = [h for h in remaining if h not in existing]
+        if remaining:
+            existing.update(_run_async(
+                self.async_exists_many(
+                    remaining,
+                    concurrency=20,
+                    check_packed_locations=not location_lookup_completed,
+                )
+            ))
+        return existing
 
     def all_hashes(self) -> list[str]:
         try:
@@ -498,11 +637,11 @@ class S3StorageBackend(StorageBackend):
         key = self._key_for(h)
         try:
             return await self._s3.download_file(key)
-        except ObjectNotFoundError:
-            return await self._async_get_packed_object(h)
+        except ObjectNotFoundError as exc:
+            return await self._async_get_deferred_loose_or_packed(h, cause=exc)
         except Exception as e:
             if _is_not_found_error(e):
-                return await self._async_get_packed_object(h, cause=e)
+                return await self._async_get_deferred_loose_or_packed(h, cause=e)
             raise
 
     async def async_get_range(
@@ -516,11 +655,11 @@ class S3StorageBackend(StorageBackend):
         key = self._key_for(h)
         try:
             return await self._s3.download_file_range(key, start=start, limit=limit)
-        except ObjectNotFoundError:
-            data = await self._async_get_packed_object(h)
+        except ObjectNotFoundError as exc:
+            data = await self._async_get_deferred_loose_or_packed(h, cause=exc)
         except Exception as e:
             if _is_not_found_error(e):
-                data = await self._async_get_packed_object(h, cause=e)
+                data = await self._async_get_deferred_loose_or_packed(h, cause=e)
             else:
                 raise
         end = len(data) if limit is None else min(len(data), start + limit)
@@ -533,6 +672,8 @@ class S3StorageBackend(StorageBackend):
         if self._lookup_object_location(h) is not None:
             return True
         if await self._s3.file_exists(self._key_for(h)):
+            return True
+        if await self._async_deferred_loose_exists(h):
             return True
         return self._lookup_object_location(h) is not None
 
@@ -592,6 +733,48 @@ class S3StorageBackend(StorageBackend):
             raise ObjectNotFoundError(f"object not found in S3: {h}") from cause
         return self._get_packed_object_at(h, location)
 
+    def _get_deferred_loose_or_packed(
+        self,
+        h: str,
+        *,
+        cause: Exception | None = None,
+    ) -> bytes:
+        loose = self._get_deferred_loose(h)
+        if loose is not None:
+            return loose
+        return self._get_packed_object(h, cause=cause)
+
+    def _get_deferred_loose(self, h: str) -> bytes | None:
+        for key in self._deferred_keys_for(h):
+            try:
+                with trace_phase(
+                    "s3.deferred_loose.get",
+                    object_id=h[:12],
+                ):
+                    data = _run_async(self._s3.download_file(key))
+                _verify_loose_hash(h, data)
+                self._mark_deferred_namespace_read(h, kind="loose")
+                return data
+            except ObjectNotFoundError:
+                continue
+            except Exception as exc:
+                if _is_not_found_error(exc):
+                    continue
+                raise
+        return None
+
+    def _deferred_loose_exists(self, h: str) -> bool:
+        for key in self._deferred_keys_for(h):
+            try:
+                if _run_async(self._s3.file_exists(key)):
+                    self._mark_deferred_namespace_read(h, kind="loose_exists")
+                    return True
+            except Exception as exc:
+                if _is_not_found_error(exc):
+                    continue
+                raise
+        return False
+
     def _get_packed_object_at(self, h: str, location: ObjectLocation) -> bytes:
         try:
             with trace_phase(
@@ -607,6 +790,8 @@ class S3StorageBackend(StorageBackend):
                     )
                 )
             _verify_loose_hash(h, data)
+            if self._layout.is_deferred_pack_key(location.pack_key):
+                self._mark_deferred_namespace_read(h, kind="pack")
             return data
         except Exception as exc:
             if _is_not_found_error(exc):
@@ -625,6 +810,48 @@ class S3StorageBackend(StorageBackend):
             raise ObjectNotFoundError(f"object not found in S3: {h}") from cause
         return await self._async_get_packed_object_at(h, location)
 
+    async def _async_get_deferred_loose_or_packed(
+        self,
+        h: str,
+        *,
+        cause: Exception | None = None,
+    ) -> bytes:
+        loose = await self._async_get_deferred_loose(h)
+        if loose is not None:
+            return loose
+        return await self._async_get_packed_object(h, cause=cause)
+
+    async def _async_get_deferred_loose(self, h: str) -> bytes | None:
+        for key in self._deferred_keys_for(h):
+            try:
+                with trace_phase(
+                    "s3.deferred_loose.get",
+                    object_id=h[:12],
+                ):
+                    data = await self._s3.download_file(key)
+                _verify_loose_hash(h, data)
+                self._mark_deferred_namespace_read(h, kind="loose")
+                return data
+            except ObjectNotFoundError:
+                continue
+            except Exception as exc:
+                if _is_not_found_error(exc):
+                    continue
+                raise
+        return None
+
+    async def _async_deferred_loose_exists(self, h: str) -> bool:
+        for key in self._deferred_keys_for(h):
+            try:
+                if await self._s3.file_exists(key):
+                    self._mark_deferred_namespace_read(h, kind="loose_exists")
+                    return True
+            except Exception as exc:
+                if _is_not_found_error(exc):
+                    continue
+                raise
+        return False
+
     async def _async_get_packed_object_at(
         self,
         h: str,
@@ -642,6 +869,8 @@ class S3StorageBackend(StorageBackend):
                     limit=location.size_bytes,
                 )
             _verify_loose_hash(h, data)
+            if self._layout.is_deferred_pack_key(location.pack_key):
+                self._mark_deferred_namespace_read(h, kind="pack")
             return data
         except Exception as exc:
             if _is_not_found_error(exc):
@@ -651,38 +880,53 @@ class S3StorageBackend(StorageBackend):
             raise
 
     def _lookup_object_location(self, h: str) -> ObjectLocation | None:
+        cached = self._cached_object_location(h)
+        if cached is not None:
+            return cached
+        try:
+            found = self._lookup_many_object_locations([h])
+        except Exception:
+            return None
+        return found.get(h)
+
+    def _cached_object_location(self, h: str) -> ObjectLocation | None:
         with self._location_lock:
             cached = self._location_cache.get(h)
         if cached is not None:
             trace_mark("object.pack.index.hit", object_id=h[:12])
             return cached
+        return None
+
+    def _lookup_many_object_locations(self, hashes: list[str]) -> dict[str, ObjectLocation]:
         if self._supabase is None:
-            return None
-        try:
-            with trace_phase("db.object_location.lookup", object_id=h[:12]):
+            return {}
+
+        found: dict[str, ObjectLocation] = {}
+        for i in range(0, len(hashes), 100):
+            chunk = hashes[i:i + 100]
+            if not chunk:
+                continue
+            with trace_phase("db.object_location.lookup", count=len(chunk)):
                 resp = (
                     self._supabase.client.table(OBJECT_LOCATIONS_TABLE)
-                    .select("pack_key, offset_bytes, size_bytes")
+                    .select("object_id, pack_key, offset_bytes, size_bytes")
                     .eq("project_id", self._project_id)
-                    .eq("object_id", h)
-                    .maybe_single()
+                    .in_("object_id", chunk)
                     .execute()
                 )
-            data = safe_data(resp)
-        except Exception:
-            return None
-        if not data:
-            return None
-        location = ObjectLocation(
-            pack_key=str(data.get("pack_key") or ""),
-            offset_bytes=int(data.get("offset_bytes") or 0),
-            size_bytes=int(data.get("size_bytes") or 0),
-        )
-        if not location.pack_key or location.size_bytes <= 0:
-            return None
+            rows = safe_data(resp) or []
+            for row in rows:
+                object_id = str(row.get("object_id") or "")
+                location = ObjectLocation(
+                    pack_key=str(row.get("pack_key") or ""),
+                    offset_bytes=int(row.get("offset_bytes") or 0),
+                    size_bytes=int(row.get("size_bytes") or 0),
+                )
+                if object_id and location.pack_key and location.size_bytes > 0:
+                    found[object_id] = location
         with self._location_lock:
-            self._location_cache[h] = location
-        return location
+            self._location_cache.update(found)
+        return found
 
     async def _async_put_bundle(self, objects: dict[str, bytes]) -> None:
         bundle, entries = _encode_object_bundle(objects)
@@ -722,7 +966,13 @@ class S3StorageBackend(StorageBackend):
                     size_bytes=int(row["size_bytes"]),
                 )
 
-    async def async_exists_many(self, hashes: list[str], concurrency: int = 20) -> set[str]:
+    async def async_exists_many(
+        self,
+        hashes: list[str],
+        concurrency: int = 20,
+        *,
+        check_packed_locations: bool = True,
+    ) -> set[str]:
         """Check existence of multiple objects in parallel. Returns set of existing hashes."""
         import asyncio
         sem = asyncio.Semaphore(concurrency)
@@ -730,7 +980,14 @@ class S3StorageBackend(StorageBackend):
 
         async def _check(h: str):
             async with sem:
-                if await self.async_exists(h):
+                if check_packed_locations:
+                    exists = await self.async_exists(h)
+                else:
+                    exists = (
+                        await self._s3.file_exists(self._key_for(h))
+                        or await self._async_deferred_loose_exists(h)
+                    )
+                if exists:
                     existing.add(h)
 
         await asyncio.gather(*[_check(h) for h in hashes], return_exceptions=True)
@@ -740,8 +997,29 @@ class S3StorageBackend(StorageBackend):
         if not await self._s3.file_exists(key):
             await self._s3.upload_file(key, data, content_type="application/octet-stream")
 
+    def _mark_deferred_namespace_read(self, h: str, *, kind: str) -> None:
+        trace_mark(
+            "s3.deferred_namespace.read",
+            object_id=h[:12],
+            kind=kind,
+        )
+        with self._deferred_warning_lock:
+            if kind in self._deferred_warning_kinds:
+                return
+            self._deferred_warning_kinds.add(kind)
+        log_warning(
+            "[VersionS3] Deferred object namespace read enabled: "
+            f"project_id={self._project_id} first_object_id={h[:12]} kind={kind}. "
+            "Run the version object namespace backfill and disable deferred reads.",
+        )
+
 
 def _is_not_found_error(exc: Exception) -> bool:
     """Detect S3 'object not found' errors across exception wrapper types."""
     msg = str(exc).lower()
     return any(s in msg for s in ("not found", "nosuchkey", "404", "does not exist"))
+
+
+def _deferred_namespace_reads_enabled() -> bool:
+    raw = os.getenv("VERSION_OBJECT_DEFERRED_NAMESPACE_READS", "true").strip().lower()
+    return raw not in {"0", "false", "no", "off"}

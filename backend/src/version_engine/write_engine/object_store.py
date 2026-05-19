@@ -6,10 +6,14 @@ import abc
 import asyncio
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 from src.version_engine.domain.errors import ObjectNotFoundError
 from src.version_engine.write_engine.git_object_format import (
+    EMPTY_TREE_CONTENT,
+    EMPTY_TREE_LOOSE_BYTES,
+    EMPTY_TREE_SHA1,
     decode_object,
     encode_object,
     hash_object,
@@ -27,6 +31,9 @@ class StorageBackend(abc.ABC):
 
     @abc.abstractmethod
     def exists(self, h: str) -> bool: ...
+
+    def exists_many(self, hashes: list[str]) -> set[str]:
+        return {h for h in hashes if self.exists(h)}
 
     @abc.abstractmethod
     def all_hashes(self) -> list[str]: ...
@@ -113,6 +120,8 @@ class ObjectStore:
 
     def _put_typed(self, obj_type: str, content: bytes) -> str:
         sha1, loose = encode_object(obj_type, content)
+        if sha1 == EMPTY_TREE_SHA1:
+            return sha1
         self._backend.put(sha1, loose)
         return sha1
 
@@ -126,6 +135,8 @@ class ObjectStore:
         return self._put_typed("commit", content)
 
     def get_object(self, sha1: str) -> tuple[str, bytes]:
+        if sha1 == EMPTY_TREE_SHA1:
+            return "tree", EMPTY_TREE_CONTENT
         loose = self._backend.get(sha1)
         try:
             obj_type, content = decode_object(loose)
@@ -137,9 +148,13 @@ class ObjectStore:
         return obj_type, content
 
     def put_loose(self, sha1: str, loose_bytes: bytes) -> None:
+        if sha1 == EMPTY_TREE_SHA1:
+            return
         self._backend.put(sha1, loose_bytes)
 
     def get_loose(self, sha1: str) -> bytes:
+        if sha1 == EMPTY_TREE_SHA1:
+            return EMPTY_TREE_LOOSE_BYTES
         return self._backend.get(sha1)
 
     def put(self, data: bytes) -> str:
@@ -150,7 +165,16 @@ class ObjectStore:
         return content
 
     def exists(self, h: str) -> bool:
+        if h == EMPTY_TREE_SHA1:
+            return True
         return self._backend.exists(h)
+
+    def exists_many(self, hashes: list[str]) -> set[str]:
+        existing = {h for h in hashes if h == EMPTY_TREE_SHA1}
+        rest = [h for h in hashes if h != EMPTY_TREE_SHA1]
+        if rest:
+            existing.update(self._backend.exists_many(rest))
+        return existing
 
     def all_hashes(self) -> list[str]:
         return self._backend.all_hashes()
@@ -185,3 +209,23 @@ class ObjectStore:
 
     async def async_get_loose(self, h: str) -> bytes:
         return await asyncio.to_thread(self.get_loose, h)
+
+
+@contextmanager
+def stage_object_writes(store_or_backend):
+    """Stage immutable object writes when the backend supports batching.
+
+    This is intentionally defined at the object-store boundary so callers such
+    as the Write Engine and Git transport do not depend on a concrete S3
+    implementation. Backends that can batch expose ``stage_object_writes()``;
+    simpler filesystem/test backends naturally fall through to immediate
+    writes.
+    """
+
+    backend = getattr(store_or_backend, "_backend", store_or_backend)
+    starter = getattr(backend, "stage_object_writes", None)
+    if not callable(starter):
+        yield None
+        return
+    with starter() as batch:
+        yield batch

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import re
 
-from src.version_engine.write_engine.git_object_format import decode_commit
+from src.version_engine.write_engine.git_object_format import (
+    EMPTY_TREE_SHA1,
+    decode_commit,
+)
 from src.version_engine.write_engine.git_commit import build_git_commit, commit_tree_id
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.write_engine.tree_objects import (
@@ -13,7 +16,6 @@ from src.version_engine.write_engine.tree_objects import (
     is_path_excluded,
 )
 
-EMPTY_TREE_ID = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 
 
@@ -68,7 +70,7 @@ def git_view_head_commit(
     project_head = repo.get_head_commit_id() if hasattr(repo, "get_head_commit_id") else ""
     candidate = root_scope_head or project_head
     if root_hash:
-        if not candidate and root_hash == EMPTY_TREE_ID:
+        if not candidate and root_hash == EMPTY_TREE_SHA1:
             return ""
         if candidate:
             try:

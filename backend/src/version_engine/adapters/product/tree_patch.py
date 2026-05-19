@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from src.version_engine.domain.errors import ObjectNotFoundError
 from src.version_engine.write_engine import tree as tree_mod
 from src.version_engine.write_engine.object_store import ObjectStore
 
@@ -187,7 +188,14 @@ def _collect_affected_paths(
     typ, h = entry
     if typ == "B":
         return [base_path] if base_path else []
-    flat = tree_mod.tree_to_flat(store, h)
+    try:
+        flat = tree_mod.tree_to_flat(store, h)
+    except ObjectNotFoundError:
+        # A legacy/corrupt folder can still be unlinked safely from its parent
+        # tree. Do not make delete depend on reading the missing subtree; record
+        # the folder path itself as the versioned change so users can repair
+        # historical bad pointers through an ordinary delete commit.
+        return [base_path] if base_path else []
     if not flat:
         return [f"{base_path}/.keep"] if base_path else [".keep"]
     return [

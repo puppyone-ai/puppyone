@@ -164,11 +164,22 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
 
         def push_git(actor: str, repo_dir):
             def run():
-                proc = _run_git_raw(["push", "--force", "origin", "main"], repo_dir)
-                if proc.returncode != 0:
-                    raise AssertionError(
+                proc = None
+                for _attempt in range(4):
+                    proc = _run_git_raw(["push", "origin", "main"], repo_dir)
+                    if proc.returncode == 0:
+                        break
+                    stderr = proc.stderr.decode("utf-8", errors="replace")
+                    if "non-fast-forward" not in stderr:
+                        raise AssertionError(stderr)
+                    _run_git(["fetch", "origin"], repo_dir)
+                    _run_git(["rebase", "origin/main"], repo_dir)
+                if proc is None or proc.returncode != 0:
+                    stderr = (
                         proc.stderr.decode("utf-8", errors="replace")
+                        if proc is not None else "push did not run"
                     )
+                    raise AssertionError(stderr)
                 return {
                     "stderr": proc.stderr.decode("utf-8", errors="replace"),
                     "head": _run_git(["rev-parse", "HEAD"], repo_dir)

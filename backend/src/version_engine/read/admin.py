@@ -21,7 +21,7 @@ import json
 from src.version_engine.write_engine.diff import diff_trees
 from src.version_engine.write_engine.object_store import ObjectStore
 from src.version_engine.write_engine.tree import read_tree
-from src.version_engine.write_engine.git_object_format import encode_object, encode_tree
+from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1
 
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 from src.utils.logger import log_info, log_warning
@@ -53,29 +53,21 @@ class VersionAdminService:
         """
         repo = self._repos.get_repo(project_id)
         existing = repo.history.get_root_hash()
-        backend = repo.store._backend
 
-        if existing and hasattr(backend, 'async_exists'):
-            if await backend.async_exists(existing):
+        if existing:
+            if existing == EMPTY_TREE_SHA1:
                 return existing
-            log_warning(f"[VersionAdmin] root_hash {existing} set in PG but missing in S3, re-uploading")
+            backend = repo.store._backend
+            if hasattr(backend, "async_exists") and await backend.async_exists(existing):
+                return existing
+            log_warning(
+                f"[VersionAdmin] root_hash {existing} set in PG but missing in S3, re-initializing"
+            )
 
-        # Empty git tree object: framed as ``tree 0\x00`` and then
-        # zlib-compressed for storage. ``encode_object`` returns both
-        # the SHA-1 hex (the canonical hash an empty tree gets in any
-        # git tool — ``4b825dc642cb6eb9a060e54bf8d69288fbee4904``) and
-        # the loose bytes that go on disk.
-        root_hash, loose_bytes = encode_object("tree", encode_tree([]))
-
-        if hasattr(backend, "async_put"):
-            await backend.async_put(root_hash, loose_bytes)
-        else:
-            await asyncio.to_thread(backend.put, root_hash, loose_bytes)
-
-        repo.history.set_root_hash(root_hash)
+        repo.history.set_root_hash(EMPTY_TREE_SHA1)
 
         log_info(f"[VersionAdmin] Initialized empty tree for project {project_id}")
-        return root_hash
+        return EMPTY_TREE_SHA1
 
     # ================================================================
     # Commit history queries (hash-identity)

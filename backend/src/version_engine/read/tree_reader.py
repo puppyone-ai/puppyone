@@ -11,6 +11,7 @@ import os
 from dataclasses import dataclass
 
 from src.version_engine.write_engine import tree as tree_mod
+from src.version_engine.domain.errors import ObjectNotFoundError, PathNotFoundError
 from src.version_engine.write_engine.object_store import ObjectStore
 
 from src.infra.file_formats import detect_mime, detect_node_type
@@ -44,6 +45,7 @@ class VersionEntry:
     size_bytes: int | None = None
     mime_type: str | None = None
     children_count: int | None = None
+    integrity_status: str = "ok"
     created_at: str | None = None
     modified_at: str | None = None
 
@@ -104,15 +106,22 @@ class VersionTreeReader:
 
         try:
             entries = _read_tree(repo.store, tree_hash)
+        except ObjectNotFoundError as exc:
+            if _is_missing_object_error(exc):
+                raise
+            log_error(f"[VersionTreeReader] Invalid scope tree at {path}: {exc}")
+            return []
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to read scope tree at {path}: {e}")
             return []
 
+        integrity_by_hash = self._blob_integrity_statuses(repo.store, entries)
         display_path = _join_scope_path(scope_path, rel_path)
         result = [
             self._build_entry(
                 repo.store, name, typ, hash_val, display_path,
                 include_size=include_size,
+                integrity_by_hash=integrity_by_hash,
             )
             for name, (typ, hash_val) in entries.items()
             if name != ".keep"
@@ -215,6 +224,10 @@ class VersionTreeReader:
 
         try:
             entries = _read_tree(repo.store, parent_hash)
+        except ObjectNotFoundError as exc:
+            if _is_missing_object_error(exc):
+                raise
+            return None
         except Exception:
             return None
         if name not in entries:
@@ -223,12 +236,16 @@ class VersionTreeReader:
         typ, hash_val = entries[name]
         display_path = _join_scope_path(scope_norm, rel_path)
         if typ == "T":
+            child_count, integrity_status = self._count_children_with_integrity(
+                repo.store, hash_val,
+            )
             return VersionEntry(
                 name=name,
                 path=display_path,
                 type="folder",
                 size_bytes=0 if include_size else None,
-                children_count=self._count_children(repo.store, hash_val),
+                children_count=child_count,
+                integrity_status=integrity_status,
             )
         return VersionEntry(
             name=name,
@@ -237,6 +254,7 @@ class VersionTreeReader:
             content_hash=hash_val,
             size_bytes=self._blob_size(repo.store, hash_val) if include_size else None,
             mime_type=detect_mime(name),
+            integrity_status=self._object_integrity_status(repo.store, hash_val),
         )
 
     def list_tree_in_scope(
@@ -301,18 +319,25 @@ class VersionTreeReader:
         if path:
             tree_hash = self._navigate_to_subtree(repo.store, root_hash, path)
             if not tree_hash:
-                return []
+                raise PathNotFoundError(f"directory not found: {path}")
 
         try:
             entries = _read_tree(repo.store, tree_hash)
+        except ObjectNotFoundError as exc:
+            if _is_missing_object_error(exc):
+                raise
+            log_error(f"[VersionTreeReader] Invalid tree at {path}: {exc}")
+            return []
         except Exception as e:
             log_error(f"[VersionTreeReader] Failed to read tree at {path}: {e}")
             return []
 
+        integrity_by_hash = self._blob_integrity_statuses(repo.store, entries)
         result = [
             self._build_entry(
                 repo.store, name, typ, hash_val, path,
                 include_size=include_size,
+                integrity_by_hash=integrity_by_hash,
             )
             for name, (typ, hash_val) in entries.items()
             if name != ".keep"
@@ -329,19 +354,28 @@ class VersionTreeReader:
         parent_path: str,
         *,
         include_size: bool = False,
+        integrity_by_hash: dict[str, str] | None = None,
     ) -> VersionEntry:
         entry_path = f"{parent_path}/{name}" if parent_path else name
         if typ == "T":
+            child_count, integrity_status = self._count_children_with_integrity(
+                store, hash_val,
+            )
             return VersionEntry(
                 name=name, path=entry_path, type="folder",
                 size_bytes=0 if include_size else None,
-                children_count=self._count_children(store, hash_val),
+                children_count=child_count,
+                integrity_status=integrity_status,
             )
         return VersionEntry(
             name=name, path=entry_path, type=detect_type(name),
             content_hash=hash_val,
             size_bytes=self._blob_size(store, hash_val) if include_size else None,
             mime_type=detect_mime(name),
+            integrity_status=(
+                (integrity_by_hash or {}).get(hash_val)
+                or self._object_integrity_status(store, hash_val)
+            ),
         )
 
     def read_file(self, project_id: str, path: str) -> bytes:
@@ -435,6 +469,10 @@ class VersionTreeReader:
 
         try:
             entries = _read_tree(repo.store, parent_hash)
+        except ObjectNotFoundError as exc:
+            if _is_missing_object_error(exc):
+                raise
+            return None
         except Exception:
             return None
 
@@ -444,13 +482,16 @@ class VersionTreeReader:
         typ, hash_val = entries[name]
 
         if typ == "T":
-            child_count = self._count_children(repo.store, hash_val)
+            child_count, integrity_status = self._count_children_with_integrity(
+                repo.store, hash_val,
+            )
             return VersionEntry(
                 name=name,
                 path=path,
                 type="folder",
                 size_bytes=0 if include_size else None,
                 children_count=child_count,
+                integrity_status=integrity_status,
             )
 
         return VersionEntry(
@@ -460,6 +501,7 @@ class VersionTreeReader:
             content_hash=hash_val,
             size_bytes=self._blob_size(repo.store, hash_val) if include_size else None,
             mime_type=detect_mime(name),
+            integrity_status=self._object_integrity_status(repo.store, hash_val),
         )
 
     def list_tree(
@@ -490,7 +532,7 @@ class VersionTreeReader:
         if path:
             tree_hash = self._navigate_to_subtree(repo.store, root_hash, path)
             if not tree_hash:
-                return []
+                raise PathNotFoundError(f"directory not found: {path}")
 
         result: list[VersionEntry] = []
         self._walk_tree(
@@ -535,6 +577,10 @@ class VersionTreeReader:
         for part in parts:
             try:
                 entries = _read_tree(store, current)
+            except ObjectNotFoundError as exc:
+                if _is_missing_object_error(exc):
+                    raise
+                return None
             except Exception:
                 return None
             if part not in entries:
@@ -572,15 +618,65 @@ class VersionTreeReader:
             if typ == "T":
                 return None
             return h
+        except ObjectNotFoundError as exc:
+            if _is_missing_object_error(exc):
+                raise
+            return None
         except Exception:
             return None
 
-    def _count_children(self, store: ObjectStore, tree_hash: str) -> int:
+    def _count_children(self, store: ObjectStore, tree_hash: str) -> int | None:
+        count, _integrity_status = self._count_children_with_integrity(
+            store, tree_hash,
+        )
+        return count
+
+    def _count_children_with_integrity(
+        self,
+        store: ObjectStore,
+        tree_hash: str,
+    ) -> tuple[int | None, str]:
         try:
             entries = _read_tree(store, tree_hash)
-            return sum(1 for name in entries if name != ".keep")
+            return sum(1 for name in entries if name != ".keep"), "ok"
+        except ObjectNotFoundError as exc:
+            # `ls parent/` should only require the parent tree itself. Git can
+            # list an entry whose child tree is missing/corrupt; the integrity
+            # error belongs to `ls parent/child/`, not to the parent listing.
+            # Return an unknown count here so the UI can still show sibling
+            # files and fail loudly only when the broken child is expanded.
+            if _is_missing_object_error(exc):
+                return None, "damaged"
+            return None, "unknown"
         except Exception:
-            return 0
+            return None, "unknown"
+
+    def _object_integrity_status(self, store: ObjectStore, object_hash: str) -> str:
+        try:
+            return "ok" if store.exists(object_hash) else "damaged"
+        except Exception:
+            return "unknown"
+
+    def _blob_integrity_statuses(
+        self,
+        store: ObjectStore,
+        entries: dict,
+    ) -> dict[str, str]:
+        blob_hashes = [
+            hash_val
+            for typ, hash_val in entries.values()
+            if typ == "B"
+        ]
+        if not blob_hashes:
+            return {}
+        try:
+            existing = store.exists_many(blob_hashes)
+        except Exception:
+            return {hash_val: "unknown" for hash_val in blob_hashes}
+        return {
+            hash_val: "ok" if hash_val in existing else "damaged"
+            for hash_val in blob_hashes
+        }
 
     def _blob_size(self, store: ObjectStore, blob_hash: str) -> int:
         try:
@@ -607,6 +703,10 @@ class VersionTreeReader:
 
         try:
             entries = _read_tree(store, tree_hash)
+        except ObjectNotFoundError as exc:
+            if _is_missing_object_error(exc):
+                raise
+            return
         except Exception:
             return
 
@@ -619,19 +719,23 @@ class VersionTreeReader:
             entry_path = f"{prefix}/{name}" if prefix else name
 
             if typ == "T":
-                child_count = self._count_children(store, hash_val)
+                child_count, integrity_status = self._count_children_with_integrity(
+                    store, hash_val,
+                )
                 result.append(VersionEntry(
                     name=name,
                     path=entry_path,
                     type="folder",
                     size_bytes=0 if include_size else None,
                     children_count=child_count,
+                    integrity_status=integrity_status,
                 ))
-                self._walk_tree(
-                    store, hash_val, entry_path, result, depth + 1, max_depth,
-                    include_size=include_size,
-                    max_entries=max_entries,
-                )
+                if integrity_status == "ok":
+                    self._walk_tree(
+                        store, hash_val, entry_path, result, depth + 1, max_depth,
+                        include_size=include_size,
+                        max_entries=max_entries,
+                    )
             else:
                 result.append(VersionEntry(
                     name=name,
@@ -640,6 +744,7 @@ class VersionTreeReader:
                     content_hash=hash_val,
                     size_bytes=self._blob_size(store, hash_val) if include_size else None,
                     mime_type=detect_mime(name),
+                    integrity_status=self._object_integrity_status(store, hash_val),
                 ))
 
 
@@ -663,3 +768,7 @@ def _read_tree(store: ObjectStore, tree_hash: str) -> dict:
 def _read_blob(store: ObjectStore, blob_hash: str) -> bytes:
     """Read decoded bytes from a canonical Git blob object."""
     return store.get(blob_hash)
+
+
+def _is_missing_object_error(exc: ObjectNotFoundError) -> bool:
+    return "not found" in str(exc).lower()

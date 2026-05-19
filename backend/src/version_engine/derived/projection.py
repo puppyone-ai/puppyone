@@ -15,6 +15,7 @@ from src.version_engine.write_engine.git_object_format import (
     decode_tree,
     encode_tree,
 )
+from src.version_engine.write_engine.git_commit import is_git_object_id
 from src.utils.logger import log_error, log_info, log_warning
 
 
@@ -33,9 +34,16 @@ def build_root_from_scope_state(
     data loss from partial object-store reads during concurrent scope pushes.
     """
 
-    scopes = repo.get_all_scope_hashes()
+    scopes = _valid_scope_tree_hashes(repo, repo.get_all_scope_hashes())
     if just_pushed_hash:
-        scopes[just_pushed_scope] = just_pushed_hash
+        pushed_tree = _usable_tree_hash(repo.store, just_pushed_hash, just_pushed_scope)
+        if pushed_tree:
+            scopes[just_pushed_scope] = pushed_tree
+        else:
+            log_warning(
+                f"[root-projection] skipping just-pushed damaged scope "
+                f"{just_pushed_scope!r}: tree={just_pushed_hash!r}",
+            )
 
     root_scope_hash = scopes.get("", "")
     if root_scope_hash:
@@ -50,9 +58,51 @@ def build_root_from_scope_state(
     )
 
     for scope_path, scope_hash in other_scopes:
-        current_root = graft_subtree(repo.store, current_root, scope_path, scope_hash)
+        try:
+            current_root = graft_subtree(repo.store, current_root, scope_path, scope_hash)
+        except Exception as exc:
+            log_warning(
+                f"[root-projection] skipping damaged scope {scope_path!r} "
+                f"during root rebuild: {exc}",
+            )
+            continue
 
     return current_root
+
+
+def _valid_scope_tree_hashes(repo, scope_hashes: dict[str, str]) -> dict[str, str]:
+    valid: dict[str, str] = {}
+    for scope_path, scope_hash in scope_hashes.items():
+        tree_hash = _usable_tree_hash(repo.store, scope_hash, scope_path)
+        if tree_hash:
+            valid[scope_path] = tree_hash
+    return valid
+
+
+def _usable_tree_hash(store, tree_hash: str, scope_path: str) -> str:
+    if not tree_hash:
+        return ""
+    if not is_git_object_id(tree_hash):
+        log_warning(
+            f"[root-projection] ignoring damaged scope {scope_path!r}: "
+            f"tree id must be 40 hex characters, got {len(tree_hash)}",
+        )
+        return ""
+    try:
+        object_type, _body = store.get_object(tree_hash)
+    except Exception as exc:
+        log_warning(
+            f"[root-projection] ignoring damaged scope {scope_path!r}: "
+            f"tree object {tree_hash[:12]} is unreadable ({exc})",
+        )
+        return ""
+    if object_type != "tree":
+        log_warning(
+            f"[root-projection] ignoring damaged scope {scope_path!r}: "
+            f"object {tree_hash[:12]} is a {object_type}, expected tree",
+        )
+        return ""
+    return tree_hash
 
 
 def graft_subtree(store, old_root_hash: str, scope_path: str, new_subtree_hash: str) -> str:

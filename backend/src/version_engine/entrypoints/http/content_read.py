@@ -13,6 +13,7 @@ from zipstream import ZipStream
 
 from src.common_schemas import ApiResponse
 from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.version_engine.domain.errors import ObjectNotFoundError, PathNotFoundError
 from src.version_engine.entrypoints.http.content_helpers import ensure_project_access, entry_to_response
 from src.version_engine.entrypoints.http.download_token import (
     DEFAULT_TTL_SECONDS,
@@ -36,6 +37,33 @@ from src.platform.project.service import ProjectService
 read_router = APIRouter()
 
 
+def _raise_storage_integrity_error(path: str, exc: ObjectNotFoundError) -> None:
+    target = path or "project root"
+    raise HTTPException(
+        status_code=500,
+        detail={
+            "code": "VERSION_STORAGE_INTEGRITY_ERROR",
+            "message": (
+                "Version storage integrity error while reading "
+                f"{target}. Run the version object namespace migration/repair."
+            ),
+            "path": path,
+        },
+    ) from exc
+
+
+def _raise_directory_not_found(path: str, exc: PathNotFoundError) -> None:
+    target = path or "project root"
+    raise HTTPException(
+        status_code=404,
+        detail={
+            "code": "DIRECTORY_NOT_FOUND",
+            "message": f"Directory not found: {target}",
+            "path": path,
+        },
+    ) from exc
+
+
 @read_router.get(
     "/{project_id}/ls",
     response_model=ApiResponse[ListDirResponse],
@@ -51,7 +79,12 @@ def list_dir(
     ensure_project_access(project_service, current_user, project_id)
     clean_path = validate_path(path)
 
-    entries = ops.list_dir(project_id, clean_path)
+    try:
+        entries = ops.list_dir(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
+    except PathNotFoundError as exc:
+        _raise_directory_not_found(clean_path, exc)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=ListDirResponse(
@@ -78,6 +111,8 @@ def read_file(
 
     try:
         content = ops.read_file(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
@@ -123,10 +158,15 @@ def raw_file(
 
     try:
         content = ops.read_file(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
-    entry = ops.stat(project_id, clean_path)
+    try:
+        entry = ops.stat(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     from src.version_engine.read.tree_reader import detect_mime
     mime = detect_mime(clean_path) if entry else "application/octet-stream"
 
@@ -383,12 +423,17 @@ def inline_file(
     if claims.project_id != project_id or claims.path != clean_path:
         raise HTTPException(status_code=403, detail="token does not match request")
 
-    entry = ops.stat(project_id, clean_path)
+    try:
+        entry = ops.stat(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     if not entry or entry.type == "folder":
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
     try:
         content = ops.read_file(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
@@ -441,7 +486,10 @@ def download(
     if claims.project_id != project_id or claims.path != clean_path:
         raise HTTPException(status_code=403, detail="token does not match request")
 
-    entry = ops.stat(project_id, clean_path)
+    try:
+        entry = ops.stat(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     if not entry:
         raise HTTPException(status_code=404, detail=f"Path not found: {clean_path}")
 
@@ -454,7 +502,12 @@ def download(
         # would mean the request handler returns before list_tree runs,
         # which complicates error reporting (the headers are already on
         # the wire by then).
-        entries = ops.list_tree(project_id, clean_path, max_depth=-1)
+        try:
+            entries = ops.list_tree(project_id, clean_path, max_depth=-1)
+        except ObjectNotFoundError as exc:
+            _raise_storage_integrity_error(clean_path, exc)
+        except PathNotFoundError as exc:
+            _raise_directory_not_found(clean_path, exc)
 
         def chunks():
             # zipstream-ng's add()/mkdir() *queue* entries; all_files()
@@ -482,6 +535,12 @@ def download(
 
                 try:
                     content = ops.read_file(project_id, e.path)
+                except ObjectNotFoundError:
+                    # The pre-flight list_tree should have caught broken
+                    # tree references. If a blob disappears between list and
+                    # stream, fail that entry instead of silently corrupting
+                    # the zip with partial content.
+                    raise
                 except FileNotFoundError:
                     continue
                 zs.add(data=content, arcname=arcname)
@@ -506,6 +565,8 @@ def download(
     # browser triggers a save dialog instead of trying to render it.
     try:
         content = ops.read_file(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail=f"File not found: {clean_path}")
 
@@ -545,7 +606,10 @@ def stat(
     head_commit_id = ops.get_head_commit_id(project_id)
     scope_head_commit_id = ops.get_scope_head_commit_id_for_path(project_id, clean_path)
 
-    entry = ops.stat(project_id, clean_path)
+    try:
+        entry = ops.stat(project_id, clean_path)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
     if not entry:
         return ApiResponse.success(data=StatResponse(
             path=clean_path,
@@ -564,6 +628,7 @@ def stat(
         size_bytes=entry.size_bytes,
         mime_type=entry.mime_type,
         children_count=entry.children_count,
+        integrity_status=entry.integrity_status,
         exists=True,
         head_commit_id=head_commit_id,
         scope_head_commit_id=scope_head_commit_id,
@@ -586,7 +651,12 @@ def full_tree(
     ensure_project_access(project_service, current_user, project_id)
     clean_path = validate_path(path)
 
-    entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
+    try:
+        entries = ops.list_tree(project_id, clean_path, max_depth=max_depth)
+    except ObjectNotFoundError as exc:
+        _raise_storage_integrity_error(clean_path, exc)
+    except PathNotFoundError as exc:
+        _raise_directory_not_found(clean_path, exc)
     head_commit_id = ops.get_head_commit_id(project_id)
 
     return ApiResponse.success(data=TreeResponse(

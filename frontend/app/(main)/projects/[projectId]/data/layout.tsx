@@ -53,7 +53,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   // ``changed_files`` is scope-relative; we lift each path back to
   // project-root, take its parent folder, dedupe, and revalidate only
   // those folders' SWR caches via the existing ``refreshFolderNodes``
-  // helper (which also revalidates ``__shallow_1`` for the sidebar).
+  // helper (which also refreshes the sidebar's isolated explorer cache).
   const onCommitUpdate = useCallback((event: { scope: string; changed_files: string[] }) => {
     const folders = new Set<string>();
     for (const rel of event.changed_files || []) {

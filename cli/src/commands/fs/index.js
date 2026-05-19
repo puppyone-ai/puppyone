@@ -16,16 +16,40 @@ import { registerTouchCommand } from "./commands/touch.js";
 import { registerTreeCommand } from "./commands/tree.js";
 import { registerUploadCommand } from "./commands/upload.js";
 import { registerWriteCommand } from "./commands/write.js";
+import {
+  addFsHelp,
+  JSON_METADATA_NOTE,
+  MUTATION_AUDIT_NOTE,
+  MUTATION_SILENT_NOTE,
+  READ_STDOUT_NOTE,
+  SCOPE_NOTE,
+} from "./lib/help.js";
 
 export function registerFs(program) {
-  const fs = program
+  const fs = addFsHelp(program
     .command("fs")
     .description("Filesystem operations against the active Access Point")
     .option("--access-key <key>", "Access Point key override")
     .option("-u, --api-url <url>", "PuppyOne API URL override")
     .option("--profile <name>", "Access Point profile override")
     .option("--actor <user>", "Acting user identity for user-bound access keys")
-    .addHelpText("after", "\nPuppyOne FS is Unix-like, scoped, and audit-backed. Run `puppyone fs semantics` for agent-facing differences and resource limits.");
+    .addHelpText("after", "\nPuppyOne FS is Unix-like, scoped, and audit-backed. Run `puppyone fs semantics` for agent-facing differences and resource limits."), {
+      examples: [
+        "puppyone fs semantics",
+        "puppyone fs ls -la",
+        "puppyone fs tree -L 2",
+        "puppyone fs cat notes/readme.md",
+        "printf 'hello\\n' | puppyone fs write notes/hello.md --type markdown",
+        "puppyone --json fs stat notes/hello.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        MUTATION_SILENT_NOTE,
+        MUTATION_AUDIT_NOTE,
+        JSON_METADATA_NOTE,
+      ],
+    });
 
   registerFsCommands(fs);
 }

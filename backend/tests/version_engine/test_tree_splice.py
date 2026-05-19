@@ -191,6 +191,38 @@ class TestRemove:
         deleted = {c[1] for c in changes if c[0] == "delete"}
         assert deleted == {"docs/intro.md", "docs/api.md"}
 
+    def test_remove_broken_folder_entry_does_not_read_missing_subtree(
+        self,
+        store,
+        empty_root,
+    ):
+        missing_tree_hash = "1" * 40
+        r1 = tree_mod.write_tree(store, {
+            "broken": ["T", missing_tree_hash],
+            "ok.md": ["B", tree_mod.write_blob(store, b"ok")],
+        })
+
+        r2, changes = splice_remove(store, r1, ["broken"])
+
+        assert _paths(store, r2) == {"ok.md"}
+        assert changes == [("delete", "broken")]
+
+    def test_remove_broken_file_entry_does_not_read_missing_blob(
+        self,
+        store,
+        empty_root,
+    ):
+        missing_blob_hash = "2" * 40
+        r1 = tree_mod.write_tree(store, {
+            "broken.md": ["B", missing_blob_hash],
+            "ok.md": ["B", tree_mod.write_blob(store, b"ok")],
+        })
+
+        r2, changes = splice_remove(store, r1, ["broken.md"])
+
+        assert _paths(store, r2) == {"ok.md"}
+        assert changes == [("delete", "broken.md")]
+
     def test_remove_missing_path_is_noop(self, store, empty_root):
         r1, _ = splice_put_blob(store, empty_root, "a.md", b"")
 

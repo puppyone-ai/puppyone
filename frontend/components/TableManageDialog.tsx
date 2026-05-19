@@ -57,10 +57,10 @@ export function TableManageDialog({
 }: TableManageDialogProps) {
   const { session } = useAuth();
   const { currentOrg } = useOrganization();
-  const project = projectId ? projects.find(p => p.id === projectId) : null;
-  const table = tableId && project ? project.nodes.find(t => t.id === tableId) : null;
+  void projects;
+  const tableName = tableId?.split('/').filter(Boolean).pop() ?? '';
 
-  const [name, setName] = useState(table?.name || '');
+  const [name, setName] = useState(tableName);
   const [loading, setLoading] = useState(false);
   const [startOption] = useState<StartOption>(defaultStartOption);
   const [isDragging, setIsDragging] = useState(false);
@@ -96,8 +96,8 @@ export function TableManageDialog({
         : 'Optional; used as the folder name in Puppyone';
 
   useEffect(() => {
-    if (table) setName(table.name);
-  }, [table]);
+    if (tableName) setName(tableName);
+  }, [tableName]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation(); setIsDragging(true);
@@ -381,7 +381,7 @@ export function TableManageDialog({
         {mode === 'delete' ? (
           <div style={{ padding: 24 }}>
             <p style={{ color: 'var(--po-text-muted)', fontSize: 16, lineHeight: 1.6, margin: '0 0 24px' }}>
-              Are you sure you want to delete <strong style={{ color: 'var(--po-text)' }}>{table?.name}</strong>? This cannot be undone.
+              Are you sure you want to delete <strong style={{ color: 'var(--po-text)' }}>{tableName || 'this context'}</strong>? This cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <ActionButton type='button' onClick={onClose}>Cancel</ActionButton>
