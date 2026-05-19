@@ -141,9 +141,9 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       }
     }
 
-    // Redesign 2026-05-02: project the new connectors+scopes data into the
-    // legacy SyncEndpointInfo shape so the existing per-row plug button
-    // and AP-list affordances light up post-migration. cli connectors map
+    // Project connectors+scopes data into the per-row endpoint view so the
+    // plug button and connection-list affordances use the canonical model.
+    // cli connectors map
     // to `filesystem` (matching the boss-era
     // provider taxonomy that AccessPointProviderIcon / setup-snippet code
     // branches on); the access_key for cli is the *scope's* access_key,

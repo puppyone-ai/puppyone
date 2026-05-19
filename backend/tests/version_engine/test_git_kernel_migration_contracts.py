@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from src.ingest.file.jobs.jobs import stage_blob_from_s3
-from src.version_engine.application.git_object_format import (
+from src.version_engine.write_engine.git_object_format import (
     MODE_DIR,
     MODE_FILE,
     TreeEntry,
@@ -23,22 +23,22 @@ from src.version_engine.application.git_object_format import (
     encode_tree,
     hash_object,
 )
-from src.version_engine.application.path_utils import normalize_path
-from src.version_engine.application.repo_facade import repo_facade_from_auth
-from src.version_engine.server.backends.s3_storage import S3StorageBackend
-from src.version_engine.server.db_names import OBJECT_LOCATIONS_TABLE
+from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.admission.repo_facade import repo_facade_from_auth
+from src.version_engine.infrastructure.s3.object_storage import S3StorageBackend
+from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS_TABLE
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND_ROOT.parent
 
 PRODUCT_WRITE_MODULES = (
-    "src/version_engine/adapters/operations/product_operation_adapter.py",
-    "src/version_engine/application/transaction_engine.py",
-    "src/version_engine/application/root_projection.py",
-    "src/version_engine/application/parent_scope_promote.py",
-    "src/version_engine/services/hooks.py",
-    "src/version_engine/routers/content_write.py",
+    "src/version_engine/adapters/product/operation_adapter.py",
+    "src/version_engine/write_engine/engine.py",
+    "src/version_engine/derived/projection.py",
+    "src/version_engine/derived/parent_scope_promote.py",
+    "src/version_engine/derived/hooks.py",
+    "src/version_engine/entrypoints/http/content_write.py",
 )
 
 ACTIVE_RUNTIME_SCAN_ROOTS = (
@@ -65,7 +65,7 @@ ACTIVE_RUNTIME_SCAN_ROOTS = (
 )
 
 ALLOWED_DEFERRED_DB_NAME_FILES = {
-    "backend/src/version_engine/server/db_names.py",
+    "backend/src/version_engine/infrastructure/supabase/db_names.py",
 }
 
 
@@ -395,8 +395,8 @@ def test_core_no_longer_imports_removed_protocol_normalize_path() -> None:
 
 def test_access_point_auth_uses_repo_scopes_without_legacy_fallback() -> None:
     checked = (
-        BACKEND_ROOT / "src/version_engine/routers/access_point.py",
-        BACKEND_ROOT / "src/version_engine/server/auth.py",
+        BACKEND_ROOT / "src/version_engine/entrypoints/http/access_point.py",
+        BACKEND_ROOT / "src/version_engine/admission/identity.py",
     )
 
     offenders = [

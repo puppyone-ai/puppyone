@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 
 from src.platform.auth.models import CurrentUser
-from src.version_engine.routers._content_helpers import ensure_project_access
+from src.version_engine.entrypoints.http.content_helpers import ensure_project_access
 from src.exceptions import NotFoundException
 
 _ensure_project_access = ensure_project_access  # back-compat alias for this test file

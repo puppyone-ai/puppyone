@@ -24,13 +24,12 @@ from __future__ import annotations
 import pytest
 
 from src.version_engine.adapters.git.submission import submit_git_tree
-from src.version_engine.application.git_commit import build_git_commit
-from src.version_engine.application.transaction_engine import (
+from src.version_engine.write_engine.git_commit import build_git_commit
+from src.version_engine.write_engine.engine import (
     CrossScopeSubmissionError,
-    GitNativeTransactionEngine,
-    _record_pending_conflict_row,
+    VersionWriteEngine,
 )
-from src.version_engine.application.tree_objects import build_tree_from_files
+from src.version_engine.write_engine.tree_objects import build_tree_from_files
 from src.version_engine.domain.intents import (
     ConflictResolutionIntent,
     OperationWriteIntent,
@@ -158,51 +157,51 @@ async def test_k7_pending_resolve_produces_clean_audit_chain(
     it; both the original pending row and the resulting committed row
     are visible in the ledger; commit ids cross-reference correctly."""
 
-    # The supabase shim writes are best-effort and gated by a real DB.
-    # Stub them out so the in-memory test can assert on the engine's
-    # observable state instead.
-    pending_conflict_rows: list[dict] = []
+    # The SQL-backed ledger is injected behind an interface; use an
+    # in-memory ledger so this acceptance test can assert on observable
+    # state without a live database.
     pending_conflict_updates: list[dict] = []
 
-    def fake_load(project_id, pending_id):
-        for row in reversed(pending_conflict_rows):
-            if row["project_id"] == project_id and row["pending_conflict_id"] == pending_id:
-                return dict(row)
-        return None
+    class FakeLedger:
+        def __init__(self):
+            self.pending_conflict_rows: list[dict] = []
 
-    def fake_record_pending(*, project_id, pending_conflict_id, **kwargs):
-        pending_conflict_rows.append({
-            "project_id": project_id,
-            "pending_conflict_id": pending_conflict_id,
-            "status": "pending",
-            **{k: v for k, v in kwargs.items() if k != "conflicts"},
-        })
+        def load_pending_conflict(self, project_id, pending_id):
+            for row in reversed(self.pending_conflict_rows):
+                if row["project_id"] == project_id and row["pending_conflict_id"] == pending_id:
+                    return dict(row)
+            return None
 
-    def fake_mark(*, project_id, pending_conflict_id, status, resolver_actor):
-        pending_conflict_updates.append({
-            "pending_conflict_id": pending_conflict_id,
-            "status": status,
-            "resolver_actor": resolver_actor,
-        })
+        def record_pending_conflict(self, *, project_id, pending_conflict_id, **kwargs):
+            self.pending_conflict_rows.append({
+                "project_id": project_id,
+                "pending_conflict_id": pending_conflict_id,
+                "status": "pending",
+                **{k: v for k, v in kwargs.items() if k != "conflicts"},
+            })
 
-    def fake_close(*, project_id, pending_conflict_id, status, resolver_actor,
-                   resolution_commit_id, resolution_detail):
-        pending_conflict_updates.append({
-            "pending_conflict_id": pending_conflict_id,
-            "status": status,
-            "resolution_commit_id": resolution_commit_id,
-            "resolution_detail": resolution_detail,
-        })
+        def mark_pending_conflict(self, *, project_id, pending_conflict_id, status, resolver_actor):
+            pending_conflict_updates.append({
+                "pending_conflict_id": pending_conflict_id,
+                "status": status,
+                "resolver_actor": resolver_actor,
+            })
 
-    def fake_insert_txn_row(**_kwargs):
-        return None  # version_transactions write is best-effort
+        def close_pending_conflict(self, *, project_id, pending_conflict_id, status,
+                                   resolver_actor, resolution_commit_id, resolution_detail):
+            pending_conflict_updates.append({
+                "pending_conflict_id": pending_conflict_id,
+                "status": status,
+                "resolution_commit_id": resolution_commit_id,
+                "resolution_detail": resolution_detail,
+            })
 
-    import src.version_engine.application.transaction_engine as engine_mod
-    monkeypatch.setattr(engine_mod, "_record_pending_conflict_row", fake_record_pending)
-    monkeypatch.setattr(engine_mod, "_load_pending_conflict_row", fake_load)
-    monkeypatch.setattr(engine_mod, "_mark_pending_conflict_row", fake_mark)
-    monkeypatch.setattr(engine_mod, "_close_pending_conflict_row", fake_close)
-    monkeypatch.setattr(engine_mod, "_insert_version_transaction_row", fake_insert_txn_row)
+        def insert_version_transaction(self, **_kwargs):
+            return None
+
+    repo_manager.transaction_ledger = FakeLedger()
+
+    import src.version_engine.write_engine.engine as engine_mod
 
     # 1) Make the policy selector force manual_review so the next push lands pending.
     from src.version_engine.domain.conflicts import ConflictPolicyDecision
@@ -248,7 +247,7 @@ async def test_k7_pending_resolve_produces_clean_audit_chain(
     resolution_tree = build_tree_from_files(
         server_repo.store, {"shared.txt": b"reviewer-merged\n"},
     )
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager)
     final = await engine.resolve(ConflictResolutionIntent(
         project_id="test-proj",
         pending_conflict_id=pending_id,
@@ -331,7 +330,7 @@ async def test_k9_read_your_write_after_apply_operation(
     scope-head reads must reflect the new commit immediately — no
     asynchronous propagation, no eventual-consistency window."""
 
-    from src.version_engine.services.tree_splice import splice_put_blob
+    from src.version_engine.adapters.product.tree_patch import splice_put_blob
 
     intent = OperationWriteIntent(
         project_id="test-proj",
@@ -345,7 +344,7 @@ async def test_k9_read_your_write_after_apply_operation(
     def splice(store, root_hash):
         return splice_put_blob(store, root_hash, "fresh.md", b"hello rw-test\n")
 
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager)
     result = await engine.apply_operation(intent, splice)
 
     assert result.status == "ok"
@@ -360,8 +359,8 @@ async def test_k9_read_your_write_after_apply_operation(
     )
 
     # And the file is reachable through the stored tree.
-    from src.version_engine.application.tree_objects import flatten_tree_to_bytes
-    from src.version_engine.application.git_commit import commit_tree_id
+    from src.version_engine.write_engine.tree_objects import flatten_tree_to_bytes
+    from src.version_engine.write_engine.git_commit import commit_tree_id
     tree_id = commit_tree_id(server_repo, result.commit_id)
     files = flatten_tree_to_bytes(server_repo.store, tree_id)
     assert files.get("fresh.md") == b"hello rw-test\n"

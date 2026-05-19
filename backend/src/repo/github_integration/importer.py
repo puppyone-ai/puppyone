@@ -30,8 +30,8 @@ from typing import Optional
 import httpx
 
 from src.connectors.datasource.oauth.repository import OAuthRepository
-from src.version_engine.dependencies import get_repo_manager_standalone
-from src.version_engine.application.transaction_engine import GitNativeTransactionEngine
+from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+from src.version_engine.write_engine.engine import VersionWriteEngine
 from src.version_engine.domain.intents import OperationWriteIntent
 from src.repo.github_integration.github_api import (
     GithubApi, GithubApiError, TreeEntry,
@@ -206,8 +206,8 @@ async def _do_import(
 
     splice = _make_overwrite_splice(files)
 
-    repo_manager = get_repo_manager_standalone()
-    engine = GitNativeTransactionEngine(repo_manager)
+    repo_manager = build_worker_version_engine_container().repo_manager
+    engine = VersionWriteEngine(repo_manager)
     actor = f"github:{owner}/{repo_name}"
     message = (
         f"github import: {owner}/{repo_name}@{target_branch} "
@@ -231,7 +231,7 @@ async def _do_import(
         splice,
     )
 
-    # The transaction engine returns an empty ``commit_id`` when the
+    # The Write Engine returns an empty ``commit_id`` when the
     # splice was a no-op (importing unchanged content). Store that as
     # NULL in the sync log rather than ``""`` so the column is honest
     # about "no commit was produced" — the schema's TEXT nullable
@@ -331,8 +331,8 @@ def _make_overwrite_splice(files: dict[str, bytes]):
       * ``("rm",      path)``
       * ``("mv",      old_path, new_path)``
     """
-    from src.version_engine.application.tree import tree_to_flat
-    from src.version_engine.services.tree_splice import splice_batch
+    from src.version_engine.write_engine.tree import tree_to_flat
+    from src.version_engine.adapters.product.tree_patch import splice_batch
 
     def splice(store, root_hash):
         existing: dict[str, str] = {}

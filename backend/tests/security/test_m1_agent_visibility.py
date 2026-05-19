@@ -23,13 +23,13 @@ def _build_repo_with_rows(agent_rows: list[dict], project_org: str = "org-1"):
     """
     repo = AgentRepository.__new__(AgentRepository)
     repo._client = MagicMock()  # type: ignore[attr-defined]
-    repo.TABLE = "access_points"
+    repo.TABLE = "connectors"
 
-    # Make .table('access_points').select(...).eq(...).limit().execute()
+    # Make .table('connectors').select(...).eq(...).limit().execute()
     # return one of the given rows depending on the .eq() args.
     def fake_table(name):
         m = MagicMock()
-        if name == "access_points":
+        if name == "connectors":
             chain = MagicMock()
             chain.select.return_value = chain
             chain.eq.return_value = chain
@@ -69,7 +69,7 @@ def test_org_visible_agent_visible_to_any_org_member():
     rows = [{
         "id": "ag-1", "project_id": "p-1",
         "config": {"visibility": "org"},
-        "user_id": "alice",
+        "created_by": "alice",
     }]
     repo = _build_repo_with_rows(rows)
     assert _verify(repo, "ag-1", "bob") is True
@@ -79,7 +79,7 @@ def test_private_agent_visible_to_owner():
     rows = [{
         "id": "ag-private", "project_id": "p-1",
         "config": {"visibility": "private"},
-        "user_id": "alice",
+        "created_by": "alice",
     }]
     repo = _build_repo_with_rows(rows)
     assert _verify(repo, "ag-private", "alice") is True
@@ -91,7 +91,7 @@ def test_private_agent_hidden_from_other_org_member():
     rows = [{
         "id": "ag-private", "project_id": "p-1",
         "config": {"visibility": "private"},
-        "user_id": "alice",
+        "created_by": "alice",
     }]
     repo = _build_repo_with_rows(rows)
     assert _verify(repo, "ag-private", "bob") is False
@@ -103,7 +103,7 @@ def test_missing_visibility_defaults_to_org():
     rows = [{
         "id": "ag-legacy", "project_id": "p-1",
         "config": {},  # no visibility
-        "user_id": "alice",
+        "created_by": "alice",
     }]
     repo = _build_repo_with_rows(rows)
     assert _verify(repo, "ag-legacy", "bob") is True
@@ -114,7 +114,7 @@ def test_non_org_member_blocked_regardless_of_visibility():
     rows = [{
         "id": "ag-1", "project_id": "p-1",
         "config": {"visibility": "org"},
-        "user_id": "alice",
+        "created_by": "alice",
     }]
     repo = _build_repo_with_rows(rows)
     assert _verify(repo, "ag-1", "intruder", member=False) is False
@@ -125,8 +125,8 @@ def test_non_org_member_blocked_regardless_of_visibility():
 
 def test_list_filters_private_agents_for_non_owner():
     rows = [
-        {"id": "ag-org",     "project_id": "p", "config": {"visibility": "org",     "name": "OrgA"},  "user_id": "alice", "trigger": {}, "created_at": "2026-01-01", "updated_at": "2026-01-01"},
-        {"id": "ag-private", "project_id": "p", "config": {"visibility": "private", "name": "PrivA"}, "user_id": "alice", "trigger": {}, "created_at": "2026-01-01", "updated_at": "2026-01-01"},
+        {"id": "ag-org",     "project_id": "p", "config": {"visibility": "org",     "name": "OrgA"},  "created_by": "alice", "trigger": {}, "created_at": "2026-01-01", "updated_at": "2026-01-01"},
+        {"id": "ag-private", "project_id": "p", "config": {"visibility": "private", "name": "PrivA"}, "created_by": "alice", "trigger": {}, "created_at": "2026-01-01", "updated_at": "2026-01-01"},
     ]
     repo = _build_repo_with_rows(rows)
     repo.get_tools_by_agent_id_for_mcp = MagicMock(return_value=[])
@@ -151,7 +151,7 @@ def test_list_with_no_viewer_returns_all():
     rows = [
         {"id": "ag-private", "project_id": "p",
          "config": {"visibility": "private", "name": "P"},
-         "user_id": "alice", "trigger": {},
+         "created_by": "alice", "trigger": {},
          "created_at": "2026-01-01", "updated_at": "2026-01-01"},
     ]
     repo = _build_repo_with_rows(rows)

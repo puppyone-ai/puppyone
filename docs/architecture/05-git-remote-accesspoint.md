@@ -25,7 +25,7 @@ git push
   -> scope/exclude validation rejects out-of-bound paths
   -> changed paths are computed from old/new commits
   -> reachable objects promote after validation
-  -> VersionSubmissionIntent enters GitNativeTransactionEngine
+  -> VersionSubmissionIntent enters VersionWriteEngine
   -> SQL CAS publishes scope head/history/audit/outbox
 ```
 

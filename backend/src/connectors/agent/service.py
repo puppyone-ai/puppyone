@@ -30,7 +30,7 @@ from src.config import settings
 from src.connectors.agent.chat.service import ChatService
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.sandbox_session import SandboxFile, SandboxData, prepare_sandbox_data
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.analytics.service import log_context_access, log_bash_execution
 from src.connectors.agent.request_builder import (
     _get_bash_tool,
@@ -355,8 +355,8 @@ class AgentService:
                     agent_identity = f"agent:{agent.id}" if agent else "agent:unknown"
 
                     from src.connectors.agent.sandbox_session import _read_modified_files
-                    from src.version_engine.dependencies import get_repo_manager_standalone
-                    from src.version_engine.services.in_process_client import InProcessVersionClient
+                    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+                    from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
 
                     modified_files = await _read_modified_files(
                         sandbox_service,
@@ -367,7 +367,7 @@ class AgentService:
                     )
                     if modified_files:
                         try:
-                            repo_manager = get_repo_manager_standalone()
+                            repo_manager = build_worker_version_engine_container().repo_manager
                             scope_path = sandbox_data.root_path or ""
                             version_auth = {
                                 "agent": agent_identity,
@@ -380,7 +380,7 @@ class AgentService:
                             }
                             client = InProcessVersionClient(repo_manager, agent.project_id, version_auth)
                             await asyncio.to_thread(client.clone)
-                            from src.version_engine.services.hooks import push_and_finalize
+                            from src.version_engine.derived.hooks import push_and_finalize
                             push_result = await push_and_finalize(
                                 client,
                                 agent.project_id,
@@ -476,9 +476,8 @@ class AgentService:
             except Exception as e:
                 logger.warning(f"[Agent] Failed to get agent config: {e}", exc_info=True)
 
-        # NOTE: Legacy fallback to tool table for shell_access has been removed.
-        # Shell/bash access is now managed exclusively via agent_bash table.
-        # See architecture: agents → agent_bash (data access) + agent_tool (tool bindings)
+        # Shell/bash access is managed exclusively via agent_bash.
+        # See architecture: agents -> agent_bash (data access) + agent_tool (tool bindings)
 
         # ========== 1b. Collect Search Tools (from agent_tool bindings) ==========
         search_tools_map: dict[str, SearchToolConfig] = {}  # {claude_tool_name: SearchToolConfig}
@@ -750,9 +749,9 @@ class AgentService:
                     cloned_files = {}
                     repo_manager = None
                     if _agent_project_id and not sandbox_readonly:
-                        from src.version_engine.dependencies import get_repo_manager_standalone
-                        from src.version_engine.services.in_process_client import InProcessVersionClient
-                        repo_manager = get_repo_manager_standalone()
+                        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+                        from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
+                        repo_manager = build_worker_version_engine_container().repo_manager
                         version_auth = {
                             "agent": f"agent:{request.agent_id}",
                             "_scope": {
@@ -1211,7 +1210,7 @@ class AgentService:
                         live_session.scope_path,
                     )
                     if modified or deleted:
-                        from src.version_engine.services.hooks import push_and_finalize
+                        from src.version_engine.derived.hooks import push_and_finalize
                         push_result = await push_and_finalize(
                             live_session.version_client,
                             live_session.project_id,
@@ -1251,6 +1250,5 @@ class AgentService:
 
         else:
             yield {"type": "result", "success": True}
-
 
 

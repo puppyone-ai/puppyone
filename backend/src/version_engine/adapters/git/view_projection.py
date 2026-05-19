@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import re
 
-from src.version_engine.application.git_object_format import decode_commit
-from src.version_engine.application.git_commit import build_git_commit, commit_tree_id
-from src.version_engine.application.path_utils import normalize_path
-from src.version_engine.application.tree_objects import (
+from src.version_engine.write_engine.git_object_format import decode_commit
+from src.version_engine.write_engine.git_commit import build_git_commit, commit_tree_id
+from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.write_engine.tree_objects import (
     build_tree_from_files,
     flatten_tree_to_bytes,
     is_path_excluded,

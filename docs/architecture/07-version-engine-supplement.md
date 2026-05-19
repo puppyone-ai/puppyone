@@ -13,7 +13,7 @@ Current invariant:
 
 - Stock Git is the external version protocol.
 - Web/API/Puppyone CLI writes enter through the Product Operation Adapter.
-- `GitNativeTransactionEngine` is the only publish authority.
+- `VersionWriteEngine` is the only publish authority.
 - Physical database names from the old schema are isolated in
   `backend/src/version_engine/server/db_names.py` until a future physical DB
   rename migration.

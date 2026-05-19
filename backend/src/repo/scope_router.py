@@ -179,8 +179,8 @@ def auto_suggest_scopes(
 ):
     """Reads the current version tree's top-level folders and returns those
     not already covered by an existing scope as proposed scope candidates."""
-    from src.version_engine.dependencies import create_product_operation_adapter
-    ops = create_product_operation_adapter()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    ops = build_worker_version_engine_container().product_operations()
     try:
         entries = ops.list_dir(str(project.id), "")
     except Exception:

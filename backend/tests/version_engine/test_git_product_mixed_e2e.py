@@ -10,19 +10,20 @@ import httpx
 import pytest
 from fastapi import FastAPI, Header
 
-from src.version_engine.adapters.git.router import router as git_router
-from src.version_engine.application.object_store import ObjectStore
-from src.version_engine.dependencies import get_product_operation_adapter, get_repo_manager
+from src.version_engine.entrypoints.git.router import router as git_router
+from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.bootstrap.dependencies import get_repo_manager, get_version_write_command_service
 from src.version_engine.domain.intents import ProjectWriteState
-from src.version_engine.routers.content_write import write_router
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
-from src.version_engine.server.repo_manager import VersionRepoManager
+from src.version_engine.entrypoints.http.content_write import write_router
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
-from tests.version_engine.test_git_native_transaction_engine import (
+from tests.version_engine.test_write_engine import (
     _configure_git_identity,
     _files_for_scope,
-    _patch_git_access_points,
+    _patch_git_scope_auth,
     _run_git,
     _run_git_raw,
     _serve_git_app,
@@ -45,9 +46,9 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
     tmp_path,
     memory_store,
 ):
-    from src.version_engine.application.tree_objects import build_tree_from_files
-    from src.version_engine.server.scope_manager import ScopeManager
-    from src.version_engine.server.server_repo import PuppyOneServerRepo
+    from src.version_engine.write_engine.tree_objects import build_tree_from_files
+    from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager
+    from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
 
     class FakeScopeBackend:
         def __init__(self):
@@ -97,7 +98,7 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
     repo_manager.get_project_write_state.side_effect = fake_project_write_state
     ops = ProductOperationAdapter(repo_manager)
 
-    _patch_git_access_points(
+    _patch_git_scope_auth(
         monkeypatch,
         {
             "git-alice-key": ("git-alice", "/docs/", "rw"),
@@ -115,7 +116,9 @@ def test_git_cli_and_frontend_native_writes_share_version_engine_under_concurren
     app.include_router(git_router)
     app.include_router(write_router, prefix="/api/v1/content")
     app.dependency_overrides[get_repo_manager] = lambda: repo_manager
-    app.dependency_overrides[get_product_operation_adapter] = lambda: ops
+    app.dependency_overrides[get_version_write_command_service] = (
+        lambda: VersionWriteCommandService(ops)
+    )
     app.dependency_overrides[get_current_user] = current_user_override
 
     with _serve_git_app(app) as base_url:

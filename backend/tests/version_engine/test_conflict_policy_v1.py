@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import pytest
 
-from src.version_engine.application.conflict_policy import (
+from src.version_engine.write_engine.conflict_policy import (
     merge_file_sets_for_policy,
     select_conflict_policy,
 )
-from src.version_engine.application.git_commit import compose_commit_message
+from src.version_engine.write_engine.git_commit import compose_commit_message
 from src.version_engine.domain.conflicts import (
     ConflictPolicyConfig,
     ConflictPolicyRule,

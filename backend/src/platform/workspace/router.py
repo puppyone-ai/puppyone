@@ -10,12 +10,18 @@ Endpoints:
 import os
 import time as time_mod
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.bootstrap.dependencies import (
+    get_product_operation_adapter,
+    get_version_write_command_service,
+)
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
 from src.utils.logger import log_error, log_info
 
 router = APIRouter(
@@ -63,15 +69,14 @@ class WorkspaceStatusResponse(BaseModel):
 async def create_workspace(
     request: CreateWorkspaceRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    from src.version_engine.dependencies import create_version_write_command_service
     from src.platform.workspace.provider import get_workspace_provider
     from src.platform.workspace.sync_worker import SyncWorker
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"
 
     provider = get_workspace_provider()
-    commands = create_version_write_command_service()
     sync_worker = SyncWorker(
         ops=ops,
         base_dir=provider._base_dir if hasattr(provider, '_base_dir') else "/tmp/contextbase",
@@ -105,28 +110,19 @@ async def complete_workspace(
     agent_id: str,
     project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
+    commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
     """
-    Called by external Agent after completion - pushes changes via version transaction engine
+    Called by external Agent after completion - pushes changes via Write Engine
 
     1. detect_changes: compare workspace vs lower
     2. Build modified/deleted lists
     3. Perform atomic commit via ProductOperationAdapter.bulk_write
     """
-    from src.version_engine.dependencies import create_product_operation_adapter
     from src.platform.workspace.provider import get_workspace_provider
 
     provider = get_workspace_provider()
-
     changes = await provider.detect_changes(agent_id)
-
-    if not changes.modified and not changes.deleted:
-        await provider.cleanup(agent_id)
-        return ApiResponse.success(data=CompleteWorkspaceResponse(
-            agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
-        ), message="No changes detected")
-
-    ops = create_product_operation_adapter()
 
     modified: dict[str, bytes] = {}
     for rel_path, content in changes.modified.items():
@@ -138,8 +134,14 @@ async def complete_workspace(
             modified[rel_path] = str(content).encode("utf-8")
 
     deleted = list(changes.deleted)
+    total_files = len(changes.modified) + len(changes.deleted)
 
     try:
+        if not changes.modified and not changes.deleted:
+            return ApiResponse.success(data=CompleteWorkspaceResponse(
+                agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
+            ), message="No changes detected")
+
         outcome = await commands.bulk_write(
             project_id,
             modified,
@@ -156,14 +158,11 @@ async def complete_workspace(
             f"merged={result.merged} files={committed}"
         )
     except Exception as e:
-        committed = 0
-        conflict_count = len(modified)
-        strategies = []
         log_error(f"[Workspace API] version push failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Workspace merge failed: {e}") from e
+    finally:
+        await provider.cleanup(agent_id)
 
-    await provider.cleanup(agent_id)
-
-    total_files = len(changes.modified) + len(changes.deleted)
     log_info(
         f"[Workspace API] Completed: agent={agent_id}, "
         f"committed={committed}, conflicts={conflict_count}"

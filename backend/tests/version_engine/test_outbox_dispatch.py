@@ -18,12 +18,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.version_engine.server.db_names import (
+from src.version_engine.infrastructure.supabase.db_names import (
     CLAIM_OUTBOX_RPC,
     COMPLETE_OUTBOX_RPC,
     FAIL_OUTBOX_RPC,
 )
-from src.version_engine.services import version_outbox
+from src.version_engine.derived import outbox as version_outbox
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +61,7 @@ def _fake_client(rows: list[dict[str, Any]]) -> MagicMock:
 @pytest.fixture(autouse=True)
 def _enable_outbox(monkeypatch):
     """The worker is feature-flagged; force it on for these tests."""
-    import src.version_engine.services.version_outbox as mod
+    import src.version_engine.derived.outbox as mod
     monkeypatch.setattr(mod.settings, "VERSION_OUTBOX_ENABLED", True)
 
 

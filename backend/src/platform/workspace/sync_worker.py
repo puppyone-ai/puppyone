@@ -16,7 +16,7 @@ import os
 import time
 
 from src.infra.s3.service import get_s3_service_instance
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.workspace.cache import CacheManager
 from src.utils.logger import log_error, log_info
 
@@ -46,9 +46,9 @@ class SyncWorker:
         if self._ops is not None:
             return self._ops
 
-        from src.version_engine.dependencies import create_product_operation_adapter
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-        self._ops = create_product_operation_adapter()
+        self._ops = build_worker_version_engine_container().product_operations()
         return self._ops
 
     async def sync(self, project_id: str | None = None, *args, **kwargs) -> dict:

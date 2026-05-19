@@ -72,7 +72,7 @@ async def create_connection(
 @router.get(
     "/access",
     response_model=ApiResponse[List[ConnectionResponse]],
-    summary="List database access points for a project",
+    summary="List database connectors for a project",
 )
 async def list_connections(
     project_id: str = Query(..., description="Project ID"),
@@ -94,7 +94,7 @@ async def delete_connection(
     service: DBConnectorService = Depends(get_db_connector_service),
 ):
     service.delete_connection(connection_id, user.user_id)
-    return ApiResponse.success(message="Access point deleted")
+    return ApiResponse.success(message="Database connector deleted")
 
 
 # === Table Data ===

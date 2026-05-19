@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from src.version_engine.application.transaction_engine import GitNativeTransactionEngine
+from src.version_engine.write_engine.engine import VersionWriteEngine
 from src.version_engine.domain.intents import TransactionResult, VersionSubmissionIntent
-from src.version_engine.server.repo_manager import VersionRepoManager
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 
 async def submit_git_tree(
@@ -32,9 +32,9 @@ async def submit_git_tree(
     defer_projection: bool = False,
     audit_detail: dict | None = None,
 ) -> TransactionResult:
-    """Submit a Git commit/tree to the Git-native transaction engine."""
+    """Submit a Git commit/tree to the Write Engine."""
 
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager)
     return await engine.submit_version(
         VersionSubmissionIntent(
             project_id=project_id,

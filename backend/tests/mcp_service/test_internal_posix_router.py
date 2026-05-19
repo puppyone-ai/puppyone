@@ -11,8 +11,8 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.version_engine.dependencies import get_product_operation_adapter
-from src.internal.router import get_agent_config_service, router as internal_router, verify_internal_secret
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.internal.router import router as internal_router, verify_internal_secret
 
 
 @dataclass
@@ -48,6 +48,24 @@ class FakeProductOperationAdapter:
         if path not in self._read_file_map:
             raise FileNotFoundError(path)
         return self._read_file_map[path]
+
+
+class FakeWriteCommands:
+    def __init__(self, ops: FakeProductOperationAdapter):
+        self.ops = ops
+
+    async def write_file(self, project_id: str, path: str, content, **kwargs):
+        result = await self.ops.write_file(project_id, path, content, **kwargs)
+        return SimpleNamespace(path=path, result=result)
+
+    async def mkdir(self, project_id: str, path: str, **kwargs):
+        result = await self.ops.mkdir(project_id, path, **kwargs)
+        return SimpleNamespace(path=path, result=result)
+
+    async def delete(self, project_id: str, paths: list[str], **kwargs):
+        actor = kwargs.pop("actor", "mcp_agent")
+        result = await self.ops.delete(project_id, paths, who=actor, **kwargs)
+        return SimpleNamespace(path=paths[0], result=result)
 
 
 @pytest.fixture
@@ -175,7 +193,7 @@ def test_read_node_content_folder_returns_dot_children(client, ops):
 def test_write_node_content_markdown_requires_string(client, ops, monkeypatch):
     import src.internal.router as _r
     ops.write_file.return_value = SimpleNamespace(commit_id="abc1234567890def")
-    monkeypatch.setattr(_r, "create_product_operation_adapter", lambda: ops)
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
 
     resp = client.put(
         "/internal/nodes/write",
@@ -189,7 +207,7 @@ def test_write_node_content_markdown_requires_string(client, ops, monkeypatch):
 
 def test_write_node_content_markdown_success(client, ops, monkeypatch):
     import src.internal.router as _r
-    monkeypatch.setattr(_r, "create_product_operation_adapter", lambda: ops)
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
     ops.write_file.return_value = SimpleNamespace(commit_id="abc1234567890def")
 
     resp = client.put(
@@ -204,7 +222,7 @@ def test_write_node_content_markdown_success(client, ops, monkeypatch):
 
 def test_create_node_folder(client, ops, monkeypatch):
     import src.internal.router as _r
-    monkeypatch.setattr(_r, "create_product_operation_adapter", lambda: ops)
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
     ops.mkdir.return_value = SimpleNamespace(commit_id="abc1234567890def")
 
     resp = client.post(
@@ -239,7 +257,7 @@ def test_create_node_rejects_unsupported_type(client, ops):
 
 def test_remove_node_success(client, ops, monkeypatch):
     import src.internal.router as _r
-    monkeypatch.setattr(_r, "create_product_operation_adapter", lambda: ops)
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
     ops._stat_map["readme.md"] = FakeVersionEntry(
         name="readme.md", path="readme.md", type="markdown",
     )
@@ -259,44 +277,34 @@ def test_remove_node_success(client, ops, monkeypatch):
 
 
 def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkeypatch):
-    bash_access = SimpleNamespace(path="node-1", readonly=False, json_path="/users")
-    agent_tool = SimpleNamespace(id="at-1", tool_id="tool-1", enabled=True, mcp_exposed=True)
-    agent = SimpleNamespace(
+    connector = SimpleNamespace(
         id="agent-1",
         name="Agent",
         project_id="proj-1",
-        type="custom",
-        bash_accesses=[bash_access],
-        tools=[agent_tool],
+        scope_id="scope-1",
+        created_by="user-1",
+    )
+    scope = SimpleNamespace(
+        id="scope-1",
+        path="node-1",
+        mode="rw",
+        name="Node One",
     )
 
-    class _AgentService:
-        def get_by_mcp_api_key(self, mcp_api_key: str):
+    class _ConnectorService:
+        def get_agent_by_mcp_key(self, mcp_api_key: str):
             assert mcp_api_key == "mcp_k"
-            return agent
+            return connector
 
-    class _FakeToolRepo:
-        def __init__(self, _repo):
-            pass
+    class _ScopeRepository:
+        def get(self, scope_id: str):
+            assert scope_id == "scope-1"
+            return scope
 
-        def get_by_id(self, tool_id: str):
-            assert tool_id == "tool-1"
-            return SimpleNamespace(
-                id="tool-1",
-                name="search_docs",
-                type="search",
-                description="Search docs",
-                path="node-1",
-                json_path="",
-                input_schema={"type": "object"},
-                category="builtin",
-            )
-
-    import src.internal.router as internal_router_module
-    monkeypatch.setattr(internal_router_module, "ToolRepositorySupabase", _FakeToolRepo)
-    monkeypatch.setattr(internal_router_module, "get_supabase_repository", lambda: object())
-
-    app.dependency_overrides[get_agent_config_service] = lambda: _AgentService()
+    import src.repo.connector_service as connector_service_module
+    import src.repo.scope_repository as scope_repository_module
+    monkeypatch.setattr(connector_service_module, "ConnectorService", lambda: _ConnectorService())
+    monkeypatch.setattr(scope_repository_module, "RepoScopeRepository", lambda: _ScopeRepository())
 
     resp = client.get(
         "/internal/agent-by-mcp-key/mcp_k",
@@ -307,4 +315,5 @@ def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkey
     body = resp.json()
     assert body["agent"]["id"] == "agent-1"
     assert body["accesses"][0]["path"] == "node-1"
-    assert body["tools"][0]["tool_id"] == "tool-1"
+    assert body["accesses"][0]["tool_create"] is True
+    assert body["tools"] == []

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from src.version_engine.routers import content_read
-from src.version_engine.services.tree_reader import VersionEntry
+from src.version_engine.entrypoints.http import content_read
+from src.version_engine.read.tree_reader import VersionEntry
 from src.platform.auth.models import CurrentUser
 
 

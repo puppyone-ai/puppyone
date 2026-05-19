@@ -11,24 +11,24 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from src.version_engine.application.merge import merge_file_sets, three_way_merge
-from src.version_engine.application.object_store import ObjectStore
-from src.version_engine.application.path_utils import normalize_path
-from src.version_engine.server.scope_manager import ScopeManager
+from src.version_engine.write_engine.merge import merge_file_sets, three_way_merge
+from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.write_engine.path_utils import normalize_path
+from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager
 
 from src.version_engine.adapters.git.receive_pack import parse_receive_pack_request as _parse_receive_pack_request
-from src.version_engine.application.conflict_policy import (
+from src.version_engine.write_engine.conflict_policy import (
     ConflictPolicyDecision,
     merge_file_sets_for_policy,
     select_conflict_policy,
 )
-from src.version_engine.application.tree_objects import (
+from src.version_engine.write_engine.tree_objects import (
     build_tree_from_files,
     flatten_tree_to_bytes,
     validate_scope_bound_files,
 )
-from src.version_engine.server.repo_manager import VersionRepoManager
-from src.version_engine.server.server_repo import PuppyOneServerRepo
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
 
 from tests.version_engine.test_server_repo import FakeAuditManager, FakeHistoryManager
 

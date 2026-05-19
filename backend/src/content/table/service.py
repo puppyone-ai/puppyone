@@ -2,7 +2,7 @@
 Table (Knowledge Base) Content Management
 
 All Tables must belong to a project.
-Write operations use version transaction engine (ProductOperationAdapter),
+Write operations use Write Engine (ProductOperationAdapter),
 read operations read JSON content from version ObjectStore.
 The tables table in DB is only used for storing metadata indexes.
 """
@@ -47,12 +47,12 @@ class TableService:
             )
 
     def _get_ops(self):
-        from src.version_engine.dependencies import create_product_operation_adapter
-        return create_product_operation_adapter()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        return build_worker_version_engine_container().product_operations()
 
     def _get_write_commands(self):
-        from src.version_engine.dependencies import create_version_write_command_service
-        return create_version_write_command_service()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        return build_worker_version_engine_container().write_commands()
 
     def _table_version_path(self, _project_id: str, table_id: str) -> str:
         """Standard path for Table in the version tree"""
@@ -64,7 +64,7 @@ class TableService:
         root = repo.history.get_root_hash()
         if not root:
             return {}
-        from src.version_engine.application.tree import tree_to_flat
+        from src.version_engine.write_engine.tree import tree_to_flat
         flat = tree_to_flat(repo.store, root)
         blob_hash = flat.get(version_path, "")
         if not blob_hash:
@@ -120,7 +120,7 @@ class TableService:
         return self.repo.verify_project_access(project_id, user_id)
 
     # ================================================================
-    # Write operations - all through version transaction engine (ProductOperationAdapter)
+    # Write operations - all through Write Engine (ProductOperationAdapter)
     # ================================================================
 
     async def create(

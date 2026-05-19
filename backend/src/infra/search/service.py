@@ -11,8 +11,8 @@ from src.infra.chunking.config import ChunkingConfig
 from src.infra.chunking.repository import ChunkRepository, ensure_chunks_for_pointer
 from src.infra.chunking.schemas import Chunk
 from src.infra.chunking.service import ChunkingService, iter_large_string_nodes_for_chunking
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
-from src.version_engine.services.tree_reader import VersionEntry
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.read.tree_reader import VersionEntry
 from src.infra.llm.embedding_service import EmbeddingService
 from src.infra.s3.service import S3Service
 from src.infra.turbopuffer.schemas import TurbopufferRow

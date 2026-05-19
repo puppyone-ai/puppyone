@@ -21,4 +21,4 @@ Every write path checks:
 - current base/head precondition.
 
 There is no bypass path that can write versioned content outside
-`GitNativeTransactionEngine`.
+`VersionWriteEngine`.

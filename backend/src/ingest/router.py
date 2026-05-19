@@ -146,7 +146,7 @@ async def submit_file_ingest(
     """
     Submit file ingest tasks.
 
-    All text/JSON files are written directly to the version tree via version transaction engine.
+    All text/JSON files are written directly to the version tree via Write Engine.
     Binary/OCR files go to S3 + ETL Worker (when OCR is enabled).
     When `settings.ENABLE_OCR` is False any incoming `mode="ocr_parse"`
     is downgraded to "raw" so binary/OCR-needing files end up on S3
@@ -171,9 +171,9 @@ async def submit_file_ingest(
         )
         mode = "raw"
 
-    from src.version_engine.dependencies import create_version_write_command_service
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-    commands = create_version_write_command_service()
+    commands = build_worker_version_engine_container().write_commands()
 
     target_parent_path = (parent_path or parent_id or "").strip("/")
 
@@ -1316,7 +1316,7 @@ async def submit_saas_ingest(
     """
     Submit SaaS/URL ingest — routes through Bootstrap + SyncEngine.
 
-    All data writes go through version transaction engine.
+    All data writes go through Write Engine.
     """
     from src.connectors.datasource.dependencies import get_connector_registry
     from src.connectors.datasource.engine import SyncEngine

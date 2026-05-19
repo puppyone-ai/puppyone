@@ -37,7 +37,7 @@ class GatewayService:
             metadata=gw.get("metadata") or {},
             has_credentials=bool(creds),
             credential_keys=list(creds.keys()),
-            access_point_count=self.repo.count_access_points(gateway_id),
+            access_point_count=self.repo.count_connectors(gateway_id),
             created_at=gw.get("created_at"),
             updated_at=gw.get("updated_at"),
         )
@@ -62,7 +62,7 @@ class GatewayService:
 
     def delete(self, gateway_id: str) -> bool:
         self.get_by_id(gateway_id)  # verify exists
-        ap_count = self.repo.count_access_points(gateway_id)
+        ap_count = self.repo.count_connectors(gateway_id)
         if ap_count > 0:
             raise NotFoundException(
                 f"Cannot delete gateway: {ap_count} access point(s) still reference it. "

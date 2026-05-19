@@ -657,8 +657,8 @@ async def push_file(
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    from src.version_engine.dependencies import create_version_write_command_service
-    commands = create_version_write_command_service()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    commands = build_worker_version_engine_container().write_commands()
 
     result = await process_push_file(
         commands,
@@ -688,8 +688,8 @@ def pull_files(
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    from src.version_engine.dependencies import create_product_operation_adapter
-    ops = create_product_operation_adapter()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    ops = build_worker_version_engine_container().product_operations()
 
     file_dicts = process_pull_files(
         ops,
@@ -743,15 +743,15 @@ async def trigger_push(
     engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.version_engine.dependencies import create_product_operation_adapter
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-    ops = create_product_operation_adapter()
+    ops = build_worker_version_engine_container().product_operations()
     try:
         content = ops.read_file(project_id, path)
     except FileNotFoundError:
         return ApiResponse.error(code=1004, message=f"File not found: {path}")
 
-    from src.version_engine.services.tree_reader import detect_type
+    from src.version_engine.read.tree_reader import detect_type
     import json as _json
 
     node_type = detect_type(path)

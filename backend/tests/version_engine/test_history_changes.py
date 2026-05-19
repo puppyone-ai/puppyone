@@ -1,4 +1,4 @@
-from src.version_engine.history_changes import normalize_history_change, normalize_history_changes
+from src.version_engine.read.history_changes import normalize_history_change, normalize_history_changes
 
 
 def test_normalize_history_change_from_version_action():

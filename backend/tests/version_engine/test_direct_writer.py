@@ -24,13 +24,13 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
-from src.version_engine.application import tree as tree_mod
-from src.version_engine.application.git_object_format import encode_commit, encode_tree
-from src.version_engine.application.object_store import ObjectStore
+from src.version_engine.write_engine import tree as tree_mod
+from src.version_engine.write_engine.git_object_format import encode_commit, encode_tree
+from src.version_engine.write_engine.object_store import ObjectStore
 
-from src.version_engine.application.transaction_engine import ConcurrentMutationError
-from src.version_engine.adapters.operations.product_operation_adapter import BlobRef, MissingBlobError, ProductOperationAdapter
-from src.version_engine.server.repo_manager import VersionRepoManager
+from src.version_engine.write_engine.engine import ConcurrentMutationError
+from src.version_engine.adapters.product.operation_adapter import BlobRef, MissingBlobError, ProductOperationAdapter
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 from tests.version_engine.test_server_repo import (
     FakeAuditManager,
@@ -53,8 +53,8 @@ def memory_store(tmp_path) -> ObjectStore:
 @pytest.fixture
 def server_repo(memory_store):
     """A PuppyOneServerRepo backed by in-memory fakes."""
-    from src.version_engine.server.scope_manager import ScopeManager
-    from src.version_engine.server.server_repo import PuppyOneServerRepo
+    from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager
+    from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
 
     history = FakeHistoryManager()
     audit = FakeAuditManager()
@@ -142,7 +142,7 @@ def _make_linear_commit_chain(server_repo, *, length: int) -> tuple[str, str]:
 
 
 def _run_project_projection(ops: ProductOperationAdapter, server_repo) -> None:
-    from src.version_engine.services.hooks import run_project_root_visibility_barrier
+    from src.version_engine.derived.hooks import run_project_root_visibility_barrier
 
     entry = server_repo.history._entries[-1]
     run_project_root_visibility_barrier(
@@ -469,7 +469,7 @@ class TestStageBlobFromBytes:
     async def test_stage_returns_correct_hash_and_size(
         self, ops, server_repo,
     ):
-        from src.version_engine.application.git_object_format import hash_object
+        from src.version_engine.write_engine.git_object_format import hash_object
 
         ref = await ops.stage_blob_from_bytes("test-proj", b"hello world")
 

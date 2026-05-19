@@ -17,10 +17,10 @@ import hashlib
 import json
 
 import pytest
-from src.version_engine.application import tree as tree_mod
-from src.version_engine.application.object_store import ObjectStore
+from src.version_engine.write_engine import tree as tree_mod
+from src.version_engine.write_engine.object_store import ObjectStore
 
-from src.version_engine.services.tree_splice import (
+from src.version_engine.adapters.product.tree_patch import (
     splice_batch,
     splice_copy,
     splice_mkdir,

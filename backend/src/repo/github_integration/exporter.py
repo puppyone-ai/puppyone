@@ -27,7 +27,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from src.version_engine.dependencies import get_repo_manager_standalone
+from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 from src.repo.github_integration.github_api import GithubApi, GithubApiError
 from src.repo.github_integration.repository import (
     GithubIntegrationRepository, GithubSyncLogRepository,
@@ -175,9 +175,9 @@ async def _list_scope_files(project_id: str) -> dict[str, bytes]:
     so we don't have to instantiate per-file readers.
     """
     import asyncio
-    from src.version_engine.application.tree import tree_to_flat
+    from src.version_engine.write_engine.tree import tree_to_flat
 
-    repo_manager = get_repo_manager_standalone()
+    repo_manager = build_worker_version_engine_container().repo_manager
     repo = repo_manager.get_server_repo(project_id)
     root_hash = await asyncio.to_thread(repo.get_root_hash) or ""
     if not root_hash:
@@ -192,7 +192,7 @@ async def _list_scope_files(project_id: str) -> dict[str, bytes]:
 
 
 def _local_head_commit_id(project_id: str) -> str:
-    repo_manager = get_repo_manager_standalone()
+    repo_manager = build_worker_version_engine_container().repo_manager
     repo = repo_manager.get_server_repo(project_id)
     try:
         return repo.get_head_commit_id() or ""

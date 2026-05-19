@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends, Request
 
 from src.common_schemas import ApiResponse
 from src.config import settings
-from src.version_engine.dependencies import get_product_operation_adapter
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.project.dependencies import (
     get_project_service, get_verified_project,
 )

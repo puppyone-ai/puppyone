@@ -2,7 +2,7 @@
 Project Dashboard API
 
 Aggregated endpoint that returns a project-level overview in a single call:
-project info, node counts, all access points, tools, and active uploads.
+project info, node counts, all connections, tools, and active uploads.
 """
 
 
@@ -16,8 +16,8 @@ from pydantic import BaseModel
 
 from src.common_schemas import ApiResponse
 from src.infra.supabase.client import SupabaseClient
-from src.version_engine.dependencies import get_product_operation_adapter
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_verified_project
@@ -81,7 +81,7 @@ class DashboardUpload(BaseModel):
 class ProjectDashboard(BaseModel):
     project: DashboardProject
     nodes: DashboardNodeCounts
-    access_points: list[DashboardConnection] = []
+    connections: list[DashboardConnection] = []
     tools: list[DashboardTool] = []
     uploads: list[DashboardUpload] = []
 
@@ -110,9 +110,9 @@ async def get_project_dashboard(
     project_id = str(project.id)
     sb = SupabaseClient().client
 
-    counts, access_points, tools, uploads = await asyncio.gather(
+    counts, connections, tools, uploads = await asyncio.gather(
         run_in_threadpool(_compute_node_counts, ops, project_id),
-        run_in_threadpool(_fetch_access_points, sb, project_id),
+        run_in_threadpool(_fetch_connections, sb, project_id),
         run_in_threadpool(_fetch_tools, sb, project_id),
         run_in_threadpool(_fetch_uploads, sb, project_id),
         return_exceptions=True,
@@ -125,11 +125,11 @@ async def get_project_dashboard(
             f"[Dashboard] _compute_node_counts failed for {project_id}: {counts}"
         )
         counts = DashboardNodeCounts()
-    if isinstance(access_points, Exception):
+    if isinstance(connections, Exception):
         logger.exception(
-            f"[Dashboard] _fetch_access_points failed for {project_id}: {access_points}"
+            f"[Dashboard] _fetch_connections failed for {project_id}: {connections}"
         )
-        access_points = []
+        connections = []
     if isinstance(tools, Exception):
         logger.exception(
             f"[Dashboard] _fetch_tools failed for {project_id}: {tools}"
@@ -148,7 +148,7 @@ async def get_project_dashboard(
             description=project.description,
         ),
         nodes=counts,
-        access_points=access_points,
+        connections=connections,
         tools=tools,
         uploads=uploads,
     )
@@ -214,8 +214,8 @@ def _connector_preview_key(cfg: dict, provider: str) -> str | None:
     return None
 
 
-def _fetch_access_points(sb, project_id: str) -> list[DashboardConnection]:
-    """Load dashboard rows from `connectors` (access_points table was dropped post-2026-05)."""
+def _fetch_connections(sb, project_id: str) -> list[DashboardConnection]:
+    """Load dashboard rows from the canonical connectors table."""
     conn_rows = (
         sb.table("connectors")
         .select(

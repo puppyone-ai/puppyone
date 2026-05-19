@@ -167,7 +167,8 @@ class TestSyncEngineDecoupling:
         import inspect
         from src.connectors.datasource.engine import SyncEngine
         source = inspect.getsource(SyncEngine.execute)
-        assert "create_version_write_command_service" in source
+        assert "build_worker_version_engine_container" in source
+        assert "write_commands" in source
         assert "commands.bulk_write" in source
         assert "commands.write_bytes" in source
 

@@ -20,7 +20,7 @@ agent-friendly filesystem entry points.
 1. Git owns version facts: blobs, trees, commits, refs, and pack transport.
 2. PuppyOne owns collaboration semantics: scopes, access points, auth,
    excludes, conflict policy, audit, projection, outbox, and indexing.
-3. `GitNativeTransactionEngine` is the only publish authority.
+3. `VersionWriteEngine` is the only publish authority.
 4. Product/Web/API writes default to root scope and create one user-visible
    history event.
 5. Access Point Git writes use scoped repo facades over a shared project object
@@ -37,7 +37,7 @@ Web / upload / connector / Puppyone CLI
 ProductOperationAdapter
         |
         v
-GitNativeTransactionEngine
+VersionWriteEngine
         |
         +--> Git object storage
         +--> Supabase refs/history/audit/transactions/outbox
@@ -48,7 +48,7 @@ Stock Git client
 Git smart HTTP adapter
         |
         v
-GitNativeTransactionEngine
+VersionWriteEngine
 ```
 
 See [01-version-engine.md](01-version-engine.md) for the complete current

@@ -8,20 +8,20 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
-from src.version_engine.application.object_store import ObjectStore
-from src.version_engine.application.tree import tree_to_flat
-from src.version_engine.server.scope_manager import ScopeManager
+from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.write_engine.tree import tree_to_flat
+from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager
 
-from src.version_engine.application.git_commit import build_git_commit
-from src.version_engine.application.tree_objects import build_tree_from_files
-from src.version_engine.server.repo_manager import VersionRepoManager
-from src.version_engine.server.server_repo import PuppyOneServerRepo
-from src.version_engine.services.object_gc import (
+from src.version_engine.write_engine.git_commit import build_git_commit
+from src.version_engine.write_engine.tree_objects import build_tree_from_files
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
+from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
+from src.version_engine.derived.object_gc import (
     collect_object_gc_roots,
     mark_reachable_objects,
     run_git_object_gc,
 )
-from src.version_engine.services.object_gc_worker import process_object_gc_projects
+from src.version_engine.derived.object_gc_worker import process_object_gc_projects
 
 from tests.version_engine.test_server_repo import FakeAuditManager, FakeHistoryManager
 
@@ -211,7 +211,7 @@ def test_object_gc_worker_can_run_bounded_manual_project_list(server_repo, monke
     manager = MagicMock(spec=VersionRepoManager)
     manager.get_server_repo.return_value = server_repo
     monkeypatch.setattr(
-        "src.version_engine.services.object_gc_worker.settings.VERSION_OBJECT_GC_ENABLED",
+        "src.version_engine.derived.object_gc_worker.settings.VERSION_OBJECT_GC_ENABLED",
         False,
     )
 

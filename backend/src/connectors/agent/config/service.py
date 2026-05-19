@@ -72,6 +72,12 @@ class AgentConfigService:
         if is_default:
             self._clear_default_agent(project_id)
 
+        primary_access = bash_accesses[0] if bash_accesses else None
+        if bash_accesses and len(bash_accesses) > 1:
+            raise ValueError(
+                "Agent connectors are scope-bound; create one agent per scope."
+            )
+
         agent = self._repo.create(
             project_id=project_id,
             name=name,
@@ -85,15 +91,11 @@ class AgentConfigService:
             task_path=task_path,
             external_config=external_config,
             created_by=owner_user_id,
+            scope_path=primary_access.path if primary_access else None,
+            scope_readonly=primary_access.readonly if primary_access else False,
         )
 
-        if bash_accesses:
-            for ba in bash_accesses:
-                self._repo.create_bash(
-                    agent_id=agent.id,
-                    path=ba.path,
-                    readonly=ba.readonly,
-                )
+        if primary_access:
             agent.bash_accesses = self._repo.get_bash_by_agent_id(agent.id)
 
         return agent

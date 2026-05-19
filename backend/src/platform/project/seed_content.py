@@ -4,7 +4,7 @@ Default seed content for new projects.
 Creates a Getting Started.md at root + a Guides/ folder with
 About Puppyone.md, Connecting Data.md, and Agent Access.md.
 
-All writes go through version transaction engine (ProductOperationAdapter).
+All writes go through Write Engine (ProductOperationAdapter).
 
 Used by both CLI `puppyone init` and web onboarding.
 """
@@ -210,9 +210,9 @@ async def seed_default_content(
 
     All content writes go through VersionWriteCommandService.
     """
-    from src.version_engine.dependencies import create_version_write_command_service
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-    commands = create_version_write_command_service()
+    commands = build_worker_version_engine_container().write_commands()
 
     files: dict[str, bytes] = {
         "Getting Started.md": GETTING_STARTED_MD.encode("utf-8"),

@@ -276,8 +276,8 @@ async def _init_version_trees() -> None:
     try:
         log_info("🌳 Checking and initializing Version Engine trees...")
         from src.infra.supabase.client import SupabaseClient as _SC
-        from src.version_engine.dependencies import create_version_admin_service as _cms
-        from src.version_engine.server.db_names import PROJECT_ROOT_HASH_COLUMN
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        from src.version_engine.infrastructure.supabase.db_names import PROJECT_ROOT_HASH_COLUMN
 
         _sb = _SC()
         resp = (
@@ -288,7 +288,7 @@ async def _init_version_trees() -> None:
         )
         uninit_projects = resp.data or []
         if uninit_projects:
-            _writer = _cms()
+            _writer = build_worker_version_engine_container().admin_service()
             for row in uninit_projects:
                 try:
                     await _writer.init_tree(row["id"])
@@ -340,6 +340,9 @@ async def app_lifespan(app: FastAPI):
     log_info("🚀 ContextBase API starting...")
     log_info("=" * 80)
 
+    from src.version_engine.bootstrap.container import build_version_engine_container
+
+    app.state.version_engine = build_version_engine_container()
     _log_import_times()
 
     await _init_mcp_health_check()
@@ -416,20 +419,20 @@ def create_app() -> FastAPI:
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API does not use /api/v1 prefix
-    from src.version_engine.routers.content_router import router as content_router
+    from src.version_engine.entrypoints.http.content import router as content_router
     app.include_router(content_router, prefix="/api/v1", tags=["content"])
-    from src.version_engine.routers.audit_router import router as audit_router
+    from src.version_engine.entrypoints.http.audit import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
-    from src.version_engine.routers.conflict_router import router as conflict_router
+    from src.version_engine.entrypoints.http.conflict import router as conflict_router
     app.include_router(conflict_router, prefix="/api/v1/content", tags=["conflicts"])
-    from src.version_engine.routers.shadow_snapshot_router import router as shadow_router
+    from src.version_engine.entrypoints.http.shadow_snapshot import router as shadow_router
     app.include_router(shadow_router, prefix="/api/v1", tags=["shadow-snapshots"])
-    from src.version_engine.adapters.git.router import router as git_protocol_router
+    from src.version_engine.entrypoints.git.router import router as git_protocol_router
     app.include_router(git_protocol_router, tags=["git-protocol"])
     # WebSocket /ws — server→client commit_update notifications.
-    from src.version_engine.routers.ws_router import ws_router as version_ws_router
+    from src.version_engine.entrypoints.http.websocket import ws_router as version_ws_router
     app.include_router(version_ws_router, tags=["version-ws"])
-    from src.version_engine.routers.access_point_fs import router as ap_fs_router
+    from src.version_engine.entrypoints.http.access_point_fs import router as ap_fs_router
     app.include_router(ap_fs_router, prefix="/api/v1", tags=["access-point-fs"])
     from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])

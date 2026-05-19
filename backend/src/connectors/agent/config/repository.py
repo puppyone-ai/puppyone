@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import secrets
 
 from src.connectors.agent.config.models import Agent, AgentBash, AgentTool
+from src.repo.scope_service import ScopeService
 from src.utils.id_generator import generate_uuid_v7
 
 
@@ -135,21 +136,50 @@ class AgentRepository:
             .eq("provider", AGENT_PROVIDER)
         )
 
-    def _root_scope_id(self, project_id: str) -> str:
+    def _scope_for_path(
+        self, project_id: str, path: str = "", *, readonly: bool = False,
+    ) -> dict:
+        normalized = (path or "").strip("/")
+        scope_service = ScopeService()
+        if not normalized:
+            scope = scope_service.ensure_root_scope(project_id)
+        else:
+            scope = None
+            for candidate in scope_service.list_for_project(project_id):
+                if (candidate.path or "") == normalized:
+                    scope = candidate
+                    break
+            if scope is None:
+                scope = scope_service.create(
+                    project_id=project_id,
+                    name=normalized.rsplit("/", 1)[-1] or "Agent Scope",
+                    path=normalized,
+                    exclude=[],
+                    mode="r" if readonly else "rw",
+                )
+        return {
+            "id": scope.id,
+            "path": scope.path,
+            "exclude": scope.exclude,
+            "mode": scope.mode,
+        }
+
+    def _agent_connector_for_scope(self, scope_id: str) -> dict:
         resp = (
-            self._client.table("repo_scopes")
-            .select("id")
-            .eq("project_id", project_id)
-            .eq("path", "")
+            self._client.table(self.TABLE)
+            .select("*")
+            .eq("scope_id", scope_id)
+            .eq("provider", AGENT_PROVIDER)
             .limit(1)
             .execute()
         )
         rows = resp.data or []
         if not rows:
             raise RuntimeError(
-                "root repo scope is required before creating an agent connector"
+                "agent connector invariant failed: repo scope exists without "
+                "its built-in agent connector"
             )
-        return rows[0]["id"]
+        return rows[0]
 
     # ============================================
     # Agent CRUD
@@ -299,10 +329,17 @@ class AgentRepository:
         llm_model: Optional[str] = None,
         system_prompt: Optional[str] = None,
         created_by: Optional[str] = None,
+        scope_path: Optional[str] = None,
+        scope_readonly: bool = False,
     ) -> Agent:
-        agent_id = generate_uuid_v7()
-        mcp_api_key = generate_access_key(type)
-        scope_id = self._root_scope_id(project_id)
+        scope = self._scope_for_path(
+            project_id,
+            scope_path or "",
+            readonly=scope_readonly,
+        )
+        connector = self._agent_connector_for_scope(scope["id"])
+        existing_config = dict(connector.get("config") or {})
+        mcp_api_key = existing_config.get("mcp_api_key") or generate_access_key(type)
 
         config = {
             "name": name,
@@ -316,6 +353,8 @@ class AgentRepository:
             "external_config": external_config,
             "llm_model": llm_model,
             "system_prompt": system_prompt,
+            "scope": scope,
+            "activated": True,
         }
         trigger = {
             "type": trigger_type or "manual",
@@ -323,18 +362,20 @@ class AgentRepository:
         }
 
         data = {
-            "id": agent_id,
-            "project_id": project_id,
-            "scope_id": scope_id,
             "name": name,
             "direction": "bidirectional",
-            "provider": AGENT_PROVIDER,
             "config": config,
             "trigger": trigger,
             "status": "active",
             "created_by": created_by,
         }
-        response = self._client.table(self.TABLE).insert(data).execute()
+        response = (
+            self._client.table(self.TABLE)
+            .update(data)
+            .eq("id", connector["id"])
+            .eq("provider", AGENT_PROVIDER)
+            .execute()
+        )
         return _row_to_agent(response.data[0])
 
     def update(
@@ -469,13 +510,17 @@ class AgentRepository:
         """Read raw config JSONB for an agent."""
         resp = (
             self._client.table(self.TABLE)
-            .select("config")
+            .select("config, project_id, scope_id")
             .eq("id", agent_id)
             .eq("provider", AGENT_PROVIDER)
             .execute()
         )
         if resp.data:
-            return resp.data[0].get("config") or {}
+            row = resp.data[0]
+            config = dict(row.get("config") or {})
+            config["_project_id"] = row.get("project_id")
+            config["_scope_id"] = row.get("scope_id")
+            return config
         return None
 
     def _update_scope(self, agent_id: str, scope: dict) -> None:
@@ -483,9 +528,16 @@ class AgentRepository:
         config = self._get_agent_config(agent_id)
         if config is None:
             return
+        current_scope_id = config.pop("_scope_id", None)
+        if current_scope_id and current_scope_id != scope["id"]:
+            raise RuntimeError(
+                "Agent scope is immutable; activate the built-in agent "
+                "connector for the target scope instead."
+            )
+        config.pop("_project_id", None)
         config["scope"] = scope
         self._client.table(self.TABLE).update(
-            {"config": config, "updated_at": _NOW}
+            {"config": config, "scope_id": scope["id"], "updated_at": _NOW}
         ).eq("id", agent_id).eq("provider", AGENT_PROVIDER).execute()
 
     def get_bash_by_agent_id(self, agent_id: str) -> List[AgentBash]:
@@ -508,17 +560,19 @@ class AgentRepository:
         path: str,
         readonly: bool = True,
     ) -> AgentBash:
-        scope = {
-            "path": path,
-            "exclude": [],
-            "mode": "r" if readonly else "rw",
-        }
+        config = self._get_agent_config(agent_id)
+        if config is None:
+            raise RuntimeError(f"Agent {agent_id} not found")
+        project_id = config.get("_project_id")
+        if not project_id:
+            raise RuntimeError(f"Agent {agent_id} is missing project_id")
+        scope = self._scope_for_path(project_id, path, readonly=readonly)
         self._update_scope(agent_id, scope)
         return AgentBash(
             id=f"{agent_id}:scope",
             agent_id=agent_id,
-            path=path,
-            readonly=readonly,
+            path=scope["path"],
+            readonly=scope["mode"] == "r",
             created_at=datetime.now(timezone.utc),
         )
 
@@ -544,6 +598,7 @@ class AgentRepository:
             return False
         if "scope" in config:
             del config["scope"]
+            config.pop("_project_id", None)
             self._client.table(self.TABLE).update(
                 {"config": config, "updated_at": _NOW}
             ).eq("id", agent_id).execute()

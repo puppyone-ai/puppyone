@@ -1,4 +1,4 @@
-from src.version_engine.text_detection import is_binary_content
+from src.version_engine.read.text_detection import is_binary_content
 
 
 def test_markdown_and_json_node_types_are_text():

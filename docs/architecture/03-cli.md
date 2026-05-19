@@ -16,7 +16,7 @@ git pull
 ```
 
 Git pushes enter the Git smart-HTTP adapter, validate scope/excludes/mode, and
-publish through `GitNativeTransactionEngine`.
+publish through `VersionWriteEngine`.
 
 ## Puppyone CLI
 

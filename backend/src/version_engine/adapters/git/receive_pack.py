@@ -14,9 +14,9 @@ from src.version_engine.adapters.git.protocol import (
     read_pkt_lines,
 )
 from src.version_engine.adapters.git.submission import submit_git_tree
-from src.version_engine.application.git_object_format import decode_commit
-from src.version_engine.application.transaction_engine import CrossScopeSubmissionError
-from src.version_engine.server.repo_manager import VersionRepoManager
+from src.version_engine.write_engine.git_object_format import decode_commit
+from src.version_engine.write_engine.engine import CrossScopeSubmissionError
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 
 class ReceiveCommand:

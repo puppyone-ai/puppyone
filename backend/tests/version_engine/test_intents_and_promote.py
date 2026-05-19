@@ -1,12 +1,12 @@
 """Tests for the new domain intents and parent-scope promote helper.
 
 Focus is on shape and helper logic — no Supabase, no S3. The engine's
-end-to-end publish path is covered by ``test_git_native_transaction_engine.py``.
+end-to-end publish path is covered by ``test_git_native_write_engine/engine.py``.
 """
 
 from __future__ import annotations
 
-from src.version_engine.application.parent_scope_promote import (
+from src.version_engine.derived.parent_scope_promote import (
     ancestor_scope_paths,
     promote_to_parents,
 )
@@ -137,7 +137,7 @@ class _RecordingRepo:
     def __init__(self):
         self._scopes = {"": ""}  # root scope only
         self.publish_calls: list[dict] = []
-        from src.version_engine.application.object_store import ObjectStore
+        from src.version_engine.write_engine.object_store import ObjectStore
         from pathlib import Path
         import tempfile
         self._tmp = tempfile.mkdtemp()
@@ -161,11 +161,11 @@ class _RecordingRepo:
 
 
 def test_promote_to_parents_calls_publish_for_ancestor_scope(tmp_path):
-    from src.version_engine.application.git_object_format import encode_tree
+    from src.version_engine.write_engine.git_object_format import encode_tree
     repo = _RecordingRepo()
     # Build a non-empty child subtree so the graft produces a different root.
     blob = repo.store.put_blob(b"hello")
-    from src.version_engine.application.git_object_format import MODE_FILE, TreeEntry
+    from src.version_engine.write_engine.git_object_format import MODE_FILE, TreeEntry
     child_tree = repo.store.put_tree(encode_tree([
         TreeEntry(name="readme.md", mode=MODE_FILE, sha1_hex=blob),
     ]))

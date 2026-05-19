@@ -28,7 +28,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.version_engine.server.backends.supabase_history import (
+from src.version_engine.infrastructure.supabase.history_repository import (
     SupabaseHistoryManager,
     _normalize,
 )

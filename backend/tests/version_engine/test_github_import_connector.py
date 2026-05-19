@@ -134,17 +134,30 @@ class FakeOps:
     def __init__(self):
         self.bulk_write_call = None
 
-    async def bulk_write(self, project_id, files, who, scope="", deleted=None, message="", defer_projection=False):
+    async def bulk_write(
+        self,
+        project_id,
+        files,
+        actor=None,
+        who=None,
+        scope="",
+        deleted=None,
+        message="",
+        defer_projection=False,
+    ):
         self.bulk_write_call = {
             "project_id": project_id,
             "files": files,
-            "who": who,
+            "who": who or actor,
             "deleted": deleted,
             "message": message,
         }
-        return SimpleNamespace(commit_id="commit-1")
+        return SimpleNamespace(result=SimpleNamespace(commit_id="commit-1"))
 
     async def write_file(self, *args, **kwargs):
+        raise AssertionError("multi-file imports must use bulk_write")
+
+    async def write_bytes(self, *args, **kwargs):
         raise AssertionError("multi-file imports must use bulk_write")
 
 
@@ -152,9 +165,13 @@ class FakeOps:
 async def test_sync_engine_commits_github_import_as_bulk_write(monkeypatch):
     fake_ops = FakeOps()
 
-    import src.version_engine.dependencies as version_deps
+    import src.version_engine.bootstrap.dependencies as version_deps
 
-    monkeypatch.setattr(version_deps, "create_product_operation_adapter", lambda: fake_ops)
+    monkeypatch.setattr(
+        version_deps,
+        "build_worker_version_engine_container",
+        lambda: SimpleNamespace(write_commands=lambda: fake_ops),
+    )
 
     sync_repo = FakeSyncRepo()
     engine = SyncEngine(registry=FakeRegistry(), sync_repo=sync_repo)

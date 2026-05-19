@@ -22,7 +22,7 @@ from src.version_engine.adapters.git.protocol import (
     run_git,
 )
 from src.version_engine.adapters.git.view_projection import git_view_head_commit
-from src.version_engine.application.git_object_format import (
+from src.version_engine.write_engine.git_object_format import (
     MODE_DIR,
     decode_commit,
     decode_tree,

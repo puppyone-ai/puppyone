@@ -14,12 +14,13 @@ from src.infra.supabase.dependencies import get_supabase_repository
 from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.infra.search.dependencies import get_search_service
 from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
-from src.connectors.agent.config.service import AgentConfigService
-from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
-from src.version_engine.dependencies import create_product_operation_adapter, get_product_operation_adapter
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
-from src.version_engine.services.write_command import VersionWriteCommandService
+from src.version_engine.bootstrap.dependencies import (
+    build_worker_version_engine_container,
+    get_product_operation_adapter,
+)
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
 from src.platform.project.repository import ProjectRepositorySupabase
 from src.utils.logger import log_warning
 
@@ -93,7 +94,7 @@ def _enforce_acting_user_project_access(request: Request, project_id: str) -> st
 
 
 def _create_write_commands() -> VersionWriteCommandService:
-    return VersionWriteCommandService(create_product_operation_adapter())
+    return build_worker_version_engine_container().write_commands()
 
 
 # ============================================================
@@ -742,31 +743,15 @@ async def move_node_internal(
 # Agent internal endpoints (called by mcp_service, new architecture)
 # ============================================================
 
-def get_agent_config_service() -> AgentConfigService:
-    return AgentConfigService(AgentRepository())
+def _resolve_agent_via_connectors(mcp_api_key: str) -> dict:
+    """Resolve an MCP key through the canonical connectors/repo_scopes model."""
 
+    from src.repo.connector_service import ConnectorService
+    from src.repo.scope_repository import RepoScopeRepository
 
-def _resolve_agent_via_connectors(mcp_api_key: str) -> dict | None:
-    """New-path resolution: query the `connectors` table for an agent.
-
-    Returns the response payload directly when found, or None if there's
-    no agent connector with that key (caller falls back to the legacy
-    access_points lookup).
-
-    Failure-mode contract: ANY exception (network blip, table not yet
-    migrated, DB outage) returns None so the legacy fallback runs. We
-    log the failure but never let it propagate — the legacy path is
-    still the source of truth during the transition window.
-    """
-    try:
-        from src.repo.connector_service import ConnectorService
-        from src.repo.scope_repository import RepoScopeRepository
-        connector = ConnectorService().get_agent_by_mcp_key(mcp_api_key)
-    except Exception as e:
-        log_warning(f"[internal] connectors lookup failed for mcp key — falling back: {e}")
-        return None
+    connector = ConnectorService().get_agent_by_mcp_key(mcp_api_key)
     if connector is None:
-        return None
+        raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
 
     # Connectors don't have first-class tools/bash_accesses today; the
     # agent's bound scope IS its access scope. We return one access
@@ -794,14 +779,13 @@ def _resolve_agent_via_connectors(mcp_api_key: str) -> dict | None:
             "id": connector.id,
             "name": connector.name,
             "project_id": connector.project_id,
-            # Connectors don't carry the legacy `type` field; default to
-            # 'chat' for MCP service compatibility.
+            # Connector-backed in-app agents expose the chat runtime.
             "type": "chat",
             "user_id": connector.created_by or "",
         },
         "accesses": accesses_data,
-        # Tools attached to agents lived in the legacy access_tools table;
-        # the new model doesn't surface them here yet.
+        # Agent-scoped tool grants are derived from the bound repo scope.
+        # No secondary agent/access table is consulted here.
         "tools": [],
     }
 
@@ -814,92 +798,14 @@ def _resolve_agent_via_connectors(mcp_api_key: str) -> dict | None:
 )
 async def get_agent_by_mcp_key(
     mcp_api_key: str,
-    agent_service: AgentConfigService = Depends(get_agent_config_service),
 ):
     """Resolve an MCP API key to an agent's config + tools + accesses.
 
-    Queries the new `connectors` table first (rows with provider='agent'
-    and config.mcp_api_key=<key>). Falls back to the legacy
-    AgentConfigService.get_by_mcp_api_key() during the access-points →
-    connectors transition window — once access_points is dropped, the
-    fallback returns nothing and we 404.
-
-    The response shape is unchanged for the MCP service consumer.
+    The canonical source of truth is ``connectors`` rows with
+    provider='agent' and ``config.mcp_api_key``. Missing or unhealthy
+    connector state fails loud instead of consulting historical tables.
     """
-    new_payload = _resolve_agent_via_connectors(mcp_api_key)
-    if new_payload is not None:
-        return new_payload
-
-    # ── Fallback: legacy access_points-backed agent lookup ────────────
-    agent = agent_service.get_by_mcp_api_key(mcp_api_key)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
-
-    tool_repo = ToolRepositorySupabase(get_supabase_repository())
-    tools_data = []
-    for agent_tool in agent.tools:
-        tool = tool_repo.get_by_id(agent_tool.tool_id)
-        if tool:
-            tools_data.append({
-                "id": agent_tool.id,
-                "tool_id": tool.id,
-                "name": tool.name,
-                "type": tool.type,
-                "description": tool.description,
-                "path": tool.path,
-                "json_path": tool.json_path,
-                "input_schema": tool.input_schema,
-                "category": tool.category,
-                "enabled": agent_tool.enabled,
-                "mcp_exposed": agent_tool.mcp_exposed,
-            })
-
-    accesses_data = []
-    for bash in agent.bash_accesses:
-        access_entry = {
-            "path": bash.path,
-            "bash_enabled": True,
-            "bash_readonly": bash.readonly,
-            "tool_query": True,
-            "tool_create": not bash.readonly,
-            "tool_update": not bash.readonly,
-            "tool_delete": not bash.readonly,
-            "json_path": bash.json_path or "",
-            "node_name": bash.path,
-            "node_type": "",
-        }
-        accesses_data.append(access_entry)
-
-    # Lookup the connector creator so the MCP service can pass
-    # X-Acting-User-Id on subsequent /internal/nodes/* calls (security: C-3).
-    # ``agent.id`` is the row id in ``connectors`` for the agent.
-    owner_user_id = ""
-    try:
-        from src.infra.supabase.client import SupabaseClient
-        ap_row = (
-            SupabaseClient().get_client()
-            .table("connectors")
-            .select("created_by")
-            .eq("id", agent.id)
-            .limit(1)
-            .execute()
-        )
-        if ap_row.data:
-            owner_user_id = ap_row.data[0].get("created_by") or ""
-    except Exception:
-        pass
-
-    return {
-        "agent": {
-            "id": agent.id,
-            "name": agent.name,
-            "project_id": agent.project_id,
-            "type": agent.type,
-            "user_id": owner_user_id,
-        },
-        "accesses": accesses_data,
-        "tools": tools_data,
-    }
+    return _resolve_agent_via_connectors(mcp_api_key)
 
 
 @router.get(

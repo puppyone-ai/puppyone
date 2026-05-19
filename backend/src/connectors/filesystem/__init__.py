@@ -1,5 +1,5 @@
 """
-Filesystem Connector — Bidirectional local folder sync via version transaction engine.
+Filesystem Connector — Bidirectional local folder sync via Write Engine.
 
 Architecture:
   - Stock Git clients use /git/ap/{access_key}.git.

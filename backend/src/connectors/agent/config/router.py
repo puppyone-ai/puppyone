@@ -8,8 +8,8 @@ import asyncio
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 
-from src.version_engine.dependencies import get_product_operation_adapter
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 
 from src.connectors.agent.config.service import AgentConfigService
 from src.infra.scheduler.service import get_scheduler_service

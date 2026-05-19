@@ -21,6 +21,8 @@ from src.infra.llm.service import LLMService
 # 测试使用的模型
 TEST_MODEL = "openrouter/qwen/qwen3-8b"
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def llm_service():
@@ -32,6 +34,8 @@ def llm_service():
 @pytest.fixture(autouse=True)
 def check_api_key():
     """检查 API 密钥是否已设置"""
+    if os.environ.get("RUN_LLM_INTEGRATION") != "1":
+        pytest.skip("set RUN_LLM_INTEGRATION=1 to run live model integration tests")
     if not os.environ.get("OPENROUTER_API_KEY"):
         pytest.skip("需要设置 OPENROUTER_API_KEY 环境变量才能运行集成测试")
 
@@ -511,4 +515,3 @@ async def test_deterministic_output_with_low_temperature(llm_service):
     # 验证两次响应都包含答案 "4"
     assert "4" in response1.content, f"第一次响应中没有找到答案: {response1.content}"
     assert "4" in response2.content, f"第二次响应中没有找到答案: {response2.content}"
-

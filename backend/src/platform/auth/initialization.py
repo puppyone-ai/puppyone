@@ -167,7 +167,7 @@ class UserInitializationService:
         """Create the Get Started project, init its version tree, and seed
         template content. Returns the new project id, or None on failure
         (failures are logged but never block sign-in)."""
-        from src.version_engine.dependencies import create_version_admin_service
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
         from src.platform.project.templates import seed_template_content
 
         try:
@@ -190,7 +190,7 @@ class UserInitializationService:
         # user still ends up with an empty "Get Started" project they
         # can delete — strictly better than today's empty dashboard.
         try:
-            admin = create_version_admin_service()
+            admin = build_worker_version_engine_container().admin_service()
             await admin.init_tree(project_id)
         except Exception as e:
             log_error(

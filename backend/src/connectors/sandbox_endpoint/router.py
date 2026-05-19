@@ -107,10 +107,10 @@ def _validate_command(command: str, mounts: List[Dict[str, Any]]) -> None:
 
 def _clone_version_files(project_id: str, scope_path: str) -> tuple:
     """Clone version tree files for a scope path. Returns (client, files_dict)."""
-    from src.version_engine.dependencies import get_repo_manager_standalone
-    from src.version_engine.services.in_process_client import InProcessVersionClient
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
 
-    repo_manager = get_repo_manager_standalone()
+    repo_manager = build_worker_version_engine_container().repo_manager
     auth = {
         "agent": f"sandbox_endpoint",
         "_scope": {
@@ -363,14 +363,14 @@ async def exec_command(
     try:
         exec_res = await sandbox_service.exec(session_id=session_id, command=command)
 
-        # Write back changed files for writable mounts via version transaction engine
+        # Write back changed files for writable mounts via Write Engine
         writeback_results = []
         for client, original_files, mount_target, scope_path in version_clients:
             modified = await _read_modified_files(
                 sandbox_service, session_id, original_files, mount_target, scope_path,
             )
             if modified:
-                from src.version_engine.services.hooks import push_and_finalize
+                from src.version_engine.derived.hooks import push_and_finalize
                 push_result = await push_and_finalize(
                     client,
                     project_id,

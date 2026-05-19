@@ -15,7 +15,7 @@ SaaS / database / ingest / agent / sandbox connector
 ProductOperationAdapter or version submission intent
         |
         v
-GitNativeTransactionEngine
+VersionWriteEngine
 ```
 
 ## Responsibilities

@@ -20,8 +20,8 @@ from src.version_engine.adapters.git.object_quarantine import (
     _reachable_object_ids,
 )
 from src.version_engine.adapters.git.view_projection import git_view_head_commit
-from src.version_engine.application.git_commit import build_git_commit
-from src.version_engine.application.tree_objects import build_tree_from_files
+from src.version_engine.write_engine.git_commit import build_git_commit
+from src.version_engine.write_engine.tree_objects import build_tree_from_files
 
 
 def _publish_initial_root(server_repo, files: dict[str, bytes]) -> tuple[str, str]:

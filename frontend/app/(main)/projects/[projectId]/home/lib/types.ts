@@ -50,7 +50,7 @@ export interface DashboardTool {
 export interface ProjectDashboard {
   project: DashboardProject;
   nodes: DashboardNodeCounts;
-  access_points: DashboardConnection[];
+  connections: DashboardConnection[];
   tools: DashboardTool[];
   uploads: { id: string; status: string }[];
 }

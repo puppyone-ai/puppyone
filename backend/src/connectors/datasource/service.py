@@ -224,8 +224,8 @@ class SyncService:
         conn_folder = f"{base_folder}/{name}" if base_folder else name
         operator = f"sync:{user_id}" if user_id else "sync"
 
-        from src.version_engine.dependencies import create_version_write_command_service
-        commands = create_version_write_command_service()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        commands = build_worker_version_engine_container().write_commands()
 
         initial_content = b"{}" if node_type == "json" else b""
         await commands.write_bytes(

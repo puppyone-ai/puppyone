@@ -8,7 +8,7 @@ from typing import Any
 from src.exceptions import BusinessException, ErrorCode, NotFoundException
 from src.infra.mcp_server.cache_invalidator import invalidate_mcp_cache
 from src.infra.supabase.dependencies import get_supabase_repository
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.project.service import ProjectService
 from src.tool.models import Tool
 from src.tool.repository import ToolRepositoryBase

@@ -1,4 +1,4 @@
-"""Write intents consumed by the Git-native transaction engine."""
+"""Write intents consumed by the Write Engine."""
 
 from __future__ import annotations
 

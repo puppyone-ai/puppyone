@@ -20,7 +20,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.connectors.filesystem.router import router as folder_router
-from src.version_engine.routers.audit_router import router as audit_router
+from src.version_engine.entrypoints.http.audit import router as audit_router
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
@@ -592,7 +592,7 @@ class TestAuditLogApi:
 
     def test_audit_log_endpoint(self):
         """GET /nodes/{id}/audit-logs should return audit logs."""
-        from src.version_engine.routers.audit_router import router, _get_audit_repo
+        from src.version_engine.entrypoints.http.audit import router, _get_audit_repo
 
         app = FastAPI()
         app.include_router(router, prefix="/api/v1")

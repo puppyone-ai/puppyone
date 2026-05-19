@@ -1,6 +1,6 @@
 """Shared fixtures for version_engine tests.
 
-Lifted here from ``test_git_native_transaction_engine.py`` so newer test
+Lifted here from ``test_git_native_write_engine/engine.py`` so newer test
 modules (``test_engine_resolve.py``) can reuse the in-memory
 ``server_repo`` / ``repo_manager`` without copy-pasting the boilerplate.
 The original test file keeps its own copies because pytest still picks
@@ -14,8 +14,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.version_engine.application.object_store import ObjectStore
-from src.version_engine.server.repo_manager import VersionRepoManager
+from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
 
 
 @pytest.fixture
@@ -27,8 +27,8 @@ def memory_store(tmp_path) -> ObjectStore:
 
 @pytest.fixture
 def server_repo(memory_store):
-    from src.version_engine.server.scope_manager import ScopeManager
-    from src.version_engine.server.server_repo import PuppyOneServerRepo
+    from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager
+    from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
 
     from tests.version_engine.test_server_repo import (
         FakeAuditManager,

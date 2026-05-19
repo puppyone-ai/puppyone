@@ -10,7 +10,7 @@ import asyncio
 from typing import Optional
 
 from src.infra.supabase.client import SupabaseClient
-from src.version_engine.server.db_names import GITHUB_SYNC_VERSION_COLUMN
+from src.version_engine.infrastructure.supabase.db_names import GITHUB_SYNC_VERSION_COLUMN
 from src.utils.logger import log_warning
 
 

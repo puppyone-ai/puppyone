@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.version_engine.domain.intents import ProjectWriteState
-from src.version_engine.services.write_command import VersionWriteCommandService
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
 
 
 class _FakeOps:

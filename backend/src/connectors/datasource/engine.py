@@ -130,8 +130,8 @@ class SyncEngine:
 
             operator = f"sync:{sync.provider}:{external_resource_id}"
 
-            from src.version_engine.dependencies import create_version_write_command_service
-            commands = create_version_write_command_service()
+            from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+            commands = build_worker_version_engine_container().write_commands()
 
             if result.files is not None:
                 files = {
@@ -224,19 +224,10 @@ class SyncEngine:
     async def execute_for_connector(self, connector) -> Optional[str]:
         """Run a single connector once (manual trigger from connector_router).
 
-        Bridges the new `Connector` row (post-redesign) into the existing
-        execute() pipeline by mapping (project_id, scope_id, provider) to
-        the still-extant Sync row that backs it during the transition.
-
-        Returns the connector_run_id so the API can echo it back.
-
-        TODO(redesign Q4): once the legacy `syncs` table is dropped, this
-        method should be the canonical execute path — the sync_repo
-        lookup below goes away and we drive directly off the Connector
-        + repo_scopes.path. The Notion `.push()` end-to-end stub lands
-        in a follow-up PR (separate `connectors/datasource/notion/` module).
+        The connector id is the canonical sync id. ``SyncRepository`` derives
+        the connector's scope path from repo_scopes and returns the DTO shape
+        used by provider implementations.
         """
-        from src.repo.scope_repository import RepoScopeRepository
 
         # Built-in cli/agent connectors don't have a third-party "fetch" step
         # — they're conduits for the user's own writes. Refusing here matches
@@ -245,39 +236,10 @@ class SyncEngine:
             log_debug(f"[SyncEngine] cli/agent connectors don't run on demand: {connector.id}")
             return None
 
-        # Resolve the scope so we know where in the tree this connector writes.
-        scope = RepoScopeRepository().get(connector.scope_id)
-        if scope is None:
-            log_error(f"[SyncEngine] connector {connector.id} references missing scope {connector.scope_id}")
+        sync = self.sync_repo.get_by_id(connector.id)
+        if sync is None:
+            log_error(f"[SyncEngine] connector {connector.id} not found")
             return None
-
-        # Transition-window bridge: find the legacy Sync row this connector
-        # was migrated from. Scope the lookup by (project_id, provider, path)
-        # to avoid two failure modes of a naive get_by_path():
-        #   1. cross-project collision — same path string in another project
-        #   2. root scope (path="") matching arbitrary other rows in the
-        #      project. Once the legacy syncs table is dropped, replace this
-        #      with a direct dispatch on connector.provider.
-        target_path = scope.path or ""
-        candidates = self.sync_repo.list_by_provider(connector.project_id, connector.provider)
-        matches = [s for s in candidates if (s.path or "") == target_path]
-        if not matches:
-            log_error(
-                f"[SyncEngine] no legacy sync row for connector {connector.id} "
-                f"(project={connector.project_id} provider={connector.provider} "
-                f"path={target_path!r}). Expected once syncs table is dropped — "
-                f"replace with direct connector dispatch then."
-            )
-            return None
-        if len(matches) > 1:
-            log_error(
-                f"[SyncEngine] ambiguous legacy sync rows for connector "
-                f"{connector.id} (project={connector.project_id} "
-                f"provider={connector.provider} path={target_path!r}): "
-                f"{[m.id for m in matches]}. Refusing to dispatch."
-            )
-            return None
-        sync = matches[0]
 
         result = await self.execute(sync.id, trigger_type="manual")
         return (result or {}).get("run_id")

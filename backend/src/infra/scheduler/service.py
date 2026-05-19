@@ -137,7 +137,7 @@ class SchedulerService:
             client = SupabaseClient().client
 
             result = (
-                client.table("access_points")
+                client.table("connectors")
                 .select("*")
                 .eq("provider", "agent")
                 .eq("status", "active")
@@ -275,7 +275,7 @@ class SchedulerService:
 
             client = SupabaseClient().client
             result = (
-                client.table("access_points")
+                client.table("connectors")
                 .select("id, provider, trigger, status")
                 .eq("status", "active")
                 .execute()

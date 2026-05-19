@@ -3,7 +3,7 @@ Agent sandbox session management — reuse version-backed sandboxes across chat 
 
 Each AgentSandboxSession holds a InProcessVersionClient that was cloned once at
 session start. When the session ends (explicit or idle timeout), the client
-pushes modified files back through the version transaction engine.
+pushes modified files back through the Write Engine.
 
 Lifecycle:
   1. Agent chat starts → clone version scope → mount in sandbox → register session
@@ -22,7 +22,7 @@ from typing import Optional, Any
 
 from loguru import logger
 
-from src.version_engine.services.in_process_client import InProcessVersionClient
+from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
 
 
 @dataclass
@@ -215,7 +215,7 @@ async def writeback_and_destroy(
                 session.scope_path,
             )
             if modified or deleted:
-                from src.version_engine.services.hooks import push_and_finalize
+                from src.version_engine.derived.hooks import push_and_finalize
                 push_result = await push_and_finalize(
                     session.version_client,
                     session.project_id,

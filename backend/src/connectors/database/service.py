@@ -61,9 +61,9 @@ class DBConnectorService:
     def get_connection(self, connection_id: str, user_id: str) -> DBConnection:
         conn = self.repo.get_by_id(connection_id)
         if not conn:
-            raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException("Database connector not found", code=ErrorCode.NOT_FOUND)
         if not self.project_service.verify_project_access(conn.project_id, user_id):
-            raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException("Database connector not found", code=ErrorCode.NOT_FOUND)
         return conn
 
     def list_connections(self, project_id: str, user_id: str) -> List[DBConnection]:
@@ -133,8 +133,8 @@ class DBConnectorService:
         }
 
         import json
-        from src.version_engine.dependencies import create_version_write_command_service
-        commands = create_version_write_command_service()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        commands = build_worker_version_engine_container().write_commands()
         content_bytes = json.dumps(content_data, ensure_ascii=False, indent=2).encode("utf-8")
         file_path = f"{name}.json" if not name.endswith(".json") else name
         await commands.write_bytes(

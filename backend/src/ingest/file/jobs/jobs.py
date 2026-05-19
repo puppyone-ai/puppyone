@@ -25,8 +25,8 @@ from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
-from src.version_engine.application.git_object_format import encode_object
-from src.version_engine.adapters.operations.product_operation_adapter import BlobRef
+from src.version_engine.write_engine.git_object_format import encode_object
+from src.version_engine.adapters.product.operation_adapter import BlobRef
 
 logger = logging.getLogger(__name__)
 
@@ -445,8 +445,8 @@ async def finalize_upload_to_version(
             f"task={task_id} ({ref.size}B)"
         )
 
-        from src.version_engine.dependencies import create_version_write_command_service
-        commands = create_version_write_command_service()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        commands = build_worker_version_engine_container().write_commands()
         # ``verify_blobs=False`` because we just wrote the blob to
         # its version object key inside ``stage_blob_from_s3`` — it IS
         # there, no need to round-trip a HEAD.
@@ -773,8 +773,8 @@ async def finalize_uploads_to_version_batch(
     # ``verify_blobs=False`` is safe here because we just wrote each blob to
     # its version object key inside ``stage_blob_from_s3`` above — they ARE present, no
     # need to round-trip a HEAD per ref.
-    from src.version_engine.dependencies import create_version_write_command_service
-    commands = create_version_write_command_service()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    commands = build_worker_version_engine_container().write_commands()
     first_task = survivors[0]["task"]
     who = f"upload:{first_task.created_by or 'unknown'}"
     message = (
@@ -1022,8 +1022,8 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
         mount_json_path = task.metadata.get("mount_json_path") or ""
         mount_key = task.metadata.get("mount_key") or Path(task.filename).name
 
-        from src.version_engine.dependencies import create_version_write_command_service
-        commands = create_version_write_command_service()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        commands = build_worker_version_engine_container().write_commands()
 
         if not mount_path:
             auto_name = task.metadata.get("auto_node_name") or f"{task_id}"

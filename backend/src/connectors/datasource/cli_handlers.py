@@ -165,7 +165,7 @@ def process_pull_files(
         except FileNotFoundError:
             continue
 
-        from src.version_engine.services.tree_reader import detect_type
+        from src.version_engine.read.tree_reader import detect_type
         node_type = detect_type(path)
         is_json = node_type == "json"
 

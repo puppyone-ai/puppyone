@@ -1,4 +1,4 @@
-"""Tests for GitNativeTransactionEngine.resolve(ConflictResolutionIntent).
+"""Tests for VersionWriteEngine.resolve(ConflictResolutionIntent).
 
 Covers:
   * happy path: accept a resolution tree → row marked resolved with the
@@ -10,10 +10,8 @@ Covers:
     ledger by marking the original row ``resolved`` (Bug 1 fix).
 
 The tests run against the in-memory PuppyOneServerRepo fixture from
-``test_server_repo`` to avoid Supabase. The supabase shim helpers
-(_load_pending_conflict_row / _close_pending_conflict_row /
-_mark_pending_conflict_row) are monkey-patched so we can drive the
-flow without a real database.
+``test_server_repo`` to avoid Supabase. A fake VersionTransactionLedger
+drives the conflict lifecycle without a real database.
 """
 
 from __future__ import annotations
@@ -22,11 +20,10 @@ import threading
 
 import pytest
 
-from src.version_engine.application import transaction_engine as engine_mod
-from src.version_engine.application.transaction_engine import (
-    GitNativeTransactionEngine,
+from src.version_engine.write_engine.engine import (
+    VersionWriteEngine,
 )
-from src.version_engine.application.tree_objects import build_tree_from_files
+from src.version_engine.write_engine.tree_objects import build_tree_from_files
 from src.version_engine.domain.intents import ConflictResolutionIntent
 from src.version_engine.domain.intents import TransactionResult
 
@@ -34,8 +31,6 @@ from src.version_engine.domain.intents import TransactionResult
 class _FakeConflictTable:
     """In-memory stand-in for the persistent conflict table.
 
-    Exposed via monkeypatched ``_load_pending_conflict_row`` /
-    ``_mark_pending_conflict_row`` / ``_close_pending_conflict_row``.
     Records every transition so tests can assert the final state.
     """
 
@@ -65,11 +60,17 @@ class _FakeConflictTable:
             row = self._rows.get((project_id, pending_conflict_id))
             return dict(row) if row else None
 
+    def load_pending_conflict(self, project_id: str, pending_conflict_id: str) -> dict | None:
+        return self.load(project_id, pending_conflict_id)
+
     def mark(self, *, project_id, pending_conflict_id, status, resolver_actor):
         with self._lock:
             row = self._rows[(project_id, pending_conflict_id)]
             row["status"] = status
             row["resolver_actor"] = resolver_actor
+
+    def mark_pending_conflict(self, **kwargs):
+        self.mark(**kwargs)
 
     def close(self, *, project_id, pending_conflict_id, status, resolver_actor,
               resolution_commit_id, resolution_detail):
@@ -80,15 +81,19 @@ class _FakeConflictTable:
             row["resolution_commit_id"] = resolution_commit_id
             row["resolution_detail"] = resolution_detail
 
+    def close_pending_conflict(self, **kwargs):
+        self.close(**kwargs)
+
+    def insert_version_transaction(self, **_kwargs):
+        return None
+
+    def record_pending_conflict(self, **_kwargs):
+        return None
+
 
 @pytest.fixture
-def conflict_table(monkeypatch) -> _FakeConflictTable:
-    table = _FakeConflictTable()
-    monkeypatch.setattr(engine_mod, "_load_pending_conflict_row",
-                        lambda pid, pcid: table.load(pid, pcid))
-    monkeypatch.setattr(engine_mod, "_mark_pending_conflict_row", table.mark)
-    monkeypatch.setattr(engine_mod, "_close_pending_conflict_row", table.close)
-    return table
+def conflict_table() -> _FakeConflictTable:
+    return _FakeConflictTable()
 
 
 # ── happy paths ────────────────────────────────────────────────
@@ -116,7 +121,7 @@ async def test_resolve_accept_marks_resolved_with_commit(
         server_repo.store, {"a.txt": b"v1-resolved"},
     )
 
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager, conflict_table)
     result = await engine.resolve(ConflictResolutionIntent(
         project_id="test-proj",
         pending_conflict_id="abc",
@@ -152,7 +157,7 @@ async def test_resolve_reject_marks_rejected_without_publish(
         current_commit_id=head_before,
     )
 
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager, conflict_table)
     result = await engine.resolve(ConflictResolutionIntent(
         project_id="test-proj",
         pending_conflict_id="abc",
@@ -178,7 +183,7 @@ async def test_resolve_reject_marks_rejected_without_publish(
 async def test_resolve_unknown_pending_id_raises(
     repo_manager, conflict_table,
 ):
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager, conflict_table)
     with pytest.raises(ValueError, match="not found"):
         await engine.resolve(ConflictResolutionIntent(
             project_id="test-proj",
@@ -204,7 +209,7 @@ async def test_resolve_already_resolved_row_raises(
         resolution_commit_id="prev", resolution_detail={},
     )
 
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager, conflict_table)
     with pytest.raises(ValueError, match="not pending"):
         await engine.resolve(ConflictResolutionIntent(
             project_id="test-proj",
@@ -223,7 +228,7 @@ async def test_resolve_accept_requires_tree_or_files(
     conflict_table.seed(
         project_id="test-proj", pending_conflict_id="abc", scope_path="",
     )
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager, conflict_table)
     with pytest.raises(ValueError, match="resolution_tree_id or resolution_files"):
         await engine.resolve(ConflictResolutionIntent(
             project_id="test-proj",
@@ -266,12 +271,12 @@ async def test_resolve_landing_pending_keeps_row_resolving(
             reason="manual_review_required",
         )
     monkeypatch.setattr(
-        GitNativeTransactionEngine,
+        VersionWriteEngine,
         "_submit_version_optimistic",
         fake_submit,
     )
 
-    engine = GitNativeTransactionEngine(repo_manager)
+    engine = VersionWriteEngine(repo_manager, conflict_table)
     result = await engine.resolve(ConflictResolutionIntent(
         project_id="test-proj",
         pending_conflict_id="abc",
@@ -313,7 +318,7 @@ async def _publish_initial(server_repo, repo_manager, tree_id):
 
 
 def _make_client_commit(server_repo, tree_id, message="msg", parent_id=""):
-    from src.version_engine.application.git_commit import build_git_commit
+    from src.version_engine.write_engine.git_commit import build_git_commit
     return build_git_commit(
         server_repo,
         tree_sha=tree_id,

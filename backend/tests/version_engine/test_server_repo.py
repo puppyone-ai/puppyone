@@ -14,8 +14,8 @@ import threading
 
 import pytest
 
-from src.version_engine.application.object_store import ObjectStore
-from src.version_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.write_engine.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
 
 class FakeHistoryManager:
@@ -300,8 +300,8 @@ def memory_store(tmp_path):
 
 @pytest.fixture
 def server_repo(memory_store):
-    from src.version_engine.server.server_repo import PuppyOneServerRepo
-    from src.version_engine.server.scope_manager import ScopeManager
+    from src.version_engine.infrastructure.supabase.server_repo import PuppyOneServerRepo
+    from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager
 
     history = FakeHistoryManager()
     audit = FakeAuditManager()
@@ -484,7 +484,7 @@ class TestWriteAndBuildScopeTree:
         server_repo.write_scope_files(scope, {"a.txt": b"content-a"})
         tree_hash = server_repo.build_scope_tree(scope)
 
-        from src.version_engine.application.tree import tree_to_flat
+        from src.version_engine.write_engine.tree import tree_to_flat
         flat = tree_to_flat(memory_store, tree_hash)
         assert "a.txt" in flat
         content = memory_store.get(flat["a.txt"])

@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from src.version_engine.server.auth import PuppyOneAuthenticator
+from src.version_engine.admission.identity import PuppyOneAuthenticator
 
 
 @pytest.fixture

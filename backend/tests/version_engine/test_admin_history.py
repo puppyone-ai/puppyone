@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.version_engine.server.admin import VersionAdminService
+from src.version_engine.read.admin import VersionAdminService
 from tests.version_engine.test_server_repo import FakeHistoryManager
 
 

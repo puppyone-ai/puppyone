@@ -157,6 +157,24 @@ export async function refreshProjects(orgId?: string | null) {
 }
 
 /**
+ * Atomically upsert a project in the cached project list after create/update.
+ *
+ * This keeps the Projects dashboard from rendering a synthetic pending card
+ * and then waiting for a second list fetch before counts/previews settle.
+ */
+export function upsertProjectCache(orgId: string | null | undefined, project: ProjectInfo) {
+  const key = orgId ? ['projects', orgId] : 'projects';
+  return mutate<ProjectInfo[]>(
+    key,
+    (current = []) => {
+      const without = current.filter((p) => p.id !== project.id);
+      return [project, ...without];
+    },
+    { revalidate: false },
+  );
+}
+
+/**
  * 手动刷新指定表数据（用于保存后）
  */
 export function refreshTable(projectId: string, tableId: string) {

@@ -3,15 +3,15 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from src.version_engine.application.object_store import ObjectStore, StorageBackend
-from src.version_engine.application.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
+from src.version_engine.write_engine.object_store import ObjectStore, StorageBackend
+from src.version_engine.write_engine.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
 from fastapi import HTTPException
 
-from src.version_engine.routers import access_point_fs as apfs
-from src.version_engine.routers.access_point_fs import _filter_entries
-from src.version_engine.services.tree_reader import VersionTreeReader
-from src.version_engine.services.write_command import VersionWriteCommandService
+from src.version_engine.entrypoints.http import access_point_fs as apfs
+from src.version_engine.entrypoints.http.access_point_fs import _filter_entries
+from src.version_engine.read.tree_reader import VersionTreeReader
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
 
 
 def _entry(path: str, type_: str = "file", size_bytes: int | None = None):

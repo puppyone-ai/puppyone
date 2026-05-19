@@ -9,8 +9,8 @@ from src.tool.dependencies import get_tool_service
 from src.infra.s3.dependencies import get_s3_service
 from src.connectors.agent.config.dependencies import get_agent_config_service
 from src.infra.search.dependencies import get_search_service
-from src.version_engine.dependencies import get_product_operation_adapter
-from src.version_engine.adapters.operations.product_operation_adapter import ProductOperationAdapter
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from fastapi.responses import StreamingResponse
 
 
