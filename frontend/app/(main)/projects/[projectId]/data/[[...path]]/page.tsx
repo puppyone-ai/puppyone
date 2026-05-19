@@ -89,6 +89,7 @@ import { ActivityIconButton } from '@/components/ActivityIconButton';
 import { resolveFormat } from '@/lib/fileFormats';
 import { FileViewerHeaderActions } from '../components/FileViewerHeaderActions';
 import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
+import type { CsvViewMode } from '@/components/editors/spreadsheet/CsvTableViewer';
 
 interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
@@ -120,6 +121,10 @@ function buildFolderBreadcrumbs(segments: string[]): FolderBreadcrumb[] {
     id: segments.slice(0, index + 1).join('/'),
     name: seg,
   }));
+}
+
+function basenameFromPath(path: string): string {
+  return path.split('/').filter(Boolean).pop() || path;
 }
 
 function ProjectUnavailableShell({ onBackHome }: { onBackHome: () => void }) {
@@ -258,6 +263,16 @@ export default function DataPage({ params }: DataPageProps) {
   const setViewType = (v: ViewType) => { setViewTypeState(v); localStorage.setItem('puppyone-view-type', v); };
   const setEditorType = (e: EditorType) => { setEditorTypeState(e); localStorage.setItem('puppyone-editor-type', e); };
   const [htmlArtifactMode, setHtmlArtifactMode] = useState<HtmlArtifactMode>('preview');
+  const [csvViewMode, setCsvViewModeState] = useState<CsvViewMode>(() => {
+    if (typeof window === 'undefined') return 'edit';
+    const saved = localStorage.getItem('puppyone-csv-view-mode');
+    if (saved === 'edit' || saved === 'preview' || saved === 'source') return saved;
+    return 'edit';
+  });
+  const setCsvViewMode = (mode: CsvViewMode) => {
+    setCsvViewModeState(mode);
+    localStorage.setItem('puppyone-csv-view-mode', mode);
+  };
 
   // Legacy welcome query param — strip it without triggering old onboarding guide
   const hasWelcomeParam = searchParams.get('welcome') === 'true';
@@ -314,8 +329,8 @@ export default function DataPage({ params }: DataPageProps) {
     // `useMarkdownSave` as the dirty-check baseline. The page-level
     // editor draft (used by EditorArea) comes from the save hook
     // below — it may differ from the server value when the user has
-    // unsaved markdown edits. Non-markdown text formats are
-    // read-only, so for those the draft equals the server value.
+    // unsaved edits in editable text formats such as markdown, plain
+    // text, CSV, or TSV.
     textContent: serverTextContent,
     isLoadingText,
     markdownViewMode, setMarkdownViewMode,
@@ -369,12 +384,13 @@ export default function DataPage({ params }: DataPageProps) {
     return resolveFormat({ name: activeNodeId, mimeType: activeMimeType });
   }, [activeNodeId, activeNodeType, activeMimeType]);
 
-  const activeTextSaveNodeType = activeFormat?.defaultViewer === 'plain-text' ? 'file' : 'markdown';
+  const activeTextSaveNodeType =
+    activeFormat?.defaultViewer === 'markdown-editor' ? 'markdown' : 'file';
 
   // Manual-save hook: editor edits stay local until the user hits
   // Cmd+S / clicks Save. Replaces the older 1.5s-debounced
   // auto-save which generated 100+ commits per editing session.
-  // CLI / MUT / external writes still go through their own code
+  // CLI / Git / external writes still go through their own code
   // paths and are unaffected.
   const {
     markdownContent: editorTextDraft,
@@ -389,7 +405,7 @@ export default function DataPage({ params }: DataPageProps) {
     nodeType: activeTextSaveNodeType,
   });
 
-  // ── Cmd+S / Ctrl+S → save the active markdown editor ──────────
+  // ── Cmd+S / Ctrl+S → save the active text editor ──────────────
   //
   // The shortcut is global on the data page — listening on
   // `document` so it works regardless of which child element has
@@ -421,7 +437,7 @@ export default function DataPage({ params }: DataPageProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [saveEditor, editorDirty]);
 
-  // ── beforeunload guard for unsaved markdown edits ─────────────
+  // ── beforeunload guard for unsaved text edits ─────────────────
   //
   // Browsers no longer let us customise the prompt copy (it always
   // shows their generic "Leave site?" dialog), but setting
@@ -659,7 +675,15 @@ export default function DataPage({ params }: DataPageProps) {
   // ───── Table & Tools ─────
 
   const { tools: tableTools, isLoading: toolsLoading } = useToolsByPath(activeNodeId);
-  const { tableData: currentTableData, refresh: refreshTable } = useTable(projectId, activeNodeId);
+  const shouldLoadStructuredTableData =
+    Boolean(activeNodeId) &&
+    (activeNodeType === 'github' || activeFormat?.defaultViewer === 'json-table');
+  const { tableData: loadedTableData, refresh: refreshTable } = useTable(
+    projectId,
+    shouldLoadStructuredTableData ? activeNodeId : undefined,
+  );
+  const currentTableData = shouldLoadStructuredTableData ? loadedTableData : undefined;
+  const activeNodeDisplayName = activeNodeId ? basenameFromPath(activeNodeId) : '';
 
   // Access points state
   const [accessPoints, setAccessPoints] = useState<AccessPoint[]>([]);
@@ -774,7 +798,9 @@ export default function DataPage({ params }: DataPageProps) {
   // Sync state to WorkspaceContext
   useEffect(() => { setProjectId(projectId); }, [projectId, setProjectId]);
   useEffect(() => { setTableId(activeNodeId); }, [activeNodeId, setTableId]);
-  useEffect(() => { setTableData(currentTableData?.data); }, [currentTableData?.data, setTableData]);
+  useEffect(() => {
+    setTableData(shouldLoadStructuredTableData ? currentTableData?.data : undefined);
+  }, [currentTableData?.data, setTableData, shouldLoadStructuredTableData]);
 
   const tableNameByIdRef = useRef<string>('');
   const tableNameById = useMemo(() => {
@@ -798,9 +824,13 @@ export default function DataPage({ params }: DataPageProps) {
 
   useEffect(() => { setAccessPointsToContext(accessPoints); }, [accessPoints, setAccessPointsToContext]);
   useEffect(() => {
+    if (!shouldLoadStructuredTableData) {
+      setOnDataUpdate(null);
+      return;
+    }
     setOnDataUpdate(async () => { await refreshTable(); });
     return () => setOnDataUpdate(null);
-  }, [refreshTable, setOnDataUpdate]);
+  }, [refreshTable, setOnDataUpdate, shouldLoadStructuredTableData]);
 
   // ───── Tool Sync Helpers ─────
 
@@ -808,12 +838,12 @@ export default function DataPage({ params }: DataPageProps) {
 
   function normalizeJsonPath(p: string) { if (!p || p === '/') return ''; return p; }
 
-  async function syncToolsForPath(params: { mutPath: string; path: string; permissions: McpToolPermissions; existingTools: Tool[] }) {
-    const { mutPath, path: toolPath, permissions, existingTools } = params;
+  async function syncToolsForPath(params: { versionPath: string; path: string; permissions: McpToolPermissions; existingTools: Tool[] }) {
+    const { versionPath, path: toolPath, permissions, existingTools } = params;
     const jsonPath = normalizeJsonPath(toolPath);
     const byType = new Map<string, Tool>();
     for (const t of existingTools) {
-      if (t.path !== mutPath) continue;
+      if (t.path !== versionPath) continue;
       if ((t.json_path || '') !== jsonPath) continue;
       const toolType = t.type as string;
       if (toolType === 'shell_access' || toolType === 'shell_access_readonly') continue;
@@ -831,17 +861,17 @@ export default function DataPage({ params }: DataPageProps) {
     for (const id of toDelete) await deleteTool(id);
     for (const type of toCreate) {
       await createTool({
-        path: mutPath, json_path: jsonPath, type,
-        name: `${type}_${mutPath}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
+        path: versionPath, json_path: jsonPath, type,
+        name: `${type}_${versionPath}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
         description: undefined,
       });
     }
   }
 
-  async function deleteAllToolsForPath(params: { mutPath: string; path: string; existingTools: Tool[] }) {
-    const { mutPath, path: toolPath, existingTools } = params;
+  async function deleteAllToolsForPath(params: { versionPath: string; path: string; existingTools: Tool[] }) {
+    const { versionPath, path: toolPath, existingTools } = params;
     const jsonPath = normalizeJsonPath(toolPath);
-    const toDelete = existingTools.filter(t => t.path === mutPath && (t.json_path || '') === jsonPath);
+    const toDelete = existingTools.filter(t => t.path === versionPath && (t.json_path || '') === jsonPath);
     for (const t of toDelete) await deleteTool(t.id);
   }
 
@@ -851,7 +881,7 @@ export default function DataPage({ params }: DataPageProps) {
     id: node.path,
     name: node.name,
     type: node.type as ContentType,
-    mut_path: node.mut_path,
+    version_path: node.version_path,
     description: node.type === 'folder' ? 'Folder' :
                  node.type === 'json' ? 'JSON' :
                  node.type === 'markdown' ? 'Markdown' :
@@ -984,14 +1014,12 @@ export default function DataPage({ params }: DataPageProps) {
           href: !isLast || activeNodeId ? `/projects/${projectId}/data/${folderUrlPath}` : undefined,
         });
       });
-      if (activeNodeId && currentTableData) {
-        segments.push({ label: currentTableData.name });
-      } else if (activeNodeId) {
-        segments.push({ label: <SkeletonBlock width={88} height={10} radius={3} /> });
+      if (activeNodeId) {
+        segments.push({ label: currentTableData?.name ?? activeNodeDisplayName });
       }
     }
     return segments;
-  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, currentTableData, isResolvingPath, path]);
+  }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeDisplayName, currentTableData?.name, isResolvingPath, path]);
 
   const configuredAccessPoints = useMemo(() => {
     return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }));
@@ -1005,12 +1033,18 @@ export default function DataPage({ params }: DataPageProps) {
       editable={activeFormat.editable}
       markdownViewMode={markdownViewMode}
       onMarkdownViewModeChange={setMarkdownViewMode}
-      saveStatus={activeFormat.editable && (activeFormat.defaultViewer === 'markdown-editor' || activeFormat.defaultViewer === 'plain-text') ? editorSaveStatus : 'clean'}
+      saveStatus={activeFormat.editable && (
+        activeFormat.defaultViewer === 'markdown-editor' ||
+        activeFormat.defaultViewer === 'plain-text' ||
+        activeFormat.defaultViewer === 'csv-table'
+      ) ? editorSaveStatus : 'clean'}
       onSave={saveEditor}
       editorType={editorType}
       onEditorTypeChange={setEditorType}
       htmlMode={htmlArtifactMode}
       onHtmlModeChange={setHtmlArtifactMode}
+      csvViewMode={csvViewMode}
+      onCsvViewModeChange={setCsvViewMode}
     />
   ) : null;
 
@@ -1055,11 +1089,14 @@ export default function DataPage({ params }: DataPageProps) {
         onCloseRename={nodeActions.closeRenameDialog}
         onRenameConfirm={nodeActions.handleRenameConfirm}
         moveDialogTarget={nodeActions.moveDialogTarget}
+        moveConfirmTarget={nodeActions.moveConfirmTarget}
         onMoveConfirm={async (nodeId, targetFolderId) => {
           nodeActions.setMoveDialogTarget(null);
           await nodeActions.handleMoveNode(nodeId, targetFolderId);
         }}
+        onMoveFinalConfirm={nodeActions.handleMoveConfirm}
         onCloseMove={() => nodeActions.setMoveDialogTarget(null)}
+        onCloseMoveConfirm={nodeActions.closeMoveConfirm}
         deleteDialogTarget={nodeActions.deleteDialogTarget}
         onDeleteConfirm={nodeActions.handleDeleteConfirm}
         onCloseDelete={nodeActions.closeDeleteDialog}
@@ -1413,7 +1450,7 @@ export default function DataPage({ params }: DataPageProps) {
 
             {/* Editor View */}
             {isEditorView && !isResolvingPath && activeProject && (
-              <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
                 <EditorArea
                   activeNodeId={activeNodeId}
                   activeNodeType={activeNodeType}
@@ -1427,6 +1464,7 @@ export default function DataPage({ params }: DataPageProps) {
                   setMarkdownViewMode={setMarkdownViewMode}
                   editorType={editorType}
                   htmlArtifactMode={htmlArtifactMode}
+                  csvViewMode={csvViewMode}
                   configuredAccessPoints={configuredAccessPoints}
                   onActiveTableChange={(nodePath: string) => {
                     navigateTo(nodePath.split('/').filter(Boolean));
@@ -1444,7 +1482,7 @@ export default function DataPage({ params }: DataPageProps) {
                       return prev;
                     });
                     if (activeNodeId) {
-                      syncToolsForPath({ mutPath: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
+                      syncToolsForPath({ versionPath: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
                         refreshToolsByPath(activeNodeId);
                         refreshProjectTools(projectId);
                       });
@@ -1453,7 +1491,7 @@ export default function DataPage({ params }: DataPageProps) {
                   onAccessPointRemove={(apPath: string) => {
                     setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
                     if (activeNodeId) {
-                      deleteAllToolsForPath({ mutPath: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
+                      deleteAllToolsForPath({ versionPath: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
                         refreshToolsByPath(activeNodeId);
                         refreshProjectTools(projectId);
                       });
@@ -1466,7 +1504,7 @@ export default function DataPage({ params }: DataPageProps) {
                   }}
                   onCreateTool={(path: string) => {
                     if (!activeNodeId) return;
-                    nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || 'File'}`, 'json', path);
+                    nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || activeNodeDisplayName || 'File'}`, 'json', path);
                   }}
                 />
               </div>
@@ -1547,13 +1585,18 @@ export default function DataPage({ params }: DataPageProps) {
             setIsEditorFullScreen(false);
           }}
           onToggleEditorFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
-          onRollbackComplete={() => { refreshTable(); refreshCurrentNodes(); }}
+          onRollbackComplete={() => {
+            if (shouldLoadStructuredTableData) refreshTable();
+            refreshCurrentNodes();
+          }}
           onSyncCreated={handleSyncCreated}
           onAccessPointHover={setHoverHighlightNodeId}
           onScopeMutated={refreshRepoAndAgents}
           onOpenPanel={openPanel}
           onOpenSyncSetting={openSyncSetting}
-          onDataUpdate={async () => { await refreshTable(); }}
+          onDataUpdate={async () => {
+            if (shouldLoadStructuredTableData) await refreshTable();
+          }}
           panelWidth={rightPanelWidth}
           onPanelWidthChange={setRightPanelWidth}
           onAccessPanelNavigationGuardChange={setAccessPanelNavigationGuard}

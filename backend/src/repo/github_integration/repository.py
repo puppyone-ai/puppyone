@@ -10,6 +10,7 @@ import asyncio
 from typing import Optional
 
 from src.infra.supabase.client import SupabaseClient
+from src.version_engine.infrastructure.supabase.db_names import GITHUB_SYNC_VERSION_COLUMN
 from src.utils.logger import log_warning
 
 
@@ -149,25 +150,27 @@ class GithubSyncLogRepository:
         self, integration_id: str, *,
         direction: str, status: str,
         git_sha: Optional[str] = None,
-        mut_commit_id: Optional[str] = None,
+        version_commit_id: Optional[str] = None,
         error_message: Optional[str] = None,
         files_changed: Optional[int] = None,
     ) -> dict:
         return await asyncio.to_thread(
             self._record_sync, integration_id, direction, status,
-            git_sha, mut_commit_id, error_message, files_changed,
+            git_sha, version_commit_id, error_message, files_changed,
         )
 
     def _record_sync(
         self, integration_id: str, direction: str, status: str,
-        git_sha, mut_commit_id, error_message, files_changed,
+        git_sha, version_commit_id, error_message, files_changed,
     ) -> dict:
         row = {
             "integration_id": integration_id,
             "direction": direction,
             "status": status,
             "git_sha": git_sha,
-            "mut_commit_id": mut_commit_id,
+            # DB column rename is deferred; keep the historical column name
+            # behind this repository boundary.
+            GITHUB_SYNC_VERSION_COLUMN: version_commit_id,
             "error_message": error_message,
             "files_changed": files_changed,
         }
@@ -175,7 +178,7 @@ class GithubSyncLogRepository:
         rows = resp.data or []
         if not rows:
             raise RuntimeError("github_sync_log insert returned no row")
-        return rows[0]
+        return _to_api_row(rows[0])
 
     async def list_recent(
         self, integration_id: str, *,
@@ -196,7 +199,7 @@ class GithubSyncLogRepository:
             .range(offset, offset + limit - 1)
             .execute()
         )
-        return resp.data or [], int(resp.count or 0)
+        return [_to_api_row(row) for row in (resp.data or [])], int(resp.count or 0)
 
     async def has_successful_sha(
         self, integration_id: str, direction: str, git_sha: str,
@@ -221,3 +224,11 @@ class GithubSyncLogRepository:
             .execute()
         )
         return bool(resp.data)
+
+
+def _to_api_row(row: dict) -> dict:
+    """Expose version_commit_id while the DB column keeps its old name."""
+    out = dict(row)
+    if "version_commit_id" not in out and GITHUB_SYNC_VERSION_COLUMN in out:
+        out["version_commit_id"] = out.pop(GITHUB_SYNC_VERSION_COLUMN)
+    return out

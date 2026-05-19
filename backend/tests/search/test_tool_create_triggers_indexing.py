@@ -105,7 +105,10 @@ def test_create_search_tool_triggers_pending_task_and_background_indexing(monkey
     assert resp.code == 0
     assert tool_service.path_check_calls == [("u1", "node_123")]
     assert tool_service.created_payload is not None
-    assert tool_service.created_payload["path"] == "node_123"
+    created_params = tool_service.created_payload["params"]
+    assert created_params.path == "node_123"
+    assert created_params.json_path == "/scope"
+    assert created_params.type == "search"
 
     repo = _FakeSearchIndexTaskRepository.last_instance
     assert repo is not None

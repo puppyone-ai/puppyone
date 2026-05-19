@@ -127,7 +127,7 @@ class Settings(BaseSettings):
 
         SKIP_AUTH bypasses ALL authentication and returns a hardcoded mock
         user, both for the platform JWT pipeline (`platform/auth/dependencies`)
-        and the MUT access-key pipeline (`mut_engine/server/auth`). Leaving it
+        and the hash access-key pipeline (`version_engine/server/auth`). Leaving it
         on in staging/production would expose every endpoint as anonymous.
 
         Failing fast here means the application crashes at startup instead of
@@ -259,27 +259,25 @@ class Settings(BaseSettings):
     # - Only used for async indexing wait_for timeout control, preventing background tasks from hanging indefinitely
     SEARCH_INDEX_TIMEOUT_SECONDS: int = 120
 
-    # MUT/Git-native version engine hardening.
-    # Protocol mode falls open only in development/test by default; production
-    # should fail closed if the project flag cannot be read.
-    MUT_PROTOCOL_MODE_FAIL_OPEN: bool | None = None
-    MUT_VERSION_OUTBOX_ENABLED: bool = True
-    MUT_VERSION_OUTBOX_INTERVAL_SECONDS: int = 30
-    MUT_VERSION_OUTBOX_BATCH_SIZE: int = 50
+    # Git-native version engine hardening.
+    VERSION_OUTBOX_ENABLED: bool = True
+    VERSION_OUTBOX_INTERVAL_SECONDS: int = 30
+    VERSION_OUTBOX_BATCH_SIZE: int = 50
+    # Version-engine request tracing.
+    #
+    # Development/test can emit every phase so local Save latency is easy to
+    # inspect. Staging/production should normally leave this unset/false and
+    # rely on slow-request summaries only.
+    VERSION_TRACE_ENABLED: bool | None = None
+    VERSION_TRACE_SLOW_PHASE_MS: int = 250
+    VERSION_TRACE_SLOW_REQUEST_MS: int = 2_000
 
-    # B14: optional in-process per-scope lock that runs ahead of the SQL
-    # CAS. It does NOT change correctness — the SQL CAS is still the
-    # linearisation point — but on pathologically hot scopes it sheds
-    # load by serialising the local merge/build work so the workers
-    # don't all race and burn S3 reads. Off by default; flip on if a
-    # specific project is CAS-thrashing.
-    MUT_PER_SCOPE_LOCAL_LOCK: bool = False
-    MUT_OBJECT_GC_ENABLED: bool = False
-    MUT_OBJECT_GC_DRY_RUN: bool = True
-    MUT_OBJECT_GC_INTERVAL_SECONDS: int = 60 * 60
-    MUT_OBJECT_GC_RETENTION_SECONDS: int = 7 * 24 * 60 * 60
-    MUT_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
-    MUT_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
+    VERSION_OBJECT_GC_ENABLED: bool = False
+    VERSION_OBJECT_GC_DRY_RUN: bool = True
+    VERSION_OBJECT_GC_INTERVAL_SECONDS: int = 60 * 60
+    VERSION_OBJECT_GC_RETENTION_SECONDS: int = 7 * 24 * 60 * 60
+    VERSION_OBJECT_GC_MAX_PROJECTS_PER_RUN: int = 25
+    VERSION_OBJECT_GC_MAX_DELETE_PER_PROJECT: int = 1000
 
     # DB Connector sensitive config encryption (AES-256-GCM)
     # Base64-encoded string of 32-byte key

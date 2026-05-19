@@ -8,8 +8,8 @@ import asyncio
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Query
 
-from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 
 from src.connectors.agent.config.service import AgentConfigService
 from src.infra.scheduler.service import get_scheduler_service
@@ -54,7 +54,7 @@ def _to_agent_out(
     """Convert internal Agent → API AgentOut.
 
     PERFORMANCE (P-5): node_name / node_type can be inlined here when the
-    caller has pre-resolved node metadata in batch (single MUT walk for all
+    caller has pre-resolved node metadata in batch (single hash walk for all
     agents in a project), instead of forcing the frontend to issue a
     separate fetchNodeInfoBatch round-trip.
     """
@@ -105,7 +105,7 @@ def list_agents(
     project_id: str = Depends(require_project_membership_query),
     current_user: CurrentUser = Depends(get_current_user),
     service: AgentConfigService = Depends(get_agent_config_service),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     # SECURITY (C-2): require_project_membership_query verifies the JWT
     # caller is a member of project_id BEFORE any agent data is read.
@@ -245,6 +245,7 @@ def create_agent(
         task_content=payload.task_content,
         task_path=payload.task_path,
         external_config=payload.external_config,
+        owner_user_id=current_user.user_id,
     )
 
     # Sync with scheduler if this is a schedule agent

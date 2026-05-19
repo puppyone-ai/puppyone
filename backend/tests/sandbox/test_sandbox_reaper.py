@@ -22,7 +22,7 @@ async def test_reaper_calls_writeback_and_destroy(monkeypatch):
         sandbox_session_id = "sandbox-1"
         chat_session_id = "chat-1"
         agent_id = "agent-1"
-        mut_client = _FakeClient()
+        version_client = _FakeClient()
         cloned_files = {}
         scope_path = "docs"
         readonly = False

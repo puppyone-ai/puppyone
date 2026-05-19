@@ -20,6 +20,7 @@ import { PlainTextEditor } from '@/components/editors/text';
 import type { GenericViewerId } from '@/lib/fileFormats/types';
 import type { MarkdownViewMode } from '@/components/editors/markdown';
 import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
+import type { CsvViewMode } from '@/components/editors/spreadsheet/CsvTableViewer';
 
 /**
  * Common props every viewer accepts. Individual viewers can ignore
@@ -51,6 +52,8 @@ export interface ViewerProps {
   onMarkdownViewModeChange?: (mode: MarkdownViewMode) => void;
   /** HTML artifact-only: sandboxed preview vs source. Other viewers ignore. */
   htmlArtifactMode?: HtmlArtifactMode;
+  /** CSV/TSV-only: table edit, table preview, or raw source. Other viewers ignore. */
+  csvViewMode?: CsvViewMode;
 }
 
 export interface ViewerDefinition {
@@ -126,6 +129,33 @@ const MonacoCodeAdapter = dynamic<ViewerProps>(
         />
       );
       Adapter.displayName = 'MonacoCodeAdapter';
+      return Adapter;
+    }),
+  { ssr: false, loading: PageLoadingFallback },
+);
+
+const CsvTableAdapter = dynamic<ViewerProps>(
+  () =>
+    import('@/components/editors/spreadsheet/CsvTableViewer').then((mod) => {
+      const { CsvTableViewer } = mod;
+      const Adapter = ({
+        textContent,
+        filePath,
+        nodeName,
+        editable,
+        onTextChange,
+        csvViewMode,
+      }: ViewerProps) => (
+        <CsvTableViewer
+          content={textContent ?? ''}
+          filePath={filePath}
+          nodeName={nodeName}
+          mode={csvViewMode ?? 'preview'}
+          readOnly={!editable}
+          onChange={editable ? onTextChange : undefined}
+        />
+      );
+      Adapter.displayName = 'CsvTableAdapter';
       return Adapter;
     }),
   { ssr: false, loading: PageLoadingFallback },
@@ -237,6 +267,11 @@ export const VIEWERS: Record<GenericViewerId, ViewerDefinition> = {
   'monaco-code': {
     id: 'monaco-code',
     component: MonacoCodeAdapter,
+    requiresText: true,
+  },
+  'csv-table': {
+    id: 'csv-table',
+    component: CsvTableAdapter,
     requiresText: true,
   },
   'html-artifact': {

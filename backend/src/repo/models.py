@@ -18,7 +18,7 @@ from typing import Any, Optional
 
 @dataclass
 class RepoScope:
-    """A subtree of a repo. Owns its own access_key (the mut credential
+    """A subtree of a repo. Owns its own access_key (the scope credential
     for paths that fall under this scope)."""
 
     id: str

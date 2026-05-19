@@ -4,6 +4,7 @@ import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { readRawBuffer } from "../lib/content-read.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, LIMIT_NOTE, MUTATION_SILENT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { get } from "../lib/http.js";
 import { isNoClobber } from "../lib/operation-intent.js";
 import { parseNonNegativeOption, parsePositiveOption } from "../lib/options.js";
@@ -12,7 +13,7 @@ import { statPath } from "../lib/remote.js";
 import { localPathInfo, writeLocalFile } from "../lib/transfer-local.js";
 
 export function registerDownloadCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("download")
     .description("Download file(s) from the access point scope to the local filesystem")
     .argument("<paths...>", "remote source path(s) followed by local destination")
@@ -20,7 +21,20 @@ export function registerDownloadCommand(fs) {
     .option("-f, --force", "overwrite an existing local destination")
     .option("-n, --no-clobber", "do not overwrite an existing local destination")
     .option("--max-depth <n>", "max remote directory depth for recursive downloads")
-    .option("--limit <n>", "max remote entries scanned per recursive source", "5000")
+    .option("--limit <n>", "max remote entries scanned per recursive source", "5000"), {
+      examples: [
+        "puppyone fs download docs/README.md ./README.md",
+        "puppyone fs download docs/README.md ./downloads/",
+        "puppyone fs download -r docs ./docs --max-depth 2 --limit 500",
+        "puppyone --json fs download docs/README.md ./README.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        MUTATION_SILENT_NOTE,
+        "This writes to the local filesystem and does not create PuppyOne version history.",
+        LIMIT_NOTE,
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const out = createOutput(cmd);
       if (!paths || paths.length < 2) {

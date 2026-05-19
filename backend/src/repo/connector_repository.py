@@ -76,8 +76,7 @@ class ConnectorRepository:
     def get_agent_by_mcp_key(self, mcp_api_key: str) -> Optional[Connector]:
         """Hot path: MCP service resolves an agent from its api key.
 
-        Replaces the old AccessPoint.get_by_mcp_api_key code path that
-        queried access_points where provider='agent'. Now we look in
+        Resolves agent connectors by provider and config key. We look in
         connectors with provider='agent' and config.mcp_api_key=<key>.
         """
         resp = (
@@ -94,7 +93,7 @@ class ConnectorRepository:
     def get_by_scope_provider(
         self, scope_id: str, provider: str,
     ) -> Optional[Connector]:
-        """Hot path for the channel-aware MUT auth check.
+        """Hot path for the channel-aware version access check.
 
         For built-in providers (cli, agent, filesystem) there's at most one
         row per scope, enforced by the partial unique index

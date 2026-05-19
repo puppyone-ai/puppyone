@@ -11,7 +11,7 @@ from loguru import logger
 async def reap_idle_sandboxes():
     """
     Find all agent sandbox sessions that have been idle for longer than the
-    threshold, perform MUT write-back, then destroy the sandbox.
+    threshold, perform hash write-back, then destroy the sandbox.
     """
     from src.connectors.agent.sandbox_session import (
         get_agent_sandbox_registry,

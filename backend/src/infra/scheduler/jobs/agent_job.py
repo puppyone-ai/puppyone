@@ -42,7 +42,7 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         db_client = SupabaseClient().client
 
         agent_result = (
-            db_client.table("access_points")
+            db_client.table("connectors")
             .select("*, project:project_id(created_by, org_id)")
             .eq("id", agent_id)
             .eq("provider", "agent")
@@ -59,15 +59,15 @@ async def _execute_agent_task_async(agent_id: str) -> dict:
         project_data = agent.get("project")
         project_id = agent.get("project_id")
         # SECURITY (M-3): Pick the principal in priority order:
-        #   1. The access_point owner (the user who CREATED the agent) —
+        #   1. The connector owner (the user who CREATED the agent) —
         #      this is the natural impersonation target.
-        #   2. The project creator — fallback for legacy rows where
-        #      access_points.user_id was never set.
+        #   2. The project creator — only for rows created before connector
+        #      ownership was consistently recorded.
         # We then RE-VERIFY that this user still has project access at
         # execution time. Persisted IDs are stale: the user may have been
         # removed from the project / org since the job was scheduled.
         user_id = (
-            agent.get("user_id")
+            agent.get("created_by")
             or (project_data.get("created_by") if project_data else None)
         )
         if not user_id:
@@ -233,4 +233,3 @@ def execute_agent_task(agent_id: str):
     except Exception as e:
         log_error(f"Failed to execute agent task: {e}")
         return {"status": "failed", "error": str(e)}
-

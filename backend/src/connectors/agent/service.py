@@ -30,7 +30,7 @@ from src.config import settings
 from src.connectors.agent.chat.service import ChatService
 from src.connectors.agent.config.service import AgentConfigService
 from src.connectors.agent.sandbox_session import SandboxFile, SandboxData, prepare_sandbox_data
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.analytics.service import log_context_access, log_bash_execution
 from src.connectors.agent.request_builder import (
     _get_bash_tool,
@@ -63,7 +63,7 @@ class AgentService:
         agent_id: str,
         task_content: str,
         user_id: str,
-        ops: MutOps | None,
+        ops: ProductOperationAdapter | None,
         sandbox_service,
         s3_service=None,
         agent_config_service=None,
@@ -78,7 +78,7 @@ class AgentService:
             agent_id: Agent ID
             task_content: Task content (from agent.task_content)
             user_id: User ID (agent owner)
-            ops: MutOps for reading Mut tree (writes go through MutEphemeralClient)
+            ops: ProductOperationAdapter for reading version tree (writes go through InProcessVersionClient)
             sandbox_service: SandboxService
             s3_service: S3Service (optional)
             agent_config_service: AgentConfigService
@@ -349,14 +349,14 @@ class AgentService:
                     result["error"] = str(e)
                     break
 
-            # ========== 7. Write data back to database (Mut Protocol) ==========
+            # ========== 7. Write data back through Version Engine ==========
             if use_bash and sandbox_service and sandbox_session_id and not sandbox_readonly:
                 if sandbox_data and sandbox_data.node_path_map:
                     agent_identity = f"agent:{agent.id}" if agent else "agent:unknown"
 
                     from src.connectors.agent.sandbox_session import _read_modified_files
-                    from src.mut_engine.dependencies import get_repo_manager_standalone
-                    from src.mut_engine.services.ephemeral_client import MutEphemeralClient
+                    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+                    from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
 
                     modified_files = await _read_modified_files(
                         sandbox_service,
@@ -367,9 +367,9 @@ class AgentService:
                     )
                     if modified_files:
                         try:
-                            repo_manager = get_repo_manager_standalone()
+                            repo_manager = build_worker_version_engine_container().repo_manager
                             scope_path = sandbox_data.root_path or ""
-                            mut_auth = {
+                            version_auth = {
                                 "agent": agent_identity,
                                 "_scope": {
                                     "id": agent_identity,
@@ -378,9 +378,9 @@ class AgentService:
                                     "mode": "rw",
                                 },
                             }
-                            client = MutEphemeralClient(repo_manager, agent.project_id, mut_auth)
+                            client = InProcessVersionClient(repo_manager, agent.project_id, version_auth)
                             await asyncio.to_thread(client.clone)
-                            from src.mut_engine.services.hooks import push_and_finalize
+                            from src.version_engine.derived.hooks import push_and_finalize
                             push_result = await push_and_finalize(
                                 client,
                                 agent.project_id,
@@ -390,7 +390,7 @@ class AgentService:
                                 who=agent_identity,
                             )
                             logger.info(
-                                f"[ScheduleAgent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
+                                f"[ScheduleAgent] version push: commit={push_result.get('commit_id') or '(none)'} "
                                 f"files={len(modified_files)}"
                             )
                             for path in modified_files:
@@ -399,7 +399,7 @@ class AgentService:
                                     "nodeName": path.rsplit("/", 1)[-1] if "/" in path else path,
                                 })
                         except Exception as e:
-                            logger.warning(f"[ScheduleAgent] MUT push failed: {e}")
+                            logger.warning(f"[ScheduleAgent] version push failed: {e}")
 
                 # Stop sandbox
                 await sandbox_service.stop(sandbox_session_id)
@@ -420,7 +420,7 @@ class AgentService:
         self,
         request: AgentRequest,
         current_user,
-        ops: MutOps | None,
+        ops: ProductOperationAdapter | None,
         tool_service,
         sandbox_service,
         chat_service: Optional[ChatService] = None,
@@ -476,9 +476,8 @@ class AgentService:
             except Exception as e:
                 logger.warning(f"[Agent] Failed to get agent config: {e}", exc_info=True)
 
-        # NOTE: Legacy fallback to tool table for shell_access has been removed.
-        # Shell/bash access is now managed exclusively via agent_bash table.
-        # See architecture: agents → agent_bash (data access) + agent_tool (tool bindings)
+        # Shell/bash access is managed exclusively via agent_bash.
+        # See architecture: agents -> agent_bash (data access) + agent_tool (tool bindings)
 
         # ========== 1b. Collect Search Tools (from agent_tool bindings) ==========
         search_tools_map: dict[str, SearchToolConfig] = {}  # {claude_tool_name: SearchToolConfig}
@@ -746,14 +745,14 @@ class AgentService:
                                 sandbox_parent_path = root_path.rsplit("/", 1)[0] if "/" in root_path else ""
                                 scope_path = sandbox_parent_path.strip("/")
 
-                    mut_client = None
+                    version_client = None
                     cloned_files = {}
                     repo_manager = None
                     if _agent_project_id and not sandbox_readonly:
-                        from src.mut_engine.dependencies import get_repo_manager_standalone
-                        from src.mut_engine.services.ephemeral_client import MutEphemeralClient
-                        repo_manager = get_repo_manager_standalone()
-                        mut_auth = {
+                        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+                        from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
+                        repo_manager = build_worker_version_engine_container().repo_manager
+                        version_auth = {
                             "agent": f"agent:{request.agent_id}",
                             "_scope": {
                                 "id": f"agent-{request.agent_id}",
@@ -762,14 +761,14 @@ class AgentService:
                                 "mode": "rw",
                             },
                         }
-                        mut_client = MutEphemeralClient(repo_manager, _agent_project_id, mut_auth)
-                        cloned_files = await asyncio.to_thread(mut_client.clone)
+                        version_client = InProcessVersionClient(repo_manager, _agent_project_id, version_auth)
+                        cloned_files = await asyncio.to_thread(version_client.clone)
 
                     agent_sandbox_registry.register(
                         chat_session_id=chat_key,
                         sandbox_session_id=sandbox_session_id,
                         agent_id=request.agent_id,
-                        mut_client=mut_client,
+                        version_client=version_client,
                         cloned_files=cloned_files,
                         scope_path=scope_path,
                         readonly=sandbox_readonly,
@@ -1201,7 +1200,7 @@ class AgentService:
             live_session = agent_sandbox_registry.get(chat_key)
 
             updated_nodes = []
-            if live_session and live_session.mut_client and not live_session.readonly:
+            if live_session and live_session.version_client and not live_session.readonly:
                 try:
                     modified, deleted = await _read_modified_files(
                         sandbox_service,
@@ -1211,9 +1210,9 @@ class AgentService:
                         live_session.scope_path,
                     )
                     if modified or deleted:
-                        from src.mut_engine.services.hooks import push_and_finalize
+                        from src.version_engine.derived.hooks import push_and_finalize
                         push_result = await push_and_finalize(
-                            live_session.mut_client,
+                            live_session.version_client,
                             live_session.project_id,
                             repo_manager=live_session.repo_manager,
                             modified=modified,
@@ -1225,7 +1224,7 @@ class AgentService:
                         for dp in deleted:
                             live_session.cloned_files.pop(dp, None)
                         logger.info(
-                            f"[Agent] MUT push: commit={push_result.get('commit_id') or '(none)'} "
+                            f"[Agent] version push: commit={push_result.get('commit_id') or '(none)'} "
                             f"merged={push_result.get('merged', False)} modified={len(modified)} deleted={len(deleted)}"
                         )
                         for path in modified:
@@ -1233,7 +1232,7 @@ class AgentService:
                             updated_nodes.append({
                                 "nodeId": path,
                                 "nodeName": node_name,
-                                "mergeStrategy": "mut_push",
+                                "mergeStrategy": "version_push",
                             })
                 except Exception as e:
                     logger.error(f"[Agent] Write-back failed: {e}", exc_info=True)
@@ -1251,7 +1250,5 @@ class AgentService:
 
         else:
             yield {"type": "result", "success": True}
-
-
 
 

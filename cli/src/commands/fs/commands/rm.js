@@ -2,18 +2,32 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, JSON_METADATA_NOTE, MUTATION_AUDIT_NOTE, MUTATION_SILENT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { getCurrentScopeBaseCommit, post } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 import { statPath } from "../lib/remote.js";
 
 export function registerRmCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("rm")
     .description("Remove files within the access point scope")
     .argument("<paths...>", "path(s) relative to the access point scope")
     .option("-f, --force", "ignore nonexistent files")
     .option("-r, --recursive", "remove directories and their contents")
-    .option("-R", "remove directories and their contents")
+    .option("-R", "remove directories and their contents"), {
+      examples: [
+        "puppyone fs rm notes/old.md",
+        "puppyone fs rm -r old-folder",
+        "puppyone fs rm -f missing.md",
+        "puppyone --json fs rm notes/old.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        MUTATION_SILENT_NOTE,
+        MUTATION_AUDIT_NOTE,
+        JSON_METADATA_NOTE,
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

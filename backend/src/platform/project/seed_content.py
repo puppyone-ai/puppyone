@@ -4,7 +4,7 @@ Default seed content for new projects.
 Creates a Getting Started.md at root + a Guides/ folder with
 About Puppyone.md, Connecting Data.md, and Agent Access.md.
 
-All writes go through MUT protocol (MutOps).
+All writes go through Write Engine (ProductOperationAdapter).
 
 Used by both CLI `puppyone init` and web onboarding.
 """
@@ -42,8 +42,8 @@ Create an MCP endpoint so Claude, Cursor, or any MCP-compatible agent can read a
 **Web:** Browse files in the data explorer
 **CLI:**
 
-    mut ls
-    mut tree
+    puppyone fs ls
+    puppyone fs tree
     puppyone access ls
     puppyone status
 
@@ -208,11 +208,11 @@ async def seed_default_content(
     """
     Populate a newly created project with default seed content.
 
-    All content writes go through MUT protocol (MutOps).
+    All content writes go through VersionWriteCommandService.
     """
-    from src.mut_engine.dependencies import create_mut_ops
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-    ops = create_mut_ops()
+    commands = build_worker_version_engine_container().write_commands()
 
     files: dict[str, bytes] = {
         "Getting Started.md": GETTING_STARTED_MD.encode("utf-8"),
@@ -221,9 +221,9 @@ async def seed_default_content(
         "Guides/Agent Access.md": AGENT_ACCESS_MD.encode("utf-8"),
     }
 
-    await ops.bulk_write(
+    await commands.bulk_write(
         project_id, files,
-        who=created_by,
+        actor=created_by,
         message="seed: project default content",
     )
 

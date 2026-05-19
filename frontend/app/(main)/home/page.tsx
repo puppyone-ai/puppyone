@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, Suspense, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { refreshProjects, useProjects } from '@/lib/hooks/useData';
+import { refreshProjects, upsertProjectCache, useProjects } from '@/lib/hooks/useData';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import { DashboardView } from '@/components/dashboard/DashboardView';
@@ -41,7 +41,6 @@ function DashboardPageContent() {
       description: 'Preparing workspace...',
       org_id: currentOrg?.id,
       visibility: 'org',
-      nodes: [],
       updated_at: new Date().toISOString(),
       access_point_count: 0,
     });
@@ -50,6 +49,8 @@ function DashboardPageContent() {
     try {
       const created = await createProject('Untitled Project', '', currentOrg?.id, false);
       completeStep('project');
+      await upsertProjectCache(currentOrg?.id, created);
+      setPendingProject(null);
       navigated = true;
       router.push(`/projects/${created.id}/data`);
       void refreshProjects(currentOrg?.id);

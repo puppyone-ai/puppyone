@@ -3,6 +3,7 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { matchesFindEntry, parseFindArgs } from "../lib/find-expr.js";
+import { helpBlock, LIMIT_NOTE, READ_STDOUT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { get } from "../lib/http.js";
 import { parseIntegerOption } from "../lib/options.js";
 import { basename, scopedPath } from "../lib/paths.js";
@@ -15,7 +16,29 @@ export function registerFindCommand(fs) {
     .argument("[args...]", "path and expression, e.g. . -name '*.md' -type f")
     .option("--limit <n>", "max tree entries scanned before truncation")
     .allowUnknownOption(true)
-    .addHelpText("after", "\nExpressions:\n  -name <pattern>       match basename with wildcard pattern\n  -iname <pattern>      case-insensitive -name\n  -path <pattern>       match the full scoped path\n  -type <f|d>           filter by file or directory\n  -mindepth <n>         minimum search depth\n  -maxdepth <n>         maximum search depth\n  -not, !               negate the next predicate\n  -print                accepted for Unix compatibility")
+    .addHelpText("after", `${helpBlock({
+      examples: [
+        "puppyone fs find . -maxdepth 2 -type f",
+        "puppyone fs find docs -name '*.md'",
+        "puppyone fs find . -path 'notes/*' --limit 200",
+        "puppyone --json fs find . -type f",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        LIMIT_NOTE,
+      ],
+    })}
+
+Expressions:
+  -name <pattern>       match basename with wildcard pattern
+  -iname <pattern>      case-insensitive -name
+  -path <pattern>       match the full scoped path
+  -type <f|d>           filter by file or directory
+  -mindepth <n>         minimum search depth
+  -maxdepth <n>         maximum search depth
+  -not, !               negate the next predicate
+  -print                accepted for Unix compatibility`)
     .action(withErrors(async (args, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

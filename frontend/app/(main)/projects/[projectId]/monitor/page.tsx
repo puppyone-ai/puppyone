@@ -136,7 +136,7 @@ function auditStatus(entry: AuditLogEntry): LogStatus {
   const explicit = String(entry.status || '').toLowerCase();
   if (explicit.includes('error') || explicit.includes('failed') || explicit.includes('rejected')) return 'error';
   // V1 receive-pack emits status="pending_resolution" when a push lands
-  // in mut_conflicts awaiting manual review — surface it as 'warn' so it
+  // in conflict storage awaiting manual review — surface it as 'warn' so it
   // stands out from green "committed" rows.
   if (explicit.includes('warn') || explicit.includes('conflict') || explicit.includes('pending')) return 'warn';
   if (entry.action.includes('error') || entry.action.includes('rejected')) return 'error';

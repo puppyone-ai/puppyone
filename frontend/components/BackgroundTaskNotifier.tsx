@@ -55,7 +55,7 @@ export type TaskType = 'file' | 'notion' | 'github' | 'airtable' | 'google_sheet
  *     authoritative.
  *   - ``finalizing``  — every part is up in S3, the client is
  *     waiting on ``/upload/complete`` to write the assembled bytes
- *     into MUT. This is a CLIENT-driven temporary state; polling
+ *     into the Version Engine. This is a CLIENT-driven temporary state; polling
  *     skips it so a transient backend ``pending`` snapshot can't
  *     regress the widget back to a worse-looking label. The
  *     transition out is always driven by ``onTaskCompleted`` /
@@ -63,7 +63,7 @@ export type TaskType = 'file' | 'notion' | 'github' | 'airtable' | 'google_sheet
  *   - ``pending``     — legacy: enqueued for a worker. Direct-S3
  *     flow doesn't visit this state anymore (finalize is inline)
  *     but we keep it for SaaS connectors that still go through it.
- *   - ``processing``  — worker is doing OCR / LLM / writing MUT
+ *   - ``processing``  — worker is doing OCR / LLM / writing versioned content
  *     (SaaS connectors only; direct-S3 finalize is inline).
  *   - ``completed`` / ``failed`` / ``cancelled`` — terminal; the
  *     widget stops animating and exposes a clear/cancel affordance.
@@ -88,7 +88,7 @@ export interface PendingTask {
    * Upload progress 0..100. Populated only during the ``uploading``
    * phase; once we hand off to the worker the backend's task
    * progress takes over (which is coarser — 80, 100 — because
-   * "writing to MUT" doesn't have meaningful sub-progress).
+   * "writing versioned content" doesn't have meaningful sub-progress).
    */
   progress?: number;
   /** Last-seen error string for failed tasks. */

@@ -4,7 +4,7 @@
  * conflict_policy falls through to a markers-emitting LWW.
  *
  * Engine output shape (from
- * `backend/src/mut_engine/application/conflict_policy.py:_try_conflict_markers`):
+ * `backend/src/version_engine/application/conflict_policy.py:_try_conflict_markers`):
  *
  *     <<<<<<< current (server)
  *     ours' bytes (server's view at merge time)

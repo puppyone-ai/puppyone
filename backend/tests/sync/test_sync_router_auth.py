@@ -195,10 +195,10 @@ def test_sync_management_routes_forbid_other_project(
 
 @pytest.mark.skip(
     reason=(
-        "Legacy endpoint /api/v1/sync/syncs/openclaw/bootstrap was removed "
-        "when the filesystem connector migrated to MUT protocol. Kept here "
-        "until the corresponding authz guard is rewritten for the new "
-        "`/api/v1/mut/ap/{access_key}/clone|push|pull` routes (which have "
+        "Removed endpoint /api/v1/sync/syncs/openclaw/bootstrap was replaced "
+        "by Git Remote and /api/v1/ap-fs access. Kept skipped until the "
+        "corresponding authz guard is rewritten for the new "
+        "`/git/ap/{access_key}.git` and `/api/v1/ap-fs` routes (which have "
         "their own access-key based auth and bypass project membership "
         "checks)."
     )

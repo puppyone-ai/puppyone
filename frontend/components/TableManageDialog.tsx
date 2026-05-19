@@ -57,10 +57,10 @@ export function TableManageDialog({
 }: TableManageDialogProps) {
   const { session } = useAuth();
   const { currentOrg } = useOrganization();
-  const project = projectId ? projects.find(p => p.id === projectId) : null;
-  const table = tableId && project ? project.nodes.find(t => t.id === tableId) : null;
+  void projects;
+  const tableName = tableId?.split('/').filter(Boolean).pop() ?? '';
 
-  const [name, setName] = useState(table?.name || '');
+  const [name, setName] = useState(tableName);
   const [loading, setLoading] = useState(false);
   const [startOption] = useState<StartOption>(defaultStartOption);
   const [isDragging, setIsDragging] = useState(false);
@@ -96,8 +96,8 @@ export function TableManageDialog({
         : 'Optional; used as the folder name in Puppyone';
 
   useEffect(() => {
-    if (table) setName(table.name);
-  }, [table]);
+    if (tableName) setName(tableName);
+  }, [tableName]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault(); e.stopPropagation(); setIsDragging(true);
@@ -197,7 +197,7 @@ export function TableManageDialog({
         }
 
         const files = Array.from(selectedFiles);
-        // ``parentId`` here is actually the parent MUT path (the
+        // ``parentId`` here is actually the parent version path (the
         // explorer passes its current folder path through this prop;
         // the name is a holdover from the legacy `parent_id` field).
         // We treat empty string as "root".
@@ -205,7 +205,7 @@ export function TableManageDialog({
 
         // Optimistic refresh while we kick off the upload. The
         // authoritative refresh happens AFTER the worker writes the
-        // file into MUT (driven by the BackgroundTaskNotifier
+        // file into the Version Engine (driven by the BackgroundTaskNotifier
         // ``etl-task-completed`` event listener elsewhere in the
         // app, plus an explicit refresh below for snappier UX).
         await refreshProjects(currentOrg?.id);
@@ -263,14 +263,14 @@ export function TableManageDialog({
                   updateTaskProgress(taskId, percent);
                 },
                 onAllPartsUploaded: (taskId) => {
-                  // Bytes are in S3 — server is now writing into MUT.
+                  // Bytes are in S3 — server is now writing into the Version Engine.
                   // ``finalizing`` keeps the row visibly active so it
                   // doesn't read as "Uploading 100%" frozen.
                   updateTaskStatusById(taskId, 'finalizing');
                 },
                 onTaskCompleted: (taskId) => {
                   // Inline finalize: /upload/complete returns 200
-                  // only after MUT has the bytes, so the task is
+                  // only after the Version Engine has the bytes, so the task is
                   // already COMPLETED in the DB.
                   updateTaskStatusById(taskId, 'completed');
                 },
@@ -293,7 +293,7 @@ export function TableManageDialog({
             console.error('Direct-to-S3 upload init failed:', uploadError);
           } finally {
             // Refresh once the upload pipeline returns — most of the
-            // time the worker hasn't written to MUT yet, so this is
+            // time the worker hasn't written the versioned file yet, so this is
             // a cosmetic refresh; the BackgroundTaskNotifier will
             // emit ``projects-refresh`` once the worker actually
             // completes, which kicks the tree to update for real.
@@ -381,7 +381,7 @@ export function TableManageDialog({
         {mode === 'delete' ? (
           <div style={{ padding: 24 }}>
             <p style={{ color: 'var(--po-text-muted)', fontSize: 16, lineHeight: 1.6, margin: '0 0 24px' }}>
-              Are you sure you want to delete <strong style={{ color: 'var(--po-text)' }}>{table?.name}</strong>? This cannot be undone.
+              Are you sure you want to delete <strong style={{ color: 'var(--po-text)' }}>{tableName || 'this context'}</strong>? This cannot be undone.
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <ActionButton type='button' onClick={onClose}>Cancel</ActionButton>

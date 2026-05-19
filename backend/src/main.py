@@ -270,37 +270,38 @@ def _init_connector_registry() -> None:
         log_error(f"❌ ConnectorRegistry initialization failed (took: {registry_duration * 1000:.2f}ms): {e}")
 
 
-async def _init_mut_trees() -> None:
-    """Auto-initialize empty Mut tree for all projects with empty mut_root_hash."""
-    mut_init_start = time.time()
+async def _init_version_trees() -> None:
+    """Auto-initialize empty Version Engine trees for projects missing a root."""
+    version_init_start = time.time()
     try:
-        log_info("🌳 Checking and initializing Mut tree...")
+        log_info("🌳 Checking and initializing Version Engine trees...")
         from src.infra.supabase.client import SupabaseClient as _SC
-        from src.mut_engine.dependencies import create_mut_admin_service as _cms
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        from src.version_engine.infrastructure.supabase.db_names import PROJECT_ROOT_HASH_COLUMN
 
         _sb = _SC()
         resp = (
             _sb.client.table("projects")
             .select("id")
-            .or_("mut_root_hash.is.null,mut_root_hash.eq.")
+            .or_(f"{PROJECT_ROOT_HASH_COLUMN}.is.null,{PROJECT_ROOT_HASH_COLUMN}.eq.")
             .execute()
         )
         uninit_projects = resp.data or []
         if uninit_projects:
-            _writer = _cms()
+            _writer = build_worker_version_engine_container().admin_service()
             for row in uninit_projects:
                 try:
                     await _writer.init_tree(row["id"])
                 except Exception as init_err:
-                    log_error(f"  ❌ Failed to init Mut tree for {row['id']}: {init_err}")
-            log_info(f"  ✅ Initialized Mut tree for {len(uninit_projects)} project(s)")
+                    log_error(f"  ❌ Failed to init Version Engine tree for {row['id']}: {init_err}")
+            log_info(f"  ✅ Initialized Version Engine tree for {len(uninit_projects)} project(s)")
         else:
-            log_info("  ✅ All projects already have Mut tree")
-        mut_init_duration = time.time() - mut_init_start
-        log_info(f"✅ Mut tree check completed (took: {mut_init_duration * 1000:.2f}ms)")
+            log_info("  ✅ All projects already have a Version Engine tree")
+        version_init_duration = time.time() - version_init_start
+        log_info(f"✅ Version Engine tree check completed (took: {version_init_duration * 1000:.2f}ms)")
     except Exception as e:
-        mut_init_duration = time.time() - mut_init_start
-        log_error(f"❌ Mut tree initialization failed (took: {mut_init_duration * 1000:.2f}ms): {e}")
+        version_init_duration = time.time() - version_init_start
+        log_error(f"❌ Version Engine tree initialization failed (took: {version_init_duration * 1000:.2f}ms): {e}")
 
 
 async def _shutdown_services() -> None:
@@ -339,13 +340,16 @@ async def app_lifespan(app: FastAPI):
     log_info("🚀 ContextBase API starting...")
     log_info("=" * 80)
 
+    from src.version_engine.bootstrap.container import build_version_engine_container
+
+    app.state.version_engine = build_version_engine_container()
     _log_import_times()
 
     await _init_mcp_health_check()
     await _init_scheduler()
     await _init_file_ingest()
     _init_connector_registry()
-    await _init_mut_trees()
+    await _init_version_trees()
 
     log_info("📁 Filesystem sync: client-side via Git smart-HTTP (no server init needed)")
 
@@ -415,21 +419,20 @@ def create_app() -> FastAPI:
     app.include_router(
         internal_router, tags=["internal"]
     )  # Internal API does not use /api/v1 prefix
-    from src.mut_engine.routers.content_router import router as content_router
+    from src.version_engine.entrypoints.http.content import router as content_router
     app.include_router(content_router, prefix="/api/v1", tags=["content"])
-    from src.mut_engine.routers.audit_router import router as audit_router
+    from src.version_engine.entrypoints.http.audit import router as audit_router
     app.include_router(audit_router, prefix="/api/v1", tags=["audit-logs"])
-    from src.mut_engine.routers.conflict_router import router as conflict_router
+    from src.version_engine.entrypoints.http.conflict import router as conflict_router
     app.include_router(conflict_router, prefix="/api/v1/content", tags=["conflicts"])
-    from src.mut_engine.routers.shadow_snapshot_router import router as shadow_router
+    from src.version_engine.entrypoints.http.shadow_snapshot import router as shadow_router
     app.include_router(shadow_router, prefix="/api/v1", tags=["shadow-snapshots"])
-    from src.mut_engine.adapters.git.router import router as git_protocol_router
+    from src.version_engine.entrypoints.git.router import router as git_protocol_router
     app.include_router(git_protocol_router, tags=["git-protocol"])
-    # WebSocket /ws — server→client commit_update notifications. Required
-    # by ``mut listen`` on the new feat/git-format-storage branch.
-    from src.mut_engine.routers.ws_router import ws_router as mut_ws_router
-    app.include_router(mut_ws_router, tags=["mut-ws"])
-    from src.mut_engine.routers.access_point_fs import router as ap_fs_router
+    # WebSocket /ws — server→client commit_update notifications.
+    from src.version_engine.entrypoints.http.websocket import ws_router as version_ws_router
+    app.include_router(version_ws_router, tags=["version-ws"])
+    from src.version_engine.entrypoints.http.access_point_fs import router as ap_fs_router
     app.include_router(ap_fs_router, prefix="/api/v1", tags=["access-point-fs"])
     from src.platform.workspace.router import router as workspace_router
     app.include_router(workspace_router, prefix="/api/v1", tags=["workspace"])
@@ -463,10 +466,8 @@ def create_app() -> FastAPI:
     from src.connectors.gateway.router import router as gateway_router
     app.include_router(gateway_router, prefix="/api/v1", tags=["gateways"])
 
-    # Repo redesign (access-point-redesign-2026-05-02): scope CRUD, repo
-    # identity, connectors, per-user-per-repo permissions. These coexist
-    # with the legacy access_points router during the transition; the
-    # legacy /access endpoint will be removed once frontend migrates.
+    # Repository surface: scope CRUD, repo identity, connectors, and
+    # per-user-per-repo permissions.
     from src.repo.scope_router import router as repo_scope_router
     from src.repo.identity_router import router as repo_identity_router
     from src.repo.connector_router import router as repo_connector_router

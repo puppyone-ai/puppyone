@@ -4,7 +4,6 @@
  * 提供缓存、去重、自动重新验证的数据请求能力
  */
 
-import { useEffect } from 'react';
 import useSWR, { mutate } from 'swr';
 import {
   getProjects,
@@ -21,7 +20,13 @@ import {
   getToolsByPath,
   type Tool,
 } from '../mcpApi';
-import { listDir, treeList, entryToNodeInfo, sortNodes, type NodeInfo, type TreeEntry } from '../contentTreeApi';
+import {
+  directChildrenOf,
+  listDir,
+  normalizeTreePath,
+  sortNodes,
+  type NodeInfo,
+} from '../contentTreeApi';
 import { getConnectorSpecs, type ConnectorSpec } from '../syncApi';
 
 // SWR 配置：关闭自动重新验证，依赖手动刷新
@@ -157,6 +162,24 @@ export async function refreshProjects(orgId?: string | null) {
 }
 
 /**
+ * Atomically upsert a project in the cached project list after create/update.
+ *
+ * This keeps the Projects dashboard from rendering a synthetic pending card
+ * and then waiting for a second list fetch before counts/previews settle.
+ */
+export function upsertProjectCache(orgId: string | null | undefined, project: ProjectInfo) {
+  const key = orgId ? ['projects', orgId] : 'projects';
+  return mutate<ProjectInfo[]>(
+    key,
+    (current = []) => {
+      const without = current.filter((p) => p.id !== project.id);
+      return [project, ...without];
+    },
+    { revalidate: false },
+  );
+}
+
+/**
  * 手动刷新指定表数据（用于保存后）
  */
 export function refreshTable(projectId: string, tableId: string) {
@@ -181,21 +204,22 @@ export function updateTableCache(
  * - keepPreviousData: preserves old list while new data loads
  */
 export function useTreeDir(projectId: string, dirPath: string | null | undefined) {
-  const normalizedPath = dirPath ?? '';
+  const normalizedPath = normalizeTreePath(dirPath);
   const key = projectId ? ['tree', projectId, normalizedPath] : null;
   const {
     data,
     error,
     isLoading,
+    isValidating,
     mutate: revalidate,
   } = useSWR<NodeInfo[]>(
     key,
     // Normalize the order at the fetcher boundary so that *whatever* the
     // backend returns ends up in canonical UI order in the SWR cache. This
-    // keeps the sidebar's row order stable regardless of which read path
-    // (`/ls` vs `/tree` pre-population in `useShallowTree`) last wrote the
-    // cache — see `sortNodes` for the full rationale.
-    () => listDir(projectId, normalizedPath).then(r => sortNodes(r.nodes)),
+    // keeps folder order stable at the fetcher boundary; see `sortNodes` for
+    // the full rationale.
+    () => listDir(projectId, normalizedPath)
+      .then(r => sortNodes(directChildrenOf(r.nodes, normalizedPath))),
     {
       ...defaultConfig,
       dedupingInterval: 30000,
@@ -206,24 +230,73 @@ export function useTreeDir(projectId: string, dirPath: string | null | undefined
   return {
     nodes: data ?? [],
     isLoading,
+    isValidating,
     error,
     refresh: revalidate,
   };
 }
 
-/**
- * Backward-compatible alias for useTreeDir.
- * parentId is now treated as a directory path.
- */
+/** Use the current directory-backed content listing. */
 export function useContentNodes(projectId: string, parentPath: string | null | undefined) {
   return useTreeDir(projectId, parentPath);
+}
+
+/**
+ * Stable project explorer listing for the left sidebar.
+ *
+ * This intentionally uses a separate SWR cache namespace from the folder
+ * content view. The sidebar represents the whole project tree, like VS Code's
+ * explorer; route changes may expand/select nodes, but they must never swap
+ * the sidebar's root data source to "whatever folder the main pane is viewing".
+ */
+export function useExplorerTreeDir(projectId: string, dirPath: string | null | undefined) {
+  const normalizedPath = normalizeTreePath(dirPath);
+  const key = projectId ? ['explorer-tree', projectId, normalizedPath] : null;
+  const {
+    data,
+    error,
+    isLoading,
+    isValidating,
+    mutate: revalidate,
+  } = useSWR<NodeInfo[]>(
+    key,
+    () => listDir(projectId, normalizedPath)
+      .then(r => sortNodes(directChildrenOf(r.nodes, normalizedPath))),
+    {
+      ...defaultConfig,
+      dedupingInterval: 30000,
+      keepPreviousData: true,
+    },
+  );
+
+  return {
+    nodes: data ?? [],
+    isLoading,
+    isValidating,
+    error,
+    refresh: revalidate,
+  };
+}
+
+export function useExplorerRootNodes(projectId: string) {
+  const { nodes, isLoading, error, refresh } = useExplorerTreeDir(projectId, '');
+  return {
+    rootNodes: nodes,
+    isLoading,
+    error,
+    refresh,
+  };
 }
 
 /**
  * Manually refresh directory listing for a given path.
  */
 export function refreshContentNodes(projectId: string, dirPath: string | null) {
-  return mutate(['tree', projectId, dirPath ?? '']);
+  const normalizedPath = normalizeTreePath(dirPath);
+  return Promise.all([
+    mutate(['tree', projectId, normalizedPath]),
+    mutate(['explorer-tree', projectId, normalizedPath]),
+  ]);
 }
 
 /**
@@ -237,11 +310,14 @@ export function refreshContentNodes(projectId: string, dirPath: string | null) {
  * is what made saves feel slow.
  */
 export function refreshAllContentNodes(projectId: string) {
-  return mutate(
-    key => Array.isArray(key) && key[0] === 'tree' && key[1] === projectId,
-    undefined,
-    { revalidate: true }
-  );
+  return Promise.all([
+    mutate(
+      key => Array.isArray(key) && key[0] === 'tree' && key[1] === projectId,
+    ),
+    mutate(
+      key => Array.isArray(key) && key[0] === 'explorer-tree' && key[1] === projectId,
+    ),
+  ]);
 }
 
 /**
@@ -268,15 +344,21 @@ export function refreshFolderNodes(
 ) {
   if (!folderPaths.length) return Promise.resolve();
   const unique = Array.from(
-    new Set(folderPaths.map((p) => p ?? '')),
+    new Set(folderPaths.map((p) => normalizeTreePath(p))),
   );
-  // ExplorerSidebar reads rootNodes from useShallowTree (key __shallow_1),
-  // which is NOT covered by the per-folder keys below. Always revalidate it
-  // so the sidebar reflects mutations immediately.
+  // Keep both read models fresh:
+  // - `tree` backs the main content pane for the current route.
+  // - `explorer-tree` backs the project-wide sidebar and is intentionally
+  //   isolated so route changes cannot swap the sidebar's root listing.
+  // Do not pass `undefined` as mutate data here: that clears the cached tree
+  // for one render and makes the UI flash empty while revalidation is in
+  // flight.
   return Promise.all([
-    mutate(['tree', projectId, '__shallow_1'], undefined, { revalidate: true }),
     ...unique.map((folderPath) =>
-      mutate(['tree', projectId, folderPath], undefined, { revalidate: true }),
+      mutate(['tree', projectId, folderPath]),
+    ),
+    ...unique.map((folderPath) =>
+      mutate(['explorer-tree', projectId, folderPath]),
     ),
   ]);
 }
@@ -289,76 +371,13 @@ export function refreshFolderNodes(
 export function refreshProjectHistory(projectId: string) {
   return mutate(
     key => Array.isArray(key) && key[0] === 'project-history' && key[1] === projectId,
-    undefined,
-    { revalidate: true },
   );
-}
-
-/**
- * Shallow tree: fetch the entire tree up to `maxDepth` in a single request.
- *
- * One request replaces N per-folder requests. The flat response is split by
- * parent path and pre-populated into the per-folder SWR cache so that
- * `useContentNodes(projectId, folderPath)` gets instant cache hits.
- *
- * Returns root-level nodes directly for the sidebar's initial render.
- */
-export function useShallowTree(projectId: string, maxDepth: number = 1) {
-  const key = projectId ? ['tree', projectId, `__shallow_${maxDepth}`] : null;
-  const {
-    data,
-    isLoading,
-    mutate: revalidate,
-  } = useSWR<TreeEntry[]>(
-    key,
-    () => treeList(projectId, '', maxDepth),
-    {
-      ...defaultConfig,
-      dedupingInterval: 30000,
-      keepPreviousData: true,
-    }
-  );
-
-  const entries = data ?? [];
-
-  // Pre-populate per-folder SWR caches from the flat response.
-  // This way useContentNodes(projectId, "docs") gets an instant cache hit.
-  //
-  // CRITICAL: each per-folder bucket is normalized through `sortNodes` before
-  // it lands in the cache, mirroring exactly what `useTreeDir`'s fetcher does
-  // when `/ls` later overwrites the same key. Without this, the cache flips
-  // between the backend's `_walk_tree` order (alphabetical, case-sensitive,
-  // folders intermixed with files) and `/ls`'s "folders first" order the
-  // first time the user clicks into a subfolder, visibly reshuffling the
-  // sidebar. By making both writes go through the same sort, the order is
-  // stable regardless of which path populated the cache last.
-  useEffect(() => {
-    if (entries.length === 0 || !projectId) return;
-    const byParent = new Map<string, NodeInfo[]>();
-    for (const entry of entries) {
-      const parentPath = entry.path.includes('/')
-        ? entry.path.substring(0, entry.path.lastIndexOf('/'))
-        : '';
-      if (!byParent.has(parentPath)) byParent.set(parentPath, []);
-      byParent.get(parentPath)!.push(entryToNodeInfo(entry, projectId));
-    }
-    for (const [parentPath, nodes] of byParent) {
-      mutate(['tree', projectId, parentPath], sortNodes(nodes), { revalidate: false });
-    }
-  }, [entries, projectId]);
-
-  // Root nodes = entries whose path has no "/" (top-level items).
-  const rootNodes: NodeInfo[] = sortNodes(
-    entries.filter(e => !e.path.includes('/')).map(e => entryToNodeInfo(e, projectId)),
-  );
-
-  return { rootNodes, isLoading, refresh: revalidate };
 }
 
 /**
  * 获取指定路径的 Tools（使用后端直接过滤）
  *
- * @param path MUT 路径 (可选，为空时不请求)
+ * @param path version path (可选，为空时不请求)
  *
  * - 按需加载：只有 path 存在时才请求
  * - 后端过滤：直接调用 /api/v1/tools/by-path/{path}

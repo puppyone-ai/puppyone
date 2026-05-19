@@ -77,7 +77,7 @@ class RepoIdentityScopeOut(BaseModel):
 
 class RepoIdentityOut(BaseModel):
     project_id: str
-    url: str                              # https://<api>/api/v1/mut/<project_id>
+    url: str                              # https://<api>/api/v1/version/<project_id>
     prompt_template: str
     scopes: list[RepoIdentityScopeOut]
     content_initialized: bool = False

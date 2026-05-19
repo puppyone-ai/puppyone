@@ -3,19 +3,25 @@ Workspace API — Folder interface for external Agents
 
 Endpoints:
   POST /workspace/create                Create workspace (returns path)
-  POST /workspace/{agent_id}/complete   Trigger merge after Agent completes (via Mut kernel)
+  POST /workspace/{agent_id}/complete   Trigger merge after Agent completes (via Version Engine)
   GET  /workspace/{agent_id}/status     View workspace status
 """
 
 import os
 import time as time_mod
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from src.common_schemas import ApiResponse
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.bootstrap.dependencies import (
+    get_product_operation_adapter,
+    get_version_write_command_service,
+)
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
 from src.utils.logger import log_error, log_info
 
 router = APIRouter(
@@ -63,15 +69,14 @@ class WorkspaceStatusResponse(BaseModel):
 async def create_workspace(
     request: CreateWorkspaceRequest,
     current_user: CurrentUser = Depends(get_current_user),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    from src.mut_engine.dependencies import create_mut_ops
     from src.platform.workspace.provider import get_workspace_provider
     from src.platform.workspace.sync_worker import SyncWorker
 
     agent_id = request.agent_id or f"ext-{int(time_mod.time() * 1000)}"
 
     provider = get_workspace_provider()
-    ops = create_mut_ops()
     sync_worker = SyncWorker(
         ops=ops,
         base_dir=provider._base_dir if hasattr(provider, '_base_dir') else "/tmp/contextbase",
@@ -97,7 +102,7 @@ async def create_workspace(
 
 
 # ============================================================
-# Trigger merge after Agent completes (via MutAdminService)
+# Trigger merge after Agent completes (via VersionAdminService)
 # ============================================================
 
 @router.post("/{agent_id}/complete", response_model=ApiResponse[CompleteWorkspaceResponse])
@@ -105,28 +110,19 @@ async def complete_workspace(
     agent_id: str,
     project_id: str = Query(..., description="Project ID"),
     current_user: CurrentUser = Depends(get_current_user),
+    commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
     """
-    Called by external Agent after completion - pushes changes via MUT protocol
+    Called by external Agent after completion - pushes changes via Write Engine
 
     1. detect_changes: compare workspace vs lower
     2. Build modified/deleted lists
-    3. Perform atomic commit via MutOps.bulk_write
+    3. Perform atomic commit via ProductOperationAdapter.bulk_write
     """
-    from src.mut_engine.dependencies import create_mut_ops
     from src.platform.workspace.provider import get_workspace_provider
 
     provider = get_workspace_provider()
-
     changes = await provider.detect_changes(agent_id)
-
-    if not changes.modified and not changes.deleted:
-        await provider.cleanup(agent_id)
-        return ApiResponse.success(data=CompleteWorkspaceResponse(
-            agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
-        ), message="No changes detected")
-
-    ops = create_mut_ops()
 
     modified: dict[str, bytes] = {}
     for rel_path, content in changes.modified.items():
@@ -138,31 +134,35 @@ async def complete_workspace(
             modified[rel_path] = str(content).encode("utf-8")
 
     deleted = list(changes.deleted)
+    total_files = len(changes.modified) + len(changes.deleted)
 
     try:
-        result = await ops.bulk_write(
+        if not changes.modified and not changes.deleted:
+            return ApiResponse.success(data=CompleteWorkspaceResponse(
+                agent_id=agent_id, total_files=0, committed=0, conflict_count=0,
+            ), message="No changes detected")
+
+        outcome = await commands.bulk_write(
             project_id,
             modified,
-            who=agent_id,
+            actor=agent_id,
             deleted=deleted,
             message=f"Agent workspace merge ({len(modified)} modified, {len(deleted)} deleted)",
         )
+        result = outcome.result
         committed = len(modified)
         conflict_count = result.conflicts
         strategies = ["merge"] if result.merged else []
         log_info(
-            f"[Workspace API] MUT push: commit={result.commit_id or '(none)'} "
+            f"[Workspace API] version push: commit={result.commit_id or '(none)'} "
             f"merged={result.merged} files={committed}"
         )
     except Exception as e:
-        committed = 0
-        conflict_count = len(modified)
-        strategies = []
-        log_error(f"[Workspace API] MUT push failed: {e}")
+        log_error(f"[Workspace API] version push failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Workspace merge failed: {e}") from e
+    finally:
+        await provider.cleanup(agent_id)
 
-    await provider.cleanup(agent_id)
-
-    total_files = len(changes.modified) + len(changes.deleted)
     log_info(
         f"[Workspace API] Completed: agent={agent_id}, "
         f"committed={committed}, conflicts={conflict_count}"

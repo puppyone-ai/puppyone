@@ -6,7 +6,6 @@ import { useOnboarding } from '@/lib/hooks/useOnboarding';
 import { get } from '@/lib/apiClient';
 import useSWR from 'swr';
 import { treeList, getProjectHistory, sortNodes } from '@/lib/contentTreeApi';
-import { listScopes, listConnectors } from '@/lib/repoApi';
 
 import { T } from './lib/tokens';
 import { formatRelative } from './lib/format';
@@ -160,50 +159,9 @@ export default function HomePage({
     return buckets;
   }, [commits]);
 
-  // Redesign 2026-05-02 fallback: the backend dashboard router still queries
-  // the legacy `access_points` table (empty post-migration). Synthesize a
-  // DashboardConnection[] from `repo_scopes` + `connectors` whenever the
-  // dashboard payload is empty — once the backend is migrated to read the
-  // new tables, this fallback will be a no-op and dashboard wins. Mapping
-  // mirrors data/layout.tsx (cli→filesystem; access_key from scope; agent
-  // skipped because the dashboard isn't where home renders agent rows).
-  const { data: scopesData } = useSWR(
-    projectId ? ['repo-scopes', projectId] : null,
-    () => listScopes(projectId),
-    { revalidateOnFocus: false, dedupingInterval: 60000 },
-  );
-  const { data: connectorsData } = useSWR(
-    projectId ? ['repo-connectors', projectId] : null,
-    () => listConnectors(projectId),
-    { revalidateOnFocus: false, dedupingInterval: 60000 },
-  );
-
   const connections = useMemo<DashboardConnection[]>(() => {
-    const fromDashboard = dashboard?.access_points || [];
-    if (fromDashboard.length > 0) return fromDashboard;
-    if (!scopesData || !connectorsData) return [];
-    const scopeById = new Map(scopesData.map((s) => [s.id, s]));
-    const out: DashboardConnection[] = [];
-    for (const c of connectorsData) {
-      if (c.provider === 'agent') continue;
-      const scope = scopeById.get(c.scope_id);
-      if (!scope) continue;
-      out.push({
-        id: c.id,
-        provider: c.provider === 'cli' ? 'filesystem' : c.provider,
-        name: c.name || scope.name,
-        path: scope.path,
-        direction: c.direction,
-        status: c.status,
-        access_key: scope.access_key ?? null,
-        trigger: c.trigger,
-        last_synced_at: c.last_run_at,
-        error_message: c.error_message,
-        created_at: c.created_at,
-      });
-    }
-    return out;
-  }, [dashboard, scopesData, connectorsData]);
+    return dashboard?.connections || [];
+  }, [dashboard]);
 
   // Auto-complete onboarding steps based on real data
   const { completeStep } = useOnboarding();
@@ -256,12 +214,12 @@ export default function HomePage({
       // backend can produce into a single key — '' — so downstream
       // consumers only have to look in one place:
       //
-      //   path === '/'   — what `mut connect` bootstrap stores today
+      //   path === '/'   — filesystem bootstrap stores this for root
       //                    (filesystem service.bootstrap is called
       //                    with path='/' from the home onboarding
       //                    panel and the access page's "root scope"
       //                    button)
-      //   path === null  — legacy rows from before path-NOT-NULL was
+      //   path === null  — incomplete rows from before path-NOT-NULL was
       //                    enforced; still in some long-lived projects
       //   path === ''    — early hand-bootstrapped rows
       //
@@ -949,7 +907,7 @@ export default function HomePage({
                   // for project-root APs in ConnectionsCanvas).
                   // Two reasons:
                   //   1.  AP visibility — root-attached access points
-                  //       (the default `mut connect` filesystem AP at
+                  //       (the default filesystem access point at
                   //       `/`) had no anchor row in the Data card, so
                   //       their presence was visible only in the
                   //       Connections canvas below.  Now the chip

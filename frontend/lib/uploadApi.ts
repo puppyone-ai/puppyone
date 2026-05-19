@@ -18,7 +18,7 @@
  *
  *   3. ``completeMultipartUploadBatch`` (POST /upload/complete-batch)
  *      Backend runs ``CompleteMultipartUpload`` per file then a
- *      single MUT bulk_write commit. One commit per drag, no matter
+ *      single version bulk_write commit. One commit per drag, no matter
  *      how many files were in the drop.
  *
  *   4. ``abortMultipartUpload`` (POST /upload/abort)
@@ -124,11 +124,11 @@ export interface UploadCompleteBatchResponse {
 // ----- Folder-aware path derivation ------------------------------
 
 /**
- * Derive the per-file MUT ``parent_path`` from a base drop target
+ * Derive the per-file version ``parent_path`` from a base drop target
  * and the file's ``webkitRelativePath``.
  *
  * The whole point: when a user drops a folder, we want the folder
- * structure to land in MUT EXACTLY as it sits on disk. Concretely:
+ * structure to land in Version Engine EXACTLY as it sits on disk. Concretely:
  *
  *   drop ``general/`` containing ``general/sub/foo.pdf``
  *   into the project at base = ``"docs"``
@@ -711,7 +711,7 @@ export interface UploadFilesCallbacks {
   /**
    * Every part is up in S3, but ``/upload/complete`` hasn't returned
    * yet — the backend is now downloading the assembled object from
-   * S3 and writing it into MUT. For non-trivial files this can take
+   * S3 and writing it into Version Engine. For non-trivial files this can take
    * several seconds; without a distinct UI state the row reads as
    * "Uploading 100%" while nothing visibly changes, which users
    * (rightfully) interpret as "stuck".
@@ -722,7 +722,7 @@ export interface UploadFilesCallbacks {
    */
   onAllPartsUploaded?: (taskId: string) => void;
   /**
-   * ``/upload/complete`` returned 200 — the file is in MUT and the
+   * ``/upload/complete`` returned 200 — the file is in Version Engine and the
    * task row is COMPLETED in the database. Safe to mark the local
    * task ``completed`` directly without polling.
    */
@@ -737,7 +737,7 @@ export interface UploadFilesCallbacks {
 }
 
 /**
- * Drive a full browser → backend → S3 → MUT upload pipeline for a
+ * Drive a full browser → backend → S3 → Version Engine upload pipeline for a
  * batch of files.
  *
  * Files are processed sequentially per-batch; per-file we use
@@ -793,7 +793,7 @@ export async function uploadFiles(
   // Step 1 — init for the whole batch. One round-trip allocates all
   // task_ids upfront. Per-file ``parentPath`` is derived from each
   // file's ``webkitRelativePath`` so dropping a folder preserves
-  // its internal hierarchy in MUT (instead of flattening every
+  // its internal hierarchy in Version Engine (instead of flattening every
   // file to the same destination directory).
   const init = await initMultipartUpload(
     {
@@ -898,7 +898,7 @@ export async function uploadFiles(
   }
 
   // Phase B — ONE batch finalize for every file whose PUTs landed.
-  // The backend collapses N files into one MUT commit (one entry in
+  // The backend collapses N files into one version commit (one entry in
   // the audit log saying "Upload N files" rather than N near-
   // identical entries). Wall-clock cost is roughly fixed at "one
   // commit" rather than "N commits".

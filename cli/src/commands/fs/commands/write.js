@@ -1,11 +1,12 @@
 import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, detectNodeType, extraHeaders } from "../lib/context.js";
+import { addFsHelp, JSON_METADATA_NOTE, MUTATION_AUDIT_NOTE, MUTATION_SILENT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { post } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerWriteCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("write")
     .description("Write a file within the access point scope")
     .argument("<path>", "destination path relative to the access point scope")
@@ -13,7 +14,21 @@ export function registerWriteCommand(fs) {
     .option("--file <local-path>", "read content from a local file")
     .option("--type <type>", "node type: json | markdown | file (auto-detected from extension)")
     .option("--base-commit <sha>", "optional scope head precondition")
-    .option("-m, --message <msg>", "commit message")
+    .option("-m, --message <msg>", "commit message"), {
+      examples: [
+        "printf 'hello\\n' | puppyone fs write notes/hello.md --type markdown",
+        "puppyone fs write notes/hello.md --content 'hello' --type markdown",
+        "puppyone fs write data/config.json --file ./config.json --type json -m 'Update config'",
+        "puppyone --json fs write notes/hello.md --content 'hello'",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        "Content source order is --content, then --file, then stdin.",
+        MUTATION_SILENT_NOTE,
+        MUTATION_AUDIT_NOTE,
+        JSON_METADATA_NOTE,
+      ],
+    })
     .action(withErrors(async (path, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

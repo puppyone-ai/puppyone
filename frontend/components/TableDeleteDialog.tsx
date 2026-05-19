@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import type { ProjectInfo } from '../lib/projectsApi';
 import { deleteTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
@@ -24,10 +24,9 @@ export function TableDeleteDialog({
   onClose,
 }: TableDeleteDialogProps) {
   const { currentOrg } = useOrganization();
-  const table = useMemo(() => {
-    const project = projects.find(p => String(p.id) === String(projectId));
-    return project?.nodes?.find(t => String(t.id) === String(tableId)) ?? null;
-  }, [projects, projectId, tableId]);
+  void projects;
+  void projectId;
+  const tableName = tableId.split('/').filter(Boolean).pop() || tableId;
 
   const [loading, setLoading] = useState(false);
 
@@ -54,7 +53,7 @@ export function TableDeleteDialog({
         <DialogHeader title="Delete Context" onClose={onClose} />
 
         <DialogBody>
-          <DangerNotice title={`Delete "${table?.name || 'this context'}"?`}>
+          <DangerNotice title={`Delete "${tableName || 'this context'}"?`}>
             This will permanently delete the context and all data inside it.
             This action cannot be undone.
           </DangerNotice>

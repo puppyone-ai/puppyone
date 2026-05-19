@@ -11,9 +11,13 @@ interface MoveToDialogProps {
   projectId: string;
   nodeId: string;
   nodeName: string;
-  nodeMutPath?: string;
+  nodeVersionPath?: string;
   onConfirm: (targetFolderId: string | null) => void;
   onClose: () => void;
+}
+
+function isSameOrDescendantPath(path: string, root: string): boolean {
+  return path === root || path.startsWith(`${root}/`);
 }
 
 function FolderTreeItem({
@@ -22,7 +26,7 @@ function FolderTreeItem({
   depth,
   projectId,
   excludeId,
-  excludeMutPath,
+  excludeVersionPath,
   selectedId,
   onSelect,
 }: {
@@ -31,7 +35,7 @@ function FolderTreeItem({
   depth: number;
   projectId: string;
   excludeId: string;
-  excludeMutPath?: string;
+  excludeVersionPath?: string;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
 }) {
@@ -45,8 +49,8 @@ function FolderTreeItem({
 
   const childFolders = children.filter((n) => {
     if (n.type !== 'folder') return false;
-    if (n.id === excludeId) return false;
-    if (excludeMutPath && n.mut_path?.startsWith(excludeMutPath + '/')) return false;
+    if (isSameOrDescendantPath(n.id, excludeId)) return false;
+    if (excludeVersionPath && n.version_path?.startsWith(excludeVersionPath + '/')) return false;
     return true;
   });
 
@@ -164,7 +168,7 @@ function FolderTreeItem({
               depth={depth + 1}
               projectId={projectId}
               excludeId={excludeId}
-              excludeMutPath={excludeMutPath}
+              excludeVersionPath={excludeVersionPath}
               selectedId={selectedId}
               onSelect={onSelect}
             />
@@ -195,7 +199,7 @@ export function MoveToDialog({
   projectId,
   nodeId,
   nodeName,
-  nodeMutPath,
+  nodeVersionPath,
   onConfirm,
   onClose,
 }: MoveToDialogProps) {
@@ -209,8 +213,8 @@ export function MoveToDialog({
 
   const rootFolders = rootNodes.filter((n) => {
     if (n.type !== 'folder') return false;
-    if (n.id === nodeId) return false;
-    if (nodeMutPath && n.mut_path?.startsWith(nodeMutPath + '/')) return false;
+    if (isSameOrDescendantPath(n.id, nodeId)) return false;
+    if (nodeVersionPath && n.version_path?.startsWith(nodeVersionPath + '/')) return false;
     return true;
   });
 
@@ -324,7 +328,7 @@ export function MoveToDialog({
                 depth={0}
                 projectId={projectId}
                 excludeId={nodeId}
-                excludeMutPath={nodeMutPath}
+                excludeVersionPath={nodeVersionPath}
                 selectedId={selectedFolderId}
                 onSelect={handleSelect}
               />

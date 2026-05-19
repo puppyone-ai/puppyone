@@ -67,8 +67,7 @@ export function AccessPointRow({
   // Pluck the three built-ins by provider id. Post-2026-05-08 the
   // DB trigger guarantees one of each per scope, but we read them
   // defensively in case the trigger hasn't settled yet on a fresh
-  // insert (or the user is looking at legacy data not yet
-  // backfilled).
+  // insert.
   const cliConnector = connectors.find((c) => c.provider === 'cli');
   const filesystemConnector = connectors.find((c) => c.provider === 'filesystem');
   const agentConnector = connectors.find((c) => c.provider === 'agent');

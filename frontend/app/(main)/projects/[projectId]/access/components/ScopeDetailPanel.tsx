@@ -676,7 +676,7 @@ function getAuditProvider(action: string, log: AuditLogItem): ActivityProvider {
   if (log.operator_type === 'agent' || log.operator_id?.startsWith('agent:')) {
     return 'agent';
   }
-  if (source === 'mut' || isProtocolAuditAction(action) || log.operator_id?.startsWith('scope:')) {
+  if (isProtocolAuditAction(action) || log.operator_id?.startsWith('scope:')) {
     return 'cli';
   }
   if (log.operator_type === 'sync') {
@@ -725,7 +725,7 @@ function formatAuditAction(action: string): string {
     pull: 'Pull',
     pull_commit: 'Read commit',
     push: 'Push',
-    mut_push: 'CLI push',
+    agent_push: 'CLI push',
     git_push: 'Git push',
     rollback: 'Rollback',
     git_rollback: 'Git rollback',
@@ -736,7 +736,6 @@ function formatAuditAction(action: string): string {
     move: 'Move',
     copy: 'Copy',
     delete: 'Delete',
-    permanent_delete: 'Delete',
   };
   if (known[action]) return known[action];
   return action

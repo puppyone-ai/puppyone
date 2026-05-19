@@ -9,8 +9,10 @@ from fastapi import APIRouter, Depends, Query, status
 
 from src.common_schemas import ApiResponse
 from src.exceptions import ErrorCode, PermissionException
-from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.bootstrap.dependencies import (
+    get_version_admin_service,
+)
+from src.version_engine.read.admin import VersionAdminService
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.organization.dependencies import resolve_org_id, resolve_org_ids
@@ -18,7 +20,6 @@ from src.platform.project.dependencies import get_project_service, get_verified_
 from src.platform.project.models import Project
 from src.platform.project.schemas import (
     AddProjectMember,
-    NodeInfo,
     ProjectCreate,
     ProjectMemberOut,
     ProjectOut,
@@ -39,20 +40,13 @@ router = APIRouter(
 
 
 def _convert_to_project_out(
-    project: Project, entries=None, access_point_count: int = 0
+    project: Project, access_point_count: int = 0
 ) -> ProjectOut:
-    """Convert Project to ProjectOut (using MutOps entries)"""
-    node_infos = []
-    if entries:
-        for entry in entries:
-            node_infos.append(
-                NodeInfo(
-                    id=entry.path,
-                    name=entry.name,
-                    type=entry.type,
-                    rows=None,
-                )
-            )
+    """Convert Project to project metadata.
+
+    This router is the project/container API. It must not read Version Engine
+    trees or S3 objects; content belongs to /api/v1/content.
+    """
 
     return ProjectOut(
         id=str(project.id),
@@ -61,66 +55,63 @@ def _convert_to_project_out(
         org_id=project.org_id,
         visibility=project.visibility,
         bound_git_branch=getattr(project, 'bound_git_branch', 'main'),
-        nodes=node_infos,
         updated_at=project.updated_at.isoformat() if project.updated_at else None,
         access_point_count=access_point_count,
     )
+
+
+def _count_user_connectors(project_ids: list[str]) -> dict[str, int]:
+    """Count user-created integrations, excluding built-in connection methods."""
+
+    if not project_ids:
+        return {}
+    sb = get_supabase_client()
+    rows = (
+        sb.table("connectors")
+        .select("project_id, provider")
+        .in_("project_id", project_ids)
+        .not_.in_("provider", ["cli", "agent", "filesystem"])
+        .execute()
+    ).data or []
+    counts: dict[str, int] = {}
+    for row in rows:
+        pid = row["project_id"]
+        counts[pid] = counts.get(pid, 0) + 1
+    return counts
 
 
 @router.get(
     "/",
     response_model=ApiResponse[list[ProjectOut]],
     summary="List projects",
-    description="Get all projects under the specified organization, including root directory entries for each project.",
+    description="Get project metadata under the specified organization.",
     response_description="Returns all projects of the organization",
     status_code=status.HTTP_200_OK,
 )
 async def list_projects(
     org_id: str | None = Query(None, description="Organization ID (if omitted, returns projects from all user organizations)"),
     project_service: ProjectService = Depends(get_project_service),
-    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    import asyncio
-
     oids = resolve_org_ids(org_id, current_user.user_id)
 
     all_projects = []
     for oid in oids:
         all_projects.extend(project_service.get_by_org_id(oid))
 
-    # Batch-fetch connection counts for all projects. The legacy
-    # access_points table was dropped post-redesign — count user-configured
-    # connectors instead, excluding the auto-created cli/agent built-ins
-    # so the "connections" badge reflects actual user-set integrations.
-    conn_counts: dict[str, int] = {}
+    # Batch-fetch connection counts for all projects. Count only user-created
+    # integrations; CLI / Agent / Git Remote are built-in entry methods.
     project_ids = [str(p.id) for p in all_projects]
-    if project_ids:
-        sb = get_supabase_client()
-        rows = (
-            sb.table("connectors")
-            .select("project_id, provider")
-            .in_("project_id", project_ids)
-            .not_.in_("provider", ["cli", "agent"])
-            .execute()
-        ).data
-        for row in rows:
-            pid = row["project_id"]
-            conn_counts[pid] = conn_counts.get(pid, 0) + 1
+    conn_counts = _count_user_connectors(project_ids)
 
-    # Fetch root directory entries for all projects in parallel
-    async def _get_entries(pid: str):
-        try:
-            return await asyncio.to_thread(ops.list_dir, pid, "")
-        except Exception:
-            return []
-
-    entries_list = await asyncio.gather(*[_get_entries(str(p.id)) for p in all_projects])
-
-    result = [
-        _convert_to_project_out(p, entries, access_point_count=conn_counts.get(str(p.id), 0))
-        for p, entries in zip(all_projects, entries_list)
-    ]
+    result = []
+    for p in all_projects:
+        result.append(
+            _convert_to_project_out(
+                p,
+                access_point_count=conn_counts.get(str(p.id), 0),
+            )
+        )
     return ApiResponse.success(data=result, message="Project list retrieved successfully")
 
 
@@ -146,25 +137,11 @@ def list_project_templates():
 )
 def get_project(
     project: Project = Depends(get_verified_project),
-    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    entries = ops.list_dir(str(project.id), "")
-    sb = get_supabase_client()
-    # Post-redesign: integrations live in `connectors`; exclude built-in cli/agent
-    # so the count matches `list_projects` badges.
-    conn_rows = (
-        sb.table("connectors")
-        .select("id")
-        .eq("project_id", str(project.id))
-        .not_.in_("provider", ["cli", "agent"])
-        .execute()
-        .data
-        or []
-    )
-    conn_count = len(conn_rows)
+    conn_count = _count_user_connectors([str(project.id)]).get(str(project.id), 0)
     return ApiResponse.success(
-        data=_convert_to_project_out(project, entries, access_point_count=conn_count),
+        data=_convert_to_project_out(project, access_point_count=conn_count),
         message="Project retrieved successfully",
     )
 
@@ -180,7 +157,7 @@ def get_project(
 async def create_project(
     payload: ProjectCreate,
     project_service: ProjectService = Depends(get_project_service),
-    ops: MutOps = Depends(get_mut_ops),
+    version_admin: VersionAdminService = Depends(get_version_admin_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     resolved_org_id = resolve_org_id(payload.org_id, current_user.user_id)
@@ -192,27 +169,13 @@ async def create_project(
         created_by=current_user.user_id,
     )
 
-    from src.mut_engine.dependencies import create_mut_admin_service
-    writer = create_mut_admin_service()
-    await writer.init_tree(str(project.id))
+    await version_admin.init_tree(str(project.id))
 
-    # Ensure the project has a root scope (path='', is_root=true). Without
-    # this every redesign-aware endpoint (mut auth, /scopes list, the
-    # repo-identity endpoint) fails for newly-created projects — the
-    # 20260502000500_backfill migration only covered projects that existed
-    # at migration time. The DB trigger on repo_scopes auto-creates the
-    # cli + agent connectors as a side effect.
-    try:
-        from src.repo.scope_service import ScopeService
-        ScopeService().ensure_root_scope(str(project.id))
-    except Exception as e:
-        # Non-fatal: project still works for legacy access paths. Log and
-        # continue so a transient repo_scopes failure can't 500 project
-        # creation.
-        from src.utils.logger import log_error
-        log_error(f"[project.create] ensure_root_scope failed for {project.id}: {e}")
+    # Ensure the canonical root scope exists before returning. The DB trigger
+    # synchronously creates built-in cli / agent / filesystem connector rows.
+    from src.repo.scope_service import ScopeService
+    ScopeService().ensure_root_scope(str(project.id))
 
-    entries = []
     if payload.template:
         from src.platform.project.templates import seed_template_content
         await seed_template_content(
@@ -220,17 +183,19 @@ async def create_project(
             template_id=payload.template,
             created_by=current_user.user_id,
         )
-        entries = ops.list_dir(str(project.id), "")
     elif payload.seed:
         from src.platform.project.seed_content import seed_default_content
         await seed_default_content(
             project_id=str(project.id),
             created_by=current_user.user_id,
         )
-        entries = ops.list_dir(str(project.id), "")
 
     return ApiResponse.success(
-        data=_convert_to_project_out(project, entries), message="Project created successfully"
+        data=_convert_to_project_out(
+            project,
+            access_point_count=_count_user_connectors([str(project.id)]).get(str(project.id), 0),
+        ),
+        message="Project created successfully",
     )
 
 
@@ -246,7 +211,6 @@ def update_project(
     project: Project = Depends(get_verified_project),
     payload: ProjectUpdate = ...,
     project_service: ProjectService = Depends(get_project_service),
-    ops: MutOps = Depends(get_mut_ops),
     current_user: CurrentUser = Depends(get_current_user),
 ):
     updated_project = project_service.update(
@@ -256,9 +220,8 @@ def update_project(
         bound_git_branch=payload.bound_git_branch,
     )
 
-    entries = ops.list_dir(str(project.id), "")
     return ApiResponse.success(
-        data=_convert_to_project_out(updated_project, entries), message="Project updated successfully"
+        data=_convert_to_project_out(updated_project), message="Project updated successfully"
     )
 
 

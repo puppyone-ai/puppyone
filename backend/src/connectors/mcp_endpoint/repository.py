@@ -1,24 +1,10 @@
-"""
-MCP Endpoint Repository.
-
-Read methods (get_by_id / get_by_api_key / get_by_path / list_by_project)
-were migrated post-redesign-2026-05-02 to the `connectors` table
-(provider='mcp'); the legacy `access_points` table is gone. The connector
-row's `config` JSONB carries the api_key, tools_config, and accesses
-fields, while `path` is recovered via a join on `repo_scopes` keyed by
-scope_id (the redesign moved path off connector rows onto the scope).
-
-Write methods (create / update / delete / regenerate_api_key) still
-target the legacy table — they will raise APIError if hit because the
-table no longer exists. They are slated for a follow-up migration that
-must also wire scope_id provisioning; rerouting them naively without a
-scope_id design would create rows the rest of the system can't read back.
-"""
+"""MCP endpoint repository over connectors + repo_scopes."""
 
 from typing import Dict, List, Optional
 import secrets
 
 from src.utils.id_generator import generate_uuid_v7
+from src.repo.scope_service import ScopeService
 
 
 PROVIDER = "mcp"
@@ -31,12 +17,7 @@ def generate_mcp_api_key() -> str:
 
 
 def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
-    """Reshape a connectors row (provider='mcp') into the legacy MCP endpoint
-    dict the router / service / frontend already consume. `scope_path` is
-    sourced from a joined repo_scopes lookup since the connectors table no
-    longer carries a path column. `api_key` lives in `config.api_key` after
-    the redesign moved it off the row's columns into the JSONB blob.
-    """
+    """Reshape a connectors row into the endpoint dict the API exposes."""
     config = row.get("config") or {}
     return {
         "id": row["id"],
@@ -58,9 +39,7 @@ def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
 
 class McpEndpointRepository:
 
-    # Legacy field kept for code that introspects TABLE; actual queries go
-    # through CONNECTORS_TABLE / SCOPES_TABLE module constants.
-    TABLE = "access_points"
+    TABLE = CONNECTORS_TABLE
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
@@ -96,6 +75,21 @@ class McpEndpointRepository:
             _row_to_endpoint(r, path_by_scope.get(r.get("scope_id")))
             for r in rows
         ]
+
+    def _scope_for_path(self, project_id: str, path: Optional[str]) -> dict:
+        normalized = (path or "").strip("/")
+        scope_svc = ScopeService()
+        for scope in scope_svc.list_for_project(project_id):
+            if (scope.path or "") == normalized:
+                return {"id": scope.id, "path": scope.path}
+        scope = scope_svc.create(
+            project_id=project_id,
+            name=normalized.rsplit("/", 1)[-1] if normalized else "Root",
+            path=normalized,
+            exclude=[],
+            mode="rw",
+        )
+        return {"id": scope.id, "path": scope.path}
 
     def get_by_id(self, endpoint_id: str) -> Optional[dict]:
         resp = self._query().eq("id", endpoint_id).execute()
@@ -148,21 +142,23 @@ class McpEndpointRepository:
         config = {
             "name": name,
             "description": description,
+            "api_key": generate_mcp_api_key(),
             "tools_config": tools_config or [],
             "accesses": accesses or [],
         }
+        scope = self._scope_for_path(project_id, path)
         row = {
             "id": generate_uuid_v7(),
             "project_id": project_id,
-            "path": path,
+            "scope_id": scope["id"],
             "provider": PROVIDER,
+            "name": name,
             "direction": "bidirectional",
-            "access_key": generate_mcp_api_key(),
             "config": config,
             "status": "active",
         }
         resp = self._client.table(self.TABLE).insert(row).execute()
-        return _row_to_endpoint(resp.data[0])
+        return _row_to_endpoint(resp.data[0], scope["path"])
 
     def update(self, endpoint_id: str, **kwargs) -> Optional[dict]:
         current = self._query().eq("id", endpoint_id).execute()
@@ -180,10 +176,12 @@ class McpEndpointRepository:
 
         update_data["config"] = config
 
-        if "api_key" in kwargs:
-            update_data["access_key"] = kwargs["api_key"]
         if "path" in kwargs:
-            update_data["path"] = kwargs["path"]
+            scope = self._scope_for_path(row["project_id"], kwargs["path"])
+            update_data["scope_id"] = scope["id"]
+        if "api_key" in kwargs:
+            config["api_key"] = kwargs["api_key"]
+            update_data["config"] = config
         if "status" in kwargs:
             update_data["status"] = kwargs["status"]
 
@@ -200,7 +198,6 @@ class McpEndpointRepository:
             self._client.table(self.TABLE)
             .delete()
             .eq("id", endpoint_id)
-            .eq("provider", PROVIDER)
             .execute()
         )
         return bool(resp.data)

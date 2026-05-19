@@ -7,6 +7,8 @@ import { SupabaseSQLEditorDialog } from '@/components/SupabaseSQLEditorDialog';
 import { NodeRenameDialog } from '@/components/NodeRenameDialog';
 import { MoveToDialog } from '@/components/MoveToDialog';
 import { BulkDeleteDialog } from './BulkDeleteDialog';
+import { MoveConfirmDialog } from './MoveConfirmDialog';
+import type { PendingMoveConfirm } from '../hooks/useNodeActions';
 
 export interface DataPageDialogsProps {
   projectId: string;
@@ -22,9 +24,12 @@ export interface DataPageDialogsProps {
   onRenameConfirm: (newName: string) => Promise<void>;
 
   // Move
-  moveDialogTarget: { id: string; name: string; mut_path?: string } | null;
+  moveDialogTarget: { id: string; name: string; version_path?: string } | null;
+  moveConfirmTarget: PendingMoveConfirm | null;
   onMoveConfirm: (nodeId: string, targetFolderId: string | null) => Promise<void>;
+  onMoveFinalConfirm: () => Promise<void>;
   onCloseMove: () => void;
+  onCloseMoveConfirm: () => void;
 
   // Delete
   deleteDialogTarget: { id: string; name: string } | null;
@@ -62,7 +67,7 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
   const {
     projectId, currentFolderId, projects, activeProject,
     renameDialogOpen, renameTargetName, renameError, onCloseRename, onRenameConfirm,
-    moveDialogTarget, onMoveConfirm, onCloseMove,
+    moveDialogTarget, moveConfirmTarget, onMoveConfirm, onMoveFinalConfirm, onCloseMove, onCloseMoveConfirm,
     deleteDialogTarget, onDeleteConfirm, onCloseDelete,
     createTableOpen, onCloseCreateTable, defaultStartOption,
     createFolderOpen, onCloseFolderDialog, onFolderSuccess,
@@ -89,11 +94,23 @@ export function DataPageDialogs(props: DataPageDialogsProps) {
           projectId={projectId}
           nodeId={moveDialogTarget.id}
           nodeName={moveDialogTarget.name}
-          nodeMutPath={moveDialogTarget.mut_path}
+          nodeVersionPath={moveDialogTarget.version_path}
           onConfirm={async (targetFolderId) => {
             await onMoveConfirm(moveDialogTarget.id, targetFolderId);
           }}
           onClose={onCloseMove}
+        />
+      )}
+
+      {moveConfirmTarget && (
+        <MoveConfirmDialog
+          open={true}
+          nodeName={moveConfirmTarget.nodeName}
+          oldPath={moveConfirmTarget.nodePath}
+          newPath={moveConfirmTarget.newPath}
+          targetLabel={moveConfirmTarget.targetLabel}
+          onClose={onCloseMoveConfirm}
+          onConfirm={onMoveFinalConfirm}
         />
       )}
 

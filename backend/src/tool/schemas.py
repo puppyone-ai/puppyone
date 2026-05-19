@@ -24,7 +24,7 @@ ToolCategory = Literal["builtin", "custom"]
 class ToolCreate(BaseModel):
     path: str | None = Field(
         default=None,
-        description="MUT path (required for built-in tools, optional for custom multi-node tools)"
+        description="version path (required for built-in tools, optional for custom multi-node tools)"
     )
     json_path: str = Field(
         default="",

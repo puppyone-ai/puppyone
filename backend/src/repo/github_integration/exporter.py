@@ -1,9 +1,9 @@
-"""Export the bound MUT scope's current tree to a GitHub branch.
+"""Export the bound Version Engine scope's current tree to a GitHub branch.
 
 One commit per export. The flow:
 
 1. Resolve integration → repo coords + OAuth token + branch name.
-2. List the MUT scope's files via :class:`MutTreeReader` — the
+2. List the version scope's files via :class:`VersionTreeReader` — the
    server-side authoritative read path (S3-backed, cache-aware).
 3. For each file, ``POST /repos/.../git/blobs`` with the raw bytes.
    GitHub returns a blob SHA per file. (Existing-blob short-circuit
@@ -27,7 +27,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from src.mut_engine.dependencies import get_repo_manager_standalone
+from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 from src.repo.github_integration.github_api import GithubApi, GithubApiError
 from src.repo.github_integration.repository import (
     GithubIntegrationRepository, GithubSyncLogRepository,
@@ -97,17 +97,17 @@ async def _do_export(
 ) -> GithubSyncRunResult:
     integration_id = integration["id"]
 
-    # 1. List the MUT scope's current contents.
+    # 1. List the version scope's current contents.
     files = await _list_scope_files(project_id)
     if not files:
-        msg = "MUT scope is empty — nothing to export"
+        msg = "version scope is empty — nothing to export"
         await sync_log.record(
             integration_id, direction="export", status="failed",
             error_message=msg,
         )
         return GithubSyncRunResult(
             status="failed", direction="export",
-            git_sha=None, mut_commit_id=None, files_changed=0,
+            git_sha=None, version_commit_id=None, files_changed=0,
             error_message=msg,
         )
 
@@ -125,8 +125,8 @@ async def _do_export(
         })
 
     # 4. Build the tree (using base_tree means unchanged sibling paths
-    #    in the target branch but outside the MUT scope are preserved
-    #    — important when the MUT project mirrors only a subdirectory
+    #    in the target branch but outside the version scope are preserved
+    #    — important when the project mirrors only a subdirectory
     #    of the GitHub repo, but at the moment we always export at root).
     tree_sha = await api.create_tree(
         owner, repo_name, tree_entries, base_tree=base_tree_sha,
@@ -148,7 +148,7 @@ async def _do_export(
     files_changed = len(tree_entries)
     await sync_log.record(
         integration_id, direction="export", status="success",
-        git_sha=new_git_sha, mut_commit_id=head,
+        git_sha=new_git_sha, version_commit_id=head,
         files_changed=files_changed,
     )
     await integ_repo.update_watermark(
@@ -163,21 +163,21 @@ async def _do_export(
     )
     return GithubSyncRunResult(
         status="success", direction="export",
-        git_sha=new_git_sha, mut_commit_id=head,
+        git_sha=new_git_sha, version_commit_id=head,
         files_changed=files_changed,
     )
 
 
 async def _list_scope_files(project_id: str) -> dict[str, bytes]:
-    """Walk the MUT root scope and return ``{path: bytes}``.
+    """Walk the version root scope and return ``{path: bytes}``.
 
     Uses ``tree_to_flat`` directly off the project's current root_hash
     so we don't have to instantiate per-file readers.
     """
     import asyncio
-    from src.mut_engine.application.tree import tree_to_flat
+    from src.version_engine.write_engine.tree import tree_to_flat
 
-    repo_manager = get_repo_manager_standalone()
+    repo_manager = build_worker_version_engine_container().repo_manager
     repo = repo_manager.get_server_repo(project_id)
     root_hash = await asyncio.to_thread(repo.get_root_hash) or ""
     if not root_hash:
@@ -186,16 +186,13 @@ async def _list_scope_files(project_id: str) -> dict[str, bytes]:
     flat = await asyncio.to_thread(tree_to_flat, repo.store, root_hash)
     files: dict[str, bytes] = {}
     for path, blob_hash in flat.items():
-        # Skip the .gitignore that ``mut init`` writes if it's just
-        # the ``.mut/`` line — pushing it back to GitHub gives users
-        # a confusing dangling line in their gitignore.
         content = await asyncio.to_thread(repo.store.get, blob_hash)
         files[path] = content
     return files
 
 
 def _local_head_commit_id(project_id: str) -> str:
-    repo_manager = get_repo_manager_standalone()
+    repo_manager = build_worker_version_engine_container().repo_manager
     repo = repo_manager.get_server_repo(project_id)
     try:
         return repo.get_head_commit_id() or ""
@@ -213,6 +210,6 @@ async def _record_failure(
     )
     return GithubSyncRunResult(
         status="failed", direction="export",
-        git_sha=None, mut_commit_id=None,
+        git_sha=None, version_commit_id=None,
         files_changed=None, error_message=error,
     )

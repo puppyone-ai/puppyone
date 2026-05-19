@@ -21,7 +21,7 @@ class _Entry:
 
 
 def _ops(head_commit_returns: list[str], entries: list[_Entry]):
-    """Build a MutOps stub. Each call to get_head_commit_id pops the next
+    """Build a ProductOperationAdapter stub. Each call to get_head_commit_id pops the next
     value from head_commit_returns; list_tree always returns `entries` and
     is observably counted."""
     ops = MagicMock()

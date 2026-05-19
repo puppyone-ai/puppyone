@@ -80,8 +80,7 @@ interface Props {
   /**
    * Hover feedback up into the explorer sidebar: while a row is hovered we
    * pass the scope's path so the matching folder gets the access-point
-   * highlight; on leave / unmount we send null. Mirrors the legacy
-   * AccessPointsListPanel's onEndpointHover wiring (lost in the redesign).
+   * highlight; on leave / unmount we send null.
    */
   readonly onScopeHover?: (path: string | null) => void;
   /** Refresh scopes / connectors / repo identity after a CRUD mutation.

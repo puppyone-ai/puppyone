@@ -1,10 +1,10 @@
 """
-Filesystem Connector — Bidirectional local folder sync via MUT protocol.
+Filesystem Connector — Bidirectional local folder sync via Write Engine.
 
 Architecture:
-  - CLI daemon handles all watch/diff/sync using MUT access_point
-    (POST /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate)
-  - Backend provides connection lifecycle management only
+  - Stock Git clients use /git/ap/{access_key}.git.
+  - Puppyone CLI filesystem commands use /api/v1/ap-fs/*.
+  - Backend provides connection lifecycle management only.
 
 Components:
   - connector.py    FilesystemConnector  — ConnectorSpec declaration

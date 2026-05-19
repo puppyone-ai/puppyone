@@ -78,4 +78,5 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "e2e: end-to-end tests that may call real external services",
+    "integration: integration tests that call live third-party APIs or require explicit operator opt-in",
 ]

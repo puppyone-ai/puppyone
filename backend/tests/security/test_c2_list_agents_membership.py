@@ -25,7 +25,7 @@ from src.connectors.agent.config.router import router as agent_config_router
 from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
-from src.mut_engine.dependencies import get_mut_ops
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
 
 
 PROJECT_USER_BELONGS_TO = "proj-A"
@@ -55,7 +55,7 @@ def _make_app(verify_returns):
     app.dependency_overrides[get_current_user] = _user
     app.dependency_overrides[get_project_service] = lambda: fake_project_service
     app.dependency_overrides[get_agent_config_service] = lambda: fake_agent_service
-    app.dependency_overrides[get_mut_ops] = lambda: fake_ops
+    app.dependency_overrides[get_product_operation_adapter] = lambda: fake_ops
     return app, fake_project_service, fake_agent_service
 
 

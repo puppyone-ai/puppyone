@@ -14,11 +14,13 @@ from src.infra.supabase.dependencies import get_supabase_repository
 from src.infra.turbopuffer.internal_router import router as turbopuffer_internal_router
 from src.infra.search.dependencies import get_search_service
 from src.infra.search.schemas import SearchToolQueryInput, SearchToolQueryResponse
-from src.connectors.agent.config.service import AgentConfigService
-from src.connectors.agent.config.repository import AgentRepository
 from src.tool.repository import ToolRepositorySupabase
-from src.mut_engine.dependencies import create_mut_ops, get_mut_ops
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.bootstrap.dependencies import (
+    build_worker_version_engine_container,
+    get_product_operation_adapter,
+)
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
+from src.version_engine.adapters.product.commands import VersionWriteCommandService
 from src.platform.project.repository import ProjectRepositorySupabase
 from src.utils.logger import log_warning
 
@@ -43,7 +45,7 @@ def _enforce_acting_user_project_access(request: Request, project_id: str) -> st
     X-Acting-User-Id header), and that user must have access to project_id.
 
     Without this check, anyone holding the internal secret (e.g. the mcp
-    service, or an attacker who exfiltrated it) could read/write the MUT
+    service, or an attacker who exfiltrated it) could read/write the hash
     tree of ANY project by varying project_id.
 
     Returns:
@@ -89,6 +91,10 @@ def _enforce_acting_user_project_access(request: Request, project_id: str) -> st
             detail="Acting user is not a member of this project",
         )
     return acting_user
+
+
+def _create_write_commands() -> VersionWriteCommandService:
+    return build_worker_version_engine_container().write_commands()
 
 
 # ============================================================
@@ -326,7 +332,7 @@ async def search_tool(
 
 # ============================================================
 # ContentNode POSIX endpoints (called by mcp_service POSIX tools)
-# All path-based, using MutOps (MUT clone/push under the hood)
+# All path-based, using ProductOperationAdapter (hash clone/push under the hood)
 # ============================================================
 
 
@@ -339,7 +345,7 @@ async def search_tool(
 async def resolve_node_path(
     payload: Dict[str, Any],
     request: Request,
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     try:
         project_id = payload.get("project_id", "")
@@ -379,7 +385,7 @@ async def list_node_children(
     request: Request,
     project_id: str = Query(..., description="Project ID"),
     path: str = Query("", description="Directory path"),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     try:
         _enforce_acting_user_project_access(request, project_id)
@@ -416,7 +422,7 @@ async def read_node_content(
     request: Request,
     project_id: str = Query(..., description="Project ID"),
     path: str = Query(..., description="File path"),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     try:
         _enforce_acting_user_project_access(request, project_id)
@@ -473,7 +479,7 @@ async def read_node_content(
 
 @router.put(
     "/nodes/write",
-    summary="Write file content (via MutOps)",
+    summary="Write file content (via ProductOperationAdapter)",
     description="Create or update file content",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -482,7 +488,7 @@ async def write_node_content(
     request: Request,
 ):
     """
-    Write file content via MutOps.
+    Write file content via ProductOperationAdapter.
 
     payload:
         project_id: str
@@ -500,25 +506,22 @@ async def write_node_content(
         if not path:
             raise HTTPException(status_code=400, detail="path is required")
 
-        if isinstance(content, str):
-            content_bytes = content.encode("utf-8")
-        elif isinstance(content, (dict, list)):
-            import json
-            content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
-        else:
+        if not isinstance(content, (str, dict, list, bytes)):
             raise HTTPException(status_code=400, detail=f"Unsupported content type: {type(content).__name__}")
 
-        ops = create_mut_ops()
-        result = await ops.write_file(
+        commands = _create_write_commands()
+        outcome = await commands.write_file(
             project_id,
             path,
-            content_bytes,
-            who=operator_id,
+            content,
+            node_type="file",
+            actor=operator_id,
             message=f"Write {path}",
         )
+        result = outcome.result
 
         return {
-            "path": path,
+            "path": outcome.path,
             "commit_id": result.commit_id,
             "op": "modified",
             "updated": True,
@@ -533,7 +536,7 @@ async def write_node_content(
 
 @router.post(
     "/nodes/create",
-    summary="Create file or directory (via MutOps)",
+    summary="Create file or directory (via ProductOperationAdapter)",
     description="Create a new file (JSON / Markdown) or empty directory at the specified path",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -542,7 +545,7 @@ async def create_node(
     request: Request,
 ):
     """
-    Create file/directory via MutOps.
+    Create file/directory via ProductOperationAdapter.
 
     payload:
         project_id: str
@@ -565,35 +568,32 @@ async def create_node(
         if node_type not in ("json", "markdown", "folder"):
             raise HTTPException(status_code=400, detail=f"Unsupported node type for creation: {node_type}")
 
-        ops = create_mut_ops()
+        commands = _create_write_commands()
 
         if node_type == "folder":
-            result = await ops.mkdir(
+            outcome = await commands.mkdir(
                 project_id,
                 path,
-                who=created_by,
+                actor=created_by,
                 message=f"mkdir {path}",
             )
+            result = outcome.result
         else:
             if content is None:
                 content = {} if node_type == "json" else ""
 
-            if isinstance(content, str):
-                content_bytes = content.encode("utf-8")
-            else:
-                import json
-                content_bytes = json.dumps(content, ensure_ascii=False, indent=2).encode("utf-8")
-
-            result = await ops.write_file(
+            outcome = await commands.write_file(
                 project_id,
                 path,
-                content_bytes,
-                who=created_by,
+                content,
+                node_type=node_type,
+                actor=created_by,
                 message=f"Create {path}",
             )
+            result = outcome.result
 
         return {
-            "path": path,
+            "path": outcome.path,
             "created": True,
             "commit_id": result.commit_id,
         }
@@ -608,7 +608,7 @@ async def create_node(
 @router.post(
     "/nodes/rm",
     summary="Delete file or directory",
-    description="Remove file or directory from the MUT tree",
+    description="Remove file or directory from the version tree",
     dependencies=[Depends(verify_internal_secret)],
 )
 async def remove_node(
@@ -629,16 +629,17 @@ async def remove_node(
 
         if not path:
             raise HTTPException(status_code=400, detail="path is required")
-        ops = create_mut_ops()
-        if ops.stat(project_id, path) is None:
+        commands = _create_write_commands()
+        if commands.ops.stat(project_id, path) is None:
             raise HTTPException(status_code=404, detail=f"Path not found: {path}")
 
-        result = await ops.delete(
+        outcome = await commands.delete(
             project_id,
             [path],
-            who=user_id,
+            actor=user_id,
             message=f"delete {path}",
         )
+        result = outcome.result
 
         return {"path": path, "removed": True, "commit_id": result.commit_id}
     except HTTPException:
@@ -655,7 +656,7 @@ async def remove_node(
 
 @router.post(
     "/nodes/rename",
-    summary="Rename file or directory (via MutOps)",
+    summary="Rename file or directory (via ProductOperationAdapter)",
     description="Rename by moving paths",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -676,12 +677,12 @@ async def rename_node(
         parent = "/".join(path.split("/")[:-1])
         new_path = f"{parent}/{new_name}" if parent else new_name
 
-        ops = create_mut_ops()
-        await ops.move(
+        commands = _create_write_commands()
+        await commands.move(
             project_id,
             path,
             new_path,
-            who="system",
+            actor="system",
             message=f"rename {path} → {new_path}",
         )
 
@@ -698,7 +699,7 @@ async def rename_node(
 
 @router.post(
     "/nodes/move",
-    summary="Move file or directory to new path (via MutOps)",
+    summary="Move file or directory to new path (via ProductOperationAdapter)",
     description="Move file/directory to a new parent directory",
     dependencies=[Depends(verify_internal_secret)],
 )
@@ -718,12 +719,12 @@ async def move_node_internal(
         name = path.split("/")[-1]
         new_path = f"{new_parent_path}/{name}" if new_parent_path else name
 
-        ops = create_mut_ops()
-        await ops.move(
+        commands = _create_write_commands()
+        await commands.move(
             project_id,
             path,
             new_path,
-            who="system",
+            actor="system",
             message=f"move {path} → {new_path}",
         )
 
@@ -742,31 +743,15 @@ async def move_node_internal(
 # Agent internal endpoints (called by mcp_service, new architecture)
 # ============================================================
 
-def get_agent_config_service() -> AgentConfigService:
-    return AgentConfigService(AgentRepository())
+def _resolve_agent_via_connectors(mcp_api_key: str) -> dict:
+    """Resolve an MCP key through the canonical connectors/repo_scopes model."""
 
+    from src.repo.connector_service import ConnectorService
+    from src.repo.scope_repository import RepoScopeRepository
 
-def _resolve_agent_via_connectors(mcp_api_key: str) -> dict | None:
-    """New-path resolution: query the `connectors` table for an agent.
-
-    Returns the response payload directly when found, or None if there's
-    no agent connector with that key (caller falls back to the legacy
-    access_points lookup).
-
-    Failure-mode contract: ANY exception (network blip, table not yet
-    migrated, DB outage) returns None so the legacy fallback runs. We
-    log the failure but never let it propagate — the legacy path is
-    still the source of truth during the transition window.
-    """
-    try:
-        from src.repo.connector_service import ConnectorService
-        from src.repo.scope_repository import RepoScopeRepository
-        connector = ConnectorService().get_agent_by_mcp_key(mcp_api_key)
-    except Exception as e:
-        log_warning(f"[internal] connectors lookup failed for mcp key — falling back: {e}")
-        return None
+    connector = ConnectorService().get_agent_by_mcp_key(mcp_api_key)
     if connector is None:
-        return None
+        raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
 
     # Connectors don't have first-class tools/bash_accesses today; the
     # agent's bound scope IS its access scope. We return one access
@@ -794,14 +779,13 @@ def _resolve_agent_via_connectors(mcp_api_key: str) -> dict | None:
             "id": connector.id,
             "name": connector.name,
             "project_id": connector.project_id,
-            # Connectors don't carry the legacy `type` field; default to
-            # 'chat' for MCP service compatibility.
+            # Connector-backed in-app agents expose the chat runtime.
             "type": "chat",
             "user_id": connector.created_by or "",
         },
         "accesses": accesses_data,
-        # Tools attached to agents lived in the legacy access_tools table;
-        # the new model doesn't surface them here yet.
+        # Agent-scoped tool grants are derived from the bound repo scope.
+        # No secondary agent/access table is consulted here.
         "tools": [],
     }
 
@@ -814,92 +798,14 @@ def _resolve_agent_via_connectors(mcp_api_key: str) -> dict | None:
 )
 async def get_agent_by_mcp_key(
     mcp_api_key: str,
-    agent_service: AgentConfigService = Depends(get_agent_config_service),
 ):
     """Resolve an MCP API key to an agent's config + tools + accesses.
 
-    Queries the new `connectors` table first (rows with provider='agent'
-    and config.mcp_api_key=<key>). Falls back to the legacy
-    AgentConfigService.get_by_mcp_api_key() during the access-points →
-    connectors transition window — once access_points is dropped, the
-    fallback returns nothing and we 404.
-
-    The response shape is unchanged for the MCP service consumer.
+    The canonical source of truth is ``connectors`` rows with
+    provider='agent' and ``config.mcp_api_key``. Missing or unhealthy
+    connector state fails loud instead of consulting historical tables.
     """
-    new_payload = _resolve_agent_via_connectors(mcp_api_key)
-    if new_payload is not None:
-        return new_payload
-
-    # ── Fallback: legacy access_points-backed agent lookup ────────────
-    agent = agent_service.get_by_mcp_api_key(mcp_api_key)
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found for this MCP API key")
-
-    tool_repo = ToolRepositorySupabase(get_supabase_repository())
-    tools_data = []
-    for agent_tool in agent.tools:
-        tool = tool_repo.get_by_id(agent_tool.tool_id)
-        if tool:
-            tools_data.append({
-                "id": agent_tool.id,
-                "tool_id": tool.id,
-                "name": tool.name,
-                "type": tool.type,
-                "description": tool.description,
-                "path": tool.path,
-                "json_path": tool.json_path,
-                "input_schema": tool.input_schema,
-                "category": tool.category,
-                "enabled": agent_tool.enabled,
-                "mcp_exposed": agent_tool.mcp_exposed,
-            })
-
-    accesses_data = []
-    for bash in agent.bash_accesses:
-        access_entry = {
-            "path": bash.path,
-            "bash_enabled": True,
-            "bash_readonly": bash.readonly,
-            "tool_query": True,
-            "tool_create": not bash.readonly,
-            "tool_update": not bash.readonly,
-            "tool_delete": not bash.readonly,
-            "json_path": bash.json_path or "",
-            "node_name": bash.path,
-            "node_type": "",
-        }
-        accesses_data.append(access_entry)
-
-    # Lookup the connector creator so the MCP service can pass
-    # X-Acting-User-Id on subsequent /internal/nodes/* calls (security: C-3).
-    # ``agent.id`` is the row id in ``connectors`` for the agent.
-    owner_user_id = ""
-    try:
-        from src.infra.supabase.client import SupabaseClient
-        ap_row = (
-            SupabaseClient().get_client()
-            .table("connectors")
-            .select("created_by")
-            .eq("id", agent.id)
-            .limit(1)
-            .execute()
-        )
-        if ap_row.data:
-            owner_user_id = ap_row.data[0].get("created_by") or ""
-    except Exception:
-        pass
-
-    return {
-        "agent": {
-            "id": agent.id,
-            "name": agent.name,
-            "project_id": agent.project_id,
-            "type": agent.type,
-            "user_id": owner_user_id,
-        },
-        "accesses": accesses_data,
-        "tools": tools_data,
-    }
+    return _resolve_agent_via_connectors(mcp_api_key)
 
 
 @router.get(

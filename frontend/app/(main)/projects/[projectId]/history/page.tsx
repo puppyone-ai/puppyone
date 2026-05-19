@@ -6,15 +6,15 @@ import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
   getProjectHistory,
   getVersionContent,
-  type MutCommitInfo,
-  type MutCommitChange,
+  type VersionCommitInfo,
+  type VersionCommitChange,
   type FileVersionDetail,
 } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
-import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
+import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { BUTTON_HEIGHT, BUTTON_RADIUS } from '@/components/ui/buttonTokens';
 
 // ─── Line diff utility ───────────────────────────────────────────────
@@ -237,9 +237,31 @@ function formatOperatorLabel(type: string): string {
 }
 
 function formatScopeLabel(scopePath: string): string {
-  const normalized = scopePath.trim();
+  const normalized = normalizeScopePath(scopePath);
   if (!normalized || normalized === '/') return 'Root scope';
   return normalized;
+}
+
+function normalizeScopePath(scopePath: string): string {
+  return (scopePath || '').trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+}
+
+function scopeIncludesCommit(scopePath: string, commitScopePath: string): boolean {
+  const scope = normalizeScopePath(scopePath);
+  const commitScope = normalizeScopePath(commitScopePath);
+  if (!scope) return true;
+  return commitScope === scope || commitScope.startsWith(`${scope}/`);
+}
+
+function scopeLineage(scopePath: string): string[] {
+  const scope = normalizeScopePath(scopePath);
+  if (!scope) return [''];
+  const parts = scope.split('/').filter(Boolean);
+  const lineage = [''];
+  for (let index = 0; index < parts.length; index += 1) {
+    lineage.push(parts.slice(0, index + 1).join('/'));
+  }
+  return lineage;
 }
 
 // ─── Vertical commit node (Linear Audit Trail) ───
@@ -262,7 +284,7 @@ function VerticalCommitNode({
   isHead,
   onClick,
 }: {
-  commit: MutCommitInfo;
+  commit: VersionCommitInfo;
   hasPrevious: boolean;
   hasNext: boolean;
   isSelected: boolean;
@@ -529,7 +551,7 @@ function DiffRow({ line }: { line: DiffLine }) {
 }
 
 interface FileDiffBlockProps {
-  change: MutCommitChange;
+  change: VersionCommitChange;
   projectId: string;
   commitId: string;
   parentCommitId: string | null;
@@ -701,7 +723,7 @@ function CommitDetail({
   projectId,
   parentCommitId,
 }: {
-  commit: MutCommitInfo;
+  commit: VersionCommitInfo;
   projectId: string;
   parentCommitId: string | null;
 }) {
@@ -888,8 +910,9 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   const scopeOptions = useMemo(() => {
     const counts = new Map<string, number>();
     commits.forEach(c => {
-      const scope = c.scope_path || '';
-      counts.set(scope, (counts.get(scope) || 0) + 1);
+      scopeLineage(c.scope_path || '').forEach(scope => {
+        counts.set(scope, (counts.get(scope) || 0) + 1);
+      });
     });
     if (!counts.has('')) counts.set('', 0);
     return Array.from(counts.entries())
@@ -897,13 +920,19 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       .sort((a, b) => {
         if (a.scope === '') return -1;
         if (b.scope === '') return 1;
+        const depthDiff = a.scope.split('/').length - b.scope.split('/').length;
+        if (depthDiff !== 0) return depthDiff;
         return b.count - a.count;
       });
   }, [commits]);
 
   const scopeFilteredCommits = useMemo(
-    () => sortedCommits.filter(c => (c.scope_path || '') === activeScopeFilter),
+    () => sortedCommits.filter(c => scopeIncludesCommit(activeScopeFilter, c.scope_path || '')),
     [sortedCommits, activeScopeFilter],
+  );
+  const scopeChronologicalCommits = useMemo(
+    () => commits.filter(c => scopeIncludesCommit(activeScopeFilter, c.scope_path || '')),
+    [commits, activeScopeFilter],
   );
 
   const actorOptions = useMemo(() => {
@@ -932,6 +961,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     () => scopeOptions.find(option => option.scope === activeScopeFilter) ?? null,
     [scopeOptions, activeScopeFilter],
   );
+
+  useEffect(() => {
+    if (!activeScopeFilter) return;
+    if (!scopeOptions.some(option => option.scope === activeScopeFilter)) {
+      setActiveScopeFilter('');
+    }
+  }, [activeScopeFilter, scopeOptions]);
 
   useEffect(() => {
     if (!activeActorFilter) return;
@@ -1006,10 +1042,10 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   // the parent of `commits[i]` is `commits[i - 1]`.
   const parentCommitId = useMemo(() => {
     if (!selectedCommit) return null;
-    const idx = commits.findIndex(c => c.commit_id === selectedCommit.commit_id);
+    const idx = scopeChronologicalCommits.findIndex(c => c.commit_id === selectedCommit.commit_id);
     if (idx <= 0) return null;
-    return commits[idx - 1].commit_id;
-  }, [commits, selectedCommit]);
+    return scopeChronologicalCommits[idx - 1].commit_id;
+  }, [scopeChronologicalCommits, selectedCommit]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--po-canvas)' }}>

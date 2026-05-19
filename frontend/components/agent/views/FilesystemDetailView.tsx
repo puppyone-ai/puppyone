@@ -103,9 +103,6 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 
   const accessKey = sync.access_key || '';
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  // V1 (post-MUT-removal): the access key now authorises a stock Git
-  // smart-HTTP remote at /git/ap/<key>.git. The legacy MUT wire URL
-  // (/api/v1/mut/ap/<key>) was deleted with the protocol.
   const cloneUrl = `${apiBase}/git/ap/${accessKey}.git`;
 
   return (
@@ -290,7 +287,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             }}>
               <InfoRow label="Sync ID" value={sync.id} isLast={false} />
               <InfoRow label="Direction" value="Bidirectional" isLast={false} />
-              <InfoRow label="Protocol" value="MUT" isLast />
+              <InfoRow label="Protocol" value="Git Remote" isLast />
             </div>
           </div>
         </CollapsibleSection>

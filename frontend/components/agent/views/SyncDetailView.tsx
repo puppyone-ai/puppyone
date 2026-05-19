@@ -391,9 +391,9 @@ export function SyncDetailView({ syncId, projectId, onClose, onBack }: SyncDetai
             <ActionButton label={disconnecting ? 'Removing...' : 'Disconnect'} icon="disconnect" variant="danger" onClick={handleDisconnect} />
           </div>
 
-          {/* Filesystem: MUT credentials & usage */}
+          {/* Filesystem: Git Remote credentials & usage */}
           {sync.provider === 'filesystem' && sync.access_key && (
-            <MutCredentialsSection accessKey={sync.access_key} path={sync.path} />
+            <GitCredentialsSection accessKey={sync.access_key} path={sync.path} />
           )}
 
           {/* Details — minimal */}
@@ -803,14 +803,11 @@ function ActionButton({ label, icon, variant = 'default', onClick }: {
   );
 }
 
-function MutCredentialsSection({ accessKey, path }: { accessKey: string; path: string }) {
+function GitCredentialsSection({ accessKey, path }: { accessKey: string; path: string }) {
   const [copied, setCopied] = React.useState<string | null>(null);
   const [mode, setMode] = React.useState<'clone' | 'connect'>('clone');
   const masked = accessKey.slice(0, 8) + '...' + accessKey.slice(-4);
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  // V1 (post-MUT removal): access key authorises stock Git at the
-  // /git/ap/<key>.git remote. The previous /api/v1/mut/ap/<key>
-  // endpoint was deleted with the MUT wire protocol.
   const endpointUrl = `${apiBase}/git/ap/${accessKey}.git`;
   const cloneCmd = `git clone ${endpointUrl}`;
   const connectCmd = [

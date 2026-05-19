@@ -1,8 +1,10 @@
 'use client';
 
 import React from 'react';
+import useSWR from 'swr';
 import { useTranslations, useFormatter } from 'next-intl';
 import type { ProjectInfo } from '@/lib/projectsApi';
+import { listDir, sortNodes, type NodeInfo } from '@/lib/contentTreeApi';
 import { FilePreviewIcon } from '@/lib/fileIcons';
 
 export const PROJECT_CARD_MIN_WIDTH = 210;
@@ -14,17 +16,39 @@ export interface ProjectCardProps {
   onClick: () => void;
 }
 
+const PROJECT_PREVIEW_LIMIT = 8;
+const PROJECT_PREVIEW_TIMEOUT_MS = 3_500;
+
+function useProjectCardPreview(projectId: string, enabled: boolean) {
+  return useSWR<NodeInfo[]>(
+    enabled ? ['project-card-preview', projectId] : null,
+    () => listDir(projectId, '', { timeoutMs: PROJECT_PREVIEW_TIMEOUT_MS })
+      .then((r) => sortNodes(r.nodes).slice(0, PROJECT_PREVIEW_LIMIT)),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      dedupingInterval: 60_000,
+      keepPreviousData: true,
+      shouldRetryOnError: false,
+    },
+  );
+}
+
 export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
   const t = useTranslations('home');
+  const tc = useTranslations('common');
   const format = useFormatter();
 
   const lastUpdated = project.updated_at
     ? format.relativeTime(new Date(project.updated_at), new Date())
     : '—';
   const connectionCount = project.access_point_count ?? 0;
-  const nodes = project.nodes ?? [];
-  const displayNodes = nodes.slice(0, 8);
   const isPending = project.id.startsWith('__pending-project__');
+  const {
+    data: previewNodes = [],
+    isLoading: previewLoading,
+  } = useProjectCardPreview(project.id, !isPending);
+  const hasPreview = previewNodes.length > 0;
 
   return (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events
@@ -52,12 +76,17 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
         className="flex-1 bg-[var(--po-project-card-bg)] border-2 border-[var(--po-border)] group-hover:border-[var(--po-border-strong)] rounded-tr-lg rounded-b-lg -mt-[2px] relative overflow-hidden flex flex-col group-hover:bg-[var(--po-project-card-hover-bg)] transition-[background-color,border-color,box-shadow] duration-150 shadow-none group-hover:shadow-[7px_8px_0_var(--po-shadow)]"
       >
         <div className="absolute inset-0 p-3 pb-7">
-          {displayNodes.length > 0 ? (
+          {hasPreview ? (
             <div className="grid grid-cols-4 gap-x-2 gap-y-3 w-full content-start">
-              {displayNodes.map((node, i) => (
-                <div key={node.id || i} className="flex flex-col items-center gap-1.5 relative z-10">
+              {previewNodes.map((node) => (
+                <div key={node.id} className="flex flex-col items-center gap-1.5 relative z-10 min-w-0">
                   <div className="flex items-center justify-center w-8 h-8">
-                    <FilePreviewIcon type={node.type} name={node.name} size={28} />
+                    <FilePreviewIcon
+                      type={node.type}
+                      name={node.name}
+                      size={28}
+                      childrenCount={node.children_count ?? undefined}
+                    />
                   </div>
                   <span className="text-[10px] text-center truncate w-full text-[var(--po-text-muted)] group-hover:text-[var(--po-text)] transition-colors leading-tight">
                     {node.name}
@@ -70,6 +99,10 @@ export function ProjectCard({ project, onClick }: Readonly<ProjectCardProps>) {
               {isPending ? (
                 <p className="text-[12px] text-[var(--po-text-muted)] leading-relaxed">
                   Preparing workspace...
+                </p>
+              ) : previewLoading && !project.description ? (
+                <p className="text-[12px] text-[var(--po-text-muted)] italic">
+                  {tc('loading')}
                 </p>
               ) : project.description ? (
                 <p className="text-[12px] text-[var(--po-text-muted)] leading-relaxed line-clamp-3">

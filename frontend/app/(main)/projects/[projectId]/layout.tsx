@@ -2,7 +2,7 @@
 
 import React, { use, useCallback } from 'react';
 import { AgentProvider } from '@/contexts/AgentContext';
-import { MutWebSocketProvider, useMutNotifications } from '@/contexts/MutWebSocketContext';
+import { VersionWebSocketProvider, useVersionNotifications } from '@/contexts/VersionWebSocketContext';
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext';
 
 
@@ -10,7 +10,7 @@ function ProjectLayoutInner({ children, projectId }: { children: React.ReactNode
   // Keep the WebSocket open for the entire time the user is on any
   // sub-page of this project, not just on the data / history pages.
   //
-  // Background: ``subscribeMutNotifications`` ref-counts handlers and
+  // Background: ``subscribeVersionNotifications`` ref-counts handlers and
   // tears the socket down when the count reaches zero. Without this
   // layout-level no-op subscriber, navigating to settings / monitor /
   // toolkit (which don't call ``useCommitUpdates``) drops the count
@@ -21,7 +21,7 @@ function ProjectLayoutInner({ children, projectId }: { children: React.ReactNode
   // turning every page-level subscription into "share an existing
   // connection" instead of "open a new one".
   const noop = useCallback(() => {}, []);
-  useMutNotifications(noop);
+  useVersionNotifications(noop);
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100%', background: 'var(--po-canvas)' }}>
@@ -55,9 +55,9 @@ export default function ProjectLayout({
   return (
     <AgentProvider projectId={projectId}>
       <WorkspaceProvider>
-        <MutWebSocketProvider projectId={projectId}>
+        <VersionWebSocketProvider projectId={projectId}>
           <ProjectLayoutInner projectId={projectId}>{children}</ProjectLayoutInner>
-        </MutWebSocketProvider>
+        </VersionWebSocketProvider>
       </WorkspaceProvider>
     </AgentProvider>
   );

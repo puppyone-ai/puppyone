@@ -135,14 +135,12 @@ function LocalSyncBody({
     cloneLines,
     existingFolderLines,
     workflowLines,
-    serverMergeLine,
     prompt,
   } = buildGitSyncPrompt({ gitUrl, scopeName, directoryName: scopeName });
   const steps = [
     { title: 'Clone to a new folder', lines: cloneLines },
     { title: 'Publish an existing folder', lines: existingFolderLines },
     { title: 'Day-to-day workflow', lines: workflowLines },
-    { title: 'Server-side merge proposal', lines: [serverMergeLine] },
   ];
 
   return (
