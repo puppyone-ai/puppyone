@@ -13,6 +13,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 
+from src.common_schemas import ApiResponse
+from src.version_engine.adapters.git.health import git_view_health_payload
 from src.version_engine.entrypoints.git.auth import (
     request_actor,
     resolve_git_project_auth,
@@ -183,6 +185,29 @@ async def git_ap_info_refs(
         service,
         facade.scope_path,
         list(facade.excludes),
+    )
+
+
+@router.get("/ap/{access_key}.git/health")
+async def git_ap_health(
+    access_key: str,
+    request: Request,
+    repo_manager: VersionRepoManager = Depends(get_repo_manager),
+):
+    """Return product-facing Git view health for an Access Point remote."""
+
+    project_id, auth = await resolve_git_access_point(access_key, request)
+    repo = repo_manager.get_server_repo(project_id)
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    return ApiResponse.success(
+        data=git_view_health_payload(
+            repo,
+            project_id=project_id,
+            scope_path=facade.scope_path,
+            scope_excludes=list(facade.excludes),
+            read_only=facade.read_only,
+        ),
+        message="Git view health loaded",
     )
 
 

@@ -3,6 +3,11 @@
 import React, { useState, useCallback } from 'react';
 import useSWR from 'swr';
 import { get, del, post } from '@/lib/apiClient';
+import {
+  getGitAccessPointHealth,
+  type GitAccessPointHealth,
+  type GitViewHealth,
+} from '@/lib/gitHealthApi';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 
 interface SyncDetail {
@@ -54,6 +59,16 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
   );
 
   const sync = syncData?.syncs?.find(s => s.id === syncId);
+  const accessKeyForHealth = sync?.access_key || '';
+  const { data: gitHealth, isLoading: gitHealthLoading } = useSWR<GitAccessPointHealth>(
+    accessKeyForHealth ? ['git-ap-health', accessKeyForHealth] : null,
+    () => getGitAccessPointHealth(accessKeyForHealth),
+    {
+      refreshInterval: 60_000,
+      revalidateOnFocus: true,
+      dedupingInterval: 30_000,
+    },
+  );
 
   const [disconnecting, setDisconnecting] = useState(false);
   const handleDisconnect = useCallback(async () => {
@@ -201,6 +216,8 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
           </div>
         )}
 
+        <GitHealthBanner health={gitHealth} loading={gitHealthLoading} />
+
         {/* ── Quick Actions ── */}
         <div style={{ padding: '16px 20px 0', display: 'flex', gap: 8 }}>
           <button
@@ -287,7 +304,12 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             }}>
               <InfoRow label="Sync ID" value={sync.id} isLast={false} />
               <InfoRow label="Direction" value="Bidirectional" isLast={false} />
-              <InfoRow label="Protocol" value="Git Remote" isLast />
+              <InfoRow label="Protocol" value="Git Remote" isLast={false} />
+              <InfoRow
+                label="Git"
+                value={gitHealthLoading ? 'Checking' : gitHealthLabel(gitHealth?.health)}
+                isLast
+              />
             </div>
           </div>
         </CollapsibleSection>
@@ -334,6 +356,96 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 /* ================================================================
    Sub-components
    ================================================================ */
+
+function gitHealthLabel(health?: GitViewHealth): string {
+  switch (health) {
+    case 'empty':
+      return 'Empty';
+    case 'healthy':
+      return 'Healthy';
+    case 'history_degraded':
+      return 'History truncated';
+    case 'current_corrupt':
+      return 'Unavailable';
+    default:
+      return 'Unknown';
+  }
+}
+
+function gitHealthTone(health?: GitViewHealth): {
+  color: string;
+  border: string;
+  background: string;
+} {
+  if (health === 'current_corrupt') {
+    return {
+      color: 'var(--po-danger)',
+      border: 'color-mix(in srgb, var(--po-danger) 20%, transparent)',
+      background: 'color-mix(in srgb, var(--po-danger) 7%, transparent)',
+    };
+  }
+  if (health === 'history_degraded') {
+    return {
+      color: 'var(--po-warning)',
+      border: 'color-mix(in srgb, var(--po-warning) 24%, transparent)',
+      background: 'color-mix(in srgb, var(--po-warning) 9%, transparent)',
+    };
+  }
+  return {
+    color: 'var(--po-success)',
+    border: 'color-mix(in srgb, var(--po-success) 18%, transparent)',
+    background: 'color-mix(in srgb, var(--po-success) 6%, transparent)',
+  };
+}
+
+function GitHealthBanner({ health, loading }: {
+  health?: GitAccessPointHealth;
+  loading: boolean;
+}) {
+  if (!loading && (!health || health.health === 'healthy' || health.health === 'empty')) {
+    return null;
+  }
+  const tone = gitHealthTone(health?.health);
+  const title = loading ? 'Checking Git status' : gitHealthLabel(health?.health);
+  const detail = loading
+    ? 'Reading the Access Point Git view.'
+    : health?.health === 'history_degraded'
+      ? 'Clone and push are available from the safe truncated history.'
+      : 'Restore or repair the current version before using Git.';
+
+  return (
+    <div style={{
+      margin: '12px 20px 0',
+      padding: '10px 12px',
+      borderRadius: 8,
+      background: tone.background,
+      border: `1px solid ${tone.border}`,
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 8,
+    }}>
+      <span
+        aria-hidden
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: tone.color,
+          marginTop: 5,
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: tone.color, lineHeight: 1.5 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.5 }}>
+          {detail}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type SetupMode = 'clone' | 'connect';
 

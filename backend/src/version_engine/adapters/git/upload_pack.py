@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from fastapi.responses import Response
 
 from src.version_engine.adapters.git.object_quarantine import (
+    GitViewCurrentCorruptError,
     receive_pack_advertisement_bare_repo,
     transport_bare_repo,
 )
@@ -35,13 +36,22 @@ def info_refs_response(
     else:
         repo_context = transport_bare_repo(repo, scope_path, scope_excludes)
 
-    with repo_context as bare_dir:
-        advertised = run_git([
-            git_service_command(service),
-            "--stateless-rpc",
-            "--advertise-refs",
-            str(bare_dir),
-        ])
+    try:
+        with repo_context as bare_dir:
+            advertised = run_git([
+                git_service_command(service),
+                "--stateless-rpc",
+                "--advertise-refs",
+                str(bare_dir),
+            ])
+    except GitViewCurrentCorruptError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "GIT_VIEW_CURRENT_CORRUPT",
+                "message": str(exc),
+            },
+        ) from exc
     return Response(
         content=b"".join([
             pkt_line(f"# service={service}\n".encode("ascii")),
@@ -59,12 +69,21 @@ def upload_pack_response(
     scope_excludes: list[str],
     body: bytes,
 ) -> Response:
-    with transport_bare_repo(repo, scope_path, scope_excludes) as bare_dir:
-        output = run_git([
-            "upload-pack",
-            "--stateless-rpc",
-            str(bare_dir),
-        ], input_data=body)
+    try:
+        with transport_bare_repo(repo, scope_path, scope_excludes) as bare_dir:
+            output = run_git([
+                "upload-pack",
+                "--stateless-rpc",
+                str(bare_dir),
+            ], input_data=body)
+    except GitViewCurrentCorruptError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "GIT_VIEW_CURRENT_CORRUPT",
+                "message": str(exc),
+            },
+        ) from exc
     return Response(
         content=output,
         media_type="application/x-git-upload-pack-result",

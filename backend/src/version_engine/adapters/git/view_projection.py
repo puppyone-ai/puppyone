@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
+from typing import Literal
 
 from src.version_engine.write_engine.git_object_format import (
     EMPTY_TREE_SHA1,
     decode_commit,
+    decode_tree,
 )
 from src.version_engine.write_engine.git_commit import build_git_commit, commit_tree_id
 from src.version_engine.write_engine.path_utils import normalize_path
@@ -17,6 +20,63 @@ from src.version_engine.write_engine.tree_objects import (
 )
 
 HEX_40 = re.compile(r"^[0-9a-f]{40}$")
+GitViewHealth = Literal["empty", "healthy", "history_degraded", "current_corrupt"]
+
+
+@dataclass(frozen=True)
+class GitViewHead:
+    """Resolved Git-visible ref state for one Access Point view."""
+
+    head: str
+    canonical_head: str
+    health: GitViewHealth
+    reason: str = ""
+    history_cut: bool = False
+
+
+def resolve_git_view_head(
+    repo,
+    scope_path: str,
+    scope_excludes: list[str] | None = None,
+) -> GitViewHead:
+    """Return the single Git-visible HEAD every transport path must use.
+
+    PuppyOne's canonical scope/project head can contain legacy objects that are
+    not safe for native Git. The Git transport exposes a projected view instead:
+    current healthy content stays usable, while broken old ancestry is cut from
+    the Git-visible parent chain.
+    """
+
+    canonical = _canonical_git_head_candidate(repo, scope_path)
+    try:
+        head = git_view_head_commit(repo, scope_path, scope_excludes)
+    except Exception as exc:
+        return GitViewHead(
+            head="",
+            canonical_head=canonical,
+            health="current_corrupt",
+            reason=f"current Git view cannot be projected: {exc}",
+        )
+
+    if not canonical and not head:
+        return GitViewHead(head="", canonical_head="", health="empty")
+    if not head:
+        return GitViewHead(
+            head="",
+            canonical_head=canonical,
+            health="current_corrupt",
+            reason="current Git view has no valid Git-compatible HEAD",
+        )
+
+    if _is_history_degraded(repo, canonical, head, scope_excludes or []):
+        return GitViewHead(
+            head=head,
+            canonical_head=canonical,
+            health="history_degraded",
+            reason="legacy history was projected to a Git-compatible boundary",
+            history_cut=True,
+        )
+    return GitViewHead(head=head, canonical_head=canonical, health="healthy")
 
 
 def git_view_head_commit(
@@ -93,6 +153,49 @@ def git_view_head_commit(
     return git_compatible_head_commit(repo, candidate) if candidate else ""
 
 
+def _canonical_git_head_candidate(repo, scope_path: str) -> str:
+    scope_norm = normalize_path(scope_path)
+    if scope_norm:
+        head = repo.get_scope_head_commit_id(scope_norm) or ""
+        return head if _is_git_object_id(head) else ""
+
+    indexed_getter = getattr(repo, "get_latest_project_view_commit_id", None)
+    if callable(indexed_getter):
+        indexed = indexed_getter() or ""
+        if _is_git_object_id(indexed):
+            return indexed
+
+    root_head = repo.get_scope_head_commit_id("") or ""
+    if _is_git_object_id(root_head):
+        return root_head
+    project_head_getter = getattr(repo, "get_head_commit_id", None)
+    if callable(project_head_getter):
+        project_head = project_head_getter() or ""
+        if _is_git_object_id(project_head):
+            return project_head
+    return ""
+
+
+def _is_history_degraded(
+    repo,
+    canonical_head: str,
+    git_head: str,
+    scope_excludes: list[str],
+) -> bool:
+    if not canonical_head:
+        return False
+    compatible = git_compatible_head_commit(repo, canonical_head)
+    if not compatible:
+        return True
+    if compatible != canonical_head:
+        return True
+    if scope_excludes:
+        # A filtered Access Point naturally has a synthetic view commit even
+        # when the underlying history is healthy. Do not call that degraded.
+        return False
+    return git_head != canonical_head
+
+
 def git_compatible_head_commit(repo, commit_id: str) -> str:
     """Return a Git-parseable projection of a stored commit ancestry.
 
@@ -129,7 +232,7 @@ def _git_compatible_commit(repo, commit_id: str, memo: dict[str, str]) -> str:
         return ""
 
     tree_id = info.get("tree", "")
-    if not _is_valid_tree(repo, tree_id):
+    if not _is_valid_tree(repo, tree_id, set()):
         memo[commit_id] = ""
         return ""
 
@@ -160,14 +263,37 @@ def _is_git_object_id(value: str) -> bool:
     return bool(HEX_40.match(value or ""))
 
 
-def _is_valid_tree(repo, tree_id: str) -> bool:
+def _is_valid_tree(repo, tree_id: str, seen: set[str]) -> bool:
     if not _is_git_object_id(tree_id):
         return False
+    if tree_id in seen:
+        return True
+    seen.add(tree_id)
     try:
-        obj_type, _body = repo.store.get_object(tree_id)
+        obj_type, body = repo.store.get_object(tree_id)
     except Exception:
         return False
-    return obj_type == "tree"
+    if obj_type != "tree":
+        return False
+    try:
+        entries = decode_tree(body)
+    except Exception:
+        return False
+    blob_ids: list[str] = []
+    for entry in entries:
+        if not _is_git_object_id(entry.sha1_hex):
+            return False
+        if entry.is_dir:
+            if not _is_valid_tree(repo, entry.sha1_hex, seen):
+                return False
+        else:
+            blob_ids.append(entry.sha1_hex)
+    if not blob_ids:
+        return True
+    try:
+        return repo.store.exists_many(blob_ids) == set(blob_ids)
+    except Exception:
+        return False
 
 
 def _replace_commit_parents(body: bytes, parents: list[str]) -> bytes:

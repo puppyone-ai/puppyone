@@ -24,5 +24,5 @@ def warm_git_transport_view(
         scope_path,
         scope_excludes,
         follow_history=follow_history,
-        include_blobs=follow_history,
+        include_blobs=True,
     )
