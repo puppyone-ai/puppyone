@@ -465,7 +465,6 @@ dependencies = [
     { name = "loguru" },
     { name = "lxml" },
     { name = "moto", extra = ["s3"] },
-    { name = "mutai" },
     { name = "openai" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -507,7 +506,6 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.2" },
     { name = "lxml", specifier = ">=5.0.0" },
     { name = "moto", extras = ["s3"], specifier = ">=5.0.0" },
-    { name = "mutai", specifier = ">=0.1.6" },
     { name = "openai", specifier = ">=2.8.0" },
     { name = "pydantic", specifier = ">=2.12.4" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
@@ -1732,15 +1730,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/8f/0a60e501584145588be1af5cc829265701ba3c35a64aec8e07cbb71d39bb/multidict-6.7.0-cp314-cp314t-win_amd64.whl", hash = "sha256:09929cab6fcb68122776d575e03c6cc64ee0b8fca48d17e135474b042ce515cd", size = 53507, upload-time = "2025-10-06T14:51:53.672Z" },
     { url = "https://files.pythonhosted.org/packages/7f/ae/3148b988a9c6239903e786eac19c889fab607c31d6efa7fb2147e5680f23/multidict-6.7.0-cp314-cp314t-win_arm64.whl", hash = "sha256:cc41db090ed742f32bd2d2c721861725e6109681eddf835d0a82bd3a5c382827", size = 44804, upload-time = "2025-10-06T14:51:55.415Z" },
     { url = "https://files.pythonhosted.org/packages/b7/da/7d22601b625e241d4f23ef1ebff8acfc60da633c9e7e7922e24d10f592b3/multidict-6.7.0-py3-none-any.whl", hash = "sha256:394fc5c42a333c9ffc3e421a4c85e08580d990e08b99f6bf35b4132114c5dcb3", size = 12317, upload-time = "2025-10-06T14:52:29.272Z" },
-]
-
-[[package]]
-name = "mutai"
-version = "0.1.6"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/80/1a/adcd9eb80e2cbf28aa5cd458412387afcd306441188df35dd76f6b7368e7/mutai-0.1.6.tar.gz", hash = "sha256:6b090859cd59d9b91d888d249aa91c76168f84a13fff1b84ada142c39b20a649", size = 118081, upload-time = "2026-04-17T13:34:17.325Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/69/e41fbd192f004173ee3967dc8a2fc2c28a23b66e8fa002040a09f12c2908/mutai-0.1.6-py3-none-any.whl", hash = "sha256:bd9bc18a973cc115e828841b0b5afcfa7ff632f8b1ffff6a42b2c795fc2cc7e5", size = 88931, upload-time = "2026-04-17T13:34:15.841Z" },
 ]
 
 [[package]]

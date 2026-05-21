@@ -2,13 +2,14 @@ import { Option } from "commander";
 import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
+import { addFsHelp, LIMIT_NOTE, READ_STDOUT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { get } from "../lib/http.js";
 import { parseBackendDepth, parseIntegerOption, parseTreeLevel } from "../lib/options.js";
 import { scopedPath } from "../lib/paths.js";
 import { inferTargetType, renderTree, sortEntries } from "../lib/render.js";
 
 export function registerTreeCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("tree")
     .description("Show directory tree within the access point scope")
     .argument("[path]", "path relative to the access point scope")
@@ -16,7 +17,19 @@ export function registerTreeCommand(fs) {
     .option("-L, --level <n>", "max display depth for Unix tree compatibility (-1 = unlimited)")
     .addOption(new Option("--depth <n>", "deprecated backend max-depth alias").hideHelp())
     .option("--limit <n>", "max entries returned before truncation")
-    .option("-a, --all", "include entries whose names begin with .")
+    .option("-a, --all", "include entries whose names begin with ."), {
+      examples: [
+        "puppyone fs tree",
+        "puppyone fs tree docs -L 2",
+        "puppyone fs tree -a --limit 500",
+        "puppyone --json fs tree -L 2",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        LIMIT_NOTE,
+      ],
+    })
     .action(withErrors(async (path, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

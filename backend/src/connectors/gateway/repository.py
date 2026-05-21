@@ -87,12 +87,12 @@ class GatewayRepository:
 
     # ── Helpers ──
 
-    def count_access_points(self, gateway_id: str) -> int:
-        """Count how many access_points reference this gateway."""
+    def count_connectors(self, gateway_id: str) -> int:
+        """Count how many canonical connectors reference this gateway id."""
         resp = (
-            self._client.table("access_points")
+            self._client.table("connectors")
             .select("id", count="exact")
-            .eq("gateway_id", gateway_id)
+            .filter("config->>gateway_id", "eq", gateway_id)
             .execute()
         )
         return resp.count or 0

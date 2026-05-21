@@ -104,7 +104,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
     files = [
         {
             "file_path": "file-readme-" + uuid4().hex[:6],
-            "file_mut_path": f"project-folder/readme.md",
+            "file_version_path": f"project-folder/readme.md",
             "file_name": "readme.md",
             "file_type": "markdown",
             "chunks": [
@@ -124,7 +124,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
         },
         {
             "file_path": "file-data-" + uuid4().hex[:6],
-            "file_mut_path": f"project-folder/data.json",
+            "file_version_path": f"project-folder/data.json",
             "file_name": "data.json",
             "file_type": "json",
             "chunks": [
@@ -144,7 +144,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
         },
         {
             "file_path": "file-notes-" + uuid4().hex[:6],
-            "file_mut_path": f"project-folder/notes.md",
+            "file_version_path": f"project-folder/notes.md",
             "file_name": "notes.md",
             "file_type": "markdown",
             "chunks": [
@@ -166,7 +166,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             all_texts.append(chunk["text"])
             chunk_metadata.append({
                 "file_path": file["file_path"],
-                "file_mut_path": file["file_mut_path"],
+                "file_version_path": file["file_version_path"],
                 "file_name": file["file_name"],
                 "file_type": file["file_type"],
                 "json_pointer": chunk["json_pointer"],
@@ -216,7 +216,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             "chunk_id": i + 1,
             # 文件路径信息
             "file_path": meta["file_path"],
-            "file_mut_path": meta["file_mut_path"],
+            "file_version_path": meta["file_version_path"],
             "file_name": meta["file_name"],
             "file_type": meta["file_type"],
         })
@@ -274,7 +274,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
                 attrs = row.attributes or {}
                 print(f"  [{j+1}] score={row.score or row.distance}")
                 print(f"      file: {attrs.get('file_name')} ({attrs.get('file_type')})")
-                print(f"      path: {attrs.get('file_mut_path')}")
+                print(f"      path: {attrs.get('file_version_path')}")
                 print(f"      pointer: {attrs.get('json_pointer')}")
                 if attrs.get('chunk_text'):
                     text_preview = attrs.get('chunk_text', '')[:100]
@@ -295,7 +295,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
                             "distance": r.distance,
                             "file_name": (r.attributes or {}).get("file_name"),
                             "file_type": (r.attributes or {}).get("file_type"),
-                            "file_mut_path": (r.attributes or {}).get("file_mut_path"),
+                            "file_version_path": (r.attributes or {}).get("file_version_path"),
                         }
                         for r in result.rows
                     ]
@@ -307,7 +307,7 @@ def test_folder_search_e2e_with_real_turbopuffer() -> None:
             top_result = result.rows[0]
             attrs = top_result.attributes or {}
             assert attrs.get("file_path"), "结果缺少 file_path"
-            assert attrs.get("file_mut_path"), "结果缺少 file_mut_path"
+            assert attrs.get("file_version_path"), "结果缺少 file_version_path"
             assert attrs.get("file_name"), "结果缺少 file_name"
             assert attrs.get("file_type"), "结果缺少 file_type"
 

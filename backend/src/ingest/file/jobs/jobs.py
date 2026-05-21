@@ -11,12 +11,10 @@ import hashlib
 import json
 import logging
 import time
+import zlib
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-
-from mut.foundation.config import HASH_LEN
-from mut.foundation.hash import hash_bytes as mut_hash
 
 from src.infra.supabase.client import SupabaseClient
 from src.ingest.file.config import etl_config
@@ -27,22 +25,22 @@ from src.ingest.file.rules.repository_supabase import RuleRepositorySupabase
 from src.ingest.file.state.models import ETLPhase, ETLRuntimeState
 from src.ingest.file.state.repository import ETLStateRepositoryRedis
 from src.ingest.file.tasks.models import ETLTaskResult, ETLTaskStatus
-from src.mut_engine.services.ops import BlobRef
+from src.version_engine.write_engine.git_object_format import encode_object
+from src.version_engine.adapters.product.operation_adapter import BlobRef
 
 logger = logging.getLogger(__name__)
 
 
-def _mut_object_key(project_id: str, blob_hash: str) -> str:
+def _version_object_key(project_id: str, blob_hash: str) -> str:
     """Mirror of ``S3StorageBackend._key_for`` so we can pre-stage blobs
-    at the exact key the MUT object store will look at.
+    at the exact key the version object store will look at.
 
     The 2-char shard prefix is intentional and must stay in sync with
-    ``mut_engine/server/backends/s3_storage.py`` (search for
-    ``_HASH_PREFIX_LEN``). Drift here would silently break CopyObject
-    pre-staging — the blob would land at a key MUT can't see, and
-    push would re-upload it (wasting the entire optimization).
+    ``version_engine/server/backends/s3_storage.py`` (search for
+    ``_HASH_PREFIX_LEN``). Drift here would silently break
+    pre-staging — the blob would land at a key the version object store cannot see.
     """
-    return f"mut/{project_id}/objects/{blob_hash[:2]}/{blob_hash[2:]}"
+    return f"version/{project_id}/objects/{blob_hash[:2]}/{blob_hash[2:]}"
 
 
 async def stage_blob_from_s3(
@@ -50,79 +48,71 @@ async def stage_blob_from_s3(
     *,
     project_id: str,
     src_key: str,
-    hash_hint: str | None = None,
-    size_hint: int | None = None,
 ) -> BlobRef:
-    """Stage a blob that already lives in S3 into the project's MUT
-    object store, by hash. Returns a ``BlobRef`` ready for
-    ``MutOps.bulk_write_refs``.
+    """Stage an uploaded file as a Git-compatible blob object.
 
-    Three hashing strategies, picked automatically by what the
-    caller can supply:
-
-    1. ``hash_hint`` provided (preferred):
-       — Frontend (or anything upstream) hashed during upload and
-         told us. We trust it: skip hashing, server-side
-         ``CopyObject`` from upload key to MUT key. **Zero bytes
-         flow through the Python process.** This is the fast path
-         we want every browser/CLI multipart upload to take.
-       — If the hash claim turns out to be wrong, the read path
-         catches it (``ObjectStore.get`` re-hashes on read and
-         raises ``ObjectNotFoundError``). No silent corruption.
-
-    2. ``hash_hint`` is None, ``size_hint`` provided or HEAD-able:
-       — We don't know the hash but we know the bytes. Stream
-         from S3 (``download_file_stream``) into a SHA-256 hasher,
-         O(chunk_size) memory regardless of file size. After
-         hashing: ``CopyObject`` to the MUT key. Network I/O is
-         O(file), but no point of the pipeline holds the entire
-         file in RAM. Use this when the upstream couldn't or
-         wouldn't pre-compute the hash.
-
-    3. Neither hint — same as 2 (we discover size while streaming).
-
-    Idempotent: if the destination MUT key already exists (same
-    content uploaded before), the ``CopyObject`` is skipped. This
-    matters for re-uploads of the same file — they pay the
-    ``head_object`` round-trip but no copy/transfer cost.
+    The source S3 object is raw user bytes. PuppyOne's object store now expects
+    Git loose-object bytes, so this worker must write
+    ``zlib(b"blob <size>\\0" + content)`` under the Git blob SHA-1. A direct S3
+    ``CopyObject`` would store invalid object bytes for the Git kernel.
     """
-    if hash_hint:
-        blob_hash = hash_hint
-        # We trust the hint. We still need a size for audit /
-        # quota / progress UIs — use ``size_hint`` if given,
-        # otherwise HEAD the upload key (cheap, ~50ms).
-        if size_hint is not None:
-            size = size_hint
-        else:
-            size = await _head_object_size(s3, src_key)
-    else:
-        # Stream-hash. ``download_file_stream`` yields chunks
-        # without buffering — memory stays at chunk_size
-        # (default 8 KiB). Larger chunks would reduce per-chunk
-        # overhead, but Supabase Storage rate-limits very large
-        # GETs more aggressively, and we already paid the
-        # multi-second download time on the wire either way.
-        hasher = hashlib.sha256()
-        size = 0
-        async for chunk in s3.download_file_stream(src_key, chunk_size=64 * 1024):
-            hasher.update(chunk)
-            size += len(chunk)
-        # MUT uses a truncated SHA-256 (first 16 hex chars =
-        # 64 bits). hexdigest() gives us the full 64-char digest;
-        # we slice to match what ``mut.foundation.hash.hash_bytes``
-        # would produce.
-        blob_hash = hasher.hexdigest()[:HASH_LEN]
+    size = await _head_object_size(s3, src_key)
+    blob_hash, loose_bytes = await _encode_s3_object_as_git_blob_loose(
+        s3,
+        src_key=src_key,
+        size=size,
+    )
 
-    dst_key = _mut_object_key(project_id, blob_hash)
+    dst_key = _version_object_key(project_id, blob_hash)
     if await s3.object_exists(dst_key):
         logger.info(
             f"stage_blob_from_s3: blob {blob_hash[:12]} already at {dst_key}, "
-            f"skipping CopyObject"
+            f"skipping upload"
         )
         return BlobRef(hash=blob_hash, size=size)
 
-    await s3.copy_object(src_key, dst_key)
+    await s3.upload_file(
+        dst_key,
+        loose_bytes,
+        content_type="application/octet-stream",
+    )
     return BlobRef(hash=blob_hash, size=size)
+
+
+async def _encode_s3_object_as_git_blob_loose(
+    s3,
+    *,
+    src_key: str,
+    size: int,
+) -> tuple[str, bytes]:
+    """Stream raw S3 bytes into Git loose-object bytes."""
+
+    sha1 = hashlib.sha1()
+    compressor = zlib.compressobj()
+    compressed: list[bytes] = []
+
+    def feed(chunk: bytes) -> None:
+        sha1.update(chunk)
+        part = compressor.compress(chunk)
+        if part:
+            compressed.append(part)
+
+    feed(f"blob {size}".encode("ascii") + b"\x00")
+    actual_size = 0
+    async for chunk in s3.download_file_stream(src_key, chunk_size=64 * 1024):
+        actual_size += len(chunk)
+        feed(chunk)
+
+    if actual_size != size:
+        raise ETLTransformationError(
+            f"S3 object size changed while staging {src_key}: "
+            f"expected {size}, got {actual_size}"
+        )
+
+    tail = compressor.flush()
+    if tail:
+        compressed.append(tail)
+    return sha1.hexdigest(), b"".join(compressed)
 
 
 async def _head_object_size(s3, key: str) -> int:
@@ -143,33 +133,31 @@ async def _head_object_size(s3, key: str) -> int:
     return int(response["ContentLength"])
 
 
-# Legacy in-process variant. Kept ONLY because some non-upload
-# callers (table service, etc.) may still pass through here in
-# transit; the new code path is ``stage_blob_from_s3`` above. Once
-# all in-tree callers migrate, this can be deleted.
-async def _stage_blob_for_mut(
+async def _stage_blob_for_version(
     s3,
     *,
     project_id: str,
     src_key: str,
     content: bytes,
 ) -> str:
-    """Legacy: stage a blob given the in-memory ``content``.
+    """Stage a blob from in-memory ``content``.
 
-    Computes the hash from ``content``, then ``CopyObject`` from
-    ``src_key`` to the MUT key. New callers should use
-    :func:`stage_blob_from_s3` (no ``content`` argument; never
-    materializes the bytes in the Python process).
+    Encodes ``content`` as a Git blob object and writes the loose object bytes
+    to the version object key. New callers should use :func:`stage_blob_from_s3`.
     """
-    blob_hash = mut_hash(content)
-    dst_key = _mut_object_key(project_id, blob_hash)
+    blob_hash, loose_bytes = encode_object("blob", content)
+    dst_key = _version_object_key(project_id, blob_hash)
     if await s3.object_exists(dst_key):
         logger.info(
-            f"_stage_blob_for_mut: blob {blob_hash[:12]} already at {dst_key}, "
-            f"skipping CopyObject"
+            f"_stage_blob_for_version: blob {blob_hash[:12]} already at {dst_key}, "
+            f"skipping upload"
         )
         return blob_hash
-    await s3.copy_object(src_key, dst_key)
+    await s3.upload_file(
+        dst_key,
+        loose_bytes,
+        content_type="application/octet-stream",
+    )
     return blob_hash
 
 
@@ -366,7 +354,7 @@ async def etl_ocr_job(ctx: dict, task_id: str | int) -> dict:
         return {"ok": False, "stage": "ocr", "error": str(e)}
 
 
-async def finalize_upload_to_mut(
+async def finalize_upload_to_version(
     *,
     task_id: str | int,
     repo,
@@ -375,12 +363,12 @@ async def finalize_upload_to_mut(
 ) -> dict:
     """
     Core helper: pull a completed multipart upload from S3 and write it
-    into MUT, marking the task COMPLETED (or FAILED).
+    into Version Engine, marking the task COMPLETED (or FAILED).
 
     Callable in two contexts:
 
     - **Inline** from ``/upload/complete`` (default for normal-sized
-      files; the request returns after MUT has the bytes so the user
+      files; the request returns after Version Engine has the bytes so the user
       sees Completed immediately).
     - **Worker** (``etl_finalize_upload_job``) for very large files
       where the inline path would exceed HTTP timeouts. (Future use;
@@ -396,11 +384,11 @@ async def finalize_upload_to_mut(
     """
     task = repo.get_task(task_id)
     if not task:
-        logger.warning(f"finalize_upload_to_mut: task not found: {task_id}")
+        logger.warning(f"finalize_upload_to_version: task not found: {task_id}")
         return {"ok": False, "error": "task_not_found"}
 
     if task.status == ETLTaskStatus.CANCELLED:
-        logger.info(f"finalize_upload_to_mut: task cancelled, skip: {task_id}")
+        logger.info(f"finalize_upload_to_version: task cancelled, skip: {task_id}")
         return {"ok": True, "skipped": "cancelled"}
 
     s3_key = task.metadata.get("s3_key")
@@ -441,36 +429,31 @@ async def finalize_upload_to_mut(
             latest and latest.status == ETLTaskStatus.CANCELLED
         ) or task.status == ETLTaskStatus.CANCELLED:
             logger.info(
-                f"finalize_upload_to_mut: cancelled before stage, skip: {task_id}"
+                f"finalize_upload_to_version: cancelled before stage, skip: {task_id}"
             )
             return {"ok": True, "skipped": "cancelled"}
 
-        # Stage the blob: hash + CopyObject src→MUT key. Bytes never
-        # enter this process. ``hash_hint`` lets a future client (web
-        # or CLI) skip even the streaming-hash path — it's optional.
-        hash_hint = task.metadata.get("sha256")
-        size_hint = task.metadata.get("size")
+        # Stage the raw upload as a Git-compatible blob object and return the
+        # resulting Git object id for the tree update.
         ref = await stage_blob_from_s3(
             s3,
             project_id=task.project_id,
             src_key=s3_key,
-            hash_hint=hash_hint,
-            size_hint=size_hint,
         )
         logger.info(
-            f"finalize_upload_to_mut: staged blob {ref.hash[:12]} for "
+            f"finalize_upload_to_version: staged blob {ref.hash[:12]} for "
             f"task={task_id} ({ref.size}B)"
         )
 
-        from src.mut_engine.dependencies import create_mut_ops
-        ops = create_mut_ops()
-        # ``verify_blobs=False`` because we just CopyObject'd the
-        # blob to its MUT key inside ``stage_blob_from_s3`` — it IS
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        commands = build_worker_version_engine_container().write_commands()
+        # ``verify_blobs=False`` because we just wrote the blob to
+        # its version object key inside ``stage_blob_from_s3`` — it IS
         # there, no need to round-trip a HEAD.
-        await ops.bulk_write_refs(
+        await commands.bulk_write_refs(
             project_id=task.project_id,
             file_refs={mount_path: ref},
-            who=f"upload:{task.created_by or 'unknown'}",
+            actor=f"upload:{task.created_by or 'unknown'}",
             message=f"Upload {task.filename}",
             verify_blobs=False,
         )
@@ -497,7 +480,7 @@ async def finalize_upload_to_mut(
         await state_repo.set_terminal(state)
 
         logger.info(
-            f"finalize_upload_to_mut: task={task_id} -> MUT path={mount_path} "
+            f"finalize_upload_to_version: task={task_id} -> version path={mount_path} "
             f"({ref.size}B in {processing_time:.2f}s)"
         )
         return {
@@ -520,7 +503,7 @@ async def finalize_upload_to_mut(
         state.progress = 0
         state.updated_at = datetime.now(UTC)
         await state_repo.set_terminal(state)
-        logger.error(f"finalize_upload_to_mut timeout task_id={task_id}")
+        logger.error(f"finalize_upload_to_version timeout task_id={task_id}")
         # Re-raise so the caller (route or worker) can decide how to
         # surface the timeout — the route returns 504, the worker
         # records it as a job failure for retry/triage.
@@ -529,7 +512,7 @@ async def finalize_upload_to_mut(
     except Exception as e:
         err = f"Finalize failed: {e}"
         logger.error(
-            f"finalize_upload_to_mut failed task_id={task_id}: {e}", exc_info=True
+            f"finalize_upload_to_version failed task_id={task_id}: {e}", exc_info=True
         )
         task.mark_failed(err)
         task.metadata["error_stage"] = "finalize"
@@ -546,7 +529,7 @@ async def finalize_upload_to_mut(
 
 async def etl_finalize_upload_job(ctx: dict, task_id: str | int) -> dict:
     """
-    ARQ wrapper around :func:`finalize_upload_to_mut`.
+    ARQ wrapper around :func:`finalize_upload_to_version`.
 
     Currently unused by the default flow — ``/upload/complete`` runs
     finalize inline so users see Completed immediately and so devs
@@ -554,21 +537,21 @@ async def etl_finalize_upload_job(ctx: dict, task_id: str | int) -> dict:
     when we add a "huge file async path" flag.
     """
     try:
-        return await finalize_upload_to_mut(
+        return await finalize_upload_to_version(
             task_id=task_id,
             repo=ctx["task_repository"],
             s3=ctx["s3_service"],
             state_repo=ctx["state_repo"],
         )
     except asyncio.CancelledError:
-        # finalize_upload_to_mut already recorded the timeout state.
+        # finalize_upload_to_version already recorded the timeout state.
         # Convert the re-raise into a structured failure dict so ARQ
         # records it like any other job failure rather than crashing
         # the worker loop.
         return {"ok": False, "stage": "finalize", "error": "timeout"}
 
 
-async def finalize_uploads_to_mut_batch(
+async def finalize_uploads_to_version_batch(
     *,
     task_ids: list[str | int],
     repo,
@@ -577,13 +560,13 @@ async def finalize_uploads_to_mut_batch(
 ) -> list[dict]:
     """
     Batch finalize: take N completed multipart uploads and commit them
-    to MUT in **one** push (= one version-control entry per scope).
+    in **one** project-root push (= one visible version-control entry).
 
     Why this exists:
       Dropping a folder of 100 files via the single-file finalize
       runs 100 sequential ``ops.write_file`` calls. Each one pays the
-      fixed per-commit cost (``negotiate`` + ``push`` RPCs +
-      Supabase ``mut_commits`` insert), ~1.5–2s on a warm cache.
+      fixed per-commit cost (object staging + SQL publish), ~1.5–2s
+      on a warm cache.
       Total: 150–200s for the folder. With this helper we pay that
       cost ONCE for the whole folder via ``ops.bulk_write``.
 
@@ -591,7 +574,7 @@ async def finalize_uploads_to_mut_batch(
       instead of 100 nearly-identical lines.
 
     Returns one result dict per input task (preserving order). The
-    shape mirrors :func:`finalize_upload_to_mut`'s return:
+    shape mirrors :func:`finalize_upload_to_version`'s return:
     ``{"ok": bool, "task_id": ..., "path": str | None,
        "size": int | None, "error": str | None}``.
 
@@ -605,10 +588,10 @@ async def finalize_uploads_to_mut_batch(
         upload protocol enforces this — one ``/upload/init`` request
         creates tasks under one project). We assert this and reject
         an entire mixed batch as a programming error.
-      * The actual ``ops.bulk_write`` call is responsible for
-        grouping by the narrowest containing scope, so dropping
-        files into different sub-scopes still commits efficiently
-        (one commit per scope rather than one commit per file).
+      * The actual ``ops.bulk_write`` call is responsible for keeping
+        the browser/upload action as one project-root product
+        transaction. Child scope refs are derived afterwards for
+        Git/AP clients; they are not extra user-visible commits.
     """
     results: list[dict] = []
     if not task_ids:
@@ -684,29 +667,25 @@ async def finalize_uploads_to_mut_batch(
     if not prepared:
         return results
 
-    # Phase 2: stage each blob from S3 to its MUT-object key WITHOUT
-    # ever downloading the bytes into the Python process.
+    # Phase 2: stage each raw upload from S3 as a Git blob object under its
+    # version object key.
     #
     # Old flow (deleted):
-    #   download_file(s3_key) → bytes in RAM → mut_hash(bytes) →
-    #   CopyObject src→dst → bulk_write(files: dict[path, bytes])
+    #   download_file(s3_key) -> bytes in RAM -> old Version Engine hash ->
+    #   CopyObject src->dst -> bulk_write(files: dict[path, bytes])
     # New flow:
-    #   stage_blob_from_s3(s3_key, hash_hint) → BlobRef
-    #   (HEAD or stream-hash, then CopyObject) →
+    #   stage_blob_from_s3(s3_key) -> BlobRef
+    #   (stream raw bytes into Git loose-object bytes, then upload) ->
     #   bulk_write_refs(refs: dict[path, BlobRef])
     #
-    # The big win: for a 4.8 MB MP3 we used to do a 3-second
-    # backend re-download just to compute the hash. Now we either
-    # take the frontend's hash claim (zero bytes touched) or
-    # stream-hash with O(64 KiB) memory regardless of file size.
-    # Either way, ``ops.bulk_write_refs`` only sees ``(hash, size)``
-    # — never bytes — for the commit.
+    # ``ops.bulk_write_refs`` only sees ``(hash, size)`` for the commit, and
+    # the staged object is byte-compatible with Git.
     #
     # Each per-file stage runs in parallel under a semaphore. Each
-    # stage is independent (different src_key, different MUT object
+    # stage is independent (different src_key, different version object
     # key) so there's no ordering constraint. Bounded concurrency
     # (8) keeps us from hammering Supabase Storage with hundreds of
-    # parallel CopyObject + HEAD requests on a giant folder upload.
+    # parallel stream/download + upload requests on a giant folder upload.
     # Sequential previously cost ~1.3s per file; parallel collapses
     # most of that to a single round-trip cycle.
     #
@@ -736,14 +715,10 @@ async def finalize_uploads_to_mut_batch(
                     {"ok": True, "task_id": str(tid), "skipped": "cancelled"},
                 )
 
-            hash_hint = task.metadata.get("sha256")
-            size_hint = task.metadata.get("size")
             ref = await stage_blob_from_s3(
                 s3,
                 project_id=task.project_id,
                 src_key=s3_key,
-                hash_hint=hash_hint,
-                size_hint=size_hint,
             )
             entry["blob_ref"] = ref
             entry["size"] = ref.size
@@ -752,7 +727,7 @@ async def finalize_uploads_to_mut_batch(
         except Exception as e:
             err = f"Stage failed: {e}"
             logger.error(
-                f"finalize_uploads_to_mut_batch: stage failed task={tid}: {e}",
+                f"finalize_uploads_to_version_batch: stage failed task={tid}: {e}",
                 exc_info=True,
             )
             task.mark_failed(err)
@@ -773,9 +748,9 @@ async def finalize_uploads_to_mut_batch(
 
     sem = asyncio.Semaphore(_STAGE_PARALLEL_LIMIT)
 
-    async def _bounded_stage(entry: dict) -> None:
+    async def _bounded_stage(entry: dict) -> tuple[str, dict]:
         async with sem:
-            await _stage_one(entry)
+            return await _stage_one(entry)
 
     stage_outcomes = await asyncio.gather(
         *(_bounded_stage(e) for e in prepared),
@@ -795,11 +770,11 @@ async def finalize_uploads_to_mut_batch(
     # one commit per group — typical case (folder upload) is
     # single-scope = single commit.
     #
-    # ``verify_blobs=False`` is safe here because we just CopyObject'd
-    # each blob to its MUT key inside ``stage_blob_from_s3`` above —
-    # they ARE present, no need to round-trip a HEAD per ref.
-    from src.mut_engine.dependencies import create_mut_ops
-    ops = create_mut_ops()
+    # ``verify_blobs=False`` is safe here because we just wrote each blob to
+    # its version object key inside ``stage_blob_from_s3`` above — they ARE present, no
+    # need to round-trip a HEAD per ref.
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    commands = build_worker_version_engine_container().write_commands()
     first_task = survivors[0]["task"]
     who = f"upload:{first_task.created_by or 'unknown'}"
     message = (
@@ -807,21 +782,21 @@ async def finalize_uploads_to_mut_batch(
     )
 
     try:
-        await ops.bulk_write_refs(
+        await commands.bulk_write_refs(
             project_id=project_id,
             file_refs=refs_by_path,
-            who=who,
+            actor=who,
             message=message,
             verify_blobs=False,
         )
     except Exception as e:
         # Whole-batch push failure → mark every survivor FAILED.
-        # Successful CopyObject pre-stages stay in the MUT object
+        # Successful Git-blob pre-stages stay in the version object
         # store as orphans; harmless (content-addressed dedupe will
         # reuse them on the next push of the same content).
         err = f"Bulk push failed: {e}"
         logger.error(
-            f"finalize_uploads_to_mut_batch: bulk push failed: {e}",
+            f"finalize_uploads_to_version_batch: bulk push failed: {e}",
             exc_info=True,
         )
         for entry in survivors:
@@ -892,7 +867,7 @@ async def finalize_uploads_to_mut_batch(
     await asyncio.gather(*(_bounded_complete(e) for e in survivors))
 
     logger.info(
-        f"finalize_uploads_to_mut_batch: committed {len(survivors)} files "
+        f"finalize_uploads_to_version_batch: committed {len(survivors)} files "
         f"to {project_id} in {elapsed:.2f}s ({per_file_seconds:.2f}s/file)"
     )
     return results
@@ -1047,17 +1022,17 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
         mount_json_path = task.metadata.get("mount_json_path") or ""
         mount_key = task.metadata.get("mount_key") or Path(task.filename).name
 
-        from src.mut_engine.dependencies import create_mut_ops
-        ops = create_mut_ops()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        commands = build_worker_version_engine_container().write_commands()
 
         if not mount_path:
             auto_name = task.metadata.get("auto_node_name") or f"{task_id}"
             auto_name = str(auto_name)[:12]
             mount_path = f"{auto_name}.json"
-            await ops.write_file(
+            await commands.write_bytes(
                 task.project_id, mount_path,
                 json.dumps({}, ensure_ascii=False).encode("utf-8"),
-                who=f"etl:{task_id}",
+                actor=f"etl:{task_id}",
                 message=f"ETL auto-create for {task.filename}",
             )
             task.metadata["mount_path"] = mount_path
@@ -1074,7 +1049,7 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
             mount_value = output_obj
 
         try:
-            entry = ops.stat(task.project_id, mount_path)
+            entry = commands.ops.stat(task.project_id, mount_path)
 
             is_pending = entry and entry.type == "file"
             if is_pending:
@@ -1089,16 +1064,16 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 if not md_path.endswith(".md"):
                     md_path = md_path.rsplit(".", 1)[0] + ".md" if "." in md_path else md_path + ".md"
 
-                await ops.write_file(
+                await commands.write_bytes(
                     task.project_id, md_path,
                     markdown_content.encode("utf-8"),
-                    who=f"etl:{task_id}",
+                    actor=f"etl:{task_id}",
                     message=f"OCR result for {task.filename}",
                 )
                 logger.info(f"ETL: Filled preview for pending node {mount_path}")
             else:
                 try:
-                    existing_bytes = ops.read_file(task.project_id, mount_path)
+                    existing_bytes = commands.ops.read_file(task.project_id, mount_path)
                     existing_content = json.loads(existing_bytes.decode("utf-8"))
                 except Exception:
                     existing_content = {}
@@ -1117,10 +1092,10 @@ async def etl_postprocess_job(ctx: dict, task_id: str | int) -> dict:
                 else:
                     existing_content[mount_key] = mount_value
 
-                await ops.write_file(
+                await commands.write_bytes(
                     task.project_id, mount_path,
                     json.dumps(existing_content, ensure_ascii=False, indent=2).encode("utf-8"),
-                    who=f"etl:{task_id}",
+                    actor=f"etl:{task_id}",
                     message=f"ETL mount for {task.filename}",
                 )
         except Exception as e:

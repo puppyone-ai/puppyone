@@ -83,7 +83,10 @@ export function ConnectorCard({
 }) {
   const statusColor = STATUS_COLORS[connector.status] ?? T.text3;
   const action = getPrimaryAction(connector.status);
-  const name = connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
+  const name =
+    connector.provider === 'cli' ? 'Puppyone CLI'
+    : connector.provider === 'filesystem' ? 'Git Remote'
+    : connector.name || PROVIDER_LABELS[connector.provider] || connector.provider;
   const isBuiltin = BUILTIN_PROVIDERS.has(connector.provider);
 
   // Shared name-editing state, controlled from two surfaces:
@@ -192,23 +195,68 @@ export function ConnectorCard({
 
       <div style={{ height: 1, background: T.cardBorder, margin: '0 16px' }} />
 
-      <div style={{ padding: '16px' }}>
-        {connector.status === 'paused' && (
-          <PausedBanner
-            provider={connector.provider}
-            onResume={onPauseResume}
-            pending={pending}
-          />
-        )}
-        <ConnectorAccessPanel connector={connector} scope={scope} />
+      <ConnectorDetailBody
+        connector={connector}
+        scope={scope}
+        onPauseResume={onPauseResume}
+        onUpdate={onUpdate}
+        pending={pending}
+      />
+    </div>
+  );
+}
+
+export function ConnectorDetailBody({
+  connector,
+  scope,
+  onPauseResume,
+  onUpdate,
+  pending,
+  variant = 'full',
+}: {
+  readonly connector: Connector;
+  readonly scope: RepoScope | undefined;
+  readonly onPauseResume: () => void;
+  readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
+  readonly pending: boolean;
+  readonly variant?: 'full' | 'inline';
+}) {
+  const isBuiltin = BUILTIN_PROVIDERS.has(connector.provider);
+  const inline = variant === 'inline';
+
+  return (
+    <div style={{ padding: inline ? '12px 16px 14px' : '16px' }}>
+      {!inline && connector.status === 'paused' && (
+        <PausedBanner
+          provider={connector.provider}
+          onResume={onPauseResume}
+          pending={pending}
+        />
+      )}
+      {inline ? (
         <ConnectorConfigPanel
           connector={connector}
           isBuiltin={isBuiltin}
           onUpdate={onUpdate}
           pending={pending}
+          showLabel={false}
+          variant='inline'
         />
-        <ConnectorActivityPanel />
-      </div>
+      ) : (
+        <>
+          <ConnectorAccessPanel
+            connector={connector}
+            scope={scope}
+          />
+          <ConnectorConfigPanel
+            connector={connector}
+            isBuiltin={isBuiltin}
+            onUpdate={onUpdate}
+            pending={pending}
+          />
+          <ConnectorActivityPanel />
+        </>
+      )}
     </div>
   );
 }
@@ -713,9 +761,9 @@ function PausedBanner({
   readonly pending: boolean;
 }) {
   const channelLabel: Record<string, string> = {
-    cli: 'CLI',
+    cli: 'Puppyone CLI',
     agent: 'Agent',
-    filesystem: 'Folder sync',
+    filesystem: 'Git Remote',
   };
   const label = channelLabel[provider] ?? PROVIDER_LABELS[provider] ?? provider;
   return (
@@ -772,20 +820,26 @@ function ConnectorConfigPanel({
   isBuiltin,
   onUpdate,
   pending,
+  showLabel = true,
+  variant = 'default',
 }: {
   readonly connector: Connector;
   readonly isBuiltin: boolean;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
   readonly pending: boolean;
+  readonly showLabel?: boolean;
+  readonly variant?: ConfigPanelVariant;
 }) {
+  const inline = variant === 'inline';
+
   return (
-    <div style={{ marginBottom: 14 }}>
-      <SubSectionLabel>Configuration</SubSectionLabel>
+    <div style={{ marginBottom: inline ? 0 : 14 }}>
+      {showLabel ? <SubSectionLabel>Configuration</SubSectionLabel> : null}
       <div
         style={{
-          background: 'var(--po-canvas)',
-          border: `1px solid ${T.cardBorder}`,
-          borderRadius: 6,
+          background: inline ? 'transparent' : 'var(--po-canvas)',
+          border: inline ? 'none' : `1px solid ${T.cardBorder}`,
+          borderRadius: inline ? 0 : 6,
           overflow: 'hidden',
         }}
       >
@@ -793,18 +847,21 @@ function ConnectorConfigPanel({
           label='Provider'
           isFirst
           value={PROVIDER_LABELS[connector.provider] ?? connector.provider}
+          variant={variant}
         />
         <ConfigRowDirection
           connector={connector}
           isBuiltin={isBuiltin}
           onUpdate={onUpdate}
           pending={pending}
+          variant={variant}
         />
         <ConfigRowTrigger
           connector={connector}
           isBuiltin={isBuiltin}
           onUpdate={onUpdate}
           pending={pending}
+          variant={variant}
         />
         <ConfigRow
           label='OAuth'
@@ -815,6 +872,7 @@ function ConnectorConfigPanel({
           }
           muted={connector.oauth_connection_id == null}
           mono={connector.oauth_connection_id != null}
+          variant={variant}
         />
         <ConfigRow
           label='Last run'
@@ -825,8 +883,9 @@ function ConnectorConfigPanel({
           }
           muted={!connector.last_run_at}
           mono={!!connector.last_run_at}
+          variant={variant}
         />
-        <ConfigRow label='Connector ID' value={connector.id} mono />
+        <ConfigRow label='Connector ID' value={connector.id} mono variant={variant} />
         <ConfigRow
           label='Created'
           value={
@@ -835,9 +894,10 @@ function ConnectorConfigPanel({
               : '—'
           }
           muted={!connector.created_at}
+          variant={variant}
         />
         {connector.error_message ? (
-          <ConfigRow label='Error' value={connector.error_message} />
+          <ConfigRow label='Error' value={connector.error_message} variant={variant} />
         ) : null}
       </div>
 
@@ -847,6 +907,11 @@ function ConnectorConfigPanel({
     </div>
   );
 }
+
+type ConfigPanelVariant = 'default' | 'inline';
+const CONFIG_LABEL_WIDTH = 112;
+const CONFIG_FONT_SIZE = 12.5;
+const CONFIG_LINE_HEIGHT = '18px';
 
 // Plain row — value is a string (read-only metadata). Keeps the same
 // visual signature as before; merely extracted so editable rows can
@@ -858,25 +923,27 @@ function ConfigRow({
   isFirst,
   mono,
   muted,
+  variant = 'default',
 }: {
   readonly label: string;
   readonly value: string;
   readonly isFirst?: boolean;
   readonly mono?: boolean;
   readonly muted?: boolean;
+  readonly variant?: ConfigPanelVariant;
 }) {
   return (
-    <RowShell label={label} isFirst={isFirst}>
+    <RowShell label={label} isFirst={isFirst} variant={variant}>
       <span
         style={{
           flex: 1,
           minWidth: 0,
-          fontSize: 12,
-          color: muted ? T.text3 : T.text2,
+          fontSize: CONFIG_FONT_SIZE,
+          lineHeight: CONFIG_LINE_HEIGHT,
+          color: muted ? T.text2 : T.text1,
           fontFamily: mono ? T.fontMono : T.fontSans,
           wordBreak: 'break-word',
-          lineHeight: 1.5,
-          fontStyle: muted ? 'italic' : 'normal',
+          fontStyle: 'normal',
         }}
       >
         {value}
@@ -889,30 +956,35 @@ function RowShell({
   label,
   isFirst,
   children,
+  variant = 'default',
 }: {
   readonly label: string;
   readonly isFirst?: boolean;
   readonly children: ReactNode;
+  readonly variant?: ConfigPanelVariant;
 }) {
+  const inline = variant === 'inline';
   return (
     <div
       style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 14,
-        padding: '8px 12px',
+        display: inline ? 'grid' : 'flex',
+        gridTemplateColumns: inline ? `${CONFIG_LABEL_WIDTH}px minmax(0, 1fr)` : undefined,
+        alignItems: 'center',
+        gap: inline ? 12 : 14,
+        minHeight: inline ? 42 : 38,
+        padding: inline ? '0' : '7px 12px',
         borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
       }}
     >
       <span
         style={{
-          width: 96,
+          width: CONFIG_LABEL_WIDTH,
           flexShrink: 0,
-          fontSize: 11,
-          color: T.text3,
+          fontSize: CONFIG_FONT_SIZE,
+          lineHeight: CONFIG_LINE_HEIGHT,
+          color: T.text2,
           fontFamily: T.fontSans,
           fontWeight: 500,
-          paddingTop: 6,
         }}
       >
         {label}
@@ -930,11 +1002,13 @@ function ConfigRowDirection({
   isBuiltin,
   onUpdate,
   pending,
+  variant = 'default',
 }: {
   readonly connector: Connector;
   readonly isBuiltin: boolean;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
   readonly pending: boolean;
+  readonly variant?: ConfigPanelVariant;
 }) {
   const directionLabel: Record<string, string> = {
     bidirectional: 'Two-way (read & write)',
@@ -943,7 +1017,7 @@ function ConfigRowDirection({
   };
   if (isBuiltin) {
     return (
-      <RowShell label='Direction'>
+      <RowShell label='Direction' variant={variant}>
         <span
           style={{
             flex: 1,
@@ -951,19 +1025,20 @@ function ConfigRowDirection({
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            fontSize: 12,
-            color: T.text2,
+            fontSize: CONFIG_FONT_SIZE,
+            lineHeight: CONFIG_LINE_HEIGHT,
+            color: T.text1,
             fontFamily: T.fontSans,
-            lineHeight: 1.5,
           }}
         >
           <span>{directionLabel[connector.direction] ?? connector.direction}</span>
           <span
             style={{
-              fontSize: 10.5,
-              color: T.text4,
+              fontSize: CONFIG_FONT_SIZE,
+              lineHeight: CONFIG_LINE_HEIGHT,
+              color: T.text2,
               fontFamily: T.fontSans,
-              fontStyle: 'italic',
+              fontStyle: 'normal',
             }}
           >
             · Built-in (locked)
@@ -973,7 +1048,7 @@ function ConfigRowDirection({
     );
   }
   return (
-    <RowShell label='Direction'>
+    <RowShell label='Direction' variant={variant}>
       <InlineSelect
         value={connector.direction}
         disabled={pending}
@@ -1001,11 +1076,13 @@ function ConfigRowTrigger({
   isBuiltin,
   onUpdate,
   pending,
+  variant = 'default',
 }: {
   readonly connector: Connector;
   readonly isBuiltin: boolean;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
   readonly pending: boolean;
+  readonly variant?: ConfigPanelVariant;
 }) {
   const t = (connector.trigger ?? {}) as Record<string, unknown>;
   const triggerType = (t.type as string | undefined) ?? 'manual';
@@ -1018,7 +1095,7 @@ function ConfigRowTrigger({
 
   if (isBuiltin) {
     return (
-      <RowShell label='Trigger'>
+      <RowShell label='Trigger' variant={variant}>
         <span
           style={{
             flex: 1,
@@ -1026,19 +1103,20 @@ function ConfigRowTrigger({
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            fontSize: 12,
-            color: T.text2,
+            fontSize: CONFIG_FONT_SIZE,
+            lineHeight: CONFIG_LINE_HEIGHT,
+            color: T.text1,
             fontFamily: T.fontSans,
-            lineHeight: 1.5,
           }}
         >
           <span>{summary ?? 'Event-driven'}</span>
           <span
             style={{
-              fontSize: 10.5,
-              color: T.text4,
+              fontSize: CONFIG_FONT_SIZE,
+              lineHeight: CONFIG_LINE_HEIGHT,
+              color: T.text2,
               fontFamily: T.fontSans,
-              fontStyle: 'italic',
+              fontStyle: 'normal',
             }}
           >
             · Built-in (locked)
@@ -1049,7 +1127,7 @@ function ConfigRowTrigger({
   }
 
   return (
-    <RowShell label='Trigger'>
+    <RowShell label='Trigger' variant={variant}>
       <div
         style={{
           flex: 1,
@@ -1085,10 +1163,10 @@ function ConfigRowTrigger({
         {summary ? (
           <span
             style={{
-              fontSize: 11,
-              color: T.text3,
+              fontSize: CONFIG_FONT_SIZE,
+              color: T.text2,
               fontFamily: T.fontMono,
-              lineHeight: 1.5,
+              lineHeight: CONFIG_LINE_HEIGHT,
             }}
           >
             {summary}
@@ -1119,7 +1197,8 @@ function InlineSelect({
     appearance: 'none',
     WebkitAppearance: 'none',
     MozAppearance: 'none',
-    fontSize: 12,
+    fontSize: CONFIG_FONT_SIZE,
+    lineHeight: CONFIG_LINE_HEIGHT,
     fontFamily: T.fontSans,
     color: T.text1,
     background: hovered ? 'var(--po-hover)' : 'transparent',

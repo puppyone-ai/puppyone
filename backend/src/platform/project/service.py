@@ -115,7 +115,6 @@ class ProjectService:
         name: str | None,
         description: str | None,
         bound_git_branch: str | None = None,
-        protocol_mode: str | None = None,
     ) -> Project:
         """
         Update a project
@@ -137,7 +136,6 @@ class ProjectService:
             name=name,
             description=description,
             bound_git_branch=bound_git_branch,
-            protocol_mode=protocol_mode,
         )
         if not updated:
             raise NotFoundException(

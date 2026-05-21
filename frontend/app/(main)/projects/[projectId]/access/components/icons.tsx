@@ -15,7 +15,15 @@
 
 import { T } from '../lib/tokens';
 
-export function ProviderIcon({ provider, size = 16 }: { readonly provider: string; readonly size?: number }) {
+export function ProviderIcon({
+  provider,
+  size = 16,
+  variant = 'brand',
+}: {
+  readonly provider: string;
+  readonly size?: number;
+  readonly variant?: 'brand' | 'mono';
+}) {
   const logos: Record<string, string> = {
     gmail: 'https://www.gstatic.com/images/branding/product/1x/gmail_2020q4_32dp.png',
     google_sheets: 'https://www.gstatic.com/images/branding/product/1x/sheets_2020q4_32dp.png',
@@ -30,21 +38,39 @@ export function ProviderIcon({ provider, size = 16 }: { readonly provider: strin
   }
   if (provider === 'cli') {
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="4 17 10 11 4 5" />
         <line x1="12" y1="19" x2="20" y2="19" />
       </svg>
     );
   }
   if (provider === 'filesystem') {
+    if (variant === 'mono') {
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path
+            d="M7.3 6.4 12 11.1v6.6M12 11.1l4.7 4.5"
+            stroke="currentColor"
+            strokeWidth="2.15"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="7.3" cy="6.4" r="2.05" fill="currentColor" />
+          <circle cx="12" cy="11.1" r="2.05" fill="currentColor" />
+          <circle cx="12" cy="17.7" r="2.05" fill="currentColor" />
+          <circle cx="16.7" cy="15.6" r="2.05" fill="currentColor" />
+        </svg>
+      );
+    }
     return (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="var(--po-info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 6.5a2 2 0 0 1 2-2h4.59a2 2 0 0 1 1.41.59l1 1a2 2 0 0 0 1.41.58H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5z" />
-        <path d="M9 16v-5" />
-        <polyline points="7 13 9 11 11 13" />
-        <path d="M15 11v5" />
-        <polyline points="13 14 15 16 17 14" />
-      </svg>
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src="/assets/brand/git-icon-inverse.svg"
+        alt="Git"
+        width={size}
+        height={size}
+        style={{ display: 'block', borderRadius: 5 }}
+      />
     );
   }
   if (provider === 'agent') {
@@ -112,8 +138,8 @@ export const FolderGlyph = ({ size = 11, color = T.text2 }: { readonly size?: nu
 // scope card visibly says "this AP is mounted under that node in your
 // data tree" — instead of using a generic stroke icon that has nothing
 // to do with the sidebar's vocabulary. ONLY used for the right-pane
-// mount-point card; the sidebar uses `ScopePinGlyph` instead — see
-// the note there.
+// mount-point card. The access sidebar now uses text + connector
+// logo chips instead of this pin.
 export const ScopeFolderGlyph = ({ size = 16 }: { readonly size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
     <path

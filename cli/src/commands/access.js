@@ -5,7 +5,7 @@
  * SaaS datasources, agents, MCP endpoints, sandbox endpoints, filesystem sync,
  * direct access, and database connectors.
  *
- * Everything lives in the `access_points` table (DB), discriminated by `provider`.
+ * Product connector state lives in the backend connector/scope registry.
  *
  * Config is passed via generic mechanisms — no per-provider code:
  *   --set key=value   (repeatable, auto type-coerced)
@@ -400,16 +400,16 @@ export function registerAccess(program) {
       Object.assign(config, parseSetValues(opts.set));
 
       if (provider === "filesystem") {
-        const mutPath = scope || source || "";
-        if (!mutPath) {
+        const scopePath = scope || source || "";
+        if (!scopePath) {
           out.error("MISSING_PATH", "Filesystem scope path is required.",
             "Usage: puppyone access add filesystem <path>\n  Example: puppyone access add filesystem docs");
           return;
         }
-        out.step(`Creating filesystem access point for scope "${mutPath}"...`);
+        out.step(`Creating filesystem access point for scope "${scopePath}"...`);
         const data = await client.post(
           "/filesystem/bootstrap", null,
-          { project_id: projectId, path: mutPath }
+          { project_id: projectId, path: scopePath }
         );
         out.done("done");
         out.info("");

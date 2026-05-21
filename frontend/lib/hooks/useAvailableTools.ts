@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Tool as DbTool, AccessPoint } from '@/lib/mcpApi';
+import type { Tool as DbTool } from '@/lib/mcpApi';
 import type { AccessOption } from '@/components/chat/ChatInputArea';
 
 // NOTE: shell_access is NOT a Tool - it's managed via agent_bash table per Agent
@@ -13,21 +13,12 @@ const toolTypeLabels: Record<string, string> = {
   custom_script: 'Custom Script',
 };
 
-const allToolTypes = [
-  'query_data',
-  'search',
-  'get_all_data',
-  'create',
-  'update',
-  'delete',
-  'custom_script',
-] as const;
-
 export function useAvailableTools(
   projectTools: DbTool[] | undefined,
-  accessPoints: AccessPoint[],
+  _accessPoints: unknown[],
   tableNameById: Record<string, string>
 ): AccessOption[] {
+  void _accessPoints;
   return useMemo(() => {
     const availableTools: AccessOption[] = [];
 
@@ -36,7 +27,7 @@ export function useAvailableTools(
     if (projectTools && projectTools.length > 0) {
       for (const t of projectTools) {
         const type = (t.type || '').trim();
-        // Skip any legacy shell_access entries (should be cleaned up in DB)
+        // shell access is modeled separately from project tools.
         if (type === 'shell_access' || type === 'shell_access_readonly') continue;
         
         const nid = t.path || null;
@@ -58,23 +49,7 @@ export function useAvailableTools(
           tableName: nodeName,
         });
       }
-    } else {
-      // Fallback to accessPoints (legacy)
-      accessPoints.forEach(ap => {
-        allToolTypes.forEach(toolType => {
-          // @ts-ignore
-          if (ap.permissions[toolType]) {
-            availableTools.push({
-              id: `${ap.id}-${toolType}`,
-              label: toolTypeLabels[toolType] || toolType,
-              type: 'tool' as const,
-            });
-          }
-        });
-      });
     }
     return availableTools;
-  }, [projectTools, accessPoints, tableNameById]);
+  }, [projectTools, tableNameById]);
 }
-
-

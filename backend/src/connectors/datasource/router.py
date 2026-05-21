@@ -265,7 +265,13 @@ def list_connectors(
     Frontend uses this to dynamically render connector options
     instead of hardcoding SYNC_OPTIONS / SYNC_PROVIDER_SPECS.
     """
-    return ApiResponse.success(data=registry.specs_to_dicts())
+    specs = registry.specs_to_dicts()
+    # ``/access/types`` stamps the same category on each datasource spec
+    # so the frontend ``ConnectorSpec.category`` is always defined; mirror
+    # that here so both endpoints return identically shaped objects.
+    for spec in specs:
+        spec["category"] = "datasource"
+    return ApiResponse.success(data=specs)
 
 
 # ============================================================
@@ -651,11 +657,11 @@ async def push_file(
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    from src.mut_engine.dependencies import create_mut_ops
-    ops = create_mut_ops()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    commands = build_worker_version_engine_container().write_commands()
 
     result = await process_push_file(
-        ops,
+        commands,
         project_id=parent_sync.project_id,
         body=body,
         user_id=current_user.user_id,
@@ -682,8 +688,8 @@ def pull_files(
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    from src.mut_engine.dependencies import create_mut_ops
-    ops = create_mut_ops()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    ops = build_worker_version_engine_container().product_operations()
 
     file_dicts = process_pull_files(
         ops,
@@ -737,15 +743,15 @@ async def trigger_push(
     engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.mut_engine.dependencies import create_mut_ops
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-    ops = create_mut_ops()
+    ops = build_worker_version_engine_container().product_operations()
     try:
         content = ops.read_file(project_id, path)
     except FileNotFoundError:
         return ApiResponse.error(code=1004, message=f"File not found: {path}")
 
-    from src.mut_engine.services.tree_reader import detect_type
+    from src.version_engine.read.tree_reader import detect_type
     import json as _json
 
     node_type = detect_type(path)

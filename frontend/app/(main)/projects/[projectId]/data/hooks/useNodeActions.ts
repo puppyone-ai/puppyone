@@ -3,11 +3,112 @@
 import { useState, useRef, useCallback } from 'react';
 import { mutate } from 'swr';
 import { downloadNode, moveFile, removeFile, bulkRemoveFiles, type NodeInfo } from '@/lib/contentTreeApi';
-import { refreshFolderNodes } from '@/lib/hooks/useData';
+import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
 import { ensureExpanded } from '../components/explorer';
+
+export type DataPageToastType = 'success' | 'error' | 'loading';
+export type DataPageToast = { message: string; type: DataPageToastType };
+export type PendingMoveConfirm = {
+  nodePath: string;
+  nodeName: string;
+  sourceParentPath: string | null;
+  targetFolderPath: string | null;
+  newPath: string;
+  targetLabel: string;
+};
 
 function parentOf(path: string): string {
   return path.includes('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+}
+
+function normalizeTreePath(path: string): string {
+  return path.trim().replace(/^\/+|\/+$/g, '');
+}
+
+function isSameOrDescendantPath(parent: string, child: string | null): boolean {
+  const cleanParent = normalizeTreePath(parent);
+  if (!cleanParent) return false;
+  const cleanChild = child ? normalizeTreePath(child) : '';
+  return cleanChild === cleanParent || cleanChild.startsWith(`${cleanParent}/`);
+}
+
+function basename(path: string): string {
+  const clean = normalizeTreePath(path);
+  return clean.includes('/') ? clean.substring(clean.lastIndexOf('/') + 1) : clean;
+}
+
+function moveTargetLabel(path: string | null): string {
+  return path ? `"${path}"` : 'Project Root';
+}
+
+function matchesDeletedRoot(path: string, deletedRoots: readonly string[]): boolean {
+  const clean = normalizeTreePath(path);
+  return deletedRoots.some((root) => clean === root || clean.startsWith(`${root}/`));
+}
+
+function cacheItemPath(item: unknown): string {
+  const maybe = item as { path?: unknown; id?: unknown };
+  if (typeof maybe.path === 'string') return maybe.path;
+  if (typeof maybe.id === 'string') return maybe.id;
+  return '';
+}
+
+function removeDeletedFromTreeCache(current: unknown, deletedRoots: readonly string[]): unknown {
+  if (!Array.isArray(current)) return current;
+  return current.filter((item) => {
+    const path = cacheItemPath(item);
+    return !path || !matchesDeletedRoot(path, deletedRoots);
+  });
+}
+
+function hideDeletedPathsInTreeCaches(projectId: string, paths: readonly string[]): void {
+  const deletedRoots = collapseDescendantPaths([...paths]);
+  if (!deletedRoots.length) return;
+  void mutate(
+    (key) => Array.isArray(key) && key[0] === 'tree' && key[1] === projectId,
+    (current: unknown) => removeDeletedFromTreeCache(current, deletedRoots),
+    { revalidate: false },
+  );
+}
+
+function revalidateProjectTreeCaches(projectId: string): void {
+  void mutate(
+    (key) => Array.isArray(key) && key[0] === 'tree' && key[1] === projectId,
+    undefined,
+    { revalidate: true },
+  );
+}
+
+function refreshDeletedParentFolders(
+  projectId: string,
+  deletedPaths: readonly string[],
+  parents: readonly string[],
+): void {
+  void refreshFolderNodes(projectId, ...parents)
+    .catch(() => undefined)
+    .finally(() => hideDeletedPathsInTreeCaches(projectId, deletedPaths));
+}
+
+function collapseDescendantPaths(paths: string[]): string[] {
+  const clean = Array.from(new Set(
+    paths
+      .map(normalizeTreePath)
+      .filter(Boolean),
+  ));
+
+  clean.sort((a, b) => {
+    const depth = a.split('/').length - b.split('/').length;
+    return depth || a.localeCompare(b);
+  });
+
+  const roots: string[] = [];
+  for (const path of clean) {
+    if (roots.some((root) => path === root || path.startsWith(`${root}/`))) {
+      continue;
+    }
+    roots.push(path);
+  }
+  return roots;
 }
 
 export function useNodeActions(projectId: string, currentFolderPath: string | null) {
@@ -15,16 +116,26 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
 
-  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string; mut_path?: string } | null>(null);
+  const [moveDialogTarget, setMoveDialogTarget] = useState<{ id: string; name: string; version_path?: string } | null>(null);
+  const [moveConfirmTarget, setMoveConfirmTarget] = useState<PendingMoveConfirm | null>(null);
+  const [deleteDialogTarget, setDeleteDialogTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const [toast, setToast] = useState<DataPageToast | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deletingPathsRef = useRef<Set<string>>(new Set());
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = useCallback((
+    message: string,
+    type: DataPageToastType = 'success',
+    durationMs: number | null = 3000,
+  ) => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ message, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+    if (durationMs !== null) {
+      toastTimerRef.current = setTimeout(() => setToast(null), durationMs);
+    } else {
+      toastTimerRef.current = null;
+    }
   }, []);
 
   const [toolPanelTarget, setToolPanelTarget] = useState<{ id: string; name: string; type: string; jsonPath?: string } | null>(null);
@@ -42,67 +153,94 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
       const oldPath = renameTarget.id;
       const parentDir = parentOf(oldPath);
       const newPath = parentDir ? `${parentDir}/${newName}` : newName;
+      showToast(`Renaming "${renameTarget.name}"...`, 'loading', null);
       await moveFile(projectId, oldPath, newPath);
       // Same parent folder, only one listing to refresh.
-      refreshFolderNodes(projectId, parentDir);
+      void refreshFolderNodes(projectId, parentDir);
+      refreshProjectHistory(projectId);
       setRenameDialogOpen(false);
       setRenameTarget(null);
+      showToast(`Renamed to "${newName}"`);
     } catch (err: unknown) {
       console.error('Failed to rename:', err);
       const errorObj = err as { message?: string };
       setRenameError(errorObj?.message || 'Failed to rename item');
+      showToast(errorObj?.message || 'Failed to rename item', 'error');
       throw err;
     }
-  }, [renameTarget, projectId]);
+  }, [renameTarget, projectId, showToast]);
 
-  const handleDelete = useCallback(async (path: string, name: string) => {
-    if (deletingPathsRef.current.has(path)) {
-      showToast(`Still deleting "${name}"...`, 'error');
-      return;
+  const deleteSinglePath = useCallback(async (path: string, name: string) => {
+    const cleanPath = normalizeTreePath(path);
+    if (deletingPathsRef.current.has(cleanPath)) {
+      const error = new Error(`Still deleting "${name}"...`);
+      showToast(error.message, 'error');
+      throw error;
     }
-    const confirmed = window.confirm(`Are you sure you want to delete "${name}"?`);
-    if (confirmed) {
-      try {
-        deletingPathsRef.current.add(path);
-        showToast(`Deleting "${name}"...`);
-        await removeFile(projectId, path);
-        refreshFolderNodes(projectId, parentOf(path));
-        showToast(`Deleted "${name}"`);
-      } catch (err) {
-        console.error('Failed to delete:', err);
-        alert('Failed to delete item');
-      } finally {
-        deletingPathsRef.current.delete(path);
-      }
+    const parent = parentOf(cleanPath);
+    try {
+      deletingPathsRef.current.add(cleanPath);
+      hideDeletedPathsInTreeCaches(projectId, [cleanPath]);
+      showToast(`Deleting "${name}"...`, 'loading', null);
+      await removeFile(projectId, cleanPath);
+      hideDeletedPathsInTreeCaches(projectId, [cleanPath]);
+      refreshDeletedParentFolders(projectId, [cleanPath], [parent]);
+      refreshProjectHistory(projectId);
+      showToast(`Deleted "${name}"`);
+    } catch (err) {
+      console.error('Failed to delete:', err);
+      revalidateProjectTreeCaches(projectId);
+      const msg = (err as { message?: string })?.message || 'Failed to delete item';
+      showToast(msg, 'error');
+      throw err;
+    } finally {
+      deletingPathsRef.current.delete(cleanPath);
     }
   }, [projectId, showToast]);
+
+  const handleDelete = useCallback((path: string, name: string) => {
+    setDeleteDialogTarget({ id: path, name });
+  }, []);
+
+  const closeDeleteDialog = useCallback(() => {
+    setDeleteDialogTarget(null);
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteDialogTarget) return;
+    await deleteSinglePath(deleteDialogTarget.id, deleteDialogTarget.name);
+  }, [deleteDialogTarget, deleteSinglePath]);
 
   /**
    * Multi-select bulk delete.
    *
-   * Frontend bundles the selected paths into a single ``/rm`` POST
-   * (``paths`` array), which the backend turns into one versioned
-   * delete commit per scope. Selecting 50 files = 1 round-trip,
-   * usually 1 commit, 1 audit entry — not 50.
+   * A product-level delete action should stay one request from the
+   * browser's point of view. If selection contains both a folder and
+   * its descendants, submit only the folder root so the backend can
+   * unlink the subtree as one versioned operation.
    */
   const handleBulkDelete = useCallback(async (paths: string[]): Promise<void> => {
-    const clean = paths.filter(Boolean);
+    const clean = collapseDescendantPaths(paths);
     if (!clean.length) return;
     const inFlight = clean.filter((p) => deletingPathsRef.current.has(p));
     if (inFlight.length) {
       showToast(`${inFlight.length} item(s) still deleting...`, 'error');
       return;
     }
+    const parents = Array.from(new Set(clean.map(parentOf)));
     try {
       clean.forEach((p) => deletingPathsRef.current.add(p));
-      showToast(`Deleting ${clean.length} item(s)...`);
+      hideDeletedPathsInTreeCaches(projectId, clean);
+      showToast(`Deleting ${clean.length} item(s)...`, 'loading', null);
       await bulkRemoveFiles(projectId, clean);
+      hideDeletedPathsInTreeCaches(projectId, clean);
       // Each unique parent listing changed; rest of the tree is untouched.
-      const parents = Array.from(new Set(clean.map(parentOf)));
-      refreshFolderNodes(projectId, ...parents);
+      refreshDeletedParentFolders(projectId, clean, parents);
+      refreshProjectHistory(projectId);
       showToast(`Deleted ${clean.length} item(s)`);
     } catch (err) {
       console.error('Failed to bulk delete:', err);
+      revalidateProjectTreeCaches(projectId);
       const msg = (err as { message?: string })?.message || 'Failed to delete items';
       showToast(msg, 'error');
       throw err;
@@ -128,32 +266,33 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     }
   }, [projectId, showToast]);
 
-  const handleMoveNode = useCallback(async (
+  const executeMoveNode = useCallback(async (
     nodePath: string,
     targetFolderPath: string | null,
     sourceParentPath: string | null = currentFolderPath,
   ) => {
-    if (sourceParentPath === targetFolderPath) return;
-
-    const sourceKey = ['tree', projectId, sourceParentPath ?? ''];
-    const targetKey = ['tree', projectId, targetFolderPath ?? ''];
+    const cleanNodePath = normalizeTreePath(nodePath);
+    const cleanTargetPath = targetFolderPath ? normalizeTreePath(targetFolderPath) : null;
+    const cleanSourceParent = sourceParentPath ? normalizeTreePath(sourceParentPath) : null;
+    const sourceKey = ['tree', projectId, cleanSourceParent ?? ''];
+    const targetKey = ['tree', projectId, cleanTargetPath ?? ''];
 
     let movedNode: NodeInfo | undefined;
 
     mutate(
       sourceKey,
       (nodes: NodeInfo[] | undefined) => {
-        movedNode = (nodes ?? []).find(n => n.path === nodePath || n.id === nodePath);
-        return (nodes ?? []).filter(n => n.path !== nodePath && n.id !== nodePath);
+        movedNode = (nodes ?? []).find(n => n.path === cleanNodePath || n.id === cleanNodePath);
+        return (nodes ?? []).filter(n => n.path !== cleanNodePath && n.id !== cleanNodePath);
       },
       { revalidate: false },
     );
 
     if (movedNode) {
       const name = movedNode.name;
-      const newPath = targetFolderPath ? `${targetFolderPath}/${name}` : name;
-      const nodeForTarget = { ...movedNode, path: newPath, id: newPath, parent_id: targetFolderPath };
-      if (targetFolderPath) ensureExpanded(targetFolderPath);
+      const newPath = cleanTargetPath ? `${cleanTargetPath}/${name}` : name;
+      const nodeForTarget = { ...movedNode, path: newPath, id: newPath, parent_id: cleanTargetPath };
+      if (cleanTargetPath) ensureExpanded(cleanTargetPath);
       mutate(
         targetKey,
         (nodes: NodeInfo[] | undefined) => nodes ? [...nodes, nodeForTarget] : undefined,
@@ -162,20 +301,63 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     }
 
     try {
-      const name = nodePath.includes('/') ? nodePath.substring(nodePath.lastIndexOf('/') + 1) : nodePath;
-      const newPath = targetFolderPath ? `${targetFolderPath}/${name}` : name;
-      await moveFile(projectId, nodePath, newPath);
+      const name = basename(cleanNodePath);
+      showToast(`Moving "${name}"...`, 'loading', null);
+      const newPath = cleanTargetPath ? `${cleanTargetPath}/${name}` : name;
+      await moveFile(projectId, cleanNodePath, newPath);
       // Source parent + target parent are the only two listings that changed.
-      refreshFolderNodes(projectId, sourceParentPath, targetFolderPath);
+      void refreshFolderNodes(projectId, cleanSourceParent, cleanTargetPath);
+      refreshProjectHistory(projectId);
+      showToast(`Moved "${name}"`);
     } catch (err: unknown) {
-      refreshFolderNodes(projectId, sourceParentPath, targetFolderPath);
+      refreshFolderNodes(projectId, cleanSourceParent, cleanTargetPath);
       const msg = (err as { message?: string })?.message || 'Failed to move item';
       showToast(msg, 'error');
+      throw err;
     }
   }, [projectId, currentFolderPath, showToast]);
 
-  const handleMoveRequest = useCallback((path: string, name: string, mut_path?: string) => {
-    setMoveDialogTarget({ id: path, name, mut_path });
+  const handleMoveNode = useCallback(async (
+    nodePath: string,
+    targetFolderPath: string | null,
+    sourceParentPath: string | null = currentFolderPath,
+  ) => {
+    const cleanNodePath = normalizeTreePath(nodePath);
+    const cleanTargetPath = targetFolderPath ? normalizeTreePath(targetFolderPath) : null;
+    const cleanSourceParent = sourceParentPath ? normalizeTreePath(sourceParentPath) : null;
+    if (!cleanNodePath || cleanSourceParent === cleanTargetPath) return;
+    if (isSameOrDescendantPath(cleanNodePath, cleanTargetPath)) {
+      showToast('Cannot move an item into itself or its child folder', 'error');
+      return;
+    }
+
+    const name = basename(cleanNodePath);
+    const newPath = cleanTargetPath ? `${cleanTargetPath}/${name}` : name;
+    setMoveConfirmTarget({
+      nodePath: cleanNodePath,
+      nodeName: name,
+      sourceParentPath: cleanSourceParent,
+      targetFolderPath: cleanTargetPath,
+      newPath,
+      targetLabel: moveTargetLabel(cleanTargetPath),
+    });
+  }, [currentFolderPath, showToast]);
+
+  const closeMoveConfirm = useCallback(() => {
+    setMoveConfirmTarget(null);
+  }, []);
+
+  const handleMoveConfirm = useCallback(async () => {
+    if (!moveConfirmTarget) return;
+    await executeMoveNode(
+      moveConfirmTarget.nodePath,
+      moveConfirmTarget.targetFolderPath,
+      moveConfirmTarget.sourceParentPath,
+    );
+  }, [executeMoveNode, moveConfirmTarget]);
+
+  const handleMoveRequest = useCallback((path: string, name: string, version_path?: string) => {
+    setMoveDialogTarget({ id: path, name, version_path });
   }, []);
 
   const handleCreateTool = useCallback((path: string, name: string, type: string, jsonPath?: string) => {
@@ -192,6 +374,8 @@ export function useNodeActions(projectId: string, currentFolderPath: string | nu
     renameDialogOpen, renameTarget, renameError,
     handleRename, handleRenameConfirm, closeRenameDialog,
     moveDialogTarget, setMoveDialogTarget,
+    moveConfirmTarget, closeMoveConfirm, handleMoveConfirm,
+    deleteDialogTarget, closeDeleteDialog, handleDeleteConfirm,
     handleMoveNode, handleMoveRequest,
     toast, showToast,
     toolPanelTarget, setToolPanelTarget,

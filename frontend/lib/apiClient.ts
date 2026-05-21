@@ -1,11 +1,83 @@
 import { createBrowserClient } from '@supabase/ssr';
+import { API_BASE_URL } from '@/config/api';
 
 /**
  * 统一的 API 客户端
  * 自动附加 Authorization header
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9090';
+const DEFAULT_API_TIMEOUT_MS = 30_000;
+
+interface ApiRequestOptions extends RequestInit {
+  timeoutMs?: number;
+}
+
+export class ApiNetworkError extends Error {
+  status = 0;
+  code = 'NETWORK_ERROR';
+  isNetworkError = true;
+  endpoint: string;
+  url: string;
+  cause: unknown;
+
+  constructor(message: string, context: { endpoint: string; url: string; cause: unknown }) {
+    super(message);
+    this.name = 'ApiNetworkError';
+    this.endpoint = context.endpoint;
+    this.url = context.url;
+    this.cause = context.cause;
+  }
+}
+
+function buildApiUrl(endpoint: string): string {
+  if (/^https?:\/\//i.test(endpoint)) return endpoint;
+  const base = API_BASE_URL.replace(/\/+$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${base}${path}`;
+}
+
+function getNetworkErrorMessage(args: {
+  url: string;
+  endpoint: string;
+  cause: unknown;
+  timeoutMs: number;
+}): string {
+  const { url, endpoint, cause, timeoutMs } = args;
+  const isAbort =
+    typeof DOMException !== 'undefined' && cause instanceof DOMException
+      ? cause.name === 'AbortError'
+      : cause instanceof Error && cause.name === 'AbortError';
+
+  const hints: string[] = [];
+  try {
+    const target = new URL(url);
+    const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const current = currentOrigin ? new URL(currentOrigin) : null;
+    if (target.hostname === 'localhost' || target.hostname === '127.0.0.1') {
+      hints.push(`确认后端正在 ${target.origin} 运行`);
+    }
+    if (current && target.origin !== current.origin) {
+      hints.push('如果后端可访问，请检查 CORS/HTTPS/mixed-content 配置');
+    }
+    if (
+      typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      target.hostname === 'localhost'
+    ) {
+      hints.push('生产或远程预览环境不能使用 localhost 作为 NEXT_PUBLIC_API_URL');
+    }
+  } catch {
+    // ignore malformed URLs; the failed URL is still included below.
+  }
+
+  const reason = isAbort
+    ? `请求超时 (${Math.round(timeoutMs / 1000)}s)`
+    : cause instanceof Error && cause.message
+      ? cause.message
+      : 'network request failed';
+  const hintText = hints.length ? `。${hints.join('；')}` : '';
+  return `无法连接后端 API：${endpoint} -> ${url}（${reason}）${hintText}`;
+}
 
 function _initSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -106,13 +178,15 @@ interface ApiResponse<T> {
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: ApiRequestOptions
 ): Promise<T> {
   const token = await getAuthToken();
+  const { timeoutMs = DEFAULT_API_TIMEOUT_MS, ...fetchOptions } = options ?? {};
+  const url = buildApiUrl(endpoint);
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options?.headers as Record<string, string>),
+    ...(fetchOptions.headers as Record<string, string>),
   };
 
   // 如果有 token，添加 Authorization header
@@ -120,10 +194,29 @@ export async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  const controller =
+    !fetchOptions.signal && timeoutMs > 0 ? new AbortController() : null;
+  const timer =
+    controller && timeoutMs > 0
+      ? globalThis.setTimeout(() => controller.abort(), timeoutMs)
+      : null;
+  try {
+    response = await fetch(url, {
+      ...fetchOptions,
+      headers,
+      signal: fetchOptions.signal ?? controller?.signal,
+    });
+  } catch (cause) {
+    throw new ApiNetworkError(
+      getNetworkErrorMessage({ url, endpoint, cause, timeoutMs }),
+      { endpoint, url, cause }
+    );
+  } finally {
+    if (timer !== null) {
+      globalThis.clearTimeout(timer);
+    }
+  }
 
   // 处理 401 未授权
   if (response.status === 401) {

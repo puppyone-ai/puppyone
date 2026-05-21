@@ -3,6 +3,11 @@
 import React, { useState, useCallback } from 'react';
 import useSWR from 'swr';
 import { get, del, post } from '@/lib/apiClient';
+import {
+  getGitAccessPointHealth,
+  type GitAccessPointHealth,
+  type GitViewHealth,
+} from '@/lib/gitHealthApi';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 
 interface SyncDetail {
@@ -54,6 +59,16 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
   );
 
   const sync = syncData?.syncs?.find(s => s.id === syncId);
+  const accessKeyForHealth = sync?.access_key || '';
+  const { data: gitHealth, isLoading: gitHealthLoading } = useSWR<GitAccessPointHealth>(
+    accessKeyForHealth ? ['git-ap-health', accessKeyForHealth] : null,
+    () => getGitAccessPointHealth(accessKeyForHealth),
+    {
+      refreshInterval: 60_000,
+      revalidateOnFocus: true,
+      dedupingInterval: 30_000,
+    },
+  );
 
   const [disconnecting, setDisconnecting] = useState(false);
   const handleDisconnect = useCallback(async () => {
@@ -103,7 +118,7 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 
   const accessKey = sync.access_key || '';
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  const cloneUrl = `${apiBase}/mut/ap/${accessKey}`;
+  const cloneUrl = `${apiBase}/git/ap/${accessKey}.git`;
 
   return (
     <PanelShell
@@ -201,6 +216,8 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
           </div>
         )}
 
+        <GitHealthBanner health={gitHealth} loading={gitHealthLoading} />
+
         {/* ── Quick Actions ── */}
         <div style={{ padding: '16px 20px 0', display: 'flex', gap: 8 }}>
           <button
@@ -287,7 +304,12 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             }}>
               <InfoRow label="Sync ID" value={sync.id} isLast={false} />
               <InfoRow label="Direction" value="Bidirectional" isLast={false} />
-              <InfoRow label="Protocol" value="MUT" isLast />
+              <InfoRow label="Protocol" value="Git Remote" isLast={false} />
+              <InfoRow
+                label="Git"
+                value={gitHealthLoading ? 'Checking' : gitHealthLabel(gitHealth?.health)}
+                isLast
+              />
             </div>
           </div>
         </CollapsibleSection>
@@ -318,10 +340,10 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
         {accessKey && (
           <CollapsibleSection title="Manual Sync Steps" defaultOpen={false}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-              <SyncStep step={1} command="mut pull" hint="Get the latest from cloud" />
+              <SyncStep step={1} command="git pull --ff-only" hint="Get the latest from cloud" />
               <SyncStep step={2} label="Edit files" />
-              <SyncStep step={3} command={'mut commit -m "your message"'} hint="Snapshot your changes locally" />
-              <SyncStep step={4} command="mut push" hint="Send your changes to cloud" isLast />
+              <SyncStep step={3} command={'git add -A && git commit -m "your message"'} hint="Snapshot your changes locally" />
+              <SyncStep step={4} command="git push origin main" hint="Send your changes to cloud" isLast />
             </div>
           </CollapsibleSection>
         )}
@@ -334,6 +356,96 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 /* ================================================================
    Sub-components
    ================================================================ */
+
+function gitHealthLabel(health?: GitViewHealth): string {
+  switch (health) {
+    case 'empty':
+      return 'Empty';
+    case 'healthy':
+      return 'Healthy';
+    case 'history_degraded':
+      return 'History truncated';
+    case 'current_corrupt':
+      return 'Unavailable';
+    default:
+      return 'Unknown';
+  }
+}
+
+function gitHealthTone(health?: GitViewHealth): {
+  color: string;
+  border: string;
+  background: string;
+} {
+  if (health === 'current_corrupt') {
+    return {
+      color: 'var(--po-danger)',
+      border: 'color-mix(in srgb, var(--po-danger) 20%, transparent)',
+      background: 'color-mix(in srgb, var(--po-danger) 7%, transparent)',
+    };
+  }
+  if (health === 'history_degraded') {
+    return {
+      color: 'var(--po-warning)',
+      border: 'color-mix(in srgb, var(--po-warning) 24%, transparent)',
+      background: 'color-mix(in srgb, var(--po-warning) 9%, transparent)',
+    };
+  }
+  return {
+    color: 'var(--po-success)',
+    border: 'color-mix(in srgb, var(--po-success) 18%, transparent)',
+    background: 'color-mix(in srgb, var(--po-success) 6%, transparent)',
+  };
+}
+
+function GitHealthBanner({ health, loading }: {
+  health?: GitAccessPointHealth;
+  loading: boolean;
+}) {
+  if (!loading && (!health || health.health === 'healthy' || health.health === 'empty')) {
+    return null;
+  }
+  const tone = gitHealthTone(health?.health);
+  const title = loading ? 'Checking Git status' : gitHealthLabel(health?.health);
+  const detail = loading
+    ? 'Reading the Access Point Git view.'
+    : health?.health === 'history_degraded'
+      ? 'Clone and push are available from the safe truncated history.'
+      : 'Restore or repair the current version before using Git.';
+
+  return (
+    <div style={{
+      margin: '12px 20px 0',
+      padding: '10px 12px',
+      borderRadius: 8,
+      background: tone.background,
+      border: `1px solid ${tone.border}`,
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 8,
+    }}>
+      <span
+        aria-hidden
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: tone.color,
+          marginTop: 5,
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: tone.color, lineHeight: 1.5 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.5 }}>
+          {detail}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type SetupMode = 'clone' | 'connect';
 
@@ -362,29 +474,34 @@ function SetupTabs({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; acces
         />
       </div>
 
-      <CommandBlock command="pip install mutai" label="Install" />
+      <CommandBlock
+        command={`git config --global credential.helper store\necho "https://x-access-token:${accessKey}@$(echo ${cloneUrl} | awk -F/ '{print $3}')" > ~/.git-credentials`}
+        label="Authenticate"
+      />
 
       {mode === 'clone' ? (
         <>
           <CommandBlock
-            command={`mut clone ${cloneUrl} \\\n  --credential ${accessKey}`}
+            command={`git clone ${cloneUrl}`}
             label="Clone"
           />
           <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4, lineHeight: 1.5 }}>
             Run once. Creates a local <code style={{ fontFamily: "var(--po-font-sans)", color: 'var(--po-text-subtle)' }}>./{scopeName}/</code> folder
-            populated from this context.
+            populated from this context. Uses stock <code>git</code> — no extra
+            tools to install.
           </div>
         </>
       ) : (
         <>
           <CommandBlock
-            command={`cd /path/to/your/folder\nmut connect ${cloneUrl} \\\n  --credential ${accessKey}`}
-            label="Connect"
+            command={`cd /path/to/your/folder\ngit init -b main\ngit remote add origin ${cloneUrl}\ngit pull --rebase origin main\ngit push -u origin main`}
+            label="Connect existing folder"
           />
           <div style={{ fontSize: 12, color: 'var(--po-text-disabled)', marginTop: 4, lineHeight: 1.5 }}>
-            Run inside an existing folder. Three-way merges your local files with cloud state and pushes
-            the result. Files only on disk get uploaded; files only in cloud get downloaded.
-            <span style={{ color: 'var(--po-warning)', fontWeight: 500 }}> No overwrite, no data loss.</span>
+            Run inside an existing folder. <code>git pull --rebase</code> brings in
+            cloud-side work; the server applies its V1 conflict policy (safe
+            auto-merge → parent-scope-wins → LWW) on push.
+            <span style={{ color: 'var(--po-warning)', fontWeight: 500 }}> Any unsafe conflict pauses the push as a manual-review row.</span>
           </div>
         </>
       )}
@@ -416,39 +533,48 @@ function SetupModeTab({ active, label, hint, onClick }: { active: boolean; label
 function AgentPromptBlock({ cloneUrl, accessKey, scopeName }: { cloneUrl: string; accessKey: string; scopeName: string }) {
   const [copied, setCopied] = useState(false);
 
+  const host = (() => {
+    try { return new URL(cloneUrl).host; }
+    catch { return 'qubits-api.puppyone.ai'; }
+  })();
   const prompt = [
-    `Sync my local folder with Puppyone cloud using the \`mut\` CLI.`,
+    `Sync my local folder with PuppyOne cloud using stock \`git\`.`,
     ``,
-    `## Install (one-time)`,
+    `## Authenticate (one-time)`,
     `\`\`\`bash`,
-    `pip install mutai`,
+    `# Tell git to use this access key as the password for ${host}.`,
+    `git config --global credential.helper store`,
+    String.raw`printf "https://x-access-token:%s@%s\n" "` + accessKey + `" "` + host + `" >> ~/.git-credentials`,
     `\`\`\``,
     ``,
     `## Setup — choose one path`,
     ``,
     `**A. Clone to a new folder** (no local files yet):`,
     `\`\`\`bash`,
-    `mut clone ${cloneUrl} --credential ${accessKey}`,
+    `git clone ${cloneUrl}`,
     `cd ${scopeName}`,
     `\`\`\``,
     ``,
     `**B. Connect an existing folder** (already have files locally):`,
     `\`\`\`bash`,
     `cd /path/to/your/existing/folder`,
-    `mut connect ${cloneUrl} --credential ${accessKey}`,
+    `git init -b main`,
+    `git remote add origin ${cloneUrl}`,
+    `git pull --rebase origin main`,
+    `git push -u origin main`,
     `\`\`\``,
-    `Three-way merges with whatever is on disk — no overwrite, no data loss.`,
     ``,
     `## Sync workflow`,
     `\`\`\`bash`,
-    `mut pull                          # get latest from cloud`,
+    `git pull --ff-only               # get latest from cloud`,
     `# ... make your edits ...`,
-    `mut commit -m "describe changes"  # snapshot locally`,
-    `mut push                          # send to cloud`,
+    `git add -A && git commit -m "describe changes"`,
+    `git push origin main             # send to cloud`,
     `\`\`\``,
     ``,
-    `Run \`mut status\` to check for uncommitted changes.`,
-    `Run \`mut log\` to view commit history.`,
+    `If a push is rejected with \`puppyone-pending: review required\`,`,
+    `open the PuppyOne UI; the conflict is queued for manual review.`,
+    `Use \`git status\` to check uncommitted changes, \`git log --oneline\` for history.`,
   ].join('\n');
 
   const handleCopy = () => {

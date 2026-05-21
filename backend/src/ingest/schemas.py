@@ -69,7 +69,7 @@ class IngestSubmitRequest(BaseModel):
     name: str | None = Field(None, description="Custom name")
     mode: IngestMode = Field(IngestMode.SMART, description="Processing mode")
     rule_id: int | None = Field(None, description="ETL rule ID")
-    path: str | None = Field(None, description="Target MUT path")
+    path: str | None = Field(None, description="Target version path")
     crawl_options: dict | None = Field(None, description="URL crawl options")
     sync_config: dict | None = Field(None, description="Sync configuration")
 
@@ -149,7 +149,7 @@ class BatchTaskResponse(BaseModel):
 #                         backend forwards to S3 via boto3
 #                         ``upload_part`` and returns the ``ETag``.
 #   3. /upload/complete — finalize the multipart upload + write the
-#                         assembled bytes into MUT (see batch variant).
+#                         assembled bytes into Version Engine (see batch variant).
 #   4. /upload/abort    — cancel an in-flight upload (idempotent).
 #
 # Why proxy through the backend instead of presigned URLs to S3?
@@ -176,7 +176,7 @@ class UploadInitFile(BaseModel):
     parent_path: str | None = Field(
         None,
         description=(
-            "MUT folder path the file should land in. Empty/None == root. "
+            "hash folder path the file should land in. Empty/None == root. "
             "Stored on the task so the finalize worker knows where to write."
         ),
     )
@@ -241,7 +241,7 @@ class UploadCompleteRequest(BaseModel):
 class UploadCompleteResponse(BaseModel):
     task_id: str
     status: IngestStatus
-    path: str | None = Field(None, description="MUT path the file is being written to")
+    path: str | None = Field(None, description="version path the file is being written to")
 
 
 class UploadCompleteItem(BaseModel):
@@ -253,7 +253,7 @@ class UploadCompleteItem(BaseModel):
 
 
 class UploadCompleteBatchRequest(BaseModel):
-    """Finalize multiple uploads as a SINGLE MUT commit.
+    """Finalize multiple uploads as a single project-root product commit.
 
     The whole point: dropping a folder of N files should record as
     one commit ("uploaded N files at HH:MM"), not N commits. Per-file
@@ -262,9 +262,9 @@ class UploadCompleteBatchRequest(BaseModel):
     N×2s down to ~2s for the whole batch. Same as ``git add a b c
     && git commit`` vs three separate commits.
 
-    Files in a batch may target different scopes; ``bulk_write``
-    groups them per-scope and emits one commit per scope (typical
-    case: all files share one scope = one commit).
+    Files in a batch may land under paths that also have access-point
+    scopes. The product upload still records one root transaction; child
+    scope refs are derived afterwards for Git/AP clients.
     """
     items: list[UploadCompleteItem] = Field(..., min_length=1)
 
@@ -309,4 +309,3 @@ class UploadAbortRequest(BaseModel):
 class UploadAbortResponse(BaseModel):
     task_id: str
     cancelled: bool
-

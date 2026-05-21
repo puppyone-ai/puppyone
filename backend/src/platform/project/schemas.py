@@ -5,22 +5,16 @@ Defines frontend API request/response models, matching the frontend ProjectInfo 
 """
 
 
-from typing import Literal
-
 from pydantic import BaseModel
 
 
-class NodeInfo(BaseModel):
-    """Node information (simplified, used for project listing)"""
-
-    id: str
-    name: str
-    type: str  # folder | json | markdown | image | pdf | video | file
-    rows: int | None = None
-
-
 class ProjectOut(BaseModel):
-    """Project output model - matches frontend ProjectInfo type"""
+    """Project metadata response.
+
+    Versioned files are intentionally not part of this contract. Directory
+    listings and file reads belong to the Content API so project metadata can
+    stay fast and available even when a historical content object is damaged.
+    """
 
     id: str
     name: str
@@ -28,8 +22,6 @@ class ProjectOut(BaseModel):
     org_id: str
     visibility: str = "org"
     bound_git_branch: str = "main"
-    protocol_mode: Literal["git", "mut", "both"] = "git"
-    nodes: list[NodeInfo] = []
     updated_at: str | None = None
     access_point_count: int = 0
 
@@ -51,7 +43,6 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     visibility: str | None = None
     bound_git_branch: str | None = None
-    protocol_mode: Literal["git", "mut", "both"] | None = None
 
 
 class ProjectMemberOut(BaseModel):

@@ -31,7 +31,7 @@ def _sync_resp(s):
 
 
 async def process_push_file(
-    ops,
+    commands,
     project_id: str,
     body,
     user_id: str,
@@ -68,11 +68,12 @@ async def process_push_file(
             else (body.content_md or "")
         ).encode("utf-8")
 
-        write_result = await ops.write_file(
+        outcome = await commands.write_bytes(
             project_id, existing.path, content_bytes,
-            who=f"sync:cli:{body.external_resource_id}",
+            actor=f"sync:cli:{body.external_resource_id}",
             message=f"push update {body.external_resource_id}",
         )
+        write_result = outcome.result
         commit_id = write_result.commit_id
 
         sync_svc.sync_repo.update_sync_point(
@@ -106,11 +107,12 @@ async def process_push_file(
         else (body.content_md or "")
     ).encode("utf-8")
 
-    write_result = await ops.write_file(
+    outcome = await commands.write_bytes(
         project_id, file_path, content_bytes,
-        who=f"sync:cli:{body.external_resource_id}",
+        actor=f"sync:cli:{body.external_resource_id}",
         message=f"push create {body.external_resource_id}",
     )
+    write_result = outcome.result
     commit_id = write_result.commit_id
 
     return {
@@ -135,7 +137,7 @@ def process_pull_files(
     Returns a list of dicts, each with keys:
     path, external_resource_id, content_json, content_md, node_type, head_commit_id.
 
-    ``head_commit_id`` identifies the project-wide MUT commit snapshot
+    ``head_commit_id`` identifies the project-wide Git commit snapshot
     these files were read at. Skipping logic is equality-based: a sync
     whose ``last_sync_commit_id`` already equals the current head gets
     filtered out.
@@ -163,7 +165,7 @@ def process_pull_files(
         except FileNotFoundError:
             continue
 
-        from src.mut_engine.services.tree_reader import detect_type
+        from src.version_engine.read.tree_reader import detect_type
         node_type = detect_type(path)
         is_json = node_type == "json"
 

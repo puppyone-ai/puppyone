@@ -11,22 +11,31 @@ export interface ConnectorConfigField {
   hint: string | null;
 }
 
+/**
+ * Union of every "thing you can attach to a project" exposed by
+ * ``GET /api/v1/access/types``. The fields below ``category`` are only
+ * populated for datasource connectors; agent/mcp/sandbox entries omit
+ * them entirely. Mark them optional so callers narrow on ``category``
+ * before reading the sync-specific bits.
+ */
 export interface ConnectorSpec {
   provider: string;
   display_name: string;
   description: string | null;
   auth: 'none' | 'oauth' | 'api_key' | 'access_key';
-  oauth_type: string | null;
-  oauth_ui_type: string | null;
-  default_node_type: string;
-  supported_sync_modes: string[];
-  default_sync_mode: string;
   creation_mode: 'direct' | 'bootstrap';
-  supported_directions: string[];
-  accept_types: string[];
-  config_fields: ConnectorConfigField[];
+  category: 'datasource' | 'agent' | 'endpoint';
   icon: string | null;
-  icon_url: string | null;
+  // Datasource-only:
+  oauth_type?: string | null;
+  oauth_ui_type?: string | null;
+  default_node_type?: string;
+  supported_sync_modes?: string[];
+  default_sync_mode?: string;
+  supported_directions?: string[];
+  accept_types?: string[];
+  config_fields?: ConnectorConfigField[];
+  icon_url?: string | null;
 }
 
 export interface CreateSyncRequest {

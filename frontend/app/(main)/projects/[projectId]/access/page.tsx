@@ -17,7 +17,7 @@
  *     (`/connectors/:id/pause` and `/resume`), revalidating the SWR
  *     cache afterwards so the status pill flips immediately.
  *   - The "Quick Connect" prompt is provider-aware: for cli/agent we
- *     reuse the `mut clone` prompt template (canonical, functional);
+ *     reuse the `git clone` prompt template (canonical, functional);
  *     for third-party connectors the panel surfaces a connection
  *     summary and links the user to the data view's right panel,
  *     which owns the actual auth/trigger config.

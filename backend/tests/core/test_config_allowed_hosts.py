@@ -6,6 +6,7 @@ def test_allowed_hosts_accepts_single_string() -> None:
         _env_file=None,
         APP_ENV="production",
         DEBUG=False,
+        SKIP_AUTH=False,
         ALLOWED_HOSTS="https://frontend.example.com",
     )
 
@@ -17,6 +18,7 @@ def test_allowed_hosts_accepts_comma_separated_string() -> None:
         _env_file=None,
         APP_ENV="production",
         DEBUG=False,
+        SKIP_AUTH=False,
         ALLOWED_HOSTS="https://a.example.com, https://b.example.com/",
     )
 
@@ -50,4 +52,3 @@ def test_allowed_hosts_default_for_development_without_debug() -> None:
         "http://127.0.0.1:3003",
         "http://127.0.0.1:3004",
     ]
-

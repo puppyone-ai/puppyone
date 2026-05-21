@@ -67,7 +67,7 @@ export interface UploadAndSubmitParams {
   ruleId?: number;
   path?: string;
   jsonPath?: string;
-  /** Parent folder path in the MUT tree */
+  /** Parent folder path in the version tree */
   parentPath?: string;
   /** Parent node ID for organizing uploaded files */
   parentId?: string;

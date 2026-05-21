@@ -3,7 +3,7 @@ GitHub connector — one-time repository import.
 
 The connector is intentionally storage-agnostic: it downloads a repository
 archive, normalizes it into a relative path -> bytes map, and returns that to
-SyncEngine. SyncEngine owns the MutOps.bulk_write commit.
+SyncEngine. SyncEngine owns the ProductOperationAdapter.bulk_write commit.
 """
 
 from __future__ import annotations

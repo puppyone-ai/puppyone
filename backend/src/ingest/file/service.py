@@ -183,7 +183,7 @@ class ETLService:
           2. Frontend uploads each part directly to S3.
           3. Frontend calls ``/upload/complete`` -> we run
              ``CompleteMultipartUpload`` and enqueue
-             ``etl_finalize_upload_job`` which writes the bytes into MUT.
+             ``etl_finalize_upload_job`` which writes the bytes into Version Engine.
           4. Worker marks the task COMPLETED (or FAILED on mount
              error). The frontend's existing ``BackgroundTaskNotifier``
              polling picks up the terminal state.

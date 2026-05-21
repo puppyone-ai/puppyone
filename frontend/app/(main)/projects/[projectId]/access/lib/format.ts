@@ -79,11 +79,11 @@ export function getTypeLine(c: Connector): string {
     : c.direction === 'inbound' ? 'Import'
     : c.direction === 'outbound' ? 'Export' : '';
   switch (c.provider) {
-    case 'cli': return ['CLI agent', direction].filter(Boolean).join(' · ');
+    case 'cli': return ['Puppyone CLI', direction].filter(Boolean).join(' · ');
     case 'agent': return ['AI agent', direction].filter(Boolean).join(' · ');
     case 'mcp': return ['MCP server', direction].filter(Boolean).join(' · ');
     case 'sandbox': return ['Compute sandbox', direction].filter(Boolean).join(' · ');
-    case 'filesystem': return 'Local filesystem';
+    case 'filesystem': return 'Native Git clone/push';
     default: return [`Third-party · ${PROVIDER_LABELS[c.provider] ?? c.provider}`, direction].filter(Boolean).join(' · ');
   }
 }
@@ -97,7 +97,7 @@ export function getPrimaryAction(status: string): { label: string; icon: 'pause'
 
 // `buildConnectPrompt` used to be a per-provider switch returning a
 // single "connect prompt" string. That sounded right but produced a
-// terrible UX: pasting "Sync my puppyone scope using mut CLI" into
+// terrible UX: pasting "Sync my Puppyone scope using the CLI" into
 // ChatGPT for an *AI Agent* connector makes no sense — agents are
 // Puppyone's own in-app chat, they aren't driven by external prompts.
 // We deleted the helper and now render a per-provider body component

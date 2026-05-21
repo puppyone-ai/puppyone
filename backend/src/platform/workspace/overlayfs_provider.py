@@ -2,7 +2,7 @@
 OverlayFS Workspace Provider — Linux CoW isolation for agent workspaces.
 
 Uses OverlayFS to create lightweight, copy-on-write workspaces:
-  - Shared read-only lower layer (the MUT clone base)
+  - Shared read-only lower layer (the hash clone base)
   - Per-agent upper layer (only stores modifications)
   - Merged view that looks like a full directory
 

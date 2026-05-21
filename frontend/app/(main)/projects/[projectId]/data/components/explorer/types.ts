@@ -2,6 +2,7 @@ import type { CSSProperties, MouseEvent } from 'react';
 import type { ContentType } from '../views/GridView';
 import type { FileImportTarget } from '../../hooks/useFileImport';
 import type { SyncEndpointInfo as DataSyncEndpointInfo } from '../../DataLayoutContext';
+import type { IntegrityStatus } from '@/lib/contentTreeApi';
 
 export type SyncEndpointInfo = DataSyncEndpointInfo;
 export type ExplorerCreateMenuAction = 'create' | 'access';
@@ -14,6 +15,7 @@ export interface MillerColumnItem {
   sync_source?: string | null;
   sync_url?: string | null;
   last_synced_at?: string | null;
+  integrity_status?: IntegrityStatus;
 }
 
 export interface ExplorerSidebarProps {

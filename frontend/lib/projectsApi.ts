@@ -3,13 +3,7 @@
  */
 
 import { apiRequest } from './apiClient';
-
-export type NodeInfo = {
-  id: string;
-  name: string;
-  type: 'folder' | 'json' | 'markdown' | 'image' | 'pdf' | 'video' | 'file';
-  rows?: number;
-};
+import { resolveFormat } from './fileFormats';
 
 export type ProjectInfo = {
   id: string;
@@ -17,12 +11,10 @@ export type ProjectInfo = {
   description?: string;
   org_id?: string;
   visibility?: 'org' | 'private';
-  /** Default git branch for new GitHub bindings & MUT clones. The
+  /** Default git branch new clients clone & GitHub bindings use. The
    *  backend defaults to ``'main'``; legacy projects may not have the
    *  field yet, hence optional on the wire. */
   bound_git_branch?: string;
-  protocol_mode?: 'git' | 'mut' | 'both';
-  nodes: NodeInfo[];
   updated_at?: string;
   access_point_count?: number;
 };
@@ -128,12 +120,13 @@ export async function getTable(
   const { stat, readFile } = await import('@/lib/contentTreeApi');
   const s = await stat(projectId, nodePath);
 
-  const nonJsonTypes = ['markdown', 'image', 'pdf', 'video', 'file'];
-  const isNonJsonType = nonJsonTypes.some(t => s.type.includes(t));
+  const format = resolveFormat({ name: nodePath, mimeType: s.mime_type ?? null });
+  const shouldLoadStructuredContent =
+    format.defaultViewer === 'json-table' || s.type === 'json';
 
   let data: any = null;
 
-  if (!isNonJsonType) {
+  if (shouldLoadStructuredContent) {
     const content = await readFile(projectId, nodePath);
     data = content.content;
   }

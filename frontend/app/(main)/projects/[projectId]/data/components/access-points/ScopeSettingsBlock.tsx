@@ -347,7 +347,7 @@ export function ScopeSettingsBlock({
         </button>
       </Card>
 
-      {/* ③ Access key — mut credential. Default masked; reveal toggles
+      {/* ③ Access key — version credential. Default masked; reveal toggles
           plaintext. Rotate is two-click destructive: regenerating
           invalidates every existing CLI / Git session
           immediately. */}

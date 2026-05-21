@@ -3,6 +3,7 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, LIMIT_NOTE, READ_STDOUT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { get } from "../lib/http.js";
 import { parseIntegerOption } from "../lib/options.js";
 import { dotEntries, scopedPath } from "../lib/paths.js";
@@ -15,7 +16,7 @@ import {
 } from "../lib/render.js";
 
 export function registerLsCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("ls")
     .description("List directory contents within the access point scope")
     .helpOption("--help", "display help for command")
@@ -33,7 +34,19 @@ export function registerLsCommand(fs) {
     .option("-S, --sort-size", "sort by file size")
     .option("-t, --sort-time", "sort by modification time, newest first")
     .option("-r, --reverse", "reverse sort order")
-    .option("--limit <n>", "max recursive entries returned before truncation")
+    .option("--limit <n>", "max recursive entries returned before truncation"), {
+      examples: [
+        "puppyone fs ls",
+        "puppyone fs ls -la docs",
+        "puppyone fs ls -R --limit 200",
+        "puppyone --json fs ls -la docs",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        LIMIT_NOTE,
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

@@ -56,7 +56,6 @@ export const AppSidebar = memo(function AppSidebar({
     ? activeProjectFromList ?? {
         id: activeBaseId,
         name: '',
-        nodes: [],
       }
     : null;
   const activeProjectTitleLoading =

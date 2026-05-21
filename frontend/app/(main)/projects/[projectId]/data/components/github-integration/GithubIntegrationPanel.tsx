@@ -36,7 +36,7 @@ import {
   connectGithub as startGithubOAuth,
   type OAuthStatusResponse,
 } from '@/lib/oauthApi';
-import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
+import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { GithubBoundPanel } from './GithubBoundPanel';
 import { GithubConnectForm } from './GithubConnectForm';
 import { SyncLogTable } from './SyncLogTable';

@@ -1,8 +1,19 @@
 """
 Filesystem Module — HTTP Endpoints (lifecycle only).
 
-Data sync is handled by MUT protocol via access_point.py:
-  POST /api/v1/mut/ap/{access_key}/clone|push|pull|negotiate
+Data sync is handled by **stock Git** against the access-point-bound
+Git URL:
+
+  git clone https://<host>/git/ap/<access_key>.git ./workspace
+  git push origin main
+  git pull --ff-only
+
+The same access_key resolves through ``resolve_access_point`` for both
+the Git smart-HTTP surface (``/git/ap/{access_key}.git/*``) and the
+scoped FS CLI (``/api/v1/ap-fs/*``); choose whichever fits the
+client. PuppyOne shadow snapshots (``POST /api/v1/local-snapshots``)
+let the local daemon publish tracked-but-unpushed files for cloud-side
+queries without a Git push.
 
 This router provides access lifecycle management:
 
@@ -92,7 +103,11 @@ def bootstrap(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Create a filesystem access for a folder. Returns access_key for CLI + MUT protocol."""
+    """Create a filesystem access for a folder.
+
+    The returned access key authorizes Git Remote and Puppyone CLI AP-FS
+    requests for the scoped folder.
+    """
     _ensure_project_access(project_service, current_user, project_id)
 
     svc, _ = _get_service()
@@ -114,7 +129,14 @@ def bootstrap(
         "access_key": sync.access_key,
         "path": sync.path,
         "project_id": sync.project_id,
-        "ap_base": f"/api/v1/mut/ap/{sync.access_key}",
+        # ``ap_base`` historically pointed at the (now removed) hash
+        # wire-protocol URL. The same access_key authorises the Git
+        # smart-HTTP surface, so we now emit the Git remote URL plus an
+        # ``ap_fs_base`` for the FS HTTP API. Older clients that still
+        # read ``ap_base`` get the Git URL — useful for `git clone`.
+        "ap_base": f"/git/ap/{sync.access_key}.git",
+        "git_url": f"/git/ap/{sync.access_key}.git",
+        "ap_fs_base": "/api/v1/ap-fs",
     })
 
 
@@ -155,7 +177,14 @@ async def connect(
         "access_point_id": sync.id,
         "project_id": sync.project_id,
         "path": sync.path,
-        "ap_base": f"/api/v1/mut/ap/{sync.access_key}",
+        # ``ap_base`` historically pointed at the (now removed) hash
+        # wire-protocol URL. The same access_key authorises the Git
+        # smart-HTTP surface, so we now emit the Git remote URL plus an
+        # ``ap_fs_base`` for the FS HTTP API. Older clients that still
+        # read ``ap_base`` get the Git URL — useful for `git clone`.
+        "ap_base": f"/git/ap/{sync.access_key}.git",
+        "git_url": f"/git/ap/{sync.access_key}.git",
+        "ap_fs_base": "/api/v1/ap-fs",
     })
 
 

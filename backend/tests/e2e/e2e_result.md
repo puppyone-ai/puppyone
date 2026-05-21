@@ -1,13 +1,13 @@
-## E2E 测试报告：folder-search-e2e
+## E2E 测试报告：turbopuffer-e2e
 
-- **run_id**: `2026-03-28T18:48:22Z`
-- **generated_at**: `2026-03-28T18:48:22Z`
+- **run_id**: `2026-05-18T21:34:15Z`
+- **generated_at**: `2026-05-18T21:34:15Z`
 
 ### 结果明细
 
 #### ✅ PASS `dotenv.load`
 
-- **time**: `2026-03-28T18:48:22Z`
+- **time**: `2026-05-18T21:34:15Z`
 
 **details**
 
@@ -20,13 +20,14 @@
 
 #### ✅ PASS `skip.missing_turbopuffer_api_key`
 
-- **time**: `2026-03-28T18:48:22Z`
+- **time**: `2026-05-18T21:34:15Z`
 
 **details**
 
 ```json
 {
-  "reason": "TURBOPUFFER_API_KEY is not set",
+  "reason": "TURBOPUFFER_API_KEY is not set (or empty) in current process environment",
+  "expected_env_var": "TURBOPUFFER_API_KEY",
   "dotenv_loaded": true
 }
 ```

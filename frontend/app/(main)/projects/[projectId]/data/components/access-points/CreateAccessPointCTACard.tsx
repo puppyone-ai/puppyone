@@ -59,8 +59,8 @@ export function CreateAccessPointCTACard({
           borderRadius: 8,
           border: `1px dashed ${hovered ? COLOR_BORDER_HOVER : COLOR_BORDER}`,
           background: hovered
-            ? 'color-mix(in srgb, var(--po-text) 5%, var(--po-panel) 95%)'
-            : 'transparent',
+            ? 'color-mix(in srgb, var(--po-control) 62%, transparent)'
+            : 'color-mix(in srgb, var(--po-control) 34%, transparent)',
           color: COLOR_FG,
           cursor: 'pointer',
           textAlign: 'left',
@@ -106,7 +106,7 @@ function PlusIcon() {
         width: 30,
         height: 30,
         borderRadius: 6,
-        background: 'color-mix(in srgb, var(--po-text) 6%, var(--po-panel) 94%)',
+        background: 'color-mix(in srgb, var(--po-control) 58%, transparent)',
         color: COLOR_FG_MUTED,
         flexShrink: 0,
       }}

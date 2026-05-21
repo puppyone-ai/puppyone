@@ -5,6 +5,7 @@ import { useRef, useCallback, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
 import { definePuppyoneMonacoThemes, getPuppyoneMonacoTheme } from '@/lib/theme/monacoThemes';
+import { ConflictMarkerBanner } from '@/components/editors/ConflictMarkerBanner';
 
 const MONACO_LOADING = <EditorLoadingSurface />;
 
@@ -39,7 +40,11 @@ export default function MonacoMarkdownEditor({ content, onChange, readOnly }: Pr
   }, [onChange, readOnly]);
 
   return (
-    <div style={{ height: '100%', position: 'relative' }}>
+    <div style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+      <ConflictMarkerBanner
+        content={content}
+        onResolve={readOnly ? undefined : onChange}
+      />
       {!content && (
         <div style={{
           position: 'absolute',

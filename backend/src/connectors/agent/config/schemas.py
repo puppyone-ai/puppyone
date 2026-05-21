@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 # ============================================
 
 class AgentBashCreate(BaseModel):
-    path: str = Field(..., description="MUT path")
+    path: str = Field(..., description="version path")
     readonly: bool = Field(default=True)
 
 

@@ -15,8 +15,8 @@ For each project P that has access_points rows:
     - The OLDEST `provider='filesystem'` row at path='' (or null/'/') is the
       project's "root identity":
         * its `access_key` is COPIED to repo_scopes.access_key for P's root scope
-          (overwriting the random key that 20260502000500 minted), so old
-          `mut connect` cli clients keep working.
+          (overwriting the random key that 20260502000500 minted), preserving
+          the root filesystem access credential during the one-time migration.
     - Any other filesystem row at a non-root path becomes a brand-new
       repo_scopes row (its config.scope.path → repo_scopes.path, its
       access_key → repo_scopes.access_key).

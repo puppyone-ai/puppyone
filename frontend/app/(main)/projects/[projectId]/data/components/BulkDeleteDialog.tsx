@@ -14,7 +14,7 @@
  * through Puppyone version history/rollback, not a hidden .trash tree.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Dots } from '@/components/loading';
 import { ActionButton } from '@/components/ui/ActionButton';
 import { DangerNotice } from '@/components/ui/DangerNotice';
@@ -25,6 +25,11 @@ interface BulkDeleteDialogProps {
   paths: string[];
   onClose: () => void;
   onConfirm: () => Promise<void>;
+  title?: string;
+  noticeTitle?: string;
+  description?: ReactNode;
+  confirmLabel?: string;
+  submittingLabel?: string;
 }
 
 const PREVIEW_LIMIT = 8;
@@ -34,6 +39,11 @@ export function BulkDeleteDialog({
   paths,
   onClose,
   onConfirm,
+  title,
+  noticeTitle,
+  description,
+  confirmLabel,
+  submittingLabel,
 }: BulkDeleteDialogProps) {
   const [submitting, setSubmitting] = useState(false);
 
@@ -82,6 +92,17 @@ export function BulkDeleteDialog({
 
   const previewPaths = paths.slice(0, PREVIEW_LIMIT);
   const overflow = paths.length - previewPaths.length;
+  const itemLabel = `${paths.length} item${paths.length === 1 ? '' : 's'}`;
+  const resolvedTitle = title ?? `Delete ${itemLabel}`;
+  const resolvedNoticeTitle = noticeTitle ?? `Delete ${itemLabel}?`;
+  const resolvedDescription = description ?? (
+    <>
+      Items are removed from the current tree. You can recover prior
+      contents from Puppyone version history or rollback.
+    </>
+  );
+  const resolvedConfirmLabel = confirmLabel ?? `Delete ${paths.length}`;
+  const resolvedSubmittingLabel = submittingLabel ?? 'Deleting…';
 
   return (
     <DialogRoot
@@ -90,14 +111,13 @@ export function BulkDeleteDialog({
     >
       <DialogSurface width={520}>
         <DialogHeader
-          title={`Delete ${paths.length} item${paths.length === 1 ? '' : 's'}`}
+          title={resolvedTitle}
           onClose={submitting ? undefined : onClose}
         />
 
         <DialogBody>
-          <DangerNotice title={`Delete ${paths.length} item${paths.length === 1 ? '' : 's'}?`}>
-            Items are removed from the current tree. You can recover prior
-            contents from Puppyone version history or rollback.
+          <DangerNotice title={resolvedNoticeTitle}>
+            {resolvedDescription}
           </DangerNotice>
 
           <div
@@ -158,9 +178,7 @@ export function BulkDeleteDialog({
             loading={submitting}
           >
             {submitting && <Dots size="xs" tone="danger" />}
-            {submitting
-              ? 'Deleting…'
-              : `Delete ${paths.length}`}
+            {submitting ? resolvedSubmittingLabel : resolvedConfirmLabel}
           </ActionButton>
         </DialogFooter>
       </DialogSurface>

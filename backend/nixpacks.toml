@@ -69,26 +69,4 @@ cmds = [
     # NOT spin up its own short-lived env that re-downloads them.
     ". /opt/venv/bin/activate && pip install --retries 5 'setuptools>=61.0' wheel || pip install --retries 5 'setuptools>=61.0' wheel",
     ". /opt/venv/bin/activate && pip install -e . --no-deps --no-build-isolation",
-    # Override mut with the git-format-storage branch — the published
-    # ``mutai 0.1.6`` on PyPI is missing ``mut.foundation.git_format``,
-    # ``branch``, ``messages`` and ``ws_client`` (verified by inspecting
-    # the wheel). 11 backend files have module-level imports of
-    # ``mut.foundation.git_format`` (server_repo, object_gc, tree_objects,
-    # git_commit, …), so without this override FastAPI / arq workers
-    # fail at startup with
-    # ``ModuleNotFoundError: No module named 'mut.foundation.git_format'``.
-    #
-    # ``--force-reinstall`` is REQUIRED: the previous step's
-    # ``pip install -r requirements.lock.txt`` already installed
-    # ``mutai 0.1.6`` from PyPI, and the git URL's pyproject also reports
-    # version 0.1.6. Without --force-reinstall, pip reports "Requirement
-    # already satisfied" and silently keeps the PyPI wheel (the one
-    # missing git_format). This was the cause of the May 16 16:08 deploy
-    # failure even after the branch pin was corrected.
-    #
-    # The previously pinned ``fix/mut-scope-design-bug`` branch ALSO
-    # lacked git_format — it predates the git-format-storage work.
-    # Remove this override once a mutai release with git_format is on PyPI
-    # and ``[project.dependencies]`` is bumped to that version.
-    ". /opt/venv/bin/activate && pip install --no-deps --force-reinstall git+https://github.com/puppyone-ai/mut.git@feat/git-format-storage",
 ]

@@ -69,7 +69,7 @@ const ENDPOINT_OPTIONS: EndpointOptionDef[] = [
 // Providers whose backend code exists but isn't production-ready yet.
 // Rendered as disabled "Coming soon" rows; remove an id here to re-enable.
 //
-// Note (mut-git branch): the LEGACY scope-level GitHub connector
+// Note: the scope-level GitHub connector
 // (URL-based one-shot ZIP fetch via the ``connectors`` table) is now
 // re-enabled. The NEW project-level GitHub Integration with branch
 // binding + bidirectional import/export lives under
@@ -132,7 +132,7 @@ interface SyncConfigPanelProps {
   /** When opened from a scope context, restricts drag-drop targets to
    *  paths inside this scope (see isWithinScope). Forwarded to all
    *  inner config components (ChatAgentConfig / FilesystemAgentConfig /
-   *  SaaSyncConfig). Pass `undefined` to keep legacy permissive behaviour. */
+   *  SaaSyncConfig). */
   scopeBoundary?: string;
   scopeBoundaryLabel?: string;
   /** Pre-select the agent type when entering create mode. Used by the
@@ -204,9 +204,9 @@ function CreateView({
     oauthType: spec.oauth_ui_type ? spec.oauth_ui_type as SaasType : undefined,
     requiresAuth: spec.auth !== 'none',
     creationMode: spec.creation_mode,
-    direction: (spec.supported_directions[0] || 'inbound') as 'inbound' | 'outbound' | 'bidirectional',
-    accept: spec.accept_types as AcceptedNodeType[],
-    configFields: spec.config_fields.map(f => ({
+    direction: (spec.supported_directions?.[0] || 'inbound') as 'inbound' | 'outbound' | 'bidirectional',
+    accept: (spec.accept_types ?? []) as AcceptedNodeType[],
+    configFields: (spec.config_fields ?? []).map(f => ({
       key: f.key,
       label: f.label,
       type: (f.type === 'url' ? 'text' : f.type) as 'select' | 'text' | 'number',
@@ -588,7 +588,7 @@ function CreateView({
 
   // If a sync provider is selected, show config
   if (selectedSyncProvider) {
-    // GitHub is the project-level git-branch binding (≠ legacy scope-level
+  // GitHub is the project-level git-branch binding, not a scope-level
     // URL-import connector). It's surfaced under this same picker so all
     // third-party flows live in one place, but the underlying API +
     // storage live in ``github_integrations``, not ``connectors``.

@@ -12,15 +12,17 @@
 
 ## 环境配置
 
-在运行测试之前，需要设置 OpenRouter API 密钥：
+在运行测试之前，需要显式打开 live integration 开关，并设置 OpenRouter API 密钥：
 
 ```bash
+export RUN_LLM_INTEGRATION=1
 export OPENROUTER_API_KEY="your-api-key-here"
 ```
 
 或者在项目根目录的 `.env` 文件中添加：
 
 ```
+RUN_LLM_INTEGRATION=1
 OPENROUTER_API_KEY=your-api-key-here
 ```
 
@@ -30,31 +32,31 @@ OPENROUTER_API_KEY=your-api-key-here
 
 ```bash
 # 在项目根目录运行
-pytest tests/llm/test_llm_integration.py -v
+RUN_LLM_INTEGRATION=1 pytest tests/llm/test_llm_integration.py -v
 ```
 
 ### 运行特定测试
 
 ```bash
 # 运行单个测试
-pytest tests/llm/test_llm_integration.py::test_simple_text_generation -v
+RUN_LLM_INTEGRATION=1 pytest tests/llm/test_llm_integration.py::test_simple_text_generation -v
 
 # 运行某一类测试（使用 -k 参数）
-pytest tests/llm/test_llm_integration.py -k "json" -v
+RUN_LLM_INTEGRATION=1 pytest tests/llm/test_llm_integration.py -k "json" -v
 ```
 
 ### 查看详细输出
 
 ```bash
 # 显示 print 输出
-pytest tests/llm/test_llm_integration.py -v -s
+RUN_LLM_INTEGRATION=1 pytest tests/llm/test_llm_integration.py -v -s
 ```
 
 ### 生成测试报告
 
 ```bash
 # 生成 HTML 报告（需要安装 pytest-html）
-pytest tests/llm/test_llm_integration.py --html=report.html --self-contained-html
+RUN_LLM_INTEGRATION=1 pytest tests/llm/test_llm_integration.py --html=report.html --self-contained-html
 ```
 
 ## 测试覆盖范围
@@ -118,7 +120,7 @@ pytest tests/llm/test_llm_integration.py --html=report.html --self-contained-htm
 
 ## 跳过测试
 
-如果没有设置 `OPENROUTER_API_KEY` 环境变量，所有测试将自动跳过并显示提示信息。
+默认 full-suite 不会调用真实模型。必须设置 `RUN_LLM_INTEGRATION=1` 才会运行这些测试；如果没有设置 `OPENROUTER_API_KEY` 环境变量，所有测试也会自动跳过并显示提示信息。
 
 ## 故障排查
 
@@ -165,4 +167,3 @@ RateLimitError: Rate limit exceeded
 - [LLM 配置](../../src/llm/config.py)
 - [LLM Schemas](../../src/llm/schemas.py)
 - [LLM 异常](../../src/llm/exceptions.py)
-

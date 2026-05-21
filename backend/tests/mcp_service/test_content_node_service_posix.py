@@ -1,8 +1,8 @@
-"""Tests for MutOps path-based operations used by ContentNode service layer.
+"""Tests for ProductOperationAdapter path-based operations used by ContentNode service layer.
 
 The old ContentNodeService has been removed. Path resolution and tree operations
-are now handled by MutOps (via MutTreeReader). This file tests the public
-_validate_filename utility and MutOps stat/list_dir contract via mock.
+are now handled by ProductOperationAdapter (via VersionTreeReader). This file tests the public
+_validate_filename utility and ProductOperationAdapter stat/list_dir contract via mock.
 """
 
 from src.connectors.filesystem.service import _validate_filename

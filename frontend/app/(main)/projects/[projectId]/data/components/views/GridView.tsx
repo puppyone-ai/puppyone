@@ -342,7 +342,7 @@ export interface GridViewItem {
   type: ContentType;  // type 直接决定渲染方式
   description?: string;
   rowCount?: number;
-  mut_path?: string;
+  version_path?: string;
   sync_url?: string | null;
   thumbnailUrl?: string;
   onClick: (e: React.MouseEvent) => void;
@@ -364,7 +364,7 @@ export interface GridViewProps {
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
-  onMove?: (id: string, name: string, mut_path?: string) => void;
+  onMove?: (id: string, name: string, version_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   loading?: boolean;
@@ -403,7 +403,7 @@ function GridItem({
   onDelete?: (id: string, name: string) => void;
   onDuplicate?: (id: string) => void;
   onRefresh?: (id: string) => void;
-  onMove?: (id: string, name: string, mut_path?: string) => void;
+  onMove?: (id: string, name: string, version_path?: string) => void;
   onMoveNode?: (nodeId: string, targetFolderId: string | null, sourceParentId?: string | null) => Promise<void>;
   onCreateTool?: (id: string, name: string, type: string) => void;
   isHighlighted?: boolean;
@@ -562,7 +562,7 @@ function GridItem({
             onRename={onRename}
             onDelete={onDelete}
             onDuplicate={onDuplicate}
-            onMove={onMove ? (id, name) => onMove(id, name, item.mut_path) : undefined}
+            onMove={onMove ? (id, name) => onMove(id, name, item.version_path) : undefined}
             onRefresh={isSynced ? onRefresh : undefined}
             onCreateTool={onCreateTool}
             syncUrl={item.sync_url}

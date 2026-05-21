@@ -6,14 +6,14 @@ import {
   getVersionHistory,
   rollbackToVersion,
   type FileVersionInfo,
-  type MutCommitChange,
+  type VersionCommitChange,
 } from '@/lib/contentTreeApi';
 import { PageLoading } from '@/components/loading';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
 import { ActionButton } from '@/components/ui/ActionButton';
 
 interface VersionHistoryPanelProps {
-  nodeId: string;  // File path (Mut path)
+  nodeId: string;  // File path in the project tree.
   projectId: string;
   onClose: () => void;
   onRollbackComplete?: () => void;
@@ -81,7 +81,7 @@ function OperatorBadge({ who }: { who: string }) {
   );
 }
 
-function ChangeSummary({ changes }: { changes: MutCommitChange[] }) {
+function ChangeSummary({ changes }: { changes: VersionCommitChange[] }) {
   const summary = useMemo(() => {
     const counts = { added: 0, modified: 0, deleted: 0 };
     for (const c of changes) {
@@ -266,7 +266,7 @@ export function VersionHistoryPanel({
   const handleRollback = useCallback(async (commitId: string) => {
     setIsRollingBack(true);
     try {
-      await rollbackToVersion(nodeId, commitId, projectId);
+      await rollbackToVersion(commitId, projectId);
       setRollbackConfirm(null);
       await refreshHistory();
       onRollbackComplete?.();
@@ -377,9 +377,10 @@ export function VersionHistoryPanel({
               Confirm Rollback
             </h3>
             <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--po-text-muted)', lineHeight: 1.5 }}>
-              This will create a new commit with the content from{' '}
-              <strong title={rollbackConfirm}>{shortCommit(rollbackConfirm)}</strong>.
-              The current head will be preserved in history.
+              Restores the project scope to the state at{' '}
+              <strong title={rollbackConfirm}>{shortCommit(rollbackConfirm)}</strong> by
+              creating a new forward commit. Current head stays in history and can be
+              re-applied later.
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <ActionButton

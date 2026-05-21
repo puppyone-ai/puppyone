@@ -110,7 +110,7 @@ export interface GithubSyncRunResult {
   status: SyncStatus;
   direction: SyncDirection;
   git_sha: string | null;
-  mut_commit_id: string | null;
+  version_commit_id: string | null;
   files_changed: number | null;
   error_message?: string | null;
 }
@@ -122,7 +122,7 @@ export interface GithubSyncLogEntry {
   integration_id: string;
   direction: SyncDirection;
   git_sha: string | null;
-  mut_commit_id: string | null;
+  version_commit_id: string | null;
   status: SyncStatus;
   error_message: string | null;
   files_changed: number | null;

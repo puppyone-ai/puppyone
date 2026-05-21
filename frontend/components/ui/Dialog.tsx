@@ -156,8 +156,15 @@ export function DialogHeader({
         ...style,
       }}
     >
-      <div style={{ display: 'flex', gap: 10, minWidth: 0 }}>
-        {leading && <div style={{ flexShrink: 0, marginTop: 1 }}>{leading}</div>}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: description ? 'flex-start' : 'center',
+          gap: 10,
+          minWidth: 0,
+        }}
+      >
+        {leading && <div style={{ flexShrink: 0, marginTop: description ? 1 : 0 }}>{leading}</div>}
         <div style={{ minWidth: 0 }}>
           <div
             style={{

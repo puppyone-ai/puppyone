@@ -1,6 +1,6 @@
 """Repo identity endpoint — the single "access point" page surface.
 
-Returns the project's mut URL + prompt template + per-scope keys. This is
+Returns the project's Git/CLI access surface + prompt template + per-scope keys. This is
 what the new frontend /access page renders.
 
 Path: /api/v1/projects/{project_id}/access-point
@@ -12,8 +12,8 @@ from fastapi import APIRouter, Depends, Request
 
 from src.common_schemas import ApiResponse
 from src.config import settings
-from src.mut_engine.dependencies import get_mut_ops
-from src.mut_engine.services.ops import MutOps
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.project.dependencies import (
     get_project_service, get_verified_project,
 )
@@ -33,17 +33,20 @@ router = APIRouter(
 
 
 def _build_repo_url(project_id: str, request: Request) -> str:
-    """Compute the project's mut URL.
+    """Compute the project's Git remote URL.
 
-    Prefer settings.PUBLIC_API_URL when set (production); fall back to the
-    request's own host header so dev / staging show the right thing without
-    extra config.
+    V1 post-hash-removal: the project-level Git smart-HTTP surface
+    lives at ``/git/{project_id}.git``; the legacy ``/api/v1/version/{project_id}``
+    endpoint was deleted with the wire protocol. Prefer
+    ``settings.PUBLIC_API_URL`` when set (production); fall back to the
+    request's own host header so dev / staging show the right thing
+    without extra config.
     """
     base = getattr(settings, "PUBLIC_API_URL", None) or ""
     if not base:
         # Best-effort fallback — request.url.scheme/netloc.
         base = f"{request.url.scheme}://{request.url.netloc}"
-    return f"{base.rstrip('/')}/api/v1/mut/{project_id}"
+    return f"{base.rstrip('/')}/git/{project_id}.git"
 
 
 @router.get(
@@ -55,7 +58,7 @@ def get_access_point(
     request: Request,
     project: Project = Depends(get_verified_project),
     scope_service: ScopeService = Depends(get_scope_service),
-    ops: MutOps = Depends(get_mut_ops),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
     scopes = scope_service.list_for_project(str(project.id))
     # Defensive: ensure root exists. Idempotent — just returns existing if so.

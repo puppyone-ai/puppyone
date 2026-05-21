@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { mutate as swrMutate } from 'swr';
-import { mkdir, writeFile, listDir, type NodeInfo, type NodeType } from '@/lib/contentTreeApi';
-import { refreshFolderNodes } from '@/lib/hooks/useData';
+import { mkdir, writeFile, listDir, sortNodes, type NodeInfo, type NodeType } from '@/lib/contentTreeApi';
+import { refreshFolderNodes, refreshProjectHistory } from '@/lib/hooks/useData';
 import type { AccessResource } from '@/contexts/AgentContext';
 import { ensureExpanded } from '../components/explorer';
 
@@ -39,8 +39,9 @@ function buildOptimisticNode(
     size_bytes: 0,
     mime_type: null,
     children_count: type === 'folder' ? 0 : null,
+    integrity_status: 'ok',
     id: path,
-    mut_path: `/${path}`,
+    version_path: `/${path}`,
     parent_id: parentPath || null,
     project_id: projectId,
     is_synced: false,
@@ -79,7 +80,7 @@ function optimisticInsert(
       // Idempotency guard: don't double-insert if a previous click for the
       // same name is still in flight (rare but possible on rapid double-click).
       if (existing.some((n) => n.path === node.path)) return existing;
-      return [...existing, node];
+      return sortNodes([...existing, node]);
     },
     { revalidate: false },
   );
@@ -121,6 +122,18 @@ interface UseDataCreateFlowOptions {
   navigateTo: (nextPath: string[], typeHint?: string) => void;
   openSyncCreatePanel: (targetScopePath?: string | null) => void;
   openSyncSetting: (provider: string, target?: AccessResource) => void;
+  openFileImportDialogForTarget?: (target: { path: string | null; name: string }) => void;
+  showToast?: (
+    message: string,
+    type?: 'success' | 'error' | 'loading',
+    durationMs?: number | null,
+  ) => void;
+}
+
+function folderDisplayName(path: string | null): string {
+  if (!path) return 'Root';
+  const parts = path.split('/').filter(Boolean);
+  return parts.at(-1) ?? 'Root';
 }
 
 function getCreateMenuOpenId(
@@ -138,6 +151,8 @@ export function useDataCreateFlow({
   navigateTo,
   openSyncCreatePanel,
   openSyncSetting,
+  openFileImportDialogForTarget,
+  showToast,
 }: UseDataCreateFlowOptions) {
   const [createTableOpen, setCreateTableOpen] = useState(false);
   const [defaultStartOption, setDefaultStartOption] = useState<'documents' | 'url'>('documents');
@@ -327,6 +342,7 @@ export function useDataCreateFlow({
 
       try {
         const fullPath = parentPath ? `${parentPath}/${name}` : name;
+        showToast?.(`Creating "${name}"...`, 'loading', null);
 
         if (nodeType === 'json') {
           await writeFile(projectId, fullPath, null, 'json');
@@ -337,6 +353,7 @@ export function useDataCreateFlow({
         }
 
         await refreshFolderNodes(projectId, parentPath);
+        void refreshProjectHistory(projectId);
         const resourceNodeType: 'folder' | 'json' | 'file' =
           nodeType === 'markdown' ? 'file' : nodeType;
 
@@ -347,12 +364,14 @@ export function useDataCreateFlow({
           readonly: true,
         });
         openSyncCreatePanel();
+        showToast?.(`Created "${name}"`);
       } catch {
+        showToast?.(`Failed to create "${name}"`, 'error');
         openSyncSetting(saasProvider);
         openSyncCreatePanel();
       }
     },
-    [currentFolderId, openSyncCreatePanel, openSyncSetting, projectId],
+    [currentFolderId, openSyncCreatePanel, openSyncSetting, projectId, showToast],
   );
 
   // Provider-pick handler that branches on which menu launched it:
@@ -403,7 +422,7 @@ export function useDataCreateFlow({
     // (basename + extension) — without the extension, an existing
     // `Untitled Note.md` would never be detected against the bare
     // baseName `Untitled Note`, so every click would re-write the
-    // same path with empty content and mut would correctly recognise
+    // same path with empty content and the version engine would correctly recognise
     // it as a no-op (same blob hash → same scope hash → no commit
     // delta). That looks identical to a broken save: the file
     // already exists on the server but nothing visible has changed,
@@ -468,11 +487,15 @@ export function useDataCreateFlow({
         highlightCreatedNode(folderPath);
 
         try {
+          showToast?.(`Creating "${folderName}"...`, 'loading', null);
           await mkdir(projectId, folderPath);
           await refreshFolderNodes(projectId, parentPath);
+          void refreshProjectHistory(projectId);
+          showToast?.(`Created "${folderName}"`);
         } catch (err) {
           console.error('Failed to create folder:', err);
           await refreshFolderNodes(projectId, parentPath);
+          showToast?.(`Failed to create "${folderName}"`, 'error');
         }
       },
       onCreateBlankJson: async () => {
@@ -498,12 +521,16 @@ export function useDataCreateFlow({
         highlightCreatedNode(filePath);
 
         try {
+          showToast?.(`Creating "${fileName}"...`, 'loading', null);
           await writeFile(projectId, filePath, {}, 'json');
           navigateTo(filePath.split('/').filter(Boolean), 'json');
           await refreshFolderNodes(projectId, parentPath);
+          void refreshProjectHistory(projectId);
+          showToast?.(`Created "${fileName}"`);
         } catch (err) {
           console.error('Failed to create JSON:', err);
           await refreshFolderNodes(projectId, parentPath);
+          showToast?.(`Failed to create "${fileName}"`, 'error');
         }
       },
       onCreateBlankMarkdown: async () => {
@@ -529,15 +556,27 @@ export function useDataCreateFlow({
         highlightCreatedNode(filePath);
 
         try {
+          showToast?.(`Creating "${fileName}"...`, 'loading', null);
           await writeFile(projectId, filePath, '', 'markdown');
           navigateTo(filePath.split('/').filter(Boolean), 'markdown');
           await refreshFolderNodes(projectId, parentPath);
+          void refreshProjectHistory(projectId);
+          showToast?.(`Created "${fileName}"`);
         } catch (err) {
           console.error('Failed to create markdown:', err);
           await refreshFolderNodes(projectId, parentPath);
+          showToast?.(`Failed to create "${fileName}"`, 'error');
         }
       },
       onImportFromFiles: () => {
+        const targetFolderPath = getTargetFolderPath();
+        if (openFileImportDialogForTarget) {
+          openFileImportDialogForTarget({
+            path: targetFolderPath ?? null,
+            name: folderDisplayName(targetFolderPath ?? null),
+          });
+          return;
+        }
         setDefaultStartOption('documents');
         setCreateTableOpen(true);
       },
@@ -598,7 +637,9 @@ export function useDataCreateFlow({
     navigateTo,
     openSyncCreatePanel,
     openSyncSetting,
+    openFileImportDialogForTarget,
     projectId,
+    showToast,
   ]);
 
   const closeCreateTable = useCallback(() => {

@@ -49,7 +49,7 @@ class ETLTask(BaseModel):
     created_by: str | None = Field(None, description="User ID who created the task (audit field)")
     project_id: str = Field(..., description="Project ID (UUID)")
     path: str | None = Field(
-        None, description="Associated MUT path"
+        None, description="Associated version path"
     )
     type: str = Field(
         default="file_ocr",
@@ -66,7 +66,7 @@ class ETLTask(BaseModel):
     message: str | None = Field(None, description="Status message")
     error: str | None = Field(None, description="Error message if failed")
     result_path: str | None = Field(
-        None, description="Result MUT path"
+        None, description="Result version path"
     )
     result: ETLTaskResult | None = Field(
         None, description="Task result if completed"

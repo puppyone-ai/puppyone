@@ -3,7 +3,7 @@
 Responsibilities the repository deliberately does NOT have:
   - access_key minting (canonical format: cli_<urlsafe-32>)
   - root-scope protection (is_root rows are not user-deletable)
-  - path canonicalization (mirror mut_scope_state.scope_path rules)
+  - path canonicalization (mirror the version scope-state rules)
   - duplicate-scope rejection
   - bound-connector check on delete
   - auto-suggest from existing folder tree
@@ -25,7 +25,7 @@ from src.utils.logger import log_info, log_warning
 # ──────────────────────────────────────────────────────────────────────────
 
 def _canonicalize_path(p: str) -> str:
-    """Mirror canonical form used by mut_scope_state.scope_path and the
+    """Mirror canonical form used by version scope state and the
     repo_scopes_path_canonical CHECK constraint:
       - empty string '' for root
       - no leading or trailing /
@@ -44,8 +44,7 @@ def _canonicalize_path(p: str) -> str:
 
 
 def _mint_access_key() -> str:
-    """Same shape as the legacy access_points.access_key for filesystem rows
-    so old `mut connect` clients keep parsing the URL the same way."""
+    """Mint a scope access key."""
     return f"cli_{secrets.token_urlsafe(32)}"
 
 
@@ -71,7 +70,7 @@ class ScopeService:
     def resolve_for_request(
         self, project_id: str, *, scope_id: Optional[str], request_path: Optional[str],
     ) -> Optional[RepoScope]:
-        """Used by mut_engine auth: resolve the scope a request operates on.
+        """Used by version_engine auth: resolve the scope a request operates on.
 
         Priority:
           1. Explicit scope_id query param.

@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
  *      "I edited this paragraph" intent).
  *   2. Diffs lost meaning (commit N → N+1 was always "added one
  *      character").
- *   3. Backend cost amplified (each commit triggers MUT engine
+ *   3. Backend cost amplified (each commit triggers version engine
  *      hashing, S3 dedup, audit log, search-index refresh).
  *
  * Switching to manual save (Cmd+S = one commit) collapses each

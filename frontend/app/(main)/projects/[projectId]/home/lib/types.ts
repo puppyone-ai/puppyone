@@ -18,8 +18,8 @@ export interface DashboardNodeCounts {
 /** Backend `connections.direction` (chk_syncs_direction CHECK constraint).
  *  - `inbound`       — data flows from external source INTO ContextBase
  *  - `outbound`      — data flows from ContextBase OUT to consumer (agent / mcp / sandbox)
- *  - `bidirectional` — both ways (filesystem MUT: local repo is source AND mirror)
- *  Kept loose as `string | null` on the wire because legacy rows may omit it;
+ *  - `bidirectional` — both ways (Git Remote: local repo is source AND mirror)
+ *  Kept loose as `string | null` on the wire because incomplete rows may omit it;
  *  use `getApDirection()` from `./constants` to normalize before consuming. */
 export type ApDirection = 'inbound' | 'outbound' | 'bidirectional';
 
@@ -50,7 +50,7 @@ export interface DashboardTool {
 export interface ProjectDashboard {
   project: DashboardProject;
   nodes: DashboardNodeCounts;
-  access_points: DashboardConnection[];
+  connections: DashboardConnection[];
   tools: DashboardTool[];
   uploads: { id: string; status: string }[];
 }

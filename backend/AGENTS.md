@@ -31,15 +31,18 @@ ContextBase 后端是一个基于 **FastAPI** 的 Python 服务，为 LLM Agent 
 - **向量搜索**: Turbopuffer
 - **LLM 网关**: LiteLLM
 
-## 架构（Mut-Native）
+## 架构（Git-Native Version Engine）
 
-**Mut tree (S3) 是唯一的内容 SOT。PG 是控制平面，不持有内容节点。**
+**Git objects/trees/commits are the version facts. Supabase is the control
+plane for project refs, scope refs, transactions, audit, conflicts, and outbox
+repair.**
 
-- 没有 `content_nodes` 表
-- 没有独立的权限绑定表（scope 存储在 `access_points.config.scope`）
-- 文件操作全部通过 MutWriteService / MutTreeReader
-- 权限通过 Mut scope (access_points.config.scope) 管理
-- 前端使用 path-based 路由和 Tree API
+- 没有 `content_nodes` 表；内容由 Version Engine Git tree/object storage 提供
+- Web/API/`puppyone fs` 写入全部通过 `ProductOperationAdapter`
+- Stock Git 客户端通过 `/git/...` smart-HTTP 进入 Git transport adapter
+- 所有写入最终收敛到 `GitNativeTransactionEngine`
+- Scope、权限、excludes、pause、冲突策略和 audit 都在 server 端执行
+- 旧线协议和外部版本包不再是运行时依赖
 
 ## 项目结构
 
@@ -49,28 +52,15 @@ backend/
 │   ├── main.py                # 应用入口 & 生命周期
 │   ├── config.py              # 全局配置 (Pydantic Settings)
 │   │
-│   ├── mut_engine/            # MUT 版本引擎 (核心读写通道)
-│   │   ├── routers/           # HTTP 路由层
-│   │   │   ├── content_router.py  # Content API (/api/v1/content/*)
-│   │   │   ├── protocol_router.py # MUT 线协议 (/api/v1/mut/*)
-│   │   │   ├── access_point.py    # Access Point (/api/v1/mut/ap/*)
-│   │   │   └── audit_router.py    # 审计日志
-│   │   ├── services/          # 业务服务层
-│   │   │   ├── ops.py         # MutOps — 统一操作入口
-│   │   │   ├── ephemeral_client.py # 进程内 clone→push
-│   │   │   ├── tree_reader.py # MutTreeReader — 轻量读取
-│   │   │   └── hooks.py       # Post-commit hooks
-│   │   ├── server/            # 服务端基础设施层
-│   │   │   ├── server_repo.py # PuppyOneServerRepo (S3/PG 适配)
-│   │   │   ├── repo_manager.py# per-project Mut 仓库管理
-│   │   │   ├── admin.py       # MutAdminService (init/历史/diff)
-│   │   │   ├── auth.py        # 认证适配器
-│   │   │   └── backends/      # 存储后端 (S3/Supabase)
-│   │   ├── schemas.py         # 所有数据模型
-│   │   ├── dependencies.py    # FastAPI DI 工厂
-│   │   ├── audit_router.py    # 审计日志 API
-│   │   ├── protocol_router.py # MUT 线路协议 (clone/push/pull/negotiate)
-│   │   └── backends/          # S3 + Supabase 后端适配
+│   ├── version_engine/        # Git-native 版本引擎 (核心读写通道)
+│   │   ├── adapters/
+│   │   │   ├── git/           # Git smart-HTTP clone/fetch/push
+│   │   │   └── operations/    # ProductOperationAdapter
+│   │   ├── application/       # 事务引擎、merge/conflict、Git object/tree/commit
+│   │   ├── domain/            # write/conflict intents
+│   │   ├── routers/           # content/history/conflict/AP-FS/WebSocket
+│   │   ├── server/            # repo manager, auth, Supabase/S3 backends
+│   │   └── services/          # tree reader/splice, hooks, outbox, GC, trace
 │   │
 │   ├── content/
 │   │   └── table/             # 结构化数据表 (JSON Pointer)
@@ -108,60 +98,57 @@ backend/
 
 ## 核心模块
 
-### MutWriteService（唯一写入入口）
+### ProductOperationAdapter（产品写入入口）
 
 ```python
-class MutWriteService:
-    def __init__(self, repo_manager: MutRepoManager): ...
+class ProductOperationAdapter:
+    def __init__(self, repo_manager: VersionRepoManager): ...
 
-    async def write_file(project_id, path, content, operator, message, base_commit_id) -> WriteResult
-    async def delete_file(project_id, path, operator, message) -> DeleteResult
-    async def move_file(project_id, old_path, new_path, operator, message) -> MoveResult
-    async def move_folder(project_id, old_path, new_path, operator, message) -> MoveResult
-    async def mkdir(project_id, path, operator) -> WriteResult
-    async def delete_folder(project_id, path, operator, message) -> DeleteResult
-    async def read_file(project_id, path) -> bytes
-    async def get_commit_history(project_id, path, limit, since_commit_id) -> list[dict]
-    async def get_commit_content(project_id, path, commit_id) -> bytes
-    async def compute_diff(project_id, from_commit_id, to_commit_id) -> list[dict]
-    async def rollback(project_id, target_commit_id, operator) -> str  # new commit_id
+    async def write_file(project_id, path, content, who, *, scope="", message="", ...) -> WriteResult
+    async def delete(project_id, paths, who, *, scope="", message="", ...) -> WriteResult
+    async def mkdir(project_id, path, who, *, scope="", message="", ...) -> WriteResult
+    async def move(project_id, source, destination, who, *, scope="", message="", ...) -> WriteResult
+    async def bulk_write(project_id, files, who, *, scope="", message="", ...) -> WriteResult
+    def read_file(project_id, path, *, scope="") -> bytes
 ```
 
-### MutTreeReader（唯一读取入口）
+### VersionTreeReader（读取入口）
 
 ```python
-class MutTreeReader:
-    def __init__(self, repo_manager: MutRepoManager): ...
+class VersionTreeReader:
+    def __init__(self, repo_manager: VersionRepoManager): ...
 
-    def list_dir(project_id, path) -> list[MutEntry]
+    def list_dir(project_id, path, scope="") -> list[VersionEntry]
     def read_file(project_id, path) -> bytes
-    def stat(project_id, path) -> MutEntry | None
-    def list_tree(project_id, path, max_depth) -> list[MutEntry]
+    def stat(project_id, path) -> VersionEntry | None
+    def list_tree(project_id, path, max_depth) -> list[VersionEntry]
     def exists(project_id, path) -> bool
     def get_root_hash(project_id) -> str
-    def get_version(project_id) -> int
 ```
 
-### DI 注入
+### 事务入口
 
 ```python
-from src.mut_engine.dependencies import (
-    get_mut_write_service,    # FastAPI DI
-    get_tree_reader,          # FastAPI DI
-    get_repo_manager,         # FastAPI DI
-    create_mut_write_service, # Standalone (scheduler/ARQ)
-    create_tree_reader,       # Standalone
-    get_repo_manager_standalone,
-    read_blob_content,        # 通过 content_hash 读取
+from src.version_engine.dependencies import (
+    get_product_operation_adapter,
+    get_tree_reader,
+    get_repo_manager,
+    create_product_operation_adapter,
+    create_tree_reader,
 )
 ```
+
+`GitNativeTransactionEngine` 是唯一发布边界：验证 scope/auth/excludes/base
+state，执行 merge/conflict policy，并在一个 SQL 事务内发布 ref/history/
+audit/transaction/outbox。
 
 ## API 路由
 
 | 路由前缀 | 模块 | 说明 |
 |----------|------|------|
-| `/api/v1/content/{project_id}` | mut_engine/routers/content_router | Content API (ls/cat/stat/tree/write/mkdir/mv/rm) |
-| `/api/v1/mut/{project_id}` | mut_engine/protocol_router | MUT 线路协议 |
+| `/api/v1/content/{project_id}` | version_engine/routers/content_router | Content API (ls/cat/stat/tree/write/mkdir/mv/rm/history/diff) |
+| `/api/v1/ap-fs` | version_engine/routers/access_point_fs | Puppyone CLI scoped filesystem API |
+| `/git/{project_id}.git`, `/git/ap/{access_key}.git` | version_engine/adapters/git/router | Git smart-HTTP clone/fetch/push |
 | `/api/v1/tables` | content/table | 数据表 JSON Pointer 操作 |
 | `/api/v1/projects` | platform/project | 项目管理 |
 | `/api/v1/organizations` | platform/organization | 组织管理 |
@@ -263,7 +250,7 @@ Nixpacks 也会触发 Python 检测并尝试默认安装流程，把上面的 bu
 
 ## 开发约定
 
-- **分层架构**: Router → Service → MutWriteService/MutTreeReader
+- **分层架构**: Router → Service → ProductOperationAdapter/VersionTreeReader
 - **依赖注入**: FastAPI Depends
 - **全异步**: 所有 I/O 使用 async/await
 - **路径标识**: 文件以 path（如 "docs/readme.md"）标识，不使用 UUID

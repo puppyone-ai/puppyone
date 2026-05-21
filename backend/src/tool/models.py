@@ -15,7 +15,7 @@ class Tool(BaseModel):
     created_by: str | None = None
     org_id: str
     project_id: str | None = None  # Associated project ID (for filtering by project)
-    path: str | None = None  # MUT path
+    path: str | None = None  # version path
     json_path: str = ""  # JSON internal path (e.g. /users/0)
 
     type: str  # Tool type: search, query_data, create, update, delete, custom_script, etc. (note: shell_access moved to agent_bash)

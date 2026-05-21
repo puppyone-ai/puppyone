@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import type { ProjectInfo } from '../lib/projectsApi';
 import { updateTable } from '../lib/projectsApi';
 import { refreshProjects } from '../lib/hooks/useData';
@@ -24,17 +24,16 @@ export function TableRenameDialog({
   onClose,
 }: TableRenameDialogProps) {
   const { currentOrg } = useOrganization();
-  const table = useMemo(() => {
-    const project = projects.find(p => String(p.id) === String(projectId));
-    return project?.nodes?.find(t => String(t.id) === String(tableId)) ?? null;
-  }, [projects, projectId, tableId]);
+  void projects;
+  void projectId;
+  const tableName = tableId.split('/').filter(Boolean).pop() || tableId;
 
-  const [name, setName] = useState(table?.name || '');
+  const [name, setName] = useState(tableName);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (table) setName(table.name);
-  }, [table]);
+    if (tableName) setName(tableName);
+  }, [tableName]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -67,7 +66,7 @@ export function TableRenameDialog({
                 type='text'
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder={table?.name || 'Enter context name'}
+                placeholder={tableName || 'Enter context name'}
                 autoFocus
               />
             </Field>
