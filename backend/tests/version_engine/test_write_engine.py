@@ -18,6 +18,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -25,8 +26,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from src.config import settings
 from src.version_engine.write_engine import tree as tree_mod
-from src.version_engine.write_engine.git_object_format import encode_commit
+from src.version_engine.write_engine.git_object_format import decode_commit, encode_commit
 from src.version_engine.write_engine.object_store import ObjectStore
 
 # Sentinel preserved so older tests that send a request body keep working;
@@ -43,6 +45,7 @@ from src.version_engine.infrastructure.supabase.db_names import (
 from src.version_engine.adapters.git.submission import submit_git_tree
 from src.version_engine.adapters.git.object_quarantine import (
     copy_reachable_objects_to_bare,
+    quarantine_bare_repo,
     receive_pack_advertisement_bare_repo,
     transport_bare_repo,
 )
@@ -1266,6 +1269,52 @@ class TestGitNativeHardeningContracts:
         assert (bare_dir / "objects" / head_commit[:2] / head_commit[2:]).exists()
         assert not (bare_dir / "objects" / base_commit[:2] / base_commit[2:]).exists()
 
+    def test_git_view_cache_uses_configured_durable_root_and_metadata(
+        self, tmp_path, server_repo, monkeypatch,
+    ):
+        cache_root = tmp_path / "git-view-cache"
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_DIR", cache_root, raising=False)
+        server_repo.add_scope("docs-scope", "/docs/")
+        tree_id = build_tree_from_files(server_repo.store, {"README.md": b"cached\n"})
+        head_commit = _make_client_commit(server_repo, tree_id, message="head")
+        server_repo.set_scope_head_commit_id("docs", head_commit)
+
+        with transport_bare_repo(server_repo, "docs") as bare_dir:
+            cache_dir = bare_dir.parent
+            metadata = json.loads((cache_dir / "view.json").read_text(encoding="utf-8"))
+
+        assert cache_root.resolve() in cache_dir.resolve().parents
+        assert metadata["project_id"] == "test-proj"
+        assert metadata["scope_path"] == "docs"
+        assert metadata["scope_excludes"] == []
+        assert metadata["history_mode"] == "full"
+        assert metadata["blob_mode"] == "included"
+        assert metadata["cache_head"] == head_commit
+
+    def test_receive_quarantine_uses_blob_included_boundary_cache_by_default(
+        self, tmp_path, server_repo, monkeypatch,
+    ):
+        cache_root = tmp_path / "git-view-cache"
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_DIR", cache_root, raising=False)
+        server_repo.add_scope("docs-scope", "/docs/")
+        tree_id = build_tree_from_files(server_repo.store, {"notes.md": b"base blob\n"})
+        blob_id = tree_mod.read_tree(server_repo.store, tree_id)["notes.md"][1]
+        head_commit = _make_client_commit(server_repo, tree_id, message="head")
+        server_repo.set_scope_head_commit_id("docs", head_commit)
+
+        with quarantine_bare_repo(server_repo, "docs") as bare_dir:
+            alternate_objects = Path(
+                (bare_dir / "objects" / "info" / "alternates")
+                .read_text(encoding="utf-8")
+                .strip()
+            )
+            cache_dir = alternate_objects.parent.parent
+            metadata = json.loads((cache_dir / "view.json").read_text(encoding="utf-8"))
+
+        assert metadata["history_mode"] == "receive-boundary"
+        assert metadata["blob_mode"] == "included"
+        assert (alternate_objects / blob_id[:2] / blob_id[2:]).exists()
+
     def test_receive_pack_advertisement_is_refs_only(
         self, server_repo, monkeypatch,
     ):
@@ -1276,9 +1325,14 @@ class TestGitNativeHardeningContracts:
         )
         head_commit = _make_client_commit(server_repo, head_tree, message="head")
         server_repo.set_scope_head_commit_id("docs", head_commit)
+        blob_id = tree_mod.read_tree(server_repo.store, head_tree)["large.bin"][1]
+
+        original_get_object = server_repo.store.get_object
 
         def fail_get_object(object_id):
-            raise AssertionError(f"receive advertisement hydrated {object_id}")
+            if object_id == blob_id:
+                raise AssertionError(f"receive advertisement hydrated blob {object_id}")
+            return original_get_object(object_id)
 
         monkeypatch.setattr(server_repo.store, "get_object", fail_get_object)
 
@@ -1292,6 +1346,49 @@ class TestGitNativeHardeningContracts:
 
         assert head_commit.encode("ascii") in advertised
         assert b"refs/heads/main" in advertised
+
+    def test_receive_pack_advertisement_and_quarantine_use_projected_head(
+        self, tmp_path, server_repo, monkeypatch,
+    ):
+        cache_root = tmp_path / "git-view-cache"
+        monkeypatch.setattr(settings, "GIT_VIEW_CACHE_DIR", cache_root, raising=False)
+        server_repo.add_scope("docs-scope", "/docs/")
+        malformed_tree = server_repo.store.put_tree(
+            b"40000 broken\x00" + bytes.fromhex("28a44dbeee08f49e"),
+        )
+        bad_commit = _make_client_commit(
+            server_repo,
+            malformed_tree,
+            message="legacy malformed tree",
+        )
+        current_tree = build_tree_from_files(server_repo.store, {"README.md": b"current\n"})
+        current_commit = _make_client_commit(
+            server_repo,
+            current_tree,
+            parent_id=bad_commit,
+            message="current after legacy damage",
+        )
+        server_repo.history.set_scope_hash("docs", current_tree)
+        server_repo.set_scope_head_commit_id("docs", current_commit)
+        projected = git_view_head_commit(server_repo, "docs")
+
+        assert projected != current_commit
+        with receive_pack_advertisement_bare_repo(server_repo, "docs") as bare_dir:
+            advertised = run_git([
+                "receive-pack",
+                "--stateless-rpc",
+                "--advertise-refs",
+                str(bare_dir),
+            ])
+
+        assert projected.encode("ascii") in advertised
+        assert current_commit.encode("ascii") not in advertised
+        with quarantine_bare_repo(server_repo, "docs") as bare_dir:
+            advertised_ref = (
+                bare_dir / "refs" / "heads" / "main"
+            ).read_text(encoding="ascii").strip()
+
+        assert advertised_ref == projected
 
     def test_git_view_normalizes_invalid_parent_before_upload_pack(
         self, server_repo,
@@ -1318,6 +1415,44 @@ class TestGitNativeHardeningContracts:
 
         assert projected != head_commit
         assert commit_tree_id(server_repo, projected) == head_tree
+        with transport_bare_repo(server_repo, "docs") as bare_dir:
+            run_git(["--git-dir", str(bare_dir), "fsck", "--full", "--strict"])
+
+    def test_git_view_cuts_history_before_malformed_tree(
+        self, tmp_path, server_repo, monkeypatch,
+    ):
+        monkeypatch.setattr(
+            settings,
+            "GIT_VIEW_CACHE_DIR",
+            tmp_path / "git-view-cache",
+            raising=False,
+        )
+        server_repo.add_scope("docs-scope", "/docs/")
+        malformed_tree = server_repo.store.put_tree(
+            b"40000 broken\x00" + bytes.fromhex("28a44dbeee08f49e"),
+        )
+        bad_commit = _make_client_commit(
+            server_repo,
+            malformed_tree,
+            message="legacy malformed tree",
+        )
+        current_tree = build_tree_from_files(server_repo.store, {"README.md": b"current\n"})
+        current_commit = _make_client_commit(
+            server_repo,
+            current_tree,
+            parent_id=bad_commit,
+            message="current after legacy damage",
+        )
+        server_repo.history.set_scope_hash("docs", current_tree)
+        server_repo.set_scope_head_commit_id("docs", current_commit)
+
+        projected = git_view_head_commit(server_repo, "docs")
+
+        assert projected != current_commit
+        assert commit_tree_id(server_repo, projected) == current_tree
+        _obj_type, projected_body = server_repo.store.get_object(projected)
+        projected_commit = decode_commit(projected_body)
+        assert projected_commit["parents"] == []
         with transport_bare_repo(server_repo, "docs") as bare_dir:
             run_git(["--git-dir", str(bare_dir), "fsck", "--full", "--strict"])
 
@@ -1607,6 +1742,102 @@ def test_git_ap_info_refs_advertises_receive_pack(monkeypatch, repo_manager, ser
     assert b"# service=git-receive-pack" in response.content
 
 
+def test_git_ap_health_reports_degraded_history(monkeypatch, repo_manager, server_repo):
+    server_repo.add_scope("docs-scope", "/docs/")
+    malformed_tree = server_repo.store.put_tree(
+        b"40000 broken\x00" + bytes.fromhex("28a44dbeee08f49e"),
+    )
+    bad_commit = _make_client_commit(
+        server_repo,
+        malformed_tree,
+        message="legacy malformed tree",
+    )
+    current_tree = build_tree_from_files(server_repo.store, {"README.md": b"current\n"})
+    current_commit = _make_client_commit(
+        server_repo,
+        current_tree,
+        parent_id=bad_commit,
+        message="current after legacy damage",
+    )
+    server_repo.history.set_scope_hash("docs", current_tree)
+    server_repo.set_scope_head_commit_id("docs", current_commit)
+    projected = git_view_head_commit(server_repo, "docs")
+    monkeypatch.setattr(
+        "src.version_engine.entrypoints.git.router.resolve_access_point",
+        lambda access_key: _git_access_auth(),
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with TestClient(app) as client:
+        response = client.get("/git/ap/test-key.git/health")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["health"] == "history_degraded"
+    assert data["git_usable"] is True
+    assert data["clone_usable"] is True
+    assert data["fetch_usable"] is True
+    assert data["push_usable"] is True
+    assert data["git_head"] == projected
+    assert data["canonical_head"] == current_commit
+    assert data["history_cut"] is True
+    assert [item["type"] for item in data["recommended_actions"]] == [
+        "continue",
+        "repair_history",
+    ]
+
+
+def test_git_ap_health_reports_current_corrupt_and_info_refs_returns_409(
+    monkeypatch,
+    repo_manager,
+    server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    malformed_tree = server_repo.store.put_tree(
+        b"40000 broken\x00" + bytes.fromhex("28a44dbeee08f49e"),
+    )
+    current_commit = _make_client_commit(
+        server_repo,
+        malformed_tree,
+        message="current damaged tree",
+    )
+    server_repo.history.set_scope_hash("docs", malformed_tree)
+    server_repo.set_scope_head_commit_id("docs", current_commit)
+    monkeypatch.setattr(
+        "src.version_engine.entrypoints.git.router.resolve_access_point",
+        lambda access_key: _git_access_auth(),
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with TestClient(app) as client:
+        health_response = client.get("/git/ap/test-key.git/health")
+        refs_response = client.get(
+            "/git/ap/test-key.git/info/refs",
+            params={"service": "git-upload-pack"},
+        )
+
+    assert health_response.status_code == 200
+    data = health_response.json()["data"]
+    assert data["health"] == "current_corrupt"
+    assert data["git_usable"] is False
+    assert data["clone_usable"] is False
+    assert data["fetch_usable"] is False
+    assert data["push_usable"] is False
+    assert data["git_head"] == ""
+    assert data["canonical_head"] == current_commit
+    assert [item["type"] for item in data["recommended_actions"]] == [
+        "restore_version",
+        "repair_storage",
+    ]
+
+    assert refs_response.status_code == 409
+    assert refs_response.json()["detail"]["error_code"] == "GIT_VIEW_CURRENT_CORRUPT"
+
+
 def test_git_access_point_receive_pack_uses_bound_scope_and_identity(
     monkeypatch, tmp_path, repo_manager, server_repo,
 ):
@@ -1793,6 +2024,62 @@ def test_real_git_cli_can_clone_commit_push_and_clone_again(
     }
     assert (second / "README.md").read_text(encoding="utf-8") == "hello through real git\n"
     assert _last_audit_event(server_repo, "git_push")["type"] == "git_push"
+
+
+def test_real_git_cli_degraded_history_clones_and_pushes_from_projected_head(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    malformed_tree = server_repo.store.put_tree(
+        b"40000 broken\x00" + bytes.fromhex("28a44dbeee08f49e"),
+    )
+    bad_commit = _make_client_commit(
+        server_repo,
+        malformed_tree,
+        message="legacy malformed tree",
+    )
+    current_tree = build_tree_from_files(server_repo.store, {"README.md": b"current\n"})
+    current_commit = _make_client_commit(
+        server_repo,
+        current_tree,
+        parent_id=bad_commit,
+        message="current after legacy damage",
+    )
+    server_repo.history.set_scope_hash("docs", current_tree)
+    server_repo.set_scope_head_commit_id("docs", current_commit)
+    projected = git_view_head_commit(server_repo, "docs")
+    monkeypatch.setattr(
+        "src.version_engine.entrypoints.git.router.resolve_access_point",
+        lambda access_key: _git_access_auth(),
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/test-key.git"
+        work = tmp_path / "work"
+
+        _run_git(["clone", remote, str(work)], tmp_path)
+        assert _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip() == projected
+        _configure_git_identity(work)
+        (work / "README.md").write_text("current plus push\n", encoding="utf-8")
+        _run_git(["add", "README.md"], work)
+        _run_git(["commit", "-m", "push after degraded history"], work)
+        pushed_head = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        _run_git(["push", "origin", "main"], work)
+
+    assert server_repo.get_scope_head_commit_id("docs") == pushed_head
+    assert _files_for_scope(server_repo, "docs") == {
+        "README.md": b"current plus push\n",
+    }
+    assert _last_audit_event(server_repo, "git_push")["detail"][
+        "git_visible_old_commit_id"
+    ] == projected
+    assert _last_audit_event(server_repo, "git_push")["detail"][
+        "canonical_base_commit_id"
+    ] == current_commit
+    assert _last_audit_event(server_repo, "git_push")["detail"]["git_view_history_cut"] is True
 
 
 def test_real_git_cli_first_push_to_empty_project_shell(
@@ -2558,6 +2845,49 @@ def test_real_git_cli_rapid_sequential_pushes_keep_log_chain(
     for index, commit_id in enumerate(expected):
         assert f"{commit_id}:rapid {index}" in log
         assert (verify / f"r{index}.txt").read_text(encoding="utf-8") == f"value {index}\n"
+
+
+def test_real_git_cli_repeated_same_file_push_handles_thin_delta_base(
+    monkeypatch, tmp_path, repo_manager, server_repo,
+):
+    server_repo.add_scope("docs-scope", "/docs/")
+    _patch_git_scope_auth(
+        monkeypatch,
+        {"docs-key": ("docs-scope", "/docs/", "rw")},
+    )
+    app = FastAPI()
+    app.include_router(git_router)
+    app.dependency_overrides[get_repo_manager] = lambda: repo_manager
+
+    with _serve_git_app(app) as base_url:
+        remote = f"{base_url}/git/ap/docs-key.git"
+        work = tmp_path / "work"
+        verify = tmp_path / "verify"
+
+        _run_git(["clone", remote, str(work)], tmp_path)
+        _configure_git_identity(work)
+
+        original = "".join(f"line {index:04d}: stable content\n" for index in range(2000))
+        (work / "notes.md").write_text(original, encoding="utf-8")
+        _run_git(["add", "notes.md"], work)
+        _run_git(["commit", "-m", "add notes"], work)
+        _run_git(["push", "origin", "main"], work)
+
+        updated = original.replace(
+            "line 0100: stable content\n",
+            "line 0100: updated through thin delta\n",
+        )
+        (work / "notes.md").write_text(updated, encoding="utf-8")
+        _run_git(["add", "notes.md"], work)
+        _run_git(["commit", "-m", "update notes"], work)
+        second_head = _run_git(["rev-parse", "HEAD"], work).decode("ascii").strip()
+        _run_git(["push", "origin", "main"], work)
+
+        _run_git(["clone", remote, str(verify)], tmp_path)
+        _run_git(["fsck", "--full", "--strict"], verify)
+
+    assert server_repo.get_scope_head_commit_id("docs") == second_head
+    assert (verify / "notes.md").read_text(encoding="utf-8") == updated
 
 
 def test_git_receive_pack_rejects_non_main_delete_multiple_and_malformed_requests(

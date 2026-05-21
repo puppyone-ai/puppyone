@@ -10,8 +10,6 @@ and DB CAS only.
 from __future__ import annotations
 
 import fcntl
-import hashlib
-import json
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -23,7 +21,15 @@ from src.version_engine.adapters.git.protocol import (
     is_object_id,
     run_git,
 )
-from src.version_engine.adapters.git.view_projection import git_view_head_commit
+from src.version_engine.adapters.git.view_cache import (
+    GitViewCacheKey,
+    invalidate_git_view_cache,
+    write_git_view_cache_metadata,
+)
+from src.version_engine.adapters.git.view_projection import (
+    GitViewHead,
+    resolve_git_view_head,
+)
 from src.version_engine.write_engine.git_object_format import (
     MODE_DIR,
     decode_commit,
@@ -31,10 +37,11 @@ from src.version_engine.write_engine.git_object_format import (
     encode_object,
 )
 from src.version_engine.write_engine.object_store import stage_object_writes
-from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.write_engine.trace import trace_mark, trace_phase
 
-_TRANSPORT_CACHE_ROOT = Path(tempfile.gettempdir()) / "puppyone-git-transport-cache-v1"
+
+class GitViewCurrentCorruptError(RuntimeError):
+    """Raised when the current view cannot be represented as native Git."""
 
 
 @contextmanager
@@ -58,12 +65,20 @@ def transport_bare_repo(
     scope graph.
     """
 
-    cache_dir = _transport_cache_dir(
+    view_head = _transport_cache_head(
+        repo,
+        scope_path,
+        scope_excludes,
+    )
+    _raise_if_current_corrupt(view_head)
+    cache_key = GitViewCacheKey.from_repo(
         repo,
         scope_path,
         scope_excludes,
         follow_history=follow_history,
+        include_blobs=include_blobs,
     )
+    cache_dir = cache_key.cache_dir()
     cache_dir.mkdir(parents=True, exist_ok=True)
     lock_path = cache_dir / "cache.lock"
     with lock_path.open("a+b") as lock:
@@ -71,12 +86,7 @@ def transport_bare_repo(
         try:
             bare_dir = cache_dir / "repo.git"
             _ensure_bare_repo(bare_dir)
-            head = _transport_cache_head(
-                repo,
-                scope_path,
-                scope_excludes,
-                follow_history=follow_history,
-            )
+            head = view_head.head
             copy_reachable_objects_to_bare(
                 repo,
                 bare_dir,
@@ -85,6 +95,15 @@ def transport_bare_repo(
                 include_blobs=include_blobs,
             )
             _write_main_ref(bare_dir, head)
+            write_git_view_cache_metadata(
+                cache_dir,
+                cache_key,
+                head=head,
+                view_health=view_head.health,
+                canonical_head=view_head.canonical_head,
+                health_reason=view_head.reason,
+                history_cut=view_head.history_cut,
+            )
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
     yield bare_dir
@@ -130,8 +149,9 @@ def receive_pack_advertisement_bare_repo(
     with tempfile.TemporaryDirectory(prefix="puppyone-git-receive-advertise-") as tmp:
         bare_dir = Path(tmp) / "repo.git"
         _ensure_bare_repo(bare_dir)
-        head = _receive_pack_advertisement_head(repo, scope_path, scope_excludes)
-        _write_main_ref(bare_dir, head)
+        view_head = _receive_pack_advertisement_head(repo, scope_path, scope_excludes)
+        _raise_if_current_corrupt(view_head)
+        _write_main_ref(bare_dir, view_head.head)
         yield bare_dir
 
 
@@ -139,43 +159,26 @@ def _receive_pack_advertisement_head(
     repo,
     scope_path: str,
     scope_excludes: list[str] | None,
-) -> str:
-    excludes = scope_excludes or []
-    if excludes:
-        return git_view_head_commit(repo, scope_path, excludes)
-
-    scope_norm = normalize_path(scope_path)
-    if scope_norm:
-        head = repo.get_scope_head_commit_id(scope_norm) or ""
-        return head if is_object_id(head) else ""
-
-    indexed_getter = getattr(repo, "get_latest_project_view_commit_id", None)
-    if callable(indexed_getter):
-        indexed = indexed_getter() or ""
-        if is_object_id(indexed):
-            return indexed
-
-    root_head = repo.get_scope_head_commit_id("") or ""
-    if is_object_id(root_head):
-        return root_head
-    project_head_getter = getattr(repo, "get_head_commit_id", None)
-    if callable(project_head_getter):
-        project_head = project_head_getter() or ""
-        if is_object_id(project_head):
-            return project_head
-    return ""
+) -> GitViewHead:
+    return resolve_git_view_head(repo, scope_path, scope_excludes)
 
 
 def _transport_cache_head(
     repo,
     scope_path: str,
     scope_excludes: list[str] | None,
-    *,
-    follow_history: bool,
-) -> str:
-    if not follow_history and not (scope_excludes or []):
-        return _receive_pack_advertisement_head(repo, scope_path, scope_excludes)
-    return git_view_head_commit(repo, scope_path, scope_excludes)
+) -> GitViewHead:
+    return resolve_git_view_head(repo, scope_path, scope_excludes)
+
+
+def _raise_if_current_corrupt(view_head: GitViewHead) -> None:
+    if view_head.health != "current_corrupt":
+        return
+    reason = f": {view_head.reason}" if view_head.reason else ""
+    raise GitViewCurrentCorruptError(
+        "PuppyOne Git view is corrupt at the current version; restore or "
+        f"repair the current tree before using Git{reason}"
+    )
 
 
 @contextmanager
@@ -183,6 +186,8 @@ def quarantine_bare_repo(
     repo,
     scope_path: str,
     scope_excludes: list[str] | None = None,
+    *,
+    include_blobs: bool = True,
 ) -> Path:
     """Yield an isolated receive-pack object DB with cache alternates."""
 
@@ -191,7 +196,7 @@ def quarantine_bare_repo(
         scope_path,
         scope_excludes,
         follow_history=False,
-        include_blobs=False,
+        include_blobs=include_blobs,
     ) as cache_bare:
         with tempfile.TemporaryDirectory(prefix="puppyone-git-quarantine-") as tmp:
             bare_dir = Path(tmp) / "repo.git"
@@ -470,18 +475,60 @@ def official_receive_pack_quarantine(
     """
 
     root_ids = roots or []
-    with quarantine_bare_repo(repo, scope_path, scope_excludes) as bare_dir:
-        output = _run_official_receive_pack(bare_dir, request_path)
-        yield OfficialReceivePackQuarantine(
-            output=output,
-            quarantine=GitObjectQuarantine(
-                repo=repo,
+    retry_after_invalidate = False
+    with quarantine_bare_repo(
+        repo,
+        scope_path,
+        scope_excludes,
+        include_blobs=True,
+    ) as bare_dir:
+        try:
+            output = _run_official_receive_pack(bare_dir, request_path)
+        except RuntimeError as exc:
+            if not _is_unresolved_delta_error(exc):
+                raise
+            retry_after_invalidate = True
+        else:
+            yield OfficialReceivePackQuarantine(
+                output=output,
+                quarantine=GitObjectQuarantine(
+                    repo=repo,
+                    bare_dir=bare_dir,
+                    roots=root_ids,
+                    exclude_roots=exclude_roots or [],
+                ),
                 bare_dir=bare_dir,
-                roots=root_ids,
-                exclude_roots=exclude_roots or [],
-            ),
-            bare_dir=bare_dir,
+            )
+            return
+
+    if retry_after_invalidate:
+        trace_mark("git.receive_pack.retry_after_cache_invalidate")
+        invalidate_git_view_cache(
+            GitViewCacheKey.from_repo(
+                repo,
+                scope_path,
+                scope_excludes,
+                follow_history=False,
+                include_blobs=True,
+            )
         )
+        with quarantine_bare_repo(
+            repo,
+            scope_path,
+            scope_excludes,
+            include_blobs=True,
+        ) as bare_dir:
+            output = _run_official_receive_pack(bare_dir, request_path)
+            yield OfficialReceivePackQuarantine(
+                output=output,
+                quarantine=GitObjectQuarantine(
+                    repo=repo,
+                    bare_dir=bare_dir,
+                    roots=root_ids,
+                    exclude_roots=exclude_roots or [],
+                ),
+                bare_dir=bare_dir,
+            )
 
 
 def _run_official_receive_pack(bare_dir: Path, request_path: Path) -> bytes:
@@ -496,7 +543,21 @@ def _run_official_receive_pack(bare_dir: Path, request_path: Path) -> bytes:
     if proc.returncode != 0:
         stderr = proc.stderr.decode("utf-8", errors="replace").strip()
         raise RuntimeError(stderr or "git receive-pack failed")
+    stdout_text = proc.stdout.decode("utf-8", errors="replace")
+    if _is_unresolved_delta_message(stdout_text):
+        raise RuntimeError(stdout_text)
     return proc.stdout
+
+
+def _is_unresolved_delta_error(exc: RuntimeError) -> bool:
+    return _is_unresolved_delta_message(str(exc))
+
+
+def _is_unresolved_delta_message(message: str) -> bool:
+    return (
+        "unresolved deltas left after unpacking" in message
+        or "unpack-objects abnormal exit" in message
+    )
 
 
 def _unpack_and_validate(bare_dir: Path, pack: bytes, roots: list[str]) -> None:
@@ -557,12 +618,17 @@ def copy_reachable_objects_to_bare(
 
             try:
                 obj_type, body = repo.store.get_object(object_id)
-            except Exception:
-                continue
+            except Exception as exc:
+                raise RuntimeError(
+                    f"required Git object {object_id} is missing from the canonical store"
+                ) from exc
 
             encoded_id, loose = encode_object(obj_type, body)
             if encoded_id != object_id:
-                continue
+                raise RuntimeError(
+                    f"canonical store returned mismatched Git object {encoded_id} "
+                    f"for requested {object_id}"
+                )
             _write_loose_object(objects_dir, object_id, loose)
 
             if obj_type == "commit":
@@ -575,9 +641,16 @@ def copy_reachable_objects_to_bare(
                         if is_object_id(parent):
                             stack.append((parent, "commit"))
             elif obj_type == "tree":
-                for entry in decode_tree(body):
+                try:
+                    entries = decode_tree(body)
+                except Exception as exc:
+                    raise RuntimeError(f"tree object {object_id} cannot be decoded") from exc
+                for entry in entries:
                     if not is_object_id(entry.sha1_hex):
-                        continue
+                        raise RuntimeError(
+                            f"tree object {object_id} contains invalid child "
+                            f"object id {entry.sha1_hex!r}"
+                        )
                     if entry.mode == MODE_DIR:
                         stack.append((entry.sha1_hex, "tree"))
                     else:
@@ -588,7 +661,14 @@ def copy_reachable_objects_to_bare(
             "git.transport_cache.fetch_blobs",
             count=len(missing_blobs),
         ):
-            for object_id, loose in _get_loose_many(repo.store, sorted(missing_blobs)).items():
+            found_blobs = _get_loose_many(repo.store, sorted(missing_blobs))
+            still_missing = sorted(missing_blobs - set(found_blobs))
+            if still_missing:
+                sample = ", ".join(still_missing[:3])
+                raise RuntimeError(
+                    f"required Git blob objects are missing from the canonical store: {sample}"
+                )
+            for object_id, loose in found_blobs.items():
                 _write_loose_object(objects_dir, object_id, loose)
 
 
@@ -621,68 +701,6 @@ def _get_loose_many(store, object_ids: list[str]) -> dict[str, bytes]:
         except Exception:
             continue
     return found
-
-
-def _transport_cache_dir(
-    repo,
-    scope_path: str,
-    scope_excludes: list[str] | None,
-    *,
-    follow_history: bool,
-) -> Path:
-    project_id = str(getattr(repo, "_project_id", "") or "unknown-project")
-    payload = {
-        "project_id": project_id,
-        "object_store": _object_store_namespace(repo),
-        "scope_path": scope_path or "",
-        "scope_excludes": sorted(scope_excludes or []),
-        "history": "full" if follow_history else "receive-boundary",
-    }
-    digest = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
-    safe_project = "".join(
-        ch if ch.isalnum() or ch in {"-", "_"} else "_"
-        for ch in project_id
-    )[:80] or "unknown-project"
-    return _TRANSPORT_CACHE_ROOT / safe_project / digest
-
-
-def _object_store_namespace(repo) -> str:
-    store = getattr(repo, "store", None)
-    store_dir = getattr(store, "dir", None)
-    backend = getattr(store, "_backend", None)
-    backend_namespace = _backend_namespace(backend)
-    if backend_namespace:
-        return backend_namespace
-    if store_dir:
-        return f"store-dir:{Path(store_dir).expanduser().resolve()}"
-    project_id = str(getattr(repo, "_project_id", "") or "unknown-project")
-    return f"project:{project_id}"
-
-
-def _backend_namespace(backend) -> str:
-    if backend is None:
-        return ""
-    inner = getattr(backend, "_inner", None)
-    if inner is not None:
-        inner_namespace = _backend_namespace(inner)
-        if inner_namespace:
-            return f"{backend.__class__.__name__}:{inner_namespace}"
-    backend_dir = getattr(backend, "dir", None)
-    if backend_dir:
-        return f"{backend.__class__.__name__}:{Path(backend_dir).expanduser().resolve()}"
-    prefix = getattr(backend, "_prefix", "")
-    s3 = getattr(backend, "_s3", None)
-    if prefix:
-        bucket = getattr(s3, "bucket_name", "")
-        endpoint = getattr(s3, "endpoint_url", "")
-        region = getattr(s3, "region", "")
-        return (
-            f"{backend.__class__.__name__}:"
-            f"{endpoint or region}:{bucket}:{prefix}"
-        )
-    return ""
 
 
 def _ensure_bare_repo(bare_dir: Path) -> None:

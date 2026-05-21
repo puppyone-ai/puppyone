@@ -463,6 +463,30 @@ def test_git_receive_pack_parser_valid_matrix(ref, capabilities):
     assert command.capabilities == set(capabilities.split())
 
 
+def test_git_receive_pack_parser_accepts_shallow_preface_before_command():
+    body = (
+        _pkt(b"shallow " + _B.encode("ascii") + b"\n")
+        + _receive_body(
+            old_id=_B,
+            new_id=_A,
+            capabilities="report-status-v2 side-band-64k object-format=sha1",
+            pack=b"PACKDATA",
+        )
+    )
+
+    command = _parse_receive_pack_request(body)
+
+    assert command.old_id == _B
+    assert command.new_id == _A
+    assert command.ref == "refs/heads/main"
+    assert command.pack == b"PACKDATA"
+    assert command.capabilities == {
+        "report-status-v2",
+        "side-band-64k",
+        "object-format=sha1",
+    }
+
+
 @pytest.mark.parametrize("body", _INVALID_RECEIVE_BODIES)
 def test_git_receive_pack_parser_rejects_malformed_matrix(body):
     with pytest.raises(ValueError):

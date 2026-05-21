@@ -157,7 +157,8 @@ Legend:
                                   L6 Async Derived Work / Repair
        +-----------------------------------------------------------------------------------+
        | hooks, durable outbox, scope->root projection, root->AP derived refs              |
-       | path/search indexes, search event dispatch, websocket/read-model refresh          |
+       | Git view cache warming/repair, path/search indexes, search event dispatch         |
+       | websocket/read-model refresh                                                     |
        | object GC and committed-version repair                                            |
        +-----------------------------------------------------------------------------------+
 ```
@@ -195,8 +196,15 @@ Updates from the previous diagram:
 - `VersionEngineContainer` is the app/worker bootstrap boundary. Routers depend
   on FastAPI-provided services; workers build an explicit container at
   bootstrap instead of importing hidden singletons.
-- L6 is strictly derived work. Search events, path indexes, websocket refresh,
-  object GC, and repair run from committed facts and must not publish refs.
+- L6 is strictly derived work. Git view caches, search events, path indexes,
+  websocket refresh, object GC, and repair run from committed facts and must
+  not publish refs.
+- Git smart HTTP must expose exactly one Git-visible ref state per Access Point
+  view. Clone/fetch, receive-pack advertisement, receive quarantine, and push
+  fast-forward checks all use the same `GitViewHead` resolver. If current content
+  is healthy but old history is damaged, the view is `history_degraded` and Git
+  exposes a projected boundary commit. If current content is damaged, the view is
+  `current_corrupt` and Git rejects until the current tree is repaired/restored.
 
 Correctness boundaries:
 
@@ -232,7 +240,9 @@ Correctness boundaries:
    projections, and server-side transaction semantics.
 3. Frontend and Product API writes always target the root product scope unless
    an explicit access point or connector scope is being used.
-4. Git transport caches are protocol caches only. They are not authority.
+4. Git view caches are protocol caches only. They are not authority. They are
+   durable per-view derived resources consumed by L1/L4 Git transport and
+   repairable from L5 committed facts.
 5. Search and indexing consume committed events and views; they never decide
    merge/conflict behavior.
 6. Runtime code must not import the old external version package or public old
@@ -288,6 +298,7 @@ backend/src/version_engine/
       receive_pack.py
       submission.py
       upload_pack.py
+      view_cache.py
       view_projection.py
     batch/
       in_process_client.py
@@ -309,6 +320,7 @@ backend/src/version_engine/
     tree_objects.py
 
   derived/
+    git_transport_cache.py
     hooks.py
     notifications.py
     object_gc.py

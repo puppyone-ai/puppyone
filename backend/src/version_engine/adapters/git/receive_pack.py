@@ -20,6 +20,7 @@ from src.version_engine.adapters.git.protocol import (
     read_pkt_lines,
 )
 from src.version_engine.adapters.git.submission import submit_git_tree
+from src.version_engine.adapters.git.view_projection import resolve_git_view_head
 from src.version_engine.write_engine import tree as tree_mod
 from src.version_engine.write_engine.git_object_format import (
     MODE_DIR,
@@ -227,10 +228,27 @@ async def receive_pack_response_from_path(
                 repo,
                 scope_path,
             )
+            git_view_head = resolve_git_view_head(repo, scope_path, scope_excludes)
+            if git_view_head.health == "current_corrupt":
+                return receive_pack_result(
+                    command.ref,
+                    outcome="rejected",
+                    message=(
+                        "puppyone-rejected: current Git view is corrupt; "
+                        "restore or repair the current version before pushing"
+                    ),
+                    capabilities=command.capabilities,
+                    stderr_lines=[
+                        "PuppyOne: the current Access Point tree cannot be "
+                        "projected into a valid Git repository.",
+                        "PuppyOne: restore a healthy version or repair the "
+                        "damaged current paths before retrying.",
+                    ],
+                )
             expected_old_id = "" if command.old_id == ZERO_ID else command.old_id
             if (
                 not scope_excludes
-                and expected_old_id != (current_head_commit_id or "")
+                and expected_old_id != (git_view_head.head or "")
             ):
                 return receive_pack_result(
                     command.ref,
@@ -243,10 +261,10 @@ async def receive_pack_response_from_path(
                 )
             if (
                 not scope_excludes
-                and current_head_commit_id
+                and git_view_head.head
                 and not _is_fast_forward_commit(
                     quarantine,
-                    current_head_commit_id,
+                    git_view_head.head,
                     command.new_id,
                     commit,
                 )
@@ -263,7 +281,10 @@ async def receive_pack_response_from_path(
 
             promote_objects = quarantine.promote_reachable
             proposed_tree_id = tree_id
-            engine_base_commit_id = expected_old_id
+            # Git clients compare against the Git-visible projected HEAD. The
+            # write engine CAS still protects the canonical L5 scope head, so
+            # translate back to the current canonical commit before publishing.
+            engine_base_commit_id = current_head_commit_id
             if scope_excludes:
                 proposed_tree_id = _canonical_tree_for_excluded_scope_push(
                     repo,
@@ -323,6 +344,10 @@ async def receive_pack_response_from_path(
                     "service": "receive-pack",
                     "ref": command.ref,
                     "old_commit_id": command.old_id if command.old_id != ZERO_ID else "",
+                    "git_visible_old_commit_id": expected_old_id,
+                    "canonical_base_commit_id": engine_base_commit_id,
+                    "git_view_health": git_view_head.health,
+                    "git_view_history_cut": git_view_head.history_cut,
                     "remote_commit_id": command.new_id,
                     **(audit_detail or {}),
                 },
@@ -561,19 +586,18 @@ def parse_receive_pack_request(
     payloads, pack_offset = read_pkt_lines(body)
     commands: list[tuple[str, str, str]] = []
     capabilities: set[str] = set()
-    for index, payload in enumerate(payloads):
+    for payload in payloads:
         line = payload.rstrip(b"\n")
-        if index == 0:
-            command_line, separator, capability_line = line.partition(b"\0")
-            line = command_line
-            if separator:
-                capabilities.update(
-                    item
-                    for item in capability_line.decode("ascii", errors="ignore").split()
-                    if item
-                )
         if line.startswith(b"shallow "):
             continue
+        command_line, separator, capability_line = line.partition(b"\0")
+        line = command_line
+        if separator:
+            capabilities.update(
+                item
+                for item in capability_line.decode("ascii", errors="ignore").split()
+                if item
+            )
         parts = line.decode("ascii", errors="replace").split()
         if len(parts) != 3:
             raise ValueError("malformed receive-pack command")

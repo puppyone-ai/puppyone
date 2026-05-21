@@ -271,6 +271,9 @@ class Settings(BaseSettings):
     VERSION_TRACE_ENABLED: bool | None = None
     VERSION_TRACE_SLOW_PHASE_MS: int = 250
     VERSION_TRACE_SLOW_REQUEST_MS: int = 2_000
+    # Durable L6 Git view cache root. The cache is rebuildable from Version
+    # Engine facts and should live outside the source checkout by default.
+    GIT_VIEW_CACHE_DIR: Path = Path("~/.puppyone/git-view-cache")
 
     VERSION_OBJECT_GC_ENABLED: bool = False
     VERSION_OBJECT_GC_DRY_RUN: bool = True
