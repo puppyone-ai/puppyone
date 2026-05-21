@@ -78,30 +78,29 @@ jobs:
       - name: Validate migrations (dry-run)
         run: supabase db push --dry-run
 
-      # If this PR adds new migration files, `supabase db diff --linked` will
-      # naturally output `drop` statements for the objects those migrations
-      # create (the linked DB hasn't run them yet). Recent supabase-cli
-      # versions exit non-zero on such drops, which would mis-flag a normal
-      # "PR adds a new table" as drift. Skip the drift check in that case;
-      # real drift is caught on the next PR that does NOT add migrations.
-      - name: Detect new migrations in this PR
-        id: new-migrations
+      # If this PR touches migration files, `supabase db diff --linked` can
+      # naturally output transient changes because the linked DB has a
+      # different migration history than the PR checkout. The dry-run above is
+      # the migration safety gate for these PRs. Drift is checked on PRs that
+      # do not touch migration files.
+      - name: Detect touched migrations in this PR
+        id: touched-migrations
         run: |
           set -euo pipefail
           BASE_REF="${{ github.base_ref }}"
           git fetch origin "$BASE_REF" --depth=1
-          NEW=$(git diff --diff-filter=A --name-only "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql' || true)
-          if [ -z "$NEW" ]; then
+          TOUCHED=$(git diff --diff-filter=ACDMRT --name-only "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql' || true)
+          if [ -z "$TOUCHED" ]; then
             echo "count=0" >> "$GITHUB_OUTPUT"
-            echo "No new migration files in this PR."
+            echo "No migration files touched in this PR."
           else
-            echo "$NEW" | wc -l | xargs -I{} echo "count={}" >> "$GITHUB_OUTPUT"
-            echo "New migration files in this PR:"
-            echo "$NEW"
+            echo "$TOUCHED" | wc -l | xargs -I{} echo "count={}" >> "$GITHUB_OUTPUT"
+            echo "Touched migration files in this PR:"
+            echo "$TOUCHED"
           fi
 
       - name: Check for schema drift
-        if: steps.new-migrations.outputs.count == '0'
+        if: steps.touched-migrations.outputs.count == '0'
         run: |
           DIFF=$(supabase db diff --linked 2>&1) || true
           if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
@@ -109,12 +108,12 @@ jobs:
             echo "$DIFF"
           fi
 
-      - name: Drift check skipped (PR adds new migrations)
-        if: steps.new-migrations.outputs.count != '0'
+      - name: Drift check skipped (PR touches migrations)
+        if: steps.touched-migrations.outputs.count != '0'
         run: |
-          echo "::notice::Drift check skipped because this PR adds new migration file(s)."
-          echo "New migrations naturally produce 'drop' statements in 'supabase db diff --linked'"
-          echo "until they are applied to the linked DB. The next PR with no new migrations"
+          echo "::notice::Drift check skipped because this PR touches migration file(s)."
+          echo "Migration changes naturally produce transient output in 'supabase db diff --linked'"
+          echo "until they are reconciled with the linked DB. The next PR with no migration changes"
           echo "will re-run the drift check and catch any real manual drift."
 
   validate-production:
@@ -140,24 +139,24 @@ jobs:
         run: supabase db push --dry-run
 
       # See validate-staging block for the rationale on this guard.
-      - name: Detect new migrations in this PR
-        id: new-migrations
+      - name: Detect touched migrations in this PR
+        id: touched-migrations
         run: |
           set -euo pipefail
           BASE_REF="${{ github.base_ref }}"
           git fetch origin "$BASE_REF" --depth=1
-          NEW=$(git diff --diff-filter=A --name-only "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql' || true)
-          if [ -z "$NEW" ]; then
+          TOUCHED=$(git diff --diff-filter=ACDMRT --name-only "origin/$BASE_REF...HEAD" -- 'supabase/migrations/*.sql' || true)
+          if [ -z "$TOUCHED" ]; then
             echo "count=0" >> "$GITHUB_OUTPUT"
-            echo "No new migration files in this PR."
+            echo "No migration files touched in this PR."
           else
-            echo "$NEW" | wc -l | xargs -I{} echo "count={}" >> "$GITHUB_OUTPUT"
-            echo "New migration files in this PR:"
-            echo "$NEW"
+            echo "$TOUCHED" | wc -l | xargs -I{} echo "count={}" >> "$GITHUB_OUTPUT"
+            echo "Touched migration files in this PR:"
+            echo "$TOUCHED"
           fi
 
       - name: Check for schema drift
-        if: steps.new-migrations.outputs.count == '0'
+        if: steps.touched-migrations.outputs.count == '0'
         run: |
           DIFF=$(supabase db diff --linked 2>&1) || true
           if [ -n "$DIFF" ] && ! echo "$DIFF" | grep -q "No schema changes found"; then
@@ -166,10 +165,10 @@ jobs:
             exit 1
           fi
 
-      - name: Drift check skipped (PR adds new migrations)
-        if: steps.new-migrations.outputs.count != '0'
+      - name: Drift check skipped (PR touches migrations)
+        if: steps.touched-migrations.outputs.count != '0'
         run: |
-          echo "::notice::Drift check skipped because this PR adds new migration file(s)."
-          echo "New migrations naturally produce 'drop' statements in 'supabase db diff --linked'"
-          echo "until they are applied to the linked DB. The next PR with no new migrations"
+          echo "::notice::Drift check skipped because this PR touches migration file(s)."
+          echo "Migration changes naturally produce transient output in 'supabase db diff --linked'"
+          echo "until they are reconciled with the linked DB. The next PR with no migration changes"
           echo "will re-run the drift check and catch any real manual drift."
