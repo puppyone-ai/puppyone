@@ -127,9 +127,13 @@ export const ChevronRightIcon = ({ size = 10 }: { readonly size?: number }) => (
 export const MoreVerticalIcon = ({ size = 12 }: { readonly size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="12" cy="19" r="1.6" /></svg>
 );
-export const FolderGlyph = ({ size = 11, color = T.text2 }: { readonly size?: number; readonly color?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+export const FolderGlyph = ({ size = 11, color = 'var(--po-accent)' }: { readonly size?: number; readonly color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+    <path
+      d="M4 20H20C21.1046 20 22 19.1046 22 18V8C22 6.89543 21.1046 6 20 6H13.8284C13.298 6 12.7893 5.78929 12.4142 5.41421L10.5858 3.58579C10.2107 3.21071 9.70201 3 9.17157 3H4C2.89543 3 2 3.89543 2 5V18C2 19.1046 2.89543 20 4 20Z"
+      fill={color}
+      fillOpacity="0.45"
+    />
   </svg>
 );
 

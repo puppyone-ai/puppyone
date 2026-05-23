@@ -426,7 +426,7 @@ export function SidebarLayout({
                   </span>
                 </button>
                 {item.groupEnd && (
-                  <div className='w-5 border-t border-[var(--po-divider)]' />
+                  <div className='my-1.5 ml-1.5 w-5 border-t border-[var(--po-divider)]' />
                 )}
               </React.Fragment>
             ))}

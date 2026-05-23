@@ -52,6 +52,7 @@ export type ConnectorEditPatch = Partial<{
 export interface UseAccessDataResult {
   loading: boolean;
   noScopes: boolean;
+  allScopes: RepoScope[];
   sortedScopes: RepoScope[];
   connectorsByScope: Map<string, Connector[]>;
   selectedScope: RepoScope | undefined;
@@ -224,6 +225,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
 
   const loading = scopes === undefined || connectors === undefined;
   const noScopes = !loading && sortedScopes.length === 0;
+  const allScopes = scopes ?? [];
 
   // Joint refresh — scope edits (rename / mode / exclude) only touch
   // `repo-scopes`, but a delete cascades to connectors so we always
@@ -243,6 +245,7 @@ export function useAccessData(projectId: string): UseAccessDataResult {
   return {
     loading,
     noScopes,
+    allScopes,
     sortedScopes,
     connectorsByScope,
     selectedScope,

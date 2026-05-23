@@ -94,6 +94,18 @@ export const AppSidebar = memo(function AppSidebar({
         ),
       },
       {
+        id: 'changes',
+        label: t('changes'),
+        icon: (
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <circle cx='6' cy='6' r='3' />
+            <circle cx='18' cy='18' r='3' />
+            <path d='M6 9v6a3 3 0 0 0 3 3h6' />
+            <path d='M18 15V9a3 3 0 0 0-3-3h-2' />
+          </svg>
+        ),
+      },
+      {
         id: 'access',
         // Chain-link glyph — diagonal / 45°-rotated variant of the
         // Lucide `link` icon. The earlier horizontal version only
@@ -101,9 +113,7 @@ export const AppSidebar = memo(function AppSidebar({
         // thin and the icon as "too wide" next to its siblings (folder
         // / clock / monitor / gear all fill ~18×18). The rotated path
         // shares the same square footprint as those four, so the rail
-        // reads as one consistent family. Kept in sync with `ChainIcon`
-        // in `AccessPointsHeaderButton.tsx` so both surfaces (sidebar
-        // and Data page header chip) draw the same mark.
+        // reads as one consistent family.
         label: t('access'),
         icon: (
           <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
@@ -111,16 +121,7 @@ export const AppSidebar = memo(function AppSidebar({
             <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' />
           </svg>
         ),
-      },
-      {
-        id: 'history',
-        label: t('history'),
-        icon: (
-          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
-            <circle cx='12' cy='12' r='9' />
-            <polyline points='12 6 12 12 16 14' />
-          </svg>
-        ),
+        groupEnd: true,
       },
       {
         id: 'monitor',
@@ -198,10 +199,12 @@ export const AppSidebar = memo(function AppSidebar({
             router.push(`/projects/${activeProject.id}/data`);
           } else if (viewId === 'data') {
             router.push(`/projects/${activeProject.id}/data`);
+          } else if (viewId === 'changes') {
+            router.push(`/projects/${activeProject.id}/changes`);
           } else if (viewId === 'access') {
             router.push(`/projects/${activeProject.id}/access`);
           } else if (viewId === 'history') {
-            router.push(`/projects/${activeProject.id}/history`);
+            router.push(`/projects/${activeProject.id}/changes`);
           } else if (viewId === 'monitor') {
             router.push(`/projects/${activeProject.id}/monitor`);
           } else if (viewId === 'toolkit') {
@@ -214,8 +217,9 @@ export const AppSidebar = memo(function AppSidebar({
           const id = activeProject.id;
           const pathMap: Record<string, string> = {
             data: `/projects/${id}/data`,
+            changes: `/projects/${id}/changes`,
             access: `/projects/${id}/access`,
-            history: `/projects/${id}/history`,
+            history: `/projects/${id}/changes`,
             monitor: `/projects/${id}/monitor`,
             toolkit: `/projects/${id}/toolkit`,
             settings: `/projects/${id}/settings`,

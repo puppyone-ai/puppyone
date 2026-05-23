@@ -21,6 +21,7 @@ function loadVersion(): string {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  outputFileTracingRoot: import.meta.dirname,
   env: {
     NEXT_PUBLIC_APP_VERSION: loadVersion(),
   },

@@ -16,7 +16,7 @@ function rowActionButtonClass(variant: RowActionButtonVariant) {
   }
 
   if (variant === 'accessActive') {
-    return `${base} bg-[var(--po-access-active-bg)] text-[var(--po-access-active-text)] hover:bg-[var(--po-access-active-hover)] hover:text-[var(--po-access-active-text)]`;
+    return `${base} border-[var(--po-access-active-border)] bg-[var(--po-access-active-bg)] text-[var(--po-access-active-text)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.16)] hover:bg-[var(--po-access-active-hover)] hover:text-[var(--po-access-active-text)]`;
   }
 
   return `${base} bg-transparent text-[var(--po-text-subtle)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]`;
@@ -125,7 +125,7 @@ export function ExplorerRowActions({
     isCreateMenuOpen || isContextMenuOpen || isAccessMenuOpen;
   const endpointCount = endpoints.length;
   const hasAccessPoint = endpointCount > 0;
-  const integrationLabel = endpointCount === 1 ? 'integration' : 'integrations';
+  const shareMethodLabel = endpointCount === 1 ? 'share method' : 'share methods';
   const suppressPeerActions = isAccessControlActive || isAccessMenuOpen;
 
   // Visibility primitives.
@@ -214,10 +214,10 @@ export function ExplorerRowActions({
           <RowActionButton
             title={
               hasAccessPoint
-                ? `${endpointCount} ${integrationLabel} on this folder`
-                : 'Add integration to this folder'
+                ? `${endpointCount} ${shareMethodLabel} on this folder`
+                : 'Share with AI'
             }
-            ariaLabel="Add integration to this folder"
+            ariaLabel="Share with AI"
             active={accessActive}
             variant={accessActive ? 'accessActive' : 'default'}
             onClick={(e) => {

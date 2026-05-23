@@ -1024,7 +1024,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--po-text)' }}>
-            Commit History
+            Changes
           </span>
           {history && (
             <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>
@@ -1059,7 +1059,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
 
       {error && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--po-danger)', fontSize: 13 }}>
-          Failed to load history
+          Failed to load changes
         </div>
       )}
 
@@ -1072,7 +1072,7 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
-          <span style={{ fontSize: 14 }}>No commits yet</span>
+          <span style={{ fontSize: 14 }}>No changes yet</span>
           <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>Changes to your context space will appear here</span>
         </div>
       )}

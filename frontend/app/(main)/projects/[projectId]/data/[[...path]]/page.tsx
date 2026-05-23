@@ -72,7 +72,6 @@ import { EditorArea } from '../components/EditorArea';
 import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
-import { AccessPointsHeaderButton } from '../components/access-points';
 import { getApiBase } from '../components/access-points/labels';
 import { SelectionActionBar } from '../components/SelectionActionBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
@@ -481,7 +480,7 @@ export default function DataPage({ params }: DataPageProps) {
   const effectiveNodeId = pendingActiveId || activeNodeId;
 
   // ───── Panel State (Zustand store, fully decoupled from URL) ─────
-  const { panel: panelState, openPanel, closePanel, togglePanel } = usePanelStore();
+  const { panel: panelState, openPanel, closePanel } = usePanelStore();
   const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
   const [accessPanelNavigationGuard, setAccessPanelNavigationGuard] =
     useState<AccessPanelNavigationGuard | null>(null);
@@ -612,6 +611,15 @@ export default function DataPage({ params }: DataPageProps) {
       openPanel({ type: 'access_list', view: 'create', nodeId: '' });
     }
   }, [openPanel, rootScope]);
+
+  const openShareWithAI = useCallback((folderPath: string | null | undefined) => {
+    const normalizedPath = (folderPath ?? '').trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+    const params = new URLSearchParams({
+      create: 'share-with-ai',
+      path: normalizedPath,
+    });
+    router.push(`/projects/${projectId}/access?${params.toString()}`);
+  }, [projectId, router]);
 
   // Same as openSyncCreatePanel, but with a *given* folder path
   // pre-filled as the target resource.  Two callsites:
@@ -1136,8 +1144,8 @@ export default function DataPage({ params }: DataPageProps) {
         style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', overflow: 'hidden' } as React.CSSProperties}
       >
         {/* Top header bar — spans the full width of <main>, including
-            over the ExplorerSidebar column. Renders ONE breadcrumb
-            (`Workspace / finance / …`) and the Access points button. */}
+            over the ExplorerSidebar column. Renders one breadcrumb
+            (`Workspace / finance / …`). */}
         <div
           style={{
             flexShrink: 0,
@@ -1158,23 +1166,17 @@ export default function DataPage({ params }: DataPageProps) {
               actionSlot={headerActionSlot}
             />
           </div>
-          {/* Right slot of the header — Access entry. The vertical
-              hairline on the left anchors the button into a "section"
-              instead of letting it float as a standalone chip. Same
-              ``var(--po-divider)`` alpha as every other divider
-              in the chrome (sidebar / header bottom / footer top), so
-              all four lines visually belong to the same grid. */}
-          <div style={{
-            display: 'flex', alignItems: 'center',
-            paddingLeft: 12, paddingRight: 12,
-            borderBottom: '1px solid var(--po-divider)',
-            borderLeft: '1px solid var(--po-divider)',
-            background: 'var(--po-canvas)',
-            height: '100%',
-            width: isAccessPanelOpen ? rightPanelWidth : undefined,
-            flexShrink: 0,
-          }}>
-            {isAccessPanelOpen ? (
+          {isAccessPanelOpen ? (
+            <div style={{
+              display: 'flex', alignItems: 'center',
+              paddingLeft: 12, paddingRight: 12,
+              borderBottom: '1px solid var(--po-divider)',
+              borderLeft: '1px solid var(--po-divider)',
+              background: 'var(--po-canvas)',
+              height: '100%',
+              width: rightPanelWidth,
+              flexShrink: 0,
+            }}>
               <div
                 style={{
                   display: 'flex',
@@ -1262,27 +1264,8 @@ export default function DataPage({ params }: DataPageProps) {
                 )}
                 <ActivityIconButton kind="close" title="Close panel" onClick={closeRightPanel} />
               </div>
-            ) : (
-              <AccessPointsHeaderButton
-                // Project-level scope count, not per-folder integration
-                // count. The button is a global entry to Pp.1 Overview;
-                // its number should reflect the project's total access
-                // surface ("you have 5 access points") rather than
-                // whatever scope the file-tree cursor happens to match
-                // (per 2026-05-08 UX spec).
-                scopeCount={scopes.length}
-                isOpen={false}
-                // Header chip is the canonical entry to Pp.1 Overview:
-                // clicking "Access" always lands on the management home
-                // page, never auto-resolves into Detail. Toggle is
-                // type-only for access_list (see usePanelStore): the
-                // panel auto-syncs to the current folder, so reopening
-                // with a different nodeId would otherwise re-open
-                // instead of closing.
-                onClick={() => togglePanel({ type: 'access_list', view: 'overview' })}
-              />
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
 
         {/* Body row: Explorer sidebar + content column + right panel */}
@@ -1335,46 +1318,8 @@ export default function DataPage({ params }: DataPageProps) {
                 }
                 onNavigate={handleMillerNavigate}
                 onCreate={handleMillerCreateClick}
-                // Per-folder access link button — Pp.2 trigger in the
-                // 3-page Access hierarchy (2026-05-08 UX spec):
-                //
-                //   - Folder IS a scope    → Pp.2a Detail of that scope
-                //                            (selectedScopeId pinned).
-                //   - Folder is NOT a scope → Pp.2b Create, pre-filled
-                //                            with the row's nodeId.
-                //
-                // Critical: we explicitly set `view='create'` for the
-                // non-scope branch so the right panel opens DIRECTLY on
-                // the create form pre-filled with the clicked folder.
-                // Previously this routed to Overview which read
-                // `currentScopePath` (= file-tree cursor), so clicking
-                // /iiinote's chain icon while cursor was at Root made
-                // Root the activated context — the user had to manually
-                // navigate the file tree to /iiinote first. Now the
-                // sidebar trigger fully owns the context, no manual
-                // file-tree dance required.
-                //
-                // The chain icon and the row's "+" share this handler
-                // so both surfaces produce identical navigation; the
-                // event arg distinguishes them upstream if/when needed.
-                onCreateSync={(_event, nodeId) => {
-                  setHoverHighlightNodeId(null);
-                  const matched = matchScopeForPath(nodeId, scopes);
-                  if (matched) {
-                    openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
-                  } else {
-                    openPanel({ type: 'access_list', view: 'create', nodeId });
-                  }
-                }}
-                onOpenAccess={(_endpoints, nodeId) => {
-                  setHoverHighlightNodeId(null);
-                  const matched = matchScopeForPath(nodeId, scopes);
-                  if (matched) {
-                    openPanel({ type: 'access_list', view: 'detail', selectedScopeId: matched.id });
-                  } else {
-                    openPanel({ type: 'access_list', view: 'create', nodeId });
-                  }
-                }}
+                onCreateSync={(_event, nodeId) => openShareWithAI(nodeId)}
+                onOpenAccess={(_endpoints, nodeId) => openShareWithAI(nodeId)}
                 endpointByNodeId={nodeEndpointMap}
                 onRename={nodeActions.handleRename}
                 onDelete={nodeActions.handleDelete}
@@ -1506,6 +1451,7 @@ export default function DataPage({ params }: DataPageProps) {
                     onMove={nodeActions.handleMoveRequest}
                     onMoveNode={nodeActions.handleMoveNode}
                     onCreateTool={nodeActions.handleCreateTool}
+                    onShareWithAI={openShareWithAI}
                     agentResources={agentResources}
                     highlightNodeId={hoverHighlightNodeId || highlightNodeId}
                     selectedIds={gridSelection.selectedIds}
