@@ -133,6 +133,36 @@ class VersionWriteEngine:
             or NoopVersionTransactionLedger()
         )
 
+    async def initialize_project_tree(self, project_id: str) -> str:
+        """Idempotently initialize an empty project root tree.
+
+        L5 owns ALL ref writes — including the initial root_hash row that
+        marks a project as ready for writes. Callers (project creation,
+        demo seeding, startup repair) used to invoke this from a read
+        service, which violated the "read paths consume committed facts
+        only" rule.
+
+        Returns the root hash (always ``EMPTY_TREE_SHA1`` here; future
+        bootstrapping may seed a non-empty root).
+        """
+        from src.version_engine.write_engine.git_object_format import EMPTY_TREE_SHA1
+
+        repo = self._repos.get_repo(project_id)
+        existing = repo.history.get_root_hash()
+        if existing:
+            if existing == EMPTY_TREE_SHA1:
+                return existing
+            backend = repo.store._backend
+            if hasattr(backend, "async_exists") and await backend.async_exists(existing):
+                return existing
+            log_warning(
+                f"[version_engine][init] project={project_id} root_hash={existing} "
+                f"present in DB but blob missing in storage; re-initializing",
+            )
+        repo.history.set_root_hash(EMPTY_TREE_SHA1)
+        log_info(f"[version_engine][init] project={project_id} initialized empty tree")
+        return EMPTY_TREE_SHA1
+
     async def apply_operation(
         self,
         intent: OperationWriteIntent,

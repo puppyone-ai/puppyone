@@ -9,6 +9,12 @@ import subprocess
 ZERO_ID = "0" * 40
 HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 
+# The single Git-visible ref each access-point view exposes. Stock
+# Git clients clone/fetch/push this; product writes land on the same
+# ref via projection. Centralized here so receive-pack policy checks,
+# quarantine bootstrap, and access-point defaults stay in sync.
+ACCESS_POINT_MAIN_REF = "refs/heads/main"
+
 
 def pkt_line(payload: bytes) -> bytes:
     return f"{len(payload) + 4:04x}".encode("ascii") + payload

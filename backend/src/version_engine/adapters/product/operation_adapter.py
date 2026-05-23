@@ -1049,37 +1049,6 @@ class ProductOperationAdapter:
         run_post_push_hook(project_id, self._repos, push_result)
         return push_result
 
-    def _run_post_push_hook(
-        self, project_id: str, push_result: dict,
-    ) -> None:
-        """Best-effort post-push hook — log on failure, never re-raise.
-
-        The Write Engine already does this internally,
-        so internal typed ops don't reach here. This shim exists for
-        external callers (and tests) that want the same resilience
-        without writing the try/except themselves.
-        """
-        try:
-            from src.version_engine.derived.hooks import run_post_push_hook
-
-            run_post_push_hook(project_id, self._repos, push_result)
-        except Exception as e:
-            import traceback
-
-            from src.utils.logger import log_error
-
-            commit_id = (
-                push_result.get("commit_id")
-                or push_result.get("new_commit_id")
-            )
-            log_error(
-                f"[ProductOperationAdapter] post-push hook failed for project={project_id} "
-                f"commit={commit_id} "
-                f"scope={push_result.get('scope_path', '?')} "
-                f"status={push_result.get('status', '?')} "
-                f"error={type(e).__name__}: {e}\n{traceback.format_exc()}",
-            )
-
     # ══════════════════════════════════════════════
     # Scope routing helpers
     # ══════════════════════════════════════════════

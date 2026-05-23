@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 from src.version_engine.adapters.git.protocol import (
+    ACCESS_POINT_MAIN_REF,
     ZERO_ID,
     is_object_id,
     run_git,
@@ -706,7 +707,9 @@ def _get_loose_many(store, object_ids: list[str]) -> dict[str, bytes]:
 def _ensure_bare_repo(bare_dir: Path) -> None:
     if not (bare_dir / "objects").exists():
         run_git(["init", "--bare", str(bare_dir)])
-    (bare_dir / "HEAD").write_text("ref: refs/heads/main\n", encoding="utf-8")
+    (bare_dir / "HEAD").write_text(
+        f"ref: {ACCESS_POINT_MAIN_REF}\n", encoding="utf-8"
+    )
 
 
 def _write_main_ref(bare_dir: Path, head: str) -> None:

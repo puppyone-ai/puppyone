@@ -13,6 +13,7 @@ from src.version_engine.adapters.git.object_quarantine import (
     official_receive_pack_quarantine,
 )
 from src.version_engine.adapters.git.protocol import (
+    ACCESS_POINT_MAIN_REF,
     ZERO_ID,
     flush_pkt,
     is_object_id,
@@ -568,13 +569,13 @@ def _ref_writability(ref: str) -> tuple[bool, str]:
     until branch/MR storage is implemented explicitly.
     """
 
-    if ref == "refs/heads/main":
+    if ref == ACCESS_POINT_MAIN_REF:
         return True, ""
     if ref.startswith("refs/tags/"):
         return False, "tag refs are immutable on this remote; tag through the project API"
     return False, (
         f"ref {ref!r} is not writable on this scope remote; "
-        "only refs/heads/main is currently backed by an access-point ref"
+        f"only {ACCESS_POINT_MAIN_REF} is currently backed by an access-point ref"
     )
 
 

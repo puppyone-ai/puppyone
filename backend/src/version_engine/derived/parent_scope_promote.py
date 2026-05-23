@@ -82,6 +82,15 @@ def promote_to_parents(
 ) -> list[dict[str, Any]]:
     """Synthesize a scope-promote commit on each ancestor scope.
 
+    Architectural note: this function publishes new commits (calls the
+    publish RPC directly), which lives on the L5/L6 boundary. The
+    architecture doc folds "scope->root projection, root->AP derived
+    refs" into L6, so we keep the function here — but the *cleaner*
+    shape would be a ``ScopePromoteIntent`` routed through
+    ``VersionWriteEngine.apply_operation``-style publish so the engine
+    remains the only thing calling ``publish_scope_update``. Tracked
+    as architectural debt; see audit batch.
+
     Returns a list of ``{scope_path, new_commit_id, new_scope_hash}`` rows
     describing the parent scopes that advanced. Best-effort: a failure on
     one ancestor logs but does not break the others.
