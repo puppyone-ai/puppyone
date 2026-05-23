@@ -38,6 +38,7 @@ from src.platform.auth.dependencies import get_current_user
 from src.platform.auth.models import CurrentUser
 from src.platform.project.dependencies import get_project_service
 from src.platform.project.service import ProjectService
+from src.utils.logger import log_warning
 
 
 router = APIRouter()
@@ -389,6 +390,7 @@ async def upload_snapshot_blobs(
     reads), so we must not let an unrelated user write blobs into
     someone else's project.
     """
+    import asyncio
     import base64
     import hashlib
 
@@ -441,7 +443,11 @@ async def upload_snapshot_blobs(
             rejected.append(entry.blob_hash)
             continue
         try:
-            store.put(entry.blob_hash, data)
+            # store.put bridges sync→async via a background loop with a
+            # blocking future.result(); calling it directly from this
+            # async endpoint would freeze the FastAPI event loop for the
+            # entire S3 upload. Run on the worker thread pool instead.
+            await asyncio.to_thread(store.put, entry.blob_hash, data)
             accepted += 1
         except Exception as exc:
             log_warning(
