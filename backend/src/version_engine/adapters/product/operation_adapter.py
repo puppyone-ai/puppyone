@@ -414,27 +414,11 @@ class ProductOperationAdapter:
             project_write_state=project_write_state,
         )
 
-        # Best-effort repo_scopes path rename — moves are reported on the
-        # change list as ``delete(old_path)`` + ``put(new_path)`` so
-        # ``run_post_push_hook`` cannot distinguish them from a real
-        # delete-then-add pair without help. Calling ``post_commit_move``
-        # here from L4 is a known layer violation — the doc-clean fix is
-        # to tag the move in the history entry's ``audit_detail`` and
-        # have ``run_post_push_hook`` dispatch to ``post_commit_move``
-        # when it sees the tag. Tracked as architectural debt; doing it
-        # now would require a mut_commits column-shape change.
-        try:
-            from src.version_engine.derived.hooks import post_commit_move
-
-            post_commit_move(project_id, old_path, new_path)
-        except Exception as e:
-            from src.utils.logger import log_error
-
-            log_error(
-                f"[ProductOperationAdapter] post-commit move hook failed "
-                f"for project={project_id}: {e}",
-            )
-
+        # ``post_commit_move`` (rename of ``repo_scopes`` rows under
+        # the old prefix) is now dispatched by ``run_post_push_hook``
+        # itself — the L4 layer stashed ``{old_path, new_path}`` into
+        # ``audit_detail`` above and the hook reads it back from the
+        # committed history entry. L4 no longer reaches into L6.
         return _to_result(result, [old_path, new_path])
 
     async def copy(

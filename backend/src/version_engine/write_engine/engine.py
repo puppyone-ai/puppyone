@@ -51,6 +51,7 @@ from src.version_engine.domain.intents import (
     ConflictResolutionIntent,
     OperationWriteIntent,
     RollbackIntent,
+    ScopePromoteIntent,
     TransactionResult,
     VersionSubmissionIntent,
 )
@@ -162,6 +163,58 @@ class VersionWriteEngine:
         repo.history.set_root_hash(EMPTY_TREE_SHA1)
         log_info(f"[version_engine][init] project={project_id} initialized empty tree")
         return EMPTY_TREE_SHA1
+
+    async def publish_scope_promotion(
+        self,
+        intent: ScopePromoteIntent,
+    ) -> tuple[bool, int | None]:
+        """Publish a derived scope-promote commit through the L5 boundary.
+
+        ``derived/parent_scope_promote`` already builds the commit +
+        synthesizes the grafted tree (with cordon logic for damaged
+        ancestry); this method exists so the actual ref-advancing call
+        runs inside the engine the way every other publish does. The
+        engine's audit / tracing / future hardening (rate limiting,
+        write-ahead audit) then covers projection-triggered publishes
+        too, not just user-initiated writes.
+
+        Returns ``(published, transaction_id)``: ``published`` is False
+        when the underlying CAS lost (someone else advanced the parent
+        scope while we were building); the caller's outer retry loop
+        decides whether to recompute and try again.
+        """
+        repo = self._repos.get_server_repo(intent.project_id)
+        scope_norm = normalize_path(intent.scope_path)
+        with trace_phase(
+            "db.publish_scope_update",
+            scope=scope_norm,
+            op="scope_promote",
+            commit_id=intent.commit_id[:12],
+        ):
+            result = await asyncio.to_thread(
+                repo.publish_scope_update,
+                scope_path=scope_norm,
+                old_scope_hash=intent.old_scope_hash,
+                new_scope_hash=intent.new_scope_hash,
+                commit_id=intent.commit_id,
+                who=intent.actor,
+                message=intent.message,
+                changes=list(intent.changes),
+                conflicts=None,
+                created_at_iso=_now_iso(),
+                audit_event_type="scope_promote",
+                audit_agent_id=intent.actor or "system",
+                audit_detail=dict(intent.audit_detail or {}),
+                source_channel=intent.source_channel,
+                policy="scope_promote",
+                base_commit_id=intent.base_commit_id,
+                client_commit_id="",
+                proposed_tree_id=intent.new_scope_hash,
+                intent_type="operation",
+            )
+        if isinstance(result, tuple):
+            return bool(result[0]), result[1]
+        return bool(result), None
 
     async def apply_operation(
         self,
