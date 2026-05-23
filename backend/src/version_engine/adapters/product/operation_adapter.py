@@ -414,9 +414,15 @@ class ProductOperationAdapter:
             project_write_state=project_write_state,
         )
 
-        # Best-effort secondary index update — keeps repo_scopes pointing
-        # at the new path. Failures here are
-        # logged but don't fail the move.
+        # Best-effort repo_scopes path rename — moves are reported on the
+        # change list as ``delete(old_path)`` + ``put(new_path)`` so
+        # ``run_post_push_hook`` cannot distinguish them from a real
+        # delete-then-add pair without help. Calling ``post_commit_move``
+        # here from L4 is a known layer violation — the doc-clean fix is
+        # to tag the move in the history entry's ``audit_detail`` and
+        # have ``run_post_push_hook`` dispatch to ``post_commit_move``
+        # when it sees the tag. Tracked as architectural debt; doing it
+        # now would require a mut_commits column-shape change.
         try:
             from src.version_engine.derived.hooks import post_commit_move
 
