@@ -47,6 +47,12 @@ from src.utils.logger import log_error, log_info, log_warning
 
 
 PendingConflictHook = Callable[[dict[str, Any]], None]
+# Module-level singleton: workers register the hook once at startup,
+# the outbox dispatch loop reads it on every claimed row. Multiple
+# workers in one process would race the writes, but in practice the
+# outbox runs in a single ARQ worker per deployment so the simple
+# global is sufficient. If multi-process registration is ever needed,
+# move this onto ``VersionEngineContainer``.
 _pending_conflict_hook: PendingConflictHook | None = None
 
 

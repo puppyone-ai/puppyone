@@ -1075,6 +1075,27 @@ def _is_not_found_error(exc: Exception) -> bool:
     return any(s in msg for s in ("not found", "nosuchkey", "404", "does not exist"))
 
 
+_DEFERRED_NAMESPACE_READS_CACHED: bool | None = None
+
+
 def _deferred_namespace_reads_enabled() -> bool:
-    raw = os.getenv("VERSION_OBJECT_DEFERRED_NAMESPACE_READS", "true").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    """Per-process flag for the v1/v2 object namespace deferred-reads
+    behavior. Read ONCE per process (first call) so tests can override
+    by setting the env before importing this module, but runtime
+    requests don't pay the ``os.getenv`` overhead every backend init.
+
+    Tests that need to flip the flag mid-process should call
+    :func:`_reset_deferred_namespace_reads_cache` (intentionally
+    underscore-prefixed — production code must not toggle this).
+    """
+    global _DEFERRED_NAMESPACE_READS_CACHED
+    if _DEFERRED_NAMESPACE_READS_CACHED is None:
+        raw = os.getenv("VERSION_OBJECT_DEFERRED_NAMESPACE_READS", "true").strip().lower()
+        _DEFERRED_NAMESPACE_READS_CACHED = raw not in {"0", "false", "no", "off"}
+    return _DEFERRED_NAMESPACE_READS_CACHED
+
+
+def _reset_deferred_namespace_reads_cache() -> None:
+    """Test-only helper for resetting the cached env flag."""
+    global _DEFERRED_NAMESPACE_READS_CACHED
+    _DEFERRED_NAMESPACE_READS_CACHED = None

@@ -121,6 +121,32 @@ def merge_file_sets_for_policy(
          and the parent content differs from both sides, the parent wins
          and the loser is recorded as ``superseded_by_parent``.
       3. otherwise apply the configured policy (LWW or manual_review).
+
+    Output invariant for ``merged_files``:
+
+      * ``path in merged_files`` AND value is ``bytes`` → publish that
+        content at ``path``.
+      * ``path in merged_files`` AND value is ``None`` → an explicit
+        "delete this path" marker. Used by manual_review paths that
+        need to record an intent to delete without losing the path
+        from the changeset.
+      * ``path not in merged_files`` → the path is not part of the
+        merged tree. The CAS-retry splice in
+        ``engine._merge_on_cas_retry`` walks the union of base/current/
+        incoming and emits an explicit ``rm`` for any path that was
+        considered but did not land in ``merged_files``. This is how
+        LWW honoring an incoming delete is expressed without having to
+        carry a ``None`` sentinel through the file dict — keeping the
+        type pure ``dict[str, bytes]``.
+
+    Tests that go through this function and then through
+    ``engine._merge_on_cas_retry`` rely on the splice step to translate
+    "absent" into "rm". Standalone callers (e.g. ``three_way_merge``
+    in ``merge.py``) have their own convention — they keep ours on
+    modify/delete rather than expressing a delete. The two functions
+    serve different code paths (CAS-retry vs. Git submission) and the
+    divergence is intentional, but documented here so a future refactor
+    doesn't silently re-introduce a delete-resurrection bug.
     """
 
     merged: dict[str, bytes] = {}
@@ -351,6 +377,12 @@ def _resolve_delete_modify(
             detail="server deleted, incoming modified; manual review required",
             kept="pending",
         ))
+        # NOT setting ``merged[path]`` is intentional — current state has
+        # this path deleted, so the merged tree mirrors current until a
+        # human resolves the conflict. Asymmetric with modify_delete
+        # (which keeps ours) because the surviving side there is server
+        # content; here the surviving side would be the *incoming* modify
+        # we declined to apply.
         return
     lww_records.append(ConflictRecord(
         path=path,
@@ -378,9 +410,14 @@ def _resolve_modify_delete(
         ))
         merged[path] = ours
         return
-    # LWW means the incoming write wins, including an incoming delete. The
-    # server copy is preserved in the conflict ledger so recovery remains
-    # possible, but it is not kept in the authoritative tree.
+    # LWW: incoming wins, including an incoming delete. The server copy
+    # is preserved in the conflict ledger so recovery is possible, but
+    # it is NOT kept in the merged tree. We intentionally do NOT write
+    # ``merged[path]`` here — the caller (``engine._merge_on_cas_retry``)
+    # walks the union of base/current/incoming and emits an explicit
+    # ``rm`` for any path absent from ``merged_files`` but present in
+    # current. That is the invariant documented at
+    # ``merge_file_sets_for_policy`` — see its docstring.
     lww_records.append(ConflictRecord(
         path=path,
         strategy="lww",

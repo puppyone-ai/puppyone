@@ -153,7 +153,13 @@ class NotificationManager:
         sent = 0
         dropped = 0
         for conn in targets:
-            # Don't echo the event back to the agent that produced it.
+            # Echo suppression by agent identity. Known limitation: two
+            # connections sharing the same ``agent`` (e.g. one user on
+            # two devices) will not echo to either device when one of
+            # them pushes. A future improvement is to thread the
+            # pusher's ``client_id`` through commit publish and match on
+            # that — until then, agent-level dedup is the available
+            # signal.
             if conn.agent == pushed_by:
                 continue
             try:
