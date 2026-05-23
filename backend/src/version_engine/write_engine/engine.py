@@ -27,6 +27,7 @@ from src.version_engine.write_engine.ledger import (
 )
 
 from src.version_engine.write_engine.conflict_policy import (
+    QUEUE_POLICIES,
     conflict_to_dict,
     merge_file_sets_for_policy,
     select_conflict_policy,
@@ -537,7 +538,7 @@ class VersionWriteEngine:
                     )
                     # If the merge classified anything as manual_review,
                     # don't commit — queue the conflict and return.
-                    if manual_conflicts and merge_policy == "manual_review":
+                    if manual_conflicts and merge_policy in QUEUE_POLICIES:
                         pending_result = await self._record_pending_conflict_generic(
                             repo=repo,
                             project_id=intent.project_id,
@@ -737,11 +738,11 @@ class VersionWriteEngine:
         # Caller's policy_override (set on the intent) wins over
         # configured rules when non-empty — the runner / API caller
         # opted into a stricter policy and the engine must honor it.
-        if intent.policy_override == "manual_review":
+        if intent.policy_override in QUEUE_POLICIES:
             from src.version_engine.domain.conflicts import ConflictPolicyDecision
             policy = ConflictPolicyDecision(
-                policy="manual_review",
-                reason="op_intent_override:manual_review",
+                policy=intent.policy_override,
+                reason=f"op_intent_override:{intent.policy_override}",
             )
         else:
             policy = select_conflict_policy(
@@ -920,7 +921,7 @@ class VersionWriteEngine:
                         current_scope_hash=base_root_hash,
                         incoming_scope_hash=new_root_hash,
                     )
-                    if manual_conflicts and merge_policy == "manual_review":
+                    if manual_conflicts and merge_policy in QUEUE_POLICIES:
                         pending_result = await self._record_pending_conflict_generic(
                             repo=repo,
                             project_id=intent.project_id,
@@ -1243,13 +1244,13 @@ class VersionWriteEngine:
                     base_files = await asyncio.to_thread(
                         _files_at_commit, repo, scope_norm, intent.base_commit_id,
                     )
-                if intent.policy_override == "manual_review":
+                if intent.policy_override in QUEUE_POLICIES:
                     from src.version_engine.domain.conflicts import (
                         ConflictPolicyDecision,
                     )
                     policy = ConflictPolicyDecision(
-                        policy="manual_review",
-                        reason="submission_intent_override:manual_review",
+                        policy=intent.policy_override,
+                        reason=f"submission_intent_override:{intent.policy_override}",
                     )
                 else:
                     policy = select_conflict_policy(
@@ -1266,7 +1267,7 @@ class VersionWriteEngine:
                     policy=policy,
                     parent_scope_files=parent_scope_files,
                 )
-                if merge_result.manual_conflicts and policy.policy == "manual_review":
+                if merge_result.manual_conflicts and policy.policy in QUEUE_POLICIES:
                     result = await self._record_pending_conflict(
                         repo=repo,
                         intent=intent,

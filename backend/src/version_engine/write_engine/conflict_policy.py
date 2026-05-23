@@ -56,6 +56,21 @@ _SAFE_CONTENT_STRATEGIES = [
     LineMergeStrategy(),
 ]
 
+# Policy names that route the conflict to a resolver (human or agent)
+# rather than resolving in-engine. Lookup is hot-path so we keep it
+# as a frozenset.
+QUEUE_POLICIES = frozenset({"manual_review", "agent_review", "agent_auto_resolve"})
+# Backwards-compat private alias — existing call sites in this module
+# import the local name. Module-public name is ``QUEUE_POLICIES``.
+_QUEUE_POLICIES = QUEUE_POLICIES
+_REVIEW_KIND_AGENT = "agent merge required"
+_REVIEW_KIND_HUMAN = "manual review required"
+
+
+def _review_kind_for(policy_name: str) -> str:
+    """Pick the human-readable resolver hint for a queue-policy."""
+    return _REVIEW_KIND_AGENT if policy_name.startswith("agent_") else _REVIEW_KIND_HUMAN
+
 
 def select_conflict_policy(
     *,
@@ -307,15 +322,25 @@ def _apply_policy_to_unsafe_conflict(
     *,
     unsafe_detail: list[ConflictRecord] | None = None,
 ) -> None:
-    if policy.policy == "manual_review":
+    # ``manual_review`` and ``agent_*`` policies share the same code
+    # path: queue the conflict (so a resolver can act on it) and keep
+    # ``ours`` in the merged tree so the file isn't lost while the
+    # resolver thinks. The difference between them is purely the
+    # ``resolver_kind`` written on the pending row by the ledger
+    # (computed via ``_resolver_kind_for``) — that field is what
+    # routes the outbox dispatch hook to a human reviewer UI vs an
+    # agent runner.
+    if policy.policy in _QUEUE_POLICIES:
+        strategy_label = policy.policy
+        review_kind = _review_kind_for(policy.policy)
         if unsafe_detail:
             manual_conflicts.extend([
                 ConflictRecord(
                     path=record.path,
-                    strategy="manual_review",
+                    strategy=strategy_label,
                     detail=(
                         f"unsafe automatic strategy {record.strategy!r} "
-                        f"requires manual review: {record.detail}"
+                        f"{review_kind}: {record.detail}"
                     ),
                     kept="pending",
                     lost_content=record.lost_content,
@@ -326,14 +351,13 @@ def _apply_policy_to_unsafe_conflict(
         else:
             manual_conflicts.append(ConflictRecord(
                 path=path,
-                strategy="manual_review",
-                detail="both sides modified; manual review required",
+                strategy=strategy_label,
+                detail=f"both sides modified; {review_kind}",
                 kept="pending",
             ))
         merged[path] = ours
         return
 
-    # last_write_wins / reject / agent_*: take incoming and audit the loss.
     if policy.policy == "reject":
         manual_conflicts.append(ConflictRecord(
             path=path,
@@ -370,16 +394,17 @@ def _resolve_delete_modify(
     lww_records: list[ConflictRecord],
     merged: dict[str, bytes],
 ) -> None:
-    if policy.policy == "manual_review":
+    if policy.policy in _QUEUE_POLICIES:
+        review_kind = _review_kind_for(policy.policy)
         manual_conflicts.append(ConflictRecord(
             path=path,
             strategy="delete_modify",
-            detail="server deleted, incoming modified; manual review required",
+            detail=f"server deleted, incoming modified; {review_kind}",
             kept="pending",
         ))
         # NOT setting ``merged[path]`` is intentional — current state has
         # this path deleted, so the merged tree mirrors current until a
-        # human resolves the conflict. Asymmetric with modify_delete
+        # human/agent resolves the conflict. Asymmetric with modify_delete
         # (which keeps ours) because the surviving side there is server
         # content; here the surviving side would be the *incoming* modify
         # we declined to apply.
@@ -401,11 +426,12 @@ def _resolve_modify_delete(
     lww_records: list[ConflictRecord],
     merged: dict[str, bytes],
 ) -> None:
-    if policy.policy == "manual_review":
+    if policy.policy in _QUEUE_POLICIES:
+        review_kind = _review_kind_for(policy.policy)
         manual_conflicts.append(ConflictRecord(
             path=path,
             strategy="modify_delete",
-            detail="incoming deleted, server modified; manual review required",
+            detail=f"incoming deleted, server modified; {review_kind}",
             kept="pending",
         ))
         merged[path] = ours

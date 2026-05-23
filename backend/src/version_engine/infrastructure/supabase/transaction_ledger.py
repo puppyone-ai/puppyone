@@ -71,7 +71,7 @@ class SupabaseVersionTransactionLedger:
         actor: str,
         transaction_id: int | None = None,
     ) -> None:
-        resolver_kind = _resolver_kind_for(source_channel)
+        resolver_kind = _resolver_kind_for(source_channel, policy)
         payload = {
             "pending_conflict_id": pending_conflict_id,
             "project_id": project_id,
@@ -175,7 +175,21 @@ class SupabaseVersionTransactionLedger:
         ).execute()
 
 
-def _resolver_kind_for(source_channel: str) -> str:
+def _resolver_kind_for(source_channel: str, policy: str = "") -> str:
+    """Decide who the pending conflict should be routed to.
+
+    The policy name takes precedence — ``agent_review`` and
+    ``agent_auto_resolve`` ALWAYS route to the agent dispatch hook
+    regardless of which channel originated the write (a human user
+    can deliberately opt their commit into agent merge by selecting
+    the policy via admin rules).
+
+    When no agent policy is in play, fall back to the channel-based
+    routing: agent / sync channels keep their existing "agent" path,
+    everything else goes to human review.
+    """
+    if policy in {"agent_review", "agent_auto_resolve"}:
+        return "agent"
     if source_channel in {"agent", "sync"}:
         return "agent"
     return "human"
