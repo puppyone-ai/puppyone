@@ -443,11 +443,27 @@ async def upload_snapshot_blobs(
             rejected.append(entry.blob_hash)
             continue
         try:
-            # store.put bridges sync→async via a background loop with a
-            # blocking future.result(); calling it directly from this
-            # async endpoint would freeze the FastAPI event loop for the
-            # entire S3 upload. Run on the worker thread pool instead.
-            await asyncio.to_thread(store.put, entry.blob_hash, data)
+            # ObjectStore.put_blob(data) -> sha1 is the canonical write
+            # path for raw blob bytes (frames as a Git loose blob and
+            # writes through the backend with the right hash). The
+            # alternative ``put_loose(sha1, framed_bytes)`` would
+            # require us to zlib-frame here; ``put_blob`` does it for
+            # us and returns the same hash we already verified above.
+            # asyncio.to_thread: ObjectStore.put_blob ultimately calls
+            # S3StorageBackend.put which blocks via future.result() on
+            # the sync→async bridge, so we run it off the event loop.
+            written_hash = await asyncio.to_thread(store.put_blob, data)
+            # Defensive: re-check the engine's hash matches the
+            # client-asserted hash. We hashed identically above, so a
+            # mismatch here would indicate a backend that diverged
+            # from Git's loose-object framing.
+            if written_hash != entry.blob_hash:
+                log_warning(
+                    f"[shadow-blob] hash divergence: client={entry.blob_hash[:8]} "
+                    f"server={written_hash[:8]} project={project_id}",
+                )
+                rejected.append(entry.blob_hash)
+                continue
             accepted += 1
         except Exception as exc:
             log_warning(
