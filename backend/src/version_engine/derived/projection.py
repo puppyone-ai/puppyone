@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from src.version_engine.write_engine.git_object_format import (
     MODE_DIR,
-    MODE_FILE,
     TreeEntry,
     decode_tree,
     encode_tree,
@@ -304,16 +303,13 @@ def _graft_recursive(store, tree_hash: str, path_parts: list[str], new_hash: str
         child_hash = new_hash
 
     new_entries = [entry for entry in entries if entry.name != target]
+    # Scope grafts always produce directory trees — the child scope's tree
+    # IS a directory regardless of whether it replaces an existing leaf or
+    # creates a new subtree. The previous logic guarded for "replacing a
+    # leaf with another leaf hash" but that case can't arise here.
     new_entries.append(TreeEntry(
         name=target,
-        mode=MODE_FILE if (
-            existing is not None
-            and not existing.is_dir
-            and not remaining
-            # Re-using the leaf's mode only matters when we replace a leaf with
-            # another leaf hash; scope grafts produce directory trees.
-            and False
-        ) else MODE_DIR,
+        mode=MODE_DIR,
         sha1_hex=child_hash,
     ))
     return store.put_tree(encode_tree(new_entries))

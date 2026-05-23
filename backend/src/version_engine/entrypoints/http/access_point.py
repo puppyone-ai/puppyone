@@ -29,6 +29,10 @@ import time
 
 from fastapi import HTTPException
 
+from src.version_engine.adapters.git.protocol import ACCESS_POINT_MAIN_REF
+from src.version_engine.infrastructure.supabase.scope_repository import (
+    find_scope_by_access_key,
+)
 from src.utils.logger import log_error
 
 _ACCESS_POINT_CACHE_TTL_SECONDS = 5.0
@@ -62,21 +66,12 @@ def _set_cached_access_point(access_key: str, project_id: str, auth: dict) -> No
         )
 
 
-def _resolve_via_repo_scopes(client, access_key: str) -> tuple[str, dict] | None:
-    """Path A: post-redesign canonical lookup. Returns (project_id, auth) or
-    None if the key isn't in repo_scopes. Raises 401 if the key IS in
-    repo_scopes but is revoked (revocation must not silently fall through
-    to another policy model)."""
-    resp = (
-        client.table("repo_scopes")
-        .select("id, project_id, path, exclude, mode, access_key_revoked_at")
-        .eq("access_key", access_key)
-        .maybe_single()
-        .execute()
-    )
-    if not resp or not getattr(resp, "data", None):
-        return None
-    scope_row = resp.data
+def _auth_context_from_scope_row(scope_row: dict) -> tuple[str, dict]:
+    """Materialize the L1 auth context from a ``repo_scopes`` row.
+
+    Raises 401 if the row is revoked — revocation must not silently
+    fall through to another policy model.
+    """
     if scope_row.get("access_key_revoked_at"):
         raise HTTPException(status_code=401, detail="Access point key has been revoked")
     project_id = scope_row["project_id"]
@@ -91,7 +86,7 @@ def _resolve_via_repo_scopes(client, access_key: str) -> tuple[str, dict] | None
         "_repo_facade": {
             "id": scope_row["id"],
             "kind": "access_point",
-            "ref": "refs/heads/main",
+            "ref": ACCESS_POINT_MAIN_REF,
             "object_store_scope": "project-shared",
         },
         "_project_id": project_id,
@@ -114,18 +109,16 @@ def resolve_access_point(access_key: str) -> tuple[str, dict]:
         return cached
 
     from src.infra.supabase.client import SupabaseClient
-    client = SupabaseClient().client
 
     try:
-        result = _resolve_via_repo_scopes(client, access_key)
-    except HTTPException:
-        raise
+        scope_row = find_scope_by_access_key(SupabaseClient(), access_key)
     except Exception as e:
         log_error(f"[AP] repo_scopes lookup error: {e}")
         raise HTTPException(status_code=401, detail="Invalid access point key") from e
 
-    if result is not None:
-        _set_cached_access_point(access_key, result[0], result[1])
-        return result
+    if scope_row is None:
+        raise HTTPException(status_code=401, detail="Invalid access point key")
 
-    raise HTTPException(status_code=401, detail="Invalid access point key")
+    project_id, auth = _auth_context_from_scope_row(scope_row)
+    _set_cached_access_point(access_key, project_id, auth)
+    return project_id, auth

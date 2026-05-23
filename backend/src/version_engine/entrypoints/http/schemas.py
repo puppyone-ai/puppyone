@@ -24,6 +24,14 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
+# Path syntactic validation lives in the L4 adapter
+# (``ProductOperationAdapter.*`` → ``validate_path``). Per the
+# architecture doc, "syntactic cleanup, content serialization, default
+# messages, and Git pack parsing are adapter-local implementation
+# details, not a separate architecture layer," so request schemas stay
+# minimal — they describe the wire shape only.
+
+
 # ============================================================
 # Tree API request schemas
 # ============================================================

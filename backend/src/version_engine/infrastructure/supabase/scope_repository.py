@@ -11,10 +11,45 @@ Scope payload:
 
 from __future__ import annotations
 
+from src.version_engine.infrastructure.supabase import safe_data
 from src.version_engine.infrastructure.supabase.scope_manager import ScopeBackend
 
 from src.infra.supabase.client import SupabaseClient
 from src.utils.logger import log_error
+
+
+def find_scope_by_access_key(
+    supabase: SupabaseClient,
+    access_key: str,
+) -> dict | None:
+    """Look up the ``repo_scopes`` row that owns ``access_key``.
+
+    L2 identity + L1 access-point routing both need this lookup, and the
+    SQL used to be duplicated between them. The repository module is the
+    single source of truth so that revocation handling, column selection,
+    and project_id checks live in one place.
+
+    Returns the full row including ``access_key_revoked_at`` so callers
+    can decide whether to honor or reject the credential. Returns
+    ``None`` when the key is unknown; callers translate that to a 401.
+    """
+    try:
+        resp = (
+            supabase.client.table("repo_scopes")
+            .select(
+                "id, project_id, path, exclude, mode, access_key_revoked_at",
+            )
+            .eq("access_key", access_key)
+            .limit(1)
+            .execute()
+        )
+        rows = safe_data(resp)
+        if not rows:
+            return None
+        return rows[0]
+    except Exception as e:
+        log_error(f"[scope_repository] find_scope_by_access_key failed: {e}")
+        return None
 
 
 class SupabaseScopeBackend(ScopeBackend):

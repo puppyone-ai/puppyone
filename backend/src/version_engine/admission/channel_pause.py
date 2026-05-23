@@ -76,9 +76,20 @@ def enforce_channel_pause(
                     normalized_channel,
                 )
             except Exception as e:
+                # Fail open ONLY because pause is a recoverable UX gate,
+                # not a security boundary — repo membership / mode /
+                # excludes are checked elsewhere. A transient connector
+                # repo failure should not block legitimate traffic for
+                # all scopes. But we cache the failure with the same
+                # short TTL so we re-probe quickly when the repo recovers
+                # (and don't spam the log on every request).
                 log_error(
                     f"{log_prefix} Channel-pause lookup failed for scope={scope_id} "
-                    f"channel={normalized_channel}: {e}; failing open"
+                    f"channel={normalized_channel}: {e}; failing open (pause UX only — "
+                    f"membership/mode/excludes still enforced)"
+                )
+                _set_cached_channel_pause(
+                    scope_id, normalized_channel, None, None,
                 )
                 connector_id = None
                 connector_status = None

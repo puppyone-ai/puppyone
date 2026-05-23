@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Request
 
 from src.common_schemas import ApiResponse
 from src.version_engine.adapters.git.health import git_view_health_payload
+from src.version_engine.derived.git_transport_cache import rebuild_git_transport_view
 from src.version_engine.entrypoints.git.auth import (
     request_actor,
     resolve_git_project_auth,
@@ -27,6 +28,7 @@ from src.version_engine.adapters.git.upload_pack import (
     upload_pack_response,
 )
 from src.version_engine.admission.repo_facade import repo_facade_from_auth
+from src.version_engine.admission.target import admit_target
 from src.version_engine.bootstrap.dependencies import get_repo_manager
 from src.version_engine.entrypoints.http.access_point import resolve_access_point
 from src.version_engine.admission.channel_pause import enforce_channel_pause
@@ -208,6 +210,125 @@ async def git_ap_health(
             read_only=facade.read_only,
         ),
         message="Git view health loaded",
+    )
+
+
+@router.get("/{project_id}.git/health")
+async def git_project_health(
+    project_id: str,
+    request: Request,
+    scope: str = "",
+    repo_manager: VersionRepoManager = Depends(get_repo_manager),
+):
+    """Return Git view health for a project's root remote.
+
+    The Access Point variant has had a health endpoint for a while; the
+    project-root Git remote has the same failure modes (empty / healthy /
+    history_degraded / current_corrupt) and the same need to expose them
+    for self-diagnosis. Same auth + same payload shape as the AP route —
+    just resolved against the project root scope instead of the
+    access-key-bound scope.
+    """
+
+    auth = await resolve_git_project_auth(project_id, request, scope)
+    repo = repo_manager.get_server_repo(project_id)
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    return ApiResponse.success(
+        data=git_view_health_payload(
+            repo,
+            project_id=project_id,
+            scope_path=facade.scope_path,
+            scope_excludes=list(facade.excludes),
+            read_only=facade.read_only,
+        ),
+        message="Git view health loaded",
+    )
+
+
+async def _rebuild_both_variants(repo, facade) -> dict:
+    """Rebuild both cache variants for one view and return the combined payload.
+
+    Each view has two cache shapes: full-history-with-blobs (clone/fetch
+    serves this) and receive-boundary-without-blobs (push advertisement
+    serves this). If we only rebuilt one, the other would stay cold and
+    the next request in that direction would re-warm — making the
+    rebuild endpoint only partially effective.
+    """
+    rebuilt_full = await asyncio.to_thread(
+        rebuild_git_transport_view,
+        repo,
+        scope_path=facade.scope_path,
+        scope_excludes=list(facade.excludes),
+        follow_history=True,
+        include_blobs=True,
+    )
+    rebuilt_boundary = await asyncio.to_thread(
+        rebuild_git_transport_view,
+        repo,
+        scope_path=facade.scope_path,
+        scope_excludes=list(facade.excludes),
+        follow_history=False,
+        include_blobs=False,
+    )
+    return {"variants": [rebuilt_full, rebuilt_boundary]}
+
+
+@router.post("/ap/{access_key}.git/rebuild-cache")
+async def git_ap_rebuild_cache(
+    access_key: str,
+    request: Request,
+    repo_manager: VersionRepoManager = Depends(get_repo_manager),
+):
+    """Drop and rewarm the Git view cache for an Access Point remote.
+
+    The architecture doc promises "if the cache is missing or unhealthy,
+    it can be rebuilt from committed Version Engine facts" — this is
+    that public trigger. Goes through ``admit_target`` so mode +
+    channel-pause checks run in one place; ``write`` action because
+    rebuild mutates the on-disk per-view bare repo. Read-only callers
+    can still get diagnostics via ``/health``.
+    """
+    project_id, auth = await resolve_git_access_point(access_key, request)
+    repo = repo_manager.get_server_repo(project_id)
+    facade = repo_facade_from_auth(project_id, auth, kind="access_point")
+    admit_target(
+        auth,
+        facade,
+        action="write",
+        source_channel="git",
+        channel_header=request.headers.get("x-puppy-client"),
+        log_prefix="[GitAP][rebuild]",
+    )
+    return ApiResponse.success(
+        data=await _rebuild_both_variants(repo, facade),
+        message="Git view caches rebuilt from canonical facts",
+    )
+
+
+@router.post("/{project_id}.git/rebuild-cache")
+async def git_project_rebuild_cache(
+    project_id: str,
+    request: Request,
+    scope: str = "",
+    repo_manager: VersionRepoManager = Depends(get_repo_manager),
+):
+    """Drop and rewarm the project-root Git view cache. See
+    ``git_ap_rebuild_cache`` for the shared invariants."""
+
+    auth = await resolve_git_project_auth(project_id, request, scope)
+    repo = repo_manager.get_server_repo(project_id)
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    admit_target(
+        auth,
+        facade,
+        action="write",
+        source_channel="git",
+        channel_header=request.headers.get("x-puppy-client"),
+        log_prefix="[GitProject][rebuild]",
+    )
+    return ApiResponse.success(
+        data=await _rebuild_both_variants(repo, facade),
+        message="Git view caches rebuilt from canonical facts",
     )
 
 

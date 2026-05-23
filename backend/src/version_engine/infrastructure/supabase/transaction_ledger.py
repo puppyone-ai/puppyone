@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.version_engine.infrastructure.supabase.db_names import CONFLICTS_TABLE, VERSION_OUTBOX_TABLE
-from src.utils.logger import log_warning
+from src.utils.logger import log_error
 
 
 class SupabaseVersionTransactionLedger:
@@ -94,6 +94,13 @@ class SupabaseVersionTransactionLedger:
             payload, on_conflict="pending_conflict_id",
         ).execute()
 
+        # The conflict row was just written; the outbox row is what gets
+        # the resolver UI / notification dispatch / agent escalation
+        # rolling. Swallowing this error would leave a "silent" pending
+        # conflict that no derived worker will ever see. Log loud and
+        # raise so the engine's CAS-retry loop can either retry on the
+        # next attempt or fail loud — far better than data sitting in
+        # the conflict table with no consumer.
         try:
             self._client.table(VERSION_OUTBOX_TABLE).insert({
                 "project_id": project_id,
@@ -110,10 +117,12 @@ class SupabaseVersionTransactionLedger:
                 },
             }).execute()
         except Exception as exc:
-            log_warning(
+            log_error(
                 f"[version_engine] failed to enqueue pending_conflict_created "
-                f"outbox for {pending_conflict_id[:12]}: {exc}",
+                f"outbox for {pending_conflict_id[:12]}: {exc}; "
+                f"propagating so the conflict row is not orphaned",
             )
+            raise
 
     def load_pending_conflict(
         self,

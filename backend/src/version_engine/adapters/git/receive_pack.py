@@ -13,6 +13,7 @@ from src.version_engine.adapters.git.object_quarantine import (
     official_receive_pack_quarantine,
 )
 from src.version_engine.adapters.git.protocol import (
+    ACCESS_POINT_MAIN_REF,
     ZERO_ID,
     flush_pkt,
     is_object_id,
@@ -286,6 +287,14 @@ async def receive_pack_response_from_path(
             # translate back to the current canonical commit before publishing.
             engine_base_commit_id = current_head_commit_id
             if scope_excludes:
+                # The merged tree is built against the canonical scope tree
+                # (preserving hidden files) using the pushed blob hashes for
+                # visible paths. The merged tree is written to the canonical
+                # object store, but the BLOBS it references stay in quarantine
+                # until publish succeeds — matching the non-excluded path's
+                # promote-after-validate invariant. If submit_git_tree rejects
+                # (CAS lost, conflict, etc.), the merged tree becomes an
+                # unreachable orphan and object_gc will collect it.
                 proposed_tree_id = _canonical_tree_for_excluded_scope_push(
                     repo,
                     quarantine,
@@ -293,7 +302,6 @@ async def receive_pack_response_from_path(
                     tree_id,
                     changed_paths,
                 )
-                promote_objects = None
                 engine_base_commit_id = current_head_commit_id
 
             # E5: refuse LFS pointer blobs with a clear message before the
@@ -499,9 +507,15 @@ def _canonical_tree_for_excluded_scope_push(
     as a normal Git ancestor would also reject valid visible-only changes.
     Official Git already enforced fast-forward against the filtered view, so
     here we apply only the visible changed paths onto the canonical scope tree.
+
+    Does NOT promote quarantined objects — the caller wires
+    ``quarantine.promote_reachable`` as the engine's post-CAS callback so
+    blob promotion happens only after publish succeeds. The merged tree
+    written here references quarantined blob hashes; those references
+    become live the moment promotion runs. If publish is rejected the
+    tree becomes an unreachable orphan and object_gc collects it.
     """
 
-    quarantine.promote_reachable()
     full_blob_ids: dict[str, str] = (
         tree_mod.tree_to_flat(repo.store, current_scope_hash)
         if current_scope_hash
@@ -568,13 +582,13 @@ def _ref_writability(ref: str) -> tuple[bool, str]:
     until branch/MR storage is implemented explicitly.
     """
 
-    if ref == "refs/heads/main":
+    if ref == ACCESS_POINT_MAIN_REF:
         return True, ""
     if ref.startswith("refs/tags/"):
         return False, "tag refs are immutable on this remote; tag through the project API"
     return False, (
         f"ref {ref!r} is not writable on this scope remote; "
-        "only refs/heads/main is currently backed by an access-point ref"
+        f"only {ACCESS_POINT_MAIN_REF} is currently backed by an access-point ref"
     )
 
 

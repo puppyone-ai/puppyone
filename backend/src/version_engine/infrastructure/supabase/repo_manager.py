@@ -20,6 +20,8 @@ Provides three repo views:
 
 from __future__ import annotations
 
+import os
+import tempfile
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,6 +45,20 @@ from src.utils.logger import log_error
 
 if TYPE_CHECKING:
     from src.version_engine.adapters.batch.in_process_client import InProcessVersionClient
+
+
+def _objects_dir_for(project_id: str) -> Path:
+    """Resolve the per-project object cache directory.
+
+    Honors ``VERSION_ENGINE_OBJECTS_DIR`` if set; otherwise uses the OS
+    temp directory under ``version-engine/<project>``. ``/tmp`` is not
+    portable to Windows runners, and tests/CI sometimes run with
+    read-only ``/`` so we never write outside the temp tree.
+    """
+    base = os.environ.get("VERSION_ENGINE_OBJECTS_DIR")
+    if base:
+        return Path(base) / project_id
+    return Path(tempfile.gettempdir()) / "version-engine" / project_id
 
 
 @dataclass
@@ -245,7 +261,7 @@ class VersionRepoManager:
         s3_backend = S3StorageBackend(self._s3, project_id, supabase=self._supabase)
         cached_backend = CachedStorageBackend(s3_backend)
         store = ObjectStore(
-            objects_dir=Path(f"/tmp/version-engine/{project_id}"),
+            objects_dir=_objects_dir_for(project_id),
             backend=cached_backend,
         )
         history = SupabaseHistoryManager(self._supabase, project_id)

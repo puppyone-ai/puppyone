@@ -20,7 +20,9 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 from src.config import settings
 from src.infra.supabase.client import SupabaseClient
-from src.version_engine.infrastructure.supabase import safe_data
+from src.version_engine.infrastructure.supabase.scope_repository import (
+    find_scope_by_access_key,
+)
 from src.version_engine.admission.channel_pause import enforce_channel_pause
 from src.platform.auth.dependencies import security
 from src.utils.logger import log_error, log_warning
@@ -30,7 +32,11 @@ class PuppyOneAuthenticator:
     """Resolve PuppyOne credentials to a version access context."""
 
     def __init__(self, supabase: SupabaseClient):
-        self._client = supabase.client
+        # Held as the typed wrapper, not the raw supabase-py client, so
+        # repository helpers (which take the wrapper) are usable here
+        # without re-wrapping at every call site. L2 must not assemble
+        # its own SQL; lookups go through infrastructure/.
+        self._supabase = supabase
 
     def authenticate(self, token: str, project_id: str,
                      user_identity: str = "") -> dict:
@@ -154,32 +160,23 @@ class PuppyOneAuthenticator:
         """Resolve an access_key against the canonical repo_scopes table.
 
         Scopes own their keys directly. There is no config-scope fallback
-        here because accepting two
-        auth sources creates two policy models for the same credential.
+        here because accepting two auth sources creates two policy models
+        for the same credential. The actual SQL lives in
+        ``infrastructure/supabase/scope_repository.find_scope_by_access_key``
+        so identity is purely a policy layer.
         """
-        try:
-            resp = (
-                self._client.table("repo_scopes")
-                .select("id, project_id, path, exclude, mode, access_key_revoked_at")
-                .eq("access_key", key)
-                .limit(1)
-                .execute()
-            )
-            rows = safe_data(resp)
-            if rows:
-                scope = rows[0]
-                if scope.get("access_key_revoked_at"):
-                    return None
-                if scope.get("project_id") != project_id:
-                    log_warning(
-                        f"[Auth] access_key project mismatch (repo_scopes): "
-                        f"url_project={project_id} key_project={scope.get('project_id')}"
-                    )
-                    return None
-                return scope
-        except Exception as e:
-            log_error(f"[Auth] repo_scopes access key lookup failed: {e}")
+        scope = find_scope_by_access_key(self._supabase, key)
+        if scope is None:
             return None
+        if scope.get("access_key_revoked_at"):
+            return None
+        if scope.get("project_id") != project_id:
+            log_warning(
+                f"[Auth] access_key project mismatch (repo_scopes): "
+                f"url_project={project_id} key_project={scope.get('project_id')}"
+            )
+            return None
+        return scope
 
     # ── Key management ──
     #

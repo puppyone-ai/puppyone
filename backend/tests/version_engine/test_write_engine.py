@@ -1832,6 +1832,7 @@ def test_git_ap_health_reports_current_corrupt_and_info_refs_returns_409(
     assert [item["type"] for item in data["recommended_actions"]] == [
         "restore_version",
         "repair_storage",
+        "rebuild_cache",
     ]
 
     assert refs_response.status_code == 409

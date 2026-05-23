@@ -302,12 +302,23 @@ def _add_outbox_roots(repo, add, errors: list[str]) -> None:
         errors.append(f"list_pending_outbox_roots: {exc}")
 
 
+_PENDING_CONFLICT_EVENT_TYPES = frozenset({
+    "conflict_pending",
+    "pending_conflict_created",
+})
+
+
 def _add_pending_conflict_roots(repo, add, errors: list[str]) -> None:
     audit = getattr(repo, "audit", None)
     events = getattr(audit, "events", None)
     if events is not None:
         for event in list(events):
-            if "conflict_pending" not in str(event.get("type", "")):
+            event_type = str(event.get("type", ""))
+            # Match canonical event-type tokens, not substrings, so renames
+            # like ``conflict_pending_v2`` or ``…_pending_conflict_…`` don't
+            # silently flip protection on/off. Add new tokens to the set
+            # above when a new pending-conflict event type lands.
+            if not any(t in event_type for t in _PENDING_CONFLICT_EVENT_TYPES):
                 continue
             detail = event.get("detail") or {}
             if isinstance(detail, dict):

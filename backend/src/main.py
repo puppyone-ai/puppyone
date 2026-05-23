@@ -342,7 +342,9 @@ async def app_lifespan(app: FastAPI):
 
     from src.version_engine.bootstrap.container import build_version_engine_container
 
-    app.state.version_engine = build_version_engine_container()
+    # probe=True at process boot — fail fast on misconfigured S3 /
+    # Supabase rather than crashing the first user write.
+    app.state.version_engine = build_version_engine_container(probe=True)
     _log_import_times()
 
     await _init_mcp_health_check()

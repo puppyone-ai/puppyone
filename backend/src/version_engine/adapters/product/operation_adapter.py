@@ -414,9 +414,15 @@ class ProductOperationAdapter:
             project_write_state=project_write_state,
         )
 
-        # Best-effort secondary index update — keeps repo_scopes pointing
-        # at the new path. Failures here are
-        # logged but don't fail the move.
+        # Best-effort repo_scopes path rename — moves are reported on the
+        # change list as ``delete(old_path)`` + ``put(new_path)`` so
+        # ``run_post_push_hook`` cannot distinguish them from a real
+        # delete-then-add pair without help. Calling ``post_commit_move``
+        # here from L4 is a known layer violation — the doc-clean fix is
+        # to tag the move in the history entry's ``audit_detail`` and
+        # have ``run_post_push_hook`` dispatch to ``post_commit_move``
+        # when it sees the tag. Tracked as architectural debt; doing it
+        # now would require a mut_commits column-shape change.
         try:
             from src.version_engine.derived.hooks import post_commit_move
 
@@ -1048,37 +1054,6 @@ class ProductOperationAdapter:
 
         run_post_push_hook(project_id, self._repos, push_result)
         return push_result
-
-    def _run_post_push_hook(
-        self, project_id: str, push_result: dict,
-    ) -> None:
-        """Best-effort post-push hook — log on failure, never re-raise.
-
-        The Write Engine already does this internally,
-        so internal typed ops don't reach here. This shim exists for
-        external callers (and tests) that want the same resilience
-        without writing the try/except themselves.
-        """
-        try:
-            from src.version_engine.derived.hooks import run_post_push_hook
-
-            run_post_push_hook(project_id, self._repos, push_result)
-        except Exception as e:
-            import traceback
-
-            from src.utils.logger import log_error
-
-            commit_id = (
-                push_result.get("commit_id")
-                or push_result.get("new_commit_id")
-            )
-            log_error(
-                f"[ProductOperationAdapter] post-push hook failed for project={project_id} "
-                f"commit={commit_id} "
-                f"scope={push_result.get('scope_path', '?')} "
-                f"status={push_result.get('status', '?')} "
-                f"error={type(e).__name__}: {e}\n{traceback.format_exc()}",
-            )
 
     # ══════════════════════════════════════════════
     # Scope routing helpers

@@ -1,11 +1,14 @@
 """
-InProcessVersionClient — in-process version transaction adapter.
+InProcessVersionClient — L4 **batch** adapter (in-process).
 
-Simulates the read/modify/publish loop of a Git push for callers that
-run *inside* the API server (Agent, Sandbox, MCP, Web UI), so they
-share the same scope enforcement, conflict policy, and audit logging
-as external ``git push``-driven traffic without paying the cost of an
-HTTP round trip.
+This module is the ``adapters/batch/`` entry from the architecture doc's
+L4 lineup ("Product / AP / batch adapter"). "Batch" here means
+"connector / sync job / MCP tool / sandbox" callers that live inside
+the API process and need the same scope enforcement, conflict policy,
+and audit logging as external ``git push`` traffic — but without the
+HTTP round trip. The clone/modify/publish loop is modeled after Git
+push so callers can reason about a single contract regardless of
+whether they're a real Git client or an in-process consumer.
 
 Usage:
     client = InProcessVersionClient(repo_manager, project_id, auth_context)

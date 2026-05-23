@@ -374,6 +374,23 @@ def merge_file_sets(
     their_files: dict,
     resolver: ConflictResolver | None = None,
 ) -> tuple[dict[str, bytes], list[ConflictRecord]]:
+    """File-set three-way merge used by Git submission path.
+
+    This is the SECOND of two merge implementations — see
+    ``conflict_policy.merge_file_sets_for_policy`` for the CAS-retry
+    version. The two diverge on modify/delete shapes:
+
+      * THIS function (Git submission): keeps ``ours`` on modify/delete
+        and keeps ``theirs`` on delete/modify. The modifying side
+        always wins to minimize data loss on Git push.
+      * ``merge_file_sets_for_policy`` (CAS-retry): consults the policy.
+        Under LWW the incoming side wins (including incoming delete);
+        under manual_review the conflict is queued.
+
+    The divergence is intentional but easy to break — if you're
+    unifying these, audit case B11 and C12 in the conflict-cases
+    inventory before flipping behavior.
+    """
     merged: dict[str, bytes] = {}
     all_conflicts: list[ConflictRecord] = []
 
