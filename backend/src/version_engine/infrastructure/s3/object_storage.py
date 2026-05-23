@@ -593,22 +593,43 @@ class S3StorageBackend(StorageBackend):
             else:
                 remaining.append(h)
 
-        location_lookup_completed = self._supabase is None
         if self._supabase is not None and remaining:
             try:
                 with trace_phase("db.object_location.lookup_many", count=len(remaining)):
                     existing.update(self._lookup_many_object_locations(remaining).keys())
-                location_lookup_completed = True
             except Exception:
                 pass
 
         remaining = [h for h in remaining if h not in existing]
         if remaining:
+            # ALWAYS allow the per-hash fallback to re-check packed
+            # locations, even when the bulk Supabase lookup already
+            # "completed". A successful bulk query that returns N-k
+            # rows is ambiguous: the missing k entries could mean
+            # "object really doesn't exist" OR "row not yet visible
+            # from this connection" (Postgres replica lag, transient
+            # connection rotation, or the read happening on a
+            # different worker before the cache propagated).
+            #
+            # If we trust the bulk result as authoritative, a bundled
+            # object whose row just missed the cutoff is reported as
+            # missing — and ``s3.file_exists(loose_key)`` returns
+            # False because the bundle has no per-hash key. That
+            # cascade is what flipped the project view to
+            # ``current_corrupt`` immediately after a move op on
+            # staging, then self-healed on the next commit when the
+            # row finally became visible.
+            #
+            # The cost of always re-checking is one extra
+            # ``_lookup_object_location`` call per still-missing hash,
+            # i.e. exactly one extra Supabase round-trip per hash that
+            # the bulk query already missed. In the happy path this
+            # branch is never taken because ``remaining`` is empty.
             existing.update(_run_async(
                 self.async_exists_many(
                     remaining,
                     concurrency=20,
-                    check_packed_locations=not location_lookup_completed,
+                    check_packed_locations=True,
                 )
             ))
         return existing
