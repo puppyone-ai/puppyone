@@ -5,7 +5,9 @@ import useSWR from 'swr';
 import { get, del, post } from '@/lib/apiClient';
 import {
   getGitAccessPointHealth,
+  rebuildGitAccessPointCache,
   type GitAccessPointHealth,
+  type GitHealthAction,
   type GitViewHealth,
 } from '@/lib/gitHealthApi';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
@@ -216,7 +218,11 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
           </div>
         )}
 
-        <GitHealthBanner health={gitHealth} loading={gitHealthLoading} />
+        <GitHealthBanner
+          health={gitHealth}
+          loading={gitHealthLoading}
+          apAccessKey={accessKeyForHealth}
+        />
 
         {/* ── Quick Actions ── */}
         <div style={{ padding: '16px 20px 0', display: 'flex', gap: 8 }}>
@@ -398,20 +404,34 @@ function gitHealthTone(health?: GitViewHealth): {
   };
 }
 
-function GitHealthBanner({ health, loading }: {
+function GitHealthBanner({ health, loading, apAccessKey }: {
   health?: GitAccessPointHealth;
   loading: boolean;
+  apAccessKey: string;
 }) {
-  if (!loading && (!health || health.health === 'healthy' || health.health === 'empty')) {
-    return null;
-  }
+  // Suppress the banner for plain ``healthy`` and ``empty`` while
+  // loading is settled: those are the steady-state "no user
+  // intervention needed" outcomes. Everything else (loading,
+  // history_degraded, current_corrupt) shows the banner so the
+  // recommended actions are reachable.
+  const showBanner = loading
+    || (health && health.health !== 'healthy' && health.health !== 'empty');
+  if (!showBanner) return null;
+
   const tone = gitHealthTone(health?.health);
   const title = loading ? 'Checking Git status' : gitHealthLabel(health?.health);
-  const detail = loading
-    ? 'Reading the Access Point Git view.'
-    : health?.health === 'history_degraded'
-      ? 'Clone and push are available from the safe truncated history.'
-      : 'Restore or repair the current version before using Git.';
+  let detail: string;
+  if (loading) {
+    detail = 'Reading the Access Point Git view.';
+  } else if (health?.reason) {
+    detail = health.reason;
+  } else if (health?.health === 'history_degraded') {
+    detail = 'Clone and push are available from the safe truncated history.';
+  } else {
+    detail = 'Restore or repair the current version before using Git.';
+  }
+
+  const actions = (!loading && health?.recommended_actions) || [];
 
   return (
     <div style={{
@@ -435,15 +455,113 @@ function GitHealthBanner({ health, loading }: {
           flexShrink: 0,
         }}
       />
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: tone.color, lineHeight: 1.5 }}>
           {title}
         </div>
         <div style={{ fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.5 }}>
           {detail}
         </div>
+        {actions.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {actions.map((action) => (
+              <GitHealthActionButton
+                key={action.type}
+                action={action}
+                apAccessKey={apAccessKey}
+                tone={tone}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+/** Renders one ``recommended_action`` from the health payload. Only
+ * ``rebuild_cache`` is wired to a server-side endpoint right now; the
+ * other types (restore_version / repair_storage / repair_history /
+ * first_commit / continue / none) currently surface as informational
+ * chips because they need a UI flow that doesn't exist yet. Adding a
+ * new handler is a single case branch below. */
+function GitHealthActionButton({
+  action,
+  apAccessKey,
+  tone,
+}: Readonly<{
+  action: GitHealthAction;
+  apAccessKey: string;
+  tone: ReturnType<typeof gitHealthTone>;
+}>) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<'idle' | 'ok' | 'err'>('idle');
+
+  const isInteractive = action.type === 'rebuild_cache' && !!apAccessKey;
+
+  const handleClick = useCallback(async () => {
+    if (action.type !== 'rebuild_cache' || !apAccessKey || running) return;
+    setRunning(true);
+    setResult('idle');
+    try {
+      await rebuildGitAccessPointCache(apAccessKey);
+      setResult('ok');
+    } catch (err) {
+      console.error('[GitHealth] rebuild cache failed:', err);
+      setResult('err');
+    } finally {
+      setRunning(false);
+    }
+  }, [action.type, apAccessKey, running]);
+
+  let label: string;
+  if (running) {
+    label = 'Rebuilding…';
+  } else if (result === 'ok') {
+    label = `${action.label} ✓`;
+  } else if (result === 'err') {
+    label = `${action.label} ✗`;
+  } else {
+    label = action.label;
+  }
+
+  if (!isInteractive) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '4px 8px',
+          borderRadius: 4,
+          background: 'color-mix(in srgb, var(--po-text-muted) 6%, transparent)',
+          color: 'var(--po-text-muted)',
+          fontSize: 11,
+          fontWeight: 500,
+        }}
+      >
+        {action.label}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={running}
+      style={{
+        padding: '4px 10px',
+        borderRadius: 4,
+        border: `1px solid ${tone.border}`,
+        background: tone.background,
+        color: tone.color,
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: running ? 'progress' : 'pointer',
+      }}
+    >
+      {label}
+    </button>
   );
 }
 

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
+import { ConflictMarkerBanner } from '@/components/editors/ConflictMarkerBanner';
 
 const technicalTextExtensions = ['.env', '.log'];
 
@@ -83,13 +84,26 @@ export function PlainTextEditor({
   nodeName = '',
   readOnly = true,
   onChange,
-}: PlainTextEditorProps) {
+}: Readonly<PlainTextEditorProps>) {
   const lowerName = nodeName.toLowerCase();
   const isTechnicalText = technicalTextExtensions.some((ext) => lowerName.endsWith(ext));
 
   return (
     <div className="plain-text-editor">
       <style>{plainTextStyles}</style>
+      {/* ConflictMarkerBanner detects Git-style merge markers
+        * (``<<<<<<< current`` / ``=======`` / ``>>>>>>> incoming``)
+        * that the engine embedded under ``last_write_wins`` policy and
+        * offers per-block resolution. Plaintext editors handle .env /
+        * .log / .yml / generic .txt files that absolutely can carry
+        * markers, so the banner sits at the top of the rail in both
+        * read-only and editable modes. ``onResolve`` is only wired
+        * when ``onChange`` is available — a read-only viewer can still
+        * surface the warning. */}
+      <ConflictMarkerBanner
+        content={content}
+        onResolve={readOnly ? undefined : onChange}
+      />
       <div className="plain-text-editor__rail">
         {readOnly ? (
           <pre

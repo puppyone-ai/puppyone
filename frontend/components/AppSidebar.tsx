@@ -122,6 +122,20 @@ export const AppSidebar = memo(function AppSidebar({
         ),
       },
       {
+        id: 'conflicts',
+        label: t('conflicts'),
+        icon: (
+          // Two arrows colliding — read as "merge conflict". Same
+          // 18×18 footprint as the other nav glyphs so the rail family
+          // stays consistent (closed outline + interior strokes).
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <path d='M7 7l4 4-4 4' />
+            <path d='M17 7l-4 4 4 4' />
+            <line x1='11' y1='11' x2='13' y2='13' />
+          </svg>
+        ),
+      },
+      {
         id: 'monitor',
         label: t('monitor'),
         icon: (
@@ -201,6 +215,8 @@ export const AppSidebar = memo(function AppSidebar({
             router.push(`/projects/${activeProject.id}/access`);
           } else if (viewId === 'history') {
             router.push(`/projects/${activeProject.id}/history`);
+          } else if (viewId === 'conflicts') {
+            router.push(`/projects/${activeProject.id}/conflicts`);
           } else if (viewId === 'monitor') {
             router.push(`/projects/${activeProject.id}/monitor`);
           } else if (viewId === 'toolkit') {
@@ -215,6 +231,7 @@ export const AppSidebar = memo(function AppSidebar({
             data: `/projects/${id}/data`,
             access: `/projects/${id}/access`,
             history: `/projects/${id}/history`,
+            conflicts: `/projects/${id}/conflicts`,
             monitor: `/projects/${id}/monitor`,
             toolkit: `/projects/${id}/toolkit`,
             settings: `/projects/${id}/settings`,
