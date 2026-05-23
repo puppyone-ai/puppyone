@@ -124,6 +124,49 @@ def refresh_fs_path_index_for_commit(
     return touched
 
 
+def cleanup_fs_path_index_for_scope(project_id: str, scope_path: str) -> int:
+    """Remove ``fs_path_index`` rows for one scope's prefix.
+
+    Called from the scope-delete L1 endpoint AFTER the ``repo_scopes``
+    row is gone. Without this, a future scope created at the same
+    ``scope_path`` inherits stale rows pointing at the previous scope's
+    blob hashes — the ``fs find`` / ``stat`` query would return content
+    that no longer exists in the canonical tree.
+
+    Returns the number of rows deleted. Root scope (empty path) is
+    refused because dropping root rows would wipe the whole project's
+    file index — root cleanup belongs to ``rebuild_fs_path_index_for_project``.
+    """
+    scope_prefix = (scope_path or "").strip("/")
+    if not scope_prefix:
+        log_warning(
+            f"[fs_path_index] cleanup refused for empty scope_path on "
+            f"project={project_id}; root cleanup goes through rebuild",
+        )
+        return 0
+    try:
+        client = SupabaseClient().client
+        resp = (
+            client.table("fs_path_index")
+            .delete()
+            .eq("project_id", project_id)
+            .eq("scope_path", scope_prefix)
+            .execute()
+        )
+        deleted = len(resp.data or [])
+        log_info(
+            f"[fs_path_index] cleaned up scope={scope_prefix!r} "
+            f"project={project_id} rows={deleted}",
+        )
+        return deleted
+    except Exception as exc:
+        log_warning(
+            f"[fs_path_index] cleanup failed for scope={scope_prefix!r} "
+            f"project={project_id}: {exc}",
+        )
+        return 0
+
+
 def rebuild_fs_path_index_for_project(repo, project_id: str) -> int:
     """Full rebuild: walk every scope's current tree and upsert all rows.
 

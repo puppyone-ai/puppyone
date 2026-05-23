@@ -747,6 +747,15 @@ def _broadcast_commit_update(project_id: str, entry: dict, changes: list[dict]) 
     try:
         from src.version_engine.derived.notifications import NotificationManager
         manager = NotificationManager.get()
+        # ``pusher_client_id`` came in via the request header
+        # ``X-PuppyOne-Client-Id`` (when present) and was stashed into
+        # ``audit_detail`` by the L1 router. NotificationManager uses
+        # it to suppress echo to the exact tab/device that fired the
+        # write while still echoing to that user's other devices.
+        audit_detail = entry.get("audit_detail") or {}
+        pusher_client_id = ""
+        if isinstance(audit_detail, dict):
+            pusher_client_id = str(audit_detail.get("pusher_client_id") or "")
         coro = manager.broadcast_commit_update(
             project_id=project_id,
             scope_path=(entry.get("scope_path") or ""),
@@ -755,6 +764,7 @@ def _broadcast_commit_update(project_id: str, entry: dict, changes: list[dict]) 
             message=entry.get("message", ""),
             scope_hash=entry.get("scope_hash", ""),
             changes=changes,
+            pusher_client_id=pusher_client_id,
         )
         try:
             loop = asyncio.get_running_loop()

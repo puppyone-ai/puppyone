@@ -145,6 +145,16 @@ def delete_scope(
     conn_repo = ConnectorRepository()
     n_third_party = conn_repo.count_third_party_for_scope(scope_id)
     service.delete(scope_id, has_bound_connectors=n_third_party > 0)
+
+    # Drop ``fs_path_index`` rows pinned to this scope's prefix —
+    # otherwise a future scope created at the same path would inherit
+    # stale rows pointing at the previous scope's blob hashes.
+    # Best-effort: failure here is logged inside the helper and does
+    # not bubble up because the scope is already gone.
+    from src.version_engine.derived.path_index import (
+        cleanup_fs_path_index_for_scope,
+    )
+    cleanup_fs_path_index_for_scope(str(project.id), existing.path or "")
     return ApiResponse.success(message="Scope deleted")
 
 
