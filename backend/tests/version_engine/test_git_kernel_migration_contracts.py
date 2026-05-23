@@ -507,6 +507,75 @@ async def test_upload_staging_writes_git_loose_blob_bytes() -> None:
     assert decode_object(s3.uploads[expected_key]) == ("blob", raw)
 
 
+@pytest.mark.asyncio
+async def test_upload_staging_overwrites_legacy_raw_bytes_at_dst_key() -> None:
+    """Regression: a pre-existing **raw-bytes** entry at the version object
+    key (left behind by the historic ``copy_object``-based finalize path
+    described in ``infra/s3/service.py::copy_object``) must be detected
+    via a size mismatch and overwritten with the proper Git loose-object
+    bytes — otherwise the subsequent ``zlib.decompress`` on read blows
+    up with ``invalid git loose object … incorrect header check`` and
+    bulk push fails for the whole batch.
+    """
+    from src.infra.s3.exceptions import S3FileNotFoundError
+    from src.infra.s3.schemas import FileMetadata
+    from datetime import datetime, timezone
+
+    raw = b"hello world content for the legacy raw bytes test"
+    source_key = "uploads/legacy-collision.bin"
+    blob_hash, loose_bytes = encode_object("blob", raw)
+    dst_key = f"version/project-2/objects/{blob_hash[:2]}/{blob_hash[2:]}"
+
+    class _Client:
+        def head_object(self, *, Bucket, Key):
+            assert Bucket == "bucket"
+            assert Key == source_key
+            return {"ContentLength": len(raw)}
+
+    class _FakeS3:
+        bucket_name = "bucket"
+
+        def __init__(self):
+            self.client = _Client()
+            # Seed dst_key with RAW bytes — mimicking what the old
+            # CopyObject finalize would have left behind.
+            self.uploads: dict[str, bytes] = {dst_key: raw}
+
+        async def download_file_stream(self, key, chunk_size):
+            assert key == source_key
+            yield raw
+
+        async def object_exists(self, key):
+            return key in self.uploads
+
+        async def get_file_metadata(self, key):
+            if key not in self.uploads:
+                raise S3FileNotFoundError(key)
+            data = self.uploads[key]
+            return FileMetadata(
+                key=key,
+                bucket="bucket",
+                size=len(data),
+                etag="x",
+                last_modified=datetime.now(timezone.utc),
+                content_type=None,
+                metadata={},
+            )
+
+        async def upload_file(self, key, content, content_type=None):
+            self.uploads[key] = content
+
+    s3 = _FakeS3()
+    ref = await stage_blob_from_s3(s3, project_id="project-2", src_key=source_key)
+
+    # The legacy raw bytes happened to be exactly len(raw) — different
+    # from len(loose_bytes) since zlib framing changes the size. The
+    # staging path must have detected the mismatch and overwritten.
+    assert ref.hash == blob_hash
+    assert s3.uploads[dst_key] == loose_bytes
+    assert decode_object(s3.uploads[dst_key]) == ("blob", raw)
+
+
 def test_backend_python_no_longer_imports_external_legacy_version_package() -> None:
     offenders: list[str] = []
     legacy_prefix = "".join(("m", "ut."))

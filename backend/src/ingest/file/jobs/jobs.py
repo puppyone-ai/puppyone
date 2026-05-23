@@ -64,18 +64,53 @@ async def stage_blob_from_s3(
     )
 
     dst_key = _version_object_key(project_id, blob_hash)
-    if await s3.object_exists(dst_key):
-        logger.info(
-            f"stage_blob_from_s3: blob {blob_hash[:12]} already at {dst_key}, "
-            f"skipping upload"
+    # Existence-only dedup would be a footgun: an older code path
+    # (server-side ``copy_object`` from the upload staging key, see
+    # ``infra/s3/service.py::copy_object`` docstring) wrote the **raw**
+    # uploaded bytes under exactly this dst_key, before the object store
+    # switched to Git loose-object framing. A bare ``object_exists``
+    # check would skip the re-upload and trust those legacy raw bytes,
+    # which then explodes downstream with
+    # ``invalid git loose object … incorrect header check`` when the
+    # version engine tries to ``zlib.decompress`` them on read.
+    #
+    # The Git loose-object format is content-addressed AND
+    # deterministic: same blob hash + same encoder = identical
+    # zlib stream of identical byte length. So a stored object whose
+    # ContentLength matches ``len(loose_bytes)`` is, in practice, the
+    # same bytes (size collision with a *different* byte string at the
+    # same SHA-1 of the *raw* content is astronomically unlikely on a
+    # per-project basis). Anything else is stale/raw and must be
+    # overwritten.
+    stale_existing = False
+    try:
+        existing_meta = await s3.get_file_metadata(dst_key)
+    except Exception:
+        existing_meta = None
+    if existing_meta is not None:
+        if existing_meta.size == len(loose_bytes):
+            logger.info(
+                f"stage_blob_from_s3: blob {blob_hash[:12]} already at "
+                f"{dst_key} ({existing_meta.size} bytes), skipping upload",
+            )
+            return BlobRef(hash=blob_hash, size=size)
+        stale_existing = True
+        logger.warning(
+            f"stage_blob_from_s3: blob {blob_hash[:12]} at {dst_key} has "
+            f"unexpected size {existing_meta.size} (expected "
+            f"{len(loose_bytes)} for the loose Git format); overwriting "
+            f"to recover from legacy raw-bytes finalize",
         )
-        return BlobRef(hash=blob_hash, size=size)
 
     await s3.upload_file(
         dst_key,
         loose_bytes,
         content_type="application/octet-stream",
     )
+    if stale_existing:
+        logger.info(
+            f"stage_blob_from_s3: overwrote stale {blob_hash[:12]} at {dst_key}",
+        )
     return BlobRef(hash=blob_hash, size=size)
 
 
@@ -147,12 +182,25 @@ async def _stage_blob_for_version(
     """
     blob_hash, loose_bytes = encode_object("blob", content)
     dst_key = _version_object_key(project_id, blob_hash)
-    if await s3.object_exists(dst_key):
+    # Same legacy-raw-bytes hazard as ``stage_blob_from_s3``; see the
+    # comment there for the rationale behind size-checked dedup.
+    try:
+        existing_meta = await s3.get_file_metadata(dst_key)
+    except Exception:
+        existing_meta = None
+    if existing_meta is not None and existing_meta.size == len(loose_bytes):
         logger.info(
-            f"_stage_blob_for_version: blob {blob_hash[:12]} already at {dst_key}, "
-            f"skipping upload"
+            f"_stage_blob_for_version: blob {blob_hash[:12]} already at "
+            f"{dst_key} ({existing_meta.size} bytes), skipping upload",
         )
         return blob_hash
+    if existing_meta is not None:
+        logger.warning(
+            f"_stage_blob_for_version: blob {blob_hash[:12]} at {dst_key} "
+            f"has unexpected size {existing_meta.size} (expected "
+            f"{len(loose_bytes)}); overwriting to recover from legacy "
+            f"raw-bytes finalize",
+        )
     await s3.upload_file(
         dst_key,
         loose_bytes,
