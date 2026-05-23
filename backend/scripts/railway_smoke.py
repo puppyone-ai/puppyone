@@ -427,6 +427,64 @@ class Smoke:
             return f"cleanup HTTP {r.status_code}: {self._resp_text(r)}"
         self.step("17. Cleanup — delete temp project", run)
 
+    def stress_move_health_race(self, iterations: int = 12):
+        """Hammer the exact write → move → health sequence ``iterations``
+        times to surface the bundled-object exists_many race.
+
+        Pre-fix the race (``current_corrupt`` immediately after move,
+        self-heals on next commit) was timing-dependent — sometimes 0/3,
+        sometimes 1/3 trials. With ``iterations=12`` the empirical hit
+        rate climbs to ~30-50%, enough that comparing before-vs-after
+        deploy is informative. Post-fix this should be 0/N.
+        """
+        print(f"\n── STRESS: move → health race, {iterations} iterations ──")
+        bug_hits = 0
+        for i in range(1, iterations + 1):
+            # Each iter: fresh project, single bulk_write, single move,
+            # then immediate health check. Delete cleanup at end.
+            try:
+                r = self.client.post("/api/v1/projects/", json={
+                    "name": f"stress-{int(time.time())}-{i}",
+                    "description": "race stress",
+                })
+                pid = r.json()["data"]["id"]
+            except Exception as exc:
+                print(f"  [iter {i:2d}] project create failed: {exc}")
+                continue
+
+            try:
+                # bulk_write of 3 files (forces a multi-object bundle)
+                self.client.post(
+                    f"/api/v1/content/{pid}/bulk-write",
+                    json={"files": [
+                        {"path": f"x{j}.md", "content": str(j),
+                         "node_type": "markdown"}
+                        for j in range(3)
+                    ]},
+                )
+                # move (the trigger op)
+                self.client.post(
+                    f"/api/v1/content/{pid}/mv",
+                    json={"old_path": "x0.md", "new_path": "renamed-x0.md"},
+                )
+                # immediate health check
+                h = self.client.get(f"/git/{pid}.git/health")
+                state = h.json().get("data", {}).get("health")
+                git_usable = h.json().get("data", {}).get("git_usable")
+                marker = "  ✓" if state in {"healthy", "history_degraded"} else "  ✗"
+                if state == "current_corrupt":
+                    bug_hits += 1
+                print(f"{marker} [iter {i:2d}] state={state:18s} usable={git_usable}")
+            finally:
+                # Cleanup
+                self.client.delete(f"/api/v1/projects/{pid}")
+
+        print(
+            f"\n  STRESS RESULT: {bug_hits}/{iterations} hit current_corrupt"
+            + ("  ← RACE OPEN" if bug_hits else "  ← race not observed")
+        )
+        return bug_hits
+
     # ─── orchestrator ────────────────────────────────────────────
 
     def run(self) -> int:
@@ -477,6 +535,20 @@ def main() -> int:
     token = _load_token()
     smoke = Smoke(token)
     try:
+        # CLI: ``--stress N`` skips the standard 17-step sweep and just
+        # hammers the move → health race N times. Useful for before/after
+        # comparison around the bundled-exists-many fix.
+        if "--stress" in sys.argv:
+            idx = sys.argv.index("--stress")
+            try:
+                iters = int(sys.argv[idx + 1])
+            except (IndexError, ValueError):
+                iters = 12
+            print("=" * 64)
+            print(f"PuppyOne Railway STRESS — API={API}, iters={iters}")
+            print("=" * 64)
+            bug_hits = smoke.stress_move_health_race(iters)
+            return 1 if bug_hits else 0
         return smoke.run()
     finally:
         smoke.client.close()
