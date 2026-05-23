@@ -76,6 +76,11 @@ class VersionSubmissionIntent:
     changed_paths: list[str] = field(default_factory=list)
     promote_objects: Callable[[], None] | None = None
     defer_projection: bool = False
+    # Caller-requested conflict policy override (e.g. ``"manual_review"``).
+    # Honored by the write engine's conflict-policy selection so Git push
+    # callers can opt into ``manual_review`` instead of silently LWW-merging
+    # on the server. Empty string falls back to the configured rule set.
+    policy_override: str = ""
 
 
 @dataclass(frozen=True)
@@ -91,6 +96,10 @@ class RollbackIntent:
     scope_excludes: list[str] = field(default_factory=list)
     audit_detail: dict = field(default_factory=dict)
     defer_projection: bool = False
+    # See ``OperationWriteIntent.policy_override``. Rollbacks can also
+    # trip the conflict pipeline (e.g. concurrent edits while the target
+    # commit's content is being applied) and deserve the same opt-in.
+    policy_override: str = ""
 
 
 ResolutionDecision = Literal["accept", "reject"]

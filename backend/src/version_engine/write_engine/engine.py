@@ -651,10 +651,10 @@ class VersionWriteEngine:
         if not touched:
             return (None, None, [], "", {}, {}, {})
 
-        # Caller's policy_override (set on OperationWriteIntent) wins over
+        # Caller's policy_override (set on the intent) wins over
         # configured rules when non-empty — the runner / API caller
         # opted into a stricter policy and the engine must honor it.
-        if getattr(intent, "policy_override", "") == "manual_review":
+        if intent.policy_override == "manual_review":
             from src.version_engine.domain.conflicts import ConflictPolicyDecision
             policy = ConflictPolicyDecision(
                 policy="manual_review",
@@ -754,6 +754,13 @@ class VersionWriteEngine:
             )
 
         last_error: Exception | None = None
+        # Same invariant as the scope path (_apply_operation_optimistic):
+        # capture the actor's perceived starting point on attempt 0 and
+        # use it as the three-way-merge base whenever the root advances
+        # under us on a later attempt. Without this, concurrent root
+        # writes silently overwrite each other on CAS retry.
+        merge_base_root_hash: str | None = None
+        merge_audit: dict | None = None
         for attempt in range(_MAX_CAS_ATTEMPTS):
             attempt_no = attempt + 1
             if attempt == 0 and write_state is not None:
@@ -779,6 +786,8 @@ class VersionWriteEngine:
             else:
                 with trace_phase("object.create_empty_root", attempt=attempt_no):
                     base_root_hash = repo.store.put_tree(encode_tree([]))
+            if attempt == 0:
+                merge_base_root_hash = base_root_hash
             if (
                 intent.expected_head_commit_id is not None
                 and current_head_commit_id != intent.expected_head_commit_id
@@ -798,6 +807,82 @@ class VersionWriteEngine:
                     new_root_hash, changes = await asyncio.to_thread(
                         splice, repo.store, base_root_hash,
                     )
+
+                # CAS-retry merge for the project root. Mirrors the scope
+                # path: when the root has advanced between our base capture
+                # and this attempt, splice gave us "caller intent on top of
+                # someone else's commit" — a blind overwrite. Run the V1
+                # policy three-way merge against the original base so the
+                # other side's edits survive.
+                pending_result: TransactionResult | None = None
+                if (
+                    attempt > 0
+                    and merge_base_root_hash is not None
+                    and merge_base_root_hash != base_root_hash
+                    and new_root_hash != base_root_hash
+                ):
+                    (
+                        merged_tree,
+                        merge_audit,
+                        manual_conflicts,
+                        merge_policy,
+                        base_files,
+                        current_files_at_head,
+                        incoming_files_for_audit,
+                    ) = self._merge_on_cas_retry(
+                        repo=repo,
+                        intent=intent,
+                        scope_norm="",
+                        base_scope_hash=merge_base_root_hash,
+                        current_scope_hash=base_root_hash,
+                        incoming_scope_hash=new_root_hash,
+                    )
+                    if manual_conflicts and merge_policy == "manual_review":
+                        pending_result = await self._record_pending_conflict_generic(
+                            repo=repo,
+                            project_id=intent.project_id,
+                            scope_path="",
+                            current_head_commit_id=current_head_commit_id,
+                            current_scope_hash=base_root_hash,
+                            client_commit_id="",
+                            base_commit_id=merge_base_root_hash,
+                            proposed_tree_id=new_root_hash,
+                            source_channel=intent.source_channel,
+                            actor=intent.actor,
+                            message=intent.message,
+                            audit_detail=dict(intent.audit_detail or {}),
+                            base_files=base_files,
+                            current_files=current_files_at_head,
+                            incoming_files=incoming_files_for_audit,
+                            manual_conflicts=manual_conflicts,
+                            policy_reason=(merge_audit or {}).get(
+                                "policy_reason", "manual_review",
+                            ),
+                        )
+                    elif merged_tree is not None and merged_tree != new_root_hash:
+                        # Rebuild ``changes`` so the audit reflects the
+                        # merged tree, not the pre-merge splice.
+                        changes = await asyncio.to_thread(
+                            compute_changeset,
+                            "",
+                            await asyncio.to_thread(
+                                flatten_tree_to_bytes, repo.store, base_root_hash,
+                            ),
+                            await asyncio.to_thread(
+                                flatten_tree_to_bytes, repo.store, merged_tree,
+                            ),
+                        )
+                        new_root_hash = merged_tree
+
+                if pending_result is not None:
+                    _log_done(
+                        f"{intent.operation_type}:project_pending",
+                        intent.project_id,
+                        "",
+                        pending_result,
+                        started_ms,
+                    )
+                    return pending_result
 
                 if (
                     not changes
@@ -1075,12 +1160,21 @@ class VersionWriteEngine:
                     base_files = await asyncio.to_thread(
                         _files_at_commit, repo, scope_norm, intent.base_commit_id,
                     )
-                policy = select_conflict_policy(
-                    scope_path=scope_norm,
-                    source_channel=intent.source_channel,
-                    actor=intent.actor,
-                    paths=merge_paths,
-                )
+                if intent.policy_override == "manual_review":
+                    from src.version_engine.domain.conflicts import (
+                        ConflictPolicyDecision,
+                    )
+                    policy = ConflictPolicyDecision(
+                        policy="manual_review",
+                        reason="submission_intent_override:manual_review",
+                    )
+                else:
+                    policy = select_conflict_policy(
+                        scope_path=scope_norm,
+                        source_channel=intent.source_channel,
+                        actor=intent.actor,
+                        paths=merge_paths,
+                    )
                 parent_scope_files = await asyncio.to_thread(
                     _parent_scope_files, repo, scope_norm, merge_paths,
                 )
