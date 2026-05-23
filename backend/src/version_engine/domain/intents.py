@@ -56,6 +56,13 @@ class OperationWriteIntent:
     # falls back to the configured rule set in ``select_conflict_policy``.
     policy_override: str = ""
     project_write_state: ProjectWriteState | None = None
+    # When the L1 router can attribute the write to a specific WS-
+    # connected device/tab (via the ``X-PuppyOne-Client-Id`` header),
+    # threading the value through here lets the L6 notification fan-out
+    # suppress echo to ONLY that connection — the user's other tabs
+    # still see the commit_update event for their own write. Empty
+    # falls back to agent-level suppression in NotificationManager.
+    pusher_client_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,10 @@ class VersionSubmissionIntent:
     # callers can opt into ``manual_review`` instead of silently LWW-merging
     # on the server. Empty string falls back to the configured rule set.
     policy_override: str = ""
+    # See ``OperationWriteIntent.pusher_client_id``. Git submissions
+    # rarely have a WS-connected origin client but the field is here
+    # for symmetry so AP-FS callers that hold a session can pass it.
+    pusher_client_id: str = ""
 
 
 @dataclass(frozen=True)

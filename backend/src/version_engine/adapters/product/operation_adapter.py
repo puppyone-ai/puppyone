@@ -124,6 +124,7 @@ class ProductOperationAdapter:
         policy: str = "",
         source_channel: str = "papi",
         project_write_state: ProjectWriteState | None = None,
+        pusher_client_id: str = "",
     ):
         intent = OperationWriteIntent(
             project_id=project_id,
@@ -138,6 +139,7 @@ class ProductOperationAdapter:
             defer_projection=defer_projection,
             policy_override=policy,
             project_write_state=project_write_state,
+            pusher_client_id=pusher_client_id,
         )
         if scope:
             return await self._engine.apply_operation(intent, splice_fn)
@@ -160,6 +162,7 @@ class ProductOperationAdapter:
         policy: str = "",
         source_channel: str = "papi",
         project_write_state: ProjectWriteState | None = None,
+        pusher_client_id: str = "",
     ) -> WriteResult:
         """Write a single file (create or update).
 
@@ -192,6 +195,7 @@ class ProductOperationAdapter:
             policy=policy,
             source_channel=source_channel,
             project_write_state=project_write_state,
+            pusher_client_id=pusher_client_id,
         )
         return _to_result(result, [path])
 

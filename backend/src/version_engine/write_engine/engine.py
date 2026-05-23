@@ -550,7 +550,7 @@ class VersionWriteEngine:
                             source_channel=intent.source_channel,
                             actor=intent.actor,
                             message=intent.message,
-                            audit_detail=dict(intent.audit_detail or {}),
+                            audit_detail=_audit_detail_with_pusher(intent),
                             base_files=base_files,
                             current_files=current_files_at_head,
                             incoming_files=incoming_files_for_audit,
@@ -933,7 +933,7 @@ class VersionWriteEngine:
                             source_channel=intent.source_channel,
                             actor=intent.actor,
                             message=intent.message,
-                            audit_detail=dict(intent.audit_detail or {}),
+                            audit_detail=_audit_detail_with_pusher(intent),
                             base_files=base_files,
                             current_files=current_files_at_head,
                             incoming_files=incoming_files_for_audit,
@@ -1032,7 +1032,7 @@ class VersionWriteEngine:
                     actor=intent.actor,
                     message=intent.message,
                     op_type=intent.operation_type,
-                    audit_detail=intent.audit_detail,
+                    audit_detail=_audit_detail_with_pusher(intent),
                     changes=full_changes,
                     conflicts=None,
                     created_at_iso=created_at_iso,
@@ -1533,7 +1533,7 @@ class VersionWriteEngine:
             source_channel=intent.source_channel,
             actor=intent.actor,
             message=intent.message,
-            audit_detail=intent.audit_detail,
+            audit_detail=_audit_detail_with_pusher(intent),
             base_files=base_files,
             current_files=current_files,
             incoming_files=incoming_files,
@@ -1753,6 +1753,12 @@ class VersionWriteEngine:
             "conflict_count": len(conflicts or []),
             **(audit_detail or {}),
         }
+        # ``pusher_client_id`` may already be inside ``audit_detail``
+        # (L1 router stashed it on the intent's audit_detail) or
+        # threaded through a kwarg we added. Either way, ensure it
+        # lands in the audit dict so the L6 notification fan-out can
+        # read it back from the committed history entry and suppress
+        # echo to just the originating tab.
         publish_outcome = await asyncio.to_thread(
             repo.publish_scope_update,
             scope_path=scope_path,
@@ -1940,6 +1946,25 @@ class VersionWriteEngine:
             merged_changes=merged_changes,
             commit_object=commit_object,
         )
+
+
+def _audit_detail_with_pusher(intent) -> dict:
+    """Return a copy of ``intent.audit_detail`` with ``pusher_client_id``
+    merged in. The merge is at the BEGINNING (so any user-set key with
+    the same name wins) — callers can override per-intent if they need
+    to attribute the write to a different connection.
+
+    Used by every engine path that publishes a user-initiated write,
+    so the L6 notification fan-out can read ``pusher_client_id`` back
+    from the committed history entry and suppress echo to the exact
+    tab that fired the write (rather than all tabs of the same agent).
+    """
+    base: dict = {}
+    pusher_client_id = getattr(intent, "pusher_client_id", "") or ""
+    if pusher_client_id:
+        base["pusher_client_id"] = pusher_client_id
+    base.update(dict(intent.audit_detail or {}))
+    return base
 
 
 def _now_iso() -> str:

@@ -117,6 +117,7 @@ class VersionWriteCommandService:
         policy: str = "",
         source_channel: str = "papi",
         project_write_state: ProjectWriteState | None = None,
+        pusher_client_id: str = "",
     ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {"who": actor}
         if message:
@@ -133,6 +134,8 @@ class VersionWriteCommandService:
             kwargs["source_channel"] = source_channel
         if project_write_state is not None:
             kwargs["project_write_state"] = project_write_state
+        if pusher_client_id:
+            kwargs["pusher_client_id"] = pusher_client_id
         return kwargs
 
     async def write_file(
@@ -151,6 +154,7 @@ class VersionWriteCommandService:
         policy: str = "",
         source_channel: str = "papi",
         project_write_state: ProjectWriteState | None = None,
+        pusher_client_id: str = "",
     ) -> WriteCommandOutcome:
         serialized = self.serialize_content(path, content, node_type)
         command_message = message or f"{default_message_prefix} {serialized.path}"
@@ -167,6 +171,7 @@ class VersionWriteCommandService:
                 policy=policy,
                 source_channel=source_channel,
                 project_write_state=project_write_state,
+                pusher_client_id=pusher_client_id,
             ),
         )
         return WriteCommandOutcome(
