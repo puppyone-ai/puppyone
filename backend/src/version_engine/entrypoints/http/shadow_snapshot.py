@@ -25,6 +25,7 @@ V1 scope:
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -47,7 +48,28 @@ router = APIRouter()
 
 _MAX_FILES_PER_SNAPSHOT = 100_000
 _MAX_BYTES_PER_FILE = 50 * 1024 * 1024
+# 08-shadow-snapshots.md §3 — "total manifest size ≤ 8 MiB (after JSON
+# encoding)". Bigger payloads would push against Postgres JSONB limits
+# and degrade upsert latency long before the technical cap is hit.
+_MAX_MANIFEST_JSON_BYTES = 8 * 1024 * 1024
 _VALID_FILE_MODES = frozenset({"100644", "100755", "120000", "40000"})
+
+
+class SnapshotPayloadTooLargeError(Exception):
+    """Raised when a shadow snapshot violates a documented size cap.
+
+    Wraps the limit name so the HTTP layer can translate to a 413 with
+    a message naming WHICH cap was hit (08-shadow-snapshots.md §3).
+    """
+
+    def __init__(self, limit_name: str, actual: int, cap: int):
+        self.limit_name = limit_name
+        self.actual = actual
+        self.cap = cap
+        super().__init__(
+            f"shadow snapshot exceeds {limit_name} "
+            f"(got {actual}, cap {cap})",
+        )
 
 
 # ── Schemas ────────────────────────────────────────────────────
@@ -88,14 +110,34 @@ class UpsertShadowSnapshotRequest(BaseModel):
     manifest: list[ShadowSnapshotEntry]
     previews: dict[str, str] = Field(default_factory=dict)
 
-    @model_validator(mode="after")
-    def _validate(self) -> "UpsertShadowSnapshotRequest":
-        if len(self.manifest) > _MAX_FILES_PER_SNAPSHOT:
-            raise ValueError(
-                f"manifest has {len(self.manifest)} entries; cap is "
-                f"{_MAX_FILES_PER_SNAPSHOT}",
-            )
-        return self
+
+def _enforce_snapshot_caps(req: UpsertShadowSnapshotRequest) -> None:
+    """Apply the documented size caps.
+
+    Lives outside the pydantic model_validator so we can raise the
+    domain-specific ``SnapshotPayloadTooLargeError`` and have the
+    endpoint translate it to HTTP 413 (which pydantic would otherwise
+    swallow into a generic 422).
+    """
+    if len(req.manifest) > _MAX_FILES_PER_SNAPSHOT:
+        raise SnapshotPayloadTooLargeError(
+            "manifest entry count",
+            actual=len(req.manifest),
+            cap=_MAX_FILES_PER_SNAPSHOT,
+        )
+    # Serialize-and-measure once. Subtle: we measure the manifest only,
+    # not the full payload — previews/tree_hash etc. are bounded
+    # elsewhere. This matches "manifest size ≤ 8 MiB (after JSON
+    # encoding)" — the cap is on the JSONB column, not the HTTP body.
+    manifest_bytes = len(json.dumps(
+        [e.model_dump() for e in req.manifest],
+    ).encode("utf-8"))
+    if manifest_bytes > _MAX_MANIFEST_JSON_BYTES:
+        raise SnapshotPayloadTooLargeError(
+            "manifest JSON size",
+            actual=manifest_bytes,
+            cap=_MAX_MANIFEST_JSON_BYTES,
+        )
 
 
 class ShadowSnapshotResponse(BaseModel):
@@ -130,9 +172,28 @@ async def upsert_snapshot(
 ):
     """Create or update a shadow snapshot. Identified by
     ``(project_id, user_id, machine_id, ref_name)`` — the same client
-    can update its row over and over without rotating IDs."""
+    can update its row over and over without rotating IDs.
+
+    Size violations come back as HTTP 413 with a body naming the
+    specific cap (entry count or manifest JSON bytes) so clients can
+    decide whether to split, skip, or upgrade their tier — see
+    08-shadow-snapshots.md §3.
+    """
 
     ensure_project_access(project_service, current_user, body.project_id)
+
+    try:
+        _enforce_snapshot_caps(body)
+    except SnapshotPayloadTooLargeError as exc:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "limit": exc.limit_name,
+                "actual": exc.actual,
+                "cap": exc.cap,
+                "message": str(exc),
+            },
+        )
 
     file_count = len(body.manifest)
     total_bytes = sum(e.size for e in body.manifest)

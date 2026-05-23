@@ -211,6 +211,38 @@ async def git_ap_health(
     )
 
 
+@router.get("/{project_id}.git/health")
+async def git_project_health(
+    project_id: str,
+    request: Request,
+    scope: str = "",
+    repo_manager: VersionRepoManager = Depends(get_repo_manager),
+):
+    """Return Git view health for a project's root remote.
+
+    The Access Point variant has had a health endpoint for a while; the
+    project-root Git remote has the same failure modes (empty / healthy /
+    history_degraded / current_corrupt) and the same need to expose them
+    for self-diagnosis. Same auth + same payload shape as the AP route —
+    just resolved against the project root scope instead of the
+    access-key-bound scope.
+    """
+
+    auth = await resolve_git_project_auth(project_id, request, scope)
+    repo = repo_manager.get_server_repo(project_id)
+    facade = repo_facade_from_auth(project_id, auth, kind="project_git_remote")
+    return ApiResponse.success(
+        data=git_view_health_payload(
+            repo,
+            project_id=project_id,
+            scope_path=facade.scope_path,
+            scope_excludes=list(facade.excludes),
+            read_only=facade.read_only,
+        ),
+        message="Git view health loaded",
+    )
+
+
 @router.post("/{project_id}.git/git-receive-pack")
 async def git_receive_pack(
     project_id: str,
