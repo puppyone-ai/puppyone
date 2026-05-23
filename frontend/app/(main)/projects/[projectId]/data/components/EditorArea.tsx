@@ -2,6 +2,7 @@
 
 import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
 import type { CsvViewMode } from '@/components/editors/spreadsheet/CsvTableViewer';
+import { hasConflictMarkers } from '@/lib/conflictMarkers';
 import { resolveFormat, isTextLikeCategory } from '@/lib/fileFormats';
 import { VIEWERS } from '@/lib/viewers/registry';
 import { type MarkdownViewMode } from '@/components/editors/markdown';
@@ -129,7 +130,19 @@ export function EditorArea({
   // The path is the canonical identity. `nodeName` is just the
   // final segment for display — UI chrome only, never logic.
   const nodeName = activeNodeId.split('/').pop() || '';
-  const ViewerDef = VIEWERS[format.defaultViewer];
+
+  // When the loaded text content carries Git-style conflict markers
+  // (LWW landed both sides into the file), structured viewers like
+  // MonacoJsonEditor and CsvTableViewer would fail to parse and
+  // present a cryptic error or eat the markers silently. Force a
+  // PlainTextEditor instead — it ships ConflictMarkerBanner, so the
+  // user can see + resolve the conflict in-place. Only kicks in for
+  // text-like formats; binary/HTML/PDF viewers don't carry text.
+  let viewerId = format.defaultViewer;
+  if (needsText && hasConflictMarkers(textContent)) {
+    viewerId = 'plain-text';
+  }
+  const ViewerDef = VIEWERS[viewerId];
   const Viewer = ViewerDef.component;
 
   return (

@@ -7,6 +7,7 @@ import useSWR from 'swr';
 import type { ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
 import { getProjectHistory } from '../lib/contentTreeApi';
+import { listPendingConflicts } from '../lib/conflictApi';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
 
 type AppSidebarProps = {
@@ -75,6 +76,17 @@ export const AppSidebar = memo(function AppSidebar({
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
 
+  // Pending conflicts count — drives the badge on the Conflicts nav
+  // item. 30s revalidation strikes a balance between freshness and
+  // not hammering the API; once a conflict lands the user can also
+  // click Conflicts to force a refresh inside the page.
+  const { data: pendingConflicts, isLoading: pendingConflictsLoading } = useSWR(
+    activeProjectFromList ? ['sidebar-pending-conflicts', activeProjectFromList.id] : null,
+    () => listPendingConflicts(activeProjectFromList!.id),
+    { refreshInterval: 30_000, dedupingInterval: 15_000, revalidateOnFocus: true },
+  );
+  const pendingConflictCount = (pendingConflicts ?? []).length;
+
   const projectStats = activeProjectFromList
     ? {
         commitCount: history?.total,
@@ -134,6 +146,11 @@ export const AppSidebar = memo(function AppSidebar({
             <line x1='11' y1='11' x2='13' y2='13' />
           </svg>
         ),
+        // Show pending count when nonzero — the rail glyph reads
+        // calmer when nothing is queued, and a number rather than a
+        // dot lets reviewers prioritize.
+        badge: pendingConflictCount > 0 ? pendingConflictCount : undefined,
+        badgeLoading: pendingConflictsLoading,
       },
       {
         id: 'monitor',
