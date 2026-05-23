@@ -121,10 +121,20 @@ class NotificationManager:
         self, project_id: str, scope_path: str, *,
         commit_id: str, pushed_by: str, changes: list[dict],
         message: str = "", scope_hash: str = "",
+        pusher_client_id: str = "",
     ):
         """Send a ``commit_update`` frame to every client subscribed to
         the affected scope (or any ancestor scope, since pushing into
         ``docs/sub`` is also visible to a listener on ``docs``).
+
+        ``pusher_client_id`` — when set, ONLY that connection is
+        suppressed (the device/tab that fired the write doesn't need
+        to echo to itself). When empty (e.g. publish came from Git
+        push or a CLI client that doesn't hold a WS), we fall back to
+        agent-level suppression, which has the known limitation that
+        two devices sharing the same agent identity won't echo to
+        either. Pass the client_id from L1 routers that originated the
+        write to get clean per-tab echo behavior.
         """
         scope_norm = (scope_path or "").strip("/")
         payload = {
@@ -153,14 +163,7 @@ class NotificationManager:
         sent = 0
         dropped = 0
         for conn in targets:
-            # Echo suppression by agent identity. Known limitation: two
-            # connections sharing the same ``agent`` (e.g. one user on
-            # two devices) will not echo to either device when one of
-            # them pushes. A future improvement is to thread the
-            # pusher's ``client_id`` through commit publish and match on
-            # that — until then, agent-level dedup is the available
-            # signal.
-            if conn.agent == pushed_by:
+            if _is_echo(conn, pushed_by, pusher_client_id):
                 continue
             try:
                 await conn.websocket.send_json(payload)
@@ -217,3 +220,20 @@ def _is_ancestor(maybe_ancestor: str, descendant: str) -> bool:
     if maybe_ancestor == descendant:
         return True
     return descendant.startswith(maybe_ancestor + "/")
+
+
+def _is_echo(conn, pushed_by: str, pusher_client_id: str) -> bool:
+    """Return True if ``conn`` is the source connection of the push.
+
+    Precedence:
+      1. If we know the pusher's specific ``client_id``, only that exact
+         WS connection is suppressed. Other tabs/devices of the same
+         user still receive their own commit_update.
+      2. Otherwise fall back to agent-level suppression (legacy path) so
+         a single-device user still doesn't see a redundant echo. The
+         drawback — two devices sharing the same agent both go silent —
+         is documented at the broadcast call site.
+    """
+    if pusher_client_id:
+        return conn.client_id == pusher_client_id
+    return conn.agent == pushed_by

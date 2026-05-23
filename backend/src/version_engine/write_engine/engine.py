@@ -27,6 +27,7 @@ from src.version_engine.write_engine.ledger import (
 )
 
 from src.version_engine.write_engine.conflict_policy import (
+    QUEUE_POLICIES,
     conflict_to_dict,
     merge_file_sets_for_policy,
     select_conflict_policy,
@@ -51,6 +52,7 @@ from src.version_engine.domain.intents import (
     ConflictResolutionIntent,
     OperationWriteIntent,
     RollbackIntent,
+    ScopePromoteIntent,
     TransactionResult,
     VersionSubmissionIntent,
 )
@@ -162,6 +164,58 @@ class VersionWriteEngine:
         repo.history.set_root_hash(EMPTY_TREE_SHA1)
         log_info(f"[version_engine][init] project={project_id} initialized empty tree")
         return EMPTY_TREE_SHA1
+
+    async def publish_scope_promotion(
+        self,
+        intent: ScopePromoteIntent,
+    ) -> tuple[bool, int | None]:
+        """Publish a derived scope-promote commit through the L5 boundary.
+
+        ``derived/parent_scope_promote`` already builds the commit +
+        synthesizes the grafted tree (with cordon logic for damaged
+        ancestry); this method exists so the actual ref-advancing call
+        runs inside the engine the way every other publish does. The
+        engine's audit / tracing / future hardening (rate limiting,
+        write-ahead audit) then covers projection-triggered publishes
+        too, not just user-initiated writes.
+
+        Returns ``(published, transaction_id)``: ``published`` is False
+        when the underlying CAS lost (someone else advanced the parent
+        scope while we were building); the caller's outer retry loop
+        decides whether to recompute and try again.
+        """
+        repo = self._repos.get_server_repo(intent.project_id)
+        scope_norm = normalize_path(intent.scope_path)
+        with trace_phase(
+            "db.publish_scope_update",
+            scope=scope_norm,
+            op="scope_promote",
+            commit_id=intent.commit_id[:12],
+        ):
+            result = await asyncio.to_thread(
+                repo.publish_scope_update,
+                scope_path=scope_norm,
+                old_scope_hash=intent.old_scope_hash,
+                new_scope_hash=intent.new_scope_hash,
+                commit_id=intent.commit_id,
+                who=intent.actor,
+                message=intent.message,
+                changes=list(intent.changes),
+                conflicts=None,
+                created_at_iso=_now_iso(),
+                audit_event_type="scope_promote",
+                audit_agent_id=intent.actor or "system",
+                audit_detail=dict(intent.audit_detail or {}),
+                source_channel=intent.source_channel,
+                policy="scope_promote",
+                base_commit_id=intent.base_commit_id,
+                client_commit_id="",
+                proposed_tree_id=intent.new_scope_hash,
+                intent_type="operation",
+            )
+        if isinstance(result, tuple):
+            return bool(result[0]), result[1]
+        return bool(result), None
 
     async def apply_operation(
         self,
@@ -484,7 +538,7 @@ class VersionWriteEngine:
                     )
                     # If the merge classified anything as manual_review,
                     # don't commit — queue the conflict and return.
-                    if manual_conflicts and merge_policy == "manual_review":
+                    if manual_conflicts and merge_policy in QUEUE_POLICIES:
                         pending_result = await self._record_pending_conflict_generic(
                             repo=repo,
                             project_id=intent.project_id,
@@ -497,7 +551,7 @@ class VersionWriteEngine:
                             source_channel=intent.source_channel,
                             actor=intent.actor,
                             message=intent.message,
-                            audit_detail=dict(intent.audit_detail or {}),
+                            audit_detail=_audit_detail_with_pusher(intent),
                             base_files=base_files,
                             current_files=current_files_at_head,
                             incoming_files=incoming_files_for_audit,
@@ -684,11 +738,11 @@ class VersionWriteEngine:
         # Caller's policy_override (set on the intent) wins over
         # configured rules when non-empty — the runner / API caller
         # opted into a stricter policy and the engine must honor it.
-        if intent.policy_override == "manual_review":
+        if intent.policy_override in QUEUE_POLICIES:
             from src.version_engine.domain.conflicts import ConflictPolicyDecision
             policy = ConflictPolicyDecision(
-                policy="manual_review",
-                reason="op_intent_override:manual_review",
+                policy=intent.policy_override,
+                reason=f"op_intent_override:{intent.policy_override}",
             )
         else:
             policy = select_conflict_policy(
@@ -867,7 +921,7 @@ class VersionWriteEngine:
                         current_scope_hash=base_root_hash,
                         incoming_scope_hash=new_root_hash,
                     )
-                    if manual_conflicts and merge_policy == "manual_review":
+                    if manual_conflicts and merge_policy in QUEUE_POLICIES:
                         pending_result = await self._record_pending_conflict_generic(
                             repo=repo,
                             project_id=intent.project_id,
@@ -880,7 +934,7 @@ class VersionWriteEngine:
                             source_channel=intent.source_channel,
                             actor=intent.actor,
                             message=intent.message,
-                            audit_detail=dict(intent.audit_detail or {}),
+                            audit_detail=_audit_detail_with_pusher(intent),
                             base_files=base_files,
                             current_files=current_files_at_head,
                             incoming_files=incoming_files_for_audit,
@@ -979,7 +1033,7 @@ class VersionWriteEngine:
                     actor=intent.actor,
                     message=intent.message,
                     op_type=intent.operation_type,
-                    audit_detail=intent.audit_detail,
+                    audit_detail=_audit_detail_with_pusher(intent),
                     changes=full_changes,
                     conflicts=None,
                     created_at_iso=created_at_iso,
@@ -1190,13 +1244,13 @@ class VersionWriteEngine:
                     base_files = await asyncio.to_thread(
                         _files_at_commit, repo, scope_norm, intent.base_commit_id,
                     )
-                if intent.policy_override == "manual_review":
+                if intent.policy_override in QUEUE_POLICIES:
                     from src.version_engine.domain.conflicts import (
                         ConflictPolicyDecision,
                     )
                     policy = ConflictPolicyDecision(
-                        policy="manual_review",
-                        reason="submission_intent_override:manual_review",
+                        policy=intent.policy_override,
+                        reason=f"submission_intent_override:{intent.policy_override}",
                     )
                 else:
                     policy = select_conflict_policy(
@@ -1213,7 +1267,7 @@ class VersionWriteEngine:
                     policy=policy,
                     parent_scope_files=parent_scope_files,
                 )
-                if merge_result.manual_conflicts and policy.policy == "manual_review":
+                if merge_result.manual_conflicts and policy.policy in QUEUE_POLICIES:
                     result = await self._record_pending_conflict(
                         repo=repo,
                         intent=intent,
@@ -1480,7 +1534,7 @@ class VersionWriteEngine:
             source_channel=intent.source_channel,
             actor=intent.actor,
             message=intent.message,
-            audit_detail=intent.audit_detail,
+            audit_detail=_audit_detail_with_pusher(intent),
             base_files=base_files,
             current_files=current_files,
             incoming_files=incoming_files,
@@ -1700,6 +1754,12 @@ class VersionWriteEngine:
             "conflict_count": len(conflicts or []),
             **(audit_detail or {}),
         }
+        # ``pusher_client_id`` may already be inside ``audit_detail``
+        # (L1 router stashed it on the intent's audit_detail) or
+        # threaded through a kwarg we added. Either way, ensure it
+        # lands in the audit dict so the L6 notification fan-out can
+        # read it back from the committed history entry and suppress
+        # echo to just the originating tab.
         publish_outcome = await asyncio.to_thread(
             repo.publish_scope_update,
             scope_path=scope_path,
@@ -1887,6 +1947,25 @@ class VersionWriteEngine:
             merged_changes=merged_changes,
             commit_object=commit_object,
         )
+
+
+def _audit_detail_with_pusher(intent) -> dict:
+    """Return a copy of ``intent.audit_detail`` with ``pusher_client_id``
+    merged in. The merge is at the BEGINNING (so any user-set key with
+    the same name wins) — callers can override per-intent if they need
+    to attribute the write to a different connection.
+
+    Used by every engine path that publishes a user-initiated write,
+    so the L6 notification fan-out can read ``pusher_client_id`` back
+    from the committed history entry and suppress echo to the exact
+    tab that fired the write (rather than all tabs of the same agent).
+    """
+    base: dict = {}
+    pusher_client_id = getattr(intent, "pusher_client_id", "") or ""
+    if pusher_client_id:
+        base["pusher_client_id"] = pusher_client_id
+    base.update(dict(intent.audit_detail or {}))
+    return base
 
 
 def _now_iso() -> str:

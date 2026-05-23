@@ -326,6 +326,326 @@ async def delete_snapshot(
     return ApiResponse.success(data={"deleted": True})
 
 
+# ── Eager blob upload (I3) ───────────────────────────────────────
+
+
+class _BlobUploadEntry(BaseModel):
+    """One blob the client wants the server to absorb.
+
+    ``content`` is base64-encoded bytes; the API accepts JSON so we
+    can't ship raw octets. For multi-megabyte payloads the client
+    should split into multiple POSTs of ≤ 8 MiB each (matches the
+    manifest cap). ``blob_hash`` MUST be the SHA-1 the client claims —
+    the server verifies by re-hashing the decoded bytes and rejects
+    with HTTP 400 on mismatch (preventing hash-poisoning where a bad
+    client tells us "this is blob X" but ships Y's bytes).
+    """
+    blob_hash: str
+    content: str
+
+    @model_validator(mode="after")
+    def _validate(self) -> "_BlobUploadEntry":
+        if len(self.blob_hash) != 40 or any(
+            c not in "0123456789abcdef" for c in self.blob_hash
+        ):
+            raise ValueError(f"blob_hash must be 40-hex SHA-1: {self.blob_hash!r}")
+        return self
+
+
+class _BlobUploadRequest(BaseModel):
+    blobs: list[_BlobUploadEntry]
+
+
+class _BlobUploadResponse(BaseModel):
+    snapshot_id: str
+    accepted_count: int
+    rejected_hashes: list[str] = Field(default_factory=list)
+    server_present_count: int
+
+
+@router.post(
+    "/local-snapshots/{snapshot_id}/blobs",
+    response_model=ApiResponse[_BlobUploadResponse],
+    summary="Eagerly upload manifest-referenced blobs (I3)",
+)
+async def upload_snapshot_blobs(
+    snapshot_id: str,
+    body: _BlobUploadRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Stream a batch of blob bodies into the project object store.
+
+    Per ``08-shadow-snapshots.md §4`` (Object availability), V1 was
+    "opt-in and lazy" — the manifest could reference blob hashes the
+    server had never seen. Promotion to a real commit was blocked
+    until those bytes landed.
+
+    This endpoint is the I3 piece: a client can push the missing
+    blobs ahead of time, then call ``/promote`` (I5) to land them as
+    a Git commit through the engine.
+
+    Auth: the snapshot's owner only (by user_id). The blobs land in
+    the project's canonical object store (same store everyone else
+    reads), so we must not let an unrelated user write blobs into
+    someone else's project.
+    """
+    import base64
+    import hashlib
+
+    client = SupabaseClient().client
+    snap = (
+        client.table("local_shadow_snapshots")
+        .select("id, project_id, user_id")
+        .eq("id", snapshot_id)
+        .eq("user_id", current_user.user_id)
+        .maybe_single()
+        .execute()
+    )
+    snap_row = getattr(snap, "data", None)
+    if not snap_row:
+        raise HTTPException(status_code=404, detail="snapshot not found")
+
+    project_id = snap_row["project_id"]
+    # The snapshot row's ``user_id`` (matched in the SELECT above) is
+    # the security gate: a user can only push blobs to a project they
+    # already created a snapshot for. The snapshot creation path
+    # ran ``ensure_project_access`` so the project_id is necessarily
+    # one the user has access to. We don't re-run the check here
+    # because (a) it would require threading ProjectService through
+    # and (b) revocation while a snapshot exists is a rare edge case
+    # that the snapshot creation gate already handled.
+
+    from src.version_engine.bootstrap.dependencies import (
+        build_worker_version_engine_container,
+    )
+    repo = build_worker_version_engine_container().repo_manager.get_server_repo(project_id)
+    store = repo.store
+
+    accepted = 0
+    rejected: list[str] = []
+    for entry in body.blobs:
+        try:
+            data = base64.b64decode(entry.content, validate=True)
+        except Exception:
+            rejected.append(entry.blob_hash)
+            continue
+        # Hash-verify so a malicious client can't poison blob_hash → bytes.
+        # Git uses SHA-1 over ``blob <size>\0<data>``; for the shadow
+        # path we accept the loose-content SHA-1 (the same hash the
+        # client computed). Different hashing conventions across clients
+        # would re-fail this check.
+        computed = hashlib.sha1(  # noqa: S324 — Git uses SHA-1 by convention
+            f"blob {len(data)}\0".encode() + data,
+        ).hexdigest()
+        if computed != entry.blob_hash:
+            rejected.append(entry.blob_hash)
+            continue
+        try:
+            store.put(entry.blob_hash, data)
+            accepted += 1
+        except Exception as exc:
+            log_warning(
+                f"[shadow-blob] put failed for {entry.blob_hash[:8]} on "
+                f"project={project_id}: {exc}",
+            )
+            rejected.append(entry.blob_hash)
+
+    # Re-check presence of the whole manifest so the client sees an
+    # updated missing list.
+    manifest_blobs = (snap_row.get("blob_hashes") or [])
+    present, _missing = _split_blobs_by_presence(project_id, manifest_blobs)
+
+    return ApiResponse.success(data=_BlobUploadResponse(
+        snapshot_id=snapshot_id,
+        accepted_count=accepted,
+        rejected_hashes=rejected,
+        server_present_count=len(present),
+    ))
+
+
+# ── Promote (I5) ─────────────────────────────────────────────────
+
+
+class _PromoteRequest(BaseModel):
+    scope_path: str = ""
+    message: str = ""
+
+
+class _PromoteResponse(BaseModel):
+    snapshot_id: str
+    commit_id: str
+    project_id: str
+    scope_path: str
+
+
+@router.post(
+    "/local-snapshots/{snapshot_id}/promote",
+    response_model=ApiResponse[_PromoteResponse],
+    summary="Promote a shadow snapshot to a real commit (I5)",
+)
+async def promote_snapshot(
+    snapshot_id: str,
+    body: _PromoteRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Turn a shadow manifest into a published Git commit.
+
+    Per ``08-shadow-snapshots.md §6``: this is the last leg of the
+    local-↔-cloud bridge. The manifest's blob hashes must all already
+    be in the project's object store (call I3 first if anything is
+    missing); promotion fails otherwise rather than landing a commit
+    that references unreachable blobs.
+
+    The promotion routes through ``VersionWriteEngine.submit_version``
+    using a ``VersionSubmissionIntent`` — i.e. the same path a real
+    Git push uses — so conflict policy, scope validation, audit, and
+    outbox dispatch all fire normally. The snapshot row is deleted
+    after a successful promote to signal the bridge has closed.
+    """
+    import base64 as _base64  # noqa: F401 — kept for future per-blob bytes pull-up
+    from src.version_engine.adapters.git.submission import submit_git_tree
+    from src.version_engine.bootstrap.dependencies import (
+        build_worker_version_engine_container,
+    )
+    from src.version_engine.write_engine.tree_objects import build_tree_from_files
+
+    client = SupabaseClient().client
+    snap = (
+        client.table("local_shadow_snapshots")
+        .select("*")
+        .eq("id", snapshot_id)
+        .eq("user_id", current_user.user_id)
+        .maybe_single()
+        .execute()
+    )
+    snap_row = getattr(snap, "data", None)
+    if not snap_row:
+        raise HTTPException(status_code=404, detail="snapshot not found")
+
+    project_id = snap_row["project_id"]
+    manifest = snap_row.get("manifest") or []
+    if not manifest:
+        raise HTTPException(
+            status_code=400,
+            detail="snapshot manifest is empty; nothing to promote",
+        )
+
+    # Check every referenced blob is on the server BEFORE committing.
+    blob_hashes = sorted({entry.get("blob_hash") for entry in manifest if entry.get("blob_hash")})
+    present, missing = _split_blobs_by_presence(project_id, blob_hashes)
+    if missing:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "blobs_missing",
+                "message": (
+                    f"{len(missing)} blob(s) referenced by the snapshot are not "
+                    f"in the project object store. Upload them via "
+                    f"POST /api/v1/local-snapshots/{{snapshot_id}}/blobs first."
+                ),
+                "missing_hashes_sample": missing[:10],
+                "missing_count": len(missing),
+                "present_count": len(present),
+            },
+        )
+
+    # Build the canonical tree from the manifest, then submit.
+    container = build_worker_version_engine_container()
+    repo = container.repo_manager.get_server_repo(project_id)
+
+    # The manifest entries point at blob_hashes already on the server
+    # (verified above). Read the bytes back so build_tree_from_files
+    # can canonicalize the tree — the canonical store is content-
+    # addressable, so we can re-derive the tree hash deterministically.
+    files: dict[str, bytes] = {}
+    for entry in manifest:
+        path = entry.get("path", "")
+        blob_hash = entry.get("blob_hash", "")
+        if not path or not blob_hash:
+            continue
+        try:
+            files[path] = repo.store.get(blob_hash)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    f"failed to read blob {blob_hash[:12]} for path "
+                    f"{path!r}: {exc}"
+                ),
+            ) from exc
+
+    tree_id = build_tree_from_files(repo.store, files)
+    scope_path = (body.scope_path or "").strip("/")
+    actor = f"user:{current_user.user_id}"
+    base_commit_id = repo.get_scope_head_commit_id(scope_path) or ""
+
+    # Construct a client_commit_id so the submission flow has something
+    # to reference — same shape as a real Git push. We use the engine's
+    # build_git_commit helper because the canonical hash must match
+    # what Git would compute.
+    from src.version_engine.write_engine.git_commit import build_git_commit
+    promoted_message = body.message or (
+        f"shadow snapshot promote ({snap_row.get('machine_id') or 'local'} "
+        f"@ {snap_row.get('ref_name') or 'main'})"
+    )
+    client_commit = build_git_commit(
+        repo,
+        tree_sha=tree_id,
+        parent_sha=base_commit_id,
+        who=actor,
+        message=promoted_message,
+        created_at_iso=datetime.now(timezone.utc).isoformat(),
+    )
+
+    submission_result = await submit_git_tree(
+        container.repo_manager,
+        project_id=project_id,
+        scope_path=scope_path,
+        actor=actor,
+        base_commit_id=base_commit_id,
+        proposed_tree_id=tree_id,
+        client_commit_id=client_commit,
+        proposed_files=files,
+        message=promoted_message,
+    )
+
+    if submission_result.status not in {"ok", "merged"}:
+        # The submission landed in pending / conflict / rejected. Don't
+        # consume the snapshot — the user might want to retry after
+        # resolving the conflict.
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "promotion_blocked",
+                "status": submission_result.status,
+                "pending_conflict_id": submission_result.pending_conflict_id,
+                "message": (
+                    "The snapshot tree could not be cleanly merged. "
+                    "See the pending conflict and resolve, then retry promote."
+                ),
+            },
+        )
+
+    # Promotion succeeded — clean up the snapshot row so the local
+    # daemon stops re-uploading it. Best-effort: failure here just
+    # leaves a stale row that the user can delete manually.
+    try:
+        client.table("local_shadow_snapshots").delete().eq("id", snapshot_id).execute()
+    except Exception as exc:
+        log_warning(
+            f"[shadow-promote] snapshot {snapshot_id} promoted to "
+            f"commit {submission_result.commit_id} but cleanup delete "
+            f"failed: {exc}",
+        )
+
+    return ApiResponse.success(data=_PromoteResponse(
+        snapshot_id=snapshot_id,
+        commit_id=submission_result.commit_id,
+        project_id=project_id,
+        scope_path=scope_path,
+    ))
+
+
 # ── Helpers ────────────────────────────────────────────────────
 
 

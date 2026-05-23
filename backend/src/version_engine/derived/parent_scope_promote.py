@@ -82,14 +82,12 @@ def promote_to_parents(
 ) -> list[dict[str, Any]]:
     """Synthesize a scope-promote commit on each ancestor scope.
 
-    Architectural note: this function publishes new commits (calls the
-    publish RPC directly), which lives on the L5/L6 boundary. The
-    architecture doc folds "scope->root projection, root->AP derived
-    refs" into L6, so we keep the function here — but the *cleaner*
-    shape would be a ``ScopePromoteIntent`` routed through
-    ``VersionWriteEngine.apply_operation``-style publish so the engine
-    remains the only thing calling ``publish_scope_update``. Tracked
-    as architectural debt; see audit batch.
+    Routes the actual ref-advancing publish through
+    ``VersionWriteEngine.publish_scope_promotion()`` so L5 stays the
+    only thing that calls ``publish_scope_update``. The tree synthesis
+    + cordon logic (orphan-parent for damaged ancestry) stays in L6
+    because that's projection work that depends on the child commit
+    that just landed; the L5 boundary is purely the publish call.
 
     Returns a list of ``{scope_path, new_commit_id, new_scope_hash}`` rows
     describing the parent scopes that advanced. Best-effort: a failure on
@@ -147,43 +145,22 @@ def promote_to_parents(
                 message=promote_message,
                 created_at_iso=created_at_iso,
             )
-            # When ancestry is cordoned (parent_sha dropped), don't tell
-            # publish_scope_update that we still chain off current_head —
-            # the new commit is an orphan, so the CAS precondition has to
-            # match. We still pass current_head as the *scope* base for
-            # the optimistic update of runtime scope state itself.
-            publish = getattr(repo, "publish_scope_update", None)
-            if publish is None:
-                log_warning(
-                    f"[scope-promote] repo lacks publish_scope_update; "
-                    f"skipping promotion to {ancestor!r}",
-                )
-                continue
-            result = publish(
+            # The new commit is fully formed (with cordon if applied);
+            # the publish itself goes through the engine so L5 remains
+            # the only ref-advancing surface.
+            published = _publish_promote_through_engine(
+                repo,
+                project_id=project_id,
                 scope_path=ancestor,
                 old_scope_hash=old_hash,
                 new_scope_hash=new_tree,
                 commit_id=new_commit,
-                who=child_commit_actor or "scope-promote",
+                actor=child_commit_actor or "scope-promote",
                 message=promote_message,
-                changes=[{"path": child_norm, "action": "scope-promote"}],
-                conflicts=None,
-                created_at_iso=created_at_iso,
-                audit_event_type="scope_promote",
-                audit_agent_id=child_commit_actor or "system",
-                audit_detail={
-                    "child_scope": child_norm,
-                    "child_commit_id": child_commit_id,
-                    "source": _PROMOTE_TRAILER_SOURCE,
-                },
-                source_channel="agent",
-                policy="scope_promote",
-                base_commit_id=current_head,
-                client_commit_id="",
-                proposed_tree_id=new_tree,
-                intent_type="operation",
+                base_commit_id=current_head or "",
+                child_norm=child_norm,
+                child_commit_id=child_commit_id,
             )
-            published = result[0] if isinstance(result, tuple) else bool(result)
             if published:
                 promotions.append({
                     "scope_path": ancestor,
@@ -200,6 +177,87 @@ def promote_to_parents(
                 f"[scope-promote] failed for ancestor {ancestor!r}: {exc}",
             )
     return promotions
+
+
+def _publish_promote_through_engine(
+    repo,
+    *,
+    project_id: str,
+    scope_path: str,
+    old_scope_hash: str,
+    new_scope_hash: str,
+    commit_id: str,
+    actor: str,
+    message: str,
+    base_commit_id: str,
+    child_norm: str,
+    child_commit_id: str,
+) -> bool:
+    """Submit a ScopePromoteIntent to the engine and return whether the
+    publish landed.
+
+    The graft tree + cordon-aware commit are already built by the
+    caller; the engine just runs the publish RPC inside its own
+    audit / tracing boundary. We construct the intent then run the
+    engine call synchronously from this sync function via ``asyncio.run``
+    (parent_scope_promote is called from sync hook code; the engine
+    method is async because it shares ``asyncio.to_thread`` with the
+    rest of the engine).
+    """
+    # Local import keeps the engine module out of the L6 import graph
+    # at module load time (engine imports from infrastructure which
+    # imports things this module also touches).
+    from src.version_engine.write_engine.engine import VersionWriteEngine
+    from src.version_engine.domain.intents import ScopePromoteIntent
+    from src.version_engine.infrastructure.supabase.repo_manager import (
+        VersionRepoManager,
+    )
+
+    intent = ScopePromoteIntent(
+        project_id=project_id,
+        scope_path=scope_path,
+        actor=actor,
+        source_channel="agent",
+        old_scope_hash=old_scope_hash,
+        new_scope_hash=new_scope_hash,
+        commit_id=commit_id,
+        base_commit_id=base_commit_id,
+        message=message,
+        audit_detail={
+            "child_scope": child_norm,
+            "child_commit_id": child_commit_id,
+            "source": _PROMOTE_TRAILER_SOURCE,
+        },
+        changes=[{"path": child_norm, "action": "scope-promote"}],
+    )
+
+    # Build a single-repo adapter so the engine can resolve
+    # ``get_server_repo(project_id)``. We don't have a VersionRepoManager
+    # in this code path (we got `repo` directly from the hook); wrap it.
+    class _SingleRepoManager:
+        def __init__(self, repo_):
+            self._r = repo_
+
+        def get_server_repo(self, _project_id: str):
+            return self._r
+
+    engine = VersionWriteEngine(_SingleRepoManager(repo))  # type: ignore[arg-type]
+    try:
+        coro = engine.publish_scope_promotion(intent)
+        try:
+            loop = asyncio.get_running_loop()
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            published, _txn = future.result()
+        except RuntimeError:
+            # Sync caller (hook): no running loop. Use asyncio.run.
+            published, _txn = asyncio.run(coro)
+        return bool(published)
+    except Exception as exc:
+        log_warning(
+            f"[scope-promote] engine publish failed for ancestor "
+            f"{scope_path!r}: {exc}",
+        )
+        return False
 
 
 async def promote_to_parents_async(

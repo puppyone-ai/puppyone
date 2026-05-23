@@ -410,8 +410,13 @@ def _run_git(args: list[str], cwd, input_data: bytes | None = None) -> bytes:
 
 
 def _run_git_raw(args: list[str], cwd, input_data: bytes | None = None) -> subprocess.CompletedProcess:
+    # Force ``main`` as the local default branch regardless of the host
+    # git config. Older / Windows git defaults to ``master`` which makes
+    # every push test fail with ``src refspec main does not match any``
+    # — the tests intentionally assert against the server's ``main`` ref
+    # so the client must also be on ``main``.
     proc = subprocess.run(
-        ["git", *args],
+        ["git", "-c", "init.defaultBranch=main", *args],
         cwd=cwd,
         input=input_data,
         stdout=subprocess.PIPE,

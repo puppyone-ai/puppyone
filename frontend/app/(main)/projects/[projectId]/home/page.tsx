@@ -21,6 +21,7 @@ import { GetStartedPanel } from './components/GetStartedPanel';
 import { ApChip } from './components/ApChip';
 import { AccessPointsListCard } from './components/AccessPointsListCard';
 import { ProjectPageLoadingShell } from '@/components/loading';
+import { ProjectGitHealthBadge } from '@/components/ProjectGitHealthBadge';
 
 // ConnectionsCanvas (the old xyflow wiring board) used to mount here.
 // Home now surfaces Access Points directly under the Data card via
@@ -437,6 +438,15 @@ export default function HomePage({
             padding: '32px 32px 96px',
           }}
         >
+          {/* Surface project-root Git view health when it's NOT
+            * ``healthy``. Silent on healthy/empty so the home page
+            * stays calm; expands to a colored banner with a "Rebuild
+            * cache" action button when current_corrupt is detected.
+            * The banner reads from ``GET /git/{id}.git/health`` every
+            * 60s so cache rebuilds (background workers, manual
+            * triggers from ops) reflect quickly.
+            */}
+          <ProjectGitHealthBadge projectId={projectId} />
           {/* ============================================================
               BAND 1 — HEADER.  Pixel-borrowed from the OLD GitHub-style
               page so users carry over their existing mental model:

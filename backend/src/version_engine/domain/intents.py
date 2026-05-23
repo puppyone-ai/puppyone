@@ -56,6 +56,13 @@ class OperationWriteIntent:
     # falls back to the configured rule set in ``select_conflict_policy``.
     policy_override: str = ""
     project_write_state: ProjectWriteState | None = None
+    # When the L1 router can attribute the write to a specific WS-
+    # connected device/tab (via the ``X-PuppyOne-Client-Id`` header),
+    # threading the value through here lets the L6 notification fan-out
+    # suppress echo to ONLY that connection — the user's other tabs
+    # still see the commit_update event for their own write. Empty
+    # falls back to agent-level suppression in NotificationManager.
+    pusher_client_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,10 @@ class VersionSubmissionIntent:
     # callers can opt into ``manual_review`` instead of silently LWW-merging
     # on the server. Empty string falls back to the configured rule set.
     policy_override: str = ""
+    # See ``OperationWriteIntent.pusher_client_id``. Git submissions
+    # rarely have a WS-connected origin client but the field is here
+    # for symmetry so AP-FS callers that hold a session can pass it.
+    pusher_client_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -100,6 +111,39 @@ class RollbackIntent:
     # trip the conflict pipeline (e.g. concurrent edits while the target
     # commit's content is being applied) and deserve the same opt-in.
     policy_override: str = ""
+
+
+@dataclass(frozen=True)
+class ScopePromoteIntent:
+    """A derived scope-promote publish — child commit lands on parent scope.
+
+    Triggered by ``derived/parent_scope_promote`` after a child scope's
+    commit lands; the parent ancestors graft the child tree into their
+    own tree and need to publish a new ``scope-promote`` commit so the
+    parent's Git view stays current. Conceptually this is a derived L6
+    work, but the actual ref-advancing call must go through L5 (the
+    engine) so all publishes share one audit / tracing / hardening
+    boundary.
+
+    Unlike ``OperationWriteIntent`` (engine builds the commit) and
+    ``VersionSubmissionIntent`` (Git push supplies a proposed tree),
+    scope-promote provides the FULLY-FORMED commit + tree — the engine
+    just runs the publish RPC + lifecycle bookkeeping. Cordon logic
+    (orphan-parent for damaged ancestry) is already applied to
+    ``commit_id`` by the caller; the engine doesn't re-validate.
+    """
+
+    project_id: str
+    scope_path: str
+    actor: str
+    source_channel: SourceChannel
+    old_scope_hash: str
+    new_scope_hash: str
+    commit_id: str
+    base_commit_id: str
+    message: str
+    audit_detail: dict = field(default_factory=dict)
+    changes: list = field(default_factory=list)
 
 
 ResolutionDecision = Literal["accept", "reject"]
