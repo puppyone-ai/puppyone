@@ -217,6 +217,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
         name: string;
         icon: string;
         type: string;
+        status?: string;
         mcp_api_key?: string;
         trigger_type?: string;
         trigger_config?: TriggerConfig;
@@ -272,6 +273,7 @@ export function AgentProvider({ children, projectId }: AgentProviderProps) {
           type: (a.type as AgentType) || 'chat',
           capabilities: resources.map(r => `resource:${r.path}`),
           mcp_api_key: a.mcp_api_key,
+          status: a.status === 'paused' ? 'paused' : 'active',
           // Schedule Agent 新字段
           trigger_type: (a.trigger_type as TriggerType) || 'manual',
           trigger_config: a.trigger_config,

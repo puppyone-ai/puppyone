@@ -206,6 +206,13 @@ class FileVersionInfo(BaseModel):
     scope_hash: str = ""
     scope_path: str = ""
     created_at: datetime | None = None
+    # Free-form metadata the engine stamped at commit time. Frontend
+    # uses it to render "risky operation" warnings (mass delete /
+    # bulk rename) and to surface operation-type hints in the
+    # history timeline. Closes PUP-5 Gap G2 — the data has always
+    # been stored on ``version_transactions``; this just plumbs it
+    # back out through the read API.
+    audit_detail: dict | None = None
 
 
 class VersionHistoryResponse(BaseModel):

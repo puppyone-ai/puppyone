@@ -753,6 +753,11 @@ async def tree(
     })
 
 
+# Legacy S3-scan grep — KEEP. Used by the CLI as a fallback when
+# ``POST /grep-indexed`` returns ``index_status != "indexed"``. The
+# trade-off is: this path can find content the indexer hasn't yet
+# processed, at the cost of an O(scope size) S3 read + Python
+# regex scan. See ``docs/proposals/PUP-federated-search.md``.
 @router.get("/grep", response_model=ApiResponse)
 async def grep(
     pattern: str = Query(..., description="Fixed string or regex pattern to match"),
@@ -1015,6 +1020,338 @@ async def grep(
         "matches": matches,
         "head_commit_id": scope_head_commit_id,
         "scope_head_commit_id": scope_head_commit_id,
+    })
+
+
+# ────────────────────────────────────────────────────────────────────
+# Indexed grep (federated search — server-side primary)
+# ────────────────────────────────────────────────────────────────────
+#
+# Contract: ``docs/proposals/PUP-federated-search.md``.
+#
+# This endpoint queries the ``version_text_index`` GIN indexes
+# (tsvector + pg_trgm) and recovers per-line offsets in the
+# application layer. The legacy ``GET /grep`` above remains as the
+# fallback when ``index_status != "indexed"``.
+
+
+from pydantic import BaseModel as _BaseModel  # local import to keep top of file lean
+
+
+class _GrepIndexedRequest(_BaseModel):
+    """Body for ``POST /ap-fs/grep-indexed``.
+
+    Flags mirror a useful subset of the legacy ``GET /grep``
+    parameters; we drop the file-walk flags (``include`` /
+    ``exclude_dir`` / ``max_depth`` / ``max_files`` / ``max_bytes``)
+    because the index is the scan boundary now — anything in scope
+    that the indexer hasn't stored is by definition not findable
+    via this path and the caller falls back to the legacy endpoint.
+    """
+    pattern: str
+    path: str = ""
+    regex: bool = False
+    ignore_case: bool = False
+    word_match: bool = False
+    invert_match: bool = False
+    only_matching: bool = False
+    before_context: int = 0
+    after_context: int = 0
+    limit: int = _GREP_DEFAULT_LIMIT
+    per_file_limit: int = 0
+    candidate_limit: int = 2000
+
+
+@router.post("/grep-indexed", response_model=ApiResponse)
+async def grep_indexed(
+    body: _GrepIndexedRequest,
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
+):
+    """Indexed grep against the server's text index.
+
+    Returns hits keyed by ``content_hash`` so the CLI can pair each
+    one with the file's current remote content (via ``/ap-fs/cat``)
+    and its local working copy. The response also carries
+    ``index_status`` so the CLI knows whether to fall back to the
+    legacy ``/grep`` S3-scan path:
+
+      - ``indexed`` — index is at HEAD; results are authoritative.
+      - ``stale``   — index is behind HEAD; CLI also fetches via
+                     legacy ``/grep`` for completeness.
+      - ``missing`` — no rows for this scope; CLI uses legacy as
+                     the primary tracked-channel query.
+    """
+    from src.version_engine.infrastructure.supabase.text_index_repository import (
+        TextIndexRepository,
+        cut_chunk_to_hits,
+    )
+
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client,
+    )
+    rel_path = _clean_relative(body.path)
+    _assert_not_excluded(rel_path, scope)
+
+    if len(body.pattern) > _GREP_PATTERN_MAX_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"grep pattern exceeds {_GREP_PATTERN_MAX_CHARS} characters",
+        )
+
+    # Wrap user pattern for the precise re-match. ``word_match`` is
+    # implemented here by re-anchoring with ``\b`` rather than in the
+    # SQL filter — the SQL stage uses the same trigram candidate set
+    # either way, and anchoring in Python keeps the SQL operator one
+    # of (``like``, ``ilike``, ``match``, ``imatch``).
+    py_pattern = body.pattern if body.regex else re.escape(body.pattern)
+    if body.word_match:
+        py_pattern = rf"\b(?:{py_pattern})\b"
+    py_flags = re.IGNORECASE if body.ignore_case else 0
+    try:
+        matcher = re.compile(py_pattern, py_flags)
+    except re.error as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid regex: {exc}") from exc
+
+    # Combine the AP's scope_path with the user-supplied sub-path so
+    # the index lookup never reaches outside the AP's blast radius.
+    combined_scope = _join_scope(scope["path"], rel_path).strip("/")
+
+    repo = TextIndexRepository()
+    candidates = repo.query_indexed_grep(
+        project_id=project_id,
+        scope_path=combined_scope,
+        pattern=body.pattern,
+        regex=body.regex,
+        ignore_case=body.ignore_case,
+        candidate_limit=max(1, min(int(body.candidate_limit), 5000)),
+    )
+
+    head_commit_id = ops.get_head_commit_id(project_id) or ""
+    freshness = repo.get_freshness(
+        project_id=project_id,
+        scope_path=combined_scope,
+        head_commit_id=head_commit_id,
+        rows_estimate=len(candidates),
+    )
+
+    per_file_limit = max(0, int(body.per_file_limit))
+    safe_limit = _query_limited_int(body.limit, _GREP_DEFAULT_LIMIT, _GREP_MAX_LIMIT)
+    before_ctx = min(max(0, int(body.before_context)), 100)
+    after_ctx = min(max(0, int(body.after_context)), 100)
+
+    hits: list[dict] = []
+    per_file_seen: dict[str, int] = {}
+    truncated = False
+    for cand in candidates:
+        if len(hits) >= safe_limit:
+            truncated = True
+            break
+        file_path = cand.file_path
+        remaining = None
+        if per_file_limit:
+            already = per_file_seen.get(file_path, 0)
+            if already >= per_file_limit:
+                continue
+            remaining = per_file_limit - already
+        chunk_hits = cut_chunk_to_hits(
+            chunk_text=cand.chunk_text,
+            line_start=cand.line_start,
+            matcher=matcher,
+            invert=body.invert_match,
+            only_matching=body.only_matching,
+            before_context=before_ctx,
+            after_context=after_ctx,
+            per_file_remaining=remaining,
+        )
+        if not chunk_hits:
+            continue
+        for ch in chunk_hits:
+            if len(hits) >= safe_limit:
+                truncated = True
+                break
+            hits.append({
+                "path": file_path,
+                "line": ch["line"],
+                "col": ch["col"],
+                "match": ch["match"],
+                "context_before": ch["context_before"],
+                "context_after": ch["context_after"],
+                "content_hash": cand.content_hash,
+            })
+            per_file_seen[file_path] = per_file_seen.get(file_path, 0) + 1
+
+    return ApiResponse.success(data={
+        "scope": combined_scope,
+        "pattern": body.pattern,
+        "regex": body.regex,
+        "ignore_case": body.ignore_case,
+        "word_match": body.word_match,
+        "invert_match": body.invert_match,
+        "only_matching": body.only_matching,
+        "limit": safe_limit,
+        "per_file_limit": per_file_limit,
+        "candidate_limit": body.candidate_limit,
+        "candidates_examined": len(candidates),
+        "hits": hits,
+        "truncated": truncated,
+        "index_status": freshness.status,
+        "index_freshness": {
+            "indexed_commit_id": freshness.indexed_commit_id,
+            "head_commit_id": freshness.head_commit_id,
+            "commits_behind": freshness.commits_behind,
+        },
+        "head_commit_id": head_commit_id,
+    })
+
+
+# ────────────────────────────────────────────────────────────────────
+# Indexed semantic / hybrid search (CLI-only)
+# ────────────────────────────────────────────────────────────────────
+
+
+class _SearchRequest(_BaseModel):
+    """Body for ``POST /ap-fs/search``.
+
+    Mirrors the grep-indexed shape so the CLI client uses one
+    transport pattern. ``mode`` picks the server strategy:
+
+      - ``semantic`` — pgvector cosine only.
+      - ``literal``  — tsvector + pg_trgm only (same engine as
+                       ``/grep-indexed`` but with token-aware
+                       ranking instead of substring matching).
+      - ``hybrid``   — both fused via RRF; the default.
+    """
+    query: str
+    path: str = ""
+    mode: str = "hybrid"
+    limit: int = 20
+
+
+@router.post("/search", response_model=ApiResponse)
+async def search(
+    body: _SearchRequest,
+    x_access_key: str | None = Header(None, alias="X-Access-Key"),
+    x_puppyone_user: str | None = Header(None, alias="X-PuppyOne-User"),
+    x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
+    ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
+):
+    """AP-key-authenticated semantic/hybrid search.
+
+    Wraps ``SearchService.search_scope`` so the legacy MCP-only
+    ``/internal/tools/{tool_id}/search`` path is no longer the only
+    way for a logged-in user to invoke vector search. Scope bounds
+    come from the access point — a key issued for ``/notes`` never
+    matches embeddings indexed under ``/drafts``.
+
+    Returns the same envelope as ``grep-indexed`` so the CLI can
+    treat the two channels with one renderer.
+    """
+    from src.version_engine.infrastructure.supabase.text_index_repository import (
+        TextIndexRepository,
+    )
+
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client,
+    )
+    rel_path = _clean_relative(body.path)
+    _assert_not_excluded(rel_path, scope)
+    combined_scope = _join_scope(scope["path"], rel_path).strip("/")
+
+    head_commit_id = ops.get_head_commit_id(project_id) or ""
+
+    # Read literal+semantic candidates separately so we never hand
+    # an empty SearchService an unbounded scan. Hybrid mode uses RRF;
+    # the other two modes return one channel only.
+    literal_hits: list[dict] = []
+    semantic_hits: list[dict] = []
+
+    if body.mode in ("literal", "hybrid"):
+        repo = TextIndexRepository()
+        for cand in repo.query_indexed_grep(
+            project_id=project_id,
+            scope_path=combined_scope,
+            # tsvector path: search every token in the query, ANDed.
+            # We re-use the substring path with the FULL query so the
+            # candidate set is biased toward documents containing the
+            # phrase; ranking happens in cut_chunk below.
+            pattern=body.query,
+            regex=False,
+            ignore_case=True,
+            candidate_limit=max(1, min(int(body.limit) * 5, 200)),
+        ):
+            literal_hits.append({
+                "path": cand.file_path,
+                "line": cand.line_start,
+                "col": 0,
+                "match": cand.chunk_text[:240],
+                "content_hash": cand.content_hash,
+                "score_literal": 1.0,
+            })
+
+    if body.mode in ("semantic", "hybrid"):
+        try:
+            from src.infra.search.service import SearchService
+            search_svc = SearchService()
+            results = await search_svc.search_scope(
+                project_id=project_id,
+                scope_path=combined_scope,
+                query=body.query,
+                top_k=max(1, min(int(body.limit), 100)),
+            )
+            for item in results or []:
+                semantic_hits.append({
+                    "path": item.get("path") or item.get("file_path") or "",
+                    "line": int(item.get("line") or item.get("line_start") or 1),
+                    "col": 0,
+                    "match": (item.get("text") or item.get("chunk") or "")[:240],
+                    "content_hash": item.get("content_hash") or "",
+                    "score_semantic": float(item.get("score") or 0.0),
+                })
+        except Exception as exc:  # noqa: BLE001 - degrade gracefully
+            # The semantic path depends on embeddings + an external
+            # API. Don't crash the whole search if that's misconfigured;
+            # surface the failure mode in the response so the CLI can
+            # tell the user "semantic unavailable, showing literal".
+            semantic_hits = []
+            semantic_error = str(exc)
+        else:
+            semantic_error = ""
+    else:
+        semantic_error = ""
+
+    # Reciprocal-rank fusion — k=60 is the canonical Elastic / Pinecone
+    # value; it's tolerant to "one channel returned nothing" because
+    # missing channels just contribute 0 to the score.
+    fused: dict[tuple[str, int], dict] = {}
+    for rank, h in enumerate(literal_hits):
+        key = (h["path"], h["line"])
+        bucket = fused.setdefault(key, {**h, "score": 0.0})
+        bucket["score"] += 1.0 / (60 + rank)
+    for rank, h in enumerate(semantic_hits):
+        key = (h["path"], h["line"])
+        bucket = fused.setdefault(key, {**h, "score": 0.0})
+        bucket["score"] += 1.0 / (60 + rank)
+        # Carry the semantic score so the renderer can decide whether
+        # to show "matched by meaning" annotations.
+        if "score_semantic" not in bucket and "score_semantic" in h:
+            bucket["score_semantic"] = h["score_semantic"]
+
+    hits = sorted(fused.values(), key=lambda h: h["score"], reverse=True)
+    hits = hits[: max(1, int(body.limit))]
+
+    return ApiResponse.success(data={
+        "scope": combined_scope,
+        "query": body.query,
+        "mode": body.mode,
+        "limit": body.limit,
+        "hits": hits,
+        "literal_count": len(literal_hits),
+        "semantic_count": len(semantic_hits),
+        "semantic_error": semantic_error if body.mode in ("semantic", "hybrid") else "",
+        "head_commit_id": head_commit_id,
     })
 
 

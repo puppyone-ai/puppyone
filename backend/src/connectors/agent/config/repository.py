@@ -82,6 +82,7 @@ def _row_to_agent(row: dict) -> Agent:
         external_config=config.get("external_config"),
         llm_model=config.get("llm_model"),
         system_prompt=config.get("system_prompt"),
+        status=row.get("status") or "active",
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )

@@ -71,8 +71,16 @@ class GatewayService:
             )
         return self.repo.delete(gateway_id)
 
-    def refresh_token(self, gateway_id: str) -> dict:
-        """Refresh OAuth token for a gateway. Provider-specific logic."""
+    async def refresh_token(self, gateway_id: str) -> dict:
+        """Refresh OAuth token for a gateway.
+
+        Dispatches to ``oauth_refresh.refresh_gateway_token`` which
+        knows each provider's token URL + credential settings. New
+        tokens are merged into ``credentials`` so future syncs see
+        the fresh access_token without another refresh round-trip.
+        """
+        from src.connectors.gateway.oauth_refresh import refresh_gateway_token
+
         gw = self.get_by_id(gateway_id)
         creds = gw.get("credentials") or {}
         refresh_token = creds.get("refresh_token")
@@ -81,9 +89,22 @@ class GatewayService:
                 "No refresh token available for this gateway",
                 code=ErrorCode.VALIDATION_ERROR,
             )
-        # TODO: provider-specific OAuth refresh logic
-        # For now, return current credentials
-        return gw
+
+        new_creds = await refresh_gateway_token(gw["provider"], refresh_token)
+        if not new_creds:
+            raise NotFoundException(
+                f"Failed to refresh OAuth token for provider '{gw['provider']}'. "
+                f"The refresh_token may be expired or the provider may not be "
+                f"configured server-side. Reconnect the account to obtain a "
+                f"fresh refresh token.",
+                code=ErrorCode.VALIDATION_ERROR,
+            )
+
+        # Preserve any provider-specific extra keys the original
+        # credentials carried (workspace_id, scope, etc.) that the
+        # refresh response didn't include.
+        merged_creds = {**creds, **{k: v for k, v in new_creds.items() if v is not None}}
+        return self.repo.update(gateway_id, {"credentials": merged_creds})
 
     def get_credentials(self, gateway_id: str) -> dict:
         """Get credentials for sync execution. Internal use only."""

@@ -820,5 +820,14 @@ def _parse_json_fields(entry: dict) -> None:
         entry["changes"] = json.loads(entry["changes"])
     if isinstance(entry.get("conflicts"), str):
         entry["conflicts"] = json.loads(entry["conflicts"])
+    # ``audit_detail`` is JSONB on Postgres but PostgREST sometimes
+    # hands it back as a string when nested inside a row payload;
+    # decode here so the response layer can render it without a
+    # type-check.
+    if isinstance(entry.get("audit_detail"), str):
+        try:
+            entry["audit_detail"] = json.loads(entry["audit_detail"])
+        except json.JSONDecodeError:
+            entry["audit_detail"] = {}
     entry["root"] = entry.get("root_hash", "")
     entry["time"] = entry.get("created_at", "")

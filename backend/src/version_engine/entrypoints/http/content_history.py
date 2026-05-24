@@ -82,6 +82,7 @@ async def get_commits(
             root_hash=e.get("root_hash", ""),
             scope_path=e.get("scope_path", ""),
             created_at=e.get("created_at"),
+            audit_detail=e.get("audit_detail"),
         )
         for e in entries
     ]

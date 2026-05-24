@@ -60,6 +60,13 @@ class Agent(BaseModel):
     llm_model: Optional[str] = Field(None)
     system_prompt: Optional[str] = Field(None)
 
+    # Mirrors ``connectors.status`` (``active`` / ``paused``). Agents
+    # are stored as a connector row with ``provider='agent'``; pause /
+    # resume is the existing connector-level toggle and is also what
+    # ``chat/service._enforce_agent_not_paused`` reads to refuse
+    # sessions for a paused agent.
+    status: str = Field(default="active")
+
     created_at: datetime = Field(...)
     updated_at: datetime = Field(...)
 
