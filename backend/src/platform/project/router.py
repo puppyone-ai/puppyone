@@ -348,3 +348,73 @@ def remove_project_member(
 
     project_service.remove_project_member(project.id, target_user_id)
     return ApiResponse.success(message="Member removed")
+
+
+# ── Project share link (MVP) ──
+#
+# Three endpoints implement the share-link primitive. Two are gated to
+# owner/admin (view + rotate the token); the third — joining via a
+# token — only requires being signed in, because the token itself is
+# the auth artifact for the join action. Rotating the token is the
+# revoke-all-outstanding-links mechanism.
+#
+# The share URL the frontend renders is composed there from
+# ``NEXT_PUBLIC_API_URL`` / location.origin + ``/share/{token}``. We
+# intentionally don't construct the URL server-side here so callers
+# behind different reverse proxies can each derive their own host.
+
+
+@router.get(
+    "/{project_id}/share",
+    response_model=ApiResponse[dict],
+    summary="Get share link info (owner/admin only)",
+)
+def get_share_info(
+    project: Project = Depends(get_verified_project),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    info = project_service.get_share_info(project.id, current_user.user_id)
+    return ApiResponse.success(data=info)
+
+
+@router.post(
+    "/{project_id}/share/rotate",
+    response_model=ApiResponse[dict],
+    summary="Rotate share token (revokes existing link)",
+)
+def rotate_share_token(
+    project: Project = Depends(get_verified_project),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    info = project_service.rotate_share_token(project.id, current_user.user_id)
+    return ApiResponse.success(
+        data=info, message="Share link rotated; previous link is no longer valid",
+    )
+
+
+@router.post(
+    "/share/{token}/join",
+    response_model=ApiResponse[dict],
+    summary="Join a project via share link",
+)
+def join_via_share_token(
+    token: str,
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Accept the share link and join as ``viewer``.
+
+    Idempotent: an existing member just receives their current role
+    back. An invalid / rotated token returns 404 — exactly the same
+    visible behaviour, so the link doesn't leak "this project exists"
+    after revocation.
+    """
+    result = project_service.join_via_share_token(token, current_user.user_id)
+    return ApiResponse.success(
+        data=result,
+        message=(
+            "Joined project" if result.get("newly_joined") else "Already a member"
+        ),
+    )

@@ -18,6 +18,10 @@ class ProjectBase(BaseModel):
     visibility: str = "org"
     bound_git_branch: str = "main"
     created_by: str | None = None
+    # Per the share-link MVP: every project has a URL-safe token; whoever
+    # has the token can join (default: viewer). Rotation invalidates
+    # outstanding links. See ``20260524000000_project_share_token.sql``.
+    share_token: str | None = None
 
 
 class ProjectCreate(ProjectBase):
@@ -33,6 +37,7 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     visibility: str | None = None
     bound_git_branch: str | None = None
+    share_token: str | None = None
 
 
 class ProjectResponse(ProjectBase):

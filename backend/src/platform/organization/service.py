@@ -65,7 +65,10 @@ class OrganizationService:
 
         user_orgs = self._repo.list_by_user(user_id)
         if len(user_orgs) <= 1:
-            raise AppException("Cannot delete your only organization", code=ErrorCode.FORBIDDEN)
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message="Cannot delete your only organization",
+            )
 
         self._repo.delete(org_id)
 
@@ -85,12 +88,15 @@ class OrganizationService:
         self._require_owner(org_id, current_user_id)
 
         if target_user_id == current_user_id:
-            raise AppException("Cannot change your own role", code=ErrorCode.FORBIDDEN)
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message="Cannot change your own role",
+            )
 
         if new_role == "owner":
             raise AppException(
-                "Cannot assign owner role. Use transfer ownership instead.",
                 code=ErrorCode.FORBIDDEN,
+                message="Cannot assign owner role. Use transfer ownership instead.",
             )
 
         member = self._repo.update_member_role(org_id, target_user_id, new_role)
@@ -102,7 +108,10 @@ class OrganizationService:
         self._require_owner(org_id, current_user_id)
 
         if target_user_id == current_user_id:
-            raise AppException("Cannot remove yourself. Transfer ownership first.", code=ErrorCode.FORBIDDEN)
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message="Cannot remove yourself. Transfer ownership first.",
+            )
 
         self._repo.remove_member(org_id, target_user_id)
 
@@ -111,7 +120,10 @@ class OrganizationService:
         if not member:
             raise NotFoundException("You are not a member", code=ErrorCode.NOT_FOUND)
         if member.role == "owner":
-            raise AppException("Owner cannot leave. Transfer ownership first.", code=ErrorCode.FORBIDDEN)
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message="Owner cannot leave. Transfer ownership first.",
+            )
         self._repo.remove_member(org_id, user_id)
 
     # ── Invitations ──
@@ -131,12 +143,17 @@ class OrganizationService:
         current_count = self._repo.count_members(org_id)
         if current_count >= org.seat_limit:
             raise AppException(
-                f"Seat limit reached ({org.seat_limit}). Upgrade your plan.",
                 code=ErrorCode.FORBIDDEN,
+                message=(
+                    f"Seat limit reached ({org.seat_limit}). Upgrade your plan."
+                ),
             )
 
         if role not in ("member", "viewer"):
-            raise AppException("Can only invite as member or viewer", code=ErrorCode.FORBIDDEN)
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message="Can only invite as member or viewer",
+            )
 
         return self._repo.create_invitation(org_id, email, role, inviter_id)
 
@@ -212,7 +229,10 @@ class OrganizationService:
             raise NotFoundException("Invitation not found or expired", code=ErrorCode.NOT_FOUND)
 
         if datetime.now(UTC) > invitation.expires_at.replace(tzinfo=UTC):
-            raise AppException("Invitation expired", code=ErrorCode.FORBIDDEN)
+            raise AppException(
+                code=ErrorCode.FORBIDDEN,
+                message="Invitation expired",
+            )
 
         # If the user is ALREADY a member, mark the invitation accepted
         # (so the inviter's list stops showing it) and return the
