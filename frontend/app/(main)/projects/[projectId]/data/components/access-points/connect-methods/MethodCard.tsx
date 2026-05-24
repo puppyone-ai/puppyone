@@ -71,17 +71,13 @@ export function MethodCard({
   readonly children: ReactNode;
   /** Current connector status — true when `status === 'active'`. When
    *  `false`, the card renders in its paused appearance with the body
-   *  hidden. Defaults to `true` for legacy callers that don't pass
-   *  per-connector state (in that case the body is always shown,
-   *  matching the pre-toggle behaviour). */
+   *  hidden. Defaults to `true` when no per-connector state is supplied. */
   readonly active?: boolean;
   /** Set while a pause/resume request is in flight. De-dupes rapid
    *  re-clicks while the first request is still resolving. */
   readonly togglePending?: boolean;
   /** Click handler for the toggle. When omitted, the toggle is not
-   *  rendered and the body is always shown — used by callers that
-   *  don't yet have a connector to pause/resume (legacy / CLI before
-   *  the DB trigger that auto-provisions a `cli` connector). */
+   *  rendered and the body is always shown. */
   readonly onToggle?: () => void;
 }) {
   const [hovered, setHovered] = useState(false);

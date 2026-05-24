@@ -17,7 +17,6 @@ export function LocalSyncBody({
     cloneLines,
     existingFolderLines,
     workflowLines,
-    serverMergeLine,
     prompt,
   } = buildGitSyncPrompt({ gitUrl, scopeName, directoryName: scopeName });
 
@@ -37,13 +36,6 @@ export function LocalSyncBody({
         </NumberedStep>
         <NumberedStep number={3} title="Day-to-day workflow">
           <CommandBlock lines={workflowLines} />
-        </NumberedStep>
-        <NumberedStep
-          number={4}
-          title="Server-side merge proposal"
-          hint="Only use this when normal Git push says the remote has newer work; Puppyone still performs the merge decision server-side."
-        >
-          <CommandBlock lines={[serverMergeLine]} />
         </NumberedStep>
       </Disclosure>
     </>

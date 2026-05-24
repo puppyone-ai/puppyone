@@ -4,7 +4,7 @@ import { useId } from 'react';
 import type { useRouter } from 'next/navigation';
 import { T } from '../lib/tokens';
 import { formatRelative } from '../lib/format';
-import type { MutCommitInfo } from '@/lib/contentTreeApi';
+import type { VersionCommitInfo } from '@/lib/contentTreeApi';
 
 // HistoryCard — Right-rail card showing the project's commit history
 // in the layout the OLD GitHub-style page used: a vertical timeline of
@@ -206,7 +206,7 @@ export function HistoryCard({
 }: {
   projectId: string;
   router: ReturnType<typeof useRouter>;
-  commits: MutCommitInfo[];
+  commits: VersionCommitInfo[];
   // 30-day daily commit counts (oldest → newest), already shaped by the
   // page so we don't recompute per render.
   buckets: { date: string; count: number }[];

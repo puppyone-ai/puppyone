@@ -67,7 +67,7 @@ class GithubSyncLogEntry(BaseModel):
     integration_id: str
     direction: SyncDirection
     git_sha: Optional[str]
-    mut_commit_id: Optional[str]
+    version_commit_id: Optional[str]
     status: SyncStatus
     error_message: Optional[str]
     files_changed: Optional[int]
@@ -92,7 +92,7 @@ class GithubImportRequest(BaseModel):
     force: bool = Field(
         False,
         description=(
-            "If True, overwrite local MUT changes that haven't been "
+            "If True, overwrite local hash changes that haven't been "
             "exported yet. Default refuses with status='conflict' so the "
             "user explicitly opts in to data loss."
         ),
@@ -112,7 +112,7 @@ class GithubSyncRunResult(BaseModel):
     status: SyncStatus
     direction: SyncDirection
     git_sha: Optional[str]
-    mut_commit_id: Optional[str]
+    version_commit_id: Optional[str]
     files_changed: Optional[int]
     error_message: Optional[str] = None
 

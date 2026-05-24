@@ -9,8 +9,7 @@ import type { DashboardConnection } from '../lib/types';
 import { ProviderAvatar } from './ProviderAvatar';
 
 // Normalize the three known "root scope" path representations the
-// backend may emit ('/' for `mut connect` bootstrap rows, null for
-// legacy rows, '' for early hand-bootstrapped rows) into a single
+// backend may emit ('/' or '' for root, null for incomplete rows) into a single
 // canonical key.  Used both for the lookup key in `accessByPath` and
 // for the hover-sync key here.  Keep this in step with the same
 // normalization in page.tsx — if they drift, the chip↔card hover
@@ -78,9 +77,8 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
 
   switch (conn.provider) {
     case 'filesystem':
-      // V1 post-MUT-removal: filesystem access keys authorise the Git
-      // smart-HTTP remote at /git/ap/<key>.git. The old MUT URL
-      // (/api/v1/mut/ap/<key>) was removed with the wire protocol.
+      // Filesystem access keys authorise the Git smart-HTTP remote at
+      // /git/ap/<key>.git.
       return `${apiBase}/git/ap/${conn.access_key}.git`;
     case 'mcp':
     case 'agent':
@@ -104,7 +102,7 @@ function buildEndpointUrl(conn: DashboardConnection): string | null {
 function buildCliCommand(conn: DashboardConnection, url: string | null): string | null {
   if (!url || !conn.access_key) return null;
   if (conn.provider !== 'filesystem') return null;
-  // V1 (post-MUT removal): stock git clone is the canonical setup. The
+  // Stock git clone is the canonical setup. The
   // user authenticates once via `git credential.helper store`; see the
   // detail panel's "Authenticate" step for the full one-line helper.
   return `git clone ${url}`;

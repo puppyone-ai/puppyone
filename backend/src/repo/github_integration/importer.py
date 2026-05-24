@@ -1,4 +1,4 @@
-"""Import a GitHub branch's HEAD tree into a MUT scope.
+"""Import a GitHub branch's HEAD tree into a version scope.
 
 One-shot snapshot import (no commit-history transfer — the strategy
 doc explicitly defers that). The flow:
@@ -10,14 +10,14 @@ doc explicitly defers that). The flow:
 4. Walk the branch's tree recursively → ``{path: blob_sha}``.
 5. Fetch every blob's bytes (LFS pointers / submodules are surfaced
    to the user as a partial-import warning, not silently dropped).
-6. Optional conflict gate: if the MUT scope's last-known head differs
-   from ``last_imported_sha``'s mut_commit, refuse unless ``force=True``.
+6. Optional conflict gate: if the version scope's last-known head differs
+   from ``last_imported_sha``'s version_commit, refuse unless ``force=True``.
 7. Single Git-native transaction-engine operation with a splice that
    overwrites the scope to exactly the GitHub tree.
-8. Record the new ``mut_commit_id`` alongside the ``git_sha`` in
+8. Record the new ``version_commit_id`` alongside the ``git_sha`` in
    ``github_sync_log`` and bump the integration row's watermark.
 
-This intentionally collapses the entire branch into ONE MUT commit;
+This intentionally collapses the entire branch into ONE version commit;
 the strategy doc says git history is GitHub's job. If users want
 finer-grained git-style attribution they should drive the per-commit
 import flow themselves (out of MVP scope).
@@ -30,9 +30,9 @@ from typing import Optional
 import httpx
 
 from src.connectors.datasource.oauth.repository import OAuthRepository
-from src.mut_engine.dependencies import get_repo_manager_standalone
-from src.mut_engine.application.transaction_engine import GitNativeTransactionEngine
-from src.mut_engine.domain.intents import OperationWriteIntent
+from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+from src.version_engine.write_engine.engine import VersionWriteEngine
+from src.version_engine.domain.intents import OperationWriteIntent
 from src.repo.github_integration.github_api import (
     GithubApi, GithubApiError, TreeEntry,
 )
@@ -48,14 +48,14 @@ _LFS_POINTER_MAX_SIZE = 200  # LFS pointer files are tiny (~135 bytes)
 
 
 class ImportConflict(Exception):
-    """Raised when the importer would overwrite local MUT changes."""
+    """Raised when the importer would overwrite local version changes."""
 
-    def __init__(self, mut_head: str, last_imported: Optional[str]):
-        self.mut_head = mut_head
+    def __init__(self, version_head: str, last_imported: Optional[str]):
+        self.version_head = version_head
         self.last_imported = last_imported
         super().__init__(
-            f"MUT scope has unpushed local changes "
-            f"(head={mut_head[:12]}, last_imported={last_imported or '∅'}). "
+            f"version scope has unpushed local changes "
+            f"(head={version_head[:12]}, last_imported={last_imported or '∅'}). "
             f"Pass force=True to overwrite or run an export first."
         )
 
@@ -67,13 +67,13 @@ async def import_branch(
     force: bool = False,
     triggered_by: str = "manual",
 ) -> GithubSyncRunResult:
-    """Pull *branch* from GitHub into the bound MUT scope.
+    """Pull *branch* from GitHub into the bound version scope.
 
     Returns the same shape ``service.import_now`` exposes to the
     router so both manual triggers and the webhook handler get a
     consistent result.
 
-    Side effects: writes one ``mut_commits`` row, one
+    Side effects: writes one version-history row, one
     ``github_sync_log`` row, and updates ``last_imported_*`` on the
     integration.
     """
@@ -127,13 +127,13 @@ async def import_branch(
     except ImportConflict as e:
         result = GithubSyncRunResult(
             status="conflict", direction="import",
-            git_sha=None, mut_commit_id=e.mut_head,
+            git_sha=None, version_commit_id=e.version_head,
             files_changed=None,
             error_message=str(e),
         )
         await sync_log.record(
             integration_id, direction="import", status="conflict",
-            git_sha=None, mut_commit_id=e.mut_head, error_message=str(e),
+            git_sha=None, version_commit_id=e.version_head, error_message=str(e),
         )
         return result
     except Exception as e:  # noqa: BLE001
@@ -169,7 +169,7 @@ async def _do_import(
         )
         return GithubSyncRunResult(
             status="success", direction="import",
-            git_sha=git_sha, mut_commit_id=integration.get("last_imported_sha"),
+            git_sha=git_sha, version_commit_id=integration.get("last_imported_sha"),
             files_changed=0,
         )
 
@@ -187,14 +187,14 @@ async def _do_import(
         )
         return GithubSyncRunResult(
             status="failed", direction="import",
-            git_sha=git_sha, mut_commit_id=None,
+            git_sha=git_sha, version_commit_id=None,
             files_changed=None, error_message=msg,
         )
 
     files = await _materialise_blobs(api, owner, repo_name, entries)
 
     # Conflict gate — currently a no-op. Future work: refuse if the
-    # MUT scope has commits past ``last_imported_sha`` that haven't
+    # version scope has commits past ``last_imported_sha`` that haven't
     # been exported. Skipping is safe (worst case: silently overwrite
     # local edits — users opt out via force=False / explicit export
     # before re-import).
@@ -206,8 +206,8 @@ async def _do_import(
 
     splice = _make_overwrite_splice(files)
 
-    repo_manager = get_repo_manager_standalone()
-    engine = GitNativeTransactionEngine(repo_manager)
+    repo_manager = build_worker_version_engine_container().repo_manager
+    engine = VersionWriteEngine(repo_manager)
     actor = f"github:{owner}/{repo_name}"
     message = (
         f"github import: {owner}/{repo_name}@{target_branch} "
@@ -231,12 +231,12 @@ async def _do_import(
         splice,
     )
 
-    # The transaction engine returns an empty ``commit_id`` when the
+    # The Write Engine returns an empty ``commit_id`` when the
     # splice was a no-op (importing unchanged content). Store that as
     # NULL in the sync log rather than ``""`` so the column is honest
     # about "no commit was produced" — the schema's TEXT nullable
     # column was designed for exactly this case.
-    mut_commit_id = write_result.commit_id or None
+    version_commit_id = write_result.commit_id or None
     # Count actual changed paths. ``write_result.paths`` is always a
     # list (never None); an empty list legitimately means "no-op" and
     # should report 0, not fall back to "every input file".
@@ -244,7 +244,7 @@ async def _do_import(
 
     await sync_log.record(
         integration_id, direction="import", status="success",
-        git_sha=git_sha, mut_commit_id=mut_commit_id,
+        git_sha=git_sha, version_commit_id=version_commit_id,
         files_changed=files_changed,
     )
     await integ_repo.update_watermark(
@@ -256,13 +256,13 @@ async def _do_import(
     log_info(
         f"[GithubImport] done integration={integration_id} "
         f"git_sha={git_sha[:12]} "
-        f"mut_commit={(mut_commit_id or 'no-op')[:12]} "
+        f"version_commit={(version_commit_id or 'no-op')[:12]} "
         f"files={files_changed}"
     )
 
     return GithubSyncRunResult(
         status="success", direction="import",
-        git_sha=git_sha, mut_commit_id=mut_commit_id,
+        git_sha=git_sha, version_commit_id=version_commit_id,
         files_changed=files_changed,
     )
 
@@ -322,7 +322,7 @@ def _make_overwrite_splice(files: dict[str, bytes]):
     matching exactly *files* — files not in *files* are deleted.
 
     Reuses :func:`tree_splice.splice_batch` so the diff vs the previous
-    tree is reported correctly in ``mut_commits.changes``.
+    tree is reported correctly in ``version history changes``.
 
     ``BatchOp`` is a plain tuple; the discriminator is the first slot:
 
@@ -331,8 +331,8 @@ def _make_overwrite_splice(files: dict[str, bytes]):
       * ``("rm",      path)``
       * ``("mv",      old_path, new_path)``
     """
-    from src.mut_engine.application.tree import tree_to_flat
-    from src.mut_engine.services.tree_splice import splice_batch
+    from src.version_engine.write_engine.tree import tree_to_flat
+    from src.version_engine.adapters.product.tree_patch import splice_batch
 
     def splice(store, root_hash):
         existing: dict[str, str] = {}
@@ -396,7 +396,7 @@ async def _record_failure(
     )
     return GithubSyncRunResult(
         status="failed", direction="import",
-        git_sha=None, mut_commit_id=None,
+        git_sha=None, version_commit_id=None,
         files_changed=None, error_message=error,
     )
 

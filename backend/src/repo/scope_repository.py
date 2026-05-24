@@ -70,7 +70,7 @@ class RepoScopeRepository:
         return _row_to_scope(rows[0]) if rows else None
 
     def get_by_access_key(self, access_key: str) -> Optional[RepoScope]:
-        """Hot path: mut auth resolves an access_key to its scope."""
+        """Hot path: access-key auth resolves an access_key to its scope."""
         resp = (
             self._client.table(self.TABLE)
             .select("*")
@@ -98,7 +98,7 @@ class RepoScopeRepository:
         self, project_id: str, path: str,
     ) -> Optional[RepoScope]:
         """Return the scope whose path is the longest prefix of `path`.
-        Used by the mut auth fallback path-inference (cf. design §4.1).
+        Used by path-to-scope inference.
 
         Example: scopes ['', 'docs', 'docs/handbook']; path='docs/handbook/x.md'
         → returns the 'docs/handbook' scope."""

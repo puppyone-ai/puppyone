@@ -6,16 +6,63 @@ import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
   getProjectHistory,
   getVersionContent,
-  type MutCommitInfo,
-  type MutCommitChange,
+  type VersionCommitInfo,
+  type VersionCommitChange,
   type FileVersionDetail,
 } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
 import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
-import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
+import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { BUTTON_HEIGHT, BUTTON_RADIUS } from '@/components/ui/buttonTokens';
+import {
+  NeedsActionSection,
+  getKind as getNeedsActionKind,
+  type NeedsActionItem,
+} from './components/NeedsActionSection';
+import type { NeedsActionSelection } from './components/NeedsActionSection';
+import type {
+  NeedsActionRenderContext,
+  ResolvedResult,
+} from '@/lib/needsActionRegistry';
+
+// ─── Needs Action detail-pane router ────────────────────────────────
+//
+// Looks up the kind in the registry and delegates to its
+// ``renderDetail``. Kept tiny so the page doesn't import per-kind
+// modules directly — the registry is the single dispatch point.
+function NeedsActionDetailPane({
+  projectId,
+  selection,
+  item,
+  onRemoved,
+}: {
+  projectId: string;
+  selection: NeedsActionSelection;
+  item: NeedsActionItem;
+  onRemoved: (selection: NeedsActionSelection, result: ResolvedResult) => void;
+}) {
+  const def = getNeedsActionKind(selection.kind);
+  if (!def) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: '100%', color: 'var(--po-text-disabled)', fontSize: 13,
+      }}>
+        Unknown item kind: {selection.kind}
+      </div>
+    );
+  }
+  const ctx: NeedsActionRenderContext = {
+    projectId,
+    isSelected: true,
+    onSelect: () => {},
+    onResolved: (result) => onRemoved(selection, result),
+    onSnoozed: () => onRemoved(selection, { reason: 'dismissed' }),
+  };
+  return <>{def.renderDetail(item, ctx)}</>;
+}
 
 // ─── Line diff utility ───────────────────────────────────────────────
 //
@@ -237,9 +284,31 @@ function formatOperatorLabel(type: string): string {
 }
 
 function formatScopeLabel(scopePath: string): string {
-  const normalized = scopePath.trim();
+  const normalized = normalizeScopePath(scopePath);
   if (!normalized || normalized === '/') return 'Root scope';
   return normalized;
+}
+
+function normalizeScopePath(scopePath: string): string {
+  return (scopePath || '').trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
+}
+
+function scopeIncludesCommit(scopePath: string, commitScopePath: string): boolean {
+  const scope = normalizeScopePath(scopePath);
+  const commitScope = normalizeScopePath(commitScopePath);
+  if (!scope) return true;
+  return commitScope === scope || commitScope.startsWith(`${scope}/`);
+}
+
+function scopeLineage(scopePath: string): string[] {
+  const scope = normalizeScopePath(scopePath);
+  if (!scope) return [''];
+  const parts = scope.split('/').filter(Boolean);
+  const lineage = [''];
+  for (let index = 0; index < parts.length; index += 1) {
+    lineage.push(parts.slice(0, index + 1).join('/'));
+  }
+  return lineage;
 }
 
 // ─── Vertical commit node (Linear Audit Trail) ───
@@ -262,7 +331,7 @@ function VerticalCommitNode({
   isHead,
   onClick,
 }: {
-  commit: MutCommitInfo;
+  commit: VersionCommitInfo;
   hasPrevious: boolean;
   hasNext: boolean;
   isSelected: boolean;
@@ -529,7 +598,7 @@ function DiffRow({ line }: { line: DiffLine }) {
 }
 
 interface FileDiffBlockProps {
-  change: MutCommitChange;
+  change: VersionCommitChange;
   projectId: string;
   commitId: string;
   parentCommitId: string | null;
@@ -701,7 +770,7 @@ function CommitDetail({
   projectId,
   parentCommitId,
 }: {
-  commit: MutCommitInfo;
+  commit: VersionCommitInfo;
   projectId: string;
   parentCommitId: string | null;
 }) {
@@ -888,8 +957,9 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   const scopeOptions = useMemo(() => {
     const counts = new Map<string, number>();
     commits.forEach(c => {
-      const scope = c.scope_path || '';
-      counts.set(scope, (counts.get(scope) || 0) + 1);
+      scopeLineage(c.scope_path || '').forEach(scope => {
+        counts.set(scope, (counts.get(scope) || 0) + 1);
+      });
     });
     if (!counts.has('')) counts.set('', 0);
     return Array.from(counts.entries())
@@ -897,13 +967,19 @@ export default function HistoryPage({ params }: HistoryPageProps) {
       .sort((a, b) => {
         if (a.scope === '') return -1;
         if (b.scope === '') return 1;
+        const depthDiff = a.scope.split('/').length - b.scope.split('/').length;
+        if (depthDiff !== 0) return depthDiff;
         return b.count - a.count;
       });
   }, [commits]);
 
   const scopeFilteredCommits = useMemo(
-    () => sortedCommits.filter(c => (c.scope_path || '') === activeScopeFilter),
+    () => sortedCommits.filter(c => scopeIncludesCommit(activeScopeFilter, c.scope_path || '')),
     [sortedCommits, activeScopeFilter],
+  );
+  const scopeChronologicalCommits = useMemo(
+    () => commits.filter(c => scopeIncludesCommit(activeScopeFilter, c.scope_path || '')),
+    [commits, activeScopeFilter],
   );
 
   const actorOptions = useMemo(() => {
@@ -932,6 +1008,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     () => scopeOptions.find(option => option.scope === activeScopeFilter) ?? null,
     [scopeOptions, activeScopeFilter],
   );
+
+  useEffect(() => {
+    if (!activeScopeFilter) return;
+    if (!scopeOptions.some(option => option.scope === activeScopeFilter)) {
+      setActiveScopeFilter('');
+    }
+  }, [activeScopeFilter, scopeOptions]);
 
   useEffect(() => {
     if (!activeActorFilter) return;
@@ -972,6 +1055,15 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   }, [scopeFilteredCommits, activeActorFilter]);
 
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
+  // The right pane shows EITHER a commit detail OR a needs-action item
+  // detail. Holding both selections in parallel state (rather than a
+  // discriminated union) keeps the existing commit-selection effects
+  // untouched — they auto-select HEAD when the project changes, and
+  // I don't want to entangle that with the new flow. When a
+  // needs-action item is selected we clear the commit selection, and
+  // vice versa.
+  const [selectedNeedsAction, setSelectedNeedsAction] = useState<NeedsActionSelection | null>(null);
+  const [selectedNeedsActionItem, setSelectedNeedsActionItem] = useState<NeedsActionItem | null>(null);
 
   const headCommitId = history?.head_commit_id ?? '';
 
@@ -1006,10 +1098,62 @@ export default function HistoryPage({ params }: HistoryPageProps) {
   // the parent of `commits[i]` is `commits[i - 1]`.
   const parentCommitId = useMemo(() => {
     if (!selectedCommit) return null;
-    const idx = commits.findIndex(c => c.commit_id === selectedCommit.commit_id);
+    const idx = scopeChronologicalCommits.findIndex(c => c.commit_id === selectedCommit.commit_id);
     if (idx <= 0) return null;
-    return commits[idx - 1].commit_id;
-  }, [commits, selectedCommit]);
+    return scopeChronologicalCommits[idx - 1].commit_id;
+  }, [scopeChronologicalCommits, selectedCommit]);
+
+  // ── Needs Action wiring ─────────────────────────────────────────
+  // Selecting a needs-action item makes it the right pane content;
+  // we drop the commit selection so the views never both render.
+  const handleNeedsActionSelect = useCallback(
+    (selection: NeedsActionSelection, item: NeedsActionItem) => {
+      setSelectedNeedsAction(selection);
+      setSelectedNeedsActionItem(item);
+      setSelectedCommitId(null);
+    },
+    [],
+  );
+
+  // Item removed (resolved / rejected / dismissed). If a real commit
+  // landed (``commit_id``) refresh history so it shows up at the top
+  // and select it so the user sees the result. Otherwise jump back
+  // to HEAD.
+  const handleNeedsActionRemoved = useCallback(
+    (selection: NeedsActionSelection, result: ResolvedResult) => {
+      // Clear our selection IF the removed item is the one currently
+      // shown — otherwise a background snooze on a different item
+      // shouldn't kick the user off whatever they're reading.
+      if (
+        selectedNeedsAction
+        && selectedNeedsAction.kind === selection.kind
+        && selectedNeedsAction.itemId === selection.itemId
+      ) {
+        setSelectedNeedsAction(null);
+        setSelectedNeedsActionItem(null);
+      }
+      if (result.commit_id) {
+        void mutateHistory();
+        // Highlight the new commit. The history list refresh will
+        // pull it in; ``selectedCommitId`` settles on it, and the
+        // existing auto-pick effect (lines around 1025) leaves it
+        // alone because it is present in ``filteredCommits``.
+        setSelectedCommitId(result.commit_id);
+      } else if (!result.commit_id && selectedCommitId === null && headCommitId) {
+        setSelectedCommitId(headCommitId);
+      }
+    },
+    [mutateHistory, selectedNeedsAction, selectedCommitId, headCommitId],
+  );
+
+  // When the user clicks a commit, we drop the needs-action selection
+  // so the right pane re-renders CommitDetail instead of the item
+  // detail.
+  const selectCommit = useCallback((commitId: string) => {
+    setSelectedCommitId(commitId);
+    setSelectedNeedsAction(null);
+    setSelectedNeedsActionItem(null);
+  }, []);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--po-canvas)' }}>
@@ -1091,6 +1235,16 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             maxWidth={520}
             className="border-r border-[var(--po-divider)] bg-[var(--po-canvas)] z-10"
           >
+
+            {/* Needs Action — sits ABOVE filters per PUP-5. The
+                section handles its own empty state ("No pending
+                actions") so we don't need to gate the mount. */}
+            <NeedsActionSection
+              projectId={projectId}
+              selected={selectedNeedsAction}
+              onSelect={handleNeedsActionSelect}
+              onItemRemoved={handleNeedsActionRemoved}
+            />
 
             {/* Filter Header */}
             <div ref={filterMenuRef} className="flex flex-col border-b border-[var(--po-divider)] bg-[var(--po-canvas)]">
@@ -1278,15 +1432,25 @@ export default function HistoryPage({ params }: HistoryPageProps) {
                   hasNext={i < filteredCommits.length - 1}
                   isSelected={selectedCommitId === commit.commit_id}
                   isHead={commit.commit_id === headCommitId}
-                  onClick={() => setSelectedCommitId(commit.commit_id)}
+                  onClick={() => selectCommit(commit.commit_id)}
                 />
               ))}
             </div>
           </ResizableSidebarColumn>
 
-          {/* Right: Commit Detail */}
+          {/* Right: Either a Needs Action item detail OR the
+              commit detail. Needs Action wins when an item is
+              selected (the page's selection handlers keep at most
+              one of {commit, item} active). */}
           <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-[var(--po-canvas)]">
-            {selectedCommit ? (
+            {selectedNeedsAction && selectedNeedsActionItem ? (
+              <NeedsActionDetailPane
+                projectId={projectId}
+                selection={selectedNeedsAction}
+                item={selectedNeedsActionItem}
+                onRemoved={handleNeedsActionRemoved}
+              />
+            ) : selectedCommit ? (
               <CommitDetail
                 commit={selectedCommit}
                 projectId={projectId}

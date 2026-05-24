@@ -15,7 +15,7 @@ import {
  *
  *   - User edits → local draft updates, NO server call.
  *   - User explicitly hits Cmd+S / clicks Save → exactly one
- *     `writeFile` round-trip → exactly one MUT commit.
+ *     `writeFile` round-trip → exactly one version commit.
  *   - localStorage drafts survive tab close / refresh.
  *
  * The hook is just a markdown-flavoured shell over the generic

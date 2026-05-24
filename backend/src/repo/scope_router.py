@@ -145,6 +145,16 @@ def delete_scope(
     conn_repo = ConnectorRepository()
     n_third_party = conn_repo.count_third_party_for_scope(scope_id)
     service.delete(scope_id, has_bound_connectors=n_third_party > 0)
+
+    # Drop ``fs_path_index`` rows pinned to this scope's prefix —
+    # otherwise a future scope created at the same path would inherit
+    # stale rows pointing at the previous scope's blob hashes.
+    # Best-effort: failure here is logged inside the helper and does
+    # not bubble up because the scope is already gone.
+    from src.version_engine.derived.path_index import (
+        cleanup_fs_path_index_for_scope,
+    )
+    cleanup_fs_path_index_for_scope(str(project.id), existing.path or "")
     return ApiResponse.success(message="Scope deleted")
 
 
@@ -177,10 +187,10 @@ def auto_suggest_scopes(
     project: Project = Depends(get_verified_project),
     service: ScopeService = Depends(get_scope_service),
 ):
-    """Reads the current MUT tree's top-level folders and returns those
+    """Reads the current version tree's top-level folders and returns those
     not already covered by an existing scope as proposed scope candidates."""
-    from src.mut_engine.dependencies import create_mut_ops
-    ops = create_mut_ops()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    ops = build_worker_version_engine_container().product_operations()
     try:
         entries = ops.list_dir(str(project.id), "")
     except Exception:

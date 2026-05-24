@@ -5,6 +5,7 @@ import Editor, { OnMount } from '@monaco-editor/react';
 import { useTheme } from 'next-themes';
 import { EditorLoadingSurface } from '@/components/loading';
 import { definePuppyoneMonacoThemes, getPuppyoneMonacoTheme } from '@/lib/theme/monacoThemes';
+import { ConflictMarkerBanner } from '@/components/editors/ConflictMarkerBanner';
 
 const MONACO_LOADING = <EditorLoadingSurface />;
 
@@ -66,6 +67,10 @@ export function MonacoCodeViewer({
           <span style={{ color: 'var(--po-text-disabled)', textTransform: 'uppercase' }}>{language}</span>
         </div>
       )}
+      <ConflictMarkerBanner
+        content={content}
+        onResolve={readOnly ? undefined : onChange}
+      />
       <div style={{ flex: 1, minHeight: 0 }}>
         <Editor
           height="100%"

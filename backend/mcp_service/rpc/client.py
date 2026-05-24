@@ -295,7 +295,7 @@ class InternalApiClient:
             raise RuntimeError(f"删除元素失败: {str(e)}") from e
 
     # ============================================================
-    # Tree API 端点 (path-based, Mut-Native)
+    # Tree API 端点 (path-based, Version Engine backed)
     # ============================================================
 
     async def list_dir(
@@ -480,7 +480,7 @@ class InternalApiClient:
         path: str,
         acting_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Delete a file or folder from the MUT tree."""
+        """Delete a file or folder from the project tree."""
         try:
             url = f"{self.base_url}/internal/nodes/rm"
             payload = {"project_id": project_id, "path": path}

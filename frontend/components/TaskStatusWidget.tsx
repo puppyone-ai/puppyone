@@ -70,13 +70,7 @@ export function TaskStatusWidget({ inline = false }: TaskStatusWidgetProps) {
     const sorted = [...allTasks].sort((a, b) => b.timestamp - a.timestamp);
     const tasksWithStatus: TaskWithStatus[] = sorted.map(t => ({
       ...t,
-      // Legacy negative-prefix placeholder IDs still get treated as
-      // ``uploading`` for back-compat with any sessionStorage left
-      // over from the old flow. New uploads set ``status``
-      // explicitly via ``updateTaskStatusById`` / ``addPendingTasks``.
-      displayStatus: t.taskId.startsWith('-')
-        ? 'uploading'
-        : t.status || 'pending',
+      displayStatus: t.status || 'pending',
       displayProgress: t.progress,
     }));
     setTasks(tasksWithStatus);

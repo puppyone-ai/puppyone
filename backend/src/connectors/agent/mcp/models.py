@@ -31,7 +31,7 @@ class McpBoundTool(BaseModel):
     name: str = Field(..., description="Tool name")
     type: str = Field(..., description="Tool type")
     description: Optional[str] = Field(None, description="Tool description")
-    path: Optional[str] = Field(None, description="Bound MUT path")
+    path: Optional[str] = Field(None, description="Bound version path")
     json_path: str = Field(default="", description="JSON path")
     enabled: bool = Field(default=True, description="Whether enabled")
     mcp_exposed: bool = Field(default=True, description="Whether exposed via MCP")

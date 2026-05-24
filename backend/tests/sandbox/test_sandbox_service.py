@@ -25,7 +25,7 @@ class FakeFiles:
 
 class FakeCommands:
     """模拟 E2B commands 接口"""
-    def run(self, command: str):
+    def run(self, command: str, **_kwargs):
         return type("Result", (), {"text": f"ran: {command}"})
 
 

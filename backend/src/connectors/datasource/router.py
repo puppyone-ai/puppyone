@@ -528,6 +528,72 @@ def _get_run_repo():
     return SyncRunRepository(SupabaseClient())
 
 
+class FailedSyncRunItem(BaseModel):
+    """One failed sync run, scoped to a project. Includes the access-point
+    name/path so the Needs Action UI can render a useful row without a
+    second fetch."""
+    id: str
+    access_point_id: str
+    access_point_name: Optional[str] = None
+    access_point_path: Optional[str] = None
+    provider: str = ""
+    direction: str = ""
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    duration_ms: Optional[int] = None
+    error: Optional[str] = None
+    result_summary: Optional[str] = None
+    trigger_type: Optional[str] = None
+
+
+@router.get(
+    "/failed-runs",
+    response_model=ApiResponse[list[FailedSyncRunItem]],
+)
+def list_failed_sync_runs(
+    project_id: str = Query(..., description=_PROJECT_ID_DESC),
+    limit: int = Query(50, ge=1, le=200),
+    sync_svc: SyncService = Depends(get_sync_service),
+    project_service: ProjectService = Depends(get_project_service),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """List recent failed sync runs across every access point in a project.
+
+    Powers the "Failed sync" group in the Needs Action sidebar
+    (PUP-5 design §4, gap G1). Returns newest-first so the most
+    recent breakage is on top.
+    """
+    if not project_service.verify_project_access(project_id, current_user.user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No access to this project",
+        )
+    syncs = sync_svc.sync_repo.list_by_project(project_id)
+    if not syncs:
+        return ApiResponse.success(data=[])
+    sync_by_id = {s.id: s for s in syncs}
+    run_repo = _get_run_repo()
+    runs = run_repo.list_failed_for_access_points(list(sync_by_id), limit=limit)
+    items: list[FailedSyncRunItem] = []
+    for r in runs:
+        sync = sync_by_id.get(r.access_point_id)
+        items.append(FailedSyncRunItem(
+            id=r.id,
+            access_point_id=r.access_point_id,
+            access_point_name=getattr(sync, "name", None) if sync else None,
+            access_point_path=getattr(sync, "path", None) if sync else None,
+            provider=getattr(sync, "provider", "") if sync else "",
+            direction=getattr(sync, "direction", "") if sync else "",
+            started_at=r.started_at,
+            finished_at=r.finished_at,
+            duration_ms=r.duration_ms,
+            error=r.error,
+            result_summary=r.result_summary,
+            trigger_type=r.trigger_type,
+        ))
+    return ApiResponse.success(data=items)
+
+
 @router.get("/syncs/{sync_id}/runs", response_model=ApiResponse[list[SyncRunResponse]])
 def list_sync_runs(
     sync_id: str,
@@ -657,11 +723,11 @@ async def push_file(
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    from src.mut_engine.dependencies import create_mut_ops
-    ops = create_mut_ops()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    commands = build_worker_version_engine_container().write_commands()
 
     result = await process_push_file(
-        ops,
+        commands,
         project_id=parent_sync.project_id,
         body=body,
         user_id=current_user.user_id,
@@ -688,8 +754,8 @@ def pull_files(
     if not parent_sync:
         return ApiResponse.error(code=1004, message=f"Sync #{sync_id} not found")
 
-    from src.mut_engine.dependencies import create_mut_ops
-    ops = create_mut_ops()
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+    ops = build_worker_version_engine_container().product_operations()
 
     file_dicts = process_pull_files(
         ops,
@@ -743,15 +809,15 @@ async def trigger_push(
     engine: SyncEngine = Depends(get_sync_engine),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    from src.mut_engine.dependencies import create_mut_ops
+    from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-    ops = create_mut_ops()
+    ops = build_worker_version_engine_container().product_operations()
     try:
         content = ops.read_file(project_id, path)
     except FileNotFoundError:
         return ApiResponse.error(code=1004, message=f"File not found: {path}")
 
-    from src.mut_engine.services.tree_reader import detect_type
+    from src.version_engine.read.tree_reader import detect_type
     import json as _json
 
     node_type = detect_type(path)

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import clsx from 'clsx';
 import type { ProjectInfo } from '../lib/projectsApi';
+import { useExplorerRootNodes } from '../lib/hooks/useData';
 
 type ContextSidebarProps = {
   project: ProjectInfo | null; // Current active project. If null, we might be at root.
@@ -29,6 +30,7 @@ export function ContextSidebar({
   onSidebarWidthChange,
 }: ContextSidebarProps) {
   const [isResizing, setIsResizing] = useState(false);
+  const { rootNodes } = useExplorerRootNodes(project?.id ?? '');
 
   // Resize logic
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -158,19 +160,20 @@ export function ContextSidebar({
             <div className='px-2 py-1.5 text-[11px] font-semibold text-[var(--po-text-subtle)] uppercase tracking-wider'>
               Contexts
             </div>
-            {project.nodes && project.nodes.length > 0 ? (
-              project.nodes.map(table => {
-                const isActive = String(table.id) === activeTableId;
+            {rootNodes.length > 0 ? (
+              rootNodes.map(node => {
+                const nodeId = node.path || node.id;
+                const isActive = String(nodeId) === activeTableId;
                 return (
                   <button
-                    key={table.id}
+                    key={nodeId}
                     className={clsx(
                       'group flex h-8 w-full items-center gap-2.5 rounded-[6px] px-2 text-left transition-colors duration-150',
                       isActive
                         ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
                         : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
                     )}
-                    onClick={() => onTableSelect(String(table.id))}
+                    onClick={() => onTableSelect(String(nodeId))}
                   >
                     <svg
                       width='14'
@@ -185,10 +188,16 @@ export function ContextSidebar({
                           : 'opacity-70 group-hover:opacity-100'
                       )}
                     >
-                      <rect x='3' y='3' width='18' height='18' rx='2' />
-                      <path d='M3 9h18M9 21V9' />
+                      {node.type === 'folder' ? (
+                        <path d='M2 6C2 4.89543 2.89543 4 4 4H9.17157C9.70201 4 10.2107 4.21071 10.5858 4.58579L12.4142 6.41421C12.7893 6.78929 13.298 7 13.8284 7H20C21.1046 7 22 7.89543 22 9V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6Z' />
+                      ) : (
+                        <>
+                          <rect x='3' y='3' width='18' height='18' rx='2' />
+                          <path d='M3 9h18M9 21V9' />
+                        </>
+                      )}
                     </svg>
-                    <span className='truncate text-[13px]'>{table.name}</span>
+                    <span className='truncate text-[13px]'>{node.name}</span>
                   </button>
                 );
               })

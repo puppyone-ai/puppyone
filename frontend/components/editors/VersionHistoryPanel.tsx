@@ -6,14 +6,14 @@ import {
   getVersionHistory,
   rollbackToVersion,
   type FileVersionInfo,
-  type MutCommitChange,
+  type VersionCommitChange,
 } from '@/lib/contentTreeApi';
 import { PageLoading } from '@/components/loading';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
 import { ActionButton } from '@/components/ui/ActionButton';
 
 interface VersionHistoryPanelProps {
-  nodeId: string;  // File path (Mut path)
+  nodeId: string;  // File path in the project tree.
   projectId: string;
   onClose: () => void;
   onRollbackComplete?: () => void;
@@ -81,7 +81,7 @@ function OperatorBadge({ who }: { who: string }) {
   );
 }
 
-function ChangeSummary({ changes }: { changes: MutCommitChange[] }) {
+function ChangeSummary({ changes }: { changes: VersionCommitChange[] }) {
   const summary = useMemo(() => {
     const counts = { added: 0, modified: 0, deleted: 0 };
     for (const c of changes) {

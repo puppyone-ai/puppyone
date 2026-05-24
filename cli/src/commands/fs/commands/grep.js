@@ -7,6 +7,7 @@ import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors
 import { get } from "../lib/http.js";
 import { parseIntegerOption, parseNonNegativeOption } from "../lib/options.js";
 import { scopedPath } from "../lib/paths.js";
+import { runFederatedGrep } from "../lib/federatedGrep.js";
 
 const GREP_MAX_BACKEND_LIMIT = 20000;
 
@@ -193,6 +194,13 @@ function selectedFileModeHasOutput(results, opts) {
   return false;
 }
 
+function diffStatusTag(status) {
+  if (status === "differ") return " ⚠differ";
+  if (status === "local-missing") return " (no local copy)";
+  if (status === "remote-missing") return " (server missing)";
+  return "";
+}
+
 function positiveOrDefault(value, optionName) {
   const parsed = parseIntegerOption(value, optionName);
   if (parsed < 1) {
@@ -259,6 +267,15 @@ export function registerGrepCommand(fs) {
     .option("--limit <n>", "max matching lines returned before truncation")
     .option("--max-files <n>", "max file candidates scanned before truncation")
     .option("--max-bytes <n>", "max decoded text bytes scanned before truncation")
+    // Federated grep flags (PUP-federated-search.md).
+    // Defaults: federated mode is OFF unless --federated is set.
+    // Once stable this should flip to default-on; for now opt-in so
+    // existing CI / scripts that parse the legacy result shape keep
+    // working without surprises.
+    .option("--federated", "run server-indexed grep + local untracked scan + dualFetch")
+    .option("--local-root <dir>", "local working-copy root for federated mode (defaults to cwd)")
+    .option("--remote-only", "federated mode: skip the local-untracked scan")
+    .option("--local-only", "federated mode: skip the server tracked channel")
     .addHelpText("after", `
 Examples:
   puppyone fs grep -n -i "todo" docs
@@ -336,6 +353,90 @@ Notes:
       const requestedPaths = normalizePaths(pathArgs);
       const results = [];
       const errors = [];
+
+      if (opts.federated) {
+        // Federated mode: server-first chain + local untracked scan
+        // + dualFetch. Renders out a flat ``federated`` envelope that
+        // existing render helpers don't handle — we either emit JSON
+        // or print a compact "[provenance] path:line: match · diff_status"
+        // line per hit. Detailed legacy rendering (counts, files-only,
+        // context separators) is not available in federated mode v1.
+        for (const rawPath of requestedPaths) {
+          const cleanPath = scopedPath(rawPath);
+          try {
+            const envelope = await runFederatedGrep({
+              client,
+              headers,
+              pattern: grepPattern.pattern,
+              regex: grepPattern.regex,
+              localRoot: opts.localRoot || process.cwd(),
+              scopePath: cleanPath,
+              opts: {
+                ignoreCase: !!opts.ignoreCase,
+                wordRegexp: !!opts.wordRegexp,
+                invertMatch: !!opts.invertMatch,
+                onlyMatching: !!opts.onlyMatching,
+                includeHidden: !!(opts.hidden || opts.all),
+                include: queryBase.include,
+                exclude: queryBase.exclude,
+                excludeDir: queryBase.exclude_dir,
+                beforeContext: queryBase.before_context,
+                afterContext: queryBase.after_context,
+                byteOffset: !!opts.byteOffset,
+                limit: queryBase.limit || 1000,
+                perFileLimit: queryBase.max_count || 0,
+                maxFiles: queryBase.max_files,
+                maxBytes: queryBase.max_bytes,
+                maxDepth: queryBase.max_depth,
+              },
+              remoteOnly: !!opts.remoteOnly,
+              localOnly: !!opts.localOnly,
+            });
+            results.push({ path: cleanPath, federated: envelope });
+          } catch (e) {
+            errors.push(errorPayload(cleanPath, e));
+            if (!out.json && !opts.suppressMessages && !opts.quiet) {
+              console.error(pathError("grep", cleanPath, e));
+            }
+          }
+        }
+
+        const allHits = results.flatMap(r => r.federated?.hits || []);
+        const matched = allHits.length > 0;
+
+        if (out.json) {
+          out.success({
+            results,
+            hits: allHits,
+            errors,
+            mode: "federated",
+          });
+          if (!errors.length && !matched) process.exitCode = 1;
+          finishWithPartialFailure(errors);
+          return;
+        }
+
+        if (!opts.quiet) {
+          for (const result of results) {
+            const env = result.federated;
+            if (!env) continue;
+            if (env.truncated && !opts.suppressMessages) {
+              out.warn(`stdout is incomplete for ${result.path || "."}: ${env.truncation_reason || "limit_exceeded"}. Use --json to inspect.`);
+            }
+            if (env.index_status && env.index_status !== "indexed" && !opts.suppressMessages) {
+              out.warn(`server index is ${env.index_status} for ${result.path || "."}; results combined indexed + S3-scan fallback.`);
+            }
+            for (const h of env.hits) {
+              const provTag = h.provenance === "local-only" ? "L" : "R";
+              out.raw(`[${provTag}] ${h.path}:${h.line}: ${h.match}${diffStatusTag(h.diff_status)}`);
+            }
+          }
+        }
+
+        if (!errors.length && !matched) process.exitCode = 1;
+        finishWithPartialFailure(errors);
+        return;
+      }
 
       for (const rawPath of requestedPaths) {
         const cleanPath = scopedPath(rawPath);

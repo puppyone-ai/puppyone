@@ -1,4 +1,4 @@
-"""mcp_service.rpc.client path-based (Mut-Native) API tests."""
+"""mcp_service.rpc.client path-based API tests."""
 
 from __future__ import annotations
 

@@ -114,6 +114,8 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         Returns:
             Created Project object
         """
+        import secrets
+
         from src.platform.project.supabase_schemas import ProjectCreate
         from src.utils.id_generator import generate_uuid_v7
 
@@ -123,9 +125,53 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             description=description,
             org_id=org_id,
             created_by=created_by,
+            # Per the share-link MVP: every project ships with a fresh
+            # URL-safe token at create time. 24 bytes → 32-char URL-safe
+            # string; same entropy budget we use for org-invite tokens.
+            share_token=secrets.token_urlsafe(24),
         )
         project_response = self._supabase_repo.create_project(project_data)
         return self._project_response_to_project(project_response)
+
+    def rotate_share_token(self, project_id: str) -> Project | None:
+        """Generate a new share token for ``project_id`` and persist it.
+
+        Returns the updated ``Project`` (incl. the new token) or
+        ``None`` if the row doesn't exist. Rotating is the "revoke all
+        outstanding share links" mechanism — anyone holding the previous
+        token gets a 404 on join after this call.
+        """
+        import secrets
+
+        from src.platform.project.supabase_schemas import ProjectUpdate
+
+        update_data = ProjectUpdate(share_token=secrets.token_urlsafe(24))
+        project_response = self._supabase_repo.update_project(project_id, update_data)
+        if project_response:
+            return self._project_response_to_project(project_response)
+        return None
+
+    def find_by_share_token(self, token: str) -> Project | None:
+        """Look up a project by its current share token. Returns None
+        when no project has that token (either never issued or rotated
+        out)."""
+        from src.infra.supabase.dependencies import get_supabase_client
+
+        client = get_supabase_client()
+        resp = (
+            client.table("projects")
+            .select("*")
+            .eq("share_token", token)
+            .limit(1)
+            .execute()
+        )
+        if not resp.data:
+            return None
+        # Hydrate via the supabase_schemas response shape so the
+        # converter has everything it expects.
+        from src.platform.project.supabase_schemas import ProjectResponse
+
+        return self._project_response_to_project(ProjectResponse(**resp.data[0]))
 
     def update(
         self,
@@ -134,6 +180,7 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
         description: str | None,
         visibility: str | None = None,
         bound_git_branch: str | None = None,
+        share_token: str | None = None,
     ) -> Project | None:
         """
         Update a project
@@ -144,6 +191,9 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             description: Project description (optional, not updated if None)
             visibility: Visibility (optional)
             bound_git_branch: Default git branch for new bindings (optional)
+            share_token: Force-set share token (optional). Used by the
+                share-link rotate flow; everyday update calls leave it
+                alone.
 
         Returns:
             Updated Project object, or None if not found
@@ -158,6 +208,8 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             update_data.visibility = visibility
         if bound_git_branch is not None:
             update_data.bound_git_branch = bound_git_branch
+        if share_token is not None:
+            update_data.share_token = share_token
         project_response = self._supabase_repo.update_project(project_id, update_data)
         if project_response:
             return self._project_response_to_project(project_response)
@@ -252,4 +304,5 @@ class ProjectRepositorySupabase(ProjectRepositoryBase):
             created_by=project_response.created_by,
             created_at=project_response.created_at,
             updated_at=getattr(project_response, 'updated_at', None),
+            share_token=getattr(project_response, 'share_token', None),
         )

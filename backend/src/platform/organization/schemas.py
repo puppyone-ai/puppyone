@@ -49,3 +49,15 @@ class OrgInvitationOut(BaseModel):
     status: str
     expires_at: str
     created_at: str
+    # ``token`` and ``invite_url`` let the inviter copy and share the
+    # link manually — required because the server's email delivery is
+    # best-effort and won't reach every inbox (existing-user accounts,
+    # spam folders, dev environments without SMTP). Owner-only via
+    # ``_require_owner`` on the routes that emit this schema.
+    token: str | None = None
+    invite_url: str | None = None
+    # ``email_sent`` reflects whether the best-effort Supabase email
+    # dispatch returned ok. The invitation is still valid even when
+    # this is False — the inviter just has to share the URL manually.
+    email_sent: bool = False
+    email_error: str | None = None

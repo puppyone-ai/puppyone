@@ -20,7 +20,7 @@ class DBConnectorService:
     Responsibilities:
     - Connection management (CRUD)
     - List tables / preview table data
-    - Save entire table as Mut tree file
+    - Save entire table as a Version Engine file
     """
 
     def __init__(
@@ -61,9 +61,9 @@ class DBConnectorService:
     def get_connection(self, connection_id: str, user_id: str) -> DBConnection:
         conn = self.repo.get_by_id(connection_id)
         if not conn:
-            raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException("Database connector not found", code=ErrorCode.NOT_FOUND)
         if not self.project_service.verify_project_access(conn.project_id, user_id):
-            raise NotFoundException("Access point not found", code=ErrorCode.NOT_FOUND)
+            raise NotFoundException("Database connector not found", code=ErrorCode.NOT_FOUND)
         return conn
 
     def list_connections(self, project_id: str, user_id: str) -> List[DBConnection]:
@@ -116,7 +116,7 @@ class DBConnectorService:
         table: str,
         limit: int = 1000,
     ) -> dict[str, Any]:
-        """Fetch entire table data and save as a Mut tree file."""
+        """Fetch entire table data and save as a Version Engine file."""
         conn = self.get_connection(connection_id, user_id)
         provider = get_provider(conn.provider)
 
@@ -133,13 +133,13 @@ class DBConnectorService:
         }
 
         import json
-        from src.mut_engine.dependencies import create_mut_ops
-        ops = create_mut_ops()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        commands = build_worker_version_engine_container().write_commands()
         content_bytes = json.dumps(content_data, ensure_ascii=False, indent=2).encode("utf-8")
         file_path = f"{name}.json" if not name.endswith(".json") else name
-        await ops.write_file(
+        await commands.write_bytes(
             project_id, file_path, content_bytes,
-            who=f"db_connector:{connection_id}",
+            actor=f"db_connector:{connection_id}",
             message=f"Save table '{table}' from DB connector",
         )
 

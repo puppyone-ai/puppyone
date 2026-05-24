@@ -69,7 +69,7 @@ class IngestSubmitRequest(BaseModel):
     name: str | None = Field(None, description="Custom name")
     mode: IngestMode = Field(IngestMode.SMART, description="Processing mode")
     rule_id: int | None = Field(None, description="ETL rule ID")
-    path: str | None = Field(None, description="Target MUT path")
+    path: str | None = Field(None, description="Target version path")
     crawl_options: dict | None = Field(None, description="URL crawl options")
     sync_config: dict | None = Field(None, description="Sync configuration")
 
@@ -149,7 +149,7 @@ class BatchTaskResponse(BaseModel):
 #                         backend forwards to S3 via boto3
 #                         ``upload_part`` and returns the ``ETag``.
 #   3. /upload/complete — finalize the multipart upload + write the
-#                         assembled bytes into MUT (see batch variant).
+#                         assembled bytes into Version Engine (see batch variant).
 #   4. /upload/abort    — cancel an in-flight upload (idempotent).
 #
 # Why proxy through the backend instead of presigned URLs to S3?
@@ -176,7 +176,7 @@ class UploadInitFile(BaseModel):
     parent_path: str | None = Field(
         None,
         description=(
-            "MUT folder path the file should land in. Empty/None == root. "
+            "hash folder path the file should land in. Empty/None == root. "
             "Stored on the task so the finalize worker knows where to write."
         ),
     )
@@ -241,7 +241,7 @@ class UploadCompleteRequest(BaseModel):
 class UploadCompleteResponse(BaseModel):
     task_id: str
     status: IngestStatus
-    path: str | None = Field(None, description="MUT path the file is being written to")
+    path: str | None = Field(None, description="version path the file is being written to")
 
 
 class UploadCompleteItem(BaseModel):

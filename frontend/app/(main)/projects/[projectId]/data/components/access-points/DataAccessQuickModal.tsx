@@ -1264,7 +1264,6 @@ function buildSetupGuide(connector: Connector, scope: RepoScope) {
         { title: 'Clone into a folder', lines: guide.cloneLines },
         { title: 'Connect an existing folder', lines: guide.existingFolderLines },
         { title: 'Daily workflow', lines: guide.workflowLines },
-        { title: 'Server merge proposal', lines: [guide.serverMergeLine] },
       ],
     };
   }

@@ -1,6 +1,8 @@
 'use client';
 
 import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
+import type { CsvViewMode } from '@/components/editors/spreadsheet/CsvTableViewer';
+import { hasConflictMarkers } from '@/lib/conflictMarkers';
 import { resolveFormat, isTextLikeCategory } from '@/lib/fileFormats';
 import { VIEWERS } from '@/lib/viewers/registry';
 import { type MarkdownViewMode } from '@/components/editors/markdown';
@@ -26,9 +28,9 @@ interface EditorAreaProps {
   activeProject: { id: string; name: string } & Record<string, any>;
   currentTableData: any;
   /** Raw UTF-8 contents of the active file when its file format is
-   *  text-like (markdown / code / yaml / csv / plaintext). For markdown
-   *  this is the editing draft (may differ from server); for read-only
-   *  formats it equals the server value. Empty for non-text formats. */
+   *  text-like (markdown / code / yaml / csv / plaintext). For editable
+   *  text formats this is the local draft and may differ from server.
+   *  Empty for non-text formats. */
   textContent: string;
   /** True while the parent's text fetch is still pending. */
   isLoadingText: boolean;
@@ -37,8 +39,9 @@ interface EditorAreaProps {
   setMarkdownViewMode: (mode: MarkdownViewMode) => void;
   /** HTML artifact-only: sandboxed preview vs source. */
   htmlArtifactMode: HtmlArtifactMode;
-  /** Called by editable text viewers (currently just markdown) when
-   *  the user types. */
+  /** CSV/TSV-only: editable table, preview table, or source. */
+  csvViewMode: CsvViewMode;
+  /** Called by editable text viewers when the user types. */
   onTextChange: (content: string) => void;
   editorType: EditorType;
   configuredAccessPoints: { path: string; permissions: any }[];
@@ -60,6 +63,7 @@ export function EditorArea({
   markdownViewMode,
   setMarkdownViewMode,
   htmlArtifactMode,
+  csvViewMode,
   onTextChange,
   editorType,
   configuredAccessPoints,
@@ -94,8 +98,8 @@ export function EditorArea({
   // plumbing, so it can't go through the generic VIEWERS registry.
   if (format.defaultViewer === 'json-table') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
+        <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>
           <ProjectWorkspaceView
             projectId={activeProject.id}
             project={activeProject}
@@ -126,12 +130,24 @@ export function EditorArea({
   // The path is the canonical identity. `nodeName` is just the
   // final segment for display — UI chrome only, never logic.
   const nodeName = activeNodeId.split('/').pop() || '';
-  const ViewerDef = VIEWERS[format.defaultViewer];
+
+  // When the loaded text content carries Git-style conflict markers
+  // (LWW landed both sides into the file), structured viewers like
+  // MonacoJsonEditor and CsvTableViewer would fail to parse and
+  // present a cryptic error or eat the markers silently. Force a
+  // PlainTextEditor instead — it ships ConflictMarkerBanner, so the
+  // user can see + resolve the conflict in-place. Only kicks in for
+  // text-like formats; binary/HTML/PDF viewers don't carry text.
+  let viewerId = format.defaultViewer;
+  if (needsText && hasConflictMarkers(textContent)) {
+    viewerId = 'plain-text';
+  }
+  const ViewerDef = VIEWERS[viewerId];
   const Viewer = ViewerDef.component;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: 'flex' }}>
         <Viewer
           projectId={activeProject.id}
           filePath={activeNodeId}
@@ -146,6 +162,7 @@ export function EditorArea({
           markdownViewMode={markdownViewMode}
           onMarkdownViewModeChange={setMarkdownViewMode}
           htmlArtifactMode={htmlArtifactMode}
+          csvViewMode={csvViewMode}
         />
       </div>
     </div>

@@ -27,7 +27,8 @@ const WelcomeModal = dynamic(
 const _PROJECT_VIEWS: ReadonlyArray<readonly [string, string]> = [
   ['/toolkit', 'toolkit'],
   ['/changes', 'changes'],
-  ['/history', 'changes'],
+  ['/history', 'history'],
+  ['/conflicts', 'conflicts'],
   ['/access', 'access'],
   ['/monitor', 'monitor'],
   ['/settings', 'settings'],

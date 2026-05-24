@@ -5,7 +5,7 @@ import useSWR from 'swr';
 import { get } from '@/lib/apiClient';
 import { useProjectTools, refreshFolderNodes } from '@/lib/hooks/useData';
 import { useAgent } from '@/contexts/AgentContext';
-import { useCommitUpdates } from '@/contexts/MutWebSocketContext';
+import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
 import { listMcpEndpoints } from '@/lib/mcpEndpointsApi';
 import { listSandboxEndpoints } from '@/lib/sandboxEndpointsApi';
 import { listScopes, listConnectors, getRepoIdentity, type Connector } from '@/lib/repoApi';
@@ -53,7 +53,7 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
   // ``changed_files`` is scope-relative; we lift each path back to
   // project-root, take its parent folder, dedupe, and revalidate only
   // those folders' SWR caches via the existing ``refreshFolderNodes``
-  // helper (which also revalidates ``__shallow_1`` for the sidebar).
+  // helper (which also refreshes the sidebar's isolated explorer cache).
   const onCommitUpdate = useCallback((event: { scope: string; changed_files: string[] }) => {
     const folders = new Set<string>();
     for (const rel of event.changed_files || []) {
@@ -141,9 +141,9 @@ export default function DataLayout({ children, params }: DataLayoutProps) {
       }
     }
 
-    // Redesign 2026-05-02: project the new connectors+scopes data into the
-    // legacy SyncEndpointInfo shape so the existing per-row plug button
-    // and AP-list affordances light up post-migration. cli connectors map
+    // Project connectors+scopes data into the per-row endpoint view so the
+    // plug button and connection-list affordances use the canonical model.
+    // cli connectors map
     // to `filesystem` (matching the boss-era
     // provider taxonomy that AccessPointProviderIcon / setup-snippet code
     // branches on); the access_key for cli is the *scope's* access_key,

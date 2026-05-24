@@ -3,6 +3,13 @@
 import React, { useState, useCallback } from 'react';
 import useSWR from 'swr';
 import { get, del, post } from '@/lib/apiClient';
+import {
+  getGitAccessPointHealth,
+  rebuildGitAccessPointCache,
+  type GitAccessPointHealth,
+  type GitHealthAction,
+  type GitViewHealth,
+} from '@/lib/gitHealthApi';
 import { PanelShell } from '../../../app/(main)/projects/[projectId]/data/components/PanelShell';
 
 interface SyncDetail {
@@ -54,6 +61,16 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
   );
 
   const sync = syncData?.syncs?.find(s => s.id === syncId);
+  const accessKeyForHealth = sync?.access_key || '';
+  const { data: gitHealth, isLoading: gitHealthLoading } = useSWR<GitAccessPointHealth>(
+    accessKeyForHealth ? ['git-ap-health', accessKeyForHealth] : null,
+    () => getGitAccessPointHealth(accessKeyForHealth),
+    {
+      refreshInterval: 60_000,
+      revalidateOnFocus: true,
+      dedupingInterval: 30_000,
+    },
+  );
 
   const [disconnecting, setDisconnecting] = useState(false);
   const handleDisconnect = useCallback(async () => {
@@ -103,9 +120,6 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 
   const accessKey = sync.access_key || '';
   const apiBase = typeof window !== 'undefined' ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin) : '';
-  // V1 (post-MUT-removal): the access key now authorises a stock Git
-  // smart-HTTP remote at /git/ap/<key>.git. The legacy MUT wire URL
-  // (/api/v1/mut/ap/<key>) was deleted with the protocol.
   const cloneUrl = `${apiBase}/git/ap/${accessKey}.git`;
 
   return (
@@ -204,6 +218,12 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
           </div>
         )}
 
+        <GitHealthBanner
+          health={gitHealth}
+          loading={gitHealthLoading}
+          apAccessKey={accessKeyForHealth}
+        />
+
         {/* ── Quick Actions ── */}
         <div style={{ padding: '16px 20px 0', display: 'flex', gap: 8 }}>
           <button
@@ -290,7 +310,12 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
             }}>
               <InfoRow label="Sync ID" value={sync.id} isLast={false} />
               <InfoRow label="Direction" value="Bidirectional" isLast={false} />
-              <InfoRow label="Protocol" value="MUT" isLast />
+              <InfoRow label="Protocol" value="Git Remote" isLast={false} />
+              <InfoRow
+                label="Git"
+                value={gitHealthLoading ? 'Checking' : gitHealthLabel(gitHealth?.health)}
+                isLast
+              />
             </div>
           </div>
         </CollapsibleSection>
@@ -337,6 +362,208 @@ export function FilesystemDetailView({ syncId, projectId, onClose, onBack }: Fil
 /* ================================================================
    Sub-components
    ================================================================ */
+
+function gitHealthLabel(health?: GitViewHealth): string {
+  switch (health) {
+    case 'empty':
+      return 'Empty';
+    case 'healthy':
+      return 'Healthy';
+    case 'history_degraded':
+      return 'History truncated';
+    case 'current_corrupt':
+      return 'Unavailable';
+    default:
+      return 'Unknown';
+  }
+}
+
+function gitHealthTone(health?: GitViewHealth): {
+  color: string;
+  border: string;
+  background: string;
+} {
+  if (health === 'current_corrupt') {
+    return {
+      color: 'var(--po-danger)',
+      border: 'color-mix(in srgb, var(--po-danger) 20%, transparent)',
+      background: 'color-mix(in srgb, var(--po-danger) 7%, transparent)',
+    };
+  }
+  if (health === 'history_degraded') {
+    return {
+      color: 'var(--po-warning)',
+      border: 'color-mix(in srgb, var(--po-warning) 24%, transparent)',
+      background: 'color-mix(in srgb, var(--po-warning) 9%, transparent)',
+    };
+  }
+  return {
+    color: 'var(--po-success)',
+    border: 'color-mix(in srgb, var(--po-success) 18%, transparent)',
+    background: 'color-mix(in srgb, var(--po-success) 6%, transparent)',
+  };
+}
+
+function GitHealthBanner({ health, loading, apAccessKey }: {
+  health?: GitAccessPointHealth;
+  loading: boolean;
+  apAccessKey: string;
+}) {
+  // Suppress the banner for plain ``healthy`` and ``empty`` while
+  // loading is settled: those are the steady-state "no user
+  // intervention needed" outcomes. Everything else (loading,
+  // history_degraded, current_corrupt) shows the banner so the
+  // recommended actions are reachable.
+  const showBanner = loading
+    || (health && health.health !== 'healthy' && health.health !== 'empty');
+  if (!showBanner) return null;
+
+  const tone = gitHealthTone(health?.health);
+  const title = loading ? 'Checking Git status' : gitHealthLabel(health?.health);
+  let detail: string;
+  if (loading) {
+    detail = 'Reading the Access Point Git view.';
+  } else if (health?.reason) {
+    detail = health.reason;
+  } else if (health?.health === 'history_degraded') {
+    detail = 'Clone and push are available from the safe truncated history.';
+  } else {
+    detail = 'Restore or repair the current version before using Git.';
+  }
+
+  const actions = (!loading && health?.recommended_actions) || [];
+
+  return (
+    <div style={{
+      margin: '12px 20px 0',
+      padding: '10px 12px',
+      borderRadius: 8,
+      background: tone.background,
+      border: `1px solid ${tone.border}`,
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: 8,
+    }}>
+      <span
+        aria-hidden
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: '50%',
+          background: tone.color,
+          marginTop: 5,
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: tone.color, lineHeight: 1.5 }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--po-text-muted)', lineHeight: 1.5 }}>
+          {detail}
+        </div>
+        {actions.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {actions.map((action) => (
+              <GitHealthActionButton
+                key={action.type}
+                action={action}
+                apAccessKey={apAccessKey}
+                tone={tone}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Renders one ``recommended_action`` from the health payload. Only
+ * ``rebuild_cache`` is wired to a server-side endpoint right now; the
+ * other types (restore_version / repair_storage / repair_history /
+ * first_commit / continue / none) currently surface as informational
+ * chips because they need a UI flow that doesn't exist yet. Adding a
+ * new handler is a single case branch below. */
+function GitHealthActionButton({
+  action,
+  apAccessKey,
+  tone,
+}: Readonly<{
+  action: GitHealthAction;
+  apAccessKey: string;
+  tone: ReturnType<typeof gitHealthTone>;
+}>) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<'idle' | 'ok' | 'err'>('idle');
+
+  const isInteractive = action.type === 'rebuild_cache' && !!apAccessKey;
+
+  const handleClick = useCallback(async () => {
+    if (action.type !== 'rebuild_cache' || !apAccessKey || running) return;
+    setRunning(true);
+    setResult('idle');
+    try {
+      await rebuildGitAccessPointCache(apAccessKey);
+      setResult('ok');
+    } catch (err) {
+      console.error('[GitHealth] rebuild cache failed:', err);
+      setResult('err');
+    } finally {
+      setRunning(false);
+    }
+  }, [action.type, apAccessKey, running]);
+
+  let label: string;
+  if (running) {
+    label = 'Rebuilding…';
+  } else if (result === 'ok') {
+    label = `${action.label} ✓`;
+  } else if (result === 'err') {
+    label = `${action.label} ✗`;
+  } else {
+    label = action.label;
+  }
+
+  if (!isInteractive) {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          padding: '4px 8px',
+          borderRadius: 4,
+          background: 'color-mix(in srgb, var(--po-text-muted) 6%, transparent)',
+          color: 'var(--po-text-muted)',
+          fontSize: 11,
+          fontWeight: 500,
+        }}
+      >
+        {action.label}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={running}
+      style={{
+        padding: '4px 10px',
+        borderRadius: 4,
+        border: `1px solid ${tone.border}`,
+        background: tone.background,
+        color: tone.color,
+        fontSize: 11,
+        fontWeight: 600,
+        cursor: running ? 'progress' : 'pointer',
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
 type SetupMode = 'clone' | 'connect';
 

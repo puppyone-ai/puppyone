@@ -212,7 +212,7 @@ function SyncLogRow({
       </span>
       <span style={{ color: T.text3, fontFamily: T.fontMono, fontSize: 11 }}>
         {entry.git_sha && <span style={{ marginRight: 8 }}>git {entry.git_sha.slice(0, 12)}</span>}
-        {entry.mut_commit_id && <span>mut {entry.mut_commit_id.slice(0, 12)}</span>}
+        {entry.version_commit_id && <span>version {entry.version_commit_id.slice(0, 12)}</span>}
         {entry.error_message && (
           <span style={{ color: T.danger, marginLeft: 8 }} title={entry.error_message}>
             ⚠ {truncate(entry.error_message, 60)}

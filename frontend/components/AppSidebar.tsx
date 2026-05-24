@@ -7,6 +7,7 @@ import useSWR from 'swr';
 import type { ProjectInfo } from '../lib/projectsApi';
 import type { OrganizationInfo } from '../lib/organizationsApi';
 import { getProjectHistory } from '../lib/contentTreeApi';
+import { listPendingConflicts } from '../lib/conflictApi';
 import { SidebarLayout, type NavItem } from './sidebar/SidebarLayout';
 
 type AppSidebarProps = {
@@ -56,7 +57,6 @@ export const AppSidebar = memo(function AppSidebar({
     ? activeProjectFromList ?? {
         id: activeBaseId,
         name: '',
-        nodes: [],
       }
     : null;
   const activeProjectTitleLoading =
@@ -75,6 +75,17 @@ export const AppSidebar = memo(function AppSidebar({
     () => getProjectHistory(activeProjectFromList!.id, 1),
     { revalidateOnFocus: false, dedupingInterval: 60000 },
   );
+
+  // Pending conflicts count — drives the badge on the Conflicts nav
+  // item. 30s revalidation strikes a balance between freshness and
+  // not hammering the API; once a conflict lands the user can also
+  // click Conflicts to force a refresh inside the page.
+  const { data: pendingConflicts, isLoading: pendingConflictsLoading } = useSWR(
+    activeProjectFromList ? ['sidebar-pending-conflicts', activeProjectFromList.id] : null,
+    () => listPendingConflicts(activeProjectFromList!.id),
+    { refreshInterval: 30_000, dedupingInterval: 15_000, revalidateOnFocus: true },
+  );
+  const pendingConflictCount = (pendingConflicts ?? []).length;
 
   const projectStats = activeProjectFromList
     ? {
@@ -122,6 +133,25 @@ export const AppSidebar = memo(function AppSidebar({
           </svg>
         ),
         groupEnd: true,
+      },
+      {
+        id: 'conflicts',
+        label: t('conflicts'),
+        icon: (
+          // Two arrows colliding — read as "merge conflict". Same
+          // 18×18 footprint as the other nav glyphs so the rail family
+          // stays consistent (closed outline + interior strokes).
+          <svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+            <path d='M7 7l4 4-4 4' />
+            <path d='M17 7l-4 4 4 4' />
+            <line x1='11' y1='11' x2='13' y2='13' />
+          </svg>
+        ),
+        // Show pending count when nonzero — the rail glyph reads
+        // calmer when nothing is queued, and a number rather than a
+        // dot lets reviewers prioritize.
+        badge: pendingConflictCount > 0 ? pendingConflictCount : undefined,
+        badgeLoading: pendingConflictsLoading,
       },
       {
         id: 'monitor',
@@ -204,7 +234,9 @@ export const AppSidebar = memo(function AppSidebar({
           } else if (viewId === 'access') {
             router.push(`/projects/${activeProject.id}/access`);
           } else if (viewId === 'history') {
-            router.push(`/projects/${activeProject.id}/changes`);
+            router.push(`/projects/${activeProject.id}/history`);
+          } else if (viewId === 'conflicts') {
+            router.push(`/projects/${activeProject.id}/conflicts`);
           } else if (viewId === 'monitor') {
             router.push(`/projects/${activeProject.id}/monitor`);
           } else if (viewId === 'toolkit') {
@@ -219,7 +251,8 @@ export const AppSidebar = memo(function AppSidebar({
             data: `/projects/${id}/data`,
             changes: `/projects/${id}/changes`,
             access: `/projects/${id}/access`,
-            history: `/projects/${id}/changes`,
+            history: `/projects/${id}/history`,
+            conflicts: `/projects/${id}/conflicts`,
             monitor: `/projects/${id}/monitor`,
             toolkit: `/projects/${id}/toolkit`,
             settings: `/projects/${id}/settings`,

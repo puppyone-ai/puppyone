@@ -1,18 +1,15 @@
-"""
-Filesystem connection lifecycle service.
+"""Filesystem connection lifecycle service.
 
 Manages CLI daemon connect / status / disconnect lifecycle.
 
 Data sync is **not** in this module's scope: the daemon uses stock
-``git`` against the access-point-bound URL (``/git/ap/<access_key>.git``)
-or the FS HTTP API (``/api/v1/ap-fs/*``). This service just provisions
-the ``access_key`` that authenticates both surfaces. See
-``docs/architecture/07-version-engine-supplement.md`` §3 for the
-post-MUT model.
+``git`` against the scope-bound URL (``/git/ap/<access_key>.git``)
+or the FS HTTP API (``/api/v1/ap-fs/*``). This service claims the
+built-in ``filesystem`` connector for a repo scope; the scope owns the
+credential that authenticates both surfaces.
 """
 
 import re
-import secrets
 from typing import Optional
 from datetime import datetime
 
@@ -28,7 +25,7 @@ _FORBIDDEN_NAMES = frozenset([".", "..", "CON", "PRN", "AUX", "NUL"] +
 
 
 def _validate_filename(filename: str) -> str | None:
-    """Return error message if filename is invalid for the MUT tree, else None."""
+    """Return error message if filename is invalid for the version tree, else None."""
     if not filename or not filename.strip():
         return "Filename must not be empty"
     if filename.startswith("/"):
@@ -53,10 +50,6 @@ def _validate_filename(filename: str) -> str | None:
     return None
 
 
-def _generate_cli_key() -> str:
-    return f"cli_{secrets.token_urlsafe(32)}"
-
-
 class FilesystemService:
     """Filesystem connection lifecycle — bootstrap, connect, heartbeat, status, disconnect.
 
@@ -65,7 +58,7 @@ class FilesystemService:
     (``/api/v1/ap-fs/*``); shadow snapshots
     (``POST /api/v1/local-snapshots``) cover the local-↔-cloud bridge
     for tracked-but-unpushed files. This service only manages the
-    ``access_points`` row that authorises all three surfaces.
+    scope-bound filesystem connector that authorises all three surfaces.
     """
 
     def __init__(
@@ -108,27 +101,17 @@ class FilesystemService:
           * call ``/api/v1/ap-fs/*`` for FS CLI operations
           * publish shadow snapshots via ``/api/v1/local-snapshots``
         """
-        existing = self._sync_repo.get_by_path(path, project_id=project_id)
-        if existing and existing.provider == "filesystem":
-            return existing
-
-        sync = self._sync_repo.create(
+        sync = self._sync_repo.get_by_path_provider(
             project_id=project_id,
             path=path,
-            direction="bidirectional",
             provider="filesystem",
-            access_key=_generate_cli_key(),
-            config={
-                "scope": {
-                    "id": f"fs-{path.replace('/', '-').strip('-') or 'root'}",
-                    "path": path,
-                    "exclude": [".git", "node_modules", ".DS_Store", "__pycache__"],
-                    "mode": "rw",
-                },
-            },
-            trigger={"type": "realtime"},
-            conflict_strategy="three_way_merge",
+            ensure_scope=True,
         )
+        if sync is None:
+            raise RuntimeError(
+                "filesystem connector invariant failed: repo scope exists "
+                "without its built-in filesystem connector"
+            )
         log_info(f"[Filesystem] Bootstrapped connection #{sync.id} for path {path}")
         return sync
 

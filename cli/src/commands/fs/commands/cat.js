@@ -2,14 +2,26 @@ import { withErrors } from "../../../helpers.js";
 import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, READ_STDOUT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { get, rawGet } from "../lib/http.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerCatCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("cat")
     .description("Read a file within the access point scope")
-    .argument("<paths...>", "file path(s) relative to the access point scope")
+    .argument("<paths...>", "file path(s) relative to the access point scope"), {
+      examples: [
+        "puppyone fs cat README.md",
+        "puppyone fs cat notes/a.md notes/b.md",
+        "puppyone --json fs cat README.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        "Raw mode streams file bytes directly and does not add extra separators.",
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

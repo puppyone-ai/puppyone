@@ -39,6 +39,11 @@ export interface SavedAgent {
   capabilities: string[]; // Saved capability IDs (legacy)
   resources?: AccessResource[]; // 新：资源访问配置
   mcp_api_key?: string; // MCP API key for external access
+  /** Mirrors ``connectors.status`` (``active`` / ``paused``). When
+   *  ``paused`` the chat endpoint refuses to start sessions and the
+   *  scheduler skips scheduled runs — the toggle in AgentDetailView
+   *  drives both. */
+  status?: 'active' | 'paused';
 
   // Schedule Agent 新字段
   trigger_type?: TriggerType;

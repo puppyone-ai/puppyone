@@ -61,7 +61,7 @@ export const STATUS_LABEL: Record<string, string> = {
 // rendered as a card. We group those cards by provider type so each
 // access point reads as a first-class entity in the switcher chip.
 //
-// CLI, Agent, and Folder-sync (MUT protocol) are the three "built-in"
+// CLI, Agent, and Git Remote are the three "built-in"
 // connection methods that get auto-created per scope by a DB trigger
 // (see migrations/…_connectors_table.sql + …_filesystem_builtin_connector.sql).
 // MCP / Sandbox / Third-party are user-created.

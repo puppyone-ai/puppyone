@@ -120,7 +120,7 @@ export function shouldPrefetchAsText(format: FileFormat): boolean {
 
 /**
  * Categories whose content should be loaded as text and rendered
- * via the `monaco-code` / `markdown-editor` family. Used by
+ * via the `monaco-code` / `markdown-editor` / `csv-table` family. Used by
  * `EditorArea` to decide when to populate `markdownContent`.
  */
 export function isTextLikeCategory(format: FileFormat): boolean {
@@ -128,6 +128,7 @@ export function isTextLikeCategory(format: FileFormat): boolean {
     format.category === 'markdown' ||
     format.category === 'text' ||
     format.category === 'code' ||
+    format.defaultViewer === 'csv-table' ||
     (format.category === 'data' && format.defaultViewer === 'monaco-code')
   );
 }

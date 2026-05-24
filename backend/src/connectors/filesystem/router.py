@@ -2,8 +2,7 @@
 Filesystem Module — HTTP Endpoints (lifecycle only).
 
 Data sync is handled by **stock Git** against the access-point-bound
-Git URL (07-version-engine-supplement.md §3 — MUT wire protocol
-removed):
+Git URL:
 
   git clone https://<host>/git/ap/<access_key>.git ./workspace
   git push origin main
@@ -104,7 +103,11 @@ def bootstrap(
     project_service: ProjectService = Depends(get_project_service),
     current_user: CurrentUser = Depends(get_current_user),
 ):
-    """Create a filesystem access for a folder. Returns access_key for CLI + MUT protocol."""
+    """Create a filesystem access for a folder.
+
+    The returned access key authorizes Git Remote and Puppyone CLI AP-FS
+    requests for the scoped folder.
+    """
     _ensure_project_access(project_service, current_user, project_id)
 
     svc, _ = _get_service()
@@ -126,7 +129,7 @@ def bootstrap(
         "access_key": sync.access_key,
         "path": sync.path,
         "project_id": sync.project_id,
-        # ``ap_base`` historically pointed at the (now removed) MUT
+        # ``ap_base`` historically pointed at the (now removed) hash
         # wire-protocol URL. The same access_key authorises the Git
         # smart-HTTP surface, so we now emit the Git remote URL plus an
         # ``ap_fs_base`` for the FS HTTP API. Older clients that still
@@ -174,7 +177,7 @@ async def connect(
         "access_point_id": sync.id,
         "project_id": sync.project_id,
         "path": sync.path,
-        # ``ap_base`` historically pointed at the (now removed) MUT
+        # ``ap_base`` historically pointed at the (now removed) hash
         # wire-protocol URL. The same access_key authorises the Git
         # smart-HTTP surface, so we now emit the Git remote URL plus an
         # ``ap_fs_base`` for the FS HTTP API. Older clients that still

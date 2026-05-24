@@ -7,8 +7,6 @@ import {
   updateTool,
   type Tool,
 } from '@/lib/mcpApi';
-import { useProjects } from '@/lib/hooks/useData';
-import { useOrganization } from '@/contexts/OrganizationContext';
 import { FONT, TOOL_TYPE_CONFIG } from '@/lib/toolConfig';
 import { Dots } from '@/components/loading';
 
@@ -44,31 +42,12 @@ export function LibraryView({
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
-  const { currentOrg } = useOrganization();
-  const { projects } = useProjects(currentOrg?.id ?? null);
-
-  // 构建 nodeId -> path 的映射
-  const tablePathMap = useMemo(() => {
-    const map = new Map<string, { path: string; projectId: string }>();
-    projects.forEach(project => {
-      project.nodes.forEach(node => {
-        map.set(node.id, {
-          path: `${project.name}/${node.name}`,
-          projectId: project.id,
-        });
-      });
-    });
-    return map;
-  }, [projects]);
-
   // 按 Path 分组并排序
   const groupedTools = useMemo(() => {
     const groups = new Map<string, Tool[]>();
 
     tools.forEach((tool: Tool) => {
-      const path = tool.path
-        ? tablePathMap.get(tool.path)?.path || '—'
-        : '—';
+      const path = tool.path || '—';
       if (!groups.has(path)) {
         groups.set(path, []);
       }
@@ -79,7 +58,7 @@ export function LibraryView({
     return Array.from(groups.entries()).sort((a, b) =>
       a[0].localeCompare(b[0])
     );
-  }, [tools, tablePathMap]);
+  }, [tools]);
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedTools);
@@ -166,14 +145,19 @@ export function LibraryView({
     const firstTool = tools.find((t: Tool) => t.id === firstToolId);
     if (!firstTool?.path) return;
 
-    const tableInfo = tablePathMap.get(firstTool.path);
-    if (!tableInfo) return;
+    const projectId = typeof firstTool.metadata?.project_id === 'string'
+      ? firstTool.metadata.project_id
+      : null;
+    if (!projectId) {
+      alert('This tool is missing project metadata. Open the project Data page to create a new server for this context.');
+      return;
+    }
 
     setCreating(true);
     try {
       const newServer = await createMcpLegacy({
         name: newServerName.trim(),
-        project_id: tableInfo.projectId,
+        project_id: projectId,
         table_id: firstTool.path,  // 旧 MCP API 仍使用 table_id 参数名
         json_pointer: '',
         register_tools: [

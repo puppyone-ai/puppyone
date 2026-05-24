@@ -30,7 +30,7 @@ export interface DataLayoutContextValue {
   syncEndpoints: Map<string, SyncEndpointInfo>;
   nodeEndpointMap: Map<string, SyncEndpointInfo[]>;
 
-  /** Redesign (access-point-redesign-2026-05-02) — scopes + connectors. */
+  /** Repository scopes + connectors. */
   scopes: RepoScope[];
   /** Index of connectors by scope_id. cli + agent are always present per scope (DB trigger). */
   connectorsByScope: Map<string, Connector[]>;

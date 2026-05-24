@@ -92,7 +92,7 @@ export function GetStartedPanel({
   // ---- Upload pipeline (direct-to-S3, project root, no dialog) -----
   // Same pipeline as the explorer dialog and sidebar drag/drop: bytes
   // go browser -> S3 directly via presigned multipart URLs, the
-  // worker writes them into MUT, and the BackgroundTaskNotifier
+  // worker commits them through the Version Engine, and the BackgroundTaskNotifier
   // surfaces progress via the floating widget. No dialog asks the
   // user about OCR vs raw because Smart Parse is paused server-side
   // (see config.ENABLE_OCR).
@@ -247,7 +247,7 @@ export function GetStartedPanel({
       />
 
       <div style={{ marginTop: 32 }}>
-        <MutSyncBlock projectId={projectId} connections={connections} onReady={onChanged} />
+        <GitSyncBlock projectId={projectId} connections={connections} onReady={onChanged} />
       </div>
 
       {/* Demoted escape hatch — left-aligned, body text size, no
@@ -461,7 +461,7 @@ function DropFilesCard({
 }
 
 // =====================================================================
-// MutSyncBlock — secondary, subordinate surface.  Always-on, always-
+// GitSyncBlock — secondary, subordinate surface.  Always-on, always-
 // copyable terminal block.  No CTA, no Enable button — the AP is
 // silently bootstrapped on mount (server-side idempotent) so the
 // commands populate with the real access key as soon as the network
@@ -474,7 +474,7 @@ function DropFilesCard({
 // we fire bootstrap once on mount and capture the returned key.
 // =====================================================================
 
-function MutSyncBlock({
+function GitSyncBlock({
   projectId,
   connections,
   onReady,
@@ -494,7 +494,7 @@ function MutSyncBlock({
   // string is fine to *display* but useless to *paste into a
   // terminal*: the literal `...` makes the key look like
   // `cli_...R6CA` which the backend can't resolve, so
-  // `mut connect` returns 401 / not found.  Treat the masked form
+  // the connect command returns 401 / not found.  Treat the masked form
   // as "no seed" so the bootstrap effect below fires and the
   // bootstrap endpoint (idempotent — returns the existing AP's
   // real, full access_key) gives us a paste-runnable command.
@@ -575,8 +575,7 @@ function MutSyncBlock({
   // directly. The URL must point at the *backend* host (not the
   // Next.js origin) — local dev set `NEXT_PUBLIC_API_URL` to the
   // backend, single-host deployments fall back to `window.location.origin`.
-  // The pre-V1 path `/api/v1/mut/ap/<key>` was deleted with the MUT
-  // wire protocol; this is the canonical replacement.
+  // This is the canonical Git-native transport.
   const apiBase = typeof window !== 'undefined'
     ? (process.env.NEXT_PUBLIC_API_URL || window.location.origin)
     : '';
@@ -633,8 +632,8 @@ function MutSyncBlock({
         Or sync from a local folder
       </div>
 
-      {/* Step 1 — prereq check. Stock `git` is the data plane now
-          (V1 post-MUT removal); we only need to verify it's installed
+      {/* Step 1 — prereq check. Stock `git` is the data plane now;
+          we only need to verify it's installed
           rather than offer a CLI to install. */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         <ProseLabel>Confirm Git is installed (one-time):</ProseLabel>

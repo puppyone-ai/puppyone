@@ -1,7 +1,7 @@
 """M-3 — Scheduler must re-resolve principal access at execution time.
 
-The vulnerability: scheduled agent jobs persisted project.created_by as
-the user_id. If that user later left the org, jobs would still execute
+The vulnerability: scheduled agent jobs could fall back to project.created_by
+as the execution principal. If that user later left the org, jobs would still execute
 with their (formerly granted) permissions.
 
 Fix: at the start of each execution, verify the persisted user STILL has
@@ -35,7 +35,7 @@ async def test_principal_no_longer_member_aborts_with_principal_invalid():
     agent_row = {
         "id": "agent-1",
         "project_id": "proj-1",
-        "user_id": "ex-employee",  # left the org
+        "created_by": "ex-employee",  # left the org
         "config": {"name": "X", "type": "schedule", "task_content": "do stuff"},
         "trigger": {},
         "project": {"created_by": "ex-employee", "org_id": "org-1"},
@@ -63,7 +63,7 @@ async def test_principal_access_check_error_aborts():
     agent_row = {
         "id": "agent-1",
         "project_id": "proj-1",
-        "user_id": "user-x",
+        "created_by": "user-x",
         "config": {"name": "X", "type": "schedule", "task_content": "stuff"},
         "trigger": {},
         "project": {"created_by": "user-x", "org_id": "org-1"},
@@ -86,11 +86,11 @@ async def test_principal_access_check_error_aborts():
 
 @pytest.mark.asyncio
 async def test_no_user_id_at_all_aborts():
-    """Empty access_points.user_id AND empty project.created_by ⇒ refuse."""
+    """Empty connector.created_by AND empty project.created_by ⇒ refuse."""
     agent_row = {
         "id": "agent-1",
         "project_id": "proj-1",
-        "user_id": None,
+        "created_by": None,
         "config": {"name": "X", "type": "schedule", "task_content": "stuff"},
         "trigger": {},
         "project": {"created_by": None, "org_id": "org-1"},
@@ -106,12 +106,12 @@ async def test_no_user_id_at_all_aborts():
 
 @pytest.mark.asyncio
 async def test_agent_owner_preferred_over_project_creator():
-    """Agent's own access_points.user_id wins over project.created_by —
+    """Agent connector created_by wins over project.created_by —
     that's the natural impersonation principal for the agent."""
     agent_row = {
         "id": "agent-1",
         "project_id": "proj-1",
-        "user_id": "agent-owner",
+        "created_by": "agent-owner",
         "config": {"name": "X", "type": "schedule", "task_content": "x"},
         "trigger": {},
         "project": {"created_by": "different-creator", "org_id": "org-1"},

@@ -39,7 +39,7 @@ export function parseApiErrorPayload(text, fallbackCode = "API_ERROR") {
 
 // Channel header. The backend access-key auth dependency uses this to decide which
 // connector's `status` to consult when enforcing pause/resume.
-//   "cli"        — manual mut commands typed into a terminal
+//   "cli"        — manual Puppyone CLI commands typed into a terminal
 //   "filesystem" — the local-folder sync daemon (set by daemon code path)
 // Anything not recognised falls back to "no per-channel enforcement",
 // which is the historical (pre-pause-enforcement) behaviour.
@@ -140,7 +140,7 @@ function _makeClient(apiUrl, authHeaders, { autoRefresh = false, clientKind = "c
   const baseUrl = apiUrl.replace(/\/+$/, "");
 
   // Channel header attached to every request out of this client. The
-  // backend reads it in get_mut_auth() and rejects the request when the
+  // backend reads it during version access resolution and rejects the request when the
   // matching connector for the resolved scope is paused. Threaded into
   // a single source so both `request` and `rawRequest` / `upload` agree.
   const channelHeaders = clientKind ? { "X-Puppy-Client": clientKind } : {};

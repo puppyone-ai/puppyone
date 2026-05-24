@@ -1,22 +1,10 @@
-"""
-Sandbox Endpoint Repository.
-
-Read methods (get_by_id / get_by_access_key / get_by_path / list_by_project)
-were migrated post-redesign-2026-05-02 to the `connectors` table
-(provider='sandbox'); the legacy `access_points` table is gone. The
-connector row's `config` JSONB carries access_key, mounts, runtime,
-timeout_seconds, resource_limits — `path` is recovered via a join on
-`repo_scopes` keyed by scope_id.
-
-Write methods (create / update / delete) still target the legacy table
-and will raise APIError when invoked (table no longer exists). They are
-slated for a follow-up migration that must also wire scope_id provisioning.
-"""
+"""Sandbox endpoint repository over connectors + repo_scopes."""
 
 from typing import Dict, List, Optional
 import secrets
 
 from src.utils.id_generator import generate_uuid_v7
+from src.repo.scope_service import ScopeService
 
 
 PROVIDER = "sandbox"
@@ -29,13 +17,7 @@ def generate_sandbox_access_key() -> str:
 
 
 def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
-    """Reshape a connectors row (provider='sandbox') into the legacy Sandbox
-    endpoint dict the router / service / frontend already consume.
-    `scope_path` is sourced from a joined repo_scopes lookup since the
-    connectors table no longer carries a path column. `access_key` lives
-    in `config.access_key` after the redesign moved it off the row's
-    columns into the JSONB blob.
-    """
+    """Reshape a connectors row into the sandbox endpoint API dict."""
     config = row.get("config") or {}
     return {
         "id": row["id"],
@@ -56,9 +38,7 @@ def _row_to_endpoint(row: dict, scope_path: Optional[str] = None) -> dict:
 
 class SandboxEndpointRepository:
 
-    # Legacy field kept for code that introspects TABLE; actual queries go
-    # through CONNECTORS_TABLE / SCOPES_TABLE module constants.
-    TABLE = "access_points"
+    TABLE = CONNECTORS_TABLE
 
     def __init__(self, supabase_client=None):
         if supabase_client is None:
@@ -94,6 +74,21 @@ class SandboxEndpointRepository:
             _row_to_endpoint(r, path_by_scope.get(r.get("scope_id")))
             for r in rows
         ]
+
+    def _scope_for_path(self, project_id: str, path: Optional[str]) -> dict:
+        normalized = (path or "").strip("/")
+        scope_svc = ScopeService()
+        for scope in scope_svc.list_for_project(project_id):
+            if (scope.path or "") == normalized:
+                return {"id": scope.id, "path": scope.path}
+        scope = scope_svc.create(
+            project_id=project_id,
+            name=normalized.rsplit("/", 1)[-1] if normalized else "Root",
+            path=normalized,
+            exclude=[],
+            mode="rw",
+        )
+        return {"id": scope.id, "path": scope.path}
 
     def get_by_id(self, endpoint_id: str) -> Optional[dict]:
         resp = self._query().eq("id", endpoint_id).execute()
@@ -148,23 +143,25 @@ class SandboxEndpointRepository:
         config = {
             "name": name,
             "description": description,
+            "access_key": generate_sandbox_access_key(),
             "mounts": mounts or [],
             "runtime": runtime,
             "timeout_seconds": timeout_seconds,
             "resource_limits": resource_limits or {"memory_mb": 128, "cpu_shares": 0.5},
         }
+        scope = self._scope_for_path(project_id, path)
         row = {
             "id": generate_uuid_v7(),
             "project_id": project_id,
-            "path": path,
+            "scope_id": scope["id"],
             "provider": PROVIDER,
+            "name": name,
             "direction": "bidirectional",
-            "access_key": generate_sandbox_access_key(),
             "config": config,
             "status": "active",
         }
         resp = self._client.table(self.TABLE).insert(row).execute()
-        return _row_to_endpoint(resp.data[0])
+        return _row_to_endpoint(resp.data[0], scope["path"])
 
     def update(self, endpoint_id: str, **kwargs) -> Optional[dict]:
         current = self._query().eq("id", endpoint_id).execute()
@@ -184,10 +181,12 @@ class SandboxEndpointRepository:
         config.pop("sandbox_provider", None)
         update_data["config"] = config
 
-        if "access_key" in kwargs:
-            update_data["access_key"] = kwargs["access_key"]
         if "path" in kwargs:
-            update_data["path"] = kwargs["path"]
+            scope = self._scope_for_path(row["project_id"], kwargs["path"])
+            update_data["scope_id"] = scope["id"]
+        if "access_key" in kwargs:
+            config["access_key"] = kwargs["access_key"]
+            update_data["config"] = config
         if "status" in kwargs:
             update_data["status"] = kwargs["status"]
 
@@ -204,7 +203,6 @@ class SandboxEndpointRepository:
             self._client.table(self.TABLE)
             .delete()
             .eq("id", endpoint_id)
-            .eq("provider", PROVIDER)
             .execute()
         )
         return bool(resp.data)

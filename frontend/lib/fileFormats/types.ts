@@ -41,6 +41,7 @@ export type GenericViewerId =
   | 'markdown-editor'
   | 'plain-text'
   | 'monaco-code'
+  | 'csv-table'
   | 'html-artifact'
   | 'image-preview'
   | 'audio-preview'

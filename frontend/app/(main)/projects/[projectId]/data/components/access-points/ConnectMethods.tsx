@@ -144,8 +144,7 @@ export function ConnectMethodsBlock({
   /**
    * Optimistic-toggle helper.
    *
-   * Pause / resume on the backend is just `UPDATE access_points SET
-   * status = ... WHERE id = ...` — a single PK update that returns
+   * Pause / resume on the backend is a single connector-row update that returns
    * in milliseconds. The perceived latency, when we made the user
    * wait, came almost entirely from the *full SWR revalidate* we ran
    * afterwards (re-fetching the scope + connector list pulls

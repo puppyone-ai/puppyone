@@ -29,6 +29,28 @@ export type OrgInvitation = {
   status: string;
   expires_at: string;
   created_at: string;
+  /** Secret accept token. Returned to the inviter (owner) only.
+   *  Treat as sensitive. */
+  token?: string | null;
+  /** Pre-built absolute URL: ``{frontend_origin}/invite/{token}``.
+   *  The inviter copies this to share manually. */
+  invite_url?: string | null;
+  /** True iff the server's best-effort email dispatch reported
+   *  success. Independent of whether the row was created — the row is
+   *  always there, the email may not be. */
+  email_sent?: boolean;
+  /** Short tag describing why the email wasn't sent (e.g.
+   *  ``recipient_exists`` for "the email is already a Puppyone user,
+   *  Supabase doesn't re-invite — share the link manually"). */
+  email_error?: string | null;
+};
+
+export type AcceptInvitationResult = {
+  member_id: string;
+  org_id: string;
+  org_name: string;
+  org_slug: string;
+  role: string;
 };
 
 export async function getOrganizations(): Promise<OrganizationInfo[]> {
@@ -101,8 +123,16 @@ export async function getInvitations(orgId: string): Promise<OrgInvitation[]> {
   return apiRequest<OrgInvitation[]>(`/api/v1/organizations/${orgId}/invitations`);
 }
 
-export async function acceptInvitation(token: string): Promise<void> {
-  return apiRequest<void>(`/api/v1/organizations/invitations/${token}/accept`, {
-    method: 'POST',
-  });
+export async function revokeInvitation(orgId: string, invitationId: string): Promise<void> {
+  return apiRequest<void>(
+    `/api/v1/organizations/${orgId}/invitations/${invitationId}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function acceptInvitation(token: string): Promise<AcceptInvitationResult> {
+  return apiRequest<AcceptInvitationResult>(
+    `/api/v1/organizations/invitations/${token}/accept`,
+    { method: 'POST' },
+  );
 }

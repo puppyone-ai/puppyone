@@ -34,7 +34,7 @@ function DirectionGlyph({ direction }: { direction: 'inbound' | 'outbound' | 'bi
   // Cyan tone for outbound is intentional: outbound APs are agents/MCPs
   // pulling DATA OUT, which is the "live wire" half of the system —
   // matches the cyan-for-live-data convention used elsewhere.
-  // Bidirectional gets cyan too (filesystem MUT is the canonical example,
+  // Bidirectional gets cyan too (Git Remote is the canonical example,
   // also a live wire).  Inbound is greyer because most projects have many
   // inbound sources and they're the "ambient" half.
   if (direction === 'outbound') {

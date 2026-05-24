@@ -15,7 +15,7 @@ class McpBase(BaseModel):
     api_key: Optional[str] = None
     created_by: Optional[str] = None  # nullable, was user_id
     project_id: Optional[str] = None  # UUID, references project(id)
-    table_id: Optional[str] = None  # UUID, references MUT path
+    table_id: Optional[str] = None  # UUID, references version path
     name: Optional[str] = None
     json_path: Optional[str] = None
     status: Optional[bool] = None
@@ -37,7 +37,7 @@ class McpUpdate(BaseModel):
     api_key: Optional[str] = None
     created_by: Optional[str] = None  # nullable, was user_id
     project_id: Optional[str] = None  # UUID, references project(id)
-    table_id: Optional[str] = None  # UUID, references MUT path
+    table_id: Optional[str] = None  # UUID, references version path
     name: Optional[str] = None
     json_path: Optional[str] = None
     status: Optional[bool] = None

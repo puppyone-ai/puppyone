@@ -3,16 +3,29 @@ import { createOutput } from "../../../output.js";
 import { createApClient, extraHeaders } from "../lib/context.js";
 import { readHeadBuffer } from "../lib/content-read.js";
 import { errorPayload, finishWithPartialFailure, pathError } from "../lib/errors.js";
+import { addFsHelp, READ_STDOUT_NOTE, SCOPE_NOTE } from "../lib/help.js";
 import { parseIntegerOption } from "../lib/options.js";
 import { scopedPath } from "../lib/paths.js";
 
 export function registerHeadCommand(fs) {
-  fs
+  addFsHelp(fs
     .command("head")
     .description("Output the first part of file(s) within the access point scope")
     .argument("<paths...>", "file path(s) relative to the access point scope")
     .option("-n, --lines <n>", "print the first n lines", "10")
-    .option("-c, --bytes <n>", "print the first n bytes")
+    .option("-c, --bytes <n>", "print the first n bytes"), {
+      examples: [
+        "puppyone fs head notes/readme.md",
+        "puppyone fs head -n 40 notes/readme.md",
+        "puppyone fs head -c 1024 data.bin",
+        "puppyone --json fs head -n 5 notes/readme.md",
+      ],
+      notes: [
+        SCOPE_NOTE,
+        READ_STDOUT_NOTE,
+        "Use -c for byte-accurate previews and -n for text previews.",
+      ],
+    })
     .action(withErrors(async (paths, opts, cmd) => {
       const out = createOutput(cmd);
       const client = createApClient(cmd);

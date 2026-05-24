@@ -2,8 +2,8 @@
 Table (Knowledge Base) Content Management
 
 All Tables must belong to a project.
-Write operations use MUT protocol (MutOps),
-read operations read JSON content from MUT ObjectStore.
+Write operations use Write Engine (ProductOperationAdapter),
+read operations read JSON content from version ObjectStore.
 The tables table in DB is only used for storing metadata indexes.
 """
 
@@ -26,59 +26,63 @@ class TableService:
     def __init__(
         self,
         repo: TableRepositoryBase,
-        mut_write=None,
+        version_write=None,
         repo_manager=None,
         node_repo=None,
     ):
         self.repo = repo
-        self._mut = mut_write
+        self._version_writer = version_write
         self._repos = repo_manager
         self._node_repo = node_repo
 
     # ================================================================
-    # MUT helpers
+    # ObjectStore helpers
     # ================================================================
 
-    def _ensure_mut(self):
+    def _ensure_version_repo(self):
         if self._repos is None:
             raise BusinessException(
-                "MUT repo_manager not configured",
+                "version repo_manager not configured",
                 code=ErrorCode.INTERNAL_SERVER_ERROR,
             )
 
     def _get_ops(self):
-        from src.mut_engine.dependencies import create_mut_ops
-        return create_mut_ops()
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        return build_worker_version_engine_container().product_operations()
 
-    def _table_mut_path(self, _project_id: str, table_id: str) -> str:
-        """Standard path for Table in the MUT tree"""
+    def _get_write_commands(self):
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
+        return build_worker_version_engine_container().write_commands()
+
+    def _table_version_path(self, _project_id: str, table_id: str) -> str:
+        """Standard path for Table in the version tree"""
         return f"tables/{table_id}.json"
 
-    def _read_json_from_mut(self, project_id: str, mut_path: str) -> dict:
-        """Read JSON from MUT ObjectStore (source of truth)"""
+    def _read_json_from_version_store(self, project_id: str, version_path: str) -> dict:
+        """Read JSON from version ObjectStore (source of truth)"""
         repo = self._repos.get_repo(project_id)
         root = repo.history.get_root_hash()
         if not root:
             return {}
-        from src.mut_engine.application.tree import tree_to_flat
+        from src.version_engine.write_engine.tree import tree_to_flat
         flat = tree_to_flat(repo.store, root)
-        blob_hash = flat.get(mut_path, "")
+        blob_hash = flat.get(version_path, "")
         if not blob_hash:
             return {}
         raw = repo.store.get(blob_hash)
         return json.loads(raw.decode("utf-8"))
 
     def _read_table_data(self, table: Table) -> dict:
-        """Read Table JSON data - from MUT (source of truth)"""
-        self._ensure_mut()
+        """Read Table JSON data - from ObjectStore (source of truth)"""
+        self._ensure_version_repo()
         if not table.project_id:
             raise BusinessException(
-                "Table has no project_id, cannot read from MUT",
+                "Table has no project_id, cannot read from ObjectStore",
                 code=ErrorCode.BAD_REQUEST,
             )
-        mut_path = self._table_mut_path(table.project_id, table.id)
+        version_path = self._table_version_path(table.project_id, table.id)
         try:
-            data = self._read_json_from_mut(table.project_id, mut_path)
+            data = self._read_json_from_version_store(table.project_id, version_path)
             if data:
                 return data
         except Exception:
@@ -86,7 +90,7 @@ class TableService:
         return table.data or {}
 
     # ================================================================
-    # Read-only queries (from DB index or MUT)
+    # Read-only queries (from DB index or ObjectStore)
     # ================================================================
 
     def get_projects_with_tables_by_org_id(
@@ -116,7 +120,7 @@ class TableService:
         return self.repo.verify_project_access(project_id, user_id)
 
     # ================================================================
-    # Write operations - all through MUT protocol (MutOps)
+    # Write operations - all through Write Engine (ProductOperationAdapter)
     # ================================================================
 
     async def create(
@@ -127,11 +131,11 @@ class TableService:
         data: dict,
         project_id: str,
     ) -> Table:
-        self._ensure_mut()
+        self._ensure_version_repo()
 
         from src.utils.id_generator import generate_uuid_v7
         table_id = generate_uuid_v7()
-        mut_path = self._table_mut_path(project_id, table_id)
+        version_path = self._table_version_path(project_id, table_id)
 
         table_blob = {
             "id": table_id,
@@ -141,13 +145,13 @@ class TableService:
         }
         content = json.dumps(table_blob, ensure_ascii=False, indent=2).encode("utf-8")
 
-        ops = self._get_ops()
-        await ops.write_file(
-            project_id, mut_path, content,
-            who=f"user:{user_id}",
+        commands = self._get_write_commands()
+        await commands.write_bytes(
+            project_id, version_path, content,
+            actor=f"user:{user_id}",
             message=f"create table {name}",
         )
-        log_info(f"[Table] Created table {table_id} via MUT")
+        log_info(f"[Table] Created table {table_id} via Version Engine")
 
         # Persist to Supabase index table
         try:
@@ -162,7 +166,7 @@ class TableService:
             return table
         except Exception as e:
             log_info(f"[Table] Failed to persist table {table_id} to index: {e}")
-            # MUT write succeeded, return synthetic object
+            # version write succeeded, return synthetic object
             from datetime import datetime
             return Table(
                 id=table_id,
@@ -181,7 +185,7 @@ class TableService:
         description: str | None,
         data: dict | None,
     ) -> Table:
-        self._ensure_mut()
+        self._ensure_version_repo()
 
         table = self.repo.get_by_id(table_id)
         if not table:
@@ -191,11 +195,11 @@ class TableService:
 
         if not table.project_id:
             raise BusinessException(
-                "Table has no project_id, cannot update via MUT",
+                "Table has no project_id, cannot update via Version Engine",
                 code=ErrorCode.BAD_REQUEST,
             )
 
-        mut_path = self._table_mut_path(table.project_id, table_id)
+        version_path = self._table_version_path(table.project_id, table_id)
         current_data = self._read_table_data(table)
 
         table_blob = {
@@ -206,13 +210,13 @@ class TableService:
         }
         content = json.dumps(table_blob, ensure_ascii=False, indent=2).encode("utf-8")
 
-        ops = self._get_ops()
-        await ops.write_file(
-            table.project_id, mut_path, content,
-            who="system:table_update",
+        commands = self._get_write_commands()
+        await commands.write_bytes(
+            table.project_id, version_path, content,
+            actor="system:table_update",
             message=f"update table {table_id}",
         )
-        log_info(f"[Table] Updated table {table_id} via MUT")
+        log_info(f"[Table] Updated table {table_id} via Version Engine")
 
         updated = self.repo.get_by_id(table_id)
         return updated or table
@@ -226,22 +230,22 @@ class TableService:
 
         if not table.project_id:
             raise BusinessException(
-                "Table has no project_id, cannot delete via MUT",
+                "Table has no project_id, cannot delete via Version Engine",
                 code=ErrorCode.BAD_REQUEST,
             )
 
-        self._ensure_mut()
-        mut_path = self._table_mut_path(table.project_id, table_id)
-        ops = self._get_ops()
-        await ops.delete(
-            table.project_id, [mut_path],
-            who="system:table_delete",
+        self._ensure_version_repo()
+        version_path = self._table_version_path(table.project_id, table_id)
+        commands = self._get_write_commands()
+        await commands.delete(
+            table.project_id, [version_path],
+            actor="system:table_delete",
             message=f"delete table {table_id}",
         )
-        log_info(f"[Table] Deleted table {table_id} via MUT")
+        log_info(f"[Table] Deleted table {table_id} via Version Engine")
 
     # ================================================================
-    # Context Data operations — JSON Pointer + MUT write
+    # Context Data operations — JSON Pointer + version write
     # ================================================================
 
     @staticmethod
@@ -447,19 +451,19 @@ class TableService:
         return resolve_pointer(actual_data, json_pointer_path)
 
     async def _write_table_data(self, table: Table, full_blob: dict) -> None:
-        """Write the complete table JSON to MUT (single write point)"""
-        self._ensure_mut()
+        """Write the complete table JSON to ObjectStore (single write point)"""
+        self._ensure_version_repo()
         if not table.project_id:
             raise BusinessException(
-                "Table has no project_id, cannot write to MUT",
+                "Table has no project_id, cannot write to ObjectStore",
                 code=ErrorCode.BAD_REQUEST,
             )
-        mut_path = self._table_mut_path(table.project_id, table.id)
+        version_path = self._table_version_path(table.project_id, table.id)
         content = json.dumps(full_blob, ensure_ascii=False, indent=2).encode("utf-8")
-        ops = self._get_ops()
-        await ops.write_file(
-            table.project_id, mut_path, content,
-            who="system:table_edit",
+        commands = self._get_write_commands()
+        await commands.write_bytes(
+            table.project_id, version_path, content,
+            actor="system:table_edit",
             message=f"edit table data {table.id}",
         )
 

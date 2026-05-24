@@ -1,11 +1,11 @@
 """
 Workspace lower sync worker.
 
-Filesystem folder sync is client-side via MUT protocol. This worker only
-materializes the current MUT tree into the local `lower/` cache used by the
+Filesystem folder sync is client-side via Git Remote / AP-FS. This worker only
+materializes the current version tree into the local `lower/` cache used by the
 workspace provider for external agent workspaces.
 
-Binary files stored as file_ref in MUT are resolved by downloading
+Binary files stored as file_ref in hash are resolved by downloading
 the actual object from S3, so agents see real files — not JSON stubs.
 """
 
@@ -16,7 +16,7 @@ import os
 import time
 
 from src.infra.s3.service import get_s3_service_instance
-from src.mut_engine.adapters.operations.ops_adapter import MutOps
+from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.platform.workspace.cache import CacheManager
 from src.utils.logger import log_error, log_info
 
@@ -35,20 +35,20 @@ def _extract_file_ref(data: bytes) -> str | None:
 
 class SyncWorker:
     """
-    Materialize a project snapshot from MUT into the local lower cache.
+    Materialize a project snapshot from hash into the local lower cache.
     """
 
-    def __init__(self, ops: MutOps | None = None, base_dir: str = "/tmp/contextbase", **kwargs):
+    def __init__(self, ops: ProductOperationAdapter | None = None, base_dir: str = "/tmp/contextbase", **kwargs):
         self._ops = ops
         self._cache = CacheManager(base_dir=base_dir)
 
-    def _get_ops(self) -> MutOps:
+    def _get_ops(self) -> ProductOperationAdapter:
         if self._ops is not None:
             return self._ops
 
-        from src.mut_engine.dependencies import create_mut_ops
+        from src.version_engine.bootstrap.dependencies import build_worker_version_engine_container
 
-        self._ops = create_mut_ops()
+        self._ops = build_worker_version_engine_container().product_operations()
         return self._ops
 
     async def sync(self, project_id: str | None = None, *args, **kwargs) -> dict:
@@ -74,7 +74,7 @@ class SyncWorker:
         try:
             entries = ops.list_tree(project_id)
         except Exception as e:
-            log_error(f"[SyncWorker] Failed to list MUT tree for {project_id}: {e}")
+            log_error(f"[SyncWorker] Failed to list version tree for {project_id}: {e}")
             entries = []
 
         s3 = None  # lazy-init only when a binary is encountered

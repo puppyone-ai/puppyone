@@ -1,8 +1,8 @@
 """
 Unified Sync — Data Models
 
-Sync — A single sync binding between a MUT path and an external resource.
-       Stored in the `access_points` table (provider != 'agent').
+Sync is the in-process DTO for one external provider binding. Persistence is
+canonicalized as connectors rows bound to repo_scopes.
 """
 
 from dataclasses import dataclass, field
@@ -17,9 +17,9 @@ from pydantic import BaseModel
 @dataclass
 class Sync:
     """
-    Unified sync binding. Maps to the `access_points` table (provider != 'agent').
+    Unified sync binding derived from connectors + repo_scopes.
 
-    Each row represents one sync relationship between a MUT path
+    Each row represents one sync relationship between a version path
     and an external resource, carrying both connection config and
     sync state.
     """

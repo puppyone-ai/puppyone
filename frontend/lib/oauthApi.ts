@@ -166,8 +166,7 @@ export async function openOAuthPopup(saasType: SaasType): Promise<boolean> {
 }
 
 // ---------------------------------------------------------------------------
-// Backward-compatible named exports
-// (so existing callers don't need to change their imports)
+// Provider-specific named exports
 // ---------------------------------------------------------------------------
 
 // All callbacks accept an optional `state` second arg — the CSRF nonce

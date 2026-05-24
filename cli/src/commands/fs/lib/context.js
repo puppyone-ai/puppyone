@@ -17,15 +17,13 @@ export function resolveAccessPointContext(cmd) {
   const profiles = config.access_points || {};
   const profile = opts.profile || config.current_access_point || null;
   const profileMeta = profile ? profiles[profile] : null;
-  const legacy = config.active_access_point || null;
   const key = (
     opts.accessKey ||
     process.env.PUPPYONE_ACCESS_KEY ||
     process.env.PUPPYONE_AP_KEY ||
-    (profile ? getAccessPointCredential(profile) : null) ||
-    legacy?.access_key
+    (profile ? getAccessPointCredential(profile) : null)
   );
-  const apiUrl = opts.apiUrl || profileMeta?.api_url || legacy?.api_url || config.api_url || LOCAL_API_URL;
+  const apiUrl = opts.apiUrl || profileMeta?.api_url || config.api_url || LOCAL_API_URL;
   if (!key) {
     throw new ApiError(
       0,
@@ -34,7 +32,7 @@ export function resolveAccessPointContext(cmd) {
       "Run `puppyone ap login <profile> --api-url <url>` once, or pass --access-key.",
     );
   }
-  return { accessKey: key, apiUrl, profile, profileMeta, legacy };
+  return { accessKey: key, apiUrl, profile, profileMeta };
 }
 
 export function createApClient(cmd) {
@@ -45,5 +43,5 @@ export function createApClient(cmd) {
 export async function extraHeaders(cmd) {
   const opts = collectOpts(cmd);
   const actor = opts.actor;
-  return actor ? { "X-Mut-User": actor } : {};
+  return actor ? { "X-PuppyOne-User": actor } : {};
 }

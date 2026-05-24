@@ -1,5 +1,5 @@
 """
-POSIX-style file system tool implementation (Mut-Native).
+POSIX-style file system tool implementation (Version Engine backed).
 Stateless — all operations addressed by path, resolved server-side.
 
 Tools:

@@ -886,10 +886,10 @@ class S3Service:
 
         Used by the upload finalize path to move a freshly uploaded
         object from its staging key (``projects/.../uploads/...``) to
-        its content-addressed location in the MUT object store
-        (``mut/{project}/objects/<hh>/<rest>``) without round-tripping
-        the bytes through the FastAPI process. The MUT push that
-        follows then ``negotiate``s and sees the blob is already
+        its content-addressed location in the version object store
+        (``version/{project}/objects/<hh>/<rest>``) without round-tripping
+        the bytes through the FastAPI process. The version write that
+        follows sees the blob is already
         there, so no part of the file payload travels over the
         Python process — only the small JSON tree nodes do.
 

@@ -17,7 +17,7 @@ class SearchIndexTask(BaseModel):
     tool_id: str
     user_id: Optional[str] = None
     project_id: Optional[str] = None
-    path: str  # MUT path
+    path: str  # version path
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"
@@ -40,7 +40,7 @@ class SearchIndexTaskUpsert(BaseModel):
     tool_id: str
     user_id: Optional[str] = None
     project_id: Optional[str] = None
-    path: str  # MUT path
+    path: str  # version path
     json_path: str = ""
 
     status: SearchIndexStatus = "pending"

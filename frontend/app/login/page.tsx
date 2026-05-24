@@ -105,6 +105,18 @@ function LoginPageInner() {
     getAccessToken,
   } = useAuth();
 
+  // Honor ``?redirect=...`` so callers that bounce through login
+  // (e.g. /invite/[token]) land back at the originally requested URL
+  // after auth. Only accept same-origin relative paths to prevent
+  // open-redirect abuse.
+  const redirectAfterAuth = React.useMemo(() => {
+    const raw = searchParams?.get('redirect') ?? null;
+    if (!raw) return null;
+    if (!raw.startsWith('/')) return null;
+    if (raw.startsWith('//')) return null; // protocol-relative
+    return raw;
+  }, [searchParams]);
+
   const [view, setView] = useState<AuthView>('main');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -182,8 +194,17 @@ function LoginPageInner() {
       }
       // If no stored email, leave view as 'main' so the user can type it in.
     }
-    // Clean up the URL so the banner doesn't reappear on every navigation.
-    router.replace('/login');
+    // Clean up the URL so the banner doesn't reappear on every
+    // navigation. Preserve ``redirect=`` if present so the post-auth
+    // bounce destination survives this cleanup — without this, an
+    // unrelated ?error= or ?reset= arriving alongside the invite
+    // bounce would wipe the redirect target and dump the user at /home.
+    const preservedRedirect = searchParams?.get('redirect');
+    if (preservedRedirect) {
+      router.replace(`/login?redirect=${encodeURIComponent(preservedRedirect)}`);
+    } else {
+      router.replace('/login');
+    }
   }, [searchParams, router]);
 
   const goBack = useCallback(() => {
@@ -250,7 +271,7 @@ function LoginPageInner() {
       // `loading` either; we want to stay in a non-interactive state
       // until this component unmounts.
       setRedirecting(true);
-      router.push('/home');
+      router.push(redirectAfterAuth ?? '/home');
       return;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Sign-in failed';
@@ -325,7 +346,14 @@ function LoginPageInner() {
           console.error('Auth initialization failed:', initErr);
         }
         setRedirecting(true);
-        router.push(demoProjectId ? `/projects/${demoProjectId}/data` : '/home');
+        // If the user was bounced here from /invite/[token] (or any
+        // other gated route), honor that destination rather than the
+        // first-run demo path — they came here to accept an invite,
+        // not to play with the demo.
+        router.push(
+          redirectAfterAuth
+            ?? (demoProjectId ? `/projects/${demoProjectId}/data` : '/home'),
+        );
         return;
       }
     } catch (e: unknown) {
@@ -365,7 +393,13 @@ function LoginPageInner() {
         console.error('Auth initialization failed:', initErr);
       }
       setRedirecting(true);
-      router.push(demoProjectId ? `/projects/${demoProjectId}/data` : '/home');
+      // Honor redirect= for the OTP path too — covers the case where
+      // someone clicked an invite link, hit "sign up", and verified
+      // their email here. They wanted the invite, not the demo.
+      router.push(
+        redirectAfterAuth
+          ?? (demoProjectId ? `/projects/${demoProjectId}/data` : '/home'),
+      );
       return;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Invalid or expired code';
@@ -375,7 +409,7 @@ function LoginPageInner() {
     } finally {
       setLoading(null);
     }
-  }, [loading, clearFeedback, verifyEmailOtp, email, getAccessToken, router]);
+  }, [loading, clearFeedback, verifyEmailOtp, email, getAccessToken, router, redirectAfterAuth]);
 
   // Auto-submit when 6 digits are entered (industry-standard UX).
   useEffect(() => {

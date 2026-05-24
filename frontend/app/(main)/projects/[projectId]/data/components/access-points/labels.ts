@@ -53,21 +53,15 @@ export function buildScopeMetaLine(scope: RepoScope): string {
   return parts.join(' · ');
 }
 
-/**
- * Map redesign provider strings (cli/agent) to the legacy SyncEndpointInfo
- * shape consumed by AccessPointProviderIcon. Keeps icon logic centralised
- * in the existing component without forking it.
- */
+/** Build the endpoint-shaped value consumed by AccessPointProviderIcon. */
 export function connectorAsEndpointShape(c: Connector): SyncEndpointInfo {
-  // 'cli' maps to the legacy filesystem icon (folder); 'agent' to the
-  // legacy agent:* icon. Other providers fall through to providerIcons lookup.
-  let legacyProvider: string;
-  if (c.provider === 'cli') legacyProvider = 'filesystem';
-  else if (c.provider === 'agent') legacyProvider = 'agent:chat';
-  else legacyProvider = c.provider;
+  let iconProvider: string;
+  if (c.provider === 'cli') iconProvider = 'filesystem';
+  else if (c.provider === 'agent') iconProvider = 'agent:chat';
+  else iconProvider = c.provider;
   return {
     syncId: c.id,
-    provider: legacyProvider,
+    provider: iconProvider,
     direction: c.direction,
     status: c.status,
     name: c.name,

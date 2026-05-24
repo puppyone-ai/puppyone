@@ -2,13 +2,14 @@
 MCP Service 端到端集成测试
 
 测试前提:
-  1. 主服务运行在 http://localhost:9090 (SKIP_AUTH=true)
-  2. MCP 服务运行在 http://localhost:3090
-  3. 数据库可用 (Supabase)
+  1. RUN_MCP_E2E=1
+  2. 主服务运行在 MCP_E2E_MAIN_SERVICE_URL, default http://localhost:9090 (SKIP_AUTH=true)
+  3. MCP 服务运行在 MCP_E2E_SERVICE_URL, default http://localhost:3090
+  4. 数据库可用 (Supabase)
 
 运行方式:
   cd backend
-  uv run pytest tests/mcp_service/test_e2e_integration.py -v -s -m e2e
+  RUN_MCP_E2E=1 uv run pytest tests/e2e/mcp_service/test_e2e_integration.py -v -s -m e2e
 
 测试流程:
   Setup:  创建测试项目 → 创建文件夹节点 → 创建 Agent + BashAccess → 初始化 MCP 会话
@@ -23,6 +24,7 @@ MCP Service 端到端集成测试
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from typing import Any, Dict, Optional
 
@@ -33,16 +35,22 @@ import pytest
 # 配置
 # ============================================================
 
-MAIN_SERVICE_URL = "http://localhost:9090"
-MCP_SERVICE_URL = "http://localhost:3090"
-INTERNAL_SECRET = "puppycontextbase902345"
+MAIN_SERVICE_URL = os.environ.get("MCP_E2E_MAIN_SERVICE_URL", "http://localhost:9090").rstrip("/")
+MCP_SERVICE_URL = os.environ.get("MCP_E2E_SERVICE_URL", "http://localhost:3090").rstrip("/")
+INTERNAL_SECRET = os.environ.get("MCP_E2E_INTERNAL_SECRET", "puppycontextbase902345")
 TIMEOUT = httpx.Timeout(connect=15.0, read=60.0, write=30.0, pool=15.0)
 
 # ============================================================
 # Markers
 # ============================================================
 
-pytestmark = pytest.mark.e2e
+pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.skipif(
+        os.environ.get("RUN_MCP_E2E") != "1",
+        reason="set RUN_MCP_E2E=1 when the main and MCP services are running locally",
+    ),
+]
 
 
 # ============================================================

@@ -1,4 +1,4 @@
-"""src.internal.router MutOps-based internal endpoint tests."""
+"""src.internal.router ProductOperationAdapter-based internal endpoint tests."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.mut_engine.dependencies import get_mut_ops
-from src.internal.router import get_agent_config_service, router as internal_router, verify_internal_secret
+from src.version_engine.bootstrap.dependencies import get_product_operation_adapter
+from src.internal.router import router as internal_router, verify_internal_secret
 
 
 @dataclass
-class FakeMutEntry:
+class FakeVersionEntry:
     name: str
     path: str
     type: str
@@ -26,22 +26,22 @@ class FakeMutEntry:
     children_count: Optional[int] = None
 
 
-class FakeMutOps:
-    """Mock MutOps for testing internal router endpoints."""
+class FakeProductOperationAdapter:
+    """Mock ProductOperationAdapter for testing internal router endpoints."""
 
     def __init__(self):
-        self._stat_map: dict[str, FakeMutEntry | None] = {}
-        self._list_dir_map: dict[str, list[FakeMutEntry]] = {}
+        self._stat_map: dict[str, FakeVersionEntry | None] = {}
+        self._list_dir_map: dict[str, list[FakeVersionEntry]] = {}
         self._read_file_map: dict[str, bytes] = {}
         self.write_file = AsyncMock()
         self.mkdir = AsyncMock()
         self.move = AsyncMock()
         self.delete = AsyncMock()
 
-    def stat(self, project_id: str, path: str) -> FakeMutEntry | None:
+    def stat(self, project_id: str, path: str) -> FakeVersionEntry | None:
         return self._stat_map.get(path)
 
-    def list_dir(self, project_id: str, path: str = "") -> list[FakeMutEntry]:
+    def list_dir(self, project_id: str, path: str = "") -> list[FakeVersionEntry]:
         return self._list_dir_map.get(path, [])
 
     def read_file(self, project_id: str, path: str) -> bytes:
@@ -50,9 +50,27 @@ class FakeMutOps:
         return self._read_file_map[path]
 
 
+class FakeWriteCommands:
+    def __init__(self, ops: FakeProductOperationAdapter):
+        self.ops = ops
+
+    async def write_file(self, project_id: str, path: str, content, **kwargs):
+        result = await self.ops.write_file(project_id, path, content, **kwargs)
+        return SimpleNamespace(path=path, result=result)
+
+    async def mkdir(self, project_id: str, path: str, **kwargs):
+        result = await self.ops.mkdir(project_id, path, **kwargs)
+        return SimpleNamespace(path=path, result=result)
+
+    async def delete(self, project_id: str, paths: list[str], **kwargs):
+        actor = kwargs.pop("actor", "mcp_agent")
+        result = await self.ops.delete(project_id, paths, who=actor, **kwargs)
+        return SimpleNamespace(path=paths[0], result=result)
+
+
 @pytest.fixture
 def ops():
-    return FakeMutOps()
+    return FakeProductOperationAdapter()
 
 
 @pytest.fixture
@@ -65,7 +83,7 @@ def app():
 @pytest.fixture
 def client(app, ops):
     app.dependency_overrides[verify_internal_secret] = lambda: None
-    app.dependency_overrides[get_mut_ops] = lambda: ops
+    app.dependency_overrides[get_product_operation_adapter] = lambda: ops
     # SECURITY (C-3): all /internal/nodes/* endpoints now require an
     # X-Acting-User-Id header AND verify the user has project access.
     # The pre-existing tests don't set up real users, so we patch the
@@ -82,7 +100,7 @@ def client(app, ops):
 
 
 def test_resolve_node_path_success(client, ops):
-    ops._stat_map["docs/readme.md"] = FakeMutEntry(
+    ops._stat_map["docs/readme.md"] = FakeVersionEntry(
         name="readme.md", path="docs/readme.md", type="markdown", size_bytes=42,
     )
 
@@ -116,8 +134,8 @@ def test_resolve_node_path_virtual_root(client, ops):
 
 def test_list_node_children_returns_dot_entries(client, ops):
     ops._list_dir_map["docs"] = [
-        FakeMutEntry(name=".internal", path="docs/.internal", type="folder", children_count=0),
-        FakeMutEntry(name="readme.md", path="docs/readme.md", type="markdown", size_bytes=42),
+        FakeVersionEntry(name=".internal", path="docs/.internal", type="folder", children_count=0),
+        FakeVersionEntry(name="readme.md", path="docs/readme.md", type="markdown", size_bytes=42),
     ]
 
     resp = client.get(
@@ -134,7 +152,7 @@ def test_list_node_children_returns_dot_entries(client, ops):
 
 
 def test_read_node_content_json_returns_content(client, ops):
-    ops._stat_map["users.json"] = FakeMutEntry(
+    ops._stat_map["users.json"] = FakeVersionEntry(
         name="users.json", path="users.json", type="json", size_bytes=20,
     )
     ops._read_file_map["users.json"] = b'{"users": []}'
@@ -151,12 +169,12 @@ def test_read_node_content_json_returns_content(client, ops):
 
 
 def test_read_node_content_folder_returns_dot_children(client, ops):
-    ops._stat_map["docs"] = FakeMutEntry(
+    ops._stat_map["docs"] = FakeVersionEntry(
         name="docs", path="docs", type="folder",
     )
     ops._list_dir_map["docs"] = [
-        FakeMutEntry(name=".internal", path="docs/.internal", type="folder"),
-        FakeMutEntry(name="guide.md", path="docs/guide.md", type="markdown", size_bytes=100),
+        FakeVersionEntry(name=".internal", path="docs/.internal", type="folder"),
+        FakeVersionEntry(name="guide.md", path="docs/guide.md", type="markdown", size_bytes=100),
     ]
 
     resp = client.get(
@@ -175,7 +193,7 @@ def test_read_node_content_folder_returns_dot_children(client, ops):
 def test_write_node_content_markdown_requires_string(client, ops, monkeypatch):
     import src.internal.router as _r
     ops.write_file.return_value = SimpleNamespace(commit_id="abc1234567890def")
-    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
 
     resp = client.put(
         "/internal/nodes/write",
@@ -189,7 +207,7 @@ def test_write_node_content_markdown_requires_string(client, ops, monkeypatch):
 
 def test_write_node_content_markdown_success(client, ops, monkeypatch):
     import src.internal.router as _r
-    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
     ops.write_file.return_value = SimpleNamespace(commit_id="abc1234567890def")
 
     resp = client.put(
@@ -204,7 +222,7 @@ def test_write_node_content_markdown_success(client, ops, monkeypatch):
 
 def test_create_node_folder(client, ops, monkeypatch):
     import src.internal.router as _r
-    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
     ops.mkdir.return_value = SimpleNamespace(commit_id="abc1234567890def")
 
     resp = client.post(
@@ -239,8 +257,8 @@ def test_create_node_rejects_unsupported_type(client, ops):
 
 def test_remove_node_success(client, ops, monkeypatch):
     import src.internal.router as _r
-    monkeypatch.setattr(_r, "create_mut_ops", lambda: ops)
-    ops._stat_map["readme.md"] = FakeMutEntry(
+    monkeypatch.setattr(_r, "_create_write_commands", lambda: FakeWriteCommands(ops))
+    ops._stat_map["readme.md"] = FakeVersionEntry(
         name="readme.md", path="readme.md", type="markdown",
     )
     ops.delete.return_value = SimpleNamespace(commit_id="c1")
@@ -259,44 +277,34 @@ def test_remove_node_success(client, ops, monkeypatch):
 
 
 def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkeypatch):
-    bash_access = SimpleNamespace(path="node-1", readonly=False, json_path="/users")
-    agent_tool = SimpleNamespace(id="at-1", tool_id="tool-1", enabled=True, mcp_exposed=True)
-    agent = SimpleNamespace(
+    connector = SimpleNamespace(
         id="agent-1",
         name="Agent",
         project_id="proj-1",
-        type="custom",
-        bash_accesses=[bash_access],
-        tools=[agent_tool],
+        scope_id="scope-1",
+        created_by="user-1",
+    )
+    scope = SimpleNamespace(
+        id="scope-1",
+        path="node-1",
+        mode="rw",
+        name="Node One",
     )
 
-    class _AgentService:
-        def get_by_mcp_api_key(self, mcp_api_key: str):
+    class _ConnectorService:
+        def get_agent_by_mcp_key(self, mcp_api_key: str):
             assert mcp_api_key == "mcp_k"
-            return agent
+            return connector
 
-    class _FakeToolRepo:
-        def __init__(self, _repo):
-            pass
+    class _ScopeRepository:
+        def get(self, scope_id: str):
+            assert scope_id == "scope-1"
+            return scope
 
-        def get_by_id(self, tool_id: str):
-            assert tool_id == "tool-1"
-            return SimpleNamespace(
-                id="tool-1",
-                name="search_docs",
-                type="search",
-                description="Search docs",
-                path="node-1",
-                json_path="",
-                input_schema={"type": "object"},
-                category="builtin",
-            )
-
-    import src.internal.router as internal_router_module
-    monkeypatch.setattr(internal_router_module, "ToolRepositorySupabase", _FakeToolRepo)
-    monkeypatch.setattr(internal_router_module, "get_supabase_repository", lambda: object())
-
-    app.dependency_overrides[get_agent_config_service] = lambda: _AgentService()
+    import src.repo.connector_service as connector_service_module
+    import src.repo.scope_repository as scope_repository_module
+    monkeypatch.setattr(connector_service_module, "ConnectorService", lambda: _ConnectorService())
+    monkeypatch.setattr(scope_repository_module, "RepoScopeRepository", lambda: _ScopeRepository())
 
     resp = client.get(
         "/internal/agent-by-mcp-key/mcp_k",
@@ -307,4 +315,5 @@ def test_get_agent_by_mcp_key_enriches_access_with_node_info(client, app, monkey
     body = resp.json()
     assert body["agent"]["id"] == "agent-1"
     assert body["accesses"][0]["path"] == "node-1"
-    assert body["tools"][0]["tool_id"] == "tool-1"
+    assert body["accesses"][0]["tool_create"] is True
+    assert body["tools"] == []

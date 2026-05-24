@@ -205,8 +205,29 @@ export function SupabaseAuthProvider({
   };
 
   const signOut = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    // We hard-redirect to /login in ``finally`` even if Supabase fails
+    // or hangs. Soft-routing via ``router.push`` leaves stale identity
+    // state in memory in components that read it directly off
+    // ``window`` / module-level caches; a full reload nukes that,
+    // re-runs middleware against the now-cookieless request, and lands
+    // the user on /login deterministically. The cookie-clear races
+    // against the navigation but middleware re-checks the session
+    // server-side, so the outcome is safe either way.
+    try {
+      if (supabase) {
+        // Supabase v2 sometimes wedges on a server round-trip when the
+        // refresh token is already revoked (e.g. user signed out from
+        // another tab). ``scope: 'local'`` keeps the call client-side:
+        // clears the session cookie + storage and returns immediately.
+        await supabase.auth.signOut({ scope: 'local' });
+      }
+    } catch (err) {
+      console.error('signOut failed (continuing to /login anyway):', err);
+    } finally {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }
   };
 
   const getAccessToken = async (): Promise<string | null> => {

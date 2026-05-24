@@ -1,9 +1,9 @@
-"""C-1 — MUT JWT path must verify project membership.
+"""C-1 — hash JWT path must verify project membership.
 
 The vulnerability: PuppyOneAuthenticator._try_jwt() previously returned a
 root-level rw scope for any valid JWT, regardless of whether the JWT user
 belonged to the target project. This allowed any logged-in user to read
-or write the MUT tree of any project by changing project_id in the URL.
+or write the hash tree of any project by changing project_id in the URL.
 
 These tests verify the fix by directly exercising the authenticator with
 a stubbed Supabase + AuthService.
@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from src.mut_engine.server.auth import PuppyOneAuthenticator
+from src.version_engine.admission.identity import PuppyOneAuthenticator
 
 
 @pytest.fixture
