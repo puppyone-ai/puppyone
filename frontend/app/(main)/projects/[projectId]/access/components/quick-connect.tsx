@@ -277,7 +277,7 @@ function ConnectionStepsList({
               borderRadius: 999,
               background: 'var(--po-border-subtle)',
               color: T.text2,
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 600,
               fontFamily: T.fontSans,
               display: 'flex',
@@ -478,7 +478,7 @@ function ActivationCard({
         fontFamily: T.fontSans,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 600, color: T.text1, fontFamily: T.fontSans }}>{title}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: T.text1, fontFamily: T.fontSans }}>{title}</div>
       <div style={{ fontSize: 12, color: T.text2, lineHeight: 1.6, fontFamily: T.fontSans }}>{body}</div>
       <button
         type="button"
@@ -508,7 +508,7 @@ function ActivationCard({
         {actionLabel}
       </button>
       {error && (
-        <div style={{ fontSize: 11, color: 'var(--po-danger)', lineHeight: 1.5, fontFamily: T.fontSans }}>{error}</div>
+        <div style={{ fontSize: 10, color: 'var(--po-danger)', lineHeight: 1.5, fontFamily: T.fontSans }}>{error}</div>
       )}
     </div>
   );

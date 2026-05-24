@@ -199,7 +199,7 @@ function ScopeSidebarRow({
             style={{
               flex: 1,
               minWidth: 0,
-              fontSize: 11,
+              fontSize: 10,
               color: isSelected ? T.text2 : T.text3,
               fontFamily: T.fontMono,
               overflow: 'hidden',

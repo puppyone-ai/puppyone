@@ -57,7 +57,7 @@ import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarCol
 
 import { useAgent } from '@/contexts/AgentContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
-import { matchScopeForPath } from '@/lib/repoApi';
+import { matchScopeForPath, type RepoScope } from '@/lib/repoApi';
 
 // Extracted hooks
 import { usePathResolver } from '../hooks/usePathResolver';
@@ -72,7 +72,9 @@ import { EditorArea } from '../components/EditorArea';
 import { DataPageDialogs } from '../components/DataPageDialogs';
 import { DataPageOverlays } from '../components/DataPageOverlays';
 import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
+import { CreateAccessModal } from '../../access/components/CreateAccessModal';
 import { getApiBase } from '../components/access-points/labels';
+import { DataAccessQuickModal } from '../components/access-points/DataAccessQuickModal';
 import { SelectionActionBar } from '../components/SelectionActionBar';
 import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
 import {
@@ -119,6 +121,10 @@ function buildFolderBreadcrumbs(segments: string[]): FolderBreadcrumb[] {
     id: segments.slice(0, index + 1).join('/'),
     name: seg,
   }));
+}
+
+function normalizeAccessPath(path: string | null | undefined): string {
+  return (path ?? '').trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
 }
 
 function ProjectUnavailableShell({ onBackHome }: { onBackHome: () => void }) {
@@ -484,6 +490,9 @@ export default function DataPage({ params }: DataPageProps) {
   const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
   const [accessPanelNavigationGuard, setAccessPanelNavigationGuard] =
     useState<AccessPanelNavigationGuard | null>(null);
+  const [quickAccessScopeId, setQuickAccessScopeId] = useState<string | null>(null);
+  const [quickAccessScopeFallback, setQuickAccessScopeFallback] = useState<RepoScope | null>(null);
+  const [createAccessInitialPath, setCreateAccessInitialPath] = useState<string | null>(null);
 
   const activeSyncNodeId = panelState.type === 'sync_config' ? panelState.nodeId ?? null : null;
   const activeSyncId = activeSyncNodeId !== null ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
@@ -531,6 +540,14 @@ export default function DataPage({ params }: DataPageProps) {
     if (!rootScope?.access_key) return null;
     return `${getApiBase()}/git/ap/${rootScope.access_key}.git`;
   }, [rootScope?.access_key]);
+  const quickAccessScope = useMemo(() => {
+    if (!quickAccessScopeId) return null;
+    return scopes.find((scope) => scope.id === quickAccessScopeId) ?? quickAccessScopeFallback;
+  }, [quickAccessScopeFallback, quickAccessScopeId, scopes]);
+  const quickAccessConnectors = useMemo(
+    () => quickAccessScope ? connectorsByScope.get(quickAccessScope.id) ?? [] : [],
+    [connectorsByScope, quickAccessScope],
+  );
 
   // ───── Navigation (path only, panel state is independent) ─────
 
@@ -596,30 +613,63 @@ export default function DataPage({ params }: DataPageProps) {
     });
   }, [currentFolderId, openPanel]);
 
+  const openCreateAccessModal = useCallback((folderPath: string | null | undefined) => {
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    setQuickAccessScopeId(null);
+    setQuickAccessScopeFallback(null);
+    setCreateAccessInitialPath(normalizeAccessPath(folderPath));
+  }, []);
+
+  const openQuickAccessModal = useCallback((scope: RepoScope) => {
+    setEditorTarget(null);
+    setIsEditorFullScreen(false);
+    setCreateAccessInitialPath(null);
+    setQuickAccessScopeFallback(scope);
+    setQuickAccessScopeId(scope.id);
+  }, []);
+
   const openRootGitRemotePanel = useCallback(() => {
     setEditorTarget(null);
     setIsEditorFullScreen(false);
     setHoverHighlightNodeId(null);
 
     if (rootScope) {
-      openPanel({
-        type: 'access_list',
-        view: 'detail',
-        selectedScopeId: rootScope.id,
-      });
+      openQuickAccessModal(rootScope);
     } else {
-      openPanel({ type: 'access_list', view: 'create', nodeId: '' });
+      openCreateAccessModal(null);
     }
-  }, [openPanel, rootScope]);
+  }, [openCreateAccessModal, openQuickAccessModal, rootScope]);
 
   const openShareWithAI = useCallback((folderPath: string | null | undefined) => {
-    const normalizedPath = (folderPath ?? '').trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
-    const params = new URLSearchParams({
-      create: 'share-with-ai',
-      path: normalizedPath,
-    });
-    router.push(`/projects/${projectId}/access?${params.toString()}`);
-  }, [projectId, router]);
+    const normalizedPath = normalizeAccessPath(folderPath);
+    const existingScope = matchScopeForPath(normalizedPath, scopes);
+    if (existingScope) {
+      openQuickAccessModal(existingScope);
+      return;
+    }
+    openCreateAccessModal(normalizedPath);
+  }, [openCreateAccessModal, openQuickAccessModal, scopes]);
+
+  const closeQuickAccessModal = useCallback(() => {
+    setQuickAccessScopeId(null);
+    setQuickAccessScopeFallback(null);
+  }, []);
+
+  const closeCreateAccessModal = useCallback(() => {
+    setCreateAccessInitialPath(null);
+  }, []);
+
+  const handleDataAccessCreated = useCallback(async (scope: RepoScope) => {
+    setQuickAccessScopeFallback(scope);
+    setQuickAccessScopeId(scope.id);
+    await refreshRepoAndAgents();
+  }, [refreshRepoAndAgents]);
+
+  const openAccessFullSettings = useCallback((scopeId: string) => {
+    closeQuickAccessModal();
+    router.push(`/projects/${projectId}/access?scope=${encodeURIComponent(scopeId)}`);
+  }, [closeQuickAccessModal, projectId, router]);
 
   // Same as openSyncCreatePanel, but with a *given* folder path
   // pre-filled as the target resource.  Two callsites:
@@ -1504,6 +1554,27 @@ export default function DataPage({ params }: DataPageProps) {
           onPanelWidthChange={setRightPanelWidth}
           onAccessPanelNavigationGuardChange={setAccessPanelNavigationGuard}
         />
+
+        {quickAccessScope && (
+          <DataAccessQuickModal
+            scope={quickAccessScope}
+            connectors={quickAccessConnectors}
+            onClose={closeQuickAccessModal}
+            onCreateAccess={openCreateAccessModal}
+            onOpenFullSettings={openAccessFullSettings}
+          />
+        )}
+
+        {createAccessInitialPath !== null && (
+          <CreateAccessModal
+            projectId={projectId}
+            existingScopes={scopes}
+            connectorsByScope={connectorsByScope}
+            initialPath={createAccessInitialPath}
+            onClose={closeCreateAccessModal}
+            onCreated={handleDataAccessCreated}
+          />
+        )}
         </div>
       </div>
     </>

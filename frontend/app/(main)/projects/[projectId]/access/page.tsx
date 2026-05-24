@@ -108,6 +108,12 @@ export default function AccessPointsPage({
     openCreate(searchParams.get('path') ?? '');
   }, [openCreate, searchParams]);
 
+  useEffect(() => {
+    const scopeId = searchParams.get('scope');
+    if (!scopeId) return;
+    setSelectedScopeId(scopeId);
+  }, [searchParams, setSelectedScopeId]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--po-canvas)' }}>
       <AccessHeader count={loading ? 0 : sortedScopes.length} onCreate={() => openCreate()} />

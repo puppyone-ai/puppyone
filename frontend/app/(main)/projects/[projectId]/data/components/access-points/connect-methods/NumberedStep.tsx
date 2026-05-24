@@ -23,7 +23,7 @@ export function NumberedStep({
           borderRadius: 999,
           background: 'var(--po-border-subtle)',
           color: COLOR_FG_MUTED,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
@@ -40,7 +40,7 @@ export function NumberedStep({
           {title}
         </div>
         {hint && (
-          <div style={{ fontSize: 11, color: COLOR_FG_DIM, lineHeight: 1.5 }}>{hint}</div>
+          <div style={{ fontSize: 10, color: COLOR_FG_DIM, lineHeight: 1.5 }}>{hint}</div>
         )}
         {children}
       </div>

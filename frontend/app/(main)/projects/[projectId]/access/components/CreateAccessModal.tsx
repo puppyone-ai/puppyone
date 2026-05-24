@@ -200,7 +200,7 @@ export function CreateAccessModal({
                   </span>
                 </div>
                 {selectedExistingScope ? (
-                  <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.5, color: T.text3 }}>
+                  <div style={{ marginTop: 6, fontSize: 10, lineHeight: 1.5, color: T.text3 }}>
                     This folder already has access. You can add share methods or open it.
                   </div>
                 ) : null}
@@ -553,7 +553,7 @@ function PickerEntryRow({
       {isFolder ? (
         <>
           {alreadyExists ? (
-            <span style={{ flexShrink: 0, fontSize: 11, color: T.text4 }}>Has access</span>
+            <span style={{ flexShrink: 0, fontSize: 10, color: T.text4 }}>Has access</span>
           ) : null}
           <button
             type="button"
@@ -566,7 +566,7 @@ function PickerEntryRow({
               border: `1px solid ${selected ? 'var(--po-border-strong)' : T.border}`,
               background: selected ? 'color-mix(in srgb, var(--po-accent) 12%, transparent)' : 'transparent',
               color: selected ? T.text1 : T.text3,
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 500,
               fontFamily: T.fontSans,
               cursor: 'pointer',
@@ -576,7 +576,7 @@ function PickerEntryRow({
           </button>
         </>
       ) : (
-        <span style={{ flexShrink: 0, fontSize: 11, color: T.text4 }}>File</span>
+        <span style={{ flexShrink: 0, fontSize: 10, color: T.text4 }}>File</span>
       )}
     </div>
   );
@@ -630,7 +630,7 @@ function MethodRow({
         <div style={{ fontSize: 12, fontWeight: 600, color: T.text2, fontFamily: T.fontSans }}>
           {PROVIDER_LABELS[provider] ?? provider}
         </div>
-        <div style={{ marginTop: 2, fontSize: 11, lineHeight: 1.35, color: T.text3, fontFamily: T.fontSans }}>
+        <div style={{ marginTop: 2, fontSize: 10, lineHeight: 1.35, color: T.text3, fontFamily: T.fontSans }}>
           {description}
         </div>
       </div>
@@ -654,7 +654,7 @@ function FieldLabel({
 }) {
   return (
     <label style={{ display: 'block', minWidth: 0 }}>
-      <div style={{ marginBottom: 6, fontSize: 11, fontWeight: 600, color: T.text3, fontFamily: T.fontSans }}>
+      <div style={{ marginBottom: 6, fontSize: 10, fontWeight: 600, color: T.text3, fontFamily: T.fontSans }}>
         {label}
       </div>
       {children}
@@ -664,7 +664,7 @@ function FieldLabel({
 
 function SectionHeading({ children }: { readonly children: ReactNode }) {
   return (
-    <div style={{ marginBottom: 7, fontSize: 11, fontWeight: 600, color: T.text3, fontFamily: T.fontSans }}>
+    <div style={{ marginBottom: 7, fontSize: 10, fontWeight: 600, color: T.text3, fontFamily: T.fontSans }}>
       {children}
     </div>
   );

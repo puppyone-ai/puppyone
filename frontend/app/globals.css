@@ -8,14 +8,16 @@
   --po-font-sans: var(--font-geist-sans);
   --po-font-mono: var(--font-geist-mono);
 
+  /* Type scale: keep rendered UI text on 10 / 12 / 14 / 16 / 20 only.
+     Some semantic aliases intentionally resolve to the same size. */
   --po-text-size-micro: 10px;
-  --po-text-size-caption: 11px;
+  --po-text-size-caption: 10px;
   --po-text-size-meta: 12px;
-  --po-text-size-body: 13px;
+  --po-text-size-body: 12px;
   --po-text-size-body-lg: 14px;
   --po-text-size-title: 16px;
   --po-text-size-page-title: 20px;
-  --po-text-size-display: 24px;
+  --po-text-size-display: 20px;
 
   --po-text-weight-regular: 400;
   --po-text-weight-medium: 500;

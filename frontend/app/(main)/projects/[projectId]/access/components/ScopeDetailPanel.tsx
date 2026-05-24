@@ -40,10 +40,11 @@
  *   └───────────────────────────────────────────────────────────┘
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import useSWR from 'swr';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { DialogBody, DialogHeader, DialogRoot, DialogSurface } from '@/components/ui/Dialog';
+import { buildGitSyncPrompt, buildTerminalCliPrompt } from '@/lib/accessPointCliPrompt';
 import type { Connector, RepoScope } from '@/lib/repoApi';
 import { getProjectAuditLogs, type AuditLogItem } from '@/lib/contentTreeApi';
 import { PROJECT_CONTENT_RAIL_WIDTH } from '@/lib/layout';
@@ -53,9 +54,9 @@ import {
   STATUS_COLORS,
   STATUS_LABEL,
 } from '../lib/constants';
-import { getTypeLine, timeAgo } from '../lib/format';
-import { PauseIcon, PlayIcon, ProviderIcon, RetryIcon } from './icons';
-import { GhostButton, SectionLabel } from './ui-blocks';
+import { getApiBase, profileSlug, timeAgo } from '../lib/format';
+import { CopyIcon, ProviderIcon, RetryIcon } from './icons';
+import { SectionLabel } from './ui-blocks';
 import { ConnectorDetailBody } from './ConnectorCard';
 import { ConnectorAccessPanel } from './quick-connect';
 // We deliberately reuse the existing ScopeSettingsBlock from /data —
@@ -187,18 +188,12 @@ export function ScopeDetailPanel({
           padding: '20px 24px 40px',
         }}
       >
-        {/* PAGE HEADER — `scope.name` at h1 scale, an aggregate
-            status line beneath, and a bulk Pause-/Resume-all action
-            on the right. Mirrors the per-connector card header so
-            the user sees the same control pattern at the scope and
-            connector levels. The strip below answers "where" and
-            "what permissions"; this header answers "what is this
-            page" and "how is it doing". */}
+        {/* PAGE HEADER — `scope.name` at h1 scale with aggregate status
+            beneath. The right side stays intentionally light: settings
+            live here, while pause/resume belongs to each connector row. */}
         <ScopePageHeader
           scope={scope}
           connectors={connectors}
-          onPauseResume={onPauseResume}
-          pendingConnectorIds={pendingConnectorIds}
           settingsOpen={settingsOpen}
           settingsDirty={settingsDirty}
           onToggleSettings={handleToggleSettings}
@@ -229,10 +224,10 @@ export function ScopeDetailPanel({
               right={
                 <span
                   style={{
-                    fontSize: 11,
-                    color: T.text4,
+                    fontSize: 12,
+                    color: T.text2,
                     fontFamily: T.fontSans,
-                    fontWeight: 500,
+                    fontWeight: 400,
                   }}
                 >
                   {connectors.length === 1 ? '1 way in' : `${connectors.length} ways in`}
@@ -266,8 +261,8 @@ export function ScopeDetailPanel({
               borderRadius: 8,
               border: `1px dashed ${T.cardBorder}`,
               background: T.cardBg,
-              fontSize: 12,
-              color: T.text3,
+              fontSize: 14,
+              color: T.text2,
               fontFamily: T.fontSans,
               fontStyle: 'italic',
             }}
@@ -324,7 +319,7 @@ function AccessActivitySection({
       <SectionLabel
         right={
           rows.length > 0 ? (
-            <span style={{ fontSize: 11, color: T.text4, fontFamily: T.fontSans, fontWeight: 500 }}>
+            <span style={{ fontSize: 12, color: T.text4, fontFamily: T.fontSans, fontWeight: 500 }}>
               {rows.length === 1 ? '1 event' : `${rows.length} events`}
             </span>
           ) : null
@@ -362,7 +357,7 @@ const ACTIVITY_GRID = '64px minmax(118px, 0.85fr) minmax(92px, 0.7fr) minmax(140
 
 function ActivityHeaderRow() {
   const cellStyle = {
-    fontSize: 10.5,
+    fontSize: 12,
     lineHeight: '14px',
     color: T.text4,
     fontFamily: T.fontSans,
@@ -416,7 +411,7 @@ function ActivityRow({
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          fontSize: 11.5,
+          fontSize: 12,
           lineHeight: '16px',
           color: T.text3,
         }}
@@ -465,7 +460,7 @@ function ActivityRow({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
-                fontSize: 10.5,
+                fontSize: 12,
                 lineHeight: '14px',
                 color: T.text4,
               }}
@@ -499,7 +494,7 @@ function ActivityRow({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              fontSize: 10.5,
+              fontSize: 12,
               lineHeight: '14px',
               color: T.text4,
               fontFamily: T.fontMono,
@@ -516,7 +511,7 @@ function ActivityRow({
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          fontSize: 11.5,
+          fontSize: 12,
           lineHeight: '16px',
           color: T.text3,
           fontFamily: T.fontMono,
@@ -567,7 +562,7 @@ function StatusPill({
         minWidth: 0,
         color: tone === 'neutral' ? T.text3 : color,
         fontFamily: T.fontSans,
-        fontSize: 11.5,
+        fontSize: 12,
         lineHeight: '16px',
         fontWeight: 500,
         whiteSpace: 'nowrap',
@@ -817,10 +812,8 @@ function readStringArray(value: unknown): string[] {
 // ─── ScopePageHeader ─────────────────────────────────────────────────
 //
 // h1 of the right pane. Displays the scope's *name* (first-class
-// editable field independent of the filesystem path), a tiny meta
-// line summarizing aggregate health across the scope's connectors,
-// and a bulk-action button mirroring the per-connector Pause/Resume
-// pattern but applied to the whole scope at once.
+// editable field independent of the filesystem path) and a tiny meta
+// line summarizing aggregate health across the scope's connectors.
 //
 // The visual pattern mirrors `ConnectorCard`'s own header so the user
 // can instantly tell that a scope is conceptually "the same kind of
@@ -837,13 +830,6 @@ function readStringArray(value: unknown): string[] {
 //   - mixed (some on/off)     → 'Mixed'   (amber dot)
 //   - empty                   → no meta line
 //
-// Bulk action picks the most natural intent given the current state:
-//   - any active connectors   → "Pause all"  (pauses every active one)
-//   - else any paused/pending → "Resume all" (resumes them)
-//   - else                    → button hidden
-// Errored connectors are intentionally not auto-retried by bulk —
-// retry is a per-connector decision and lives on the connector card.
-
 interface ScopeAggregateStatus {
   readonly key: 'empty' | 'active' | 'syncing' | 'paused' | 'mixed' | 'error';
   readonly label: string;
@@ -869,56 +855,24 @@ function computeAggregate(connectors: readonly Connector[]): ScopeAggregateStatu
   return { key: 'mixed', label: 'Mixed', color: STATUS_COLORS.paused };
 }
 
-interface BulkAction {
-  readonly action: 'pause-all' | 'resume-all';
-  readonly label: string;
-  readonly icon: 'pause' | 'play';
-  readonly targets: readonly Connector[];
-}
-
-function getBulkAction(connectors: readonly Connector[]): BulkAction | null {
-  const active = connectors.filter((c) => c.status === 'active' || c.status === 'syncing');
-  if (active.length > 0) {
-    return { action: 'pause-all', label: 'Pause all', icon: 'pause', targets: active };
-  }
-  const paused = connectors.filter((c) => c.status === 'paused');
-  if (paused.length > 0) {
-    return { action: 'resume-all', label: 'Resume all', icon: 'play', targets: paused };
-  }
-  return null;
-}
-
 function ScopePageHeader({
   scope,
   connectors,
-  onPauseResume,
-  pendingConnectorIds,
   settingsOpen,
   settingsDirty,
   onToggleSettings,
 }: {
   readonly scope: RepoScope | undefined;
   readonly connectors: readonly Connector[];
-  readonly onPauseResume: (connectorId: string) => Promise<void> | void;
-  readonly pendingConnectorIds: ReadonlySet<string>;
   readonly settingsOpen: boolean;
   readonly settingsDirty: boolean;
   readonly onToggleSettings: () => void;
 }) {
   const titleText = scope?.name?.trim() || 'Untitled scope';
   const aggregate = computeAggregate(connectors);
-  const bulkAction = getBulkAction(connectors);
-  const anyPending = connectors.some((c) => pendingConnectorIds.has(c.id));
   const isWorkspaceWide = scope?.is_root || scope?.path === '' || scope?.path == null;
   const pathLabel = isWorkspaceWide ? '/' : `/${scope?.path ?? ''}`;
   const modeLabel = scope?.mode === 'rw' ? 'Read & write' : 'Read only';
-
-  const handleBulk = useCallback(() => {
-    if (!bulkAction) return;
-    bulkAction.targets.forEach((t) => {
-      void onPauseResume(t.id);
-    });
-  }, [bulkAction, onPauseResume]);
 
   return (
     <div
@@ -934,7 +888,7 @@ function ScopePageHeader({
         <h1
           style={{
             margin: 0,
-            fontSize: 22,
+            fontSize: 20,
             lineHeight: 1.25,
             fontWeight: 600,
             letterSpacing: '-0.015em',
@@ -955,7 +909,7 @@ function ScopePageHeader({
               alignItems: 'center',
               gap: 8,
               fontSize: 12,
-              color: T.text3,
+              color: T.text2,
               fontFamily: T.fontSans,
               minWidth: 0,
             }}
@@ -966,7 +920,7 @@ function ScopePageHeader({
                 alignItems: 'center',
                 gap: 6,
                 color: aggregate.color,
-                fontWeight: 500,
+                fontWeight: 400,
                 flexShrink: 0,
               }}
             >
@@ -983,7 +937,7 @@ function ScopePageHeader({
               {aggregate.label}
             </span>
             <span style={{ color: T.text4, flexShrink: 0 }}>·</span>
-            <span style={{ color: T.text3, flexShrink: 0 }}>
+            <span style={{ color: T.text2, flexShrink: 0, fontWeight: 400 }}>
               {connectors.length === 1 ? '1 connector' : `${connectors.length} connectors`}
             </span>
           </div>
@@ -997,13 +951,14 @@ function ScopePageHeader({
             fontFamily: T.fontSans,
             fontSize: 12,
             lineHeight: '16px',
+            flexWrap: 'wrap',
           }}
         >
           <span
             style={{
               flexShrink: 0,
-              color: T.text3,
-              fontWeight: 500,
+              color: T.text2,
+              fontWeight: 400,
             }}
           >
             Scope
@@ -1022,9 +977,15 @@ function ScopePageHeader({
             {pathLabel}
           </span>
           <span aria-hidden style={{ color: T.text4, flexShrink: 0 }}>·</span>
-          <span style={{ color: T.text3, flexShrink: 0 }}>
+          <span style={{ color: T.text2, flexShrink: 0 }}>
             {modeLabel}
           </span>
+          {scope ? (
+            <>
+              <span aria-hidden style={{ color: T.text4, flexShrink: 0 }}>·</span>
+              <ScopeAccessKeyInline accessKey={scope.access_key ?? ''} />
+            </>
+          ) : null}
         </div>
       </div>
       <div style={{ flexShrink: 0, marginTop: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1033,18 +994,86 @@ function ScopePageHeader({
           dirty={settingsDirty}
           onClick={onToggleSettings}
         />
-        {bulkAction ? (
-          <GhostButton
-            onClick={handleBulk}
-            disabled={anyPending}
-            icon={bulkAction.icon === 'pause' ? <PauseIcon size={10} /> : <PlayIcon size={10} />}
-          >
-            {bulkAction.label}
-          </GhostButton>
-        ) : null}
       </div>
     </div>
   );
+}
+
+function ScopeAccessKeyInline({ accessKey }: { readonly accessKey: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    if (!accessKey) return;
+    try {
+      await navigator.clipboard.writeText(accessKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, [accessKey]);
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: 6,
+        minWidth: 0,
+        color: T.text2,
+      }}
+    >
+      <span style={{ flexShrink: 0 }}>Access key</span>
+      <code
+        title={accessKey ? maskAccessKey(accessKey) : undefined}
+        style={{
+          maxWidth: 136,
+          minWidth: 0,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          color: accessKey ? T.text2 : T.text3,
+          fontFamily: T.fontMono,
+          fontSize: 12,
+          lineHeight: '16px',
+        }}
+      >
+        {accessKey ? maskAccessKey(accessKey) : 'Preparing'}
+      </code>
+      <button
+        type='button'
+        aria-label='Copy access key'
+        title='Copy access key'
+        disabled={!accessKey}
+        onClick={handleCopy}
+        style={{
+          width: 18,
+          height: 18,
+          border: 'none',
+          borderRadius: 5,
+          background: 'transparent',
+          color: copied ? 'var(--po-success)' : T.text2,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 0,
+          opacity: accessKey ? 1 : 0.45,
+          cursor: accessKey ? 'pointer' : 'default',
+          transform: 'translateY(2px)',
+        }}
+      >
+        <CopyIcon size={11} />
+      </button>
+    </span>
+  );
+}
+
+function maskAccessKey(accessKey: string): string {
+  if (!accessKey) return '';
+  const [prefix, rest = ''] = accessKey.split('_', 2);
+  const suffix = rest.slice(-4);
+  if (!prefix || !suffix) return '••••';
+  return `${prefix}_••••••••${suffix}`;
 }
 
 function SettingsHeaderButton({
@@ -1167,9 +1196,9 @@ function ConnectorList({
         style={{
           borderRadius: 8,
           border: `1px solid ${T.cardBorder}`,
-          background: 'color-mix(in srgb, var(--po-control) 58%, var(--po-panel) 42%)',
-          overflowX: 'hidden',
-          overflowY: 'hidden',
+          background: 'var(--po-panel)',
+          padding: 12,
+          overflow: 'hidden',
           marginBottom: 20,
           minWidth: 0,
         }}
@@ -1179,20 +1208,28 @@ function ConnectorList({
             minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
+            gap: 10,
           }}
         >
-          {connectors.map((connector, index) => {
+          {connectors.map((connector) => {
             const selected = connector.id === selectedId;
             const pending = pendingConnectorIds.has(connector.id);
             return (
               <div
                 key={connector.id}
-                style={{ background: selected ? 'var(--po-control)' : 'transparent' }}
+                style={{
+                  borderRadius: 8,
+                  border: `1px solid ${selected ? 'var(--po-border-strong)' : T.cardBorder}`,
+                  background: 'var(--po-panel)',
+                  overflow: 'hidden',
+                  boxShadow: selected ? '0 1px 2px color-mix(in srgb, var(--po-shadow) 18%, transparent)' : 'none',
+                  transition: `border-color 0.15s ${T.ease}, box-shadow 0.15s ${T.ease}`,
+                }}
               >
                 <ConnectorListRow
+                  scope={scope}
                   connector={connector}
                   selected={selected}
-                  isFirst={index === 0}
                   onSelect={() => onSelect(connector.id)}
                   onConnect={() => setConnectDialogConnector(connector)}
                   onPauseResume={() => onPauseResume(connector.id)}
@@ -1223,36 +1260,41 @@ function ConnectorList({
   );
 }
 
-const CONNECTOR_GRID = 'minmax(170px, 1.4fr) minmax(76px, 0.55fr) minmax(64px, max-content) minmax(82px, max-content) 14px';
-
 function ConnectorListRow({
+  scope,
   connector,
   selected,
-  isFirst,
   onSelect,
   onConnect,
   onPauseResume,
   pending,
 }: {
+  readonly scope: RepoScope | undefined;
   readonly connector: Connector;
   readonly selected: boolean;
-  readonly isFirst: boolean;
   readonly onSelect: () => void;
   readonly onConnect: () => void;
   readonly onPauseResume: () => Promise<void> | void;
   readonly pending: boolean;
 }) {
   const [hovered, setHovered] = useState(false);
-  const name = getConnectorDisplayName(connector);
+  const meta = getConnectorMethodMeta(connector);
   const dimmed = connector.status === 'paused';
   const tile = getProviderTileStyle(connector.provider, selected);
   const tileSize = getProviderTileSize(connector.provider);
   const iconSize = getProviderIconSize(connector.provider);
+  const setupPrompt = useMemo(
+    () => buildConnectorSetupPrompt(connector, scope),
+    [connector, scope],
+  );
+  const showManualCommands = connector.provider === 'filesystem';
+  const canConfigure = connector.provider === 'cli' || connector.status === 'error' || !!connector.error_message;
 
   return (
     <div
-      onClick={onSelect}
+      onClick={canConfigure ? onSelect : undefined}
       onKeyDown={(e) => {
+        if (!canConfigure) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onSelect();
@@ -1260,30 +1302,29 @@ function ConnectorListRow({
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      role='button'
-      tabIndex={0}
-      aria-pressed={selected}
+      role={canConfigure ? 'button' : undefined}
+      tabIndex={canConfigure ? 0 : undefined}
+      aria-pressed={canConfigure ? selected : undefined}
       style={{
-        minHeight: 62,
+        minHeight: 116,
         minWidth: 0,
         display: 'grid',
-        gridTemplateColumns: CONNECTOR_GRID,
-        alignItems: 'center',
+        gridTemplateColumns: 'minmax(0, 1fr) max-content minmax(220px, 236px)',
+        alignItems: 'stretch',
         gap: 12,
         padding: '10px 12px',
         boxSizing: 'border-box',
-        cursor: 'pointer',
-        borderTop: isFirst ? 'none' : `1px solid ${T.cardBorder}`,
+        cursor: canConfigure ? 'pointer' : 'default',
         background: selected
-          ? 'color-mix(in srgb, var(--po-control) 76%, var(--po-panel) 24%)'
-          : hovered
-            ? 'color-mix(in srgb, var(--po-control) 74%, var(--po-panel) 26%)'
+          ? 'color-mix(in srgb, var(--po-control) 52%, var(--po-panel) 48%)'
+          : canConfigure && hovered
+            ? 'color-mix(in srgb, var(--po-control) 34%, var(--po-panel) 66%)'
             : 'transparent',
         opacity: dimmed ? 0.76 : 1,
         transition: `background 0.15s ${T.ease}, opacity 0.15s ${T.ease}`,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minWidth: 0 }}>
         <div
           style={{
             height: tileSize,
@@ -1307,79 +1348,289 @@ function ConnectorListRow({
             minWidth: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 3,
+            gap: 8,
           }}
         >
-          <span
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              fontSize: 13,
-              fontWeight: selected ? 600 : 500,
-              color: selected ? T.text1 : T.text2,
-              fontFamily: T.fontSans,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-            title={name}
-          >
+          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 7 }}>
             <span
               style={{
                 minWidth: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                fontSize: 14,
+                lineHeight: '18px',
+                fontWeight: 500,
+                color: T.text1,
+                fontFamily: T.fontSans,
+                whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
               }}
+              title={meta.title}
             >
-              {name}
+              {meta.title}
             </span>
-          </span>
-          <span
+          </div>
+          <div
             style={{
-              fontSize: 11.5,
-              color: T.text3,
+              fontSize: 12,
+              color: T.text2,
               fontFamily: T.fontSans,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              lineHeight: '18px',
+              fontWeight: 400,
             }}
-            title={getTypeLine(connector)}
           >
-            {getTypeLine(connector)}
-          </span>
+            {meta.description}
+          </div>
+          <ConnectorCardUtilities
+            selected={selected}
+            showManualCommands={showManualCommands}
+            showConfigure={canConfigure}
+            onManualCommands={onConnect}
+            onConfigure={onSelect}
+          />
         </div>
       </div>
-      <RowMetaCell
-        label='Last used'
-        value={timeAgo(connector.last_run_at)}
-      />
       <ConnectorAccessControl
         status={connector.status}
         pending={pending}
         onPauseResume={onPauseResume}
       />
-      <RowActionButton
-        label='Setup guide'
-        tone='success'
-        disabled={false}
-        onClick={onConnect}
-      />
-      <span
+      <MethodPromptPreview prompt={setupPrompt} />
+    </div>
+  );
+}
+
+function getConnectorMethodMeta(connector: Connector): {
+  readonly title: string;
+  readonly description: string;
+} {
+  if (connector.provider === 'cli') {
+    return {
+      title: 'Context Drive CLI',
+      description: "Use Puppyone's scoped filesystem CLI to let an agent read and write this cloud drive without cloning it.",
+    };
+  }
+  if (connector.provider === 'filesystem') {
+    return {
+      title: 'Git Remote',
+      description: 'Use a native Git remote for clone, pull, commit, and push workflows.',
+    };
+  }
+  return {
+    title: getConnectorDisplayName(connector),
+    description: PROVIDER_LABELS[connector.provider] || connector.provider,
+  };
+}
+
+function ConnectorCardUtilities({
+  selected,
+  showManualCommands,
+  showConfigure,
+  onManualCommands,
+  onConfigure,
+}: {
+  readonly selected: boolean;
+  readonly showManualCommands: boolean;
+  readonly showConfigure: boolean;
+  readonly onManualCommands: () => void;
+  readonly onConfigure: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        minHeight: 24,
+        flexWrap: 'wrap',
+      }}
+    >
+      {showManualCommands ? (
+        <ConnectorUtilityButton
+          label='Manual commands'
+          icon={<ChevronRightGlyph size={10} />}
+          onClick={onManualCommands}
+        />
+      ) : null}
+      {showConfigure ? (
+        <ConnectorUtilityButton
+          label='Configure'
+          icon={
+            <span
+              aria-hidden
+              style={{
+                display: 'inline-flex',
+                transform: selected ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: `transform 0.15s ${T.ease}`,
+              }}
+            >
+              <ChevronDownGlyph size={10} />
+            </span>
+          }
+          active={selected}
+          onClick={onConfigure}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ConnectorUtilityButton({
+  label,
+  icon,
+  active = false,
+  onClick,
+}: {
+  readonly label: string;
+  readonly icon: React.ReactNode;
+  readonly active?: boolean;
+  readonly onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <button
+      type='button'
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        height: 24,
+        border: 'none',
+        borderRadius: 5,
+        background: active || hovered ? 'color-mix(in srgb, var(--po-control) 68%, transparent)' : 'transparent',
+        color: active ? T.text1 : T.text2,
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '0 6px',
+        fontSize: 12,
+        lineHeight: '16px',
+        fontWeight: 400,
+        fontFamily: T.fontSans,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        transition: `background 0.15s ${T.ease}, color 0.15s ${T.ease}`,
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function MethodPromptPreview({ prompt }: { readonly prompt: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyPrompt = useCallback(async (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (!prompt) return;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }, [prompt]);
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        minWidth: 0,
+        minHeight: 96,
+        borderRadius: 7,
+        border: `1px solid ${T.cardBorder}`,
+        background: 'color-mix(in srgb, var(--po-inset) 92%, var(--po-panel) 8%)',
+        overflow: 'hidden',
+      }}
+    >
+      <pre
         aria-hidden
         style={{
-          justifySelf: 'end',
+          margin: 0,
+          padding: '9px 10px 30px',
+          color: 'color-mix(in srgb, var(--po-text) 58%, var(--po-text-muted) 42%)',
+          fontFamily: T.fontMono,
+          fontSize: 12,
+          lineHeight: 1.55,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          maxHeight: 96,
+          overflow: 'hidden',
+        }}
+      >
+        {prompt || 'Access setup is preparing.'}
+      </pre>
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(180deg, color-mix(in srgb, var(--po-inset) 18%, transparent) 0%, color-mix(in srgb, var(--po-inset) 92%, var(--po-panel) 8%) 82%)',
+          pointerEvents: 'none',
+        }}
+      />
+      <button
+        type='button'
+        disabled={!prompt}
+        onClick={copyPrompt}
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+          height: 30,
+          borderRadius: 6,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: selected ? T.text2 : T.text4,
-          transform: selected ? 'rotate(180deg)' : 'rotate(0deg)',
-          transition: `transform 0.15s ${T.ease}, color 0.15s ${T.ease}`,
+          gap: 6,
+          padding: '0 10px',
+          fontSize: 12,
+          fontWeight: 500,
+          fontFamily: T.fontSans,
+          cursor: prompt ? 'pointer' : 'default',
+          whiteSpace: 'nowrap',
+          color: copied ? 'var(--po-success)' : T.text2,
+          background: 'var(--po-panel)',
+          border: `1px solid ${copied ? 'color-mix(in srgb, var(--po-success) 42%, transparent)' : T.cardBorder}`,
+          boxShadow: '0 8px 18px color-mix(in srgb, var(--po-shadow) 24%, transparent)',
+          opacity: prompt ? 1 : 0.55,
         }}
       >
-        <ChevronDownGlyph size={12} />
-      </span>
+        <CopyIcon size={12} />
+        {copied ? 'Copied' : 'Copy prompt'}
+      </button>
     </div>
   );
+}
+
+function buildConnectorSetupPrompt(connector: Connector, scope: RepoScope | undefined): string {
+  if (!scope) return '';
+  const apiBase = getApiBase();
+  const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
+  if (connector.provider === 'filesystem') {
+    const gitUrl = `${apiBase}/git/ap/${scope.access_key || '<access-key>'}.git`;
+    return buildGitSyncPrompt({
+      gitUrl,
+      scopeName,
+      directoryName: scopeName,
+    }).prompt;
+  }
+  if (connector.provider === 'cli') {
+    return buildTerminalCliPrompt({
+      apiBase,
+      accessKey: scope.access_key || '',
+      profileName: profileSlug(scope.name || scope.path || 'root'),
+      scopeName,
+    }).prompt;
+  }
+  return '';
 }
 
 function getConnectorDisplayName(connector: Connector): string {
@@ -1423,43 +1674,6 @@ function getProviderIconSize(provider: string): number {
   return 15;
 }
 
-function RowMetaCell({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div
-      style={{
-        minWidth: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 3,
-        fontFamily: T.fontSans,
-      }}
-    >
-      <span style={{ fontSize: 10.5, lineHeight: '14px', color: T.text4 }}>{label}</span>
-      <span
-        style={{
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          fontSize: 12,
-          lineHeight: '16px',
-          color: T.text2,
-          fontWeight: 500,
-        }}
-        title={value}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
 function ConnectorAccessControl({
   status,
   pending,
@@ -1494,10 +1708,10 @@ function ConnectorAccessControl({
     >
       <span
         style={{
-          fontSize: 11.5,
-          color: isOn ? T.text2 : T.text3,
+          fontSize: 12,
+          color: T.text2,
           fontFamily: T.fontSans,
-          fontWeight: 500,
+          fontWeight: 400,
           whiteSpace: 'nowrap',
         }}
       >
@@ -1564,8 +1778,8 @@ function RowActionButton({
         border: `1px solid ${border}`,
         background,
         color,
-        fontSize: 11.5,
-        fontWeight: successTone ? 600 : 500,
+        fontSize: 12,
+        fontWeight: 500,
         fontFamily: T.fontSans,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
@@ -1642,6 +1856,10 @@ function ConnectorExpandedDetail({
   readonly onPauseResume: () => Promise<void> | void;
   readonly onUpdate: (patch: ConnectorEditPatch) => Promise<void>;
 }) {
+  const showError = connector.status === 'error' || !!connector.error_message;
+  const showConfig = connector.provider === 'cli';
+  if (!showError && !showConfig) return null;
+
   return (
     <div
       style={{
@@ -1649,14 +1867,101 @@ function ConnectorExpandedDetail({
         background: 'color-mix(in srgb, var(--po-control) 76%, var(--po-panel) 24%)',
       }}
     >
-      <ConnectorDetailBody
-        connector={connector}
-        scope={scope}
-        onPauseResume={onPauseResume}
-        onUpdate={onUpdate}
-        pending={pending}
-        variant='inline'
-      />
+      {showError ? (
+        <ConnectorManagementStrip
+          connector={connector}
+          pending={pending}
+          onPauseResume={onPauseResume}
+        />
+      ) : null}
+      {showConfig ? (
+        <ConnectorDetailBody
+          connector={connector}
+          scope={scope}
+          onPauseResume={onPauseResume}
+          onUpdate={onUpdate}
+          pending={pending}
+          variant='inline'
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ConnectorManagementStrip({
+  connector,
+  pending,
+  onPauseResume,
+}: {
+  readonly connector: Connector;
+  readonly pending: boolean;
+  readonly onPauseResume: () => Promise<void> | void;
+}) {
+  const statusColor = STATUS_COLORS[connector.status] ?? T.text2;
+  const statusLabel = STATUS_LABEL[connector.status] ?? connector.status;
+  const description =
+    connector.status === 'paused'
+      ? 'New requests through this method are rejected.'
+      : connector.status === 'error'
+        ? connector.error_message || 'This method needs attention before it can be used.'
+        : 'Requests through this method are accepted.';
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) max-content',
+        alignItems: 'center',
+        gap: 14,
+        padding: '12px 16px',
+        borderBottom: connector.provider === 'cli' || connector.error_message ? `1px solid ${T.cardBorder}` : 'none',
+      }}
+    >
+      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            minWidth: 0,
+            fontFamily: T.fontSans,
+            fontSize: 12,
+            lineHeight: '16px',
+          }}
+        >
+          <span style={{ color: T.text1, fontWeight: 500 }}>Connector status</span>
+          <span aria-hidden style={{ color: T.text4 }}>·</span>
+          <span style={{ color: statusColor, fontWeight: 400 }}>{statusLabel}</span>
+        </div>
+        <div
+          style={{
+            color: T.text2,
+            fontFamily: T.fontSans,
+            fontSize: 12,
+            lineHeight: '16px',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+          title={description}
+        >
+          {description}
+        </div>
+      </div>
+      {connector.status === 'error' ? (
+        <RowActionButton
+          label='Retry'
+          icon={<RetryIcon size={10} />}
+          disabled={pending}
+          onClick={onPauseResume}
+        />
+      ) : (
+        <ConnectorAccessControl
+          status={connector.status}
+          pending={pending}
+          onPauseResume={onPauseResume}
+        />
+      )}
     </div>
   );
 }
@@ -1664,6 +1969,12 @@ function ConnectorExpandedDetail({
 const ChevronDownGlyph = ({ size = 10 }: { readonly size?: number }) => (
   <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.4' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
     <polyline points='6 9 12 15 18 9' />
+  </svg>
+);
+
+const ChevronRightGlyph = ({ size = 10 }: { readonly size?: number }) => (
+  <svg width={size} height={size} viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2.4' strokeLinecap='round' strokeLinejoin='round' aria-hidden>
+    <polyline points='9 6 15 12 9 18' />
   </svg>
 );
 

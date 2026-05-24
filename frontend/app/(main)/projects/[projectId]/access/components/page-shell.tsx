@@ -44,7 +44,7 @@ export function AccessHeader({
         <span style={{ ...CHROME_LABEL_TYPOGRAPHY, color: T.text1 }}>Access</span>
         <span
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontFamily: T.fontSans,
             padding: '1px 7px',
             borderRadius: 999,
@@ -115,7 +115,7 @@ export function NoConnectorsState({ onCreateScope }: { readonly onCreateScope: (
         fontFamily: T.fontSans,
       }}
     >
-      <div style={{ fontSize: 13, fontWeight: 500, color: T.text2 }}>No access points yet.</div>
+      <div style={{ fontSize: 12, fontWeight: 500, color: T.text2 }}>No access points yet.</div>
       <div style={{ fontSize: 12, lineHeight: 1.6, maxWidth: 420, color: T.text3 }}>
         Access points let Git remotes, CLIs, and integrations read or write
         one selected path in this project.

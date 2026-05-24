@@ -57,7 +57,7 @@ export function KeyValueRow({
           flex: 1,
           minWidth: 0,
           fontFamily: FONT_MONO,
-          fontSize: 11.5,
+          fontSize: 12,
           color: 'var(--po-text-muted)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',

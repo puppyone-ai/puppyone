@@ -138,7 +138,7 @@ export function MethodCard({
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 500,
               color: active ? COLOR_FG_MUTED : COLOR_FG_DIM,
               lineHeight: 1.45,
@@ -312,7 +312,7 @@ export function SectionHeader({
     <div style={{ padding: '0 2px' }}>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: 500,
           color: COLOR_FG_DIM,
         }}
@@ -320,7 +320,7 @@ export function SectionHeader({
         {eyebrow}
       </div>
       {description && (
-        <div style={{ fontSize: 13, color: COLOR_FG_DIM, marginTop: 4, lineHeight: 1.45 }}>
+        <div style={{ fontSize: 12, color: COLOR_FG_DIM, marginTop: 4, lineHeight: 1.45 }}>
           {description}
         </div>
       )}
@@ -341,7 +341,7 @@ export function NoAccessKeyNotice() {
         border: '1px solid color-mix(in srgb, var(--po-warning) 28%, transparent)',
         background: 'color-mix(in srgb, var(--po-warning) 8%, transparent)',
         color: 'var(--po-warning)',
-        fontSize: 13,
+        fontSize: 12,
         lineHeight: 1.5,
         padding: '10px 12px',
       }}
