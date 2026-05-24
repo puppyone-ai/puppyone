@@ -1293,11 +1293,21 @@ async def search(
 
     if body.mode in ("semantic", "hybrid"):
         try:
-            from src.infra.search.service import SearchService
-            search_svc = SearchService()
+            # Use the same cached singleton the tools router uses, with
+            # the full DI graph (ops + chunk_repo + project_service +
+            # chunking + embeddings + turbopuffer). Constructing
+            # ``SearchService()`` directly fails because three
+            # arguments are keyword-only — go through the factory.
+            from src.infra.search.dependencies import get_search_service
+            search_svc = get_search_service()
             results = await search_svc.search_scope(
                 project_id=project_id,
-                scope_path=combined_scope,
+                path=combined_scope,
+                # tool_json_path empty = the scope's root JSON pointer;
+                # vector indexes for the SearchService are keyed by
+                # (project, path, json_path). Empty matches anything
+                # indexed under this AP scope without a sub-tool slice.
+                tool_json_path="",
                 query=body.query,
                 top_k=max(1, min(int(body.limit), 100)),
             )

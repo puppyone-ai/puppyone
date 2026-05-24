@@ -118,14 +118,18 @@ class TextIndexRepository:
             .eq("project_id", project_id)
         )
         if scope_path:
-            # PostgREST has no native "scope_path starts with X" filter
-            # that's index-friendly; use a `like` since `scope_path` is
-            # stored canonicalised (no trailing slash). Two predicates
-            # (exact + prefix) keep the planner from doing a sequential
-            # scan when the scope is the project root.
+            # AP scope is bounded by FILE PATH, not by the row's
+            # ``scope_path`` column — the indexer writes every chunk
+            # with ``scope_path=""`` (the canonical project root)
+            # because chunks are global within the project. The READ
+            # side narrows by the file's location: an AP scoped to
+            # ``notes/`` matches both ``notes/x.md`` and
+            # ``notes/sub/y.md``. Two predicates (exact + prefix)
+            # keep the planner from doing a sequential scan when the
+            # scope is the project root.
             query = query.or_(
-                f"scope_path.eq.{scope_path},"
-                f"scope_path.like.{scope_path}/*"
+                f"file_path.eq.{scope_path},"
+                f"file_path.like.{scope_path}/*"
             )
 
         if regex:
@@ -160,11 +164,22 @@ class TextIndexRepository:
         self,
         *,
         project_id: str,
-        scope_path: str,
+        scope_path: str,  # noqa: ARG002 — kept for callsite stability
         head_commit_id: str,
         rows_estimate: int | None = None,
     ) -> FreshnessSnapshot:
-        """Resolve ``indexed`` / ``stale`` / ``missing`` for one scope.
+        """Resolve ``indexed`` / ``stale`` / ``missing`` for the project.
+
+        The freshness watermark is project-scoped, not AP-scoped: the
+        indexer fires once per commit at the project root and stamps a
+        single ``(project_id, scope_path='')`` row. Per-AP watermarks
+        would be wrong here because the same content_hash can appear
+        under multiple AP scopes and we want all of them to see the
+        same "is the index up to date" answer.
+
+        ``scope_path`` is kept in the signature so future per-scope
+        bootstrap paths (e.g. the admin reindex endpoint) can opt in
+        without churning every caller; today it's ignored.
 
         Cheap; one row lookup. ``rows_estimate`` is informational only —
         when the caller already counted candidate hits it can be passed
@@ -174,7 +189,7 @@ class TextIndexRepository:
             self._client.table(_STATE_TABLE)
             .select("indexed_commit_id")
             .eq("project_id", project_id)
-            .eq("scope_path", scope_path or "")
+            .eq("scope_path", "")
             .limit(1)
             .execute()
         )
