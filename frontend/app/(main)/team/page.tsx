@@ -1,16 +1,19 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import {
   inviteMember,
   updateMemberRole,
   removeMember,
+  getInvitations,
+  revokeInvitation,
+  type OrgInvitation,
 } from '@/lib/organizationsApi';
 import { PageLoading, Dots, SkeletonBlock } from '@/components/loading';
 import { OrganizationPageShell } from '@/components/organization/OrganizationPageShell';
 import { ActivityIconButton } from '@/components/ActivityIconButton';
-import { Mail, Send, Trash2 } from 'lucide-react';
+import { Mail, Send, Trash2, Check, Link as LinkIcon } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
   owner: 'Owner',
@@ -60,19 +63,116 @@ export default function TeamPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
 
+  // Pending invitations list. Owner-only; viewers / members see
+  // nothing here. Loaded once per org change and refreshed after every
+  // invite / revoke action so the list reflects the latest state
+  // without polling.
+  const [pendingInvites, setPendingInvites] = useState<OrgInvitation[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  // Token currently in the "Copied!" affordance for ~1.5s after click.
+  // Keyed by invitation.id so multiple links can be independently
+  // confirmed without colliding on a single boolean.
+  const [copiedInviteId, setCopiedInviteId] = useState<string | null>(null);
+
   const isOwner = myRole === 'owner';
+
+  const refreshPending = useCallback(async () => {
+    if (!currentOrg || myRole !== 'owner') {
+      setPendingInvites([]);
+      return;
+    }
+    setPendingLoading(true);
+    try {
+      const list = await getInvitations(currentOrg.id);
+      setPendingInvites(list);
+    } catch (err) {
+      // List failure is recoverable — show empty rather than blocking
+      // the admin from inviting / managing existing members.
+      console.error('[team] failed to load pending invitations:', err);
+      setPendingInvites([]);
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [currentOrg, myRole]);
+
+  useEffect(() => {
+    void refreshPending();
+  }, [refreshPending]);
+
+  const copyInviteLink = useCallback(async (invitation: OrgInvitation) => {
+    const url = invitation.invite_url;
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedInviteId(invitation.id);
+      setTimeout(() => {
+        setCopiedInviteId((cur) => (cur === invitation.id ? null : cur));
+      }, 1500);
+    } catch (err) {
+      // Clipboard API can be denied in iframe / non-HTTPS contexts.
+      // Surface the URL so the user can manually select-and-copy.
+      console.error('[team] clipboard write failed:', err);
+      setFeedback({
+        type: 'error',
+        msg: 'Could not copy automatically — invite URL: ' + url,
+      });
+    }
+  }, []);
+
+  const handleRevoke = useCallback(
+    async (invitation: OrgInvitation) => {
+      if (!currentOrg) return;
+      if (!confirm(`Revoke the invitation for ${invitation.email}?`)) return;
+      try {
+        await revokeInvitation(currentOrg.id, invitation.id);
+        await refreshPending();
+        setFeedback({ type: 'success', msg: `Invitation for ${invitation.email} revoked` });
+        setTimeout(() => setFeedback(null), 3000);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to revoke invitation';
+        setFeedback({ type: 'error', msg });
+      }
+    },
+    [currentOrg, refreshPending],
+  );
 
   const handleInvite = async () => {
     if (!currentOrg || !inviteEmail.trim()) return;
     setInviting(true);
     setFeedback(null);
     try {
-      await inviteMember(currentOrg.id, inviteEmail.trim(), inviteRole);
-      setFeedback({ type: 'success', msg: `Invitation sent to ${inviteEmail}` });
+      const invitation = await inviteMember(currentOrg.id, inviteEmail.trim(), inviteRole);
+      // Build the success message based on whether the backend's
+      // best-effort email actually went out. When it didn't (existing
+      // user, SMTP not configured, etc.) the row still exists and the
+      // URL is copyable — but tell the admin so they share it
+      // manually instead of waiting for a non-existent email.
+      const msg = invitation.email_sent
+        ? `Invitation emailed to ${invitation.email}. The link is also copyable below.`
+        : invitation.email_error === 'recipient_exists'
+          ? `${invitation.email} already has a Puppyone account — share the link below to add them to this organization.`
+          : `Invitation created for ${invitation.email}. Email delivery is unavailable in this environment — share the link below.`;
+      setFeedback({ type: 'success', msg });
       setInviteEmail('');
       setShowInvite(false);
-      await refreshMembers();
-      setTimeout(() => setFeedback(null), 3000);
+      await Promise.all([refreshMembers(), refreshPending()]);
+      // Auto-copy the new invite URL so the admin can paste it
+      // immediately. Best-effort: clipboard failures are silent here
+      // because the URL is also visible in the pending-invites list.
+      if (invitation.invite_url) {
+        try {
+          await navigator.clipboard.writeText(invitation.invite_url);
+          setCopiedInviteId(invitation.id);
+          setTimeout(() => {
+            setCopiedInviteId((cur) => (cur === invitation.id ? null : cur));
+          }, 1500);
+        } catch {
+          // Surfaced in the pending list anyway.
+        }
+      }
+      // Hold the feedback longer than the usual 3s — the admin needs
+      // time to read which case applied and act on it.
+      setTimeout(() => setFeedback(null), 6000);
     } catch (err: any) {
       setFeedback({ type: 'error', msg: err.message || 'Failed to send invitation' });
     } finally {
@@ -202,6 +302,76 @@ export default function TeamPage() {
                 >
                   Cancel
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Pending Invitations — owner-only. Always rendered while
+              there's at least one row so the admin can copy/share
+              the URL, even when email delivery worked (sometimes
+              invitees never see the email and the admin needs to
+              re-send the link by other means). */}
+          {isOwner && (pendingLoading || pendingInvites.length > 0) && (
+            <div className="border-b border-[var(--po-border)] bg-[var(--po-panel-raised)] px-5 py-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="text-[13px] font-medium text-[var(--po-text-muted)]">
+                  Pending invitations
+                </div>
+                {pendingLoading && <Dots size="xs" />}
+              </div>
+              <div className="flex flex-col gap-2">
+                {pendingInvites.map((inv) => {
+                  const copied = copiedInviteId === inv.id;
+                  return (
+                    <div
+                      key={inv.id}
+                      className="flex items-center gap-3 rounded-md border border-[var(--po-border-subtle)] bg-[var(--po-inset)] px-3 py-2"
+                    >
+                      <Mail size={14} strokeWidth={2} className="shrink-0 text-[var(--po-text-subtle)]" />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[13px] text-[var(--po-text)]">
+                          {inv.email}
+                        </div>
+                        <div className="text-[11px] text-[var(--po-text-subtle)]">
+                          {inv.role} · invited{' '}
+                          {new Date(inv.created_at).toLocaleDateString()}
+                          {inv.email_sent === false && (
+                            <span className="ml-1 text-[var(--po-warning)]">
+                              · email not delivered
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => copyInviteLink(inv)}
+                        disabled={!inv.invite_url}
+                        title={inv.invite_url ?? 'Invite URL unavailable'}
+                        className="flex h-7 items-center gap-1.5 rounded-md border border-[var(--po-border)] bg-[var(--po-control)] px-2 text-[12px] font-medium text-[var(--po-text)] transition-colors hover:bg-[var(--po-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {copied ? (
+                          <>
+                            <Check size={12} strokeWidth={2.4} />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <LinkIcon size={12} strokeWidth={2} />
+                            Copy link
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRevoke(inv)}
+                        title="Revoke invitation"
+                        className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--po-text-subtle)] transition-colors hover:bg-[var(--po-hover)] hover:text-[var(--po-danger)]"
+                      >
+                        <Trash2 size={13} strokeWidth={2} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
