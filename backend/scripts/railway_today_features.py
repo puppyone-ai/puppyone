@@ -256,9 +256,10 @@ class TodaySmoke:
         the response. If the caller's org has reached its seat limit
         (the most common test-account state — free plan default is 1
         seat, user is their own owner = limit already met), the
-        endpoint returns the proper FORBIDDEN 403 instead. We accept
-        either outcome and skip downstream tests in the 403 case so
-        the rest of the suite isn't blocked by a product limit."""
+        endpoint returns ``HTTP 400`` with ``code=1003`` (FORBIDDEN
+        domain code, with AppException's default status_code=400) and
+        a "Seat limit reached" message. We accept that outcome as a
+        PASS for this step and skip the downstream tests."""
         org_id = self._resolve_org_id()
         self._org_id = org_id
         target = f"pup4-test+{uuid.uuid4().hex[:8]}@example.invalid"
@@ -267,19 +268,17 @@ class TodaySmoke:
             f"/api/v1/organizations/{org_id}/invite",
             json={"email": target, "role": "member"},
         )
-        # 200 = success path, 403 = seat-limit gate. Anything else is a bug.
-        assert r.status_code in (200, 403), (
+        # 200 = success path; 400/403 with a seat-limit message = gate
+        # fired. Anything else is a real bug.
+        assert r.status_code in (200, 400, 403), (
             f"unexpected HTTP {r.status_code}: {r.text[:300]}"
         )
         body = r.json()
-        if r.status_code == 403:
-            # Accept the proper seat-limit message as PASS for this
-            # step. The downstream tests that need a real invitation
-            # check ``self.invitation_id`` and self-skip.
-            assert "seat limit" in body.get("message", "").lower(), (
-                f"unexpected 403 message: {body}"
-            )
-            return f"seat limit hit (expected on free plan): {body['message']!r}"
+        if r.status_code in (400, 403):
+            msg = (body.get("message") or "").lower()
+            if "seat limit" in msg:
+                return f"seat limit hit (expected on free plan): {body['message']!r}"
+            raise AssertionError(f"unexpected {r.status_code} message: {body}")
         data = body["data"]
         assert data.get("token"), f"no token in response: {data}"
         assert data.get("invite_url"), f"no invite_url: {data}"
@@ -358,8 +357,10 @@ class TodaySmoke:
             f"/api/v1/organizations/{self._org_id}/invite",
             json={"email": target, "role": "member"},
         )
-        if r.status_code == 403:
-            return "SKIP (seat limit gate — accept needs a fresh invite)"
+        if r.status_code in (400, 403):
+            msg = (r.json().get("message") or "").lower()
+            if "seat limit" in msg:
+                return "SKIP (seat limit gate — accept needs a fresh invite)"
         body = self._expect(r, 200, hint="invite for accept test")
         token = body["data"]["token"]
         inv_id = body["data"]["id"]
@@ -381,6 +382,70 @@ class TodaySmoke:
                 )
             except Exception:
                 pass
+
+    # ── Project share link (today's MVP, deployed alongside PUP-4) ──
+
+    def project_share_info_returns_token(self):
+        """GET /projects/{pid}/share returns a non-empty token for the
+        owner. The migration backfills tokens onto every existing row,
+        and ``create()`` generates a fresh one for new rows — so any
+        project should answer cleanly."""
+        r = self.client.get(f"/api/v1/projects/{self.project_id}/share")
+        body = self._expect(r, 200, hint="get share info")
+        data = body["data"]
+        assert data.get("can_share") is True, f"expected can_share=True: {data}"
+        token = data.get("share_token") or ""
+        assert len(token) >= 16, f"share_token looks bogus: {token!r}"
+        self._initial_share_token = token
+        return f"got token (len={len(token)}) can_share=True"
+
+    def project_share_rotate_invalidates_old(self):
+        """Rotate should replace the token; the new value must differ
+        from the previous one (cryptographic regen, not idempotent)."""
+        prev = getattr(self, "_initial_share_token", "")
+        r = self.client.post(f"/api/v1/projects/{self.project_id}/share/rotate")
+        body = self._expect(r, 200, hint="rotate share token")
+        new_token = body["data"]["share_token"]
+        assert new_token, f"rotate returned empty token: {body}"
+        assert new_token != prev, (
+            f"rotate didn't change the token (prev={prev[:8]} new={new_token[:8]})"
+        )
+        self._current_share_token = new_token
+        return f"rotated: prev={prev[:8]}… new={new_token[:8]}…"
+
+    def project_share_join_idempotent_for_owner(self):
+        """Joining via the current token when you're already the
+        project owner is a no-op — the service returns the existing
+        membership with ``newly_joined=False``. Verifies the
+        idempotency path works."""
+        token = getattr(self, "_current_share_token", "")
+        if not token:
+            return "SKIP (no token captured — earlier rotate failed)"
+        r = self.client.post(f"/api/v1/projects/share/{token}/join")
+        body = self._expect(r, 200, hint="join via share token")
+        data = body["data"]
+        assert data["project_id"] == self.project_id
+        assert data["newly_joined"] is False, (
+            f"owner shouldn't be 'newly joined': {data}"
+        )
+        assert data["role"], f"role should be set: {data}"
+        return (
+            f"owner already member; role={data['role']!r} project_name={data['project_name']!r}"
+        )
+
+    def project_share_join_rejects_old_token(self):
+        """The token captured BEFORE the rotate must now 404. This is
+        the revoke-by-rotation semantics — anyone holding the previous
+        link sees the same 'invalid' error as someone who never had a
+        token, so the link doesn't leak existence after revocation."""
+        old = getattr(self, "_initial_share_token", "")
+        if not old:
+            return "SKIP (no pre-rotate token)"
+        r = self.client.post(f"/api/v1/projects/share/{old}/join")
+        assert r.status_code == 404, (
+            f"expected 404 on rotated-out token, got {r.status_code}: {r.text[:200]}"
+        )
+        return "rotated-out token correctly returns 404"
 
     # ── Bulk-push regression (shadow path is a stand-in for full
     #    multipart upload, since the deep test can't easily do the
@@ -457,6 +522,12 @@ class TodaySmoke:
         self.step("PUP-4. DELETE /invitations/{id} revokes", self.revoke_invitation)
         self.step("PUP-4. revoke is idempotent (second call → 200)", self.revoke_idempotent)
         self.step("PUP-4. /invitations/{token}/accept returns org payload", self.accept_returns_org_payload)
+
+        # Project share link (today's MVP)
+        self.step("Share. GET /projects/{pid}/share returns token", self.project_share_info_returns_token)
+        self.step("Share. POST /share/rotate produces new token", self.project_share_rotate_invalidates_old)
+        self.step("Share. Owner join via new token is idempotent", self.project_share_join_idempotent_for_owner)
+        self.step("Share. Rotated-out token returns 404", self.project_share_join_rejects_old_token)
 
         # Bulk push regression (real content path)
         self.step("Regression. Shadow promote with >500-char content", self.shadow_promote_with_real_content)
