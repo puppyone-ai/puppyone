@@ -859,27 +859,34 @@ class S3StorageBackend(StorageBackend):
         object_id: str,
         cause: Exception,
     ) -> None:
-        """Best-effort delete of a deferred-namespace key whose bytes
-        failed loose-object verification.
+        """Log a stale deferred-namespace entry.
 
-        Failures here are swallowed. The cleanup is purely
-        opportunistic — if S3 won't let us delete (permissions, eventual
-        consistency, etc.) the next read will still treat the same key
-        as "stale, skip" because verification will fail again. The
-        long-running cost of leaving the row is one extra GET+verify
-        per read; the cost of failing the user's request is unbounded,
-        so silent recovery wins.
+        Despite the name (kept for callsite stability), this NEVER
+        deletes. Earlier iterations of this code deleted on the
+        assumption that any verify-fail meant garbage; that was a
+        mistake. Bytes that don't decode as Git loose objects can
+        still be pre-Git-protocol JSON tree records (the
+        ``deferred-read`` namespace was designed exactly for that
+        kind of legacy data). Deleting them removes the user's last
+        chance at recovering content via a future migration tool.
+
+        The skip behaviour in the caller (``continue``) is sufficient
+        for runtime self-heal: the engine treats the entry as "not
+        readable here" and falls through to other read paths. If
+        everything fails it raises ``ObjectNotFoundError`` upstream,
+        which the bulk-push UI surfaces as a clean missing-blob
+        error rather than a cryptic zlib failure.
+
+        Ops can still hand-delete via ``aws s3 rm`` after confirming
+        the bytes aren't recoverable; that decision belongs to a
+        human, not to a read-path side effect.
         """
         log_warning(
             f"[VersionS3] stale deferred-namespace blob at {key} "
-            f"(hash={object_id[:12]}): {cause}. Auto-cleaning.",
+            f"(hash={object_id[:12]}): {cause}. Skipping (NOT deleting "
+            f"— pre-Git-protocol data may still be recoverable via "
+            f"a future migration tool).",
         )
-        try:
-            _run_async(self._s3.delete_file(key))
-        except Exception as del_err:
-            log_warning(
-                f"[VersionS3] failed to clean stale {key}: {del_err}",
-            )
 
     def _deferred_loose_exists(self, h: str) -> bool:
         for key in self._deferred_keys_for(h):
@@ -950,11 +957,11 @@ class S3StorageBackend(StorageBackend):
                 try:
                     _verify_loose_hash(h, data)
                 except StorageWriteError as verify_err:
-                    # See ``_get_deferred_loose`` for the rationale —
-                    # this is the async mirror of the same self-heal.
-                    await self._auto_delete_stale_deferred_async(
-                        key, h, verify_err,
-                    )
+                    # See ``_get_deferred_loose`` for the rationale.
+                    # The helper is now pure logging, so we call the
+                    # sync version even from this async path (no IO,
+                    # no need for two siblings).
+                    self._auto_delete_stale_deferred(key, h, verify_err)
                     continue
                 self._mark_deferred_namespace_read(h, kind="loose")
                 return data
@@ -965,25 +972,6 @@ class S3StorageBackend(StorageBackend):
                     continue
                 raise
         return None
-
-    async def _auto_delete_stale_deferred_async(
-        self,
-        key: str,
-        object_id: str,
-        cause: Exception,
-    ) -> None:
-        """Async counterpart of ``_auto_delete_stale_deferred``.
-        Same opportunistic, swallow-failures semantics."""
-        log_warning(
-            f"[VersionS3] stale deferred-namespace blob at {key} "
-            f"(hash={object_id[:12]}): {cause}. Auto-cleaning (async).",
-        )
-        try:
-            await self._s3.delete_file(key)
-        except Exception as del_err:
-            log_warning(
-                f"[VersionS3] failed to clean stale {key}: {del_err}",
-            )
 
     async def _async_deferred_loose_exists(self, h: str) -> bool:
         for key in self._deferred_keys_for(h):
