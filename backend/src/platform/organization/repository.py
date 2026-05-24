@@ -188,6 +188,17 @@ class OrganizationRepository:
             {"status": "accepted"}
         ).eq("id", invitation_id).execute()
 
+    def revoke_invitation(self, org_id: str, invitation_id: str) -> None:
+        """Mark a pending invitation as revoked. Idempotent: scoped by
+        org_id so a cross-org call cannot revoke someone else's invite,
+        and matched only against ``status='pending'`` so re-revoking an
+        already-revoked / accepted row is a no-op (not an error)."""
+        self._client.table("org_invitations").update(
+            {"status": "revoked"}
+        ).eq("id", invitation_id).eq("org_id", org_id).eq(
+            "status", "pending"
+        ).execute()
+
     def list_invitations(self, org_id: str) -> list[OrgInvitation]:
         resp = (
             self._client.table("org_invitations")

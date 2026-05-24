@@ -45,6 +45,10 @@ from src.version_engine.admission.repo_facade import repo_facade_from_auth
 from src.version_engine.write_engine.engine import ConcurrentMutationError
 from src.version_engine.adapters.product.operation_adapter import ProductOperationAdapter
 from src.version_engine.adapters.product.commands import VersionWriteCommandService
+from src.ingest.policy.upload_policy import (
+    PER_FILE_MAX_BYTES as POLICY_PER_FILE_MAX_BYTES,
+    path_has_blocked_segment,
+)
 
 
 router = APIRouter(prefix="/ap-fs", tags=["access-point-fs"])
@@ -226,6 +230,30 @@ def _matches_exclude(relative_path: str, excludes: list[Any]) -> bool:
 def _assert_not_excluded(relative_path: str, scope: dict) -> None:
     if _matches_exclude(relative_path, scope.get("exclude") or []):
         raise HTTPException(status_code=403, detail=f"Path is excluded from this access point: {relative_path}")
+
+
+def _assert_upload_policy(relative_path: str) -> None:
+    """PUP-3 defense-in-depth: reject paths whose segments match the
+    hardcoded blocklist (``.git``, ``node_modules``, …).
+
+    Read-only operations don't call this — only the write endpoints
+    (upload, write_file, mkdir, touch). The product contract is in
+    ``docs/proposals/PUP-3-folder-upload-policy.md``.
+    """
+    is_blocked, seg = path_has_blocked_segment(relative_path)
+    if is_blocked:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "policy_blocked",
+                "segment": seg,
+                "path": relative_path,
+                "message": (
+                    f"Path '{relative_path}' contains the blocked segment "
+                    f"'{seg}' (PUP-3 folder-upload policy)."
+                ),
+            },
+        )
 
 
 def _entry_to_scoped_response(entry, scope: dict) -> dict:
@@ -1109,8 +1137,17 @@ async def upload_file(
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
     _assert_not_excluded(rel_path, scope)
+    _assert_upload_policy(rel_path)
 
     content = await request.body()
+    if len(content) > POLICY_PER_FILE_MAX_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File body is {len(content)} bytes; per-file cap is "
+                f"{POLICY_PER_FILE_MAX_BYTES} bytes (PUP-3 folder-upload policy)."
+            ),
+        )
     full_path = _join_scope(scope["path"], rel_path)
     try:
         outcome = await commands.write_bytes(
@@ -1222,6 +1259,7 @@ async def write_file(
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
     _assert_not_excluded(rel_path, scope)
+    _assert_upload_policy(rel_path)
 
     try:
         outcome = await commands.write_file(
@@ -1264,6 +1302,7 @@ async def mkdir(
     if not rel_path:
         raise HTTPException(status_code=400, detail="Directory path is required")
     _assert_not_excluded(rel_path, scope)
+    _assert_upload_policy(rel_path)
 
     full_path = _join_scope(scope["path"], rel_path)
     existing = _ops_stat(commands.ops, project_id, scope, rel_path)
@@ -1328,6 +1367,7 @@ async def touch(
     missing_files: list[str] = []
     for rel_path in rel_paths:
         _assert_not_excluded(rel_path, scope)
+        _assert_upload_policy(rel_path)
         existing = _ops_stat(commands.ops, project_id, scope, rel_path)
         if existing is not None:
             if existing.type == "folder":
@@ -1422,6 +1462,10 @@ async def move(
         raise HTTPException(status_code=400, detail="Both old_path and new_path are required")
     _assert_not_excluded(old_rel, scope)
     _assert_not_excluded(new_rel, scope)
+    # PUP-3: block writes landing inside a blocklisted path. The source
+    # side is intentionally permissive so users can move/copy legacy
+    # content OUT of a blocked directory while cleaning up.
+    _assert_upload_policy(new_rel)
 
     old_full = _join_scope(scope["path"], old_rel)
     old_entry = _ops_stat(commands.ops, project_id, scope, old_rel)
@@ -1510,6 +1554,10 @@ async def copy(
         raise HTTPException(status_code=400, detail="Both old_path and new_path are required")
     _assert_not_excluded(old_rel, scope)
     _assert_not_excluded(new_rel, scope)
+    # PUP-3: block writes landing inside a blocklisted path. The source
+    # side is intentionally permissive so users can move/copy legacy
+    # content OUT of a blocked directory while cleaning up.
+    _assert_upload_policy(new_rel)
 
     old_full = _join_scope(scope["path"], old_rel)
     old_entry = _ops_stat(commands.ops, project_id, scope, old_rel)

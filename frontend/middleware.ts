@@ -78,12 +78,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/home', request.url));
   }
 
-  // 2. 已登录用户访问 /login → 重定向到 canonical organization home.
+  // 2. 已登录用户访问 /login → 重定向到 canonical organization home,
+  //    UNLESS they came in with a ``redirect=`` param (e.g. from the
+  //    invite-accept flow that bounces through login). Honor the param
+  //    so an in-flight accept lands the user where they were going,
+  //    not at /home.
   if (session && pathname === '/login') {
+    const dest = request.nextUrl.searchParams.get('redirect');
+    if (dest && dest.startsWith('/') && !dest.startsWith('//')) {
+      return NextResponse.redirect(new URL(dest, request.url));
+    }
     return NextResponse.redirect(new URL('/home', request.url));
   }
 
-  // 3. 未登录用户访问受保护页面 → 重定向到 /login
+  // 3. 未登录用户访问受保护页面 → 重定向到 /login (with ``redirect=``
+  //    so the original path is preserved through the auth bounce).
+  //    ``/invite/*`` is intentionally NOT in this list — the invite
+  //    page is reachable unauthenticated and handles the auth gate
+  //    itself, which avoids a middleware-driven loop when the session
+  //    cookie is in mid-refresh.
   const protectedRoutes = ['/projects', '/tools', '/connect', '/mcp', '/etl', '/home', '/settings', '/billing', '/team', '/tools-and-server'];
   const isProtectedRoute = protectedRoutes.some(
     route => pathname === route || pathname.startsWith(route + '/')
@@ -91,8 +104,13 @@ export async function middleware(request: NextRequest) {
 
   if (!session && isProtectedRoute) {
     const loginUrl = new URL('/login', request.url);
-    // 可选：保存原始 URL，登录后跳回
-    // loginUrl.searchParams.set('redirect', pathname)
+    // Preserve the original path + query so the user lands where they
+    // intended after authenticating. Skip when the destination would
+    // be /login itself (no self-redirect loop).
+    const dest = pathname + (request.nextUrl.search || '');
+    if (dest && dest !== '/login') {
+      loginUrl.searchParams.set('redirect', dest);
+    }
     return NextResponse.redirect(loginUrl);
   }
 
