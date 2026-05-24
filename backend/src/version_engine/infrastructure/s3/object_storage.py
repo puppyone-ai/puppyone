@@ -828,7 +828,21 @@ class S3StorageBackend(StorageBackend):
                     object_id=h[:12],
                 ):
                     data = _run_async(self._s3.download_file(key))
-                _verify_loose_hash(h, data)
+                try:
+                    _verify_loose_hash(h, data)
+                except StorageWriteError as verify_err:
+                    # Stale entry in the deferred-read namespace —
+                    # the bytes here aren't a valid Git loose object,
+                    # which can happen when pre-Git-native code wrote
+                    # raw payloads under what is now a loose-object
+                    # key. Self-heal: treat exactly like 404 so the
+                    # engine falls through to the next read path, and
+                    # best-effort delete the stale object so the next
+                    # request doesn't trip the same wire (a manual
+                    # ``aws s3 rm`` per affected blob is the wrong
+                    # ops contract — every user must auto-recover).
+                    self._auto_delete_stale_deferred(key, h, verify_err)
+                    continue
                 self._mark_deferred_namespace_read(h, kind="loose")
                 return data
             except ObjectNotFoundError:
@@ -838,6 +852,34 @@ class S3StorageBackend(StorageBackend):
                     continue
                 raise
         return None
+
+    def _auto_delete_stale_deferred(
+        self,
+        key: str,
+        object_id: str,
+        cause: Exception,
+    ) -> None:
+        """Best-effort delete of a deferred-namespace key whose bytes
+        failed loose-object verification.
+
+        Failures here are swallowed. The cleanup is purely
+        opportunistic — if S3 won't let us delete (permissions, eventual
+        consistency, etc.) the next read will still treat the same key
+        as "stale, skip" because verification will fail again. The
+        long-running cost of leaving the row is one extra GET+verify
+        per read; the cost of failing the user's request is unbounded,
+        so silent recovery wins.
+        """
+        log_warning(
+            f"[VersionS3] stale deferred-namespace blob at {key} "
+            f"(hash={object_id[:12]}): {cause}. Auto-cleaning.",
+        )
+        try:
+            _run_async(self._s3.delete_file(key))
+        except Exception as del_err:
+            log_warning(
+                f"[VersionS3] failed to clean stale {key}: {del_err}",
+            )
 
     def _deferred_loose_exists(self, h: str) -> bool:
         for key in self._deferred_keys_for(h):
@@ -905,7 +947,15 @@ class S3StorageBackend(StorageBackend):
                     object_id=h[:12],
                 ):
                     data = await self._s3.download_file(key)
-                _verify_loose_hash(h, data)
+                try:
+                    _verify_loose_hash(h, data)
+                except StorageWriteError as verify_err:
+                    # See ``_get_deferred_loose`` for the rationale —
+                    # this is the async mirror of the same self-heal.
+                    await self._auto_delete_stale_deferred_async(
+                        key, h, verify_err,
+                    )
+                    continue
                 self._mark_deferred_namespace_read(h, kind="loose")
                 return data
             except ObjectNotFoundError:
@@ -915,6 +965,25 @@ class S3StorageBackend(StorageBackend):
                     continue
                 raise
         return None
+
+    async def _auto_delete_stale_deferred_async(
+        self,
+        key: str,
+        object_id: str,
+        cause: Exception,
+    ) -> None:
+        """Async counterpart of ``_auto_delete_stale_deferred``.
+        Same opportunistic, swallow-failures semantics."""
+        log_warning(
+            f"[VersionS3] stale deferred-namespace blob at {key} "
+            f"(hash={object_id[:12]}): {cause}. Auto-cleaning (async).",
+        )
+        try:
+            await self._s3.delete_file(key)
+        except Exception as del_err:
+            log_warning(
+                f"[VersionS3] failed to clean stale {key}: {del_err}",
+            )
 
     async def _async_deferred_loose_exists(self, h: str) -> bool:
         for key in self._deferred_keys_for(h):
