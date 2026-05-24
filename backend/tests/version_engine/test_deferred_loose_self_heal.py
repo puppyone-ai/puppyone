@@ -11,17 +11,17 @@ facing bulk push surface dies with:
     Bulk push failed: invalid git loose object for {hash}:
     Error -3 while decompressing data: incorrect header check
 
-We cannot ask every affected user to ``aws s3 rm`` the orphan bytes —
-those keys must self-heal at read time. The behavior contract being
-asserted here:
+The behavior contract being asserted here:
 
   1. Reading a hash whose ONLY presence is stale deferred-namespace
-     bytes must NOT raise ``StorageWriteError`` (or any other zlib
+     bytes must NOT raise ``StorageWriteError`` (or any other zlib-
      surfaced error). The engine treats it as 404 so callers can
      fall through to a clean "missing blob" error path.
-  2. The stale S3 object is best-effort deleted as a side-effect, so
-     the next read of the same hash takes the 404 fast path
-     instead of re-paying the GET + verify dance.
+  2. The bytes themselves are NOT deleted — pre-Git-protocol JSON
+     tree records legitimately live in the deferred namespace and
+     a future migration tool may need them. Read-path side effects
+     must not destroy user data. Ops can hand-delete only after
+     confirming the bytes aren't recoverable.
   3. Both the sync ``get()`` and ``async_get()`` paths self-heal.
 """
 
@@ -152,25 +152,33 @@ class TestDeferredLooseSelfHeal:
         with pytest.raises(ObjectNotFoundError):
             backend.get(h)
 
-    def test_stale_deferred_bytes_auto_delete_on_first_read(
+    def test_stale_deferred_bytes_are_preserved_not_deleted(
         self, backend: S3StorageBackend, stub_s3: _StubS3, project_id: str,
     ) -> None:
-        """The stale entry must be best-effort deleted so subsequent
-        reads short-circuit on 404 rather than re-paying the GET +
-        verify dance.
+        """Stale bytes MUST be preserved across reads. The earlier
+        iteration of this code deleted them on the assumption they
+        were garbage; that was a mistake — pre-Git-protocol JSON
+        tree records legitimately live in the deferred namespace,
+        and ops needs the option to migrate or hand-clean them
+        rather than have read-path side effects destroy them.
+
+        Contract: the engine still treats the stale entry as "not
+        readable here" (skip + fall through to 404), but the bytes
+        remain in S3 for future recovery / inspection.
         """
         h = "5" + "a" * 39
         stale_key = _stale_deferred_key(project_id, h)
         stub_s3.bytes_by_key[stale_key] = b"not zlib"
 
-        # First read self-heals.
         with pytest.raises(ObjectNotFoundError):
             backend.get(h)
-        assert stale_key in stub_s3.delete_calls, (
-            f"expected auto-delete of {stale_key}; saw deletes={stub_s3.delete_calls}"
+        # The bytes survive — no auto-delete.
+        assert stub_s3.delete_calls == [], (
+            f"read path must not delete user data; saw deletes={stub_s3.delete_calls}"
         )
-        # And the stub really applied the delete.
-        assert stale_key not in stub_s3.bytes_by_key
+        assert stale_key in stub_s3.bytes_by_key, (
+            "stale bytes must remain in S3 for ops / future migration"
+        )
 
     def test_valid_loose_in_primary_namespace_is_preferred(
         self, backend: S3StorageBackend, stub_s3: _StubS3, project_id: str,
@@ -234,13 +242,17 @@ class TestDeferredLooseSelfHealAsync:
             await backend.async_get(h)
 
     @pytest.mark.asyncio
-    async def test_async_stale_deferred_bytes_auto_delete(
+    async def test_async_stale_deferred_bytes_preserved(
         self, backend: S3StorageBackend, stub_s3: _StubS3, project_id: str,
     ) -> None:
+        """Async mirror — read-path must not delete the bytes."""
         h = "5" + "b" * 39
         stale_key = _stale_deferred_key(project_id, h)
         stub_s3.bytes_by_key[stale_key] = b"not zlib"
 
         with pytest.raises(ObjectNotFoundError):
             await backend.async_get(h)
-        assert stale_key in stub_s3.delete_calls
+        assert stub_s3.delete_calls == [], (
+            f"async read path must not delete; saw deletes={stub_s3.delete_calls}"
+        )
+        assert stale_key in stub_s3.bytes_by_key

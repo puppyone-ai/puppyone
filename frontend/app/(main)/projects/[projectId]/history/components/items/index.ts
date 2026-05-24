@@ -10,3 +10,4 @@
  */
 import './pendingReviewKind';
 import './conflictKind';
+import './failedSyncKind';

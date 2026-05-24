@@ -448,6 +448,43 @@ def run_post_project_update_hook(
         if deleted_paths:
             post_commit_delete(project_id, deleted_paths)
 
+        # Federated grep / search — populate the text index for the
+        # paths this commit added or updated. Failure here MUST NOT
+        # propagate; the index is a read-side accelerator, not a
+        # write-side invariant. See
+        # ``docs/proposals/PUP-federated-search.md``.
+        try:
+            from src.infra.search.text_indexer import index_commit_delta
+            from src.version_engine.bootstrap.dependencies import (
+                build_worker_version_engine_container,
+            )
+            container = build_worker_version_engine_container()
+            ops = container.product_operations()
+
+            def _read_blob(path: str) -> bytes | None:
+                try:
+                    return ops.read_file(project_id, path)
+                except FileNotFoundError:
+                    return None
+                except Exception as read_err:  # noqa: BLE001
+                    log_warning(
+                        f"[PostCommit] text indexer read_file({path}) "
+                        f"failed: {read_err}"
+                    )
+                    return None
+
+            index_commit_delta(
+                project_id=project_id,
+                commit_id=commit_id,
+                changes=changes,
+                read_blob=_read_blob,
+            )
+        except Exception as text_idx_err:  # noqa: BLE001
+            log_warning(
+                f"[PostCommit] text indexer failed for commit "
+                f"{commit_id[:12]}: {text_idx_err}"
+            )
+
         changed_paths = [
             normalize_path(c.get("path", ""))
             for c in changes

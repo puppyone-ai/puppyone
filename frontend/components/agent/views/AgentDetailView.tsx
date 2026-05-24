@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { useAgent, type SavedAgent } from '@/contexts/AgentContext';
 import { get } from '@/lib/apiClient';
+import { pauseAgent, resumeAgent } from '@/lib/agentApi';
 import { PageLoading } from '@/components/loading';
 import { IconButton } from '@/components/ui/IconButton';
 
@@ -160,10 +162,23 @@ function parseScheduleInfo(triggerConfig: { schedule?: string; timezone?: string
 }
 
 export function AgentDetailView({ agent }: AgentDetailViewProps) {
-  const { editAgent, deleteAgent } = useAgent();
-  const [isPaused, setIsPaused] = useState(false);
+  const { editAgent, deleteAgent, refreshAgents } = useAgent();
+  const params = useParams<{ projectId?: string }>();
+  const projectId = params?.projectId || '';
+  // Initialize from the loaded agent's persisted state so the toggle
+  // renders the right label on first paint instead of flickering.
+  const [isPaused, setIsPaused] = useState(agent.status === 'paused');
+  const [pauseBusy, setPauseBusy] = useState(false);
+  const [pauseError, setPauseError] = useState<string | null>(null);
   const [executions, setExecutions] = useState<ExecutionLog[]>([]);
   const [loadingExecutions, setLoadingExecutions] = useState(false);
+
+  // The same agent record may be loaded by a sibling component while
+  // we're mounted (refreshAgents fires from elsewhere); keep our
+  // toggle in sync with the persisted value.
+  useEffect(() => {
+    setIsPaused(agent.status === 'paused');
+  }, [agent.status]);
 
   const isScheduleAgent = agent.type === 'schedule';
 
@@ -203,9 +218,30 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
     }
   };
 
-  const handleTogglePause = () => {
-    setIsPaused(!isPaused);
-    // TODO: 调用后端 API 暂停/恢复调度
+  const handleTogglePause = async () => {
+    if (!projectId || pauseBusy) return;
+    const next = !isPaused;
+    // Optimistically flip the toggle so the click feels responsive;
+    // roll back if the API call fails.
+    setIsPaused(next);
+    setPauseBusy(true);
+    setPauseError(null);
+    try {
+      if (next) {
+        await pauseAgent(projectId, agent.id);
+      } else {
+        await resumeAgent(projectId, agent.id);
+      }
+      // Refresh the deployed list so other surfaces (rail dots,
+      // dashboards, the chat-session guard's UI affordance) read the
+      // new status without a manual reload.
+      await refreshAgents();
+    } catch (err: unknown) {
+      setIsPaused(!next);
+      setPauseError(err instanceof Error ? err.message : 'Failed to toggle pause');
+    } finally {
+      setPauseBusy(false);
+    }
   };
 
   const scheduleInfo = parseScheduleInfo(agent.trigger_config);
@@ -258,6 +294,7 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
               onClick={handleTogglePause}
               title={isPaused ? "Resume schedule" : "Pause schedule"}
               tone={isPaused ? 'success' : 'warning'}
+              disabled={pauseBusy || !projectId}
             >
               {isPaused ? <PlayIcon /> : <PauseIcon />}
             </IconButton>
@@ -277,6 +314,21 @@ export function AgentDetailView({ agent }: AgentDetailViewProps) {
           </IconButton>
         </div>
       </div>
+
+      {pauseError && (
+        <div
+          role="alert"
+          style={{
+            padding: '6px 12px',
+            background: 'color-mix(in srgb, var(--po-danger) 8%, transparent)',
+            color: 'var(--po-danger)',
+            fontSize: 12,
+            borderBottom: '1px solid var(--po-hover)',
+          }}
+        >
+          {pauseError}
+        </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: 16, color: 'var(--po-text)' }}>

@@ -85,6 +85,7 @@ def _to_agent_out(
         task_content=agent.task_content,
         task_path=agent.task_path,
         external_config=agent.external_config,
+        status=agent.status,
         created_at=agent.created_at.isoformat(),
         updated_at=agent.updated_at.isoformat(),
         bash_accesses=bash_out,
