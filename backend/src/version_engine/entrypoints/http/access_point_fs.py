@@ -1230,6 +1230,77 @@ class _SearchRequest(_BaseModel):
     limit: int = 20
 
 
+async def _run_semantic_channel(
+    *,
+    project_id: str,
+    combined_scope: str,
+    query: str,
+    limit: int,
+) -> tuple[list[dict], str]:
+    """Run the Turbopuffer-backed semantic channel for ``/ap-fs/search``.
+
+    Returned tuple is ``(hits, semantic_error)``. Pulled out of the
+    endpoint body so the request handler stays readable and the
+    exception ladder for "expected fresh-project" vs "ops misconfig"
+    vs "unexpected" lives in one place.
+
+    Failure-mode mapping:
+
+      - ``TurbopufferNotFound`` / ``FileNotFoundError``
+            Namespace doesn't exist (no semantic indexing has run on
+            this scope yet) or the JSON-tree indexer's source file
+            isn't there. Both are normal "nothing to find" states;
+            ``semantic_error`` stays empty so the CLI doesn't show a
+            spooky red banner.
+      - ``TurbopufferConfigError``
+            Server-side API key / region missing. Ops needs to see
+            this; ``semantic_error`` carries a one-line hint.
+      - anything else
+            Likely transient (network, auth, SDK). Surfaced as
+            ``semantic_error`` so the CLI can render "unavailable"
+            without crashing the response.
+
+    The literal channel always runs alongside this so the user still
+    gets results even when semantic returns nothing.
+    """
+    from src.infra.turbopuffer.exceptions import (
+        TurbopufferNotFound,
+        TurbopufferConfigError,
+    )
+    from src.infra.search.dependencies import get_search_service
+
+    hits: list[dict] = []
+    try:
+        search_svc = get_search_service()
+        results = await search_svc.search_scope(
+            project_id=project_id,
+            path=combined_scope,
+            # tool_json_path empty = the scope's root JSON pointer;
+            # vector indexes for the SearchService are keyed by
+            # (project, path, json_path). Empty matches anything
+            # indexed under this AP scope without a sub-tool slice.
+            tool_json_path="",
+            query=query,
+            top_k=max(1, min(int(limit), 100)),
+        )
+        for item in results or []:
+            hits.append({
+                "path": item.get("path") or item.get("file_path") or "",
+                "line": int(item.get("line") or item.get("line_start") or 1),
+                "col": 0,
+                "match": (item.get("text") or item.get("chunk") or "")[:240],
+                "content_hash": item.get("content_hash") or "",
+                "score_semantic": float(item.get("score") or 0.0),
+            })
+        return hits, ""
+    except (TurbopufferNotFound, FileNotFoundError):
+        return [], ""
+    except TurbopufferConfigError as cfg_err:
+        return [], f"semantic disabled: {cfg_err}"
+    except Exception as exc:  # noqa: BLE001 - degrade gracefully
+        return [], str(exc)
+
+
 @router.post("/search", response_model=ApiResponse)
 async def search(
     body: _SearchRequest,
@@ -1292,43 +1363,12 @@ async def search(
             })
 
     if body.mode in ("semantic", "hybrid"):
-        try:
-            # Use the same cached singleton the tools router uses, with
-            # the full DI graph (ops + chunk_repo + project_service +
-            # chunking + embeddings + turbopuffer). Constructing
-            # ``SearchService()`` directly fails because three
-            # arguments are keyword-only — go through the factory.
-            from src.infra.search.dependencies import get_search_service
-            search_svc = get_search_service()
-            results = await search_svc.search_scope(
-                project_id=project_id,
-                path=combined_scope,
-                # tool_json_path empty = the scope's root JSON pointer;
-                # vector indexes for the SearchService are keyed by
-                # (project, path, json_path). Empty matches anything
-                # indexed under this AP scope without a sub-tool slice.
-                tool_json_path="",
-                query=body.query,
-                top_k=max(1, min(int(body.limit), 100)),
-            )
-            for item in results or []:
-                semantic_hits.append({
-                    "path": item.get("path") or item.get("file_path") or "",
-                    "line": int(item.get("line") or item.get("line_start") or 1),
-                    "col": 0,
-                    "match": (item.get("text") or item.get("chunk") or "")[:240],
-                    "content_hash": item.get("content_hash") or "",
-                    "score_semantic": float(item.get("score") or 0.0),
-                })
-        except Exception as exc:  # noqa: BLE001 - degrade gracefully
-            # The semantic path depends on embeddings + an external
-            # API. Don't crash the whole search if that's misconfigured;
-            # surface the failure mode in the response so the CLI can
-            # tell the user "semantic unavailable, showing literal".
-            semantic_hits = []
-            semantic_error = str(exc)
-        else:
-            semantic_error = ""
+        semantic_hits, semantic_error = await _run_semantic_channel(
+            project_id=project_id,
+            combined_scope=combined_scope,
+            query=body.query,
+            limit=body.limit,
+        )
     else:
         semantic_error = ""
 
