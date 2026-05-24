@@ -303,3 +303,39 @@ export async function updateProjectVisibility(projectId: string, visibility: 'or
     body: JSON.stringify({ visibility }),
   });
 }
+
+// ── Project share link (MVP) ──
+//
+// Per the locked design: every project has a single URL-safe token.
+// Holder can call ``/api/v1/projects/share/{token}/join`` to add
+// themselves as ``viewer``. Owner/admin can rotate the token, which
+// invalidates any link generated from the previous value.
+
+export type ProjectShareInfo = {
+  share_token: string;
+  can_share: boolean;
+};
+
+export type ProjectShareJoinResult = {
+  project_id: string;
+  project_name: string;
+  role: string;
+  newly_joined: boolean;
+};
+
+export async function getProjectShareInfo(projectId: string): Promise<ProjectShareInfo> {
+  return apiRequest<ProjectShareInfo>(`/api/v1/projects/${projectId}/share`);
+}
+
+export async function rotateProjectShareToken(projectId: string): Promise<ProjectShareInfo> {
+  return apiRequest<ProjectShareInfo>(`/api/v1/projects/${projectId}/share/rotate`, {
+    method: 'POST',
+  });
+}
+
+export async function joinProjectViaShareToken(token: string): Promise<ProjectShareJoinResult> {
+  return apiRequest<ProjectShareJoinResult>(
+    `/api/v1/projects/share/${encodeURIComponent(token)}/join`,
+    { method: 'POST' },
+  );
+}

@@ -18,6 +18,8 @@ import {
   removeProjectMember,
   updateProject,
   updateProjectVisibility,
+  getProjectShareInfo,
+  rotateProjectShareToken,
   type ProjectMember,
 } from '@/lib/projectsApi';
 import { useTranslations } from 'next-intl';
@@ -79,8 +81,15 @@ const EditIcon = () => (
   </svg>
 );
 
-function memberDisplayName(member: { display_name?: string | null; email?: string | null }) {
-  return member.display_name || member.email || 'Unknown member';
+function memberDisplayName(member: { display_name?: string | null; email?: string | null; user_id?: string }) {
+  if (member.display_name) return member.display_name;
+  if (member.email) return member.email;
+  // Better fallback than literal "Unknown member" — render the user_id
+  // prefix so the row is at least identifiable across the list. Real
+  // fix is the backend pulling email from auth.users; this is the
+  // last-resort visible string when even that fails.
+  if (member.user_id) return `User ${member.user_id.slice(0, 8)}`;
+  return 'Unknown member';
 }
 
 interface SettingsPageProps {
@@ -170,8 +179,22 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
   const [boundBranchEditing, setBoundBranchEditing] = useState(false);
   const [boundBranchSaving, setBoundBranchSaving] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  // Bulk-add modal state. We keep the legacy single-select pieces
+  // (selectedUserId / addRole) only as the role default fallback —
+  // the new flow is multi-select keyed by user_id in a Set.
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [addRole, setAddRole] = useState<'editor' | 'viewer'>('editor');
+  const [addRole, setAddRole] = useState<'admin' | 'editor' | 'viewer'>('editor');
+  const [bulkSelectedUserIds, setBulkSelectedUserIds] = useState<Set<string>>(() => new Set());
+  const [bulkSearch, setBulkSearch] = useState('');
+  const [bulkAddBusy, setBulkAddBusy] = useState(false);
+
+  // Share link state. Only fetched/rendered when the current user can
+  // share (owner/admin); the GET returns 403 otherwise, which we treat
+  // as "no share UI for this user".
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareRotating, setShareRotating] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; msg: string } | null>(null);
   const [memberRemoval, setMemberRemoval] = useState<{ userId: string; name: string } | null>(null);
   const [memberRemovalLoading, setMemberRemovalLoading] = useState(false);
@@ -267,6 +290,130 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
 
   const existingUserIds = new Set(projectMembers.map(m => m.user_id));
   const availableOrgMembers = orgMembers.filter(m => !existingUserIds.has(m.user_id));
+
+  // Org-member search: case-insensitive substring over display_name +
+  // email. Empty query = show all available org members.
+  const filteredOrgMembers = useMemo(() => {
+    const q = bulkSearch.trim().toLowerCase();
+    if (!q) return availableOrgMembers;
+    return availableOrgMembers.filter(m => {
+      const haystack = `${m.display_name ?? ''} ${m.email ?? ''}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [availableOrgMembers, bulkSearch]);
+
+  const canShare = orgRole === 'owner' || projectMembers.some(
+    m => m.user_id === session?.user?.id && m.role === 'admin',
+  );
+
+  // Fetch the share token for owners/admins only. Re-runs when the
+  // project id changes OR the user's role changes (signing back in
+  // as a different account, etc.).
+  useEffect(() => {
+    if (!canShare || !projectId) {
+      setShareToken(null);
+      return;
+    }
+    let cancelled = false;
+    setShareLoading(true);
+    getProjectShareInfo(projectId)
+      .then(info => {
+        if (!cancelled) setShareToken(info.share_token);
+      })
+      .catch(() => {
+        // 403 / 404 — surface as "no share link available" rather than
+        // a feedback toast; the user often doesn't know if their role
+        // qualifies and a red error here would be confusing.
+        if (!cancelled) setShareToken(null);
+      })
+      .finally(() => {
+        if (!cancelled) setShareLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, canShare]);
+
+  const shareUrl = useMemo(() => {
+    if (!shareToken) return '';
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/share/${shareToken}`;
+  }, [shareToken]);
+
+  const openAddMemberModal = () => {
+    setBulkSelectedUserIds(new Set());
+    setBulkSearch('');
+    setAddRole('editor');
+    setShowAddMember(true);
+  };
+
+  const toggleBulkSelect = (userId: string) => {
+    setBulkSelectedUserIds(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const handleBulkAdd = async () => {
+    if (bulkSelectedUserIds.size === 0) return;
+    setBulkAddBusy(true);
+    // Add each selected user in parallel. The backend doesn't have a
+    // bulk endpoint yet (intentional MVP scope), but the per-call
+    // latency is small + the org member list is bounded; parallel
+    // POST is acceptable here.
+    const userIds = Array.from(bulkSelectedUserIds);
+    const results = await Promise.allSettled(
+      userIds.map(uid => addProjectMember(projectId, uid, addRole)),
+    );
+    const failed = results
+      .map((r, i) => (r.status === 'rejected' ? userIds[i] : null))
+      .filter((x): x is string => x !== null);
+    setBulkAddBusy(false);
+    if (failed.length === 0) {
+      setShowAddMember(false);
+      await mutateProjectMembers();
+      setFeedback({
+        type: 'success',
+        msg: `Added ${userIds.length} member${userIds.length === 1 ? '' : 's'}.`,
+      });
+      setTimeout(() => setFeedback(null), 3000);
+    } else {
+      await mutateProjectMembers();
+      setFeedback({
+        type: 'error',
+        msg: `${userIds.length - failed.length} added, ${failed.length} failed. Check roles and try again.`,
+      });
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1500);
+    } catch {
+      setFeedback({ type: 'error', msg: `Couldn't copy — link: ${shareUrl}` });
+    }
+  };
+
+  const handleRotateShareLink = async () => {
+    if (!projectId) return;
+    if (!confirm('Rotate the share link? The current link will stop working immediately.')) return;
+    setShareRotating(true);
+    try {
+      const info = await rotateProjectShareToken(projectId);
+      setShareToken(info.share_token);
+      setFeedback({ type: 'success', msg: 'Share link rotated. Previous link is invalid.' });
+      setTimeout(() => setFeedback(null), 3000);
+    } catch (err: any) {
+      setFeedback({ type: 'error', msg: err.message || 'Failed to rotate share link' });
+    } finally {
+      setShareRotating(false);
+    }
+  };
 
   // Two distinct "no project yet" cases that used to be handled
   // unevenly:
@@ -585,9 +732,9 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                         </div>
                       )}
                     </div>
-                    {!showAddMember && !orgMembersLoading && availableOrgMembers.length > 0 && (
+                    {!orgMembersLoading && availableOrgMembers.length > 0 && (
                       <button
-                        onClick={() => setShowAddMember(true)}
+                        onClick={openAddMemberModal}
                         onMouseEnter={onPrimaryEnter}
                         onMouseLeave={onPrimaryLeave}
                         style={btnPrimary}
@@ -597,64 +744,231 @@ export default function ProjectSettingsPage({ params }: SettingsPageProps) {
                     )}
                   </div>
 
-                  {/* Add form — inset surface. Slightly darker than
-                      the section card (cardBg + 0.01) so the form
-                      reads as a recessed panel rather than another
-                      stacked card. */}
-                  {showAddMember && (
+                  {/* Share link block — only owner/admin sees this; the
+                      load-share-info effect 404/403s for everyone else
+                      and ``shareToken`` stays null. Renders for both
+                      visibilities because even org-mode projects
+                      sometimes need a way to onboard someone before
+                      they exist in the org member list. */}
+                  {canShare && (
                     <div
                       style={{
-                        display: 'flex',
-                        gap: 8,
-                        marginBottom: 16,
                         padding: 12,
+                        marginBottom: 16,
                         background: 'var(--po-control)',
                         borderRadius: 7,
                         border: `1px solid ${T.cardBorder}`,
-                        animation: 'dialog-fade-in 0.15s ease-out',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 8,
                       }}
                     >
-                      <select
-                        value={selectedUserId}
-                        onChange={e => setSelectedUserId(e.target.value)}
-                        style={selectStyle}
-                      >
-                        <option value="" disabled>
-                          {orgMembersLoading ? 'Loading members...' : 'Select an organization member...'}
-                        </option>
-                        {availableOrgMembers.map(m => (
-                          <option key={m.user_id} value={m.user_id}>
-                            {memberDisplayName(m)}
-                          </option>
-                        ))}
-                      </select>
-                      <select value={addRole} onChange={e => setAddRole(e.target.value as any)} style={{ ...selectStyle, maxWidth: 120 }}>
-                        <option value="admin">Admin</option>
-                        <option value="editor">Editor</option>
-                        <option value="viewer">Viewer</option>
-                      </select>
-                      <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: T.text1 }}>Share link</div>
+                          <div style={{ fontSize: 11, color: T.text3, marginTop: 2 }}>
+                            Anyone with this link can join as Viewer.
+                            {visibility === 'org' && ' Useful for onboarding people who aren’t in the org yet.'}
+                          </div>
+                        </div>
                         <button
-                          onClick={handleAddMember}
-                          disabled={!selectedUserId}
-                          onMouseEnter={selectedUserId ? onPrimaryEnter : undefined}
-                          onMouseLeave={selectedUserId ? onPrimaryLeave : undefined}
-                          style={{
-                            ...btnPrimary,
-                            opacity: selectedUserId ? 1 : 0.45,
-                            cursor: selectedUserId ? 'pointer' : 'not-allowed',
-                          }}
-                        >
-                          Add
-                        </button>
-                        <button
-                          onClick={() => setShowAddMember(false)}
+                          onClick={handleRotateShareLink}
+                          disabled={shareRotating || !shareToken}
                           onMouseEnter={onGhostEnter}
                           onMouseLeave={onGhostLeave}
-                          style={btnGhost}
+                          style={{
+                            ...btnGhost,
+                            opacity: shareRotating || !shareToken ? 0.5 : 1,
+                            cursor: shareRotating || !shareToken ? 'not-allowed' : 'pointer',
+                            fontSize: 12,
+                          }}
+                          title="Generates a new link and invalidates the current one"
                         >
-                          Cancel
+                          {shareRotating ? 'Rotating…' : 'Rotate'}
                         </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input
+                          type="text"
+                          readOnly
+                          value={shareLoading ? 'Loading…' : shareUrl || '(unavailable)'}
+                          style={{
+                            flex: 1,
+                            padding: '6px 10px',
+                            borderRadius: 6,
+                            border: `1px solid ${T.cardBorder}`,
+                            background: 'var(--po-inset)',
+                            color: T.text2,
+                            fontSize: 12,
+                            fontFamily: T.fontMono,
+                          }}
+                          onClick={e => e.currentTarget.select()}
+                        />
+                        <button
+                          onClick={handleCopyShareLink}
+                          disabled={!shareUrl}
+                          onMouseEnter={shareUrl ? onPrimaryEnter : undefined}
+                          onMouseLeave={shareUrl ? onPrimaryLeave : undefined}
+                          style={{
+                            ...btnPrimary,
+                            opacity: shareUrl ? 1 : 0.45,
+                            cursor: shareUrl ? 'pointer' : 'not-allowed',
+                            fontSize: 12,
+                          }}
+                        >
+                          {shareCopied ? 'Copied!' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bulk-add modal — single source of truth for adding
+                      members. Replaces the previous inline single-select
+                      form. Search + multi-checkbox + role + Add N. */}
+                  {showAddMember && (
+                    <div
+                      onClick={() => !bulkAddBusy && setShowAddMember(false)}
+                      style={{
+                        position: 'fixed',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 1000,
+                      }}
+                    >
+                      <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                          width: 480,
+                          maxWidth: '90vw',
+                          maxHeight: '80vh',
+                          background: 'var(--po-panel)',
+                          border: `1px solid ${T.cardBorder}`,
+                          borderRadius: 10,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          animation: 'dialog-fade-in 0.15s ease-out',
+                        }}
+                      >
+                        <div style={{
+                          padding: '14px 16px',
+                          borderBottom: `1px solid ${T.cardBorder}`,
+                          fontSize: 14, fontWeight: 600, color: T.text1,
+                        }}>
+                          Add members from {currentOrg?.name ?? 'organization'}
+                        </div>
+                        <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+                          <input
+                            type="text"
+                            placeholder="Search by name or email…"
+                            value={bulkSearch}
+                            onChange={e => setBulkSearch(e.target.value)}
+                            autoFocus
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: 6,
+                              border: `1px solid ${T.cardBorder}`,
+                              background: 'var(--po-inset)',
+                              color: T.text1,
+                              fontSize: 13,
+                            }}
+                          />
+                        </div>
+                        <div style={{
+                          flex: 1, minHeight: 0, overflowY: 'auto',
+                          padding: '0 14px 8px 14px',
+                          display: 'flex', flexDirection: 'column', gap: 4,
+                        }}>
+                          {filteredOrgMembers.length === 0 && (
+                            <div style={{ fontSize: 12, color: T.text3, padding: '14px 4px', textAlign: 'center' }}>
+                              {availableOrgMembers.length === 0
+                                ? 'Everyone in the organization is already a member.'
+                                : 'No members match your search.'}
+                            </div>
+                          )}
+                          {filteredOrgMembers.map(m => {
+                            const checked = bulkSelectedUserIds.has(m.user_id);
+                            return (
+                              <label
+                                key={m.user_id}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 10,
+                                  padding: '8px 8px',
+                                  borderRadius: 6,
+                                  cursor: 'pointer',
+                                  background: checked ? 'var(--po-selected)' : 'transparent',
+                                }}
+                                onMouseEnter={e => { if (!checked) e.currentTarget.style.background = 'var(--po-hover)'; }}
+                                onMouseLeave={e => { if (!checked) e.currentTarget.style.background = 'transparent'; }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleBulkSelect(m.user_id)}
+                                  style={{ flexShrink: 0 }}
+                                />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{
+                                    fontSize: 13, color: T.text1,
+                                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  }}>
+                                    {memberDisplayName(m)}
+                                  </div>
+                                  {m.email && m.display_name && (
+                                    <div style={{ fontSize: 11, color: T.text3 }}>{m.email}</div>
+                                  )}
+                                </div>
+                                <span style={{ fontSize: 10, color: T.text3, textTransform: 'capitalize' }}>
+                                  {m.role}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <div style={{
+                          padding: 14, borderTop: `1px solid ${T.cardBorder}`,
+                          display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0,
+                        }}>
+                          <select
+                            value={addRole}
+                            onChange={e => setAddRole(e.target.value as 'admin' | 'editor' | 'viewer')}
+                            style={{ ...selectStyle, maxWidth: 130 }}
+                            disabled={bulkAddBusy}
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="editor">Editor</option>
+                            <option value="viewer">Viewer</option>
+                          </select>
+                          <div style={{ flex: 1 }} />
+                          <button
+                            onClick={() => setShowAddMember(false)}
+                            onMouseEnter={onGhostEnter}
+                            onMouseLeave={onGhostLeave}
+                            disabled={bulkAddBusy}
+                            style={btnGhost}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleBulkAdd}
+                            disabled={bulkSelectedUserIds.size === 0 || bulkAddBusy}
+                            onMouseEnter={bulkSelectedUserIds.size > 0 ? onPrimaryEnter : undefined}
+                            onMouseLeave={bulkSelectedUserIds.size > 0 ? onPrimaryLeave : undefined}
+                            style={{
+                              ...btnPrimary,
+                              opacity: bulkSelectedUserIds.size > 0 && !bulkAddBusy ? 1 : 0.5,
+                              cursor: bulkSelectedUserIds.size > 0 && !bulkAddBusy ? 'pointer' : 'not-allowed',
+                            }}
+                          >
+                            {bulkAddBusy
+                              ? 'Adding…'
+                              : bulkSelectedUserIds.size > 0
+                                ? `Add ${bulkSelectedUserIds.size} member${bulkSelectedUserIds.size === 1 ? '' : 's'}`
+                                : 'Add'}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
