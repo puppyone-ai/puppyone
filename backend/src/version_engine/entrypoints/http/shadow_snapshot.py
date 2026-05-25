@@ -73,12 +73,17 @@ router = APIRouter()
 # The JSONB total-size cap is gone — manifests live in S3 now. We
 # keep the entry-count and per-file caps because they bound what
 # the server has to JSON-encode in one request and what an individual
-# blob upload is later going to be allowed to push (50 MiB ÷ entry =
-# a rough denominator for upload-flow sizing).
-
-
+# blob upload is later going to be allowed to push.
+#
+# ``_MAX_BYTES_PER_FILE`` must stay in lockstep with
+# ``upload_policy.PER_FILE_MAX_BYTES`` (PUP-3 cross-language
+# constant). If a file is upload-able through ``/ap-fs/upload`` or
+# ``/git/push``, the desktop client's shadow-snapshot path MUST be
+# able to register it on the manifest too — otherwise the same file
+# accepted by web/CLI gets rejected by the local mirror and the
+# two paths can't interoperate.
 _MAX_FILES_PER_SNAPSHOT = 100_000
-_MAX_BYTES_PER_FILE = 50 * 1024 * 1024
+_MAX_BYTES_PER_FILE = 100 * 1024 * 1024
 _VALID_FILE_MODES = frozenset({"100644", "100755", "120000", "40000"})
 
 _MANIFEST_S3_CONTENT_TYPE = "application/json"
