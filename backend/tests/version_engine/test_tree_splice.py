@@ -18,7 +18,7 @@ import json
 
 import pytest
 from src.version_engine.write_engine import tree as tree_mod
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 
 from src.version_engine.adapters.product.tree_patch import (
     splice_batch,

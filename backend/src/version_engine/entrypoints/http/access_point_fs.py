@@ -2193,7 +2193,7 @@ async def admin_object_integrity(
     """
     import zlib
     from src.version_engine.domain.errors import StorageWriteError
-    from src.version_engine.infrastructure.s3.object_storage import (
+    from src.version_engine.storage.backends.s3 import (
         _verify_loose_hash,
     )
 

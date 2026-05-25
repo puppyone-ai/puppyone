@@ -28,13 +28,13 @@ from src.version_engine.write_engine.git_object_format import (
     encode_tree,
     hash_object,
 )
-from src.version_engine.write_engine.object_store import ObjectStore, StorageBackend
+from src.version_engine.storage.object_store import ObjectStore, StorageBackend
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.adapters.git.object_quarantine import GitObjectQuarantine
 from src.version_engine.admission.repo_facade import repo_facade_from_auth
-import src.version_engine.infrastructure.s3.object_storage as s3_object_storage
-from src.version_engine.infrastructure.s3.object_storage import S3StorageBackend
+from src.version_engine.storage.backends.s3 import S3StorageBackend
 from src.version_engine.infrastructure.supabase.db_names import OBJECT_LOCATIONS_TABLE
+from src.version_engine.storage.io_strategy import IOStorageStrategy
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -382,10 +382,7 @@ async def test_object_batch_writes_one_bundle_with_location_index() -> None:
 
 
 @pytest.mark.asyncio
-async def test_object_batch_chunks_large_objects_below_storage_object_cap(monkeypatch) -> None:
-    monkeypatch.setattr(s3_object_storage, "_OBJECT_BUNDLE_TARGET_BYTES", 1024)
-    monkeypatch.setattr(s3_object_storage, "_OBJECT_CHUNK_BYTES", 512)
-
+async def test_object_batch_chunks_large_objects_below_storage_object_cap() -> None:
     rng = random.Random(0)
     large_id, large_loose = encode_object(
         "blob",
@@ -468,7 +465,15 @@ async def test_object_batch_chunks_large_objects_below_storage_object_cap(monkey
 
     s3 = _FakeS3()
     supabase = _FakeSupabase()
-    backend = S3StorageBackend(s3, "proj", supabase=supabase)
+    backend = S3StorageBackend(
+        s3,
+        "proj",
+        supabase=supabase,
+        io_strategy=IOStorageStrategy(
+            bundle_target_bytes=1024,
+            chunk_bytes=512,
+        ),
+    )
 
     await backend.async_put_many({
         large_id: large_loose,
@@ -488,7 +493,6 @@ async def test_object_batch_chunks_large_objects_below_storage_object_cap(monkey
     large_slice, large_total = await cold_backend.async_get_range(large_id, 10, 25)
     assert large_total == len(large_loose)
     assert large_slice == large_loose[10:35]
-
 
 def test_s3_backend_reads_deferred_namespace_but_writes_final_namespace() -> None:
     object_id, loose = encode_object("blob", b"from deferred storage\n")

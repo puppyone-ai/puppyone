@@ -23,7 +23,7 @@ import asyncio
 import json
 
 from src.version_engine.write_engine.diff import diff_trees
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.tree import read_tree
 
 from src.version_engine.infrastructure.supabase.repo_manager import VersionRepoManager
@@ -124,13 +124,13 @@ class VersionAdminService:
         if not entry:
             raise ValueError(f"Commit {commit_id} not found")
 
-        root = _resolve_entry_root(entry)
-        if not root:
+        resolved = await asyncio.to_thread(
+            _resolve_entry_blob, repo.store, entry, path,
+        )
+        if resolved is None:
             raise ValueError(f"Commit {commit_id} has no root hash")
 
-        blob_hash = await asyncio.to_thread(
-            _resolve_path_hash, repo.store, root, path,
-        )
+        _root_hash, _lookup_path, blob_hash = resolved
         if not blob_hash:
             raise FileNotFoundError(f"File {path} not found at {commit_id}")
 
@@ -166,6 +166,73 @@ def _resolve_entry_root(entry: dict) -> str:
     if root:
         return root
     return entry.get("scope_hash", "")
+
+
+def _resolve_entry_blob(
+    store: ObjectStore,
+    entry: dict,
+    path: str,
+) -> tuple[str, str, str] | None:
+    """Resolve a history path against either full-root or scope-root trees.
+
+    History rows store user-facing paths. Scoped Git commits may only carry a
+    ``scope_hash`` whose tree is already rooted at ``scope_path``. In that case
+    ``New Folder/file.md`` must be looked up as ``file.md`` inside the scope
+    tree, otherwise the Changes UI cannot load diffs for scoped commits.
+    """
+    candidates = _entry_tree_path_candidates(entry, path)
+    if not candidates:
+        return None
+
+    for root_hash, lookup_path in candidates:
+        if not lookup_path:
+            continue
+        blob_hash = _resolve_path_hash(store, root_hash, lookup_path)
+        if blob_hash:
+            return root_hash, lookup_path, blob_hash
+
+    root_hash, lookup_path = candidates[0]
+    return root_hash, lookup_path, ""
+
+
+def _entry_tree_path_candidates(entry: dict, path: str) -> list[tuple[str, str]]:
+    clean_path = path.strip("/")
+    candidates: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add(root_hash: str, lookup_path: str | None) -> None:
+        if not root_hash or lookup_path is None:
+            return
+        candidate = (root_hash, lookup_path.strip("/"))
+        if candidate in seen:
+            return
+        seen.add(candidate)
+        candidates.append(candidate)
+
+    root_hash = entry.get("root_hash", "") or ""
+    add(root_hash, clean_path)
+
+    scope_hash = entry.get("scope_hash", "") or ""
+    scoped_path = _path_relative_to_scope(clean_path, entry.get("scope_path", ""))
+    add(scope_hash, scoped_path)
+
+    # Compatibility for older rows/callers that already pass paths relative to
+    # the scoped tree.
+    add(scope_hash, clean_path)
+    return candidates
+
+
+def _path_relative_to_scope(path: str, scope_path: str) -> str | None:
+    clean_path = path.strip("/")
+    clean_scope = (scope_path or "").strip("/")
+    if not clean_scope:
+        return clean_path
+    if clean_path == clean_scope:
+        return ""
+    prefix = f"{clean_scope}/"
+    if clean_path.startswith(prefix):
+        return clean_path[len(prefix):]
+    return None
 
 
 def _history_fetch_limit(limit: int) -> int:

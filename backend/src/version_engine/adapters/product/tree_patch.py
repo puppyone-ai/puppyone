@@ -33,7 +33,7 @@ from typing import Iterable
 
 from src.version_engine.domain.errors import ObjectNotFoundError
 from src.version_engine.write_engine import tree as tree_mod
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 
 # Each change is ``(action, rel_path)``. Action is one of "add" / "update"
 # / "delete", matching version history conventions.

@@ -22,7 +22,7 @@ from typing import ClassVar
 from src.version_engine.write_engine.git_object_format import (
     MODE_DIR, MODE_FILE, TreeEntry, encode_tree,
 )
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 from src.version_engine.write_engine.path_utils import normalize_path
 from src.version_engine.write_engine.tree import read_tree, tree_to_flat
 from src.version_engine.infrastructure.supabase.scope_manager import ScopeManager

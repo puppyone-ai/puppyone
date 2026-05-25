@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from src.version_engine.domain.errors import ObjectNotFoundError
-from src.version_engine.write_engine.object_store import ObjectStore, StorageBackend
+from src.version_engine.storage.object_store import ObjectStore, StorageBackend
 from src.version_engine.write_engine.git_object_format import MODE_DIR, MODE_FILE, TreeEntry, encode_tree
 
 from fastapi import HTTPException

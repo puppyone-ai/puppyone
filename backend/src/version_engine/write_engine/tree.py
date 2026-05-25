@@ -11,7 +11,7 @@ from src.version_engine.write_engine.git_object_format import (
     decode_tree,
     encode_tree,
 )
-from src.version_engine.write_engine.object_store import ObjectStore
+from src.version_engine.storage.object_store import ObjectStore
 
 MAX_DEPTH = 100
 
