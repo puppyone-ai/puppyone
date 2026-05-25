@@ -12,6 +12,7 @@ import {
 import { sortConnectorsBuiltinFirst, type Connector, type RepoScope } from '@/lib/repoApi';
 import { APP_Z_INDEX } from '@/lib/zIndex';
 import { ProviderIcon } from '../../../access/components/icons';
+import { CommandBlock } from '../../../access/components/ui-blocks';
 import { PROVIDER_LABELS, STATUS_COLORS, STATUS_LABEL } from '../../../access/lib/constants';
 import { getApiBase, getTypeLine, timeAgo } from '../../../access/lib/format';
 import { T } from '../../../access/lib/tokens';
@@ -1076,33 +1077,11 @@ function ConnectionStepsList({
             <span style={{ color: T.text1, fontSize: FONT_META, fontWeight: 600, fontFamily: T.fontSans }}>
               {step.title}
             </span>
-            <MiniCommandBlock lines={step.lines} />
+            <CommandBlock lines={step.lines} />
           </div>
         </div>
       ))}
     </div>
-  );
-}
-
-function MiniCommandBlock({ lines }: { readonly lines: readonly string[] }) {
-  return (
-    <pre
-      style={{
-        margin: 0,
-        padding: '10px 12px',
-        borderRadius: 6,
-        border: `1px solid ${T.cardBorder}`,
-        background: PROMPT_BOX_BG,
-        color: T.text1,
-        fontFamily: T.fontMono,
-        fontSize: FONT_META,
-        lineHeight: 1.6,
-        overflowX: 'auto',
-        whiteSpace: 'pre',
-      }}
-    >
-      {lines.join('\n')}
-    </pre>
   );
 }
 

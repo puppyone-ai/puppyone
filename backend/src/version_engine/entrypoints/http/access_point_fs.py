@@ -32,6 +32,7 @@ from src.version_engine.entrypoints.http.schemas import (
     WriteFileRequest,
 )
 from src.version_engine.admission.channel_pause import enforce_channel_pause
+from src.version_engine.admission.connector_policy import admit_cli_fs_command
 from src.version_engine.admission.permission import (
     ensure_mode_writable,
     ensure_repo_readable,
@@ -116,6 +117,7 @@ async def _resolve_auth(
     x_access_key: str | None,
     x_puppyone_user: str | None,
     x_puppy_client: str | None = None,
+    command: str | None = None,
 ) -> tuple[str, dict, dict]:
     project_id, auth = await asyncio.to_thread(
         resolve_access_point, _normalize_access_key(x_access_key),
@@ -147,7 +149,10 @@ async def _resolve_auth(
             status_code=400,
             detail="X-Puppy-Client header required",
         )
-    enforce_channel_pause(auth, x_puppy_client, log_prefix="[AP-FS]")
+    if command:
+        admit_cli_fs_command(auth, command, x_puppy_client, log_prefix="[AP-FS]")
+    else:
+        enforce_channel_pause(auth, x_puppy_client, log_prefix="[AP-FS]")
 
     normalized_scope = {
         "id": scope.get("id") or auth.get("agent"),
@@ -652,7 +657,9 @@ async def list_dir(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="ls",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
 
@@ -698,7 +705,9 @@ async def tree(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="tree",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
     max_depth = _query_int(max_depth, -1)
@@ -783,7 +792,9 @@ async def grep(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="grep",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
     max_depth = _query_int(max_depth, -1)
@@ -1090,7 +1101,7 @@ async def grep_indexed(
     )
 
     project_id, _auth, scope = await _resolve_auth(
-        x_access_key, x_puppyone_user, x_puppy_client,
+        x_access_key, x_puppyone_user, x_puppy_client, command="grep",
     )
     rel_path = _clean_relative(body.path)
     _assert_not_excluded(rel_path, scope)
@@ -1325,7 +1336,7 @@ async def search(
     )
 
     project_id, _auth, scope = await _resolve_auth(
-        x_access_key, x_puppyone_user, x_puppy_client,
+        x_access_key, x_puppyone_user, x_puppy_client, command="semantics",
     )
     rel_path = _clean_relative(body.path)
     _assert_not_excluded(rel_path, scope)
@@ -1414,7 +1425,9 @@ async def read_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="cat",
+    )
     rel_path = _clean_relative(path)
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
@@ -1458,7 +1471,9 @@ async def raw_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="download",
+    )
     rel_path = _clean_relative(path)
     if not rel_path:
         raise HTTPException(status_code=400, detail="File path is required")
@@ -1518,7 +1533,9 @@ async def upload_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="upload",
+    )
     _ensure_writable(scope)
     rel_path = _clean_relative(path)
     if not rel_path:
@@ -1567,7 +1584,9 @@ async def stat(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     ops: ProductOperationAdapter = Depends(get_product_operation_adapter),
 ):
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="stat",
+    )
     rel_path = _clean_relative(path)
     _assert_not_excluded(rel_path, scope)
 
@@ -1640,7 +1659,9 @@ async def write_file(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="write",
+    )
     _ensure_writable(scope)
     rel_path = _clean_relative(body.path)
     if not rel_path:
@@ -1683,7 +1704,9 @@ async def mkdir(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="mkdir",
+    )
     _ensure_writable(scope)
     rel_path = _clean_relative(body.path)
     if not rel_path:
@@ -1743,7 +1766,9 @@ async def touch(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="touch",
+    )
     _ensure_writable(scope)
     rel_paths = [_clean_relative(p) for p in (body.paths or [body.path])]
     rel_paths = [p for p in rel_paths if p]
@@ -1841,7 +1866,9 @@ async def move(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="mv",
+    )
     _ensure_writable(scope)
     old_rel = _clean_relative(body.old_path)
     new_rel = _clean_relative(body.new_path)
@@ -1933,7 +1960,9 @@ async def copy(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="cp",
+    )
     _ensure_writable(scope)
     old_rel = _clean_relative(body.old_path)
     new_rel = _clean_relative(body.new_path)
@@ -2020,7 +2049,9 @@ async def rmdir(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="rmdir",
+    )
     _ensure_writable(scope)
     rel_paths = [_clean_relative(p) for p in (body.paths or [body.path])]
     rel_paths = [p for p in rel_paths if p]
@@ -2086,7 +2117,9 @@ async def remove(
     x_puppy_client: str | None = Header(None, alias="X-Puppy-Client"),
     commands: VersionWriteCommandService = Depends(get_version_write_command_service),
 ):
-    project_id, auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="rm",
+    )
     _ensure_writable(scope)
     rel_paths = [_clean_relative(p) for p in (body.paths or [body.path])]
     rel_paths = [p for p in rel_paths if p]
@@ -2187,7 +2220,9 @@ async def find_index(
     the live tree.
     """
 
-    project_id, _auth, scope = await _resolve_auth(x_access_key, x_puppyone_user, x_puppy_client)
+    project_id, _auth, scope = await _resolve_auth(
+        x_access_key, x_puppyone_user, x_puppy_client, command="find",
+    )
     scope_full = _join_scope(scope["path"], _clean_relative(path)) if path else (scope["path"] or "")
     scope_full = scope_full.strip("/")
 

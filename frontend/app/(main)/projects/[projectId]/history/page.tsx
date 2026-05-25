@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { use, useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import useSWR from 'swr';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import {
@@ -15,11 +15,11 @@ import { SIDEBAR_ROW_TYPOGRAPHY } from '@/lib/uiTypography';
 import { PageLoading } from '@/components/loading';
 import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 import { useCommitUpdates } from '@/contexts/VersionWebSocketContext';
-import { BUTTON_HEIGHT, BUTTON_RADIUS } from '@/components/ui/buttonTokens';
 import {
   NeedsActionSection,
   getKind as getNeedsActionKind,
   type NeedsActionItem,
+  type NeedsActionSummary,
 } from './components/NeedsActionSection';
 import type { NeedsActionSelection } from './components/NeedsActionSection';
 import type {
@@ -80,15 +80,12 @@ interface DiffLine {
 }
 
 const DIFF_MAX_LINES = 4000;
-const HISTORY_FILTER_CONTROL_STYLE = {
-  height: BUTTON_HEIGHT,
-  borderRadius: BUTTON_RADIUS,
-  lineHeight: 1,
-  boxSizing: 'border-box' as const,
-};
-const HISTORY_SCOPE_FILTER_WIDTH = 128;
-const HISTORY_ACTOR_FILTER_WIDTH = 100;
 const HISTORY_DIFF_HEADER_BG = 'color-mix(in srgb, var(--po-canvas) 84%, var(--po-text) 4%)';
+const HISTORY_ROW_ITEM_HEIGHT = 30;
+const HISTORY_ROW_MARGIN_Y = 1;
+const HISTORY_ROW_HEIGHT = HISTORY_ROW_ITEM_HEIGHT + HISTORY_ROW_MARGIN_Y * 2;
+const HISTORY_GRAPH_WIDTH = 20;
+const HISTORY_LINE_X = HISTORY_GRAPH_WIDTH / 2;
 
 function lineDiff(a: string[], b: string[]): DiffLine[] {
   if (a.length + b.length > DIFF_MAX_LINES) {
@@ -311,6 +308,101 @@ function scopeLineage(scopePath: string): string[] {
   return lineage;
 }
 
+function HistoryFilterGroup({
+  label,
+  children,
+}: {
+  readonly label: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <div style={{ minWidth: 0, padding: '4px 0' }}>
+      <div
+        style={{
+          padding: '4px 8px 5px',
+          color: 'var(--po-text-disabled)',
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {label}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function HistoryFilterOption({
+  selected,
+  label,
+  count,
+  markerColor,
+  showMarkerSlot = false,
+  onClick,
+}: {
+  readonly selected: boolean;
+  readonly label: string;
+  readonly count: number;
+  readonly markerColor?: string;
+  readonly showMarkerSlot?: boolean;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      onClick={onClick}
+      className={`w-full min-w-0 rounded-md px-2 text-left transition-colors ${
+        selected
+          ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
+          : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
+      }`}
+      style={{
+        height: 28,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        fontSize: 12,
+        fontWeight: 500,
+      }}
+    >
+      {showMarkerSlot ? (
+        <span
+          aria-hidden
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: markerColor ?? 'transparent',
+            flexShrink: 0,
+          }}
+        />
+      ) : null}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span
+        style={{
+          color: 'var(--po-text-disabled)',
+          fontSize: 10,
+          fontWeight: 500,
+          flexShrink: 0,
+        }}
+      >
+        {count}
+      </span>
+      {selected ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden style={{ flexShrink: 0 }}>
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      ) : null}
+    </button>
+  );
+}
+
 // ─── Vertical commit node (Linear Audit Trail) ───
 
 function getTrackInfo(who: string) {
@@ -340,26 +432,17 @@ function VerticalCommitNode({
 }) {
   const { type, id } = parseOperator(commit.who);
   const currentInfo = getTrackInfo(commit.who);
+  const actorLabel = formatOperatorLabel(type);
 
   const [hovered, setHovered] = useState(false);
   const rowRef = useRef<HTMLDivElement>(null);
 
-  const ITEM_HEIGHT = 30;
-  const MARGIN_Y = 1;
-  const ROW_HEIGHT = ITEM_HEIGHT + MARGIN_Y * 2; // 32px total row space
-
-  // Left side for the short commit id
-  const VERSION_WIDTH = 56;
-  const GRAPH_WIDTH = 20;
-  const LINE_X = GRAPH_WIDTH / 2;
   const trackColor = 'var(--po-filetree-rail)';
   const dotStroke = hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)';
   const dotRadius = isSelected ? 4 : 3;
 
-  const shortId = commit.commit_id ? commit.commit_id.slice(0, 8) : '';
-
   return (
-    <div style={{ position: 'relative', height: ROW_HEIGHT }}>
+    <div style={{ position: 'relative', height: HISTORY_ROW_HEIGHT }}>
       {/* ExplorerSidebar TreeItem Style Row */}
       <div
         ref={rowRef}
@@ -368,8 +451,8 @@ function VerticalCommitNode({
         onMouseLeave={() => setHovered(false)}
         style={{
           display: 'flex', alignItems: 'center',
-          margin: `${MARGIN_Y}px 6px`,
-          height: ITEM_HEIGHT, boxSizing: 'border-box',
+          margin: `${HISTORY_ROW_MARGIN_Y}px 6px`,
+          height: HISTORY_ROW_ITEM_HEIGHT, boxSizing: 'border-box',
           borderRadius: 6,
           background: isSelected ? 'var(--po-selected)' : hovered ? 'var(--po-hover)' : 'transparent',
           color: isSelected ? 'var(--po-text)' : hovered ? 'var(--po-text)' : 'var(--po-text-muted)',
@@ -389,61 +472,41 @@ function VerticalCommitNode({
             paddingRight: 6,
           }}
         >
-          {/* Fixed-width Commit ID Column on the Left */}
-          <div
-            title={commit.commit_id}
-            style={{
-              width: VERSION_WIDTH,
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              fontFamily: 'var(--po-font-sans)',
-              fontSize: 11,
-              color: isSelected ? 'var(--po-text)' : 'var(--po-text-subtle)',
-              transition: 'color 0.1s',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {shortId}
-          </div>
-
           <svg
-            width={GRAPH_WIDTH}
-            height={ROW_HEIGHT}
-            viewBox={`0 0 ${GRAPH_WIDTH} ${ROW_HEIGHT}`}
+            width={HISTORY_GRAPH_WIDTH}
+            height={HISTORY_ROW_HEIGHT}
+            viewBox={`0 0 ${HISTORY_GRAPH_WIDTH} ${HISTORY_ROW_HEIGHT}`}
             style={{
               flexShrink: 0,
-              marginTop: -MARGIN_Y,
-              marginBottom: -MARGIN_Y,
+              marginTop: -HISTORY_ROW_MARGIN_Y,
+              marginBottom: -HISTORY_ROW_MARGIN_Y,
               overflow: 'visible',
               pointerEvents: 'none',
             }}
           >
             {hasPrevious && (
               <line
-                x1={LINE_X}
+                x1={HISTORY_LINE_X}
                 y1={0}
-                x2={LINE_X}
-                y2={ROW_HEIGHT / 2}
+                x2={HISTORY_LINE_X}
+                y2={HISTORY_ROW_HEIGHT / 2}
                 stroke={trackColor}
                 strokeWidth={1.5}
               />
             )}
             {hasNext && (
               <line
-                x1={LINE_X}
-                y1={ROW_HEIGHT / 2}
-                x2={LINE_X}
-                y2={ROW_HEIGHT}
+                x1={HISTORY_LINE_X}
+                y1={HISTORY_ROW_HEIGHT / 2}
+                x2={HISTORY_LINE_X}
+                y2={HISTORY_ROW_HEIGHT}
                 stroke={trackColor}
                 strokeWidth={1.5}
               />
             )}
             <circle
-              cx={LINE_X}
-              cy={ROW_HEIGHT / 2}
+              cx={HISTORY_LINE_X}
+              cy={HISTORY_ROW_HEIGHT / 2}
               r={dotRadius}
               fill={isSelected ? currentInfo.color : hovered ? 'var(--po-panel)' : 'var(--po-canvas)'}
               stroke={isSelected ? 'none' : dotStroke}
@@ -459,16 +522,16 @@ function VerticalCommitNode({
             paddingLeft: 4,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
-            {/* Actor Prefix (Optional context) */}
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 4,
-              color: currentInfo.color, fontSize: 11, fontWeight: 500,
-              opacity: isSelected ? 1 : 0.8,
-            }}>
-              [{type === 'user' ? 'User' : type === 'agent' ? 'Agent' : type === 'sync' ? 'Sync' : 'System'}]
-            </span>
-
-            {/* Commit Message */}
+            {isHead && (
+              <span style={{
+                fontSize: 9, fontWeight: 600, color: 'var(--po-success)',
+                border: '1px solid color-mix(in srgb, var(--po-success) 25%, transparent)', background: 'color-mix(in srgb, var(--po-success) 12%, transparent)',
+                padding: '0 4px', borderRadius: 3, display: 'inline-flex', alignItems: 'center', height: 16,
+                flexShrink: 0,
+              }}>
+                HEAD
+              </span>
+            )}
             <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
               {commit.message || `(no message)`}
             </span>
@@ -479,15 +542,18 @@ function VerticalCommitNode({
               justifyContent: 'flex-end', flexShrink: 0,
               marginLeft: 'auto',
             }}>
-              {isHead && (
-                <span style={{
-                  fontSize: 9, fontWeight: 600, color: 'var(--po-success)',
-                  border: '1px solid color-mix(in srgb, var(--po-success) 25%, transparent)', background: 'color-mix(in srgb, var(--po-success) 12%, transparent)',
-                  padding: '0 4px', borderRadius: 3, display: 'inline-flex', alignItems: 'center', height: 16
-                }}>
-                  HEAD
-                </span>
-              )}
+              <span
+                title={id ? `${actorLabel} ${id}` : actorLabel}
+                style={{
+                  color: isSelected ? currentInfo.color : 'var(--po-text-subtle)',
+                  fontSize: 11,
+                  fontWeight: 500,
+                  opacity: hovered || isSelected ? 1 : 0.75,
+                  transition: 'opacity 0.2s, color 0.12s',
+                }}
+              >
+                {actorLabel}
+              </span>
 
               {/* Minimal Time */}
               <div style={{
@@ -504,6 +570,84 @@ function VerticalCommitNode({
         </div>
       </div>
     </div>
+  );
+}
+
+function HistoryMoreRow({
+  count,
+  expanded,
+  onClick,
+}: {
+  readonly count: number;
+  readonly expanded: boolean;
+  readonly onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const trackColor = 'var(--po-filetree-rail)';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        margin: `${HISTORY_ROW_MARGIN_Y}px 6px`,
+        height: HISTORY_ROW_ITEM_HEIGHT,
+        width: 'calc(100% - 12px)',
+        boxSizing: 'border-box',
+        border: 0,
+        borderRadius: 6,
+        background: hovered ? 'var(--po-hover)' : 'transparent',
+        color: hovered ? 'var(--po-text-muted)' : 'var(--po-text-subtle)',
+        cursor: 'pointer',
+        padding: '0 6px',
+        textAlign: 'left',
+        ...SIDEBAR_ROW_TYPOGRAPHY,
+      }}
+    >
+      <svg
+        width={HISTORY_GRAPH_WIDTH}
+        height={HISTORY_ROW_HEIGHT}
+        viewBox={`0 0 ${HISTORY_GRAPH_WIDTH} ${HISTORY_ROW_HEIGHT}`}
+        style={{
+          flexShrink: 0,
+          marginTop: -HISTORY_ROW_MARGIN_Y,
+          marginBottom: -HISTORY_ROW_MARGIN_Y,
+          overflow: 'visible',
+          pointerEvents: 'none',
+        }}
+      >
+        <line
+          x1={HISTORY_LINE_X}
+          y1={0}
+          x2={HISTORY_LINE_X}
+          y2={HISTORY_ROW_HEIGHT / 2}
+          stroke={trackColor}
+          strokeWidth={1.5}
+        />
+        <circle
+          cx={HISTORY_LINE_X}
+          cy={HISTORY_ROW_HEIGHT / 2}
+          r={2.5}
+          fill="var(--po-canvas)"
+          stroke={hovered ? 'var(--po-text-subtle)' : 'var(--po-text-disabled)'}
+          strokeWidth={1.5}
+        />
+      </svg>
+      <span
+        style={{
+          minWidth: 0,
+          paddingLeft: 4,
+          fontSize: 12,
+          fontWeight: 500,
+        }}
+      >
+        {expanded ? 'Show less' : `${count} more`}
+      </span>
+    </button>
   );
 }
 
@@ -951,7 +1095,14 @@ export default function HistoryPage({ params }: HistoryPageProps) {
 
   const [activeScopeFilter, setActiveScopeFilter] = useState<string>('');
   const [activeActorFilter, setActiveActorFilter] = useState<string | null>(null);
-  const [filterMenuOpen, setFilterMenuOpen] = useState<'scope' | 'actor' | null>(null);
+  const [filterMenuOpen, setFilterMenuOpen] = useState<'filters' | null>(null);
+  const [historySectionOpen, setHistorySectionOpen] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [needsActionSummary, setNeedsActionSummary] = useState<NeedsActionSummary>({
+    count: 0,
+    loading: true,
+    hasErrors: false,
+  });
   const filterMenuRef = useRef<HTMLDivElement>(null);
 
   const scopeOptions = useMemo(() => {
@@ -1053,6 +1204,30 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     }
     return filtered;
   }, [scopeFilteredCommits, activeActorFilter]);
+  const hasPendingWork = needsActionSummary.count > 0;
+  const collapsedHistoryLimit = hasPendingWork ? 5 : 9;
+  const visibleHistoryCommits = historyExpanded
+    ? filteredCommits
+    : filteredCommits.slice(0, collapsedHistoryLimit);
+  const hiddenHistoryCount = Math.max(0, filteredCommits.length - visibleHistoryCommits.length);
+  const showsHistoryMoreRow = filteredCommits.length > collapsedHistoryLimit;
+
+  useEffect(() => {
+    setHistoryExpanded(false);
+  }, [activeScopeFilter, activeActorFilter]);
+
+  const handleNeedsActionSummaryChange = useCallback((summary: NeedsActionSummary) => {
+    setNeedsActionSummary((current) => {
+      if (
+        current.count === summary.count
+        && current.loading === summary.loading
+        && current.hasErrors === summary.hasErrors
+      ) {
+        return current;
+      }
+      return summary;
+    });
+  }, []);
 
   const [selectedCommitId, setSelectedCommitId] = useState<string | null>(null);
   // The right pane shows EITHER a commit detail OR a needs-action item
@@ -1155,6 +1330,13 @@ export default function HistoryPage({ params }: HistoryPageProps) {
     setSelectedNeedsActionItem(null);
   }, []);
 
+  const activeFilterCount =
+    (activeScopeFilter ? 1 : 0) + (activeActorFilter ? 1 : 0);
+  const filterTitle = [
+    activeScope ? formatScopeLabel(activeScope.scope) : null,
+    activeActor ? formatOperatorLabel(activeActor.type) : null,
+  ].filter(Boolean).join(' · ') || 'Filter history';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--po-canvas)' }}>
 
@@ -1207,22 +1389,8 @@ export default function HistoryPage({ params }: HistoryPageProps) {
         </div>
       )}
 
-      {!isInitialLoading && !error && commits.length === 0 && (
-        <div style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          flex: 1, gap: 12, color: 'var(--po-text-subtle)',
-        }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          <span style={{ fontSize: 14 }}>No changes yet</span>
-          <span style={{ fontSize: 12, color: 'var(--po-text-disabled)' }}>Changes to your context space will appear here</span>
-        </div>
-      )}
-
       {/* ── Main Layout (Left/Right Split) ── */}
-      {!isInitialLoading && !error && commits.length > 0 && (
+      {!isInitialLoading && !error && (
         <div className="flex flex-1 min-h-0">
           {/* Left: Timeline List — wrapped in `ResizableSidebarColumn`
               so users can widen the timeline when commit messages or
@@ -1235,206 +1403,266 @@ export default function HistoryPage({ params }: HistoryPageProps) {
             maxWidth={520}
             className="border-r border-[var(--po-divider)] bg-[var(--po-canvas)] z-10"
           >
-
-            {/* Needs Action — sits ABOVE filters per PUP-5. The
-                section handles its own empty state ("No pending
-                actions") so we don't need to gate the mount. */}
             <NeedsActionSection
               projectId={projectId}
               selected={selectedNeedsAction}
               onSelect={handleNeedsActionSelect}
               onItemRemoved={handleNeedsActionRemoved}
+              onSummaryChange={handleNeedsActionSummaryChange}
             />
 
-            {/* Filter Header */}
-            <div ref={filterMenuRef} className="flex flex-col border-b border-[var(--po-divider)] bg-[var(--po-canvas)]">
-              <div className="px-3 h-[42px] min-h-[42px] flex items-center gap-2">
-                  <div
-                    className="relative min-w-0 flex-shrink-0"
-                    style={{ width: HISTORY_SCOPE_FILTER_WIDTH }}
+            {/* History */}
+            <div
+              ref={filterMenuRef}
+              className="relative flex min-h-[280px] flex-1 flex-col bg-[var(--po-canvas)]"
+            >
+              <div
+                style={{
+                  height: 40,
+                  minHeight: 40,
+                  padding: '0 10px 0 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setHistorySectionOpen((open) => !open)}
+                  style={{
+                    minWidth: 0,
+                    flex: 1,
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: 0,
+                    border: 0,
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                >
+                  <svg
+                    aria-hidden
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      color: 'var(--po-text-subtle)',
+                      flexShrink: 0,
+                      transform: historySectionOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                      transition: 'transform 120ms ease',
+                    }}
                   >
-                    <button
-                      onClick={() => setFilterMenuOpen(open => open === 'scope' ? null : 'scope')}
-                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 text-[12px] font-medium transition-colors border ${
-                        activeScopeFilter !== ''
-                          ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
-                          : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
-                      }`}
-                      style={HISTORY_FILTER_CONTROL_STYLE}
-                      title={activeScope ? formatScopeLabel(activeScope.scope) : 'Filter by scope'}
-                      aria-haspopup="menu"
-                      aria-expanded={filterMenuOpen === 'scope'}
-                    >
-                      {activeScope ? (
-                        <span className="truncate">{formatScopeLabel(activeScope.scope)}</span>
-                      ) : (
-                        <span className="truncate text-[var(--po-text-muted)]">
-                          Root scope
-                        </span>
-                      )}
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className={`ml-auto flex-shrink-0 opacity-60 transition-transform ${filterMenuOpen === 'scope' ? 'rotate-180' : ''}`}
-                      >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
-
-                    {filterMenuOpen === 'scope' && (
-                      <div
-                        role="menu"
-                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-[var(--po-border)] bg-[var(--po-overlay)] shadow-xl"
-                      >
-                        <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
-                          {scopeOptions.map(option => {
-                            const isSelected = activeScopeFilter === option.scope;
-                            return (
-                              <button
-                                key={option.scope || '__root__'}
-                                role="menuitemradio"
-                                aria-checked={isSelected}
-                                onClick={() => {
-                                  setActiveScopeFilter(option.scope);
-                                  setFilterMenuOpen(null);
-                                }}
-                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[12px] font-medium transition-colors ${
-                                  isSelected
-                                    ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
-                                    : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
-                                }`}
-                                style={{ height: BUTTON_HEIGHT, lineHeight: 1 }}
-                              >
-                                <span className="min-w-0 flex-1 truncate font-sans">{formatScopeLabel(option.scope)}</span>
-                                <span className="flex-shrink-0 font-sans text-[10px] opacity-50">
-                                  {option.count}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div
-                    className="relative min-w-0 flex-shrink-0"
-                    style={{ width: HISTORY_ACTOR_FILTER_WIDTH }}
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                  <span
+                    style={{
+                      color: 'var(--po-text)',
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
                   >
-                    <button
-                      onClick={() => setFilterMenuOpen(open => open === 'actor' ? null : 'actor')}
-                      className={`w-full min-w-0 flex items-center gap-1.5 px-2.5 text-[12px] font-medium transition-colors border ${
-                        activeActorFilter
-                          ? 'bg-[var(--po-selected)] text-[var(--po-text)] border-[var(--po-border-subtle)]'
-                          : 'bg-transparent text-[var(--po-text-muted)] border-[var(--po-border-subtle)] hover:bg-[var(--po-hover)]'
-                      }`}
-                      style={HISTORY_FILTER_CONTROL_STYLE}
-                      title={activeActor ? formatOperatorLabel(activeActor.type) : 'All users'}
-                      aria-haspopup="menu"
-                      aria-expanded={filterMenuOpen === 'actor'}
-                    >
-                      {activeActor ? (
-                        <>
-                          <span style={{ color: getTrackInfo(activeActor.type).color, fontSize: 8 }}>●</span>
-                          <span className="truncate">{formatOperatorLabel(activeActor.type)}</span>
-                        </>
-                      ) : (
-                        <span className="truncate text-[var(--po-text-muted)]">
-                          All users
-                        </span>
-                      )}
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        className={`ml-auto flex-shrink-0 opacity-60 transition-transform ${filterMenuOpen === 'actor' ? 'rotate-180' : ''}`}
-                      >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </button>
+                    History
+                  </span>
+                  <span
+                    style={{
+                      color: 'var(--po-text-disabled)',
+                      fontSize: 11,
+                      fontWeight: 500,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {commits.length} commit{commits.length === 1 ? '' : 's'}
+                  </span>
+                </button>
 
-                    {filterMenuOpen === 'actor' && (
-                      <div
-                        role="menu"
-                        className="absolute left-0 right-0 top-[30px] z-[10000] overflow-hidden rounded-md border border-[var(--po-border)] bg-[var(--po-overlay)] shadow-xl"
-                      >
-                        <div className="max-h-64 overflow-y-auto py-1 custom-scrollbar">
-                          <button
-                            role="menuitemradio"
-                            aria-checked={activeActorFilter === null}
+                <button
+                  type="button"
+                  onClick={() => setFilterMenuOpen(open => open === 'filters' ? null : 'filters')}
+                  title={filterTitle}
+                  aria-haspopup="menu"
+                  aria-expanded={filterMenuOpen === 'filters'}
+                  style={{
+                    height: 30,
+                    width: 30,
+                    minWidth: 0,
+                    flexShrink: 0,
+                    display: 'inline-flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: 0,
+                    padding: 0,
+                    borderRadius: 6,
+                    border: 0,
+                    background: activeFilterCount > 0 ? 'var(--po-selected)' : 'transparent',
+                    color: activeFilterCount > 0 ? 'var(--po-text)' : 'var(--po-text-muted)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M3 5h18" />
+                    <path d="M7 12h10" />
+                    <path d="M10 19h4" />
+                  </svg>
+                  <span className="sr-only">Filter</span>
+                  {activeFilterCount > 0 ? (
+                    <span
+                      style={{
+                        minWidth: 16,
+                        height: 16,
+                        padding: '0 4px',
+                        borderRadius: 999,
+                        background: 'var(--po-control)',
+                        color: 'var(--po-text-subtle)',
+                        fontSize: 10,
+                        lineHeight: '16px',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {activeFilterCount}
+                    </span>
+                  ) : null}
+                </button>
+
+                {filterMenuOpen === 'filters' && (
+                  <div
+                    role="menu"
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: 36,
+                      zIndex: 10000,
+                      width: 250,
+                      maxHeight: 360,
+                      overflowY: 'auto',
+                      padding: 6,
+                      borderRadius: 8,
+                      border: '1px solid var(--po-border)',
+                      background: 'var(--po-overlay)',
+                      boxShadow: '0 12px 32px var(--po-shadow)',
+                    }}
+                    className="custom-scrollbar"
+                  >
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                        gap: 8,
+                      }}
+                    >
+                      <HistoryFilterGroup label="Scope">
+                        {scopeOptions.map(option => {
+                          const isSelected = activeScopeFilter === option.scope;
+                          return (
+                            <HistoryFilterOption
+                              key={option.scope || '__root__'}
+                              selected={isSelected}
+                              label={formatScopeLabel(option.scope)}
+                              count={option.count}
+                              onClick={() => {
+                                setActiveScopeFilter(option.scope);
+                                setFilterMenuOpen(null);
+                              }}
+                            />
+                          );
+                        })}
+                      </HistoryFilterGroup>
+
+                      <HistoryFilterGroup label="User">
+                        <HistoryFilterOption
+                          selected={activeActorFilter === null}
+                          label="All users"
+                          count={scopeFilteredCommits.length}
+                          showMarkerSlot
+                          onClick={() => {
+                            setActiveActorFilter(null);
+                            setFilterMenuOpen(null);
+                          }}
+                        />
+                        {actorOptions.map(option => (
+                          <HistoryFilterOption
+                            key={option.type}
+                            selected={activeActorFilter === option.type}
+                            label={formatOperatorLabel(option.type)}
+                            count={option.count}
+                            markerColor={getTrackInfo(option.type).color}
+                            showMarkerSlot
                             onClick={() => {
-                              setActiveActorFilter(null);
+                              setActiveActorFilter(option.type);
                               setFilterMenuOpen(null);
                             }}
-                            className={`w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[12px] font-medium transition-colors ${
-                              activeActorFilter === null
-                                ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
-                                : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
-                            }`}
-                            style={{ height: BUTTON_HEIGHT, lineHeight: 1 }}
-                          >
-                            <span className="min-w-0 flex-1 truncate">All users</span>
-                            <span className="flex-shrink-0 font-sans text-[10px] opacity-50">
-                              {scopeFilteredCommits.length}
-                            </span>
-                          </button>
-                          {actorOptions.map(option => {
-                            const color = getTrackInfo(option.type).color;
-                            const isSelected = activeActorFilter === option.type;
-                            return (
-                              <button
-                                key={option.type}
-                                role="menuitemradio"
-                                aria-checked={isSelected}
-                                onClick={() => {
-                                  setActiveActorFilter(option.type);
-                                  setFilterMenuOpen(null);
-                                }}
-                                className={`w-full min-w-0 flex items-center gap-2 px-2.5 text-left text-[12px] font-medium transition-colors ${
-                                  isSelected
-                                    ? 'bg-[var(--po-selected)] text-[var(--po-text)]'
-                                    : 'text-[var(--po-text-muted)] hover:bg-[var(--po-hover)] hover:text-[var(--po-text)]'
-                                }`}
-                                style={{ height: BUTTON_HEIGHT, lineHeight: 1 }}
-                              >
-                                <span style={{ color, fontSize: 8 }}>●</span>
-                                <span className="min-w-0 flex-1 truncate">{formatOperatorLabel(option.type)}</span>
-                                <span className="flex-shrink-0 font-sans text-[10px] opacity-50">
-                                  {option.count}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                          />
+                        ))}
+                      </HistoryFilterGroup>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden relative pt-2 pb-12 custom-scrollbar">
-              {filteredCommits.map((commit, i) => (
-                <VerticalCommitNode
-                  key={commit.commit_id}
-                  commit={commit}
-                  hasPrevious={i > 0}
-                  hasNext={i < filteredCommits.length - 1}
-                  isSelected={selectedCommitId === commit.commit_id}
-                  isHead={commit.commit_id === headCommitId}
-                  onClick={() => selectCommit(commit.commit_id)}
-                />
-              ))}
+              {historySectionOpen ? (
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2 custom-scrollbar"
+                >
+                {commits.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '18px 14px',
+                      color: 'var(--po-text-disabled)',
+                      fontSize: 12,
+                      lineHeight: '18px',
+                    }}
+                  >
+                    No committed changes yet.
+                  </div>
+                ) : filteredCommits.length === 0 ? (
+                  <div
+                    style={{
+                      padding: '18px 14px',
+                      color: 'var(--po-text-disabled)',
+                      fontSize: 12,
+                      lineHeight: '18px',
+                    }}
+                  >
+                    No changes match these filters.
+                  </div>
+                ) : (
+                  <>
+                    {visibleHistoryCommits.map((commit, i) => (
+                      <VerticalCommitNode
+                        key={commit.commit_id}
+                        commit={commit}
+                        hasPrevious={i > 0}
+                        hasNext={
+                          i < visibleHistoryCommits.length - 1
+                            || (!historyExpanded && hiddenHistoryCount > 0)
+                            || (historyExpanded && showsHistoryMoreRow)
+                        }
+                        isSelected={selectedCommitId === commit.commit_id}
+                        isHead={commit.commit_id === headCommitId}
+                        onClick={() => selectCommit(commit.commit_id)}
+                      />
+                    ))}
+                    {showsHistoryMoreRow ? (
+                      <HistoryMoreRow
+                        count={hiddenHistoryCount}
+                        expanded={historyExpanded}
+                        onClick={() => setHistoryExpanded((open) => !open)}
+                      />
+                    ) : null}
+                  </>
+                )}
+              </div>
+              ) : null}
             </div>
           </ResizableSidebarColumn>
 
@@ -1458,10 +1686,27 @@ export default function HistoryPage({ params }: HistoryPageProps) {
               />
             ) : (
               <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                height: '100%', color: 'var(--po-text-disabled)', fontSize: 13,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                gap: 10,
+                color: 'var(--po-text-disabled)',
+                fontSize: 13,
               }}>
-                Select a commit
+                {commits.length === 0 ? (
+                  <>
+                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.42 }}>
+                      <circle cx="12" cy="12" r="10" />
+                      <polyline points="12 6 12 12 16 14" />
+                    </svg>
+                    <span style={{ color: 'var(--po-text-subtle)' }}>No changes yet</span>
+                    <span style={{ fontSize: 12 }}>Pending reviews and conflicts appear in Needs action.</span>
+                  </>
+                ) : (
+                  'Select a commit'
+                )}
               </div>
             )}
           </div>

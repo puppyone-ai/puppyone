@@ -41,6 +41,33 @@ def _provider_default_name(provider: str) -> str:
     return provider.replace("_", " ").title()
 
 
+def _clear_connector_policy_cache(scope_id: str, provider: str) -> None:
+    """Best-effort cache invalidation for hot-path admission checks."""
+    try:
+        from src.version_engine.admission.connector_policy import (
+            clear_connector_policy_cache,
+        )
+        clear_connector_policy_cache(scope_id=scope_id, provider=provider)
+    except Exception:
+        # Policy cache TTL is short; a failed invalidation should not make
+        # connector CRUD fail.
+        pass
+
+
+def _clear_connector_admission_cache(scope_id: str, provider: str) -> None:
+    """Best-effort cache invalidation for all connector admission gates."""
+    _clear_connector_policy_cache(scope_id, provider)
+    try:
+        from src.version_engine.admission.channel_pause import (
+            clear_channel_pause_cache,
+        )
+        clear_channel_pause_cache(scope_id=scope_id, channel=provider)
+    except Exception:
+        # Channel pause cache TTL is short; CRUD should not fail if
+        # invalidation cannot import during startup/test wiring.
+        pass
+
+
 class ConnectorService:
     def __init__(self, repository: Optional[ConnectorRepository] = None):
         self._repo = repository or ConnectorRepository()
@@ -76,6 +103,7 @@ class ConnectorService:
         direction: str,
         name: Optional[str],
         config: Optional[dict[str, Any]],
+        policy: Optional[dict[str, Any]],
         oauth_connection_id: Optional[int],
         trigger: Optional[dict[str, Any]],
         created_by: Optional[str],
@@ -118,6 +146,7 @@ class ConnectorService:
             name=name or _provider_default_name(provider),
             direction=direction,
             config=config or {},
+            policy=policy or {},
             oauth_connection_id=oauth_connection_id,
             trigger=trigger or {"type": "manual"},
             created_by=created_by,
@@ -136,7 +165,10 @@ class ConnectorService:
         # post-create — re-create the connector if that's what you want).
         for forbidden in ("provider", "scope_id", "project_id"):
             patch.pop(forbidden, None)
-        return self._repo.update(connector_id, patch)
+        updated = self._repo.update(connector_id, patch)
+        if updated is not None:
+            _clear_connector_admission_cache(updated.scope_id, updated.provider)
+        return updated
 
     def activate_agent_connector(self, connector_id: str) -> Optional[Connector]:
         """Activate the built-in chat Agent connector for a scope.
@@ -170,13 +202,16 @@ class ConnectorService:
             "mode": scope.mode,
         }
 
-        return self._repo.update(
+        updated = self._repo.update(
             connector_id,
             {
                 "config": config,
                 "status": "active",
             },
         )
+        if updated is not None:
+            _clear_connector_admission_cache(updated.scope_id, updated.provider)
+        return updated
 
     def delete(self, connector_id: str) -> None:
         existing = self._repo.get(connector_id)
@@ -191,10 +226,14 @@ class ConnectorService:
         self._repo.delete(connector_id)
 
     def pause(self, connector_id: str) -> None:
-        self._repo.update(connector_id, {"status": "paused"})
+        updated = self._repo.update(connector_id, {"status": "paused"})
+        if updated is not None:
+            _clear_connector_admission_cache(updated.scope_id, updated.provider)
 
     def resume(self, connector_id: str) -> None:
-        self._repo.update(connector_id, {"status": "active"})
+        updated = self._repo.update(connector_id, {"status": "active"})
+        if updated is not None:
+            _clear_connector_admission_cache(updated.scope_id, updated.provider)
 
     # ── Run orchestration ────────────────────────────────────────────────
 

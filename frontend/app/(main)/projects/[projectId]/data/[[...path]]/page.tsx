@@ -9,106 +9,61 @@
  *   /projects/{projectId}/data/{folderId}/{nodeId} -> Node editor
  */
 
-import { useEffect, useMemo, useState, useRef, useCallback, use, useTransition } from 'react';
+import { useEffect, useMemo, useState, useCallback, use } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/supabase/SupabaseAuthProvider';
 import { useOrganization } from '@/contexts/OrganizationContext';
 import {
   useProject,
   useProjects,
-  useToolsByPath,
-  refreshToolsByPath,
-  refreshProjectTools,
-  useTable,
   useContentNodes,
   refreshAllContentNodes,
 } from '@/lib/hooks/useData';
 import { useDataLayout } from '../DataLayoutContext';
-import {
-  ProjectsHeader,
-  type EditorType,
-  type ViewType,
-  type BreadcrumbSegment,
-} from '@/components/ProjectsHeader';
-import { useWorkspace } from '@/contexts/WorkspaceContext';
+import type { BreadcrumbSegment } from '@/components/ProjectsHeader';
 
 import {
-  createTool,
-  deleteTool,
   type McpToolPermissions,
-  type McpToolType,
-  type Tool,
-  type AccessPoint,
 } from '@/lib/mcpApi';
 
 import { refreshProjects } from '@/lib/hooks/useData';
 import {
-  GridView,
   type AgentResource,
-  type ContentType,
 } from '../components/views';
 import {
-  ExplorerSidebar,
-  setPendingActiveId,
   usePendingActiveId,
-  type MillerColumnItem,
 } from '../components/explorer';
-import { ResizableSidebarColumn } from '@/components/sidebar/ResizableSidebarColumn';
 
 import { useAgent } from '@/contexts/AgentContext';
 import { useOnboarding } from '@/lib/hooks/useOnboarding';
-import { matchScopeForPath, type RepoScope } from '@/lib/repoApi';
 
 // Extracted hooks
-import { usePathResolver } from '../hooks/usePathResolver';
+import { useDataPanelController } from '../hooks/useDataPanelController';
+import { useDataGridController } from '../hooks/useDataGridController';
+import { useDataRouteController } from '../hooks/useDataRouteController';
+import { useDataViewPreferences } from '../hooks/useDataViewPreferences';
+import { useEditorSaveGuards } from '../hooks/useEditorSaveGuards';
+import { useEmptyProjectOpened } from '../hooks/useEmptyProjectOpened';
+import { useStructuredNodeData } from '../hooks/useStructuredNodeData';
 import { useMarkdownSave } from '../hooks/useMarkdownSave';
 import { useFileImport } from '../hooks/useFileImport';
 import { useNodeActions } from '../hooks/useNodeActions';
-import { useGridSelection } from '../hooks/useGridSelection';
 import { useExternalFileDropCatcher } from '@/lib/hooks/useExternalFileDropCatcher';
 
 // Extracted components
-import { EditorArea } from '../components/EditorArea';
-import { DataPageDialogs } from '../components/DataPageDialogs';
-import { DataPageOverlays } from '../components/DataPageOverlays';
-import { EmptyWorkspaceState } from '../../../components/EmptyWorkspaceState';
-import { CreateAccessModal } from '../../access/components/CreateAccessModal';
-import { getApiBase } from '../components/access-points/labels';
-import { DataAccessQuickModal } from '../components/access-points/DataAccessQuickModal';
-import { SelectionActionBar } from '../components/SelectionActionBar';
-import { BulkDeleteDialog } from '../components/BulkDeleteDialog';
-import {
-  DataPageRightPanel,
-  type AccessPanelNavigationGuard,
-  type EditorTarget,
-} from '../components/right-panel';
-import { usePanelStore } from '../usePanelStore';
+import { DataWorkspaceSurface } from '../components/DataWorkspaceSurface';
+import { ProjectUnavailableShell } from '../components/ProjectUnavailableShell';
+import { DataAccessModalHost } from '../components/access-points/DataAccessModalHost';
+import type { EditorTarget } from '../components/right-panel';
 import { useDataCreateFlow } from '../hooks/useDataCreateFlow';
 import { useAccessPointEntries } from '../hooks/useAccessPointEntries';
-import { PageLoading, ProjectPageLoadingShell, SkeletonBlock } from '@/components/loading';
-import { ActivityIconButton } from '@/components/ActivityIconButton';
+import { ProjectPageLoadingShell, SkeletonBlock } from '@/components/loading';
 import { resolveFormat } from '@/lib/fileFormats';
+import { DataHeaderActions, type DataHeaderActionTarget } from '../components/DataHeaderActions';
 import { FileViewerHeaderActions } from '../components/FileViewerHeaderActions';
-import type { HtmlArtifactMode } from '@/components/editors/html/HtmlArtifactPreview';
-import type { CsvViewMode } from '@/components/editors/spreadsheet/CsvTableViewer';
 
 interface DataPageProps {
   params: Promise<{ projectId: string; path?: string[] }>;
-}
-
-const DEFAULT_RIGHT_PANEL_WIDTH = 450;
-const EMPTY_PROJECT_OPEN_KEY_PREFIX = 'puppyone-empty-project-opened:';
-
-type FolderBreadcrumb = { id: string; name: string };
-
-type PendingFolderNavigation = {
-  path: string | null;
-  pathKey: string;
-  breadcrumbs: FolderBreadcrumb[];
-};
-
-function emptyProjectOpenKey(projectId: string): string {
-  return `${EMPTY_PROJECT_OPEN_KEY_PREFIX}${projectId}`;
 }
 
 function decodePath(segments: string[]): string[] {
@@ -117,115 +72,13 @@ function decodePath(segments: string[]): string[] {
   });
 }
 
-function buildFolderBreadcrumbs(segments: string[]): FolderBreadcrumb[] {
-  return segments.map((seg, index) => ({
-    id: segments.slice(0, index + 1).join('/'),
-    name: seg,
-  }));
-}
-
-function normalizeAccessPath(path: string | null | undefined): string {
-  return (path ?? '').trim().replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/');
-}
-
-function basenameFromPath(path: string): string {
-  return path.split('/').filter(Boolean).pop() || path;
-}
-
-function ProjectUnavailableShell({ onBackHome }: { onBackHome: () => void }) {
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        background: 'var(--po-canvas)',
-      }}
-    >
-      <div
-        style={{
-          height: 46,
-          minHeight: 46,
-          flexShrink: 0,
-          borderBottom: '1px solid var(--po-divider)',
-          background: 'var(--po-canvas)',
-        }}
-      />
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-        }}
-      >
-        <div
-          style={{
-            width: 'min(360px, 100%)',
-            textAlign: 'center',
-            color: 'var(--po-text-muted)',
-            fontFamily:
-              'var(--po-font-sans)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--po-text)',
-              marginBottom: 6,
-            }}
-          >
-            Project unavailable
-          </div>
-          <div style={{ fontSize: 13, lineHeight: 1.55, marginBottom: 16 }}>
-            This project may have been deleted, moved, or you may not have access.
-          </div>
-          <button
-            type='button'
-            onClick={onBackHome}
-            style={{
-              height: 32,
-              padding: '0 14px',
-              borderRadius: 6,
-              border: '1px solid var(--po-border-strong)',
-              background: 'transparent',
-              color: 'var(--po-text)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-            }}
-          >
-            Back to Home
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function DataPage({ params }: DataPageProps) {
   const { projectId, path: rawPath = [] } = use(params);
   const path = decodePath(rawPath);
-  const routePathKey = path.join('/');
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, isAuthReady } = useAuth();
   const { currentOrg } = useOrganization();
-
-  // Workspace context
-  const {
-    setTableData,
-    setTableId,
-    setProjectId,
-    setTableNameById,
-    setAccessPoints: setAccessPointsToContext,
-    setOnDataUpdate,
-  } = useWorkspace();
 
   // Data fetching
   const {
@@ -242,7 +95,7 @@ export default function DataPage({ params }: DataPageProps) {
   } = useDataLayout();
 
   // Agent context (needed early for syncEndpoints merge)
-  const { draftResources, setDraftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent, refreshAgents } = useAgent();
+  const { draftResources, currentAgentId, savedAgents, hoveredAgentId, openSyncSetting, editingAgentId, selectedSyncId, selectedSyncNodeId, hoveredSyncNodeId, selectAgent, refreshAgents } = useAgent();
 
   // Auto-complete onboarding steps
   const { completeStep } = useOnboarding();
@@ -250,34 +103,16 @@ export default function DataPage({ params }: DataPageProps) {
     if (savedAgents.length > 0) completeStep('agent');
   }, [savedAgents.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // View & editor type — persisted in localStorage
-  const [viewType, setViewTypeState] = useState<ViewType>(() => {
-    if (typeof window === 'undefined') return 'explorer';
-    const saved = localStorage.getItem('puppyone-view-type');
-    if (saved === 'grid' || saved === 'explorer') return saved;
-    return 'explorer';
-  });
-
-  const [editorType, setEditorTypeState] = useState<EditorType>(() => {
-    if (typeof window === 'undefined') return 'table';
-    const saved = localStorage.getItem('puppyone-editor-type');
-    if (saved === 'table' || saved === 'monaco') return saved;
-    return 'table';
-  });
-
-  const setViewType = (v: ViewType) => { setViewTypeState(v); localStorage.setItem('puppyone-view-type', v); };
-  const setEditorType = (e: EditorType) => { setEditorTypeState(e); localStorage.setItem('puppyone-editor-type', e); };
-  const [htmlArtifactMode, setHtmlArtifactMode] = useState<HtmlArtifactMode>('preview');
-  const [csvViewMode, setCsvViewModeState] = useState<CsvViewMode>(() => {
-    if (typeof window === 'undefined') return 'edit';
-    const saved = localStorage.getItem('puppyone-csv-view-mode');
-    if (saved === 'edit' || saved === 'preview' || saved === 'source') return saved;
-    return 'edit';
-  });
-  const setCsvViewMode = (mode: CsvViewMode) => {
-    setCsvViewModeState(mode);
-    localStorage.setItem('puppyone-csv-view-mode', mode);
-  };
+  const {
+    viewType,
+    setViewType,
+    editorType,
+    setEditorType,
+    htmlArtifactMode,
+    setHtmlArtifactMode,
+    csvViewMode,
+    setCsvViewMode,
+  } = useDataViewPreferences();
 
   // Legacy welcome query param — strip it without triggering old onboarding guide
   const hasWelcomeParam = searchParams.get('welcome') === 'true';
@@ -292,95 +127,27 @@ export default function DataPage({ params }: DataPageProps) {
   const [editorTarget, setEditorTarget] = useState<EditorTarget | null>(null);
   const [isEditorFullScreen, setIsEditorFullScreen] = useState(false);
   const [hoverHighlightNodeId, setHoverHighlightNodeId] = useState<string | null>(null);
-  const [emptyProjectOpened, setEmptyProjectOpened] = useState(() => {
-    if (hasSetupParam) return false;
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(emptyProjectOpenKey(projectId)) === 'true';
-  });
-  const [pendingFolderNavigation, setPendingFolderNavigation] =
-    useState<PendingFolderNavigation | null>(null);
-  const [isRouteTransitionPending, startRouteTransition] = useTransition();
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (hasSetupParam) {
-      window.localStorage.removeItem(emptyProjectOpenKey(projectId));
-      setEmptyProjectOpened(false);
-      router.replace(`/projects/${projectId}/data`);
-      return;
-    }
-    setEmptyProjectOpened(window.localStorage.getItem(emptyProjectOpenKey(projectId)) === 'true');
-  }, [hasSetupParam, projectId, router]);
-
-  const handleOpenEmptyProject = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(emptyProjectOpenKey(projectId), 'true');
-    }
-    setEmptyProjectOpened(true);
-  }, [projectId]);
+  const {
+    emptyProjectOpened,
+    openEmptyProject: handleOpenEmptyProject,
+  } = useEmptyProjectOpened({ projectId, hasSetupParam });
 
   // ───── Custom Hooks ─────
 
   const {
-    currentFolderId: resolvedCurrentFolderId,
-    folderBreadcrumbs: resolvedFolderBreadcrumbs,
-    isResolvingPath: resolvedIsResolvingPath,
-    activeNodeId: resolvedActiveNodeId,
-    activeNodeType: resolvedActiveNodeType,
-    activePreviewType: resolvedActivePreviewType,
-    activeMimeType: resolvedActiveMimeType,
-    // `textContent` here is the **server-side** value (any text-like
-    // file: markdown, code, yaml, csv, plaintext). Fed into
-    // `useMarkdownSave` as the dirty-check baseline. The page-level
-    // editor draft (used by EditorArea) comes from the save hook
-    // below — it may differ from the server value when the user has
-    // unsaved edits in editable text formats such as markdown, plain
-    // text, CSV, or TSV.
-    textContent: serverTextContent,
+    currentFolderId,
+    folderBreadcrumbs,
+    isResolvingPath,
+    activeNodeId,
+    activeNodeType,
+    activePreviewType,
+    activeMimeType,
+    serverTextContent,
     isLoadingText,
-    markdownViewMode, setMarkdownViewMode,
-  } = usePathResolver(projectId, path);
-
-  const shouldUsePendingFolderNavigation =
-    pendingFolderNavigation !== null &&
-    (isRouteTransitionPending || pendingFolderNavigation.pathKey === routePathKey);
-  const currentFolderId = shouldUsePendingFolderNavigation
-    ? pendingFolderNavigation.path
-    : resolvedCurrentFolderId;
-  const folderBreadcrumbs = shouldUsePendingFolderNavigation
-    ? pendingFolderNavigation.breadcrumbs
-    : resolvedFolderBreadcrumbs;
-  const isResolvingPath = shouldUsePendingFolderNavigation ? false : resolvedIsResolvingPath;
-  const activeNodeId = shouldUsePendingFolderNavigation ? '' : resolvedActiveNodeId;
-  const activeNodeType = shouldUsePendingFolderNavigation ? '' : resolvedActiveNodeType;
-  const activePreviewType = shouldUsePendingFolderNavigation ? null : resolvedActivePreviewType;
-  const activeMimeType = shouldUsePendingFolderNavigation ? null : resolvedActiveMimeType;
-
-  useEffect(() => {
-    if (!pendingFolderNavigation) return;
-
-    if (pendingFolderNavigation.pathKey !== routePathKey) {
-      if (!isRouteTransitionPending) {
-        setPendingFolderNavigation(null);
-      }
-      return;
-    }
-
-    if (
-      !resolvedIsResolvingPath &&
-      !resolvedActiveNodeId &&
-      (resolvedCurrentFolderId ?? null) === pendingFolderNavigation.path
-    ) {
-      setPendingFolderNavigation(null);
-    }
-  }, [
-    isRouteTransitionPending,
-    pendingFolderNavigation,
-    resolvedActiveNodeId,
-    resolvedCurrentFolderId,
-    resolvedIsResolvingPath,
-    routePathKey,
-  ]);
+    markdownViewMode,
+    setMarkdownViewMode,
+    navigateTo,
+  } = useDataRouteController({ projectId, path });
 
   const { nodes: contentNodes, isLoading: contentNodesLoading, refresh: refreshCurrentNodes } = useContentNodes(projectId, currentFolderId);
 
@@ -410,58 +177,7 @@ export default function DataPage({ params }: DataPageProps) {
     nodeType: activeTextSaveNodeType,
   });
 
-  // ── Cmd+S / Ctrl+S → save the active text editor ──────────────
-  //
-  // The shortcut is global on the data page — listening on
-  // `document` so it works regardless of which child element has
-  // focus (sidebar, right panel, breadcrumb, etc.). We pre-empt
-  // the browser's default "Save Page As…" dialog *only* when an
-  // editor is actually mounted and has unsaved work; otherwise
-  // we leave the default behaviour alone so the shortcut still
-  // does something familiar in non-editor contexts (e.g. when
-  // the user is on the access management page).
-  //
-  // We bind once and read the latest values via the dependency
-  // array — the listener captures `saveEditor` etc. by closure
-  // and React re-binds it on each render where the deps changed.
-  // The cost of re-binding (one removeEventListener +
-  // addEventListener) is negligible.
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey)) return;
-      if (event.key !== 's' && event.key !== 'S') return;
-      // Only intercept if there's actually something to save.
-      // Without this guard we'd swallow Cmd+S on every page in the
-      // app, which is hostile when the user is just trying to save
-      // the browser tab (e.g. a long form they typed into).
-      if (!editorDirty) return;
-      event.preventDefault();
-      void saveEditor();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [saveEditor, editorDirty]);
-
-  // ── beforeunload guard for unsaved text edits ─────────────────
-  //
-  // Browsers no longer let us customise the prompt copy (it always
-  // shows their generic "Leave site?" dialog), but setting
-  // `returnValue` to a non-empty string is still the documented way
-  // to *trigger* it. We only attach the listener while there's
-  // actually something dirty — otherwise every navigation in the
-  // app would needlessly check this listener.
-  useEffect(() => {
-    if (!editorDirty) return;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      // Required for Chrome — the value itself is ignored by all
-      // modern browsers, but a non-empty assignment is what
-      // actually surfaces the prompt.
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [editorDirty]);
+  useEditorSaveGuards({ dirty: editorDirty, save: saveEditor });
 
   const nodeActions = useNodeActions(projectId, currentFolderId);
   const fileImport = useFileImport(projectId, session?.access_token, {
@@ -496,233 +212,54 @@ export default function DataPage({ params }: DataPageProps) {
     },
   });
 
-  // Derive active node info (single source of truth for editor context)
-  // pendingActiveId fills the gap before usePathResolver finishes resolving
+  // Derive active node info (single source of truth for editor context).
+  // pendingActiveId fills the route transition gap before the controller resolves.
   const pendingActiveId = usePendingActiveId();
   const effectiveNodeId = pendingActiveId || activeNodeId;
 
-  // ───── Panel State (Zustand store, fully decoupled from URL) ─────
-  const { panel: panelState, openPanel, closePanel } = usePanelStore();
-  const [rightPanelWidth, setRightPanelWidth] = useState(DEFAULT_RIGHT_PANEL_WIDTH);
-  const [accessPanelNavigationGuard, setAccessPanelNavigationGuard] =
-    useState<AccessPanelNavigationGuard | null>(null);
-  const [quickAccessScopeId, setQuickAccessScopeId] = useState<string | null>(null);
-  const [quickAccessScopeFallback, setQuickAccessScopeFallback] = useState<RepoScope | null>(null);
-  const [createAccessInitialPath, setCreateAccessInitialPath] = useState<string | null>(null);
-
-  const activeSyncNodeId = panelState.type === 'sync_config' ? panelState.nodeId ?? null : null;
-  const activeSyncId = activeSyncNodeId !== null ? (syncEndpoints.get(activeSyncNodeId)?.syncId ?? null) : null;
-
-  // Access side sheet header state. When Access is open, the page
-  // header's right slot becomes the panel header and the panel body
-  // renders below it without its own PanelShell header.
-  const isAccessPanelOpen = panelState.type === 'access_list';
-  const accessPanelScopePath = currentFolderId || '';
-  const accessDrilledScope = isAccessPanelOpen && panelState.selectedScopeId
-    ? scopes.find((s) => s.id === panelState.selectedScopeId) ?? null
-    : null;
-  const accessFolderScope = matchScopeForPath(accessPanelScopePath, scopes);
-  const accessResolvedScope = accessDrilledScope ?? accessFolderScope;
-  const accessListView: 'overview' | 'detail' | 'settings' | 'create' =
-    isAccessPanelOpen && panelState.view === 'create'
-      ? 'create'
-      : isAccessPanelOpen && panelState.view === 'settings' && accessResolvedScope
-        ? 'settings'
-      : isAccessPanelOpen && panelState.view === 'overview'
-        ? 'overview'
-        : accessResolvedScope
-          ? 'detail'
-          : 'overview';
-  const accessHeaderScope =
-    isAccessPanelOpen && (accessListView === 'detail' || accessListView === 'settings')
-      ? accessResolvedScope
-      : null;
-  const accessHeaderTitle =
-    accessListView === 'create'
-      ? 'Create access point'
-      : accessListView === 'settings'
-        ? 'Settings'
-        : accessHeaderScope
-          ? accessHeaderScope.name
-          : 'Access';
-  const accessHeaderSubtitle = undefined;
-  const showAccessHeaderBack =
-    isAccessPanelOpen &&
-    (accessListView === 'create' ||
-      accessListView === 'detail' ||
-      accessListView === 'settings');
-  const rootScope = useMemo(() => matchScopeForPath('', scopes), [scopes]);
-  const rootGitRemoteUrl = useMemo(() => {
-    if (!rootScope?.access_key) return null;
-    return `${getApiBase()}/git/ap/${rootScope.access_key}.git`;
-  }, [rootScope?.access_key]);
-  const quickAccessScope = useMemo(() => {
-    if (!quickAccessScopeId) return null;
-    return scopes.find((scope) => scope.id === quickAccessScopeId) ?? quickAccessScopeFallback;
-  }, [quickAccessScopeFallback, quickAccessScopeId, scopes]);
-  const quickAccessConnectors = useMemo(
-    () => quickAccessScope ? connectorsByScope.get(quickAccessScope.id) ?? [] : [],
-    [connectorsByScope, quickAccessScope],
-  );
-
-  // ───── Navigation (path only, panel state is independent) ─────
-
-  const navigateTo = useCallback((nextPath: string[], typeHint?: string) => {
-    const encoded = nextPath.map(s => encodeURIComponent(s)).join('/');
-    const basePath = `/projects/${projectId}/data${encoded ? `/${encoded}` : ''}`;
-    const url = typeHint ? `${basePath}?type=${encodeURIComponent(typeHint)}` : basePath;
-    const nextPathKey = nextPath.join('/');
-
-    if (typeHint === 'folder') {
-      setPendingFolderNavigation({
-        path: nextPathKey || null,
-        pathKey: nextPathKey,
-        breadcrumbs: buildFolderBreadcrumbs(nextPath),
-      });
-    } else {
-      setPendingFolderNavigation(null);
-    }
-
-    startRouteTransition(() => {
-      router.push(url);
-    });
-  }, [projectId, router, startRouteTransition]);
-
-  const refreshRepoAndAgents = useCallback(async () => {
-    await mutateRepo();
-    await refreshAgents();
-  }, [mutateRepo, refreshAgents]);
-
-  const closeRightPanel = useCallback(() => {
-    if (accessPanelNavigationGuard && !accessPanelNavigationGuard.canLeave()) return;
-    setEditorTarget(null);
-    setIsEditorFullScreen(false);
-    closePanel();
-  }, [accessPanelNavigationGuard, closePanel]);
-
-  const handleAccessHeaderBack = useCallback(() => {
-    if (accessPanelNavigationGuard && !accessPanelNavigationGuard.canLeave()) return;
-    if (accessListView === 'settings' && accessHeaderScope) {
-      openPanel({
-        type: 'access_list',
-        view: 'detail',
-        selectedScopeId: accessHeaderScope.id,
-      });
-      return;
-    }
-    openPanel({ type: 'access_list', view: 'overview' });
-  }, [accessHeaderScope, accessListView, accessPanelNavigationGuard, openPanel]);
-
-  const openVersionHistoryPanel = useCallback(() => {
-    if (!effectiveNodeId) return;
-    setEditorTarget(null);
-    setIsEditorFullScreen(false);
-    openPanel({ type: 'version_history', nodeId: effectiveNodeId });
-  }, [effectiveNodeId, openPanel]);
-
-  const openSyncCreatePanel = useCallback((targetScopePath?: string | null) => {
-    setEditorTarget(null);
-    setIsEditorFullScreen(false);
-    openPanel({
-      type: 'sync_create',
-      nodeId: targetScopePath ?? currentFolderId ?? undefined,
-    });
-  }, [currentFolderId, openPanel]);
-
-  const openCreateAccessModal = useCallback((folderPath: string | null | undefined) => {
-    setEditorTarget(null);
-    setIsEditorFullScreen(false);
-    setQuickAccessScopeId(null);
-    setQuickAccessScopeFallback(null);
-    setCreateAccessInitialPath(normalizeAccessPath(folderPath));
-  }, []);
-
-  const openQuickAccessModal = useCallback((scope: RepoScope) => {
-    setEditorTarget(null);
-    setIsEditorFullScreen(false);
-    setCreateAccessInitialPath(null);
-    setQuickAccessScopeFallback(scope);
-    setQuickAccessScopeId(scope.id);
-  }, []);
-
-  const openRootGitRemotePanel = useCallback(() => {
-    setEditorTarget(null);
-    setIsEditorFullScreen(false);
-    setHoverHighlightNodeId(null);
-
-    if (rootScope) {
-      openQuickAccessModal(rootScope);
-    } else {
-      openCreateAccessModal(null);
-    }
-  }, [openCreateAccessModal, openQuickAccessModal, rootScope]);
-
-  const openShareWithAI = useCallback((folderPath: string | null | undefined) => {
-    const normalizedPath = normalizeAccessPath(folderPath);
-    const existingScope = matchScopeForPath(normalizedPath, scopes);
-    if (existingScope) {
-      openQuickAccessModal(existingScope);
-      return;
-    }
-    openCreateAccessModal(normalizedPath);
-  }, [openCreateAccessModal, openQuickAccessModal, scopes]);
-
-  const closeQuickAccessModal = useCallback(() => {
-    setQuickAccessScopeId(null);
-    setQuickAccessScopeFallback(null);
-  }, []);
-
-  const closeCreateAccessModal = useCallback(() => {
-    setCreateAccessInitialPath(null);
-  }, []);
-
-  const handleDataAccessCreated = useCallback(async (scope: RepoScope) => {
-    setQuickAccessScopeFallback(scope);
-    setQuickAccessScopeId(scope.id);
-    await refreshRepoAndAgents();
-  }, [refreshRepoAndAgents]);
-
-  const openAccessFullSettings = useCallback((scopeId: string) => {
-    closeQuickAccessModal();
-    router.push(`/projects/${projectId}/access?scope=${encodeURIComponent(scopeId)}`);
-  }, [closeQuickAccessModal, projectId, router]);
-
-  // Same as openSyncCreatePanel, but with a *given* folder path
-  // pre-filled as the target resource.  Two callsites:
-  //   - sidebar header "Connect" button → passes the user's
-  //     current navigation focus
-  //   - per-folder row plug button → passes that row's own folder id
-  // Either way the panel lands ready-to-create — the user picks a
-  // provider type and clicks Create, instead of going through the
-  // old "open empty panel → drag folder from sidebar" flow.
-  //
-  // `folderPath` is normalised in two ways:
-  //   - null/undefined → '' (project root, the canonical "root
-  //     scope" key used elsewhere in the codebase via
-  //     `accessByPath` etc.)
-  //   - a non-empty path → trailing segment becomes the chip's
-  //     human-readable nodeName so the pre-filled chip reads as
-  //     something more useful than an opaque blob
-  const openSyncCreatePanelForFolder = useCallback(
-    (folderPath: string | null | undefined) => {
-      const targetPath = folderPath ?? '';
-      const segments = targetPath.split('/').filter(Boolean);
-      const nodeName =
-        segments.length > 0 ? segments[segments.length - 1] : 'Root';
-      setDraftResources([
-        {
-          path: targetPath,
-          nodeName,
-          nodeType: 'folder',
-          readonly: false,
-        },
-      ]);
-      setEditorTarget(null);
-      setIsEditorFullScreen(false);
-      openPanel({ type: 'sync_create', nodeId: targetPath });
-    },
-    [openPanel, setDraftResources],
-  );
+  const {
+    panelState,
+    openPanel,
+    closePanel,
+    rightPanelWidth,
+    setRightPanelWidth,
+    setAccessPanelNavigationGuard,
+    activeSyncId,
+    isAccessPanelOpen,
+    accessListView,
+    accessHeaderScope,
+    accessHeaderTitle,
+    accessHeaderSubtitle,
+    showAccessHeaderBack,
+    rootGitRemoteUrl,
+    quickAccessScope,
+    quickAccessConnectors,
+    createAccessInitialPath,
+    refreshRepoAndAgents,
+    closeRightPanel,
+    handleAccessHeaderBack,
+    openVersionHistoryPanel,
+    openSyncCreatePanel,
+    openRootGitRemotePanel,
+    openShareWithAI,
+    openCreateAccessModal,
+    closeQuickAccessModal,
+    closeCreateAccessModal,
+    handleDataAccessCreated,
+    openAccessFullSettings,
+  } = useDataPanelController({
+    projectId,
+    currentFolderId,
+    effectiveNodeId,
+    syncEndpoints,
+    scopes,
+    connectorsByScope,
+    mutateRepo,
+    refreshAgents,
+    setEditorTarget,
+    setIsEditorFullScreen,
+    setHoverHighlightNodeId,
+  });
 
   const handleSyncCreated = useCallback(async (nodeId: string) => {
     await mutateSyncStatus();
@@ -730,22 +267,26 @@ export default function DataPage({ params }: DataPageProps) {
     openPanel({ type: 'sync_config', nodeId });
   }, [mutateSyncStatus, refreshCurrentNodes, openPanel]);
 
-  // ───── Table & Tools ─────
-
-  const { tools: tableTools, isLoading: toolsLoading } = useToolsByPath(activeNodeId);
-  const shouldLoadStructuredTableData =
-    Boolean(activeNodeId) &&
-    (activeNodeType === 'github' || activeFormat?.defaultViewer === 'json-table');
-  const { tableData: loadedTableData, refresh: refreshTable } = useTable(
+  const {
+    tableTools,
+    currentTableData,
+    refreshTable,
+    shouldLoadStructuredTableData,
+    activeNodeDisplayName,
+    accessPoints,
+    setAccessPoints,
+    configuredAccessPoints,
+    tableNameById,
+    syncToolsForPath,
+    deleteAllToolsForPath,
+    refreshToolsForActiveNode,
+  } = useStructuredNodeData({
     projectId,
-    shouldLoadStructuredTableData ? activeNodeId : undefined,
-  );
-  const currentTableData = shouldLoadStructuredTableData ? loadedTableData : undefined;
-  const activeNodeDisplayName = activeNodeId ? basenameFromPath(activeNodeId) : '';
-
-  // Access points state
-  const [accessPoints, setAccessPoints] = useState<AccessPoint[]>([]);
-  const lastSyncedTableId = useRef<string | null>(null);
+    activeNodeId,
+    activeNodeType,
+    activeFormatDefaultViewer: activeFormat?.defaultViewer,
+    contentNodes,
+  });
 
   // Dialog states
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
@@ -833,46 +374,6 @@ export default function DataPage({ params }: DataPageProps) {
     return () => { window.removeEventListener('saas-task-completed', handler); window.removeEventListener('etl-task-completed', handler); };
   }, [currentOrg?.id, projectId]);
 
-  // Sync access points from tools
-  useEffect(() => {
-    if (!activeNodeId || toolsLoading) return;
-    if (activeNodeId === lastSyncedTableId.current) return;
-
-    const pathPermissionsMap = new Map<string, McpToolPermissions>();
-    tableTools.forEach(tool => {
-      const toolPath = tool.json_path || '';
-      const existing = pathPermissionsMap.get(toolPath) || {};
-      pathPermissionsMap.set(toolPath, { ...existing, [tool.type]: true });
-    });
-
-    const initialAccessPoints: AccessPoint[] = [];
-    pathPermissionsMap.forEach((permissions, toolPath) => {
-      initialAccessPoints.push({ id: `saved-${toolPath || 'root'}`, path: toolPath, permissions });
-    });
-    setAccessPoints(initialAccessPoints);
-    lastSyncedTableId.current = activeNodeId;
-  }, [activeNodeId, toolsLoading, tableTools]);
-
-  // Sync state to WorkspaceContext
-  useEffect(() => { setProjectId(projectId); }, [projectId, setProjectId]);
-  useEffect(() => { setTableId(activeNodeId); }, [activeNodeId, setTableId]);
-  useEffect(() => {
-    setTableData(shouldLoadStructuredTableData ? currentTableData?.data : undefined);
-  }, [currentTableData?.data, setTableData, shouldLoadStructuredTableData]);
-
-  const tableNameByIdRef = useRef<string>('');
-  const tableNameById = useMemo(() => {
-    const map: Record<string, string> = {};
-    contentNodes.forEach(node => { map[node.path || node.id] = node.name; });
-    if (currentTableData?.id && currentTableData?.name) map[currentTableData.id] = currentTableData.name;
-    return map;
-  }, [contentNodes, currentTableData?.id, currentTableData?.name]);
-
-  useEffect(() => {
-    const key = JSON.stringify(tableNameById);
-    if (key !== tableNameByIdRef.current) { tableNameByIdRef.current = key; setTableNameById(tableNameById); }
-  }, [tableNameById, setTableNameById]);
-
   const { accessPointEntries, providerIcons } = useAccessPointEntries({
     nodeEndpointMap,
     savedAgents,
@@ -880,165 +381,24 @@ export default function DataPage({ params }: DataPageProps) {
     syncStatusData,
   });
 
-  useEffect(() => { setAccessPointsToContext(accessPoints); }, [accessPoints, setAccessPointsToContext]);
-  useEffect(() => {
-    if (!shouldLoadStructuredTableData) {
-      setOnDataUpdate(null);
-      return;
-    }
-    setOnDataUpdate(async () => { await refreshTable(); });
-    return () => setOnDataUpdate(null);
-  }, [refreshTable, setOnDataUpdate, shouldLoadStructuredTableData]);
-
-  // ───── Tool Sync Helpers ─────
-
-  const TOOL_TYPES: McpToolType[] = ['search', 'query_data', 'get_all_data', 'create', 'update', 'delete'];
-
-  function normalizeJsonPath(p: string) { if (!p || p === '/') return ''; return p; }
-
-  async function syncToolsForPath(params: { versionPath: string; path: string; permissions: McpToolPermissions; existingTools: Tool[] }) {
-    const { versionPath, path: toolPath, permissions, existingTools } = params;
-    const jsonPath = normalizeJsonPath(toolPath);
-    const byType = new Map<string, Tool>();
-    for (const t of existingTools) {
-      if (t.path !== versionPath) continue;
-      if ((t.json_path || '') !== jsonPath) continue;
-      const toolType = t.type as string;
-      if (toolType === 'shell_access' || toolType === 'shell_access_readonly') continue;
-      byType.set(t.type, t);
-    }
-    const effectivePermissions: Record<string, boolean> = { ...(permissions as any) };
-    const toDelete: string[] = [];
-    const toCreate: McpToolType[] = [];
-    for (const type of TOOL_TYPES) {
-      const enabled = !!effectivePermissions[type];
-      const existing = byType.get(type);
-      if (!enabled && existing) toDelete.push(existing.id);
-      if (enabled && !existing) toCreate.push(type);
-    }
-    for (const id of toDelete) await deleteTool(id);
-    for (const type of toCreate) {
-      await createTool({
-        path: versionPath, json_path: jsonPath, type,
-        name: `${type}_${versionPath}_${jsonPath ? jsonPath.replaceAll('/', '_') : 'root'}`,
-        description: undefined,
-      });
-    }
-  }
-
-  async function deleteAllToolsForPath(params: { versionPath: string; path: string; existingTools: Tool[] }) {
-    const { versionPath, path: toolPath, existingTools } = params;
-    const jsonPath = normalizeJsonPath(toolPath);
-    const toDelete = existingTools.filter(t => t.path === versionPath && (t.json_path || '') === jsonPath);
-    for (const t of toDelete) await deleteTool(t.id);
-  }
-
-  // ───── View Helpers ─────
-
-  const items = contentNodes.map(node => ({
-    id: node.path,
-    name: node.name,
-    type: node.type as ContentType,
-    version_path: node.version_path,
-    description: node.type === 'folder' ? 'Folder' :
-                 node.type === 'json' ? 'JSON' :
-                 node.type === 'markdown' ? 'Markdown' :
-                 node.type === 'file' ? 'File' : 'Unknown',
-    is_synced: false,
-    sync_source: null as string | null,
-    sync_url: null as string | null,
-    sync_status: 'not_connected' as const,
-    last_synced_at: null as string | null,
-    preview_snippet: null as string | null,
-    children_count: node.children_count,
-    onClick: () => {
-      if (node.type !== 'folder') setPendingActiveId(node.path);
-      navigateTo(node.path.split('/').filter(Boolean), node.type || undefined);
-    },
-  }));
-
-  // ───── Multi-select ─────
-  // Selection lives at this level so SelectionActionBar / BulkDeleteDialog
-  // / the Esc / Delete hotkey handlers can all observe the same state.
-  // GridView only renders the highlights; it doesn't own the truth.
-  const orderedItemIds = useMemo(() => items.map((i) => i.id), [items]);
-  const gridSelection = useGridSelection({ orderedIds: orderedItemIds });
-
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
-  // Snapshot the paths at "open dialog" time so refreshes between
-  // opening and confirming don't shrink the set under the user's feet.
-  const [bulkDeletePaths, setBulkDeletePaths] = useState<string[]>([]);
-  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false);
-
-  const openBulkDeleteDialog = useCallback(() => {
-    if (gridSelection.selectedCount === 0) return;
-    setBulkDeletePaths(gridSelection.selectedInOrder);
-    setBulkDeleteOpen(true);
-  }, [gridSelection.selectedCount, gridSelection.selectedInOrder]);
-
-  const handleBulkDeleteConfirm = useCallback(
-    async () => {
-      if (!bulkDeletePaths.length) return;
-      setBulkDeleteSubmitting(true);
-      try {
-        await nodeActions.handleBulkDelete(bulkDeletePaths);
-        gridSelection.clear();
-      } finally {
-        setBulkDeleteSubmitting(false);
-      }
-    },
-    [bulkDeletePaths, nodeActions, gridSelection, projectId],
-  );
-
-  // Folder navigation invalidates any prior selection — selecting in
-  // /docs and then navigating to /assets shouldn't leave a phantom
-  // count on screen for items the user is no longer looking at.
-  useEffect(() => {
-    gridSelection.clear();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentFolderId]);
-
-  // OS-aware shortcut hint (only used by SelectionActionBar's Delete
-  // button tooltip, not the actual key binding).
-  const platformDeleteHint = useMemo(() => {
-    if (typeof navigator === 'undefined') return 'Delete';
-    return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
-      ? '⌫'
-      : 'Del';
-  }, []);
-
-  // Selection hotkeys: Delete / Backspace opens the dialog, Esc clears.
-  // Guarded so they don't fire while the user is typing in an input
-  // (rename dialog, search, etc.).
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (gridSelection.selectedCount === 0) return;
-      const tag = (e.target as HTMLElement | null)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        gridSelection.clear();
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && !bulkDeleteOpen) {
-        e.preventDefault();
-        openBulkDeleteDialog();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [gridSelection, bulkDeleteOpen, openBulkDeleteDialog]);
-
-  const handleMillerNavigate = useCallback((item: MillerColumnItem) => {
-    if (item.type !== 'folder') {
-      setPendingActiveId(item.id);
-    }
-    navigateTo(item.id.split('/').filter(Boolean), item.type || undefined);
-  }, [navigateTo]);
-
-  const handleRefresh = async (path: string) => {
-    alert(`Refresh not yet implemented for path: ${path}`);
-  };
+  const {
+    items,
+    gridSelection,
+    bulkDeleteOpen,
+    setBulkDeleteOpen,
+    bulkDeletePaths,
+    bulkDeleteSubmitting,
+    openBulkDeleteDialog,
+    handleBulkDeleteConfirm,
+    platformDeleteHint,
+    handleMillerNavigate,
+    handleRefresh,
+  } = useDataGridController({
+    contentNodes,
+    currentFolderId,
+    navigateTo,
+    handleBulkDelete: nodeActions.handleBulkDelete,
+  });
 
   // ───── Breadcrumbs ─────
   // Text-only segments. Per design: the page header is just the
@@ -1079,9 +439,51 @@ export default function DataPage({ params }: DataPageProps) {
     return segments;
   }, [activeProject, projectId, folderBreadcrumbs, currentFolderId, activeNodeId, activeNodeDisplayName, currentTableData?.name, isResolvingPath, path]);
 
-  const configuredAccessPoints = useMemo(() => {
-    return accessPoints.map(ap => ({ path: ap.path, permissions: ap.permissions }));
-  }, [accessPoints]);
+  const activeNodeListing = useMemo(
+    () => contentNodes.find((node) => node.path === activeNodeId),
+    [activeNodeId, contentNodes],
+  );
+
+  const headerActionTarget = useMemo<DataHeaderActionTarget>(() => {
+    if (activeNodeId) {
+      return {
+        id: activeNodeId,
+        name: currentTableData?.name ?? activeNodeListing?.name ?? activeNodeDisplayName,
+        type: activeNodeType || activeNodeListing?.type || 'file',
+        isFolder: false,
+        isRoot: false,
+        isSynced: activeNodeListing?.is_synced,
+      };
+    }
+
+    const folder = folderBreadcrumbs.at(-1);
+    return {
+      id: currentFolderId ?? '',
+      name: folder?.name ?? 'Root',
+      type: 'folder',
+      isFolder: true,
+      isRoot: !currentFolderId,
+    };
+  }, [
+    activeNodeDisplayName,
+    activeNodeId,
+    activeNodeListing?.is_synced,
+    activeNodeListing?.name,
+    activeNodeListing?.type,
+    activeNodeType,
+    currentFolderId,
+    currentTableData?.name,
+    folderBreadcrumbs,
+  ]);
+
+  const headerCommandMenu = (
+    <DataHeaderActions
+      target={headerActionTarget}
+      onRename={nodeActions.handleRename}
+      onDelete={nodeActions.handleDelete}
+      onDownload={nodeActions.handleDownload}
+    />
+  );
 
   const headerActionSlot = activeFormat ? (
     <FileViewerHeaderActions
@@ -1103,8 +505,9 @@ export default function DataPage({ params }: DataPageProps) {
       onHtmlModeChange={setHtmlArtifactMode}
       csvViewMode={csvViewMode}
       onCsvViewModeChange={setCsvViewMode}
+      actionsSlot={headerCommandMenu}
     />
-  ) : null;
+  ) : headerCommandMenu;
 
   // View logic flags
   const isEditorView = !!activeNodeId;
@@ -1117,8 +520,9 @@ export default function DataPage({ params }: DataPageProps) {
   const shouldBlockForProjectIdentity =
     !projectIdentityError && !isProjectIdentityReady && isProjectIdentityLoading;
   const isRootFolderView = isFolderView && !currentFolderId;
+  const hasRootItems = items.length > 0;
   const isRootEmptyDecisionLoading =
-    isRootFolderView && (isProjectIdentityLoading || isLoading || repoIdentityLoading);
+    isRootFolderView && (isProjectIdentityLoading || isLoading || (!hasRootItems && repoIdentityLoading));
   const projectHasContentCommit = repoIdentity?.content_initialized === true;
   const showEmptyWorkspace =
     isRootFolderView && !isRootEmptyDecisionLoading && items.length === 0 && !projectHasContentCommit && !emptyProjectOpened;
@@ -1134,492 +538,291 @@ export default function DataPage({ params }: DataPageProps) {
     return <ProjectUnavailableShell onBackHome={() => router.push('/home')} />;
   }
 
+  const dialogsProps = {
+    projectId,
+    currentFolderId,
+    projects: scopedProjects,
+    activeProject,
+    renameDialogOpen: nodeActions.renameDialogOpen,
+    renameTargetName: nodeActions.renameTarget?.name ?? '',
+    renameError: nodeActions.renameError,
+    onCloseRename: nodeActions.closeRenameDialog,
+    onRenameConfirm: nodeActions.handleRenameConfirm,
+    moveDialogTarget: nodeActions.moveDialogTarget,
+    moveConfirmTarget: nodeActions.moveConfirmTarget,
+    onMoveConfirm: async (nodeId: string, targetFolderId: string | null) => {
+      nodeActions.setMoveDialogTarget(null);
+      await nodeActions.handleMoveNode(nodeId, targetFolderId);
+    },
+    onMoveFinalConfirm: nodeActions.handleMoveConfirm,
+    onCloseMove: () => nodeActions.setMoveDialogTarget(null),
+    onCloseMoveConfirm: nodeActions.closeMoveConfirm,
+    deleteDialogTarget: nodeActions.deleteDialogTarget,
+    onDeleteConfirm: nodeActions.handleDeleteConfirm,
+    onCloseDelete: nodeActions.closeDeleteDialog,
+    createTableOpen,
+    onCloseCreateTable: closeCreateTable,
+    defaultStartOption,
+    createFolderOpen,
+    onCloseFolderDialog: () => setCreateFolderOpen(false),
+    onFolderSuccess: () => refreshAllContentNodes(projectId),
+    supabaseConnectOpen,
+    onCloseSupabaseConnect: () => setSupabaseConnectOpen(false),
+    onSupabaseConnected: (connectionId: string) => {
+      setSupabaseConnectOpen(false);
+      setSupabaseConnectionId(connectionId);
+      setSupabaseSQLEditorOpen(true);
+    },
+    supabaseSQLEditorOpen,
+    supabaseConnectionId,
+    onCloseSupabaseSQLEditor: () => {
+      setSupabaseSQLEditorOpen(false);
+      setSupabaseConnectionId(null);
+    },
+    onSupabaseSaved: () => refreshAllContentNodes(projectId),
+    fileImportDialogOpen: fileImport.fileImportDialogOpen,
+    onCloseFileImport: fileImport.closeFileImportDialog,
+    onFileImportConfirm: fileImport.handleFileImportConfirm,
+    droppedFiles: fileImport.droppedFiles,
+    fileImportTargetLabel: fileImport.fileImportTarget.name,
+  };
+
+  const editorAreaProps = activeProject ? {
+    activeNodeId,
+    activeNodeType,
+    activeMimeType,
+    activeProject,
+    currentTableData,
+    textContent: editorTextDraft,
+    isLoadingText,
+    markdownViewMode,
+    onTextChange: onEditorTextChange,
+    setMarkdownViewMode,
+    editorType,
+    htmlArtifactMode,
+    csvViewMode,
+    configuredAccessPoints,
+    onActiveTableChange: (nodePath: string) => {
+      navigateTo(nodePath.split('/').filter(Boolean));
+    },
+    onAccessPointChange: (apPath: string, permissions: McpToolPermissions) => {
+      const hasAnyPermission = Object.values(permissions).some(Boolean);
+      setAccessPoints(prev => {
+        const existing = prev.find(ap => ap.path === apPath);
+        if (existing) {
+          if (!hasAnyPermission) return prev.filter(ap => ap.path !== apPath);
+          return prev.map(ap => ap.path === apPath ? { ...ap, permissions } : ap);
+        }
+        if (hasAnyPermission) {
+          return [...prev, { id: `ap-${Date.now()}`, path: apPath, permissions }];
+        }
+        return prev;
+      });
+      if (activeNodeId) {
+        syncToolsForPath({ versionPath: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
+          refreshToolsForActiveNode();
+        });
+      }
+    },
+    onAccessPointRemove: (apPath: string) => {
+      setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
+      if (activeNodeId) {
+        deleteAllToolsForPath({ versionPath: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
+          refreshToolsForActiveNode();
+        });
+      }
+    },
+    onOpenDocument: (docPath: string, value: string) => {
+      setEditorTarget({ path: docPath, value });
+      setIsEditorFullScreen(false);
+      closePanel();
+    },
+    onCreateTool: (path: string) => {
+      if (!activeNodeId) return;
+      nodeActions.handleCreateTool(
+        activeNodeId,
+        `${currentTableData?.name || activeNodeDisplayName || 'File'}`,
+        'json',
+        path,
+      );
+    },
+  } : null;
+
   return (
-    <>
-      <DataPageDialogs
-        projectId={projectId}
-        currentFolderId={currentFolderId}
-        projects={scopedProjects}
-        activeProject={activeProject}
-        renameDialogOpen={nodeActions.renameDialogOpen}
-        renameTargetName={nodeActions.renameTarget?.name ?? ''}
-        renameError={nodeActions.renameError}
-        onCloseRename={nodeActions.closeRenameDialog}
-        onRenameConfirm={nodeActions.handleRenameConfirm}
-        moveDialogTarget={nodeActions.moveDialogTarget}
-        moveConfirmTarget={nodeActions.moveConfirmTarget}
-        onMoveConfirm={async (nodeId, targetFolderId) => {
-          nodeActions.setMoveDialogTarget(null);
-          await nodeActions.handleMoveNode(nodeId, targetFolderId);
-        }}
-        onMoveFinalConfirm={nodeActions.handleMoveConfirm}
-        onCloseMove={() => nodeActions.setMoveDialogTarget(null)}
-        onCloseMoveConfirm={nodeActions.closeMoveConfirm}
-        deleteDialogTarget={nodeActions.deleteDialogTarget}
-        onDeleteConfirm={nodeActions.handleDeleteConfirm}
-        onCloseDelete={nodeActions.closeDeleteDialog}
-        createTableOpen={createTableOpen}
-        onCloseCreateTable={closeCreateTable}
-        defaultStartOption={defaultStartOption}
-        createFolderOpen={createFolderOpen}
-        onCloseFolderDialog={() => setCreateFolderOpen(false)}
-        onFolderSuccess={() => refreshAllContentNodes(projectId)}
-        supabaseConnectOpen={supabaseConnectOpen}
-        onCloseSupabaseConnect={() => setSupabaseConnectOpen(false)}
-        onSupabaseConnected={(connectionId) => {
-          setSupabaseConnectOpen(false);
-          setSupabaseConnectionId(connectionId);
-          setSupabaseSQLEditorOpen(true);
-        }}
-        supabaseSQLEditorOpen={supabaseSQLEditorOpen}
-        supabaseConnectionId={supabaseConnectionId}
-        onCloseSupabaseSQLEditor={() => { setSupabaseSQLEditorOpen(false); setSupabaseConnectionId(null); }}
-        onSupabaseSaved={() => refreshAllContentNodes(projectId)}
-        fileImportDialogOpen={fileImport.fileImportDialogOpen}
-        onCloseFileImport={fileImport.closeFileImportDialog}
-        onFileImportConfirm={fileImport.handleFileImportConfirm}
-        droppedFiles={fileImport.droppedFiles}
-        fileImportTargetLabel={fileImport.fileImportTarget.name}
-      />
-
-      <DataPageOverlays
-        toast={nodeActions.toast}
-        createMenuOpen={createMenuOpen}
-        createMenuPosition={createMenuPosition}
-        createMenuAccessOnly={createMenuAccessOnly}
-        createMenuRef={createMenuRef}
-        createMenuActions={createMenuActions}
-      />
-
-      <BulkDeleteDialog
-        open={bulkDeleteOpen}
-        paths={bulkDeletePaths}
-        onClose={() => {
+    <DataWorkspaceSurface
+      dialogsProps={dialogsProps}
+      overlaysProps={{
+        toast: nodeActions.toast,
+        createMenuOpen,
+        createMenuPosition,
+        createMenuAccessOnly,
+        createMenuRef,
+        createMenuActions,
+      }}
+      bulkDeleteProps={{
+        open: bulkDeleteOpen,
+        paths: bulkDeletePaths,
+        onClose: () => {
           if (!bulkDeleteSubmitting) setBulkDeleteOpen(false);
-        }}
-        onConfirm={handleBulkDeleteConfirm}
-      />
-
-      <SelectionActionBar
-        count={gridSelection.selectedCount}
-        onClear={gridSelection.clear}
-        onDelete={openBulkDeleteDialog}
-        busy={bulkDeleteSubmitting}
-        shortcutHint={platformDeleteHint}
-      />
-
-      {/* Main Content
-       *
-       * Layout (matches the marketing showcase):
-       *
-       *   ┌──────────────────────────────────────────────────┐
-       *   │ ProjectsHeader (Workspace / finance)   [Access]  │  <- 40px, full width
-       *   ├────────────┬─────────────────────────────────────┤
-       *   │            │                                     │
-       *   │ Explorer   │ content / editor / grid             │
-       *   │ (tree)     │                                     │
-       *   │            │                                     │
-       *   └────────────┴─────────────────────────────────────┘
-       *
-       * Header is hoisted OUT of the column row so a single hairline
-       * runs unbroken across the explorer column boundary, the way
-       * Linear / GitHub / Supabase do it. The previous structure had
-       * ExplorerSidebar render its own "Workspace" header, which
-       * broke the line into two segments.
-       */}
-      <div
-        style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', overflow: 'hidden' } as React.CSSProperties}
-      >
-        {/* Top header bar — spans the full width of <main>, including
-            over the ExplorerSidebar column. Renders one breadcrumb
-            (`Workspace / finance / …`). */}
-        <div
-          style={{
-            flexShrink: 0,
-            position: 'relative',
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'stretch',
-            height: 46,
-            overflow: 'visible',
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <ProjectsHeader
-              pathSegments={pathSegments}
-              projectId={activeProject?.id ?? null}
-              onProjectsRefresh={() => {}}
-              accessPointCount={accessPoints.length}
-              actionSlot={headerActionSlot}
-            />
-          </div>
-          {isAccessPanelOpen ? (
-            <div style={{
-              display: 'flex', alignItems: 'center',
-              paddingLeft: 12, paddingRight: 12,
-              borderBottom: '1px solid var(--po-divider)',
-              borderLeft: '1px solid var(--po-divider)',
-              background: 'var(--po-canvas)',
-              height: '100%',
-              width: rightPanelWidth,
-              flexShrink: 0,
-            }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  width: '100%',
-                  minWidth: 0,
-                }}
-              >
-                {showAccessHeaderBack && (
-                  <ActivityIconButton
-                    kind="back"
-                    title="Back"
-                    onClick={handleAccessHeaderBack}
-                  />
-                )}
-                <div
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    gap: 1,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'baseline',
-                      gap: 8,
-                      minWidth: 0,
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'var(--po-text)',
-                      lineHeight: '18px',
-                    }}
-                    title={accessHeaderTitle}
-                  >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {accessHeaderTitle}
-                    </span>
-                    {accessListView === 'overview' && (
-                      <span
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 400,
-                          color: 'var(--po-text-subtle)',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {scopes.length}
-                      </span>
-                    )}
-                  </div>
-                  {accessHeaderSubtitle && (
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 400,
-                        color: 'var(--po-text-subtle)',
-                        lineHeight: '14px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                      title={accessHeaderSubtitle}
-                    >
-                      {accessHeaderSubtitle}
-                    </div>
-                  )}
-                </div>
-                {accessHeaderScope && accessListView === 'detail' && (
-                  <ActivityIconButton
-                    kind="settings"
-                    title="Settings"
-                    onClick={() =>
-                      openPanel({
-                        type: 'access_list',
-                        view: 'settings',
-                        selectedScopeId: accessHeaderScope.id,
-                      })
-                    }
-                  />
-                )}
-                <ActivityIconButton kind="close" title="Close panel" onClick={closeRightPanel} />
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        {/* Body row: Explorer sidebar + content column + right panel */}
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            minHeight: 0,
-            position: 'relative',
-            // The right sheet lives inside this body row and is pulled
-            // upward by 46px so its header replaces the page header's
-            // right slot. The page header itself has zIndex 60; without
-            // lifting the body row above it, the sheet is still painted
-            // underneath the header and the old Access chip remains
-            // visible (the exact bug seen in the screenshot).
-            zIndex: 70,
-          }}
-        >
-
-          {/* Explorer Sidebar — no internal header, starts directly
-              with the file tree so it sits flush under the unified
-              ProjectsHeader above.
-              Wrapped in `ResizableSidebarColumn` so the user can drag
-              the right edge to widen the file tree (long sync/AP
-              names + deep paths can outgrow the compact default). The
-              storageKey persists per-page so the data view's preferred
-              width doesn't bleed into history / access.
-
-              Hidden while the project is still uninitialized: before the
-              first content commit, the tree would only show a fake-feeling
-              Root row and compete with the onboarding choices. */}
-          {!suppressExplorerSidebar && (
-            <ResizableSidebarColumn
-              storageKey='explorer-sidebar:data'
-              defaultWidth={220}
-              minWidth={220}
-              maxWidth={480}
-              style={{
-                borderRight: '1px solid var(--po-divider)',
-                background: 'var(--po-canvas)',
-              }}
-            >
-              <ExplorerSidebar
-                projectId={projectId}
-                currentPath={folderBreadcrumbs.map(f => ({ id: f.id, name: f.name }))}
-                activeNodeId={
-                  (panelState.type !== 'none' && panelState.nodeId !== undefined)
-                    ? panelState.nodeId
-                    : (activeNodeId || undefined)
-                }
-                onNavigate={handleMillerNavigate}
-                onCreate={handleMillerCreateClick}
-                onCreateSync={(_event, nodeId) => openShareWithAI(nodeId)}
-                onOpenAccess={(_endpoints, nodeId) => openShareWithAI(nodeId)}
-                endpointByNodeId={nodeEndpointMap}
-                onRename={nodeActions.handleRename}
-                onDelete={nodeActions.handleDelete}
-                onDownload={nodeActions.handleDownload}
-                onFilesDrop={fileImport.openFileImportForTarget}
-                onMoveNode={nodeActions.handleMoveNode}
-                activeSyncNodeId={
-                  panelState.type === 'sync_config' || panelState.type === 'agent_chat' || panelState.type === 'mcp_config' || panelState.type === 'sandbox_config'
-                    ? (panelState.nodeId ?? null)
-                    : null
-                }
-                highlightNodeId={hoverHighlightNodeId || highlightNodeId}
-                highlightVariant={hoverHighlightNodeId !== null ? 'access-point' : 'default'}
-                createMenuOpenForId={createMenuOpenForId}
-                createMenuOpenAction={createMenuOpenAction}
-                style={{ flex: 1, width: '100%', background: 'transparent', minHeight: 0 }}
-              />
-            </ResizableSidebarColumn>
-          )}
-
-          {/* Content column */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Loading state */}
-            {isResolvingPath && (
-              <div style={{ flex: 1, background: 'var(--po-canvas)' }}>
-                <PageLoading variant="fill" />
-              </div>
-            )}
-
-            {isEditorView && !isResolvingPath && !activeProject && isProjectIdentityLoading && (
-              <div style={{ flex: 1, background: 'var(--po-canvas)' }}>
-                <PageLoading variant="fill" />
-              </div>
-            )}
-
-            {/* Editor View */}
-            {isEditorView && !isResolvingPath && activeProject && (
-              <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', minHeight: 0, minWidth: 0 }}>
-                <EditorArea
-                  activeNodeId={activeNodeId}
-                  activeNodeType={activeNodeType}
-                  activeMimeType={activeMimeType}
-                  activeProject={activeProject}
-                  currentTableData={currentTableData}
-                  textContent={editorTextDraft}
-                  isLoadingText={isLoadingText}
-                  markdownViewMode={markdownViewMode}
-                  onTextChange={onEditorTextChange}
-                  setMarkdownViewMode={setMarkdownViewMode}
-                  editorType={editorType}
-                  htmlArtifactMode={htmlArtifactMode}
-                  csvViewMode={csvViewMode}
-                  configuredAccessPoints={configuredAccessPoints}
-                  onActiveTableChange={(nodePath: string) => {
-                    navigateTo(nodePath.split('/').filter(Boolean));
-                  }}
-                  onAccessPointChange={(apPath: string, permissions: McpToolPermissions) => {
-                    const hasAnyPermission = Object.values(permissions).some(Boolean);
-                    setAccessPoints(prev => {
-                      const existing = prev.find(ap => ap.path === apPath);
-                      if (existing) {
-                        if (!hasAnyPermission) return prev.filter(ap => ap.path !== apPath);
-                        return prev.map(ap => ap.path === apPath ? { ...ap, permissions } : ap);
-                      } else if (hasAnyPermission) {
-                        return [...prev, { id: `ap-${Date.now()}`, path: apPath, permissions }];
-                      }
-                      return prev;
-                    });
-                    if (activeNodeId) {
-                      syncToolsForPath({ versionPath: activeNodeId, path: apPath, permissions, existingTools: tableTools as any }).then(() => {
-                        refreshToolsByPath(activeNodeId);
-                        refreshProjectTools(projectId);
-                      });
-                    }
-                  }}
-                  onAccessPointRemove={(apPath: string) => {
-                    setAccessPoints(prev => prev.filter(ap => ap.path !== apPath));
-                    if (activeNodeId) {
-                      deleteAllToolsForPath({ versionPath: activeNodeId, path: apPath, existingTools: tableTools as any }).then(() => {
-                        refreshToolsByPath(activeNodeId);
-                        refreshProjectTools(projectId);
-                      });
-                    }
-                  }}
-                  onOpenDocument={(docPath: string, value: string) => {
-                    setEditorTarget({ path: docPath, value });
-                    setIsEditorFullScreen(false);
-                    closePanel();
-                  }}
-                  onCreateTool={(path: string) => {
-                    if (!activeNodeId) return;
-                    nodeActions.handleCreateTool(activeNodeId, `${currentTableData?.name || activeNodeDisplayName || 'File'}`, 'json', path);
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Folder View (Grid mode) */}
-            {isFolderView && !isResolvingPath && (
-              <div style={{ flex: 1, overflow: 'auto', padding: suppressExplorerSidebar ? 0 : 24, display: 'flex', flexDirection: 'column' }}>
-                {isRootEmptyDecisionLoading ? (
-                  <div style={{ flex: 1, minHeight: 200, background: 'var(--po-canvas)' }}>
-                    <PageLoading variant="fill" />
-                  </div>
-                ) : isLoading ? (
-                  <div style={{ height: '100%', minHeight: 200 }}>
-                    <PageLoading variant="fill" />
-                  </div>
-                ) : showEmptyWorkspace ? (
-                  <EmptyWorkspaceState
-                    project={activeProject}
-                    gitRemoteUrl={rootGitRemoteUrl}
-                    onOpenGitSetup={openRootGitRemotePanel}
-                    onImportFiles={createMenuActions.onImportFromFiles}
-                    onFilesDrop={(files) => {
-                      fileImport.openFileImportForTarget(files, { path: null, name: 'Root' });
-                    }}
-                    onImportGitHub={createMenuActions.onImportGitHub}
-                    onOpenEmptyProject={handleOpenEmptyProject}
-                  />
-                ) : (
-                  <GridView
-                    items={items}
-                    parentFolderId={currentFolderId}
-                    onCreateClick={handleCreateClick}
-                    onRename={nodeActions.handleRename}
-                    onDelete={nodeActions.handleDelete}
-                    onRefresh={handleRefresh}
-                    onMove={nodeActions.handleMoveRequest}
-                    onMoveNode={nodeActions.handleMoveNode}
-                    onCreateTool={nodeActions.handleCreateTool}
-                    onShareWithAI={openShareWithAI}
-                    agentResources={agentResources}
-                    highlightNodeId={hoverHighlightNodeId || highlightNodeId}
-                    selectedIds={gridSelection.selectedIds}
-                    onToggleSelected={gridSelection.toggle}
-                    onRangeSelectTo={gridSelection.selectRangeTo}
-                    onSelectOnly={gridSelection.selectOnly}
-                    onClearSelection={gridSelection.clear}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Right Panel */}
-        <DataPageRightPanel
-          editorTarget={editorTarget}
-          isEditorFullScreen={isEditorFullScreen}
-          panelState={panelState}
+        },
+        onConfirm: handleBulkDeleteConfirm,
+      }}
+      selectionProps={{
+        count: gridSelection.selectedCount,
+        onClear: gridSelection.clear,
+        onDelete: openBulkDeleteDialog,
+        busy: bulkDeleteSubmitting,
+        shortcutHint: platformDeleteHint,
+      }}
+      header={{
+        pathSegments,
+        projectId: activeProject?.id ?? null,
+        accessPointCount: accessPoints.length,
+        actionSlot: headerActionSlot,
+      }}
+      accessHeader={{
+        isOpen: isAccessPanelOpen,
+        width: rightPanelWidth,
+        title: accessHeaderTitle,
+        subtitle: accessHeaderSubtitle,
+        showBack: showAccessHeaderBack,
+        listView: accessListView,
+        scopeCount: scopes.length,
+        scope: accessHeaderScope,
+        onBack: handleAccessHeaderBack,
+        onOpenSettings: () => {
+          if (!accessHeaderScope) return;
+          openPanel({
+            type: 'access_list',
+            view: 'settings',
+            selectedScopeId: accessHeaderScope.id,
+          });
+        },
+        onClose: closeRightPanel,
+      }}
+      explorer={{
+        hidden: suppressExplorerSidebar,
+        props: {
+          projectId,
+          folderBreadcrumbs,
+          activeNodeId: activeNodeId || undefined,
+          onNavigate: handleMillerNavigate,
+          onCreate: handleMillerCreateClick,
+          onCreateSync: (_event, nodeId) => openShareWithAI(nodeId),
+          onOpenAccess: (_endpoints, nodeId) => openShareWithAI(nodeId),
+          endpointByNodeId: nodeEndpointMap,
+          onFilesDrop: fileImport.openFileImportForTarget,
+          onMoveNode: nodeActions.handleMoveNode,
+          activeSyncNodeId:
+            panelState.type === 'sync_config' ||
+            panelState.type === 'agent_chat' ||
+            panelState.type === 'mcp_config' ||
+            panelState.type === 'sandbox_config'
+              ? (panelState.nodeId ?? null)
+              : null,
+          highlightNodeId,
+          hoverHighlightNodeId,
+          createMenuOpenForId,
+          createMenuOpenAction,
+        },
+      }}
+      content={{
+        isResolvingPath,
+        isEditorView,
+        isProjectIdentityLoading,
+        editorAreaProps,
+        isFolderView,
+        isRootEmptyDecisionLoading,
+        isLoading,
+        showEmptyWorkspace,
+        suppressExplorerSidebar,
+        emptyWorkspaceProps: {
+          project: activeProject,
+          gitRemoteUrl: rootGitRemoteUrl,
+          onOpenGitSetup: openRootGitRemotePanel,
+          onImportFiles: createMenuActions.onImportFromFiles,
+          onFilesDrop: (files: File[]) => {
+            fileImport.openFileImportForTarget(files, { path: null, name: 'Root' });
+          },
+          onImportGitHub: createMenuActions.onImportGitHub,
+          onOpenEmptyProject: handleOpenEmptyProject,
+        },
+        gridViewProps: {
+          items,
+          parentFolderId: currentFolderId,
+          onCreateClick: handleCreateClick,
+          onRename: nodeActions.handleRename,
+          onDelete: nodeActions.handleDelete,
+          onRefresh: handleRefresh,
+          onMove: nodeActions.handleMoveRequest,
+          onMoveNode: nodeActions.handleMoveNode,
+          onCreateTool: nodeActions.handleCreateTool,
+          onShareWithAI: openShareWithAI,
+          agentResources,
+          highlightNodeId: hoverHighlightNodeId || highlightNodeId,
+          selectedIds: gridSelection.selectedIds,
+          onToggleSelected: gridSelection.toggle,
+          onRangeSelectTo: gridSelection.selectRangeTo,
+          onSelectOnly: gridSelection.selectOnly,
+          onClearSelection: gridSelection.clear,
+        },
+      }}
+      rightPanelProps={{
+        editorTarget,
+        isEditorFullScreen,
+        panelState,
+        projectId,
+        activeNodeId,
+        activeSyncId,
+        currentTableData,
+        syncStatusData,
+        projectTools,
+        savedAgents,
+        accessPointEntries,
+        providerIcons,
+        scopes,
+        connectorsByScope,
+        currentScopePath: currentFolderId || '',
+        repoIdentity,
+        onClose: closeRightPanel,
+        onEditorClose: () => { setEditorTarget(null); setIsEditorFullScreen(false); },
+        onEditorSave: (newValue) => {
+          console.log('Save document:', editorTarget?.path, newValue);
+          setEditorTarget(null);
+          setIsEditorFullScreen(false);
+        },
+        onToggleEditorFullScreen: () => setIsEditorFullScreen(!isEditorFullScreen),
+        onRollbackComplete: () => {
+          if (shouldLoadStructuredTableData) refreshTable();
+          refreshCurrentNodes();
+        },
+        onSyncCreated: handleSyncCreated,
+        onAccessPointHover: setHoverHighlightNodeId,
+        onScopeMutated: refreshRepoAndAgents,
+        onOpenPanel: openPanel,
+        onOpenSyncSetting: openSyncSetting,
+        onDataUpdate: async () => {
+          if (shouldLoadStructuredTableData) await refreshTable();
+        },
+        panelWidth: rightPanelWidth,
+        onPanelWidthChange: setRightPanelWidth,
+        onAccessPanelNavigationGuardChange: setAccessPanelNavigationGuard,
+      }}
+      accessModalSlot={
+        <DataAccessModalHost
           projectId={projectId}
-          activeNodeId={activeNodeId}
-          activeSyncId={activeSyncId}
-          currentTableData={currentTableData}
-          syncStatusData={syncStatusData}
-          projectTools={projectTools}
-          savedAgents={savedAgents}
-          accessPointEntries={accessPointEntries}
-          providerIcons={providerIcons}
-          scopes={scopes}
+          quickAccessScope={quickAccessScope}
+          quickAccessConnectors={quickAccessConnectors}
+          createAccessInitialPath={createAccessInitialPath}
+          existingScopes={scopes}
           connectorsByScope={connectorsByScope}
-          currentScopePath={currentFolderId || ''}
-          repoIdentity={repoIdentity}
-          onClose={closeRightPanel}
-          onEditorClose={() => { setEditorTarget(null); setIsEditorFullScreen(false); }}
-          onEditorSave={(newValue) => {
-            console.log('Save document:', editorTarget?.path, newValue);
-            setEditorTarget(null);
-            setIsEditorFullScreen(false);
-          }}
-          onToggleEditorFullScreen={() => setIsEditorFullScreen(!isEditorFullScreen)}
-          onRollbackComplete={() => {
-            if (shouldLoadStructuredTableData) refreshTable();
-            refreshCurrentNodes();
-          }}
-          onSyncCreated={handleSyncCreated}
-          onAccessPointHover={setHoverHighlightNodeId}
-          onScopeMutated={refreshRepoAndAgents}
-          onOpenPanel={openPanel}
-          onOpenSyncSetting={openSyncSetting}
-          onDataUpdate={async () => {
-            if (shouldLoadStructuredTableData) await refreshTable();
-          }}
-          panelWidth={rightPanelWidth}
-          onPanelWidthChange={setRightPanelWidth}
-          onAccessPanelNavigationGuardChange={setAccessPanelNavigationGuard}
+          onCloseQuickAccess={closeQuickAccessModal}
+          onCreateAccess={openCreateAccessModal}
+          onOpenFullSettings={openAccessFullSettings}
+          onCloseCreateAccess={closeCreateAccessModal}
+          onCreated={handleDataAccessCreated}
         />
-
-        {quickAccessScope && (
-          <DataAccessQuickModal
-            scope={quickAccessScope}
-            connectors={quickAccessConnectors}
-            onClose={closeQuickAccessModal}
-            onCreateAccess={openCreateAccessModal}
-            onOpenFullSettings={openAccessFullSettings}
-          />
-        )}
-
-        {createAccessInitialPath !== null && (
-          <CreateAccessModal
-            projectId={projectId}
-            existingScopes={scopes}
-            connectorsByScope={connectorsByScope}
-            initialPath={createAccessInitialPath}
-            onClose={closeCreateAccessModal}
-            onCreated={handleDataAccessCreated}
-          />
-        )}
-        </div>
-      </div>
-    </>
+      }
+    />
   );
 }

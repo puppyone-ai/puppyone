@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { PulseGrid } from '@/components/loading';
 import { listKinds, type NeedsActionItem, type ResolvedResult } from '@/lib/needsActionRegistry';
 import { isSnoozed } from '@/lib/needsActionSnooze';
 import { NeedsActionGroup } from './NeedsActionGroup';
@@ -30,10 +31,23 @@ export interface NeedsActionSectionProps {
    *  / snoozed). The page uses this to refresh history (a resolved
    *  conflict produces a new commit) and to clear the selection. */
   onItemRemoved: (selection: NeedsActionSelection, result: ResolvedResult) => void;
+  onSummaryChange?: (summary: NeedsActionSummary) => void;
 }
 
 /** SWR refresh fallback for kinds that don't set their own interval. */
 const DEFAULT_REFRESH_MS = 30_000;
+
+type KindSnapshot = {
+  count: number;
+  loading: boolean;
+  error: boolean;
+};
+
+export type NeedsActionSummary = {
+  count: number;
+  loading: boolean;
+  hasErrors: boolean;
+};
 
 /**
  * Needs Action section — sits above the History filters in the
@@ -53,66 +67,212 @@ export function NeedsActionSection({
   selected,
   onSelect,
   onItemRemoved,
+  onSummaryChange,
 }: NeedsActionSectionProps) {
   const kinds = useMemo(() => listKinds(), []);
+  const [expanded, setExpanded] = useState(true);
+  const [snapshots, setSnapshots] = useState<Record<string, KindSnapshot>>({});
 
   // Per-kind localStorage snooze tracking. We re-evaluate ``isSnoozed``
   // on every render — cheap (a few localStorage reads per page) and
   // ensures expired snoozes resurface without explicit re-fetch.
   const [snoozeTick, setSnoozeTick] = useState(0);
 
+  const handleSnapshot = useCallback((kind: string, snapshot: KindSnapshot) => {
+    setSnapshots((current) => {
+      const previous = current[kind];
+      if (
+        previous
+        && previous.count === snapshot.count
+        && previous.loading === snapshot.loading
+        && previous.error === snapshot.error
+      ) {
+        return current;
+      }
+      return { ...current, [kind]: snapshot };
+    });
+  }, []);
+
+  const knownSnapshots = kinds
+    .map((kind) => snapshots[kind.kind])
+    .filter((snapshot): snapshot is KindSnapshot => Boolean(snapshot));
+  const allKnown = knownSnapshots.length === kinds.length;
+  const totalCount = knownSnapshots.reduce((sum, snapshot) => sum + snapshot.count, 0);
+  const loading = !allKnown || knownSnapshots.some((snapshot) => snapshot.loading);
+  const hasErrors = knownSnapshots.some((snapshot) => snapshot.error);
+
+  useEffect(() => {
+    onSummaryChange?.({
+      count: totalCount,
+      loading,
+      hasErrors,
+    });
+  }, [hasErrors, loading, onSummaryChange, totalCount]);
+
+  return (
+    <section
+      style={{
+        background: 'var(--po-canvas)',
+        display: 'flex',
+        flex: '0 0 auto',
+        flexDirection: 'column',
+        minHeight: 0,
+        borderBottom: '1px solid var(--po-divider)',
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((open) => !open)}
+        style={{
+          width: '100%',
+          height: 42,
+          minHeight: 42,
+          color: 'var(--po-text)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '0 8px 0 16px',
+          border: 0,
+          background: 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <svg
+          aria-hidden
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            color: 'var(--po-text-subtle)',
+            flexShrink: 0,
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 120ms ease',
+          }}
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'var(--po-text)',
+          }}
+        >
+          Needs action
+        </span>
+        {totalCount > 0 ? (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: 20,
+              padding: '0 6px',
+              borderRadius: 999,
+              color: 'var(--po-warning)',
+              fontSize: 11,
+              fontWeight: 500,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {totalCount} open
+          </span>
+        ) : null}
+      </button>
+
+      {expanded ? (
+        <div
+          className="custom-scrollbar"
+          style={{
+            flex: '0 0 auto',
+            minHeight: 0,
+            overflowY: 'visible',
+            padding: totalCount > 0 ? '4px 8px 10px' : '0 8px 14px 36px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 3,
+          }}
+        >
+          {kinds.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <>
+              <KindRows
+                kinds={kinds}
+                projectId={projectId}
+                selected={selected}
+                onSelect={onSelect}
+                onItemRemoved={onItemRemoved}
+                snoozeTick={snoozeTick}
+                onSnoozeTick={() => setSnoozeTick((n) => n + 1)}
+                onSnapshot={handleSnapshot}
+              />
+              {loading && totalCount === 0 ? <LoadingState /> : null}
+              {!loading && hasErrors && totalCount === 0 ? <EmptyState hasErrors /> : null}
+              {!loading && !hasErrors && allKnown && totalCount === 0 ? <EmptyState /> : null}
+            </>
+          )}
+        </div>
+      ) : (
+        <KindRows
+          kinds={kinds}
+          projectId={projectId}
+          selected={selected}
+          onSelect={onSelect}
+          onItemRemoved={onItemRemoved}
+          snoozeTick={snoozeTick}
+          onSnoozeTick={() => setSnoozeTick((n) => n + 1)}
+          onSnapshot={handleSnapshot}
+          renderGroups={false}
+        />
+      )}
+    </section>
+  );
+}
+
+function LoadingState() {
   return (
     <div
       style={{
-        borderLeft: '2px solid color-mix(in srgb, var(--po-warning) 50%, transparent)',
-        background: 'color-mix(in srgb, var(--po-warning) 4%, transparent)',
-        padding: '8px 8px 8px 10px',
-        margin: '8px 8px 12px 8px',
-        borderRadius: 6,
+        minHeight: 44,
+        padding: '0 4px 2px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
       }}
     >
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          color: 'var(--po-text-subtle)',
-          padding: '0 2px 6px',
-        }}
-      >
-        Needs action
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {kinds.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <KindRows
-            kinds={kinds}
-            projectId={projectId}
-            selected={selected}
-            onSelect={onSelect}
-            onItemRemoved={onItemRemoved}
-            snoozeTick={snoozeTick}
-            onSnoozeTick={() => setSnoozeTick((n) => n + 1)}
-          />
-        )}
-      </div>
+      <PulseGrid size="sm" ariaLabel="Loading pending reviews" />
     </div>
   );
 }
 
-function EmptyState() {
+function EmptyState({
+  hasErrors = false,
+}: {
+  readonly hasErrors?: boolean;
+}) {
   return (
     <div
       style={{
-        padding: '6px 4px 4px',
+        minHeight: 44,
+        padding: '0 4px 2px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
         fontSize: 12,
         color: 'var(--po-text-subtle)',
-        fontStyle: 'italic',
+        lineHeight: '18px',
+        textAlign: 'left',
       }}
     >
-      No pending actions
+      {hasErrors ? 'Some pending checks are unavailable.' : 'No pending reviews.'}
     </div>
   );
 }
@@ -127,6 +287,8 @@ function KindRows({
   onItemRemoved,
   snoozeTick,
   onSnoozeTick,
+  onSnapshot,
+  renderGroups = true,
 }: {
   kinds: readonly ReturnType<typeof listKinds>[number][];
   projectId: string;
@@ -135,6 +297,8 @@ function KindRows({
   onItemRemoved: NeedsActionSectionProps['onItemRemoved'];
   snoozeTick: number;
   onSnoozeTick: () => void;
+  onSnapshot: (kind: string, snapshot: KindSnapshot) => void;
+  renderGroups?: boolean;
 }) {
   // Pre-flight: collect live items + per-kind errors via independent
   // SWR subscriptions. We render the grid AFTER this pass so we can
@@ -150,6 +314,8 @@ function KindRows({
         onItemRemoved={onItemRemoved}
         snoozeTick={snoozeTick}
         onSnoozeTick={onSnoozeTick}
+        onSnapshot={onSnapshot}
+        renderGroup={renderGroups}
       />
     );
   });
@@ -165,6 +331,8 @@ function KindGroupContainer({
   onItemRemoved,
   snoozeTick,
   onSnoozeTick,
+  onSnapshot,
+  renderGroup,
 }: {
   def: ReturnType<typeof listKinds>[number];
   projectId: string;
@@ -173,6 +341,8 @@ function KindGroupContainer({
   onItemRemoved: NeedsActionSectionProps['onItemRemoved'];
   snoozeTick: number;
   onSnoozeTick: () => void;
+  onSnapshot: (kind: string, snapshot: KindSnapshot) => void;
+  renderGroup: boolean;
 }) {
   const refreshInterval = def.refreshIntervalMs ?? DEFAULT_REFRESH_MS;
   const { data, error, mutate } = useSWR<NeedsActionItem[]>(
@@ -197,6 +367,14 @@ function KindGroupContainer({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, projectId, def.kind, snoozeTick]);
+
+  useEffect(() => {
+    onSnapshot(def.kind, {
+      count: visibleItems.length,
+      loading: !data && !error,
+      error: Boolean(error),
+    });
+  }, [data, def.kind, error, onSnapshot, visibleItems.length]);
 
   const handleSelect = useCallback(
     (item: NeedsActionItem) => {
@@ -228,6 +406,10 @@ function KindGroupContainer({
     },
     [onSnoozeTick, onItemRemoved],
   );
+
+  if (!renderGroup) {
+    return null;
+  }
 
   if (error) {
     return (

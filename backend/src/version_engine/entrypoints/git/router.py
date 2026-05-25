@@ -54,11 +54,11 @@ async def resolve_git_access_point(access_key: str, request: Request) -> tuple[s
             status_code=401,
             detail="User identity mismatch: key is bound to a different user",
         )
-    enforce_channel_pause(
-        auth,
-        request.headers.get("x-puppy-client"),
-        log_prefix="[GitAP]",
-    )
+    # Native Git clients do not reliably send custom headers, but this
+    # endpoint is itself the Git Remote surface. Infer the built-in
+    # filesystem connector channel from the route instead of trusting
+    # X-Puppy-Client.
+    enforce_channel_pause(auth, "filesystem", log_prefix="[GitAP]")
     return project_id, auth
 
 

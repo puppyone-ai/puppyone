@@ -56,7 +56,7 @@ import {
 } from '../lib/constants';
 import { getApiBase, profileSlug, timeAgo } from '../lib/format';
 import { CopyIcon, ProviderIcon, RetryIcon } from './icons';
-import { SectionLabel } from './ui-blocks';
+import { CommandBlock, NoAccessKeyNotice, SectionLabel } from './ui-blocks';
 import { ConnectorDetailBody } from './ConnectorCard';
 import { ConnectorAccessPanel } from './quick-connect';
 // We deliberately reuse the existing ScopeSettingsBlock from /data —
@@ -1075,6 +1075,11 @@ function maskAccessKey(accessKey: string): string {
   return `${prefix}_••••••••${suffix}`;
 }
 
+function formatScopePath(scope: RepoScope): string {
+  if (scope.is_root || !scope.path) return '/';
+  return `/${scope.path}`;
+}
+
 function SettingsHeaderButton({
   active,
   dirty,
@@ -1804,12 +1809,18 @@ function ConnectorConnectDialog({
   const tile = getProviderTileStyle(connector.provider, false);
   const tileSize = getProviderTileSize(connector.provider);
   const iconSize = getProviderIconSize(connector.provider);
+  const isGitRemote = connector.provider === 'filesystem';
 
   return (
     <DialogRoot onClose={onClose}>
       <DialogSurface width={680} maxHeight='min(760px, calc(100vh - 32px))'>
         <DialogHeader
-          title={`Connect ${name}`}
+          title={isGitRemote ? 'Git commands' : `Connect ${name}`}
+          description={
+            isGitRemote
+              ? `${scope ? formatScopePath(scope) : 'Scope'} · terminal setup`
+              : undefined
+          }
           onClose={onClose}
           style={{ padding: '14px 20px 4px' }}
           leading={
@@ -1832,13 +1843,112 @@ function ConnectorConnectDialog({
           }
         />
         <DialogBody style={{ padding: '4px 20px 20px' }}>
-          <ConnectorAccessPanel
-            connector={connector}
-            scope={scope}
-          />
+          {isGitRemote ? (
+            <GitManualCommandsPanel scope={scope} />
+          ) : (
+            <ConnectorAccessPanel
+              connector={connector}
+              scope={scope}
+            />
+          )}
         </DialogBody>
       </DialogSurface>
     </DialogRoot>
+  );
+}
+
+function GitManualCommandsPanel({
+  scope,
+}: {
+  readonly scope: RepoScope | undefined;
+}) {
+  const steps = useMemo(() => {
+    if (!scope) return [];
+    const scopeName = scope.name || (scope.path === '' ? 'root' : scope.path || 'Root');
+    const gitUrl = `${getApiBase()}/git/ap/${scope.access_key || '<access-key>'}.git`;
+    const guide = buildGitSyncPrompt({
+      gitUrl,
+      scopeName,
+      directoryName: scopeName,
+    });
+    return [
+      { title: 'Clone into a folder', lines: guide.cloneLines },
+      { title: 'Connect an existing folder', lines: guide.existingFolderLines },
+      { title: 'Daily workflow', lines: guide.workflowLines },
+    ];
+  }, [scope]);
+
+  if (!scope) {
+    return (
+      <div style={{ color: T.text3, fontSize: 12, lineHeight: '18px', fontFamily: T.fontSans }}>
+        Select a scope before using Git commands.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {!scope.access_key ? <NoAccessKeyNotice /> : null}
+      <div
+        style={{
+          color: T.text2,
+          fontSize: 12,
+          lineHeight: '18px',
+          fontFamily: T.fontSans,
+        }}
+      >
+        Run one of these command groups in Terminal. This remote is bound to {formatScopePath(scope)}.
+      </div>
+      <ManualCommandSteps steps={steps} />
+    </div>
+  );
+}
+
+function ManualCommandSteps({
+  steps,
+}: {
+  readonly steps: ReadonlyArray<{ title: string; lines: readonly string[] }>;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {steps.map((step, index) => (
+        <div key={step.title} style={{ display: 'flex', gap: 10 }}>
+          <span
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: 999,
+              background: 'var(--po-border-subtle)',
+              color: T.text2,
+              fontSize: 10,
+              fontWeight: 600,
+              fontFamily: T.fontSans,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginTop: 1,
+            }}
+          >
+            {index + 1}
+          </span>
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span
+              style={{
+                color: T.text1,
+                fontSize: 12,
+                lineHeight: '18px',
+                fontWeight: 600,
+                fontFamily: T.fontSans,
+              }}
+            >
+              {step.title}
+            </span>
+            <CommandBlock lines={step.lines} />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -257,11 +257,9 @@ function getMethodProviderTile(provider: string, active: boolean) {
  *
  * Optimistic UI contract: the parent flips `active` immediately on
  * click — the actual pause / resume API call runs fire-and-forget in
- * the background. The `pending` prop only deduplicates concurrent
- * requests (it blocks a second click while the first is in flight)
- * — it does NOT visually disable the switch. Visually disabling it
- * would defeat the point of optimistic UI: to the user the action
- * already succeeded the moment the thumb slid across.
+ * the background. The `pending` prop deduplicates concurrent requests
+ * and replaces the switch visual with the product's official compact
+ * loading animation while the server catches up.
  *
  * Note on event propagation: the parent header is now a plain <div>
  * (not a <button>), so click bubbling no longer triggers a card-level
@@ -285,8 +283,8 @@ function MethodToggle({
       as="span"
       checked={active}
       pending={pending}
-      ariaLabel={label}
-      title={label}
+      ariaLabel={pending ? 'Saving connector state' : label}
+      title={pending ? 'Saving' : label}
       size="sm"
       stopPropagation
       onCheckedChange={onClick}
